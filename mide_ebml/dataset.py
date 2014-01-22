@@ -31,6 +31,7 @@ import sys
 
 from ebml.schema.mide import MideDocument
 
+from calibration import Transform
 from parsers import getParserTypes, getParserRanges
 
 #===============================================================================
@@ -54,28 +55,6 @@ Event = namedtuple("Event", ('index','time','value'))
 #===============================================================================
 # Calibration
 #===============================================================================
-
-class Transform(object):
-    """ A function-like object representing any processing that an event
-        requires, including basic calibration at the low level and 
-        adjustments for display at the high level.
-    """
-    modifiesTime = False
-    modifiesValue = False
-    
-    def __init__(self, *args, **kwargs):
-        pass
-    
-    def __call__(self,  event, session=None):
-        if session is None:
-            return event
-        return event[0] + session.startTime, event[1]
-
-    @classmethod
-    def null(cls, *args, **kwargs):
-        return args[0]
-
-
 
 #===============================================================================
 # 

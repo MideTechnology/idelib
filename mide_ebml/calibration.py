@@ -1,22 +1,84 @@
 '''
+Calibration and Transform classes. These are callable objects that modify
+data. Functionally, calibration is the same as a Transform, the difference
+being in how they are used.
+
 Created on Nov 27, 2013
 
 @author: dstokes
 '''
 
-__all__ = ['Univariate', 'Bivariate']
+# __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
+#            'Univariate', 'Bivariate']
+
+#===============================================================================
+# 
+#===============================================================================
+
+class Transform(object):
+    """ A function-like object representing any processing that an event
+        requires, including basic calibration at the low level and 
+        adjustments for display at the high level.
+    """
+    modifiesTime = False
+    modifiesValue = False
+    
+    def __init__(self, *args, **kwargs):
+        pass
+    
+    def __call__(self,  event, session=None):
+        if session is None:
+            return event
+        return event[0] + session.startTime, event[1]
+
+    @classmethod
+    def null(cls, *args, **kwargs):
+        return args[0]
+
+
+#===============================================================================
+# Simple Transforms. These could be represented by Univariate polynomials,
+# but are hard-coded for efficiency's sake.
+#===============================================================================
+
+class AccelTransform(Transform):
+    """ A simple transform to convert accelerometer values (recorded as
+        uint16) to floats in the range -100 to 100 G.
+        
+        Do not use if using already `AccelerometerParser` to parse the 
+        channel.
+    """
+    modifiesValue = True
+    def __call__(self, event, session=None):
+        return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
+
+
+class AccelTransform10G(Transform):
+    """ A simple transform to convert accelerometer values (recorded as
+        uint16) to floats in the range -10 to 10 G.
+        
+        Do not use if using already `AccelerometerParser` to parse the 
+        channel.
+    """
+    modifiesValue = True
+    def __call__(self, event, session=None):
+        return event[:-1] + ((event[-1] * 20.0) / 65535 - 10,)
+
+
 
 #===============================================================================
 # Polynomial Generators
 #===============================================================================
 
-class Univariate(object):
+class Univariate(Transform):
     """ A simple calibration polynomial in the general form:
         `y=(coeffs[0]*(x**n))+(coeffs[1]*(x**n-1))+...+(coeffs[n]+(x**0))`.
         
-        Instances are function-like objects that take one argument.
+        Instances are function-like objects that take one argument: a sensor
+        reading.
     """
-    
+    modifiesValue = True
+
     def _floatOrInt(self, v):
         " Helper method to convert floats with no decimal component to ints. "
         iv = int(v)
@@ -36,9 +98,8 @@ class Univariate(object):
             result = result.replace(old, new)
         return result
     
-    def __init__(self, coeffs, reference=0, varName="x"):
+    def __init__(self, coeffs, dataset=None, reference=0, varName="x"):
         """ Construct a simple polynomial function from a set of coefficients.
-            Returns a single-argument function.
             
             @param coeffs: A list of coefficients
             @keyword references: A reference value to be subtracted from the
@@ -46,6 +107,7 @@ class Univariate(object):
             @keyword varName: The name of the variable to be used in the
                 string version of the polynomial. For display purposes.
         """
+        self.dataset = dataset
         varName = str(varName)
         srcVarName = "x"
         self._coeffs = tuple(coeffs)
@@ -90,6 +152,7 @@ class Univariate(object):
             self._source ="%s+0.0" % self._source
         self._source = self._fixSums(self._source)
         self._function = eval(self._source)
+    
     
     @property
     def coefficients(self):
@@ -139,12 +202,14 @@ class Univariate(object):
 class Bivariate(Univariate):
     """ A two-variable polynomial in the general form
         `v=(A*x*y)+(B*x)+(C*y)+D`.
+        
+        Instances are function-like objects that take one argument: a sensor
+        reading time and value.
     """
     
-    def __init__(self, coeffs, channel=None, subchannel=None, reference=0,
-                 reference2=0, varNames="xy", calId=None):
-        """ Construct a two-variable polynomial.
-            Returns a single-argument function.
+    def __init__(self, coeffs, dataset=None, channelId=None, subchannelId=None, 
+                 reference=0, reference2=0, varNames="xy", calId=None):
+        """ Construct the two-variable polynomial.
             
             @param coeffs: A list of coefficients. Must contain 4!
             @keyword references: A reference value to be subtracted from the
@@ -153,10 +218,12 @@ class Bivariate(Univariate):
                 string version of the polynomial. For display purposes; they
                 can be any arbitrary (but hopefully meaningful) strings.
         """
-        self.channel, self.subchannel = channel, subchannel
-        if channel is None or subchannel is None:
+        self._eventlist = None
+        self._sessionId = None
+        self.channelId, self.subchannelId = channelId, subchannelId
+        if channelId is None or subchannelId is None:
             raise ValueError("Bivariate polynomial requires channel and " \
-                             "subchannel IDs; got %r, %d" % (channel, subchannel))
+                         "subchannel IDs; got %r, %d" % (channelId, subchannelId))
         
         if len(coeffs) != 4:
             raise ValueError("Bivariate polynomial must have exactly 4 "
@@ -214,13 +281,19 @@ class Bivariate(Univariate):
         
             @param event: The event to process (a time/value tuple or a
                 `Dataset.Event` named tuple).
-            @keyword session: The session containing the event. Not used in
-                this transform.
+            @keyword session: The session containing the event.
         """
-        if self.source is None:
+        session = self.dataset.lastSession if session is None else session
+        sessionId = None if session is None else session.sessionId
+        
+        if self.channelId is None:
             raise ValueError("Bivariate had no source channel/subchannel")
         
-        channel = session.dataset.channels[self.source[0]][self.source[1]]
+        if self._eventlist is None or self._sessionId != sessionId:
+            channel = self.dataset.channels[self.channelId][self.subchannelId]
+            self._eventlist = channel.getSession(session.sessionId)
+            self._sessionId = session.sessionId
+            
         x = event[-1]
-        y = channel.getSession(session.sessionId).getValueAt(event[-2])
+        y = self._eventlist.getValueAt(event[-2])
         return self._function(x,y)

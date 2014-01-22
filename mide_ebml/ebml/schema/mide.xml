@@ -180,7 +180,9 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="BivariateSubChannelIDRef" level="2" id="0x4B07" type="uinteger" mandatory="0" multiple="0" minver="1">SubChannel ID of the subchannel to be used as the 2nd parameter for bivariate compensation</element>
 			<element name="PolynomialCoef" level="2" id="0x4B08" type="float" mandatory="0" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</element>			
 
-
+		<element name="CalibrationDate" level="1" id="0x4B20" type="uinteger" mandatory="0" multiple="1" minver="1">Date of factory calibration, in UTC seconds</element>
+		<element name="CalibrationExpiry" level="1" id="0x4B21" type="uinteger" mandatory="0" multiple="1" minver="1">Date of factory calibration expiration, in UTC seconds</element>
+		<element name="CalibrationFacilityID" level="1" id="0x4B21" type="uinteger" mandatory="0" multiple="1" minver="1">Facility / test fixture where the calibration was performed. 0 = Mide Medford, 1 = Mide Woburn, ...</element>
 
   <!-- Elements of a configuration file -->
     <!-- This is stuck into the main schema for convenience, but really it has no relation. If the configfile were to be attached to a recording as metadata, it would be as a binary blob - the 'Level's need not be consistent with the recording file. -->
@@ -189,7 +191,8 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="SampleFreq" level="2" id="0x4310" type="uinteger" mandatory="0" multiple="0" minver="1">Sampling frequency for the high speed channel(s) in Hz.</element>
 			<element name="AAFilterCornerFreq" level="2" id="0x4311" type="uinteger" mandatory="0" multiple="0" minver="1">Antialias filter corner frequency for the high speed channel(s) in Hz. Omit to let the device choose based on the sampling rate. Enter 0 to disable (bypass) AA filter. (Beware: diagnostic usage only; calibration will be invalid in this state.)</element>
 			<element name="OSR" level="2" id="0x4312" type="uinteger" mandatory="0" multiple="0" minver="1">Oversampling ratio. Allowed values are 1 or power-of-2 integer in the range from 16 to 4096. Omit to let the device choose based on the sampling rate.</element>
-
+			<element name="UTCOffset" level="2" id="0x4313" type="integer" mandatory="0" multiple="0" minver="1">UTC offset in seconds. May be used for entering local timezone offset. Sign follows the normal convention for specifying timezone offsets, e.g. "UTC-5" (-5*3600) to display the local time as 5 hours earlier than UTC. This value is only used to convert the internal UTC time to local time to generate the FAT16/32 file timestamp, which is expected to be in local time (sans any DST offset, which is added by the host system). If the device clock is directly set in local time for any reason, this field should be 0.</element>
+			
 	    <element name="SSXTriggerConfiguration" level="1" id="0x4340" type="master" mandatory="0" multiple="0" minver="1">Master element for SSX trigger configuration.</element>
 			<element name="WakeTimeUTC" level="2" id="0x4350" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute, calendar time in UTC at which to arm/start the recorder. WakeTimeUTC and PreRecordDelay are mutually exclusive.</element>
 			<element name="PreRecordDelay" level="2" id="0x4351" type="uinteger" mandatory="0" multiple="0" minver="1">Delay in seconds before the start of recording (or trigger arming). WakeTimeUTC and PreRecordDelay are mutually exclusive.</element>

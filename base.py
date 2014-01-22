@@ -181,9 +181,6 @@ class MenuMixin(object):
         item.Enable(enabled)
         if handler is not None:
             self.Bind(wx.EVT_MENU, handler, item)
-        if not hasattr(self, 'menuItems'):
-            self.menuItems = {}
-        self.menuItems[id_] = item
         return item
 
 

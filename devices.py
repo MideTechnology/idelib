@@ -24,7 +24,7 @@ INFO_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVINFO")
 CLOCK_FILE = os.path.join(SYSTEM_PATH, "DEV", "CLOCK")
 CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
 
-timeParser = struct.Struct("Q")
+timeParser = struct.Struct("<L")
 
 #===============================================================================
 # 
@@ -67,7 +67,7 @@ def isRecorder(dev):
         return False
     
 
-def getRecorderInfo(dev):
+def getRecorderInfo(dev, default=None):
     """ Retrieve a recorder's device information.
     
         @param dev: The path to the recording device.
@@ -88,10 +88,10 @@ def getRecorderInfo(dev):
                 return info
         except IOError:
             pass
-    return False
+    return default
 
 
-def getRecorderConfig(dev):
+def getRecorderConfig(dev, default=None):
     """ Retrieve a recorder's device information.
     
         @param dev: The path to the recording device.
@@ -105,11 +105,21 @@ def getRecorderConfig(dev):
             return devinfo.get('RecorderConfiguration', '')
         except IOError:
             pass
-    return False
+    return default
 
-    
 
-def getDeviceTime(dev, parser=timeParser):
+def setRecorderConfig(dev, data):
+    """
+    """
+    ebml = util.build_ebml("RecorderConfiguration", data)
+    if not util.verify(ebml):
+        raise ValueError("Generated config EBML could not be verified")
+    with open(os.path.join(dev, CONFIG_FILE), 'wb') as f:
+        f.write(ebml)
+    return len(ebml)
+
+
+def getDeviceTime(dev):
     """ Read the date/time from the device. 
     
         @note: This is currently unreliable under Windows due to its caching
@@ -121,10 +131,10 @@ def getDeviceTime(dev, parser=timeParser):
     f = open(os.path.join(dev,CLOCK_FILE), 'rb', 0)
     t = f.read(8)
     f.close()
-    return parser.unpack_from(t)
+    return timeParser.unpack_from(t)
 
 
-def setDeviceTime(dev, t=None, parser=timeParser):
+def setDeviceTime(dev, t=None):
     """ Set a recorder's date/time. A variety of standard time types are
         accepted.
     
@@ -144,7 +154,7 @@ def setDeviceTime(dev, t=None, parser=timeParser):
         t = int(t)
         
     with open(os.path.join(dev,CLOCK_FILE),'rb') as f:
-        f.write(parser.pack(t))
+        f.write(timeParser.pack(t))
     return t
     
 #===============================================================================
@@ -202,9 +212,14 @@ def win_getDriveInfo(dev):
 win_last_devices = 0
 win_last_recorders = None
 
-def win_deviceChanged(recordersOnly=False):
+def win_deviceChanged(recordersOnly=True):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
+        
+        @keyword recordersOnly: If `False`, any change to the mounted drives
+            is reported as a change. If `True`, the mounted drives are checked
+            and `True` is only returned if the change occurred to a recorder.
+            Checking for recorders only takes marginally more time.
     """
     global win_last_devices, win_last_recorders
     newDevices = kernel32.GetLogicalDrives()
@@ -232,7 +247,7 @@ def getDevices():
     raise NotImplementedError("Only windows version currently implemented!")
 
 
-def deviceChanged():
+def deviceChanged(recordersOnly=True):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
     """

@@ -20,6 +20,7 @@ import struct
 import sys
 import time
 
+from calibration import AccelTransform, AccelTransform10G
 from dataset import Dataset, Transform
 import parsers
 
@@ -45,15 +46,6 @@ elementParserTypes = parsers.getElementHandlers()
 # testFile = r"P:\WVR_RIF\06_Testing_Calibration\06_Thermal_Tests\02_Test_to_-20C\Slamstick_Data\VIB00015.IDE"
 testFile = "C:\\Users\\dstokes\\workspace\\wvr\\test_files\\VIB00014.IDE"
 
-class AccelTransform(Transform):
-    """ A simple transform to convert accelerometer values (recorded as
-        uint16) to floats in the range -100 to 100 G.
-        
-        Do not use if using already `AccelerometerParser` to parse the 
-        channel.
-    """
-    def __call__(self, event, channel=None, session=None):
-        return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
 
 # from parsers import AccelerometerParser
 
@@ -85,7 +77,7 @@ default_sensors = {
                        "parser": parsers.MPL3115PressureTempParser(),
                        "subchannels": {0: {"name": "Pressure", 
                                            "units":('kPa','kPa'),
-                                           "displayRange": (0.0,120.0),
+                                           "displayRange": (0.0,120000.0),
                                            },
                                        1: {"name": "Temperature", 
                                            "units":(u'\xb0C',u'\xb0C'),
@@ -111,19 +103,19 @@ def createDefaultSensors(doc, sensors=default_sensors):
     """
     for sensorId, sensorInfo in sensors.iteritems():
         sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
-        for channelId, channelInfo in sensorInfo['channels'].iteritems():
-            channel = sensor.addChannel(channelId, channelInfo['parser'],
-                                        name=channelInfo.get('name',None),
-                                        transform=channelInfo.get('transform',None))
-            if 'subchannels' not in channelInfo:
+        for chId, chInfo in sensorInfo['channels'].iteritems():
+            channel = sensor.addChannel(chId, chInfo['parser'],
+                                        name=chInfo.get('name',None),
+                                        transform=chInfo.get('transform',None))
+            if 'subchannels' not in chInfo:
                 continue
-            for subChId, subChInfo in channelInfo['subchannels'].iteritems():
+            for subChId, subChInfo in chInfo['subchannels'].iteritems():
                 channel.addSubChannel(subChId, **subChInfo)
     
 
 
 #===============================================================================
-# Updaters
+# Updater callbacks
 #===============================================================================
 
 def nullUpdater(*args, **kwargs):
@@ -175,7 +167,6 @@ class SimpleUpdater(object):
                 else:
                     sys.stdout.write(' '*25)
             sys.stdout.flush()
-
     
 
 #===============================================================================

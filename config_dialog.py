@@ -1,4 +1,8 @@
 '''
+The UI for configuring a recorder. Ultimately, the set of tabs will be
+determined by the recorder type, and will feature tabs specific to that 
+recorder. Since there's only the two SSX variants, this is not urgent.
+
 Created on Dec 16, 2013
 
 @author: dstokes
@@ -12,8 +16,23 @@ import wx.lib.sized_controls as sc
 import wx.lib.masked as mc
 import wx; wx = wx
 
-from common import time2int
+from common import datetime2int, DateTimeCtrl
+import devices
 from mide_ebml import util
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def strOrNone(val):
+    try:
+        val = unicode(val).strip()
+        if val == u'':
+            return None
+    except ValueError:
+        return None
+    return val
 
 #===============================================================================
 # 
@@ -27,7 +46,16 @@ class BaseConfigPanel(sc.SizedPanel):
 
     def addField(self, labelText, name=None, fieldText="", fieldSize=None, 
                  fieldStyle=None, tooltip=None):
-        """ Helper method to create and configure a labeled text field. 
+        """ Helper method to create and configure a labeled text field and
+            add it to the set of controls. 
+            
+            @param labelText: The text proceeding the field.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword fieldText: The default field text.
+            @keyword fieldSize: The size of the text field
+            @keyword fieldStyle: The text field's wxWindows style flags.
+            @keyword tooltip: A tooltip string for the field.
         """
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
         txt = unicode(fieldText)
@@ -44,6 +72,7 @@ class BaseConfigPanel(sc.SizedPanel):
         if self.fieldSize is None:
             self.fieldSize = t.GetSize()
         
+        self.controls[t] = [t]
         if name is not None:
             self.fieldMap[name] = t
             
@@ -53,6 +82,11 @@ class BaseConfigPanel(sc.SizedPanel):
     def addCheck(self, checkText, name=None, tooltip=None):
         """ Helper method to create a single checkbox and add it to the set of
             controls. 
+
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword tooltip: A tooltip string for the field.
         """
         c = wx.CheckBox(self, -1, checkText)
         if name is not None:
@@ -68,6 +102,14 @@ class BaseConfigPanel(sc.SizedPanel):
                       fieldStyle=None, tooltip=None):
         """ Helper method to create and configure checkbox/field pairs, and add
             them to the set of controls.
+
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword fieldText: The default field text.
+            @keyword fieldSize: The size of the text field
+            @keyword fieldStyle: The text field's wxWindows style flags.
+            @keyword tooltip: A tooltip string for the field.
         """
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
         txt = unicode(fieldText)
@@ -89,12 +131,55 @@ class BaseConfigPanel(sc.SizedPanel):
         if name is not None:
             self.fieldMap[name] = c
             
-        return c, t
+        return c
 
 
-    def addTimeField(self, checkText, name=None, value=None, tooltip=None):
+    def addChoiceField(self, checkText, name=None, choices=[], fieldSize=None, 
+                      fieldStyle=None, tooltip=None):
+        """ Helper method to create and configure checkbox/list pairs, and add
+            them to the set of controls.
+ 
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword choices: The items in the drop-down list.
+            @keyword fieldSize: The size of the text field
+            @keyword fieldStyle: The text field's wxWindows style flags.
+            @keyword tooltip: A tooltip string for the field.
+       """
+        fieldSize = self.fieldSize if fieldSize is None else fieldSize
+        choices = map(str, choices)
+
+        c = wx.CheckBox(self, -1, checkText)
+        c.SetSizerProps(valign="center")
+        if fieldStyle is None:
+            field = wx.Choice(self, -1, size=fieldSize, choices=choices)
+        else:
+            field = wx.Choice(self, -1, size=fieldSize, choices=choices,
+                               style=fieldStyle)
+        self.controls[c] = [field]
+        
+        if tooltip is not None:
+            c.SetToolTipString(unicode(tooltip))
+            field.SetToolTipString(unicode(tooltip))
+        
+        if fieldSize == (-1,-1):
+            self.fieldSize = field.GetSize()
+        
+        if name is not None:
+            self.fieldMap[name] = c
+            
+        return c
+
+
+    def addTimeField(self, checkText, name=None, tooltip=None):
         """ Helper method to create a checkbox and a time-entry field pair, and
             add them to the set of controls.
+ 
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword tooltip: A tooltip string for the field.
         """ 
         check = wx.CheckBox(self, -1, checkText)
         check.SetSizerProps(valign='center')
@@ -112,9 +197,60 @@ class BaseConfigPanel(sc.SizedPanel):
         if name is not None:
             self.fieldMap[name] = ctrl
 
-        return check, ctrl
-    
-    
+        return check
+
+
+    def old_addDateTimeField(self, checkText, name=None, tooltip=None):
+        """ Helper method to create a checkbox and a time-entry field pair, and
+            add them to the set of controls.
+ 
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword tooltip: A tooltip string for the field.
+        """ 
+        check = wx.CheckBox(self, -1, checkText)
+        check.SetSizerProps(valign='center')
+        timePane = sc.SizedPanel(self, -1)
+        timePane.SetSizerType("horizontal")
+        dateCtrl = wx.DatePickerCtrl(timePane, style=wx.DP_DROPDOWN)
+        ctrl = mc.TimeCtrl(timePane, -1, fmt24hr=True)
+        timeSpin = wx.SpinButton(timePane, -1, size=(-1,self.fieldSize.height), 
+                                 style=wx.SP_VERTICAL)
+        ctrl.BindSpinButton(timeSpin)
+        if tooltip is not None:
+            check.SetToolTipString(unicode(tooltip))
+
+        self.controls[check] = [dateCtrl, ctrl, timeSpin]
+        
+        if name is not None:
+            self.fieldMap[name] = check
+
+        return check#, dateCtrl #ctrl
+        
+
+    def addDateTimeField(self, checkText, name=None, tooltip=None):
+        """ Helper method to create a checkbox and a time-entry field pair, and
+            add them to the set of controls.
+ 
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword tooltip: A tooltip string for the field.
+        """ 
+        check = wx.CheckBox(self, -1, checkText)
+        check.SetSizerProps(valign='center')
+        ctrl =  DateTimeCtrl(self, -1, size=self.fieldSize)
+        ctrl.SetSize(self.fieldSize)
+        self.controls[check] = [ctrl]
+        ctrl.SetSizerProps(expand=True)
+        
+        if name is not None:
+            self.fieldMap[name] = check
+
+        return check#, ctrl #ctrl
+        
+
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard dialog arguments, plus:
         
@@ -122,22 +258,23 @@ class BaseConfigPanel(sc.SizedPanel):
             @keyword data: A dictionary of values read from the device.
         """
         self.root = kwargs.pop('root', None)
-        self.data = kwargs.pop('data', {})
         super(BaseConfigPanel, self).__init__(*args, **kwargs)
         
         self.fieldSize = (-1,-1)
         self.SetSizerType("form", {'hgap':10, 'vgap':10})
         
+        self.data = None
         # controls: fields keyed by their corresponding checkbox.
         self.controls = {}
         
         # fieldMap: All fields keyed by their corresponding key in the data.
-        self.fieldMap = {}
+        self.fieldMap = OrderedDict()
         
+        self.getDeviceData()
         self.buildUI()
         self.initUI()
         self.Bind(wx.EVT_CHECKBOX, self.OnCheckChanged)
-
+        
 
     def buildUI(self):
         """ Create the UI elements within the page. Every subclass should
@@ -146,21 +283,42 @@ class BaseConfigPanel(sc.SizedPanel):
         pass
 
 
+    def getDeviceData(self):
+        pass 
+
+
     def initUI(self):
         """ Do any setup work on the page. Most subclasses should override
             this.
         """
+#         print "initUi", self.__class__.__name__
+        if self.data:
+            for k,v in self.data.iteritems():
+                c = self.fieldMap.get(k, None)
+                if c is None:
+                    continue
+                self.setField(c, v)
+                
         for c in self.controls:
-            self.enableAll(c)
+            self.enableField(c)
 
 
-    def enableAll(self, checkbox, state=True):
+    def enableField(self, checkbox, state=True):
         """ Enable (or disable) all the other controls associated with a
             checkbox.
         """
+        if isinstance(checkbox, wx.CheckBox):
+            state = checkbox.GetValue()
         for c in self.controls[checkbox]:
-            c.Enable(checkbox.GetValue())
-        
+            if c is not None:
+                c.Enable(state)
+       
+            
+    def enableAll(self):
+        """ Update all fields if the corresponding checkbox is checked.
+        """
+        map(self.enableField, self.controls.keys())
+    
 
     def parseTime(self, timeStr):
         """ Turn a string containing a length of time as S.s, M:S.s, or H:M:S.s
@@ -179,141 +337,145 @@ class BaseConfigPanel(sc.SizedPanel):
         return total
 
 
-    def setCheckField(self, checkbox, value):
+    def setField(self, checkbox, value):
         """ Check a checkbox and set its associated field.
         """
-        checkbox.SetValue(True)
+        if value is None:
+            return
+        
+        if isinstance(checkbox, wx.CheckBox):
+            checkbox.SetValue(True)
+            
         if checkbox in self.controls and self.controls[checkbox]:
             field = self.controls[checkbox][0]
             if field is None:
                 return
-            if isinstance(field, wx.TextCtrl):
+            elif isinstance(field, wx.TextCtrl):
                 value = str(value)
+            elif isinstance(field, DateTimeCtrl):
+                value = wx.DateTimeFromTimeT(float(value))
+            elif isinstance(field, wx.Choice):
+                strv = unicode(value)
+                choices = field.GetItems()
+                if strv in choices:
+                    field.Select(choices.index(strv))
+                else:
+                    field.Select(len(choices)/2)
+                return
+            
             field.SetValue(value)
-        
-        self.controls[checkbox][0].SetValue(value)
     
 
     def OnCheckChanged(self, evt):
         cb = evt.EventObject
         if cb in self.controls:
-            self.enableAll(cb)
+            self.enableField(cb)
 
 
-    def addVal(self, check, trig, name, kind=int):
+    def addVal(self, control, trig, name, kind=int):
         """ Helper method to add a field's value to a dictionary if its
             corresponding checkbox is checked. For exporting EBML.
          """
-        if check not in self.controls:
+        if control not in self.controls:
             return
         
-        if check.GetValue() and check.Enabled:
-            field = self.controls[check][0]
-            if isinstance(field, wx.Choice):
-                val = field.GetStrings()[field.GetCurrentSelection()]
+        if isinstance(control, wx.CheckBox):
+            checked = control.GetValue() and control.Enabled
+        else:
+            checked = control.Enabled
+        if checked:
+            fields = self.controls[control]
+            if isinstance(fields[0], wx.Choice):
+                val = fields[0].GetStrings()[fields[0].GetCurrentSelection()]
+            elif isinstance(fields[0], DateTimeCtrl):
+                val = datetime2int(fields[0].GetValue())
+            elif fields[0] is None:
+                val = 1
             else:
-                val = field.GetValue()
+                val = fields[0].GetValue()
+                
+            if val is None:
+                return
+            
             try:
                 val = kind(val)
                 if val is not None:
                     trig[name] = val
             except ValueError:
-                pass
+                trig[name] = val
         
 
 #===============================================================================
 # 
 #===============================================================================
 
-class TriggerConfigPanel(BaseConfigPanel):
+class SSXTriggerConfigPanel(BaseConfigPanel):
     """ A configuration dialog page with miscellaneous editable recorder
         properties.
     """
 
+    def getDeviceData(self):
+        self.data = self.root.deviceConfig.get('SSXTriggerConfiguration', {})
+
+
     def buildUI(self):
-        self.delayCheck, self.delayField = self.addCheckField(
+        self.delayCheck = self.addCheckField(
             "Wake After Delay:", "PreRecordDelay")
 
-        self.wakeCheck, self.wakeTimeField = self.addTimeField(
+        self.wakeCheck = self.addDateTimeField(
             "Wake at specific time:", "WakeTimeUTC")
         
-        self.triggerDelayCheck, self.triggerDelayField = self.addCheckField(
-            "Delay Trigger Activation:", "PreRecordingDelay",
-            tooltip="Enable event-based triggers after a given number of seconds")
-        
-        self.timeCheck, self.timeField = self.addCheckField(
+        self.timeCheck = self.addCheckField(
             "Limit recording time to:", "RecordingTime")
         
         self.rearmCheck = self.addCheck("Re-triggerable", "AutoRearm")
         self.controls[self.timeCheck].append(self.rearmCheck)
         
-        self.accelCheck, self.accelField = \
-            self.addCheckField("Accelerometer Trigger (High):")
-        self.pressLoCheck, self.pressLoField = \
-            self.addCheckField("Pressure Trigger (Low)")
-        self.pressHiCheck, self.pressHiField = \
-            self.addCheckField("Pressure Trigger (High)")
-        self.tempLoCheck, self.tempLoField = \
-            self.addCheckField("Temperature Trigger (Low)")
-        self.tempHiCheck, self.tempHiField = \
-            self.addCheckField("Temperature Trigger (High)")
-
-#         self.Bind(wx.EVT_DATE_CHANGED, self.OnDateChanged, self.wakeDateField)
-        print self.timeField.GetValue()
-
-
-    def OnDateChanged(self, evt):
-        evt.Skip()
+        self.accelLoCheck = self.addCheckField("Accelerometer Trigger (Low):")
+        self.accelHiCheck = self.addCheckField("Accelerometer Trigger (High):")
+        self.pressLoCheck = self.addCheckField("Pressure Trigger (Low):")
+        self.pressHiCheck = self.addCheckField("Pressure Trigger (High):")
+        self.tempLoCheck = self.addCheckField("Temperature Trigger (Low):")
+        self.tempHiCheck = self.addCheckField("Temperature Trigger (High):")
 
 
     def OnCheckChanged(self, evt):
         cb = evt.EventObject
         if cb in self.controls:
-            self.enableAll(cb)
+            self.enableField(cb)
             if cb == self.delayCheck or cb == self.wakeCheck:
                 if cb == self.wakeCheck:
                     other = self.delayCheck
                 else:
                     other = self.wakeCheck
                 other.SetValue(False)
-                self.enableAll(other)
+                self.enableField(other)
 
 
     def initUI(self):
         """
         """
-        if not self.data:
-            return
+        super(SSXTriggerConfigPanel, self).initUI()
         
-        for k,v in self.data.iteritems():
-            if k == "AutoRearm":
-                self.rearmCheck.SetValue(v != 0)
-            else:
-                self.setCheckField(k, v)
-                
-            if k == "WakeTimeUTC":
-                self.setCheckField(self.wakeCheck, time.gmtime(v))
-            elif k == "PreRecordingDelay":
-                self.setCheckField(self.triggerDelayCheck, str(v))
-            elif k == "RecordingTime":
-                self.setCheckField(self.timeCheck, str(v))
-            elif k == "AutoRearm":
-                self.rearmCheck.SetValue(v != 0)
-                
-            elif k == "Trigger":
-                for trigger in v:
-                    channel = trigger['TriggerChannel']
-                    subchannel = trigger.get('TriggerSubChannel', None)
-                    if channel == 0:
-                        # Accelerometer
-                        pass
-                    elif channel == 1:
-                        if subchannel == 0:
-                            # Pressure
-                            pass
-                        elif subchannel == 1:
-                            # Temperature
-                            pass 
+        # Special case for the list of Triggers         
+        for trigger in self.data.get("Trigger", []):
+            channel = trigger['TriggerChannel']
+            subchannel = trigger.get('TriggerSubChannel', None)
+            low = trigger.get('TriggerWindowLow', None)
+            high = trigger.get('TriggerWindowHi', None)
+            if channel == 0:
+                self.setField(self.accelLoCheck, low)
+                self.setField(self.accelHiCheck, high)
+            elif channel == 1:
+                if subchannel == 0:
+                    # Pressure
+                    self.setField(self.pressLoCheck, low)
+                    self.setField(self.pressHiCheck, high)
+                elif subchannel == 1:
+                    # Temperature
+                    self.setField(self.tempLoCheck, low)
+                    self.setField(self.tempHiCheck, high)
+                         
         self.enableAll()
 
 
@@ -323,17 +485,14 @@ class TriggerConfigPanel(BaseConfigPanel):
         data = OrderedDict()
         triggers = []
         
-        self.addVal(self.wakeCheck, data, "WakeTimeUTC", time2int)
-        self.addVal(self.delayCheck, data, "PreRecordDelay")
-        self.addVal(self.timeCheck, data, "RecordingTime")
-        
-        if self.rearmCheck.GetValue():
-            data['AutoRearm'] = 1 if self.rearmCheck.GetValue() else 0
+        for name,control in self.fieldMap.iteritems():
+            self.addVal(control, data, name)
             
-        if self.accelCheck.GetValue():
+        if self.accelLoCheck.GetValue() or self.accelHiCheck.GetValue():
             trig = OrderedDict(TriggerChannel=0)
-            self.addVal(self.accelCheck, trig, "TriggerWindowHi")
-            if len(trig) > 1:
+            self.addVal(self.accelLoCheck, trig, "TriggerWindowLo")
+            self.addVal(self.accelHiCheck, trig, "TriggerWindowHi")
+            if len(trig) > 2:
                 triggers.append(trig)
                 
         if self.pressLoCheck.GetValue() or self.pressHiCheck.GetValue():
@@ -354,9 +513,9 @@ class TriggerConfigPanel(BaseConfigPanel):
             data['Trigger'] = triggers
         
         if data:
-            return {'SSXTriggerConfiguration': data}
+            return OrderedDict(SSXTriggerConfiguration=data)
         
-        return {}
+        return data
         
 
 #===============================================================================
@@ -369,13 +528,19 @@ class OptionsPanel(BaseConfigPanel):
     """
     
     OVERSAMPLING = map(str, [2**x for x in range(4,13)])
-    
+
+    def getDeviceData(self):
+        self.data = self.root.deviceConfig.get('SSXBasicRecorderConfiguration', 
+                                               {})
+        self.data.update(self.data.get('RecorderUserData', {}))
+
+ 
     def buildUI(self):
-        self.nameField = self.addField("Device Name:", "Slam Stick X")
+        self.nameField = self.addField("Device Name:", "RecorderName", "")
         self.nameField.SetSizerProps(expand=True)
 
         noteSize = self.nameField.GetSize()
-        self.noteField = self.addField("Device Notes:", 
+        self.noteField = self.addField("Device Notes:", "RecorderDesc",
                                        fieldSize=(noteSize[0], noteSize[1]*3),
                                        fieldStyle=wx.TE_MULTILINE)
         self.noteField.SetSizerProps(expand=True)
@@ -383,38 +548,36 @@ class OptionsPanel(BaseConfigPanel):
         wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL)
         sc.SizedPanel(self, -1) # Spacer
       
-        self.samplingCheck, self.samplingField = \
-            self.addCheckField("Sampling Rate:",)
+        self.samplingCheck = self.addCheckField("Sampling Rate:",)
         
 #         self.oversamplingCheck = wx.CheckBox(self, -1, "Oversampling")
 #         sc.SizedPanel(self, -1) # Spacer
  
-        self.osrCheck = wx.CheckBox(self, -1, "Oversampling")
-        self.osrField = wx.Choice(self, -1, size=self.samplingField.GetSize(),
-                                  choices=self.OVERSAMPLING)
-        self.osrField.Select(len(self.OVERSAMPLING)/2)
-        self.controls[self.osrCheck] = [self.osrField]
+        self.osrCheck = self.addChoiceField(
+            "Oversampling Ratio:", "OSR", self.OVERSAMPLING)
+
+        self.addCheckField("UTC Offset (hours):", "UTCOffset", 
+                           str(time.timezone/60/60))
         
         self.timeBtn = wx.Button(self, -1, "Set Device Time")
-        self.timeBtn.SetSizerProps(expand=True)
+        self.timeBtn.SetToolTipString(
+            "Set the device's clock. Happens immediate.y.")
+        self.timeBtn.SetSizerProps()
         timeFieldPane = sc.SizedPanel(self,-1)
         timeFieldPane.SetSizerType("horizontal")
-        wx.StaticText(timeFieldPane, -1, "UTC Offset:"
-                      ).SetSizerProps(valign='center')
-        self.utcOffsetField = wx.TextCtrl(timeFieldPane, -1, 
-                                          str(time.timezone / 60 / 60))
-        self.localTimeBtn = wx.Button(timeFieldPane, -1, "Get Local TZ")
-        self.localTimeBtn.SetToolTipString("Time Zone: %s" % \
-                                           time.tzname[time.daylight])
         
         self.Fit()
         
         self.timeBtn.Bind(wx.EVT_BUTTON, self.OnSetTime)
-        self.localTimeBtn.Bind(wx.EVT_BUTTON, self.OnSetTZ)
+#         self.localTimeBtn.Bind(wx.EVT_BUTTON, self.OnSetTZ)
 
 
     def OnSetTime(self, event):
-        pass
+        try:
+            devices.setDeviceTime()
+        except IOError:#, e:
+            wx.MessageBox("An error occurred when trying to access the device.",
+                          "Set Device Time", parent=self)
     
     
     def OnSetTZ(self, event):
@@ -428,17 +591,16 @@ class OptionsPanel(BaseConfigPanel):
         data = OrderedDict()
         
         ssxConfig = OrderedDict()
-        self.addVal(self.samplingCheck, ssxConfig, "SampleFreq")
-        self.addVal(self.osrCheck, ssxConfig, "OSR")
-
         userConfig = OrderedDict()
-        devName = self.nameField.GetValue().strip()
-        devDesc = self.noteField.GetValue().strip()
-        if devName:
-            userConfig['RecorderName'] = devName
-        if devDesc:
-            userConfig['RecorderDesc'] = devDesc
-            
+        
+        for name,control in self.fieldMap.iteritems():
+            print name
+            if name in ('RecorderName', 'RecorderDesc'):
+                print "add",name
+                self.addVal(control, userConfig, name, strOrNone)
+            else:
+                self.addVal(control, ssxConfig, name)
+
         if ssxConfig:
             data["SSXBasicRecorderConfiguration"] = ssxConfig
         if userConfig:
@@ -450,11 +612,15 @@ class OptionsPanel(BaseConfigPanel):
 # 
 #===============================================================================
         
-class InfoPanel(TriggerConfigPanel):
+class SSXInfoPanel(BaseConfigPanel):
     """ A configuration dialog page showing various read-only properties of
         a recorder.
     """
-    
+
+    def getDeviceData(self):
+        self.data = self.root.deviceInfo
+
+
     def buildUI(self):
         infoColor = wx.Colour(60,60,60)
         mono = wx.Font(self.GetFont().GetPointSize()+1, wx.MODERN, wx.NORMAL, 
@@ -466,7 +632,10 @@ class InfoPanel(TriggerConfigPanel):
         
         self.text = []
         
-        for k,v in self.root.recorderInfo.iteritems():
+        for k,v in self.data.iteritems():
+            if k.startswith('_'):
+                continue
+            
             if isinstance(v, int) or isinstance(v, long):
                 v = "0x%08X" % v
                 
@@ -482,6 +651,8 @@ class InfoPanel(TriggerConfigPanel):
         
         self.Fit()
 
+    def initUI(self):
+        pass
 
     def OnCopy(self, evt):
         data = wx.TextDataObject()
@@ -499,6 +670,7 @@ class InfoPanel(TriggerConfigPanel):
 
 class ConfigDialog(sc.SizedDialog):
     def __init__(self, *args, **kwargs):
+        self.devPath = kwargs.pop('device', None)
         self.root = kwargs.pop('root', None)
         kwargs.setdefault("style", 
             wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | \
@@ -506,22 +678,25 @@ class ConfigDialog(sc.SizedDialog):
         
         super(ConfigDialog, self).__init__(*args, **kwargs)
         
-        # Dummy info
-        self.recorderInfo = {"RecorderTypeUID": 0x000DEFEC,
-                             "RecorderSerial": 0xD1DAC71C,
-                             "SchemaID": 0x01,
-                             "ProductName": "Slam Stick X",
-                             "HwRev": 0x01,
-                             "FwRev": 0x01
-                             }
+        self.deviceInfo = devices.getRecorderInfo(self.devPath, {})
+        self.deviceConfig = devices.getRecorderConfig(self.devPath, {})
         
+#         triggerData = self.deviceConfig.setdefault('SSXTriggerConfiguration', {})
+#         optionsData = self.deviceConfig.setdefault('SSXBasicRecorderConfiguration', {})
+#         optionsData.update(self.deviceConfig.setdefault('RecorderUserData', {}))
+# 
+#         triggerData['AutoRearm'] = 1
+#         triggerData['WakeTimeUTC'] = 1389589291
+#         triggerData['Trigger'] = [{'TriggerChannel': 0, 'TriggerWindowHi': 42},
+#                                   {'TriggerChannel': 1, 'TriggerSubChannel':0, 'TriggerWindowHi':999, 'TriggerWindowLow': 12},
+#                                   {'TriggerChannel': 1, 'TriggerSubChannel':1,  'TriggerWindowLow': 12},
+#                                   ]
+#         
         pane = self.GetContentsPane()
-        
         self.notebook = wx.Notebook(pane, -1)
-        
-        self.triggers = TriggerConfigPanel(self.notebook, -1, root=self)
+        self.triggers = SSXTriggerConfigPanel(self.notebook, -1, root=self)
         self.options = OptionsPanel(self.notebook, -1, root=self)
-        info = InfoPanel(self.notebook, -1, root=self)
+        info = SSXInfoPanel(self.notebook, -1, root=self)
 
         self.notebook.AddPage(self.options, "General")
         self.notebook.AddPage(self.triggers, "Triggers")
@@ -537,7 +712,7 @@ class ConfigDialog(sc.SizedDialog):
         
         
     def getData(self, schema=util.DEFAULT_SCHEMA):
-        data = {}
+        data = OrderedDict()
         data.update(self.options.getData())
         data.update(self.triggers.getData())
         
@@ -551,7 +726,7 @@ class ConfigDialog(sc.SizedDialog):
 def configureRecorder(path):
     """
     """
-    dlg = ConfigDialog(None, -1, "Configure Device (%s)" % path)
+    dlg = ConfigDialog(None, -1, "Configure Device (%s)" % path, device=path)
     dlg.ShowModal()
     
     print "dlg.getData() = %r" %  dlg.getData()
@@ -564,4 +739,4 @@ def configureRecorder(path):
 
 if True or __name__ == "__main__":
     app = wx.App()
-    configureRecorder("e:\\")
+    configureRecorder("H:\\")

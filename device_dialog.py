@@ -6,19 +6,19 @@ import wx.lib.sized_controls as sc
 import wx.lib.mixins.listctrl  as  listmix
 
 # XXX: Fake 'devices' fixtures; remove later!
-import random
-
-def getDevices():
-    return ["%s:\\" % d for d in "EFGHI"]
-
-def getRecorderInfo(x):
-    return {'FwRev': 0,
-            'HwRev': 1,
-            'ProductName': 'Slam Stick X (100g)',
-            'RecorderSerial': random.randint(0x11111111, 0xffffffff),
-            'RecorderTypeUID': 1,
-            'UserDeviceName': 'My Device %s' % x.strip(':\\'),
-            '_PATH': x}
+# import random
+# 
+# def getDevices():
+#     return ["%s:\\" % d for d in "EFGHI"]
+# 
+# def getRecorderInfo(x):
+#     return {'FwRev': 0,
+#             'HwRev': 1,
+#             'ProductName': 'Slam Stick X (100g)',
+#             'RecorderSerial': random.randint(0x11111111, 0xffffffff),
+#             'RecorderTypeUID': 1,
+#             'UserDeviceName': 'My Device %s' % x.strip(':\\'),
+#             '_PATH': x}
 
 from common import hex32
 from devices import getDevices, getRecorderInfo
@@ -219,6 +219,8 @@ def selectDevice(title="Select Recorder", autoUpdate=500):
         result = dlg.getSelected()
         
     dlg.Destroy()
+    if isinstance(result, dict):
+        result = result.get('_PATH', None)
     return result
 
 

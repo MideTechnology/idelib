@@ -31,7 +31,7 @@ Created on Sep 26, 2013
 @author: dstokes
 '''
 
-from collections import Sequence
+from collections import OrderedDict, Sequence
 import struct
 import sys
 import types
@@ -43,7 +43,7 @@ from util import parse_ebml
 # 
 #===============================================================================            
     
-def renameKeys(d, renamed, exclude=True, recurse=True):
+def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False):
     """ Create a new dictionary from and old one, using different keys. Used
         primarily for converting EBML element names to function keyword
         arguments.
@@ -62,7 +62,11 @@ def renameKeys(d, renamed, exclude=True, recurse=True):
     if not isinstance(d, dict):
         return d
     
-    result = {}
+    if ordered:
+        result = OrderedDict()
+    else:
+        result = {}
+        
     for oldname,v in d.iteritems():
         if oldname not in renamed and exclude:
             continue
@@ -203,8 +207,7 @@ class MPL3115PressureTempParser(object):
 
     # The absolute min and max values. Normal struct.Struct objects get this
     # computed from their formatting string.
-    ranges = ((-(2**18)/2.0, (2**18)/2.0-1),
-              (-(2**16)/2.0, (2**16)/2.0-1))
+    ranges = ((0.0,120000.0), (-40.0,80.0))
     
     # This is weirdly formed data. Using two parsers over the same data is
     # cheaper than using one plus extra bit manipulation.
@@ -229,7 +232,7 @@ class AccelerometerParser(object):
         the conversion on the fly.
         
         If using this parser, do not perform this adjustment at the Channel 
-        or Subchannel level!
+        or Subchannel level via a Transform!
     """
 
     def __init__(self, inMin=0, inMax=65535, outMin=-100.0, outMax=100.0, 
@@ -622,6 +625,7 @@ class PolynomialParser(ElementHandler):
         # Element name (plus ID and file position) for error messages
         elName = self.getElementName(element)
         params = renameKeys(parse_ebml(element.value), self.parameterNames)
+        params['dataset'] = self.doc
         
         coeffs = params.pop("coeffs", None)
         if coeffs is None:

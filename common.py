@@ -7,11 +7,13 @@ Created on Dec 31, 2013
 @author: dstokes
 '''
 
+import calendar as _calendar
 from datetime import datetime as _datetime
 import sys as _sys
 
-import wx.lib.newevent
 import wx; wx = wx;
+import wx.lib.newevent
+import wx.lib.masked as wx_mc
 
 import images as _images
 
@@ -49,13 +51,25 @@ def str2int(val):
         return int(val)
     except ValueError:
         return int(val, 16)
+
+def datetime2int(val, tzOffset=0):
+    """ Convert a date/time object (either a standard Python datetime.datetime
+        or wx.DateTime) into the UTC epoch time (i.e. UNIX time stamp).
+    """
+    if isinstance(val, wx.DateTime):
+        return val.Ticks
+        val = _datetime.strptime(str(val), '%m/%d/%y %H:%M:%S')
+    return int(_calendar.timegm(val.timetuple()) + tzOffset)
         
-def time2int(val):
+
+def time2int(val, tzOffset=0):
     """ Parse a time string (as returned from `TimeCtrl.GetValue()`) into
         seconds since midnight.
     """
-    t = _datetime.strptime(val, '%H:%M:%S')
-    return (t.hour * 60 * 60) + (t.minute * 60) + t.second
+    t = _datetime.strptime(str(val), '%H:%M:%S')
+    return int((t.hour * 60 * 60) + (t.minute * 60) + t.second + tzOffset)
+
+
 
 #===============================================================================
 # 
@@ -89,7 +103,50 @@ def time2int(val):
 #             wx.Bell()
 #             
 #         return        
+
+#===============================================================================
+# 
+#===============================================================================
+
+class DateTimeCtrl(wx.Panel):
+    """ A dual date/time combination widget. Not sure why wxPython doesn't
+        have one.
+    """
     
+    def __init__(self, *args, **kwargs):
+        dateStyle = kwargs.pop('dateStyle', wx.DP_DROPDOWN)
+        fmt24hr = kwargs.pop('fmt24hr', True)
+        super(DateTimeCtrl, self).__init__(*args, **kwargs)
+            
+        self.dateCtrl = wx.DatePickerCtrl(self, -1, style=dateStyle)
+        self.timeCtrl = wx_mc.TimeCtrl(self, 1, fmt24hr=fmt24hr)
+        timeSpin = wx.SpinButton(self, 1, style=wx.SP_VERTICAL)
+        
+        sizer = wx.BoxSizer(wx.HORIZONTAL)
+        sizer.Add(self.dateCtrl, 1, wx.EXPAND)
+        sizer.Add(self.timeCtrl, 1, wx.EXPAND)
+        sizer.Add(timeSpin, -1, wx.EXPAND)
+        self.SetSizer(sizer)
+        self.timeCtrl.BindSpinButton(timeSpin)
+        
+        
+    def SetValue(self, value):
+        """ Set the value from a `wx.DateTime` object.
+        """
+        self.dateCtrl.SetValue(value)
+        self.timeCtrl.ChangeValue(value)
+
+
+    def GetValue(self):
+        """ Get the value as a `wx.DateTime` object.
+        """
+        t = _datetime.strptime(self.timeCtrl.GetValue(), '%H:%M:%S')
+        dt = self.dateCtrl.GetValue()
+        dt.SetHour(t.hour)
+        dt.SetMinute(t.minute)
+        dt.SetSecond(t.second)
+        return dt
+
     
 #===============================================================================
 # 

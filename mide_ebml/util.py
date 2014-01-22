@@ -18,8 +18,6 @@ from ebml import core as ebml_core
 from ebml.schema import base as schema_base
 from ebml.schema import specs as schema_specs
 from ebml.schema.base import INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
-# from ebml.schema import mide as mide_schema
-
 
 #===============================================================================
 # 
@@ -88,7 +86,7 @@ ENCODERS = {
 }
 
 
-def _getSchemaModule(schema=DEFAULT_SCHEMA):
+def getSchemaModule(schema=DEFAULT_SCHEMA):
     """ Import a schema module.
     
         @keyword schema: The full module name of the EBML schema. If the module
@@ -108,7 +106,7 @@ def _getSchemaItems(schema=DEFAULT_SCHEMA, itemType=schema_specs.Element):
     """ Helper to retrieve data from a schema module.
     """
     result = []
-    schemaMod = _getSchemaModule(schema)
+    schemaMod = getSchemaModule(schema)
     for k,v in schemaMod.__dict__.iteritems():
         if k.startswith('_'): 
             continue

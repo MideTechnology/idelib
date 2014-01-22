@@ -10,9 +10,10 @@ APPNAME = u"Slam Stick X Data Viewer"
 __version__="0.0.1"
 __created__="Oct 21, 2013"
 __date__="Oct 21, 2013"
-__copyright__=u"Copyright (c) 2013 MID\xc9 Technology"
+__copyright__=u"Copyright (c) 2013 Mid\xe9 Technology"
 __url__ = ("http://mide.com", "")
 __credits__=["David R. Stokes", "Tim Gipson"]
+
 
 from datetime import datetime
 # import errno
@@ -39,7 +40,6 @@ from device_dialog import selectDevice
 from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
 
 import fft
-
 
 # Special helper objects and functions
 from threaded_file import ThreadAwareFile
@@ -1507,6 +1507,8 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DEVICE_TIME = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
     ID_DEVICE_SET_CLOCK = wx.NewId()
+    ID_VIEW_ANTIALIAS = wx.NewId()
+    ID_VIEW_JITTER = wx.NewId()
 
 
     def __init__(self, *args, **kwargs):
@@ -1518,7 +1520,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.units = kwargs.pop('units',('seconds','s'))
         self.drawingSuspended = False
         
-        self.showDebugChannels = self.getPref('showDebugChannels', True)
+        self.showDebugChannels = self.app.getPref('showDebugChannels', True)
         
         displaySize = wx.DisplaySize()
         windowSize = int(displaySize[0]*.66), int(displaySize[1]*.66)
@@ -1610,11 +1612,12 @@ class Viewer(wx.Frame, MenuMixin):
         self.menubar.Append(deviceMenu, 'De&vice')
         
         viewMenu = wx.Menu()
-        self.addMenuItem(viewMenu, wx.NewId(), "Toggle Antialiasing Drawing", 
-            "Primarily a visual effect, although it does do more resampling", 
-            self.OnToggleAA, kind=wx.ITEM_CHECK)
-        self.addMenuItem(viewMenu, wx.NewId(), "Toggle Noisy Resampling", "", 
-                self.OnToggleNoise, kind=wx.ITEM_CHECK)
+        self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS, 
+                         "Toggle Antialiasing Drawing", "", 
+                         self.OnToggleAA, kind=wx.ITEM_CHECK)
+        self.addMenuItem(viewMenu, self.ID_VIEW_JITTER,
+                        "Toggle Noisy Resampling", "", 
+                        self.OnToggleNoise, kind=wx.ITEM_CHECK)
         self.menubar.Append(viewMenu, 'View')
         
         helpMenu = wx.Menu()
@@ -1623,7 +1626,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.menubar.Append(helpMenu, '&Help')
 
         self.SetMenuBar(self.menubar)
-        
+        self.enableMenus(False)
+
     
     def buildUI(self):
         """
@@ -1672,12 +1676,17 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword enabled: `True` (default) to enable the menus, `False`
                 to disable.
         """
-        menus = [wx.ID_OPEN, wx.ID_CANCEL, wx.ID_REVERT, wx.ID_SAVEAS, 
-                 self.ID_EXPORT_VISIBLE, wx.ID_PRINT, wx.ID_PRINT_SETUP,
-                 wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE]
+        # These are the menus enabled only when a file is open.
+        menus = [wx.ID_CANCEL, wx.ID_REVERT, wx.ID_SAVEAS, self.ID_RECENTFILES, 
+                 self.ID_EXPORT, self.ID_RENDER_FFT, wx.ID_PRINT, 
+                 wx.ID_PRINT_SETUP, self.ID_VIEW_ANTIALIAS, self.ID_VIEW_JITTER,
+#                  wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE
+                 ]
         
-        for m in menus:
-            self.menuItems[m].Enable(enabled)
+        for menuId in menus:
+            m = self.menubar.FindItemById(menuId)
+            if m is not None:
+                m.Enable(enabled)
     
     
     def enableChildren(self, enabled=True):
@@ -1888,6 +1897,7 @@ class Viewer(wx.Frame, MenuMixin):
         loader = Loader(self, newDoc, **self.app.getPref('loader'))
         self.pushOperation(loader, modal=False)
         loader.start()
+        self.enableMenus(True)
     
     
     def closeFile(self):
@@ -1896,6 +1906,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.plotarea.clearAllPlots()
         self.dataset = None
         self.enableChildren(False)
+        self.enableMenus(False)
         
     
     def exportCsv(self, evt=None):
@@ -2139,6 +2150,9 @@ class Viewer(wx.Frame, MenuMixin):
         """
         self.statusBar.startProgress(evt.label, evt.initialVal, 
                                      evt.cancellable, evt.cancelEnabled)
+        if evt.cancellable:
+            self.menubar.FindItemById(wx.ID_CANCEL).Enable(True)
+
 
 
     def OnProgressUpdate(self, evt):
@@ -2154,6 +2168,7 @@ class Viewer(wx.Frame, MenuMixin):
             Used primarily by the import thread.
         """
         self.statusBar.stopProgress(evt.label)
+        self.menubar.FindItemById(wx.ID_CANCEL).Enable(False)
 
 
     #===========================================================================
@@ -2205,12 +2220,15 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
     
-    def startBusy(self):
+    def startBusy(self, cancellable=False):
         self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+        if cancellable:
+            self.menubar.FindItemById(wx.ID_CANCEL).Enable(True)
         self.busy = True
 
     def stopBusy(self):
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.menubar.FindItemById(wx.ID_CANCEL).Enable(False)
         self.busy = False
 
     
@@ -2243,17 +2261,8 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             msg = self.yFormatter % (pos, units)
         self.statusBar.SetStatusText(msg, self.statusBar.yFieldNum)
-        
 
 
-    #===========================================================================
-    # 
-    #===========================================================================
-    
-    def getPref(self, *args, **kwargs):
-        return self.app.getPref(*args, **kwargs)
-    
-    
     #===========================================================================
     # 
     #===========================================================================
@@ -2316,8 +2325,7 @@ class Viewer(wx.Frame, MenuMixin):
         if fatal:
             self.Destroy()
  
-        
-        
+
 #===============================================================================
 # 
 #===============================================================================
