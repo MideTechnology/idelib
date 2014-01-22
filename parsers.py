@@ -264,13 +264,33 @@ class BaseDataBlock(object):
             @param end: Last subsample index to parse
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
+        data = self.payload.value
         start = self.headerSize + (start*parser.size)
-        end = self.payload.body_size if end == -1 else self.headerSize + (end*parser.size)
+        end = self.payload.body_size + end if end < 0 else self.headerSize + (end*parser.size)
         for i in xrange(start,end,parser.size*step):
             if subchannel is not None:
-                yield parser.unpack_from(self.payload.value, i)[subchannel]
+                yield parser.unpack_from(data, i)[subchannel]
             else:
-                yield parser.unpack_from(self.payload.value, i)
+                yield parser.unpack_from(data, i)
+
+
+    def parseByIndexWith(self, parser, indices, subchannel=None):
+        """ Parse an element's payload and get a specific set of samples.
+            
+            @param parser: The DataParser to use
+            @param indices: A list of indices into the block's data. 
+            @keyword subchannel: The subchannel to get, if specified.
+        """
+        # SimpleChannelDataBlock payloads contain header info; skip it.
+        data = self.payload.value
+        for i in indices:
+            if i >= self.numSamples:
+                continue
+            idx = self.headerSize + (i*parser.size)
+            if subchannel is not None:
+                yield parser.unpack_from(data, idx)[subchannel]
+            else:
+                yield parser.unpack_from(data, idx)
 
 
     def getNumSamples(self, parser):

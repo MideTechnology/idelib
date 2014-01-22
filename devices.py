@@ -1,11 +1,11 @@
 '''
 Functions for detecting, identifying, and retrieving information about
 data-logging devices.
-
-Created on Nov 14, 2013
-
-@author: dstokes
 '''
+
+__author__ = "David Stokes"
+__date__ = "Nov 14, 2013"
+
 
 import ctypes
 import os
@@ -17,17 +17,19 @@ INFO_FILE = os.path.join(SYSTEM_PATH, "DEVINFO")
 CLOCK_FILE = os.path.join(SYSTEM_PATH, "CLOCK")
 
 #===============================================================================
-# 
+# Cross-platform functions
 #===============================================================================
 
 def isRecorder(dev):
-    """
+    """ Check to see if a given path (or drive letter under Windows) refers to
+        a data recorder.
     """
     if not os.path.exists(os.path.join(dev, INFO_FILE)):
         return False
     # TODO: Read device info
     return True
-    
+
+
 #===============================================================================
 # Windows-specific versions of the functions
 #===============================================================================
@@ -39,7 +41,7 @@ else:
 
 
 def win_getDevices():
-    """
+    """ Get a list of data recorder, as their respective drive letter.
     """
     drivebits = kernel32.GetLogicalDrives()
     result = []
@@ -78,6 +80,9 @@ def win_getDeviceInfo(dev):
 win_last_devices = 0
 
 def win_deviceChanged():
+    """ Returns `True` if a drive has been connected or disconnected since
+        the last call to `deviceChanged()`.
+    """
     global win_last_devices
     newDevices = kernel32.GetLogicalDrives()
     result = newDevices != win_last_devices
@@ -90,14 +95,11 @@ def win_deviceChanged():
 #===============================================================================
 
 def getDevices():
-    """
+    """ Get a list of data recorder, as the paths to their root directory (or
+        drive letter under Windows).
     """
     raise NotImplementedError("Only windows version currently implemented!")
 
-def getDeviceInfo():
-    """
-    """
-    raise NotImplementedError("Only windows version currently implemented!")
 
 def deviceChanged():
     """ Returns `True` if a drive has been connected or disconnected since
@@ -108,7 +110,6 @@ def deviceChanged():
             
 if "win" in sys.platform:
     getDevices = win_getDevices
-    getDeviceInfo = win_getDeviceInfo
     deviceChanged = win_deviceChanged
 
 

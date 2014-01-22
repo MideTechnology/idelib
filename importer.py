@@ -61,16 +61,23 @@ default_sensors = {
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
                        "parser": struct.Struct("<HHH"), #AccelerometerParser(),
-                        "calibration": (AccelTransform(),AccelTransform(),AccelTransform()),
-                        "subchannels":{0: {"name": "X"},#, 'calibration': AccelTransform()},
-                                       1: {"name": "Y"},#, 'calibration': AccelTransform()},
-                                       2: {"name": "Z"},#, 'calibration': AccelTransform()}
+                        "calibration": (AccelTransform(),
+                                        AccelTransform(),
+                                        AccelTransform()),
+                        "subchannels":{0: {"name": "X", 
+                                           "units":('G','G')},
+                                       1: {"name": "Y", 
+                                           "units":('G','G')},
+                                       2: {"name": "Z", 
+                                           "units":('G','G')},
                                     },
                        },
                 0x40: {"name": "Pressure/Temperature",
                        "parser": parsers.MPL3115PressureTempParser(),
-                       "subchannels": {0: {"name": "Pressure"},
-                                       1: {"name": "Temperature"}
+                       "subchannels": {0: {"name": "Pressure", 
+                                           "units":('kPa','kPa')},
+                                       1: {"name": "Temperature", 
+                                           "units":(u'\xb0C',u'\xb0C')}
                                        },
                        },
                 0x43: {"name": "Crystal Drift",
@@ -158,12 +165,13 @@ class SimpleUpdater(object):
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
 
-def importFile(filename=testFile, updater=None, numUpdates=500, updateInterval=1.0,
-             parserTypes=elementParserTypes, defaultSensors=default_sensors):
-    """ Create a new Dataset object and import the data from a MIDE file.
-        Primarily for testing purposes. The GUI should probably do the
-        file creation and data loading in two discrete steps, as it will
-        need a reference to the document before the loading starts.
+def importFile(filename=testFile, updater=None, numUpdates=500, 
+               updateInterval=1.0, parserTypes=elementParserTypes, 
+               defaultSensors=default_sensors):
+    """ Create a new Dataset object and import the data from a MIDE file. 
+        Primarily for testing purposes. The GUI does the file creation and 
+        data loading in two discrete steps, as it will need a reference to 
+        the document before the loading starts.
     """
     stream = open(filename, "rb")
     doc = Dataset(stream)
@@ -213,8 +221,6 @@ def readData(doc, updater=None, numUpdates=500, updateInterval=1.0,
     else:
         # An unreachable file position effectively disables the updates.
         ticSize = filesize+1
-        
-    nextUpdatePos = ticSize
     
     if updateInterval > 0:
         nextUpdateTime = time.time() + updateInterval
@@ -223,6 +229,7 @@ def readData(doc, updater=None, numUpdates=500, updateInterval=1.0,
         nextUpdateTime = time.time() + 5184000
     
     firstDataPos = 0
+    nextUpdatePos = ticSize
     
     readRecordingProperties = False
     readingData = False
@@ -241,7 +248,7 @@ def readData(doc, updater=None, numUpdates=500, updateInterval=1.0,
                     # The first data has been read. Notify the updater!
                     updater(0)
                     if not readRecordingProperties:
-                        # Got data before the recording props; use defaults
+                        # Got data before the recording props; use defaults.
                         if defaultSensors is not None:
                             createDefaultSensors(doc, defaultSensors)
                         readRecordingProperties = True

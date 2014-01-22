@@ -25,7 +25,6 @@ class DeviceSelectionDialog(wx.Dialog):
         self.PostCreate(pre)
 
         sizer = wx.BoxSizer(wx.VERTICAL)
-
         
         label = wx.StaticText(self, -1, "This is a wx.Dialog")
         label.SetHelpText("This is the help text for the label")

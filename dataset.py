@@ -13,7 +13,8 @@ Created on Sep 26, 2013
     blocks are single-sample, instantiate simpler Channel subclass
 @todo: Further optimize EventList._searchBlockRanges() so that the binary
     search only occurs when absolutely necessary, or improve the
-    start/end search range limiting hints.
+    start/end search range limiting hints. Possibly base a reasonable
+    guess from the sample rate.
 @todo: Decide if dataset.useIndices is worth it, remove it if it isn't.
     Removing it may save a trivial amount of time/memory (one fewer 
     conditional in event-getting methods).
@@ -177,7 +178,10 @@ class Cascading(object):
         """
         if self.parent is None:
             return self.name
-        return "%s:%s" % (self.parent.path(), self.name)
+        p = self.parent.path()
+        if p is None:
+            return self.name
+        return "%s:%s" % (p, self.name)
     
     
     def hierarchy(self):
@@ -676,7 +680,7 @@ class SubChannel(Channel):
 
 
     def __repr__(self):
-        return '<%s %x.%x: %r>' % (self.__class__.__name__, self.parent.id, self.id, self.path())
+        return '<%s 0x%02x.%x: %r>' % (self.__class__.__name__, self.parent.id, self.id, self.path())
 
 
     @property
@@ -782,11 +786,6 @@ class EventList(Cascading):
         self._length += block.numSamples
         block.indexRange = (oldLength, self._length - 1)
 
-        # Cache the index range for faster searching
-        tableIdx = block.indexRange[0] / 10000
-        self._blockIdxTable[0].setdefault(tableIdx, block.blockIndex)
-        self._blockIdxTable[1][tableIdx] = block.blockIndex
-        
         # Set the session first/last times if they aren't already set.
         # Possibly redundant if all sessions are 'closed.'
         if self.session.firstTime is None:
@@ -795,6 +794,11 @@ class EventList(Cascading):
             self.session.lastTime = block.endTime
         else:
             self.session.lastTime = max(self.session.lastTime, block.endTime)
+            
+        # Cache the index range for faster searching
+        tableIdx = block.indexRange[0] / 10000
+        self._blockIdxTable[0].setdefault(tableIdx, block.blockIndex)
+        self._blockIdxTable[1][tableIdx] = block.blockIndex
         
         
     def getInterval(self):
@@ -871,8 +875,6 @@ class EventList(Cascading):
         """
         # Quick and dirty binary search.
         # TODO: Handle un-found values better (use of `stop` can make these)
-        # TODO: Augment search with smarter guesses (based on subsample
-        #    count, etc.) instead of a strict binary search?
         def getIdx(first, last):
             middle = first + ((last-first)/2)
             r = rangeGetter(middle)
@@ -925,6 +927,7 @@ class EventList(Cascading):
                 For multiple results, a list of (time, value) tuples.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
+        
         if isinstance(idx, Iterable):
             result = []
             for t in idx:
@@ -934,6 +937,7 @@ class EventList(Cascading):
                 else:
                     result.append(v)
             return result
+        
         if isinstance(idx, slice):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
         
@@ -941,7 +945,7 @@ class EventList(Cascading):
             raise IndexError("EventList index out of range")
         
         if idx < 0:
-            idx = len(self) + idx
+            idx = min(0, len(self) + idx)
         
         blockIdx = self._getBlockIndexWithIndex(idx)
         subIdx = idx - self._getBlockIndexRange(blockIdx)[0]
@@ -985,7 +989,7 @@ class EventList(Cascading):
         return self._data[-1].indexRange[-1]-1
 
 
-    def iterSlice(self, start=0, end=-1, step=1):
+    def iterSlice_old(self, start=0, end=-1, step=1):
         """ Create an iterator producing events for a range indices.
         """
         if start is None:
@@ -1037,6 +1041,50 @@ class EventList(Cascading):
                         else:
                             event = self.parent._transform(self.parent.parent._transform[self.parent.id](event))
                         yield event
+
+      
+    def iterSlice(self, start=0, end=-1, step=1):
+        """ Create an iterator producing events for a range indices.
+        """
+        if start is None:
+            start = 0
+        elif start < 0:
+            start += len(self)
+            
+        if end is None:
+            end = len(self)
+        elif end < 0:
+            end += len(self) + 1
+        else:
+            end = min(end, len(self))
+        
+        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
+        endBlockIdx = self._getBlockIndexWithIndex(end, start=startBlockIdx)
+
+        blockStep = max(1, (step + 0.0) / self._data[startBlockIdx].numSamples)
+        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
+        
+        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
+        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
+        
+        # in each block, the next subIdx is (step+subIdx)%numSamples
+        for i in xrange(numBlocks):
+            blockIdx = int(startBlockIdx + (i * blockStep))
+            block = self._data[blockIdx]
+            blockRange = block.indexRange
+            sampleTime = self._getBlockSampleTime(i)
+            lastSubIdx = endSubIdx if blockIdx == endBlockIdx else blockRange[1]-blockRange[0]+1
+            times = (block.startTime + sampleTime * t for t in xrange(subIdx, block.numSamples, step))
+            values = self.parent.parseBlock(block, start=subIdx, end=lastSubIdx, step=step)
+            for event in izip(times, values):
+                if self.hasSubchannels:
+                    # TODO: (post Transform fix) Refactor later
+                    event=[f((event[-2],v)) for f,v in izip(self.parent._transform, event[-1])]
+                    event=(event[0][0], tuple((e[1] for e in event)))
+                else:
+                    event = self.parent._transform(self.parent.parent._transform[self.parent.id](event))
+                yield event
+            subIdx = (subIdx+step) % block.numSamples
 
       
     def getEventIndexBefore(self, t):
@@ -1240,7 +1288,6 @@ class EventList(Cascading):
             for i in xrange(len(self.parent.types)):
                 result[i] = self.parent.interpolators[i](startEvt[-1][i], endEvt[-1][i], percent)
                 result[i] = self.parent.types[i](result[i])
-                return at, result
         else:
             result = self.parent.types[0](self.parent.interpolators[0](startEvt[-1], endEvt[-1], percent))
         if self.dataset.useIndices:
@@ -1302,37 +1349,27 @@ class EventList(Cascading):
                 continue
 
 
-    def iterResampledRange2(self, startTime, endTime, maxPoints):
-        """ A faster but less accurate resampling of an interval. Good enough
-            for display purposes.
-            
-            XXX: EXPERIMENTAL. 
-            ALSO: DOESN'T ACTUALLY WORK.
-        """
-        startIdx, stopIdx = self.getRangeIndices(startTime, endTime)
-        startBlockIdx = self._getBlockIndexWithIndex(startIdx)
-        endBlockIdx = self._getBlockIndexWithIndex(stopIdx, stop=startBlockIdx) + 1
-        numBlocks = endBlockIdx - startBlockIdx
-        blockStep = max(1, numBlocks/maxPoints)
-        if blockStep == 1:
-            # Fewer blocks than samples; get every N sub-events
-            estNumSamples = self._data[startBlockIdx].getNumSamples(self.parent.parser)
-            subStep = min(1, (estNumSamples * numBlocks) / maxPoints)
-            for block in self._data[startBlockIdx:endBlockIdx]:
-                sampleTime = self._getBlockSampleTime(block.blockIndex)
-                for event in izip(xrange(block.startTime, block.endTime, sampleTime),
-                                  self.parent.parseBlock(block, 0, -1, subStep)):
-                    yield self.parent._transform(event)
-        else:
-            # More blocks than points; use first sample of every N blocks.
-            for block in self._data[startBlockIdx:endBlockIdx:blockStep]:
-                value = self.parent.parseBlock(block, 0, 1)
-                event = self.parent._transform((int(block.startTime), value))
-                if self.dataset.useIndices:
-                    yield block.indexRange[0], event[0], event[1]
-                else:
-                    yield event
+    def iterResampledRange2(self, startTime, stopTime, maxPoints, threshold=1.0):
+        """ Retrieve the events occurring within a given interval,
+            undersampled as to not exceed a given length (e.g. the size of
+            the data viewer's screen width).
         
+            XXX: EXPERIMENTAL!
+            Not very efficient, particularly not with single-sample blocks.
+            Redo without _getBlockIndexWithIndex
+            
+            ALSO: I HAVE NO IDEA HOW THIS WORKS ANYMORE.
+        """
+        # TODO: Handle possible variations in sample rate.
+        blockIdx = self._getBlockIndexWithTime(startTime)
+        startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
+        numPoints = (stopTime - startTime) / (self.getSampleTime(blockIdx) + 0.0)
+        step = int(max(numPoints / maxPoints,1))
+        for event in self.iterSlice(startIdx, stopIdx, step):
+            yield event
+        
+
+
 
     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
@@ -1389,8 +1426,8 @@ class EventList(Cascading):
         stop = stop + len(self) if stop < 0 else stop
         
         t0 = datetime.now()
-#         try:
-        if True:
+        try:
+#         if True:
             for num, evt in enumerate(self.iterSlice(start, stop, step)):
                 if getattr(callback, 'cancelled', False):
                     callback(done=True)
@@ -1399,11 +1436,11 @@ class EventList(Cascading):
                 if updateInt == 0 or num % updateInt == 0:
                     callback(num, total=totalLines)
                 callback(done=True)
-#         except Exception as e:
-#             if raiseExceptions or noCallback:
-#                 raise e
-#             else:
-#                 callback(error=e)
+        except Exception as e:
+            if raiseExceptions or noCallback:
+                raise e
+            else:
+                callback(error=e)
                 
         return num+1, datetime.now() - t0
 
@@ -1413,7 +1450,7 @@ class EventList(Cascading):
 #===============================================================================
 
 
-class Plot(Transformable): #(Cascading, Transformable):
+class Plot(Transformable):
     """ A processed set of sensor data. These are typically the final form of
         the data. Transforms applied are intended to be for display purposes
         (e.g. converting data in centimeters to meters).
