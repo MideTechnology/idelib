@@ -6,12 +6,9 @@
 
 import wx; wx=wx
 
-try:
-    from agw import rulerctrl as RC
-    from agw.rulerctrl import EVT_INDICATOR_CHANGING, EVT_INDICATOR_CHANGED
-except ImportError: # if it's not there locally, try the wxPython lib.
-    import wx.lib.agw.rulerctrl as RC
-    from  wx.lib.agw.rulerctrl import EVT_INDICATOR_CHANGING, EVT_INDICATOR_CHANGED
+import wx.lib.agw.rulerctrl as RC
+from  wx.lib.agw.rulerctrl import EVT_INDICATOR_CHANGING, EVT_INDICATOR_CHANGED
+from wx.lib.agw.rulerctrl import RealFormat
 
 
 

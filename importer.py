@@ -18,34 +18,52 @@ import struct
 import sys
 import time
 
-from dataset import Dataset
+from dataset import Dataset, Transform
 import parsers
 
+from dataset import __DEBUG__
+
 #===============================================================================
-# 
+# Parsers/Element Handlers
 #===============================================================================
 
+# Parser importer. These are taken from the module by type. We may want to 
+# create the list of parser types 'manually' in the real app; it's marginally 
+# safer.
+elementParserTypes = parsers.getElementHandlers()
+
+#===============================================================================
+# Defaults
+#===============================================================================
+
+# XXX: Remove me before production.
 # testFile = r"e:\test.dat"
 # testFile = r"test_full_cdb.DAT"
 testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\test_full_cdb_huge.dat"
 
-#===============================================================================
-# Some experiments in modularizing things
-#===============================================================================
 
-# Parser importer. These are taken from the module by type. We probably want
-# to create the list of parser types 'manually' in the real app; it's safer.
-elementParserTypes = parsers.getElementHandlers()
+class AccelTransform(Transform):
+    """ A simple transform to convert accelerometer values (recorded as
+        uint16) to floats in the range -100 to 100 G.
+        
+        Do not use if using already `AccelerometerParser` to parse the 
+        channel.
+    """
+    def __call__(self, event, channel=None, session=None):
+        return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
 
-# Hard-coded sensor/channel mapping. Will eventually be read from EBML file.
+# from parsers import AccelerometerParser
+
+# Hard-coded sensor/channel mapping. Will eventually be read from EBML file,
+# but these should be default for the standard Slam Stick X.
 default_sensors = {
     0x00: {"name": "SlamStick Combined Sensor", 
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
-                       "parser": struct.Struct(">HHH"), 
-                       "subchannels":{0: {"name": "X"},
-                                      1: {"name": "Y"},
-                                      2: {"name": "Z"}
+                       "parser": struct.Struct("<HHH"), #AccelerometerParser(),
+                       "subchannels":{0: {"name": "X", 'calibration': AccelTransform()},
+                                      1: {"name": "Y", 'calibration': AccelTransform()},
+                                      2: {"name": "Z", 'calibration': AccelTransform()}
                                       },
                        },
                 0x40: {"name": "Pressure/Temperature",
@@ -64,18 +82,41 @@ default_sensors = {
            },
 }
 
+
+def createDefaultSensors(doc, sensors=default_sensors):
+    """ Given a nested set of dictionaries containing the definition of one or
+        more sensors, instantiate those sensors and add them to the dataset
+        document.
+    """
+    for sensorId, sensorInfo in sensors.iteritems():
+        sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
+        for channelId, channelInfo in sensorInfo['channels'].iteritems():
+            channel = sensor.addChannel(channelId, channelInfo['parser'],
+                                        name=channelInfo.get('name',None))
+            if 'subchannels' not in channelInfo:
+                continue
+            for subChId, subChInfo in channelInfo['subchannels'].iteritems():
+                channel.addSubChannel(subChId, **subChInfo)
+    
+
+
 #===============================================================================
-# 
+# Updaters
 #===============================================================================
 
 def nullUpdater(*args, **kwargs):
+    """ A progress updater stand-in that does nothing. """
     if kwargs.get('error',None) is not None:
         raise kwargs['error']
-
 nullUpdater.cancelled = False
 
 
 class SimpleUpdater(object):
+    """ A simple text-based progress updater.
+    
+        @todo: Make cross-platform? Character 0x0D won't necessarily work
+            outside of Windows.
+    """
     
     def __init__(self, cancelAt=1.0):
         self.cancelled = False
@@ -115,28 +156,7 @@ class SimpleUpdater(object):
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
 
-
-def createDefaultSensors(doc, defaultSensors):
-    """ Given a nested set of dictionaries containing the definition of one or
-        more sensors, instantiate those sensors and add them to the dataset
-        document.
-    """
-    for sensorId, sensorInfo in defaultSensors.iteritems():
-        sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
-        for channelId, channelInfo in sensorInfo['channels'].iteritems():
-            channel = sensor.addChannel(channelId, channelInfo['parser'],
-                                        name=channelInfo.get('name',None))
-            if 'subchannels' not in channelInfo:
-                continue
-            for subChId, subChInfo in channelInfo['subchannels'].iteritems():
-                channel.addSubChannel(subChId, **subChInfo)
-    
-
-#===============================================================================
-# 
-#===============================================================================
-
-def importFile(filename=testFile, updater=None, numTics=500, updateInterval=1.0,
+def importFile(filename=testFile, updater=None, numUpdates=500, updateInterval=1.0,
              parserTypes=elementParserTypes, defaultSensors=default_sensors):
     """ Create a new Dataset object and import the data from a MIDE file.
         Primarily for testing purposes. The GUI should probably do the
@@ -145,13 +165,13 @@ def importFile(filename=testFile, updater=None, numTics=500, updateInterval=1.0,
     """
     stream = open(filename, "rb")
     doc = Dataset(stream)
-    readData(doc, updater=updater, numTics=numTics, 
+    readData(doc, updater=updater, numUpdates=numUpdates, 
              updateInterval=updateInterval, parserTypes=parserTypes, 
              defaultSensors=defaultSensors)
     return doc
 
 
-def readData(doc, updater=None, numTics=500, updateInterval=1.0,
+def readData(doc, updater=None, numUpdates=500, updateInterval=1.0,
              parserTypes=elementParserTypes, defaultSensors=default_sensors):
     """ Import the data from a file into a Dataset.
     
@@ -164,7 +184,7 @@ def readData(doc, updater=None, numTics=500, updateInterval=1.0,
             complete). If the updater object has a `cancelled`
             attribute that is `True`, the CSV export will be aborted.
             The default callback is `None` (nothing will be notified).
-        @keyword numTics: The minimum number of calls to the updater to be
+        @keyword numUpdates: The minimum number of calls to the updater to be
             made. 
         @keyword updateInterval: The maximum number of seconds between
             calls to the updater
@@ -185,9 +205,20 @@ def readData(doc, updater=None, numTics=500, updateInterval=1.0,
     
     # Progress display stuff
     filesize = doc.ebmldoc.stream.size
-    ticSize = filesize / numTics 
+    
+    if numUpdates > 0:
+        ticSize = filesize / numUpdates 
+    else:
+        # An unreachable file position effectively disables the updates.
+        ticSize = filesize+1
+        
     nextUpdatePos = ticSize
-    nextUpdateTime = time.time() + updateInterval
+    
+    if updateInterval > 0:
+        nextUpdateTime = time.time() + updateInterval
+    else:
+        # An update time 24 hours in the future should mean no updates.
+        nextUpdateTime = time.time() + 5184000
     
     firstDataPos = 0
     
@@ -208,7 +239,7 @@ def readData(doc, updater=None, numTics=500, updateInterval=1.0,
                     # The first data has been read. Notify the updater!
                     updater(0)
                     if not readRecordingProperties:
-                        # Got data before the recording properties; use defaults
+                        # Got data before the recording props; use defaults
                         if defaultSensors is not None:
                             createDefaultSensors(doc, defaultSensors)
                         readRecordingProperties = True
@@ -222,7 +253,9 @@ def readData(doc, updater=None, numTics=500, updateInterval=1.0,
 
             else:
                 # Unknown block type
-                print "unknown block %r, continuing" % r.name
+                if __DEBUG__ is True:
+                    print "unknown block %r (ID %r), continuing" % \
+                        (r.name, r.id)
                 pass
             
             # More progress display stuff
@@ -242,6 +275,7 @@ def readData(doc, updater=None, numTics=500, updateInterval=1.0,
     except IOError as e:
         if e.errno is None:
             # The EBML library raises an empty IOError if it his EOF.
+            # TODO: Handle other cases of empty IOError (lots in python-ebml)
             doc.fileDamaged = True
         else:
             updater(error=e)

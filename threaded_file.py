@@ -4,15 +4,23 @@ Created on Nov 8, 2013
 @author: dstokes
 '''
 
+from abc import ABCMeta
 import threading
 
 class ThreadAwareFile(object):
     """ A 'replacement' for the standard file stream that supports reading
-        by multiple threads. Each thread actually gets its own stream. This
+        by multiple threads. Each thread actually gets its own stream, so it
+        can perform its own seeks without affecting other threads. This
         functionality is transparent.
+        
+        ThreadAwareFile is read-only. 
     """
+    __metaclass__ = ABCMeta
     
     def __init__(self, *args, **kwargs):
+        if len(args) > 1:
+            if isinstance(args[1], basestring) and 'w' in args[1]:
+                raise IOError("ThreadAwareFile is read-only")
         ident = threading.currentThread().ident
         self.initArgs = args[:]
         self.initKwargs = kwargs.copy()
@@ -21,12 +29,18 @@ class ThreadAwareFile(object):
         
        
     def getIdent(self):
+        """ Get the identity of the current thread. If the attribute
+            `forceIdent` is not `None`, `forceIdent` will be returned
+            instead.
+        """
         if self.forceIdent is not None:
             return self.forceIdent
         return threading.currentThread().ident
 
 
     def getThreadStream(self):
+        """ Get (or create) the file stream for the current thread.
+        """
         ident = self.getIdent()
         if ident not in self.threads:
             fp = file(*self.initArgs, **self.initKwargs)
@@ -34,15 +48,35 @@ class ThreadAwareFile(object):
             return fp
         return self.threads[ident]
 
+
     def closeAll(self):
         for v in self.threads.itervalues():
             v.close()
 
-#     def __enter__(self, *args, **kwargs):
-#         return self.getThreadStream().__enter__(*args, **kwargs)
-# 
-#     def __exit__(self, *args, **kwargs):
-#         return self.getThreadStream().__exit__(*args, **kwargs)
+
+    def cleanup(self):
+        """ Delete all closed streams.
+        """
+        ids = self.threads.keys()
+        for i in ids:
+            if self.threads[i].closed:
+                del self.threads[i]
+                
+
+    @property
+    def closed(self):
+        ident = self.getIdent()
+        if ident in self.threads:
+            return self.threads[ident].closed
+        return True
+
+
+    def close(self, *args, **kwargs):
+        return self.getThreadStream().close(*args, **kwargs)
+
+
+
+    # Standard file methods, overridden
 
     def __format__(self, *args, **kwargs):
         return self.getThreadStream().__format__(*args, **kwargs)
@@ -67,12 +101,6 @@ class ThreadAwareFile(object):
 
     def __str__(self, *args, **kwargs):
         return self.getThreadStream().__str__(*args, **kwargs)
-
-#     def __subclasshook__(self, *args, **kwargs):
-#         return self.getThreadStream().__subclasshook__(*args, **kwargs)
-
-    def close(self, *args, **kwargs):
-        return self.getThreadStream().close(*args, **kwargs)
 
     def fileno(self, *args, **kwargs):
         return self.getThreadStream().fileno(*args, **kwargs)
@@ -106,11 +134,9 @@ class ThreadAwareFile(object):
 
     def truncate(self, *args, **kwargs):
         raise IOError("Can't truncate(); ThreadAwareFile is read-only")
-#         return self.getThreadStream().truncate(*args, **kwargs)
 
     def write(self, *args, **kwargs):
         raise IOError("Can't write(); ThreadAwareFile is read-only")
-#         return self.getThreadStream().write(*args, **kwargs)
 
     def writelines(self, *args, **kwargs):
         raise IOError("Can't writelines(); ThreadAwareFile is read-only")
@@ -119,9 +145,9 @@ class ThreadAwareFile(object):
     def xreadlines(self, *args, **kwargs):
         return self.getThreadStream().xreadlines(*args, **kwargs)
 
-    @property
-    def closed(self):
-        return self.getThreadStream().closed
+
+    # Standard file attributes, as properties for transparency with 'real'
+    # file objects. Most are read-only.
 
     @property
     def encoding(self):
@@ -151,3 +177,6 @@ class ThreadAwareFile(object):
     def softspace(self, val):
         self.getThreadStream().softspace = val
 
+
+# Register `file` as ThreadAwareFile's abstract base class 
+ThreadAwareFile.register(file)
