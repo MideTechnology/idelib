@@ -26,29 +26,39 @@ EBML elements that aren't sensor data.
 '''
 
 import struct
+import sys
+import types
 
 
-RANGES = dict((('c', None),
-              ('b',(-127,126)),
-              ('B', (0,255)),
-              ('?', (0,1)),
-              ('h', (-(2**(8*2))/2, (2**(8*2))/2-1)),
-              ('H', (0, 2**(8*2)-1)),
-              ('i', (-(2**(8*4))/2, (2**(8*4))/2-1)),
-              ('I', (0, 2**(8*4)-1)),
-              ('l', (-(2**(8*4))/2, (2**(8*4))/2-1)),
-              ('L', (0, 2**(8*4)-1)),
-              ('q', (-(2**(8*8))/2, (2**(8*8))/2-1)),
-              ('Q', (0, 2**(8*8)-1)),
-              ('f', (-1.0, 1.0)),
-              ('d', (-1.0, 1.0)),
-              ('p', None),
-              ('P', None),
-              ('s', None)))
+#===============================================================================
+# 
+#===============================================================================
+
+# The minimum and maximum values for values parsed out of data blocks.
+# Used to provide an initial range, which is later corrected for actual
+# values.
+RANGES = {'c': None,
+          'b': (-127,126),
+          'B': (0,255),
+          '?': (0,1),
+          'h': (-(2**(8*2))/2, (2**(8*2))/2-1),
+          'H': (0, 2**(8*2)-1),
+          'i': (-(2**(8*4))/2, (2**(8*4))/2-1),
+          'I': (0, 2**(8*4)-1),
+          'l': (-(2**(8*4))/2, (2**(8*4))/2-1),
+          'L': (0, 2**(8*4)-1),
+          'q': (-(2**(8*8))/2, (2**(8*8))/2-1),
+          'Q': (0, 2**(8*8)-1),
+          'f': (-1.0, 1.0),
+          'd': (-1.0, 1.0),
+          'p': None,
+          'P': None,
+          's': None
+}
 
 
 def getParserTypes(parser):
-    """
+    """ Get the Python types produced by a parser. 
     """
     if hasattr(parser, "types"):
         return parser.types
@@ -56,7 +66,13 @@ def getParserTypes(parser):
 
 
 def getParserRanges(parser):
-    """
+    """ Get the theoretical minimum and maximum values that can be returned
+        for each value parsed out of sensor data. Note that floating point
+        values are typically reported as (-1.0,1.0).
+        
+        @param parser: A `struct.Struct`-like parser.
+        @return: A collection of (min, max) tuples. Non-numeric values will
+            have a reported range of `None`.
     """
     if hasattr(parser, "ranges"):
         return parser.ranges
@@ -66,6 +82,38 @@ def getParserRanges(parser):
             ranges.append(RANGES[c])
     return tuple(ranges)
     
+
+#===============================================================================
+# 
+#===============================================================================
+
+def getElementHandlers(module=None, subElements=False):
+    """ Retrieve all EBML element handlers from a module. Handlers are
+        identified by being subclasses of `ElementHandler`.
+    
+        @keyword module: The module from which to get the handlers. Defaults to
+            the current module (ie. `parsers`).
+        @keyword subElements: `True` if the set of handlers should also
+            include non-root elements (e.g. the sub-elements of a
+            RecordingProperties or ChannelDataBlock).
+        @return: A list of element handler classes.
+    """
+    elementParserTypes = []
+    if module is None:
+        if __name__ in sys.modules:
+            moduleDict = sys.modules[__name__].__dict__
+        else:
+            moduleDict = globals()
+    else:
+        moduleDict = module.__dict__
+    for p in moduleDict.itervalues():
+        if not isinstance(p, types.TypeType) or p == ElementHandler:
+            continue
+        if issubclass(p, ElementHandler):
+            if subElements or not p.isSubElement:
+                print "Installing handler for", p.elementName
+                elementParserTypes.append(p)
+    return elementParserTypes
 
 #===============================================================================
 # EXCEPTIONS
@@ -108,6 +156,8 @@ class MPL3115PressureTempParser(object):
     ranges = ((-(2**18)/2.0, (2**18)/2.0-1),
               (-(2**16)/2.0, (2**16)/2.0-1))
     
+    # This is weirdly formed data. Using two parsers over the same data is
+    # cheaper than using one plus extra bit manipulation.
     _pressureParser = struct.Struct(">i")
     _parser = struct.Struct(">xxBbB")
         
@@ -115,16 +165,12 @@ class MPL3115PressureTempParser(object):
         """ Special-case parsing of a temperature data block.
         """
         # TODO: Make sure if fractional part is calculated correctly for negative values
-        # Add a leading \0 to make data an even 32b/16b
         rawpressure = self._pressureParser.unpack_from(data, offset)[0] >> 13
         fracpressure, rawtemp, fractemp = self._parser.unpack_from(data, offset)
         fracpressure = ((fracpressure >> 3) & 0b11) * 0.25
         fractemp = (fractemp >> 3) * 0.0625
 
-        pressure = rawpressure + fracpressure # pressure /= 64.0 #(2**6 + 0.0)
-        temperature = rawtemp + fractemp             # temperature /= 256.0 #(2**8 + 0.0)
-
-        return (pressure, temperature)
+        return (rawpressure + fracpressure, rawtemp + fractemp)
 
 
 
@@ -136,68 +182,50 @@ class MPL3115PressureTempParser(object):
 class ElementHandler(object):
     """ Base class for all element handlers (i.e. parsers).
     """
-
     product = None
     elementName = None
+    isSubElement = False
     
     def __init__(self, doc, **kwargs):
         self.doc = doc
         
     def __call__(self, element):
+#         print "Handling %s" % self.elementName
         pass
 
+    def makesData(self):
+        """ Does this handler produce sample data?
+        """
+        return self.product is not None and \
+            issubclass(self.product, BaseDataBlock)
 
-#===============================================================================
-# 
-#===============================================================================
 
-class SimpleChannelDataBlock(object):
-    """ Wrapper for SimpleChannelDataBlock elements, which consist of only a
-        binary payload of raw data prefixed with a 16b timestamp and an 8b
-        channel ID. Also keeps track of some metadata used by its Channel.
+class BaseDataBlock(object):
+    """ Base class for all data-containing elements. Created by the
+        appropriate ElementHandler for the given EBML element type.
+        
+        @cvar headerSize: The size of the header information stored in the
+            element's payload, if any.
+        @cvar maxTimestamp: The 
     """
-    headerParser = struct.Struct("<HB")
-    headerSize = headerParser.size
+    headerSize = 0
     maxTimestamp = 2**16
     timeScalar = 1000000.0 / 2**15
-
+    
     def __init__(self, element):
         self.element = element
-        self.payload = element
-        self.startTime, self.channel = self.getHeader()
-        self.body_size = element.body_size - self.headerSize
         
         # This stuff will vary based on parser:
         self.blockIndex = -1
+        self.startTime = None
         self.endTime = None
         self.numSamples = None
         self.sampleRate = None
         self.sampleTime = None
         self.indexRange = None
         self._len = None
-        self.timestampOffset = None
-   
-    
-    def __len__(self):
-        """ x.__len__() <==> len(x)
-            This returns the length of the payload.
-        """
-        if self._len is None:
-            self._len = len(self.payload.value) - self.headerSize
-        return self._len
-    
-    
-    def getHeader(self):
-        """ Extract the block's header info. In SimpleChannelDataBlocks,
-            this is part of the payload.
-        """
-        return self.headerParser.unpack_from(self.element.value)
-    
-
-    @property
-    def timestamp(self):
-        return self.getHeader()[0]
-
+        self.body_size = None
+        self.minValue = self.maxValue = None
 
     def parseWith(self, parser, start=0, end=-1, subchannel=None, step=1):
         """ Parse an element's payload. Use this instead of directly using
@@ -239,9 +267,54 @@ class SimpleChannelDataBlock(object):
         return self.body_size > 0 and self.body_size % parser.size == 0
 
 
+#===============================================================================
+# 
+#===============================================================================
+
+class SimpleChannelDataBlock(BaseDataBlock):
+    """ Wrapper for SimpleChannelDataBlock elements, which consist of only a
+        binary payload of raw data prefixed with a 16b timestamp and an 8b
+        channel ID. Also keeps track of some metadata used by its Channel.
+    """
+    headerParser = struct.Struct("<HB")
+    headerSize = headerParser.size
+
+    def __init__(self, element):
+        super(SimpleChannelDataBlock, self).__init__(element)
+        self.element = element
+        self.payload = element
+        self.startTime, self.channel = self.getHeader()
+        self.body_size = element.body_size - self.headerSize
+   
+    
+    def __len__(self):
+        """ x.__len__() <==> len(x)
+            This returns the length of the payload.
+        """
+        if self._len is None:
+            self._len = len(self.payload.value) - self.headerSize
+        return self._len
+    
+    
+    def getHeader(self):
+        """ Extract the block's header info. In SimpleChannelDataBlocks,
+            this is part of the payload.
+        """
+        return self.headerParser.unpack_from(self.element.value)
+    
+
+    @property
+    def timestamp(self):
+        return self.getHeader()[0]
+
+
+
+
 
 class SimpleChannelDataBlockParser(ElementHandler):
-    """ 
+    """ 'Factory' for SimpleChannelDataBlock elements. Instantiated once
+        per session (or maybe channel, depending). It handles the modulus
+        correction of the block's short timestamps.
         
         @cvar elementName: The name of the element parsed by this parser
         @cvar product: The class of object generated by the parser
@@ -256,46 +329,43 @@ class SimpleChannelDataBlockParser(ElementHandler):
         self.stampRollover = 0
         self.lastStamp = 0
         
-        
+    def fixOverflow(self, block, timestamp):
+        timestamp += self.timestampOffset
+        # NOTE: This might need to just be '<' (for discontinuities)
+        if timestamp <= self.lastStamp:
+            timestamp += block.maxTimestamp
+            self.timestampOffset += block.maxTimestamp
+        self.lastStamp = timestamp
+        return timestamp
+    
+   
     def __call__(self, element, sessionId=None):
         """
         """
         sessionId = self.doc.lastSession.sessionId if sessionId is None else sessionId
         block = self.product(element)
         timestamp, channel = block.getHeader()
-        timestamp += self.timestampOffset
-        if timestamp < self.lastStamp:
-            timestamp += block.maxTimestamp
-            self.timestampOffset += block.maxTimestamp
-        self.lastStamp = timestamp
-        block.timestampOffset = self.timestampOffset
-        # XXX: are integer microseconds good enough?
-        block.startTime = int(timestamp * block.timeScalar)
+        
+        block.startTime = int(self.fixOverflow(block, timestamp) * block.timeScalar)
+        if block.endTime is not None:
+            block.endTime = int(self.fixOverflow(block, block.endTime) * block.timeScalar)
+            
         self.doc.channels[channel].getSession(sessionId).append(block)
+        
         return block.getNumSamples(self.doc.channels[0].parser)
-#         return block
+
 
 #===============================================================================
 # 
 #===============================================================================
 
-class ChannelDataBlock(SimpleChannelDataBlock):
+class ChannelDataBlock(BaseDataBlock):
     """
     """
-    headerSize = 0
+    maxTimestamp = 2**32
 
     def __init__(self, element):
-        self.blockIndex = -1
-        self.startTime = None
-        self.endTime = None
-        self.numSamples = None
-        self.sampleRate = None
-        self.sampleTime = None
-        self.indexRange = None
-        self._len = None
-        self.flags = 0
-        self.timestampOffset = None
-        self.body_size = None
+        super(ChannelDataBlock, self).__init__(element)
         self._payloadIdx = None
         
         self.element = element
@@ -304,6 +374,8 @@ class ChannelDataBlock(SimpleChannelDataBlock):
                 self.channel = el.value
             elif el.name == "StartTimeCodeAbsMod":
                 self.startTime = el.value
+                # TODO: Correct start time for modulus
+                self._timestamp = el.value
             elif el.name == "EndTimeCodeAbsMod":
                 self.endTime = el.value
             elif el.name == "ChannelFlags":
@@ -311,6 +383,7 @@ class ChannelDataBlock(SimpleChannelDataBlock):
             elif el.name == "ChannelDataPayload":
                 self._payloadIdx = num
                 self.body_size = el.body_size
+            # Add other child element handlers here.
                       
     
     @property
@@ -323,16 +396,14 @@ class ChannelDataBlock(SimpleChannelDataBlock):
     def getHeader(self):
         """ Extract the block's header info.
         """
-        return self.startTime, self.channel
-    
+        return self._timestamp, self.channel
 
-    @property
-    def timestamp(self):
-        return self.startTime
 
     
-class ChannelDataBlockParser(ElementHandler):
-    """ 
+class ChannelDataBlockParser(SimpleChannelDataBlockParser):
+    """ 'Factory' for ChannelDataBlock elements. Instantiated once per 
+        session (or maybe channel, depending). It handles the modulus
+        correction of the block's timestamps.
         
         @cvar elementName: The name of the element parsed by this parser
         @cvar product: The class of object generated by the parser
@@ -346,17 +417,6 @@ class ChannelDataBlockParser(ElementHandler):
         self.timestampOffset = 0
         self.stampRollover = 0
         self.lastStamp = 0
-        
-        
-    def __call__(self, element, sessionId=None):
-        """
-        """
-        sessionId = self.doc.lastSession.sessionId if sessionId is None else sessionId
-        block = self.product(element)
-        channel = block.channel
-        self.doc.channels[channel].getSession(sessionId).append(block)
-        return block.getNumSamples(self.doc.channels[channel].parser)
-
 
 #===============================================================================
 # 
@@ -376,7 +436,6 @@ class SessionParser(ElementHandler):
     """ Stub for Session element handler.
     """
     elementName = "Session"
-
 
 
 #===============================================================================
@@ -400,6 +459,29 @@ class SyncParser(ElementHandler):
     """
     elementName = "Sync"
     
+    def __call__(self, *args, **kwargs):
+        pass
+    
+
+#===============================================================================
+# 
+#===============================================================================
+
+
+class RecordingPropertiesParser(ElementHandler):
+    """ Stub for RecordingProperties element handler
+        @todo: Implement RecordingPropertiesParser
+    """
+    elementName = "RecordingProperties"
+
+
+class TimeCodeScaleParser(ElementHandler):
+    elementName = "TimeCodeScale"
+    isSubElement = True
+
+class TimeCodeModulusParser(ElementHandler):
+    elementName="TimeCodeModulus"
+    isSubElement = True
 
 #===============================================================================
 # 
@@ -414,7 +496,3 @@ class MideDocumentImporter(object):
         pass
 
 
-#===============================================================================
-# 
-#===============================================================================
-    

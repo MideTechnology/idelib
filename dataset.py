@@ -4,17 +4,19 @@ Created on Sep 26, 2013
 @author: dstokes
 
 
-@todo: Make stepped slices work with entire EventLists, not just steps within
-    each block's subsamples.
+@todo: Discontinuity handing. This will probably be conveyed as events with
+    null values. An attribute/keyword may be needed to suppress this when 
+    getting data for processing (FFT, etc.)
 @todo: Look at places where lists are returned, consider using `yield` 
     instead (e.g. parseElement(), etc.)
-@todo: Have Sensor.addChannel() possibly check the parser to see if the blocks
+@todo: Have Sensor.addChannel() possibly check the parser to see if the 
     blocks are single-sample, instantiate simpler Channel subclass
 @todo: Replace (or augment) binary search in EventList._searchBlockRanges() 
     with something faster based on most common use-cases (once those are 
     known).
 @todo: Decide if dataset.useIndices is worth it, remove it if it isn't.
-    Removing it may save a trivial amount of time/memory.
+    Removing it may save a trivial amount of time/memory (one fewer 
+    conditional in event-getting methods).
 
 '''
 
@@ -26,13 +28,26 @@ Created on Sep 26, 2013
 #===============================================================================
 
 from collections import namedtuple, Iterable
+from datetime import datetime
 from itertools import imap, izip
+import os.path
 import sys
 
 from ebml.schema.mide import MideDocument
 
 from parsers import getParserTypes, getParserRanges
 
+#===============================================================================
+# 
+#===============================================================================
+
+__DEBUG__ = True
+
+
+if __DEBUG__:
+    import ebml
+    print "*** Loaded python-ebml from", os.path.abspath(ebml.__file__)
+    
 #===============================================================================
 # 
 #===============================================================================
@@ -85,6 +100,8 @@ class Interpolation(object):
 
 
 class Lerp(Interpolation):
+    """ A simple linear interpolation between two values.
+    """
     def __call__(self, events, idx1, idx2, percent):
         v1 = events[idx1][-1]
         v2 = events[idx2][-1]
@@ -92,6 +109,9 @@ class Lerp(Interpolation):
 
     
 class MultiLerp(Lerp):
+    """ Simple linear interpolation for compound values (e.g. the
+        combined axes from an accelerometer).
+    """
     def __call__(self, events, idx1, idx2, percent):
         v1 = events[idx1][-1]
         v2 = events[idx2][-1]
@@ -220,13 +240,22 @@ class Dataset(Cascading):
         channel ID, et cetera).
         
         @var fileDamaged: `True` if the file ended prematurely.
+        @type fileDamaged: `bool`
+        @var loadCancelled: `True` if the file loading was aborted partway
+            through.
+        @type loadCancelled: `bool`
         @var sessions: A list of individual Session objects in the data set.
+        @type sessions: `list`
         @var sensors: A dictionary of Sensors.
+        @type sensors: `dict`
         @var channels: A dictionary of individual Sensor channels.
+        @type channels: `dict`
         @var plots: A dictionary of individual Plots, the modified output of
             a Channel (or even another plot).
+        @type plots: `dict`
         @var transforms: A dictionary of functions (or function-like objects)
             for adjusting/calibrating sensor data.
+        @type transforms: `dict`
     """
         
     def __init__(self, stream, name=None):
@@ -242,20 +271,55 @@ class Dataset(Cascading):
         self.useIndices = False
         
         self.fileDamaged = False
+        self.loadCancelled = False
         self.ebmldoc = MideDocument(stream)
+        self.filename = self.ebmldoc.stream.file.name
 
         if name is None:
-            self.name = self.ebmldoc.stream.file.name
+            self.name = self.filename
         else:
             self.name = name
 
         self.parent = None
+        self.currentSession = None
 
 
-    def addSession(self, startTime=0):
+    def addSession(self, startTime=None, endTime=None):
         """ Create a new session, add it to the Dataset, and return it.
         """
-        self.sessions.append(Session(self, len(self.sessions), startTime))
+        self.endSession()
+        self.currentSession = Session(self, 
+                                      sessionId=len(self.sessions), 
+                                      startTime=startTime, 
+                                      endTime=endTime)
+        self.sessions.append(self.currentSession)
+
+
+    def endSession(self):
+        """ Set the current session's start/end times.
+        """
+        cs = self.currentSession
+        if cs is not None:
+#             # wrap up the session, setting final event times, etc.
+#             sessionId = cs.sessionId
+#             for c in self.channels.itervalues():
+#                 if sessionId in c.sessions:
+#                     first, last = c.sessions[sessionId].getInterval()
+#                     if cs.firstTime is None:
+#                         cs.firstTime = first
+#                     else:
+#                         cs.firstTime = min(cs.firstTime, first)
+#                     if cs.lastTime is None:
+#                         cs.lastTime = last
+#                     else:
+#                         cs.lastTime = max(cs.lastTime, last)
+
+            if cs.startTime is None:
+                cs.startTime = cs.firstTime
+            if cs.endTime is None:
+                cs.endTime = cs.lastTime
+                
+        self.currentSession = None
         
     
     def addSensor(self, sensorId, name=None, sensorClass=None):
@@ -269,6 +333,8 @@ class Dataset(Cascading):
                 to `None`, which creates a `Sensor`.
             @return: The new sensor
         """
+        if sensorId in self.sensors:
+            return self.sensors[sensorId]
         sensorClass = Sensor if sensorClass is None else sensorClass
         sensor = sensorClass(self,sensorId,name=name)
         self.sensors[sensorId] = sensor
@@ -296,6 +362,22 @@ class Dataset(Cascading):
             return True
         return sessionId >= 0 and sessionId < len(self.sessions)
         
+    
+    def getPlots(self, subchannels=True, plots=True):
+        """ Get all plottable data: sensor subchannels and/or Plots.
+        
+            @keyword subchannels: Include subchannels if `True`.
+            @keyword plots: Include Plots if `True`.
+        """
+        result = []
+        if plots:
+            result = self.plots.values()
+        if subchannels:
+            for c in self.channels.itervalues():
+                for i in xrange(len(c.subchannels)):
+                    result.append(c.getSubChannel(i))
+        return result
+            
         
 #===============================================================================
 # 
@@ -306,11 +388,16 @@ class Session(object):
         expected to contain one or more Sessions.
     """
     
-    def __init__(self, dataset, sessionId=0, startTime=0, endTime=None):
+    def __init__(self, dataset, sessionId=0, startTime=None, endTime=None):
         self.dataset = dataset
         self.startTime = startTime
         self.endTime = endTime
         self.sessionId = sessionId
+        
+        # firstTime and lastTime are the actual last event time. These will
+        # typically be the same as startTime and endTime, but not necessarily
+        # so.
+        self.firstTime = self.lastTime = None
 
 
 #===============================================================================
@@ -335,6 +422,8 @@ class Sensor(Cascading):
             @param channelId: An unique ID number for the channel.
             @param parser: The Channel's data parser
         """
+        if channelId in self.channels:
+            return self.channels[channelId]
         channel = Channel(self, channelId, parser, **kwargs)
         self.channels[channelId] = channel
         self.dataset.channels[channelId] = channel
@@ -342,6 +431,7 @@ class Sensor(Cascading):
 
     def __getitem__(self, idx):
         return self.channels[idx]
+
 
 #===============================================================================
 # Channels
@@ -358,7 +448,7 @@ class Channel(Cascading, Transformable):
             values recorded in the file!
     """
     
-    def __init__(self, sensor, channelId, parser, name=None, units=None, 
+    def __init__(self, sensor, channelId, parser, name=None, units=('',''), 
                  calibration=None, interpolators=None):
         """ Constructor.
         
@@ -410,6 +500,12 @@ class Channel(Cascading, Transformable):
     def __getitem__(self, idx):
         return self.getSubChannel(idx)
 
+    def __len__(self):
+        return len(self.subchannels)
+    
+    def __iter__(self):
+        for i in xrange(len(self)):
+            yield self.getSubChannel(i)
 
     def _countSubsamples(self, n):
         """ Keep track of the number of subsamples per sample. For future
@@ -424,12 +520,21 @@ class Channel(Cascading, Transformable):
         ss[1] = min(ss[1], n)
         
 
-    def addSubChannel(self, subchannelId, name=None, units=None, 
+    def addSubChannel(self, subchannelId, name=None, units=('',''), 
                  calibration=None):
         """ Create a new SubChannel of the Channel.
         """
-        sc = SubChannel(self, subchannelId, name, units, calibration)
-        self.subchannels[subchannelId] = sc
+#         print subchannelId,name
+        if subchannelId > len(self.subchannels):
+            raise IndexError("Channel's parser only generates %d subchannels" % \
+                             len(self.subchannels))
+        else:
+            sc = self.subchannels[subchannelId]
+            if sc is not None:
+                return self.subchannels[subchannelId]
+            sc = SubChannel(self, subchannelId, name, units, calibration)
+            self.subchannels[subchannelId] = sc
+            return sc
         
 
     def getSubChannel(self, subchannelId):
@@ -451,8 +556,9 @@ class Channel(Cascading, Transformable):
         """ Retrieve a session 
         """
         if not self.dataset.hasSession(sessionId):
-            raise KeyError("Dataset has no Session %r" % sessionId)
-        return self.sessions.setdefault(sessionId, EventList(self, session=self.dataset.sessions[sessionId]))
+            raise KeyError("Dataset has no Session id=%r" % sessionId)
+        return self.sessions.setdefault(sessionId, 
+                    EventList(self, session=self.dataset.sessions[sessionId]))
     
     
     def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None):
@@ -465,10 +571,12 @@ class Channel(Cascading, Transformable):
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
 #         return [map(self.transform, x) for x in block.parseWith(self.parser, start=start, end=end, step=step, subchannel=subchannel)]
-        return list(block.parseWith(self.parser, start=start, end=end, step=step, subchannel=subchannel))
+        return list(block.parseWith(self.parser, start=start, end=end, 
+                                    step=step, subchannel=subchannel))
 
 
     def lerp(self, v1, v2, percent):
+        # XXX: This should be removed in favor of using a Transform instance.
         return v1 + percent * (v2 - v1)
 
 
@@ -480,12 +588,15 @@ class SubChannel(Channel):
         like a 'real' channel.
     """
     
-    def __init__(self, parent, subChannelId, name=None, units=None, calibration=None):
+    def __init__(self, parent, subChannelId, name=None, units=('',''), calibration=None):
         """ Constructor.
         """
         self.id = subChannelId
         self.parent = parent
-        self.name = "Subchannel%02d" % subChannelId if name is None else name
+        if name is None:
+            self.name = "%s:%02d" % (parent.name, subChannelId)
+        else:
+            self.name = name
         self.units = units
     
         self.dataset = parent.dataset
@@ -516,9 +627,10 @@ class SubChannel(Channel):
 
     @property
     def sessions(self):
+        # TODO: Caching the parent's sessions may cause trouble with dynamic loading
         if self._sessions is None:
             for s in self.parent.sessions:
-                self.getSession(s)
+                self._sessions[s] = self.getSession(s)
         return self._sessions
     
 
@@ -565,6 +677,7 @@ class EventList(Cascading):
         self._length = 0
         self.dataset = parent.dataset
         self.hasSubchannels = len(self.parent.types) > 1
+        self._firstTime = self._lastTime = None
 
 
     @property
@@ -604,6 +717,29 @@ class EventList(Cascading):
         block.indexRange = (oldLength, self._length - 1)
         self.parent._countSubsamples(block.numSamples)
         
+        # Set the session first/last times if they aren't already set.
+        # Possibly redundant if all sessions are 'closed.'
+        if self.session.firstTime is None:
+            self.session.firstTime = block.startTime
+        if self.session.lastTime is None:
+            self.session.lastTime = block.endTime
+        else:
+            self.session.lastTime = max(self.session.lastTime, block.endTime)
+        
+        
+    def getInterval(self):
+        """ Get the first and last event times in the set.
+        """
+        if len(self._data) == 0:
+            return None
+        if self._firstTime is None:
+            self._firstTime = self[0][-2]
+#             self._firstTime = self._getBlockTimeRange(0)[0]
+        if self._lastTime is None:
+            self._lastTime = self[-1][-2]
+#             self._lastTime = self._getBlockTimeRange(-1)[1]
+        return self._firstTime, self._lastTime
+    
 
     def _getBlockIndexRange(self, blockIdx):
         """ Get the first and last index of the subsamples within a block,
@@ -628,11 +764,15 @@ class EventList(Cascading):
             @param idx: 
             @return: 
         """
+        if blockIdx < 0:
+            blockIdx += len(self._data)
         block = self._data[blockIdx]
         if block.endTime is None:
             # Probably a SimpleChannelDataBlock, which doesn't record end.
-            if blockIdx < 0:
-                blockIdx += len(self._data)
+            if len(self._data) == 1:
+                # Can't compute without another block's start.
+                # TODO: Have sensor description provide nominal sample rate?
+                return block.startTime, None
             if blockIdx < len(self._data)-1:
                 block.endTime = self._data[blockIdx+1].startTime - self._getBlockSampleTime(blockIdx)
             else:
@@ -668,6 +808,7 @@ class EventList(Cascading):
 
         start = len(self._data) + start if start < 0 else start
         stop = len(self._data) + stop if stop < 0 else stop
+                
         return getIdx(start, stop)
 
     
@@ -833,16 +974,15 @@ class EventList(Cascading):
                 the session.
         """
         if startTime is None or startTime <= self._data[0].startTime:
-            startIdx = 0
+            startIdx = startBlockIdx = 0
         else:
             startBlockIdx = self._getBlockIndexWithTime(startTime)
             startBlock = self._data[startBlockIdx]
             startIdx = int(startBlock.indexRange[0] + ((startTime - startBlock.startTime) / self._getBlockSampleTime(startBlockIdx)) + 1)
-        
         if endTime is None:
             endIdx = self._data[-1].indexRange[1]
         else:
-            endBlockIdx = self._getBlockIndexWithTime(endTime, start=startIdx) 
+            endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx) 
             endBlock = self._data[endBlockIdx]
             endIdx = int(endBlock.indexRange[0] + ((endTime - endBlock.startTime) / self._getBlockSampleTime(endBlockIdx)) - 1)
         return startIdx, endIdx
@@ -1025,11 +1165,11 @@ class EventList(Cascading):
         """
         # TODO: Handle possible variations in sample rate.
         blockIdx = self._getBlockIndexWithTime(startTime)
-        lastBlockIdx = self._getBlockIndexWithIndex(stopTime, blockIdx)+1
+        lastBlockIdx = self._getBlockIndexWithTime(stopTime, blockIdx)+1
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
         numPoints = (stopTime - startTime) / (self.getSampleTime(blockIdx) + 0.0)
         step = numPoints / maxPoints
-        print "step:",step
+#         print "step:",step
         if step < threshold:
             for p in self.iterSlice(startIdx, stopIdx):
                 yield p
@@ -1038,6 +1178,7 @@ class EventList(Cascading):
             thisRange = self._getBlockIndexRange(blockIdx)
             lastIdx = -1
             for idx in xrange(startIdx, stopIdx, step):
+#                 print "iterResampledRange loop:", idx, startIdx, stopIdx, step
                 if idx > thisRange[1]:
                     blockIdx = self._getBlockIndexWithIndex(idx, blockIdx+1, lastBlockIdx)
                     thisRange = self._getBlockIndexRange(blockIdx)
@@ -1046,6 +1187,61 @@ class EventList(Cascading):
                     for event in self.iterSlice(idx, min(stopIdx,thisRange[1]+1), step):
                         yield event
 
+
+    def exportCsv(self, stream, start=0, stop=-1, step=1,
+                  callback=None, callbackInterval=0.01, timeScalar=1):
+        """ Export events as CSV to a stream (e.g. a file).
+        
+            @param stream: The stream object to which to write CSV data.
+            @keyword start: The first event index to export.
+            @keyword stop: The last event index to export.
+            @keyword step: The number of events between exported lines.
+            @keyword timeScalar: A scaling factor for the even times.
+                The default is 1 (microseconds).
+            @keyword callback: A function (or function-like object) to notify
+                as work is done. It should take four keyword arguments:
+                `count` (the current line number), `total` (the total number of
+                lines), `error` (an exception, if raised during the
+                export), and `done` (will be `True` when the export is
+                complete). If the callback object has a `cancelled`
+                attribute that is `True`, the CSV export will be aborted.
+                The default callback is `None` (nothing will be notified).
+            @keyword callbackInterval: The frequency of update, as a
+                normalized percent of the total lines to export.
+            @return: The number of rows exported and the elapsed time.
+        """
+        def dummyCallback(*args, **kwargs): pass
+        def singleVal(x): return ", ".join(map(str,x))
+        def multiVal(x): return "%s, %s" % (str(x[-2]*timeScalar), 
+                                            str(x[-1]).strip("[({})]"))
+        
+        noCallback = dummyCallback is None
+        callback = dummyCallback if callback is None else callback
+        
+        formatter = multiVal if self.hasSubchannels else singleVal
+        
+        totalLines = (stop - start) / (step + 0.0)
+        updateInt = int(totalLines * callbackInterval)
+        
+        t0 = datetime.now()
+        try:
+            for num, evt in enumerate(self.iterSlice(start, stop, step)):
+                if getattr(callback, 'cancelled', False):
+                    callback(finished=True)
+                    break
+                stream.write("%s\n" % formatter(evt))
+                if num % updateInt == 0:
+                    callback(num, totalLines)
+                callback(finished=True)
+        except Exception as e:
+            if noCallback:
+                raise e
+            else:
+                callback(error=e)
+                
+        return num+1, datetime.now() - t0
+
+        
 #===============================================================================
 # 
 #===============================================================================

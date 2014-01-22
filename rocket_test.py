@@ -20,40 +20,30 @@ Time to read file:
 From Slam Stick X: 0:06:47.506000
 '''
 
+from datetime import datetime
 import os
 import struct
 import sys
-import types
-from datetime import datetime
 
 from dataset import Dataset
 import parsers
-# from parsers import MPL3115PressureTempParser
-# from parsers import SimpleChannelDataBlockParser, ChannelDataBlockParser, ElementTagParser
 
 #===============================================================================
 # 
 #===============================================================================
 
 # testFile = r"e:\test.dat"
-testFile = r"test_full_cdb.DAT"
+# testFile = r"test_full_cdb.DAT"
+# testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\test_full_cdb_huge.dat"
+testFile = r"test_full_cdb_huge.dat"
 
 #===============================================================================
 # Some experiments in modularizing things
 #===============================================================================
 
-# elementParsers = [SimpleChannelDataBlockParser, ChannelDataBlockParser, ElementTagParser]
-
 # Parser importer. These are taken from the module by type. We probably want
 # to create the list of parser types 'manually' in the real app; it's safer.
-elementParserTypes = []
-for p in parsers.__dict__.itervalues():
-    if not isinstance(p, types.TypeType) or p == parsers.ElementHandler:
-        continue
-    if issubclass(p, parsers.ElementHandler):
-        print "Installing handler for", p.elementName
-        elementParserTypes.append(p)
-         
+elementParserTypes = parsers.getElementHandlers()
 
 # Hard-coded sensor/channel mapping. Will eventually be read from EBML file.
 sensors = {
@@ -108,7 +98,7 @@ class ASCIIProgressBar(object):
         sys.stdout.flush()
     
     def update(self, val, count=None, total=None):
-        sys.stdout.write('\x0d%s samples read          ' % val)
+        sys.stdout.write('\x0d%s samples read ' % val)
 #         sys.stdout.write(".")
         sys.stdout.flush()
     
@@ -172,17 +162,13 @@ class TkProgressBar(object):
 class LoaderUpdater(ASCIIProgressBar):
     pass
 
-updateProgressBar = ASCIIProgressBar(filename=testFile) 
-# updateProgressBar = TkProgressBar() 
-
-
 def nullUpdater(*args, **kwargs):
     pass
+
 
 #===============================================================================
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
-
 
 def createDefaultSensors(doc, defaultSensors):
     """ Given a nested set of dictionaries containing the definition of one or
@@ -197,8 +183,7 @@ def createDefaultSensors(doc, defaultSensors):
             if 'subchannels' not in sensorInfo:
                 continue
             for subChId, subChInfo in sensorInfo['subchannels'].iteritems():
-                channel.addSubChannel(subChId, 
-                                      **subChInfo)
+                channel.addSubChannel(subChId, **subChInfo)
     
     
 
@@ -222,7 +207,7 @@ def openFile(filename=testFile, updater=LoaderUpdater,
     if defaultSensors is not None:
         createDefaultSensors(doc, defaultSensors)         
 
-    doc.addSession(0)
+    doc.addSession()
 
     count = 0
     events = 0
@@ -231,42 +216,43 @@ def openFile(filename=testFile, updater=LoaderUpdater,
     filesize = os.path.getsize(filename)
     lastOffset = 0
     ticSize = None
-    updateProgressBar(0, count)
-    
-#     for r in doc.ebmldoc.iterroots():
-    for r in doc.ebmldoc.roots:
-        
-        # More progress display stuff
-        offset = r.stream.offset
-        if ticSize is None:
-            dataSize = filesize - r.stream.offset
-            ticSize = dataSize / numTics
-            dataSize += 0.0
-        if offset-lastOffset > ticSize:
-#             updateProgressBar(offset/dataSize)
-            updateProgressBar(events)
-            lastOffset = offset
+    updater(0, count)
 
+    try:    
+        for r in doc.ebmldoc.iterroots():
+    #     for r in doc.ebmldoc.roots:
             
-        try:
+            # More progress display stuff
+            offset = r.stream.offset
+            if ticSize is None:
+                dataSize = filesize - r.stream.offset
+                ticSize = dataSize / numTics
+                dataSize += 0.0
+            if offset-lastOffset > ticSize:
+                updater(offset/dataSize)
+                updater(events)
+                lastOffset = offset
+    
+                
             if r.name in elementParsers:
                 added = elementParsers[r.name](r)
                 if added is not None:
                     events += added
             else:
                 print "unknown block %r, continuing" % r.name
-                
-        except IOError:
-            doc.fileDamaged = True
-            break
-
-        # Emergency ejector seat. Not for production!            
-        count += 1
-        if maxBlocks is not None and count > maxBlocks:
-            break
+            
+            # Emergency ejector seat. Not for production!            
+            count += 1
+            if maxBlocks is not None and count > maxBlocks:
+                break
+        
+    except IOError:
+        doc.fileDamaged = True
+        
+    doc.endSession()
     
     # finish progress bar
-    updateProgressBar(-1, events)
+    updater(-1, events)
         
     doc.loading = False
     return doc

@@ -1,4 +1,8 @@
-import math
+"""
+
+@todo: Completely replace RulerCtrl with a lighter-weight base class.
+"""
+
 
 import wx; wx=wx
 
@@ -18,7 +22,8 @@ except ImportError: # if it's not there locally, try the wxPython lib.
 class TimelineCtrl(RC.RulerCtrl):
     """
     A subclass of RulerCtrl customized for displaying time ranges. It does not
-    have indicators, and it supports (or will support) click-and-drag adjustment.
+    have indicators, is always horizontal, and it supports click-and-drag 
+    adjustment.
     
     @todo: Replace more of the methods inherited from RulerCtrl, removing all
         the conditional bits that aren't applicable to a Timeline.
@@ -143,8 +148,22 @@ class VerticalScaleCtrl(RC.RulerCtrl):
     def __init__(self, *args, **kwargs):
         kwargs['style'] = kwargs.get('style', 0) | wx.VERTICAL
         kwargs['orient'] = wx.VERTICAL
+        self._borderSize = 1
         super(VerticalScaleCtrl, self).__init__(*args, **kwargs)
         self._format = RC.RealFormat
+
+        if self._style & wx.NO_BORDER:
+            self._borderSize = 1
+        elif self._style & wx.SIMPLE_BORDER:
+            self._borderSize = 1
+        elif self._style & wx.STATIC_BORDER:
+            self._borderSize = 3
+        elif self._style & wx.SUNKEN_BORDER:
+            self._borderSize = 5
+        elif self._style & wx.RAISED_BORDER:
+            self._borderSize = 7
+        elif self._style & wx.DOUBLE_BORDER:
+            self._borderSize = 7
         
         
     def Draw(self, dc):
@@ -206,24 +225,8 @@ class VerticalScaleCtrl(RC.RulerCtrl):
         """ Adjust the L{RulerCtrl} style accordingly to borders, units, etc..."""
 
         width, height = self.GetSize()
-        if self._style & wx.NO_BORDER:
-            wbound = width-1
-            hbound = height-1
-        elif self._style & wx.SIMPLE_BORDER:
-            wbound = width-1
-            hbound = height-1
-        elif self._style & wx.STATIC_BORDER:
-            wbound = width-3
-            hbound = height-3
-        elif self._style & wx.SUNKEN_BORDER:
-            wbound = width-5
-            hbound = height-5
-        elif self._style & wx.RAISED_BORDER:
-            wbound = width-7
-            hbound = height-7
-        elif self._style & wx.DOUBLE_BORDER:
-            wbound = width-7
-            hbound = height-7
+        wbound = width - self._borderSize
+        hbound = height - self._borderSize
 
         minText = self.LabelString(self._min, major=True)
         maxText = self.LabelString(self._max, major=True)

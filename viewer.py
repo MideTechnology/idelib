@@ -9,17 +9,23 @@ __version__="0.0.1"
 __copyright__=u"Copyright (c) 2013 MID\xc9 Technology"
 __credits__=["David R. Stokes", "Tim Gipson"]
 
+from datetime import datetime
+import json
 import os
+from threading import Thread
 
 import wx.aui
+import  wx.lib.newevent
+
 import wx; wx = wx # Workaround for Eclipse code comprehension
 # from wx.aui import AuiNotebook
 from wx.lib.rcsizer import RowColSizer
 from wx.lib.wordwrap import wordwrap
 
+# This pattern was lifted from examples. Is it deprecated?
 try:
     from agw import rulerctrl
-except ImportError: # if it's not there locally, try the wxPython lib.
+except ImportError:
     import wx.lib.agw.rulerctrl as rulerctrl
 
 from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
@@ -28,71 +34,173 @@ from timeline import EVT_INDICATOR_CHANGING, EVT_INDICATOR_CHANGED
 from icons import MideLogo_77px as MideLogo
 from icons import SlamStickX_Logo_Black_Alpha_116px as SSXLogo
 
+from dataset import Dataset
+import importer
+
+# XXX: FOR TESTING PURPOSES ONLY:
+# from fakedata import makeFakeData
+
+# XXX: EXPERIMENTAL!
+from threaded_file import ThreadAwareFile
+#===============================================================================
+# 
+#===============================================================================
+
+(Evt_Set_Visible_Range, EVT_SET_VISIBLE_RANGE) = wx.lib.newevent.NewEvent()
+(Evt_Set_Time_Range, EVT_SET_TIME_RANGE) = wx.lib.newevent.NewEvent()
+(Evt_Progress_Start, EVT_PROGRESS_START) = wx.lib.newevent.NewEvent()
+(Evt_Progress_Update, EVT_PROGRESS_UPDATE) = wx.lib.newevent.NewEvent()
+(Evt_Progress_End, EVT_PROGRESS_END) = wx.lib.newevent.NewEvent()
+(Evt_Init_Plots, EVT_INIT_PLOTS) = wx.lib.newevent.NewEvent()
 
 #===============================================================================
 # 
 #===============================================================================
 
-# XXX: REMOVE BELOW. FOR TESTING PURPOSES
-import random
+class Loader(Thread):
+    """ The object that does the work of spawning an asynchronous file-loading
+        thread and updating the viewer as data is loaded.
+    """
 
-def makeFakeData():
-    class FakeSource(list):
-        def __init__(self, *args):
-            self.units=('','')
-            self.name = "Fake Data"
-            self.extend(args)
-        
-        def iterRange(self, *args, **kwargs):
-            return iter(self)
+    cancelMsg = "Import cancelled"
     
-    fakedata = []
-    for n,u in (("Accelerometer X",('G','G')), 
-              ("Accelerometer Y",('G','G')), 
-              ("Accelerometer Z",('G','G')), 
-              ("Pressure",('Pascals','Pa')),
-              ("Temperature",(u'\xb0C',u'\xb0C'))):
-        d = FakeSource()
-        d.name = n
-        d.units = u
-        for i in xrange(1043273, 1043273 + 200000, 200):
-            d.append((i,random.randint(128,65407)))
-        fakedata.append(d)
-    return fakedata
+    def __init__(self, root, dataset, numTics=100, updateInterval=1.0,
+                 autoStart=True):
+        """ Create the Loader and start the loading process.
+            
+            @param root: The Viewer.
+            @param dataset: The Dataset being loaded. It should be fresh,
+                referencing a file stream but not yet loaded.
+            @keyword numTics: The minimum number of calls to the updater to
+                be made. There will be more than this number of updates if
+                any takes longer than the specified `updateInterval` (below).
+            @keyword updateInterval: The maximum number of seconds between
+                calls to the updater
+        """
+        self.root = root
+        self.dataset = dataset
+        self.numTics = numTics
+        self.updateInterval = updateInterval
+        self.cancelled = False
+        self.startTime = self.lastTime = None
+        self.readingData = False
+
+        super(Loader, self).__init__()
+
+        if autoStart:
+            self.start()
 
 
-#  = FakeSource()
-# .name = "Ersatz Plot"
-# for i in xrange(1043273, 1043273 + 200000, 200):
-#     .append((i,random.randint(128,65407)))
+    def run(self):
+        wx.PostEvent(self.root, 
+                     Evt_Progress_Start(label="Importing...", initialVal=-1, 
+                                        cancellable=True, cancelEnabled=None))
+        importer.readData(self.dataset, self, 
+                          numTics=self.numTics, 
+                          updateInterval=self.updateInterval)
 
-#  = FakeSource(
-#     (1043273, 50303), (1043473, 44927), (1043673, 37759), (1043873, 28543), 
-#     (1044073, 43903), (1044273, 60031), (1044473, 24704), (1044673, 7552), 
-#     (1044873, 40575), (1045073, 56703), (1045273, 2432), (1045473, 4992), 
-#     (1045673, 640), (1045873, 60031), (1046073, 29311), (1046273, 55423), 
-#     (1046473, 51327), (1046673, 7040), (1046873, 128), (1047073, 55679), 
-#     (1047273, 7808), (1047473, 55167), (1047673, 24703), (1047873, 60543), 
-#     (1048073, 12928), (1048273, 1920), (1048473, 896), (1048673, 52863),
-#     (1048873, 33408), (1049073, 29055), (1049273, 64895), (1049473, 65151),
-#     (1049673, 60287), (1049873, 17280), (1050073, 53631), (1050273, 62591), 
-#     (1050473, 64127), (1050673, 63871), (1050873, 56959), (1051073, 65151),
-#     (1051273, 61311), (1051473, 40831), (1051673, 63359), (1051873, 1408),
-#     (1052073, 40831), (1052273, 57983), (1052473, 2176), (1052673, 50559), 
-#     (1052873, 15744), (1053073, 53887), (1053273, 55167), (1053473, 3456), 
-#     (1053673, 33663), (1053873, 3712), (1054073, 58239), (1054273, 13440),
-#     (1054473, 16000), (1054673, 2944), (1054873, 65407), (1055073, 44671),
-#     (1055273, 24448), (1055473, 55679), (1055673, 61823), (1055873, 20096), 
-#     (1056073, 4224), (1056273, 52607), (1056473, 54655), (1056673, 48255),
-#     (1056873, 49791), (1057073, 55935), (1057273, 61567), (1057473, 52863), 
-#     (1057673, 20096), (1057873, 3712), (1058073, 49279), (1058273, 56447),
-#     (1058473, 33151), (1058673, 128), (1058873, 61055), (1059073, 1408),
-#     (1059273, 62847), (1059473, 10368), (1059673, 26752), (1059873, 1408),
-#     (1060073, 52095), (1060273, 18816), (1060473, 8064), (1060673, 50303), 
-#     (1060873, 59263), (1061073, 62591), (1061273, 20864), (1061473, 11904),
-#     (1061673, 52095), (1061873, 47999), (1062073, 13440), (1062273, 49535), 
-#     (1062473, 21120), (1062673, 61567), (1062873, 4224), (1063073, 62847)
-# )
+        wx.PostEvent(self.root, Evt_Progress_End(label=None))
+
+
+    def formatEstimate(self, est):
+        """ Format the `datetime.timedelta` of estimated time remaining as a
+            pretty string.
+        """
+        if est is None or est.seconds < 1:
+            return ""
+        if est.seconds < 60:
+            s = "%d sec." % est.seconds
+        else:
+            s = str(est)[:-7].lstrip("0:")
+        return "- Est. finish in %s" % s 
+
+
+    def __call__(self, count=0, percent=None, total=None, error=None, done=False):
+        """ Update the Viewer's display.
+        
+            @param count: the current line number.
+            @param percent: The estimated percentage of the file read, as a
+                normalized float (0.0 to 1.0). 
+            @param total: the total number of samples (if known).
+            @param error: Any unexpected exception, if raised during the import.
+            @param done: `True` when the export is complete.
+        """
+        if error is not None:
+            if isinstance(error, IOError):
+                # A file IO error of some sort, other than premature EOF
+                # TODO: Implement this
+                pass
+            elif isinstance(error, MemoryError):
+                # Typically out-of-memory error
+                # TODO: Implement this
+                pass
+            elif isinstance(error, EnvironmentError):
+                # A broad, operating-system-level error
+                # TODO: Implement this
+                pass
+            else:
+                # TODO: Implement this
+                pass
+            return
+        
+        if done:
+            # TODO: Implement this
+            return
+        
+        if not self.readingData:
+            if count > 0:
+                # The start of data.
+                self.root.currentSession = self.dataset.lastSession
+                wx.PostEvent(self.root, Evt_Init_Plots())
+                endTime = self.root.currentSession.endTime
+                if endTime is None:
+                    endTime = self.root.currentSession.lastTime
+                if endTime is not None:
+                    evt = Evt_Set_Visible_Range(
+                        start=self.root.currentSession.startTime, end=endTime, 
+                        instigator=None, tracking=True)
+                    wx.PostEvent(self.root, evt)
+                # TODO: Finish this
+                self.readingData = True
+            else:
+                # Still in header; don't update.
+                return
+        
+        
+        est = None
+        thisTime = datetime.now()
+        if self.startTime is None:
+            self.startTime = thisTime
+        elif percent is not None:
+            p = int(percent * 100)
+            if p > 0 and p < 100:
+                est = ((thisTime - self.startTime) / p) * (100-p)
+        
+        msg = "%d samples imported %s" % (count, self.formatEstimate(est))
+        
+        wx.PostEvent(self.root, Evt_Progress_Update(val=percent, 
+                                                    label=msg, 
+                                                    cancellable=True))
+
+        if self.dataset.lastSession == self.root.currentSession:
+            evt = Evt_Set_Time_Range(start=self.root.currentSession.firstTime, 
+                                     end=self.root.currentSession.lastTime, 
+                                     instigator=None, 
+                                     tracking=True)
+            wx.PostEvent(self.root, evt)
+        
+        self.lastTime = thisTime
+
+
+    def cancel(self, blocking=True):
+        """
+        """
+        self.cancelled = True
+        if not blocking:
+            return
+        while self.isAlive():
+            pass
+                        
 
 #===============================================================================
 # 
@@ -147,7 +255,7 @@ class StatusBar(wx.StatusBar):
         self.SetStatusText("Welcome to %s v%s" % (APPNAME, __version__), 
                            self.messageFieldNum)
 
-        self.progressBar = wx.Gauge(self, -1)
+        self.progressBar = wx.Gauge(self, -1, 1000)
 
         self.Bind(wx.EVT_SIZE, self.repositionProgressBar)
         self.Bind(wx.EVT_BUTTON, self.OnCancelClicked, self.cancelButton)
@@ -156,9 +264,6 @@ class StatusBar(wx.StatusBar):
 
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.TimerHandler)
-                
-        # XXX: Test. Remove later.
-        self.startThrobber("testing!")
 
 
 
@@ -198,65 +303,64 @@ class StatusBar(wx.StatusBar):
         self.cancelButton.SetPosition(buttonRect[:2])
 
         
-    def startThrobber(self, label='Working...', cancelable=True, 
+    def startProgress(self, label="Working...", initialVal=0, cancellable=True,
                       cancelEnabled=None, delay=frameDelay):
-        """ Reveal the indefinite progress bar (a/k/a throbber) and start it 
-            animating.
-            
-            @keyword label: Text to display in the status bar.
-            @keyword cancelable: If `True`, the Cancel button will be visible.
-            @keyword cancelEnabled: If `False` and `cancelable` is `True`,
-                the Cancel button will be visible but disabled (grayed out).
-                For use in cases where a process can only be cancelled after
-                a certain point.
-            @keyword delay: The delay (in milliseconds) between progress
-                bar updates.
-        """
-        cancelEnabled = cancelable if cancelEnabled is None else cancelEnabled
-        self.cancelButton.Enable(cancelable)
-        self.SetStatusText(label, 0)
-        self.progressBar.Show(True)
-        self.cancelButton.Show(cancelable)
-        self.cancelButton.Enable(cancelEnabled)
-        self.timer.Start(delay)
-
- 
-    def startProgress(self, label="Working...", initialVal=0, cancelable=True,
-                      cancelEnabled=None):
         """ Start the progress bar, showing a specific value.
         
             @keyword label: Text to display in the status bar.
-            @keyword initialVal: The starting value displayed, if > 0.
-            @keyword cancelable: If `True`, the Cancel button will be visible.
-            @keyword cancelEnabled: If `False` and `cancelable` is `True`,
+            @keyword initialVal: The starting value displayed. -1 will start
+                the progress bar in indefinite mode.
+            @keyword cancellable: If `True`, the Cancel button will be visible.
+            @keyword cancelEnabled: If `False` and `cancellable` is `True`,
                 the Cancel button will be visible but disabled (grayed out).
                 For use in cases where a process can only be cancelled after
                 a certain point.
         """
-        cancelEnabled = cancelable if cancelEnabled is None else cancelEnabled
-        # Stop the indefinite progress bar if it's running
-        self.timer.Stop()
         self.SetStatusText(label, 0)
-        self.progressBar.SetValue(initialVal)
         self.progressBar.Show(True)
-        self.cancelButton.Show(cancelable)
+        if initialVal < 0 or initialVal > 1.0:
+            self.timer.Start(delay)
+        else:
+            self.timer.Stop()
+            self.progressBar.SetValue(initialVal*1000.0)
+            
+        cancelEnabled = cancellable if cancelEnabled is None else cancelEnabled
+        self.cancelButton.Show(cancellable)
         self.cancelButton.Enable(cancelEnabled)
 
 
-    def updateProgress(self, val, label=None, cancelEnabled=None):
-        """ Change the progress bar's value and/or label. 
+    def updateProgress(self, val=None, label=None, cancellable=None):
+        """ Change the progress bar's value and/or label. If the value is
+            greater than 1.0, the bar automatically changes to its
+            'throbber' mode (indefinite cycling bar).
         
-            @param val: The value to display on the progress bar, 0-100.
+            @param val: The value to display on the progress bar, as a
+                normalized float.
             @keyword label: Text to display in the status bar.
             @keyword cancelEnabled: If the Cancel button is visible,
                 `True` will enable it, `False` will disable it.
                 `None` (default) will leave it as-is.
         """
+        self.progressBar.Show(True)
+
         if label is not None:
-            self.SetStatusText(label, 0)
-        if cancelEnabled is not None:
-            self.cancelButton.Enable(cancelEnabled)
-        self.progressBar.SetValue(val)
+            self.SetStatusText(label, self.messageFieldNum)
+        if cancellable is not None:
+            self.cancelButton.Enable(cancellable)
+            if cancellable is True:
+                self.progressBar.Show(True)
+            
+        if val is None:
+            return
+        
+        if val > 1.0 or val < 0:
+            if not self.timer.IsRunning():
+                self.timer.Start(self.frameDelay)
+        else:
+            if self.timer.IsRunning():
+                self.timer.Stop()
+            self.progressBar.SetValue(val*1000.0)
+
 
         
     def stopProgress(self, label=""):
@@ -265,7 +369,8 @@ class StatusBar(wx.StatusBar):
             @keyword label: Text to display in the status bar.
         """
         self.timer.Stop()
-        self.SetStatusText(label, 0)
+        if label is not None:
+            self.SetStatusText(label, self.messageFieldNum)
         self.progressBar.Show(False)
         self.cancelButton.Show(False)
 
@@ -294,7 +399,7 @@ class Timeline(wx.Panel):
             @keyword root: The viewer's 'root' window.
             @keyword timerange: The default time range, in microseconds. 
         """
-        self.timerange = kwargs.pop('timerange',(0,1000**2))
+        self.timerange = kwargs.pop('timerange',(0,10**6))
         self.root = kwargs.pop('root',None)
         kwargs.setdefault('style',wx.NO_BORDER)
         super(Timeline, self).__init__(*args, **kwargs)
@@ -604,9 +709,10 @@ class TimeNavigator(wx.Panel):
     def OnMarkChanged(self, evt):
         """ Handle the final adjustment of a visible range marker.
         """
+        print "OnMarkChanged"
         evt.Skip()
         v1, v2 = self.timeline.getVisibleRange()
-        self.GetParent().setVisibleRange(v1/self.root.timeScalar, v2/self.root.timeScalar, self, True)
+        self.root.setVisibleRange(v1/self.root.timeScalar, v2/self.root.timeScalar, self, True)
         pass
 
     def OnZoomIn(self, evt):
@@ -672,7 +778,7 @@ class LegendArea(wx.Panel):
         self.scale.SetBackgroundColour(self.root.uiBgColor)
         sizer.Add(self.scale, -1, wx.EXPAND)
         self.SetSizer(sizer)
-        self.SetMinSize((self.Parent.Parent.Parent.logo.GetSize()[0],-1))
+        self.SetMinSize((self.root.corner.GetSize()[0],-1))
         self.SetBackgroundColour(self.root.uiBgColor)
 
         self.Bind(wx.EVT_BUTTON, self.OnZoomIn, self.zoomInButton)
@@ -789,9 +895,6 @@ class PlotCanvas(wx.ScrolledWindow):
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
         
         self.visibleValueRange = None
-        
-        # XXX: TEST
-        self.dumpedMouse = False
 
 
     def setPen(self, color=None, weight=None, style=wx.SOLID):
@@ -845,7 +948,7 @@ class PlotCanvas(wx.ScrolledWindow):
             return
         self.InvalidateBestSize()
         dc = wx.PaintDC(self) # wx.BufferedPaintDC(self)
-        gc = wx.GraphicsContext.Create(dc)
+#         gc = wx.GraphicsContext.Create(dc)
 #         if self.root.app._antiAliasingEnabled:
 #             if not isinstance(dc, wx.GCDC):
 #                 try:
@@ -863,8 +966,9 @@ class PlotCanvas(wx.ScrolledWindow):
         
         lines = []
         lastPt = None
-        events = self.Parent.source.iterRange(hRange)
-        
+#         events = self.Parent.source.iterResampledRange(hRange[0], hRange[1], size[0])
+#         print list(events)
+        events = self.Parent.source.iterResampledRange(hRange[0], hRange[1], size[0])
         try:
             lastPt = events.next()
             lastPt = (lastPt[-2] - hRange[0]) * hscale, (lastPt[-1] - vRange[0]) * vscale
@@ -921,7 +1025,7 @@ class Plot(wx.Panel):
         sizer.Add(self.legend, 0, wx.EXPAND)
         sizer.Add(self.plot, -1, wx.EXPAND)
         self.SetSizer(sizer)
-        self.legend.SetSize((self.Parent.Parent.logo.GetSize()[0],-1))
+        self.legend.SetSize((self.Parent.Parent.corner.GetSize()[0],-1))
         
         self.plot.Bind(wx.EVT_LEAVE_WINDOW, self.OnMouseLeave)
         
@@ -1038,7 +1142,9 @@ class PlotSet(wx.aui.AuiNotebook):
 
         title = source.name if title is None else title
         title = "Plot %s" % len(self) if title is None else title
-            
+        
+        print "adding:",title
+        
         if scale is None:
             scale = getattr(source, "possibleRange", (-1.0,1.0))
             
@@ -1046,6 +1152,7 @@ class PlotSet(wx.aui.AuiNotebook):
         plot = Plot(self, source=source, root=self.root, scale=scale, color=color, units=units)
         plot.SetToolTipString(name)
         self.AddPage(plot, title)
+        self.Refresh()
         return plot
 
 
@@ -1092,16 +1199,35 @@ class PlotSet(wx.aui.AuiNotebook):
             if p.IsShownOnScreen():
                 p.setTimeRange(start, end, instigator, tracking)
 
+
+    def removePlot(self, idx):
+        """
+        """
+        pagecount = len(self)
+        idx = pagecount + idx if idx < 0 else idx
+        if idx < pagecount:
+            pIdx = self.GetPageIndex(self.GetPage(idx))
+            if pIdx != wx.NOT_FOUND:
+                self.DeletePage(pIdx)
+
+    
+    
+    def clearAllPlots(self):
+        """
+        """
+        for i in xrange(self.GetPageCount):
+            self.removePlot(0)
+        
 #===============================================================================
 # 
 #===============================================================================
 
-class LogoCorner(wx.Panel):
+class Corner(wx.Panel):
     """ A 'bug' to fit into the empty space in the lower left corner.
     """
     def __init__(self, *args, **kwargs):
         self.root = kwargs.pop('root',None)
-        super(LogoCorner, self).__init__(*args, **kwargs)
+        super(Corner, self).__init__(*args, **kwargs)
         
         if self.root is None:
             self.root = self.GetParent().root
@@ -1111,16 +1237,22 @@ class LogoCorner(wx.Panel):
         sizer.AddGrowableCol(1,-4)
         sizer.AddGrowableCol(2,-1)
         
-        self.startField = wx.TextCtrl(self, -1, "start", size=(56, -1), style=wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB)
-        startLabel = wx.StaticText(self,-1,"Start:",size=(30,-1),style=wx.ALIGN_RIGHT)
-        self.startUnits = wx.StaticText(self, -1, self.root.units[1], style=wx.ALIGN_LEFT)
+        self.startField = wx.TextCtrl(self, -1, "start", size=(56, -1), 
+                                      style=wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB)
+        startLabel = wx.StaticText(self,-1,"Start:",size=(30,-1),
+                                   style=wx.ALIGN_RIGHT)
+        self.startUnits = wx.StaticText(self, -1, self.root.units[1], 
+                                        style=wx.ALIGN_LEFT)
         sizer.Add(startLabel,0,0)
         sizer.Add(self.startField,1,0)
         sizer.Add(self.startUnits, 2,0)
         
-        self.endField = wx.TextCtrl(self, -1, "end", size=(56, -1), style=wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB)
-        endLabel = wx.StaticText(self,-1,"End:",size=(30,-1),style=wx.ALIGN_RIGHT)
-        self.endUnits = wx.StaticText(self, -1, self.root.units[1], style=wx.ALIGN_LEFT)
+        self.endField = wx.TextCtrl(self, -1, "end", size=(56, -1), 
+                                    style=wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB)
+        endLabel = wx.StaticText(self,-1,"End:",size=(30,-1),
+                                 style=wx.ALIGN_RIGHT)
+        self.endUnits = wx.StaticText(self, -1, self.root.units[1], 
+                                      style=wx.ALIGN_LEFT)
         sizer.Add(endLabel,1,0)
         sizer.Add(self.endField,1,1)
         sizer.Add(self.endUnits, 2,1)
@@ -1169,7 +1301,7 @@ class LogoCorner(wx.Panel):
 #===============================================================================
 
 class Viewer(wx.Frame):
-    timeScalar = 1.0/(1000**2)
+    timeScalar = 1.0/(10**6)
     timerange = (1043273L * timeScalar*2,7672221086L * timeScalar)
 
     def __init__(self, *args, **kwargs):
@@ -1189,15 +1321,27 @@ class Viewer(wx.Frame):
         self.uiBgColor = wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DFACE)
         
         self.InitUI()
-        self.InitMenus()
         self.Centre()
         self.Show()
         
         self.dataset = None
-        self.currentSession = 0
+        self.currentSession = None
+        self.cancelQueue = []
         
         self.plots = []
         self.setVisibleRange(self.timerange[0], self.timerange[1])
+        
+        self.Bind(EVT_SET_VISIBLE_RANGE, self.OnSetVisibleRange)
+        self.Bind(EVT_SET_TIME_RANGE, self.OnSetTimeRange)
+        self.Bind(EVT_PROGRESS_START, self.OnProgressStart)
+        self.Bind(EVT_PROGRESS_UPDATE, self.OnProgressUpdate)
+        self.Bind(EVT_PROGRESS_END, self.OnProgressEnd)
+        self.Bind(EVT_INIT_PLOTS, self.initPlots)
+
+        # XXX: TEST CODE BELOW. REMOVE LATER.
+        
+        self.openFile(r"C:\Users\dstokes\workspace\wvr\test_full_cdb_huge.dat")
+
 
 
     def InitMenus(self):
@@ -1265,7 +1409,7 @@ class Viewer(wx.Frame):
         self.timeDisplays = []
         
         self.navigator = TimeNavigator(self, root=self)
-        self.logo = LogoCorner(self, root=self)
+        self.corner = Corner(self, root=self)
         self.plotarea = PlotSet(self, -1, root=self)
         self.timeline = Timeline(self, root=self)
         
@@ -1273,13 +1417,13 @@ class Viewer(wx.Frame):
         # The second element is whether or no they do live updates.
         self.timeDisplays = [[self.navigator, True],
                              [self.plotarea, False],
-                             [self.logo, True],
+                             [self.corner, True],
                              [self.timeline, True]]
         
         sizer = RowColSizer()
         sizer.Add(self.navigator, flag=wx.EXPAND, row=0, col=0, colspan=2)
         sizer.Add(self.plotarea, flag=wx.EXPAND, row=1, col=0, colspan=2)
-        sizer.Add(self.logo, flag=wx.EXPAND, row=2, col=0)
+        sizer.Add(self.corner, flag=wx.EXPAND, row=2, col=0)
         sizer.Add(self.timeline, flag=wx.EXPAND, row=2, col=1)
         
         sizer.AddGrowableCol(1)
@@ -1291,21 +1435,17 @@ class Viewer(wx.Frame):
 
         icon = wx.Icon("images/ssx_icon_white.png", wx.BITMAP_TYPE_PNG)
         self.SetIcon(icon)
+        
+        self.InitMenus()
 
         # XXX: TEST CODE BELOW. REMOVE LATER.
-        fakedata = makeFakeData()
-        self.setTimeRange(fakedata[0][0][0], fakedata[0][100][0], None, True)
-        self.setVisibleRange(fakedata[0][0][0], fakedata[0][100][0], None, True)
-        for d,c in zip(fakedata, self.app.defaultColors):
-            self.plotarea.addPlot(d, scale=(65407,128), color=c)
-#         self.plotarea.addPlot(None, "Accelerometer X (0.0.0)", scale=(128,65407))
-#         self.plotarea.addPlot(None, "Accelerometer Y (0.0.1)")
-#         self.plotarea.addPlot(None, "Accelerometer Z (0.0.2)")
-#         self.plotarea.addPlot(None, "Temperature (0.40.0)")
-#         self.plotarea.addPlot(None, "Pressure (0.40.1)")
-        self.runTestTimer()
-        self.startBusy()
-#         self.setXUnits("Frequency","Hz")
+#         fakedata = makeFakeData()
+#         self.setTimeRange(fakedata[0][0][0], fakedata[0][100][0], None, True)
+#         self.setVisibleRange(fakedata[0][0][0], fakedata[0][100][0], None, True)
+#         for d,c in zip(fakedata, self.app.prefs['defaultColors']):
+#             self.plotarea.addPlot(d, scale=(65407,128), color=c)
+#         self.runTestTimer()
+#         self.startBusy()
         # XXX: TEST CODE ABOVE. REMOVE LATER.
 
 
@@ -1319,13 +1459,46 @@ class Viewer(wx.Frame):
         for m in menus:
             self.menuItems[m].Enable(enabled)
     
+
+    def ask(self, message, title="Confirm", 
+                  style=wx.YES_NO | wx.NO_DEFAULT, icon=wx.ICON_QUESTION):
+        """ Generate a simple modal dialog box and get the button clicked.
+        """
+        style |= icon
+        dlg = wx.MessageDialog(self, message, title, style)
+        result = dlg.ShowModal()
+        dlg.Destroy()
+        return result
+
+    #===========================================================================
+    # 
+    #===========================================================================
     
+    def initPlots(self, evt=None):
+        """
+        """
+        if self.dataset is None:
+            return
+        
+        if self.currentSession is None:
+            self.currentSession = self.dataset.sessions[0]
+        
+        for d,c in zip(self.dataset.getPlots(), self.app.prefs['defaultColors']):
+            name = d.name
+            self.plotarea.addPlot(d.getSession(self.currentSession.sessionId), 
+                                  title=name,
+                                  scale=(65407,128), 
+                                  color=c)
+
+        
 
     #===========================================================================
     # 
     #===========================================================================
 
     def setXUnits(self, name=None, symbol=None, displayScale=timeScalar):
+        """ Set the horizontal units.
+        """
         if name == symbol == None:
             name = symbol = ''
         elif name is None:
@@ -1335,7 +1508,7 @@ class Viewer(wx.Frame):
         self.units = (name, symbol)
         self.timeScalar = displayScale if displayScale is not None else self.timeScalar
         try:
-            self.logo.setXUnits(symbol)
+            self.corner.setXUnits(symbol)
         except AttributeError:
             # Probably called before corner bit initialization; that's okay.
             pass
@@ -1361,6 +1534,7 @@ class Viewer(wx.Frame):
                 Elements that take a long time to draw shouldn't respond
                 if `tracking` is `True`.
         """
+#         print "setVisibleRange", start, end
         if instigator == self:
             return
         instigator = self if instigator is None else instigator
@@ -1386,6 +1560,7 @@ class Viewer(wx.Frame):
                 Elements that take a long time to draw shouldn't respond
                 if `tracking` is `True`.
         """
+#         print "setTimeRange", start, end
         if instigator == self:
             return
         start = start if start is not None else self.timerange[0]
@@ -1430,6 +1605,29 @@ class Viewer(wx.Frame):
         return True
 
     #===========================================================================
+    # 
+    #===========================================================================
+    
+    def openFile(self, filename):
+        """
+        """
+        try:
+#             stream = open(filename, 'rb')
+            stream = ThreadAwareFile(filename, 'rb')
+            newDoc = Dataset(stream)
+#         except IOError as err:
+#             pass
+        except Exception as err:
+            raise err
+            pass
+        
+        self.dataset = newDoc
+        loader = Loader(self, newDoc, autoStart=False)
+        self.pushOperation(loader, modal=False)
+        loader.start()
+    
+    
+    #===========================================================================
     # Menu Events
     #===========================================================================
 
@@ -1441,13 +1639,17 @@ class Viewer(wx.Frame):
                             message="Choose a file",
                             defaultDir=defaultDir, 
                             defaultFile=defaultFile,
-                            wildcard="|".join(self.app.importTypes),
+                            wildcard="|".join(self.app.prefs['importTypes']),
                             style=wx.OPEN | wx.CHANGE_DIR)
-        dlg.SetFilterIndex(1)
+        dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
-            # XXX: IMPLEMENT ME
-            print "You opened %s" % repr(filename)
+            if self.dataset is None or self.dataset.filename == filename:
+                self.openFile(filename)
+            else:
+                openNew = self.ask("Are you sure you want to close the current file and open another?", "Open File")
+                if openNew == wx.ID_YES:
+                    self.openFile(filename)
             
         # Note to self: do this last!
         dlg.Destroy()
@@ -1461,7 +1663,7 @@ class Viewer(wx.Frame):
                             message="Export as ...", 
                             defaultDir=defaultDir, 
                             defaultFile=defaultFile, 
-                            wildcard='|'.join(self.app.exportTypes), 
+                            wildcard='|'.join(self.app.prefs['exportTypes']), 
                             style=wx.SAVE)
 
         if dlg.ShowModal() == wx.ID_OK:
@@ -1471,13 +1673,13 @@ class Viewer(wx.Frame):
 
         dlg.Destroy()
 
-    
-    def OnFileExportFFTMenu(self, evt):
-        """ Handle File->Export FFT menu events.
+
+    def OnFileExportViewMenu(self, evt):
+        """ Handle File->Export View menu events.
         """
         defaultDir, defaultFile = self.getDefaultExport()
         dlg = wx.FileDialog(self, 
-                            message="Export FFT as ...", 
+                            message="Export visible interval as ...", 
                             defaultDir=defaultDir, 
                             defaultFile=defaultFile, 
                             wildcard='|'.join(self.app.exportTypes), 
@@ -1486,7 +1688,7 @@ class Viewer(wx.Frame):
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
             # XXX: IMPLEMENT ME
-            print "You picked %s" % repr(filename)
+            print "You opened %s" % repr(filename)
 
         dlg.Destroy()
 
@@ -1523,9 +1725,53 @@ class Viewer(wx.Frame):
 
 
     #===========================================================================
-    # 
+    # Custom Events
     #===========================================================================
     
+    def OnSetVisibleRange(self, evt):
+        """
+        """
+        self.setVisibleRange(evt.start, evt.end, instigator=evt.instigator, 
+                             tracking=evt.tracking)
+        
+        
+    def OnSetTimeRange(self, evt):
+        """
+        """
+        self.setTimeRange(evt.start, evt.end, instigator=evt.instigator, 
+                             tracking=evt.tracking)
+        
+        
+    def OnProgressStart(self, evt):
+        """
+        """
+        self.statusBar.startProgress(evt.label, evt.initialVal, 
+                                     evt.cancellable, evt.cancelEnabled)
+
+
+    def OnProgressUpdate(self, evt):
+        """
+        """
+        self.statusBar.updateProgress(val=evt.val, label=evt.label, 
+                                      cancellable=evt.cancellable)
+    
+    
+    def OnProgressEnd(self, evt):
+        """
+        """
+        self.statusBar.stopProgress(evt.label)
+
+
+    #===========================================================================
+    # 
+    #===========================================================================
+
+    def pushOperation(self, job, modal=False):
+        """
+        """
+        self.cancelQueue.append(job)
+        
+
     def cancelOperation(self, evt=None, prompt=None, title="Cancel"):
         """ Cancel the current background operation. 
             
@@ -1541,19 +1787,24 @@ class Viewer(wx.Frame):
         # caused it could be disabled like this (to prevent extra clicks):
         # evt.EventObject.Enable(False)
         
+        if len(self.cancelQueue) == 0:
+            # Nothing to cancel. Shouldn't happen.
+            self.stopBusy()
+            return ""
+        
         if prompt is not None:
             if prompt is True:
                 prompt = "Are you sure you want to cancel?"
-            dlg = wx.MessageDialog(self, unicode(prompt), title, 
-                               wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION)
-            result = dlg.ShowModal()
-            dlg.Destroy()
-            if result != wx.ID_YES:
+            if self.ask(unicode(prompt), title) != wx.ID_YES:
                 return False
-            
-        # XXX: IMPLEMENT ME
-        self.stopBusy()
-        return "Operation cancelled!"
+        
+        job = self.cancelQueue[-1]
+        cancelled = job.cancel()
+        if cancelled:
+            msg = job.cancelledMsg
+            self.cancelQueue.remove(job)
+            self.stopBusy()
+            return msg
 
 
     #===========================================================================
@@ -1588,7 +1839,7 @@ class Viewer(wx.Frame):
     
     def showMouseVPos(self, pos, units=""):
         """ Show a Y axis value, presumably calculated from the current
-            Plot's vertical axis. This will vary between Plots, unlike
+            Plot's vertical axis. This will vary between Plots, so unlike
             `showMouseHPos()`, this will show a literal value.
             
             @param h: 
@@ -1607,6 +1858,7 @@ class Viewer(wx.Frame):
     
     def runTestTimer(self):
         # XXX: THIS IS TEMPORARY
+        self._prog = 0.0
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.TestTimerHandler)
         self.timer.Start(1000)
@@ -1618,6 +1870,8 @@ class Viewer(wx.Frame):
         v1, v2 = self.timerange
         self.timerange = v1, v2+100
         self.setTimeRange(*self.timerange)
+        self._prog += 0.01
+        self.statusBar.updateProgress(self._prog)
 
     #===========================================================================
     # XXX: TEMPORARY STUFF ABOVE
@@ -1631,32 +1885,68 @@ class ViewerApp(wx.App):
     """
     """
     
-    importTypes = ["Slam Stick X Data File (*.dat)|*.dat|",
-                   "MIDE Data File (*.mide)|*.mide", 
-                   "All files (*.*)|*.*"]
+    prefsFile = os.path.join(os.path.dirname(__file__), 'ssx_viewer.cfg')
+    
+    defaultPrefs = {
+        'importTypes': ["Slam Stick X Data File (*.dat)|*.dat",
+                        "MIDE Data File (*.mide)|*.mide", 
+                        "All files (*.*)|*.*"],
+        'exportTypes': ["Comma Separated Values (*.csv)|*.csv"],
+        'defaultColors': ["RED",
+                          "GREEN",
+                          "BLUE",
+                          "YELLOW",
+                          "VIOLET",
+                          "GREY",
+                          "MAGENTA",
+                          "NAVY",
+                          "PINK",
+                          "SKY BLUE",
+                          "BROWN",
+                          "CYAN",
+                          "DARK GREY",
+                          "DARK GREEN",
+                          "GOLD",
+                          "BLACK",
+                          "BLUE VIOLET"]
+    }
+
+
+    def loadPrefs(self, filename=prefsFile):
+        """
+        """
+        if not filename:
+            return {}
+        try:
+            with open(filename) as f:
+                prefs = json.load(f)
+                if isinstance(prefs, dict):
+                    return prefs
+        except IOError:
+            # TODO: Report a problem, or just ignore?
+            pass
+        return {}
+
+
+    def savePrefs(self, filename=prefsFile):
+        """
+        """
+        try:
+            with open(filename, 'w') as f:
+                json.dump(self.prefs, f, indent="  ", sort_keys=True)
+        except IOError:
+            # TODO: Report a problem, or just ignore?
+            pass
+    
+    
+    
+    def __init__(self, *args, **kwargs):
+        prefsFile = kwargs.pop('prefsFile', self.prefsFile)
+        self.prefs = self.defaultPrefs.copy()
+        self.prefs.update(self.loadPrefs(prefsFile))
+        
+        super(ViewerApp, self).__init__(*args, **kwargs)
                 
-    exportTypes = ["Comma Separated Values (*.csv)|*.csv",]
-
-    defaultColors = [
-        "RED",
-        "GREEN",
-        "BLUE",
-        "YELLOW",
-        "VIOLET",
-        "GREY",
-        "MAGENTA",
-        "NAVY",
-        "PINK",
-        "SKY BLUE",
-        "BROWN",
-        "CYAN",
-        "DARK GREY",
-        "DARK GREEN",
-        "GOLD",
-        "BLACK",
-        "BLUE VIOLET",
-        ]
-
 
     def OnInit(self):
         self._antiAliasingEnabled = True

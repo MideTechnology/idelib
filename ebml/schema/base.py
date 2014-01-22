@@ -3,7 +3,9 @@ try:
 	from cStringIO import StringIO
 except ImportError:
 	from StringIO import StringIO
-from ..core import *
+from ..core import read_element_id, read_element_size
+from ..core import 	read_signed_integer, read_unsigned_integer, read_float, read_string, read_unicode_string, read_date
+
 
 
 __all__ = ('UnknownElement', 'Element', 'Document', 'INT', 'UINT', 'FLOAT', 'STRING', 'UNICODE', 'DATE', 'BINARY', 'CONTAINER')
@@ -138,13 +140,16 @@ class Element(object):
 	
 	@property
 	def value(self):
+		# NOTE: This is my addition -DRS
+		# It works around a problem with master elements not seeking properly
 		if self.type == CONTAINER:
 			return read_elements(self.body_stream, self.document, self.children)
+		
 		if not hasattr(self, 'cached_value'):
 			if self.type in READERS:
 				self.cached_value = READERS[self.type](self.body_stream, self.body_size)
-			elif self.type == CONTAINER:
-				self.cached_value = read_elements(self.body_stream, self.document, self.children)
+# 			elif self.type == CONTAINER:
+# 				self.cached_value = read_elements(self.body_stream, self.document, self.children)
 			else:
 				self.cached_value = None
 		return self.cached_value
@@ -216,6 +221,7 @@ def read_elements(stream, document, children):
 		elements.append(element)
 	return elements
 
+
 # NOTE: This is my addition -DRS
 def iter_elements(stream, document, children):
 	size = stream.size
@@ -262,8 +268,14 @@ class Document(object):
 	
 	# NOTE: This is my addition -DRS
 	def iterroots(self):
+		""" Iterate over the document's root elements. Allows use of a
+			damaged file; just catch an `IOError` in the root-reading loop.
+		"""
+		# Collect the list of roots, too, if not already gathered.
 		noRoots = self._roots is None
+		if noRoots:
+			self._roots = []
 		for r in iter_elements(self.stream, self, self.children):
 			if noRoots:
-				self.roots.append(r)
+				self._roots.append(r)
 			yield r
