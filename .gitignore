@@ -1,0 +1,17 @@
+*.7z
+*.pyc
+*.cfg
+*.lnk
+*.bak
+*.old
+*.ebml
+.project
+.pydevproject
+test*.xml
+
+build
+dist
+*_python
+images
+backups
+slam_stick_viewer_*

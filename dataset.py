@@ -1,0 +1,1126 @@
+'''
+Created on Sep 26, 2013
+
+@author: dstokes
+
+
+@todo: Make stepped slices work with entire EventLists, not just steps within
+    each block's subsamples.
+@todo: Look at places where lists are returned, consider using `yield` 
+    instead (e.g. parseElement(), etc.)
+@todo: Have Sensor.addChannel() possibly check the parser to see if the blocks
+    blocks are single-sample, instantiate simpler Channel subclass
+@todo: Replace (or augment) binary search in EventList._searchBlockRanges() 
+    with something faster based on most common use-cases (once those are 
+    known).
+@todo: Decide if dataset.useIndices is worth it, remove it if it isn't.
+    Removing it may save a trivial amount of time/memory.
+
+'''
+
+
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+from collections import namedtuple, Iterable
+from itertools import imap, izip
+import sys
+
+from ebml.schema.mide import MideDocument
+
+from parsers import getParserTypes, getParserRanges
+
+#===============================================================================
+# 
+#===============================================================================
+
+# A 'named tuple' class, mainly for debugging purposes.
+Event = namedtuple("Event", ('index','time','value'))
+
+
+#===============================================================================
+# Calibration
+#===============================================================================
+
+class Transform(object):
+    """ A function-like object representing any processing that an event
+        requires, including basic calibration.
+    """
+    
+    def __init__(self, *args, **kwargs):
+        pass
+    
+    def __call__(self,  event, channel=None, session=None):
+        if session is None:
+            return event
+        return event[0] + session.startTime, event[1]
+
+    @classmethod
+    def null(cls, x):
+        return x
+
+nullTransform = lambda x: x
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class Interpolation(object):
+    """ A function-like class that will produce a value at a specified point
+        between two events. Upon instantiation, it can be passed any 
+        additional data that a specific interpolation type may need. The
+        `__call__()` method also takes a reference to the list-like object
+        containing the Events, so any data all the way back to the Dataset
+        itself is available.
+    """
+    def __init__(self, *args, **kwargs):
+        pass
+    
+    def __call__(self, v1, v2, percent):
+        raise NotImplementedError("Interpolation is an abstract base class")
+
+
+class Lerp(Interpolation):
+    def __call__(self, events, idx1, idx2, percent):
+        v1 = events[idx1][-1]
+        v2 = events[idx2][-1]
+        return v1 + percent * (v2 - v1)
+
+    
+class MultiLerp(Lerp):
+    def __call__(self, events, idx1, idx2, percent):
+        v1 = events[idx1][-1]
+        v2 = events[idx2][-1]
+        result = v1[:]
+        for i in xrange(len(v1)):
+            result[i] += percent * (v2[i] - v1[i])
+        return result
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class Cascading(object):
+    """ A base/mix-in class providing an acquisition chain of attributes; if
+        one object doesn't have the attribute, the request is sent to the
+        object's parent. 
+    """
+
+    parent = None
+    name = ""
+
+    def getAttribute(self, attname, default=NotImplemented, 
+                     last=None, ignore=(None,)):
+        """ Retrieve an object's attribute. If it doesn't have the attribute
+            (or the attribute is equal to `ignore`), the request is sent to
+            the object's parent.
+            
+            @param attname: The name of the attribute
+            @keyword default: A default value to return if the attribute
+                isn't found. If a default is not supplied, an 
+                `AttributeError` is raised at the end of the chain.
+            @keyword last: The final object in the chain, to keep searches
+                from crawling too far back.
+            @keyword ignore: A set of values that will be treated as if
+                the object does not have the attribute.
+        """
+        if hasattr(self, attname):
+            v = getattr(self, attname, default)
+            if v not in ignore:
+                return self, v
+        if self == last or self.parent is None:
+            if default is NotImplemented:
+                raise AttributeError("%r not found in chain ending with %r" % \
+                                     (attname, self))
+            return None, default
+        return self.parent.getAttribute(attname, default, ignore)
+
+
+    def path(self):
+        """ Get the combined names of all the object's parents/grandparents.
+        """
+        if self.parent is None:
+            return self.name
+        return "%s:%s" % (self.parent.path(), self.name)
+    
+    
+    def hierarchy(self):
+        """ Get a list of parents/grandparents all the way back to the root.
+            The root is the first item in the list.
+        """
+        if self.parent is None:
+            return [self]
+        result = self.parent.hierarchy()
+        result.append(self)
+        return result
+
+
+    def __repr__(self):
+        return "<%s %r>" % (self.__class__.__name__, self.path())
+    
+    
+#===============================================================================
+# 
+#===============================================================================
+
+class Transformable(object):
+    """ A mix-in class for objects that transform data, making it easy to turn
+        it on or off.
+        
+        @ivar transform: The transformation function/object
+        @ivar raw: If `False`, the transform will not be applied to data.  
+    """
+
+    def setTransform(self, transform):
+        """ Set the transforming function/object. This does not change the
+            value of `raw`, however; the new transform will not be applied
+            unless it is `True`.
+        """
+        raw = getattr(self, '_raw', False)
+        self.transform = transform
+        # None can be applied via map, but not directly applied as a function.
+        # itertools.imap() also handles None differently than normal map()
+        self._transform = Transform.null if transform is None else transform
+        self._mapTransform = transform
+        self._raw = raw
+
+    @property
+    def raw(self):
+        """ If `True`, the transform will be applied to all events. """
+        return getattr(self, '_raw', False)
+ 
+    @raw.setter
+    def raw(self, v):
+        # Rather than use conditionals in loops, the transform object/function
+        # gets changed. 
+        self._raw = v == True
+        if self._raw:
+            self._transform = Transform.null
+            self.mapTransform = None
+        else:
+            self._transform = self.transform
+            self._mapTransform = self.transform
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+
+class Dataset(Cascading):
+    """ A collection of sensor data and associated configuration info. 
+        Typically represents a single MIDE EMBL file.
+        
+        Dictionary attributes are all keyed by the relevant ID (sensor ID,
+        channel ID, et cetera).
+        
+        @var fileDamaged: `True` if the file ended prematurely.
+        @var sessions: A list of individual Session objects in the data set.
+        @var sensors: A dictionary of Sensors.
+        @var channels: A dictionary of individual Sensor channels.
+        @var plots: A dictionary of individual Plots, the modified output of
+            a Channel (or even another plot).
+        @var transforms: A dictionary of functions (or function-like objects)
+            for adjusting/calibrating sensor data.
+    """
+        
+    def __init__(self, stream, name=None):
+        """
+        """
+        self.loading = True
+        self.sessions = []
+        self.sensors = {}
+        self.channels = {}
+        self.plots = {}
+        self.transforms = {}
+        
+        self.useIndices = False
+        
+        self.fileDamaged = False
+        self.ebmldoc = MideDocument(stream)
+
+        if name is None:
+            self.name = self.ebmldoc.stream.file.name
+        else:
+            self.name = name
+
+        self.parent = None
+
+
+    def addSession(self, startTime=0):
+        """ Create a new session, add it to the Dataset, and return it.
+        """
+        self.sessions.append(Session(self, len(self.sessions), startTime))
+        
+    
+    def addSensor(self, sensorId, name=None, sensorClass=None):
+        """ Create a new Sensor object, and add it to the dataset, and return
+            it. To add a sensor object created elsewhere, use 
+            `sensors[sensorId]` directly.
+            
+            @param sensorId: The ID of the new sensor
+            @keyword name: The new sensor's name
+            @keyword sensorClass: An alternate (sub)class of sensor. Defaults
+                to `None`, which creates a `Sensor`.
+            @return: The new sensor
+        """
+        sensorClass = Sensor if sensorClass is None else sensorClass
+        sensor = sensorClass(self,sensorId,name=name)
+        self.sensors[sensorId] = sensor
+        return sensor
+
+
+    def path(self):
+        """
+        """
+        return self.name
+    
+    @property
+    def lastSession(self):
+        """ Retrieve the latest Session.
+        """
+        return self.sessions[-1]
+    
+    
+    def hasSession(self, sessionId):
+        """ Does the Dataset contain a specific session number?
+        """
+        if len(self.sessions) == 0:
+            return False
+        if sessionId is None:
+            return True
+        return sessionId >= 0 and sessionId < len(self.sessions)
+        
+        
+#===============================================================================
+# 
+#===============================================================================
+
+class Session(object):
+    """ A collection of data within a dataset, e.g. one test run. A Dataset is
+        expected to contain one or more Sessions.
+    """
+    
+    def __init__(self, dataset, sessionId=0, startTime=0, endTime=None):
+        self.dataset = dataset
+        self.startTime = startTime
+        self.endTime = endTime
+        self.sessionId = sessionId
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class Sensor(Cascading):
+    """ One Sensor object. A Dataset contains at least one.
+    """
+    
+    def __init__(self, dataset, sensorId, name=None):
+        self.name = "Sensor%02d" if name is None else name
+        self.dataset = dataset
+        self.parent = dataset
+        self.id = sensorId
+        self.channels = {}
+
+
+    def addChannel(self, channelId, parser, **kwargs):
+        """ Add a Channel to a Sensor. 
+        
+            @param channelId: An unique ID number for the channel.
+            @param parser: The Channel's data parser
+        """
+        channel = Channel(self, channelId, parser, **kwargs)
+        self.channels[channelId] = channel
+        self.dataset.channels[channelId] = channel
+        return channel
+
+    def __getitem__(self, idx):
+        return self.channels[idx]
+
+#===============================================================================
+# Channels
+#===============================================================================
+
+class Channel(Cascading, Transformable):
+    """ Output from a Sensor, containing one or more SubChannels. A Sensor
+        contains one or more Channels.
+        
+        @ivar types: A tuple with the type of data in each of the Channel's
+            Subchannels.
+        @ivar possibleRange: The possible ranges of each subchannel, dictated
+            by the parser. Not necessarily the same as the range of actual
+            values recorded in the file!
+    """
+    
+    def __init__(self, sensor, channelId, parser, name=None, units=None, 
+                 calibration=None, interpolators=None):
+        """ Constructor.
+        
+            @param sensor: The parent sensor.
+            @param channelId: The channel's ID, unique within the file.
+            @param parser: The channel's EBML data parser.
+            @keyword name: A custom name for this channel.
+            @keyword units: The units measured in this channel, used if units
+                are not explicitly indicated in the Channel's SubChannels.
+            @keyword calibration: A Transform object for adjusting sensor
+                readings at the Channel level. 
+        """
+        self.id = channelId
+        self.sensor = sensor
+        self.parser = parser
+        self.units = units
+        self.parent = sensor
+        
+        if name is None:
+            name = "%s:%02d" % (sensor.name, channelId) 
+        self.name = name
+        
+        self.dataset = sensor.dataset
+        
+        # Custom parsers will define `types`, otherwise generate it.
+        self.types = getParserTypes(parser)
+        self.possibleRange = getParserRanges(parser)
+        
+        # Channels have 1 or more subchannels
+        self.subchannels = [None] * len(self.types)
+        
+        if interpolators is None:
+            interpolators = tuple([self.lerp] * len(self.types))
+        self.interpolators = interpolators
+        
+        # A list of sessions, containing lists of data block references and
+        # related info: [element, start, end, no. subsamples, sample rate]
+        self.sessions = {}
+        
+        self.subsampleCount = [0,sys.maxint]
+
+        self.setTransform(calibration)
+
+
+    def __repr__(self):
+        return '<%s %x: %r>' % (self.__class__.__name__, self.id, self.path())
+
+
+    def __getitem__(self, idx):
+        return self.getSubChannel(idx)
+
+
+    def _countSubsamples(self, n):
+        """ Keep track of the number of subsamples per sample. For future
+            optimization work.
+        """
+        # This will work for Channels and SubChannels; for the latter,
+        # it will change its parent's subsample count.
+        ss = self.getAttribute('subsampleCount')[1]
+        if ss is None:
+            return
+        ss[0] = max(ss[0], n)
+        ss[1] = min(ss[1], n)
+        
+
+    def addSubChannel(self, subchannelId, name=None, units=None, 
+                 calibration=None):
+        """ Create a new SubChannel of the Channel.
+        """
+        sc = SubChannel(self, subchannelId, name, units, calibration)
+        self.subchannels[subchannelId] = sc
+        
+
+    def getSubChannel(self, subchannelId):
+        """ Retrieve one of the Channel's SubChannels. All Channels have at
+            least one. A SubChannel will be automatically generated if
+            one hasn't explicitly been defined.
+            
+            @param subchannelId: 
+            @return: The SubChannel matching the given ID.
+        """
+        # If there is no SubChannel explicitly defined for a subchannel, 
+        # dynamically generate one.
+        if self.subchannels[subchannelId] is None:
+            self.subchannels[subchannelId] = SubChannel(self, subchannelId)
+        return self.subchannels[subchannelId]
+
+
+    def getSession(self, sessionId):
+        """ Retrieve a session 
+        """
+        if not self.dataset.hasSession(sessionId):
+            raise KeyError("Dataset has no Session %r" % sessionId)
+        return self.sessions.setdefault(sessionId, EventList(self, session=self.dataset.sessions[sessionId]))
+    
+    
+    def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None):
+        """ Convert raw data into a set of subchannel values.
+            
+            @param el: The data block element to parse.
+            @keyword raw: If `True`, the data is returned uncalibrated and
+                untransformed.
+            @return: A list of tuples, one for each subsample.
+        """
+        # TODO: Cache this; a Channel's SubChannels will often be used together.
+#         return [map(self.transform, x) for x in block.parseWith(self.parser, start=start, end=end, step=step, subchannel=subchannel)]
+        return list(block.parseWith(self.parser, start=start, end=end, step=step, subchannel=subchannel))
+
+
+    def lerp(self, v1, v2, percent):
+        return v1 + percent * (v2 - v1)
+
+
+#===============================================================================
+
+class SubChannel(Channel):
+    """ Output from a sensor, derived from a channel containing multiple
+        pieces of data (e.g. the Y from an accelerometer's XYZ). Looks
+        like a 'real' channel.
+    """
+    
+    def __init__(self, parent, subChannelId, name=None, units=None, calibration=None):
+        """ Constructor.
+        """
+        self.id = subChannelId
+        self.parent = parent
+        self.name = "Subchannel%02d" % subChannelId if name is None else name
+        self.units = units
+    
+        self.dataset = parent.dataset
+        self.sensor = parent.sensor
+        self.types = (parent.types[subChannelId], )
+        self.interpolators = (parent.interpolators[subChannelId], )
+        
+        self._sessions = None
+        self.setTransform(calibration)
+
+
+    @property
+    def possibleRange(self):
+        """ The range of values *possible* given the type of data recorded. 
+            NOT necessarily the range of *actual* values recorded!
+        """
+        return self.parent.possibleRange[self.id]
+
+
+    def __repr__(self):
+        return '<%s %x.%x: %r>' % (self.__class__.__name__, self.parent.id, self.id, self.path())
+
+
+    @property
+    def parser(self):
+        return self.parent.parser
+
+
+    @property
+    def sessions(self):
+        if self._sessions is None:
+            for s in self.parent.sessions:
+                self.getSession(s)
+        return self._sessions
+    
+
+    def parseBlock(self, block, start=0, end=-1, step=1):
+        """
+        """
+        return self.parent.parseBlock(block, start, end, step=step, subchannel=self.id)
+    
+        
+    def getSession(self, sessionId):
+        """ Retrieve a session 
+        """
+        if self._sessions is None:
+            self._sessions = {}
+        if sessionId not in self._sessions:
+            el = self.parent.getSession(sessionId).copy(self)
+            self._sessions[sessionId] = el
+        return self._sessions[sessionId]
+    
+    
+    def addSubChannel(self, *args, **kwargs):
+        raise NotImplementedError("SubChannels have no SubChannels")
+
+
+    def getSubChannel(self, *args, **kwargs):
+        raise NotImplementedError("SubChannels have no SubChannels")
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class EventList(Cascading):
+    """ A list-like object containing discrete time/value pairs. Data is 
+        dynamically read from the underlying EBML file. 
+        
+        @todo: Consider a subclass optimized for non-subsampled data.
+    """
+
+    def __init__(self, parent, session=None):
+        self.parent = parent
+        self.session = session
+        self._data = []
+        self._length = 0
+        self.dataset = parent.dataset
+        self.hasSubchannels = len(self.parent.types) > 1
+
+
+    @property
+    def units(self):
+        return self.parent.units
+
+    def path(self):
+        return "%s:%s" % (self.parent.path(), self.session.sessionId)
+
+
+    def copy(self, newParent=None):
+        """ Create a shallow copy of the event list.
+        """
+        parent = self.parent if newParent is None else newParent
+        newList = EventList(parent, self.session)
+        newList._data = self._data
+        newList._length = self._length
+        newList.dataset = self.dataset
+        return newList
+    
+
+    def append(self, block):
+        """ Add one data block's contents to the Sensor's list of data.
+            Note that this doesn't double-check the channel ID specified in
+            the data; it is inadvisable to include data from different
+            channels.
+            
+            @attention: Added elements should be in chronological order!
+            
+        """
+        oldLength = self._length
+        if block.numSamples is None:
+            block.numSamples = block.getNumSamples(self.parent.parser)
+        block.blockIndex = len(self._data)
+        self._data.append(block)
+        self._length += block.numSamples
+        block.indexRange = (oldLength, self._length - 1)
+        self.parent._countSubsamples(block.numSamples)
+        
+
+    def _getBlockIndexRange(self, blockIdx):
+        """ Get the first and last index of the subsamples within a block,
+            as if the channel were just a flat list of subsamples.
+        """
+        block = self._data[blockIdx]
+        if block.indexRange is None:
+            total = 0
+            for i in xrange(blockIdx+1):
+                if self._data[i].indexRange is None:
+                    numSamples = block.getNumSamples(self.parent.parser)
+                    self._data[i].indexRange = (total, total+numSamples-1)
+                    total += numSamples 
+        return block.indexRange
+            
+
+    def _getBlockTimeRange(self, blockIdx):
+        """ Get the start and end times of an individual data block.
+            Note that this takes an index, not a reference to the actual
+            element itself!
+
+            @param idx: 
+            @return: 
+        """
+        block = self._data[blockIdx]
+        if block.endTime is None:
+            # Probably a SimpleChannelDataBlock, which doesn't record end.
+            if blockIdx < 0:
+                blockIdx += len(self._data)
+            if blockIdx < len(self._data)-1:
+                block.endTime = self._data[blockIdx+1].startTime - self._getBlockSampleTime(blockIdx)
+            else:
+                block.endTime = block.startTime + (block.getNumSamples(self.parent.parser)-1) * self._getBlockSampleTime(blockIdx)
+            
+        return block.startTime, block.endTime
+
+
+    def _searchBlockRanges(self, val, rangeGetter, start=0, stop=-1):
+        """ Find the index of a block that (potentially) contains a subsample
+            with the given value, computed with the given function. 
+            
+            @param val: The value to find
+            @param rangeGetter: A function that returns a minimum and 
+                maximum value for an element (such as `_getBlockTimeRange`)
+            @return: The index of the found block.
+        """
+        # Quick and dirty binary search.
+        # TODO: Handle un-found values better (use of `stop` can make these)
+        # TODO: Augment search with smarter guesses (based on subsample
+        #    count, etc.) instead of a strict binary search?
+        def getIdx(first, last):
+            middle = first + ((last-first)/2)
+            r = rangeGetter(middle)
+            if val >= r[0] and val <= r[1]:
+                return middle
+            elif middle == first:
+                return last
+            elif val < r[0]:
+                return getIdx(first, middle)
+            else:
+                return getIdx(middle,last)
+
+        start = len(self._data) + start if start < 0 else start
+        stop = len(self._data) + stop if stop < 0 else stop
+        return getIdx(start, stop)
+
+    
+    def _getBlockIndexWithIndex(self, idx, start=0, stop=-1):
+        """ Get the index of a raw data block that contains the given event
+            index.
+        """
+        return self._searchBlockRanges(idx, self._getBlockIndexRange,
+                                       start, stop)
+
+
+    def _getBlockIndexWithTime(self, t, start=0, stop=-1):
+        """ Get the index of a raw data block in which the given time occurs.
+        """
+        return self._searchBlockRanges(t, self._getBlockTimeRange,
+                                       start, stop)
+        
+
+    def __getitem__(self, idx):
+        """ Get a specific data point by index.
+        
+            @param idx: An index, a `slice`, or a tuple of one or both
+            @return: For single results, a tuple containing (time, value).
+                For multiple results, a list of (time, value) tuples.
+        """
+        # TODO: Cache this; a Channel's SubChannels will often be used together.
+        if isinstance(idx, Iterable):
+            result = []
+            for t in idx:
+                v = self[t]
+                if isinstance(v, list):
+                    result.extend(v)
+                else:
+                    result.append(v)
+            return result
+        if isinstance(idx, slice):
+            return list(self.iterSlice(idx.start, idx.stop, idx.step))
+        
+        if idx >= len(self):
+            raise IndexError("EventList index out of range")
+        
+        if idx < 0:
+            idx = len(self) + idx
+        
+        blockIdx = self._getBlockIndexWithIndex(idx)
+        subIdx = idx - self._getBlockIndexRange(blockIdx)[0]
+        
+        block = self._data[blockIdx]
+        
+        timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
+        value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
+        
+        if self.dataset.useIndices:
+            event = self.parent._transform((int(timestamp), value))
+            return Event(idx, event[0], event[1])
+            
+        return self.parent._transform((int(timestamp), value))
+
+
+    def __iter__(self):
+        """ Iterator for the EventList. WAY faster than getting individual
+            events.
+        """
+        for block in self._data:
+            indexRange = block.indexRange[0], block.indexRange[1]+1
+            sampleTime = self._getBlockSampleTime(block.blockIndex)
+            times = iter([block.startTime + sampleTime * t for t in xrange(*indexRange)])            
+            for v in self.parent.parseBlock(block):
+                yield self.parent._transform((times.next(), v))
+                
+
+    def __len__(self):
+        """ x.__len__() <==> len(x)
+        """
+#         if self._length is None:
+#             self._length = 0
+#             for d in self._data:
+#                 self._length += d.getNumSamples(self.parent.parser)
+        return self._length
+
+
+    def iterSlice(self, start=0, end=-1, step=1):
+        """ Create an iterator producing events for a range indices.
+        """
+        if start is None:
+            start = 0
+        elif start < 0:
+            start += len(self)
+            
+        if end is None:
+            end = len(self)
+        elif end < 0:
+            end += len(self) + 1
+        else:
+            end = min(end, len(self))
+        
+        if start < end and start < len(self):
+            step = 1 if step is None else step
+    
+            startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
+            startSubIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
+            
+            endBlockIdx = self._getBlockIndexWithIndex(end, start=startBlockIdx)
+            endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
+            
+            for i in xrange(startBlockIdx, endBlockIdx+1):
+                block = self._data[i]
+                blockRange = block.indexRange
+                sampleTime = self._getBlockSampleTime(i)
+                thisStart = startSubIdx if i == startBlockIdx else 0
+                thisEnd = endSubIdx if i == endBlockIdx else blockRange[1]-blockRange[0]+1
+                
+                times = [block.startTime + sampleTime * t for t in xrange(thisStart, thisEnd, step)]
+                values = self.parent.parseBlock(block, start=thisStart, end=thisEnd, step=step)
+                if self.dataset.useIndices:
+                    indices = range(blockRange[0]+thisStart, blockRange[0]+thisEnd, step)
+                    for eIdx,eTime,eVal in izip(indices,times,values):
+                        eTime, eVal = self.parent._transform((eTime, eVal))
+                        yield Event(eIdx,eTime,eVal)
+                else:
+                    for event in izip(times,values):
+                        yield self.parent._transform(event)
+
+      
+    def getEventIndexBefore(self, t):
+        """ Get the index of an event occurring on or immediately before the
+            specified time.
+        
+            @param t: The time (in microseconds)
+            @return: The index of the event preceding the given time, -1 if
+                the time occurs before the first event.
+        """
+        if t <= self._data[0].startTime:
+            return -1
+        block = self._data[self._getBlockIndexWithTime(t)]
+        return int(block.indexRange[0] + ((t - block.startTime) / self._getBlockSampleTime(block.blockIndex)))
+        
+ 
+    def getEventIndexNear(self, t):
+        """ The the event occurring closest to a specific time. 
+        
+            @param t: The time (in microseconds)
+            @return: 
+        """
+        if t <= self._data[0].startTime:
+            return 0
+        idx = self.getEventIndexBefore(t)
+        events = self[idx:idx+2]
+        if events[0][-2] == t or len(events) == 1:
+            return idx
+        if t - events[0][-2] < events[1][-2] - t:
+            return idx+1
+        return idx
+
+
+    def getRangeIndices(self, startTime, endTime):
+        """ Get the first and event indices that fall within the specified
+            interval.
+            
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+        """
+        if startTime is None or startTime <= self._data[0].startTime:
+            startIdx = 0
+        else:
+            startBlockIdx = self._getBlockIndexWithTime(startTime)
+            startBlock = self._data[startBlockIdx]
+            startIdx = int(startBlock.indexRange[0] + ((startTime - startBlock.startTime) / self._getBlockSampleTime(startBlockIdx)) + 1)
+        
+        if endTime is None:
+            endIdx = self._data[-1].indexRange[1]
+        else:
+            endBlockIdx = self._getBlockIndexWithTime(endTime, start=startIdx) 
+            endBlock = self._data[endBlockIdx]
+            endIdx = int(endBlock.indexRange[0] + ((endTime - endBlock.startTime) / self._getBlockSampleTime(endBlockIdx)) - 1)
+        return startIdx, endIdx
+        
+    
+
+    def getRange(self, startTime=None, endTime=None):
+        """ Get a set of data occurring in a given interval.
+        
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+        """
+        return list(self.iterRange(startTime, endTime))
+
+
+    def iterRange(self, startTime=None, endTime=None):
+        """ Get a set of data occurring in a given interval.
+        
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+        """
+        startIdx, endIdx = self.getRangeIndices(startTime, endTime)
+        return self.iterSlice(startIdx,endIdx)        
+
+    
+
+    def _getBlockSampleTime(self, blockIdx=0):
+        """ Get the time between samples within a given data block.
+            
+            @keyword blockIdx: The index of the block to measure. Times
+                within the same block are expected to be consistent, but can
+                possibly vary from block to block.
+            @return: The sample rate, as samples per second
+        """
+
+        if len(self._data) == 0:
+            # Channel has no events. Probably shouldn't happen.
+            # TODO: Get the sample rate from another session?
+            return -1
+        
+        if blockIdx < 0:
+            blockIdx += len(self._data)
+        
+        # See if it's already been computed
+        block = self._data[blockIdx]
+        if block.sampleTime is not None:
+            return block.sampleTime
+        
+        # See if the parent has the attribute defined
+        sampleTime = self.getAttribute('_sampleTime', None)[1]
+        if sampleTime is not None:
+            return sampleTime
+        
+        startTime = block.startTime
+
+        if len(self._data) == 1:
+            # Only one block; can't compute from that!
+            raise NotImplementedError("TODO: Implement getting sample rate in case of single block")
+        elif blockIdx == len(self._data) - 1:
+            # last block. Use previous.
+            startTime = self._data[blockIdx-1].startTime
+            endTime = block.startTime
+        else:
+            endTime = self._data[blockIdx+1].startTime
+        
+        numSamples = block.getNumSamples(self.parent.parser)
+        if numSamples == 0:
+            # No data in block
+            raise NotImplementedError("TODO: Implement getting sample rate in case of empty block")
+
+        block.sampleTime = (endTime - startTime) / (numSamples)
+        
+        return block.sampleTime
+
+
+    def _getBlockSampleRate(self, blockIdx=0):
+        """ Get the channel's sample rate. This is either supplied as part of
+            the channel definition or calculated from the actual data and
+            cached.
+            
+            @keyword blockIdx: The block to check. Optional, because in an
+                ideal world, all blocks would be the same.
+            @return: The sample rate, as samples per second (float)
+        """
+        if self._data[blockIdx].sampleRate is None:
+#             self._data[blockIdx].sampleRate = 1.0 / self._getBlockSampleTime(blockIdx)
+            self._data[blockIdx].sampleRate = 1000000.0 / self._getBlockSampleTime(blockIdx)
+        return self._data[blockIdx].sampleRate
+
+
+    def getSampleTime(self, idx=0):
+        """ Get the time between samples.
+            
+            @keyword idx: Because it is possible for sample rates to vary
+                within a channel, an event index can be specified; the time
+                between samples for that event and its siblings will be 
+                returned.
+            @return: The time between samples (us)
+        """
+        return self._getBlockSampleTime(self._getBlockIndexWithIndex(idx))
+    
+    
+    def getSampleRate(self, idx=0):
+        """ Get the channel's sample rate. This is either supplied as part of
+            the channel definition or calculated from the actual data and
+            cached.
+            
+            @keyword idx: Because it is possible for sample rates to vary
+                within a channel, an event index can be specified; the sample
+                rate for that event and its siblings will be returned.
+            @return: The sample rate, as samples per second (float)
+        """
+        return self._getBlockSampleRate(self._getBlockIndexWithIndex(idx))
+    
+
+    def getValueAt(self, at):
+        """ Retrieve the value at a specific time, interpolating between
+            existing events.
+        """
+        startIdx = self.getEventIndexBefore(at)
+        if startIdx < 0:
+            if self[0][-2] == at:
+                return self[0]
+            # TODO: How to handle times before first event?
+            raise IndexError("Specified time occurs before first event (%d)" % self[0][-2])
+        elif startIdx >= len(self) - 1:
+            if self[-1][-2] == at:
+                return self[-1]
+            # TODO How to handle times after last event?
+            raise IndexError("Specified time occurs after last event (%d)" % self[startIdx][-2])
+        
+        startEvt, endEvt = self[startIdx:startIdx+2]
+        relAt = at - startEvt[-2]
+        endTime = endEvt[-2] - startEvt[-2] + 0.0
+        percent = relAt/endTime
+        if self.hasSubchannels:
+            result = startEvt[-1][:]
+            for i in xrange(len(self.parent.types)):
+                result[i] = self.parent.interpolators[i](startEvt[-1][i], endEvt[-1][i], percent)
+                result[i] = self.parent.types[i](result[i])
+                return at, result
+        else:
+            result = self.parent.types[0](self.parent.interpolators[0](startEvt[-1], endEvt[-1], percent))
+        if self.dataset.useIndices:
+            return None, at, result
+        return at, result
+        
+
+    def iterStepSlice(self, start, stop, step):
+        """ XXX: EXPERIMENTAL!
+            Not very efficient, particularly not with single-sample blocks.
+            Redo without _getBlockIndexWithIndex
+        """
+        blockIdx = self._getBlockIndexWithIndex(start)
+        lastBlockIdx = self._getBlockIndexWithIndex(stop, blockIdx)+1
+        thisRange = self._getBlockIndexRange(blockIdx)
+        lastIdx = -1
+        for idx in xrange(start, stop, step):
+            if idx > thisRange[1]:
+                blockIdx = self._getBlockIndexWithIndex(idx, blockIdx+1, lastBlockIdx)
+                thisRange = self._getBlockIndexRange(blockIdx)
+            if blockIdx > lastIdx:
+                lastIdx = blockIdx
+                for event in self.iterSlice(idx, min(stop,thisRange[1]+1), step):
+                    yield event
+    
+    
+    def iterResampledRange(self, startTime, stopTime, maxPoints, threshold=2.0):
+        """ Retrieve the events occurring within a given interval,
+            undersampled as to not exceed a given length (e.g. the size of
+            the data viewer's screen width).
+        
+            XXX: EXPERIMENTAL!
+            Not very efficient, particularly not with single-sample blocks.
+            Redo without _getBlockIndexWithIndex
+        """
+        # TODO: Handle possible variations in sample rate.
+        blockIdx = self._getBlockIndexWithTime(startTime)
+        lastBlockIdx = self._getBlockIndexWithIndex(stopTime, blockIdx)+1
+        startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
+        numPoints = (stopTime - startTime) / (self.getSampleTime(blockIdx) + 0.0)
+        step = numPoints / maxPoints
+        print "step:",step
+        if step < threshold:
+            for p in self.iterSlice(startIdx, stopIdx):
+                yield p
+        else:
+            step = int(step)
+            thisRange = self._getBlockIndexRange(blockIdx)
+            lastIdx = -1
+            for idx in xrange(startIdx, stopIdx, step):
+                if idx > thisRange[1]:
+                    blockIdx = self._getBlockIndexWithIndex(idx, blockIdx+1, lastBlockIdx)
+                    thisRange = self._getBlockIndexRange(blockIdx)
+                if blockIdx > lastIdx:
+                    lastIdx = blockIdx
+                    for event in self.iterSlice(idx, min(stopIdx,thisRange[1]+1), step):
+                        yield event
+
+#===============================================================================
+# 
+#===============================================================================
+
+
+class Plot(Transformable): #(Cascading, Transformable):
+    """ A processed set of sensor data. These are typically the final form of
+        the data. Transforms applied are intended to be for display purposes
+        (e.g. converting data in centimeters to meters).
+    """
+    
+    def __init__(self, source, name=None, transform=None, units=None):
+        self.source = source
+        self.dataset = source.dataset
+        self.name = source.path() if name is None else name
+        self.units = source.units if units is None else units
+        self.setTransform(transform)
+    
+    def __len__(self):
+        return len(self.source)
+    
+    def __getitem__(self, idx):
+        result = self.source[idx]
+        if isinstance(result, tuple):
+            return self._transform(result)
+        return map(self._mapTransform, result)
+    
+    def __iter__(self):
+        # Note: self._transform is used here instead of self._mapTransform;
+        # itertools.imap(None, x) works differently than map(None,x)!
+        return imap(self._transform, self.source)
+            
+    def getEventIndexBefore(self, t):
+        """
+        """
+        return self.source.getEventIndexBefore(t)
+    
+    def getEventIndexNear(self, t):
+        """
+        """
+        return self.source.getEventIndexNear(t)
+
+    def getRange(self, startTime, endTime):
+        return map(self._mapTransform, self.source.getRange(startTime, endTime))
+    
+    def getSampleRate(self, idx=0):
+        return self.source.getSampleRate(idx)
+    
+    def getSampleTime(self, idx=0):
+        return self.source.getSampleTime(idx)
+    
+    def getValueAt(self, at):
+        return self._transform(self.source.getValueAt(at))
+    
+    def iterRange(self, startTime, endTime):
+        # Note: self._transform is used here instead of self._mapTransform;
+        # itertools.imap(None, x) works differently than map(None,x)!
+        return imap(self._transform, self.source.iterRange(startTime, endTime))
+    
+    def iterSlice(self, start=0, end=-1, step=1):
+        # Note: self._transform is used here instead of self._mapTransform;
+        # itertools.imap(None, x) works differently than map(None,x)!
+        return imap(self._transform, self.source.iterSlice(start, end, step))
+    
+
+#===============================================================================
+
+class CompositePlot(Plot):
+    """ A set of processed data derived from multiple sources.
+    """
+    
+    # TODO: Implement this!
+
+
+
+#===============================================================================
+# 
+#===============================================================================
