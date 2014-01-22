@@ -483,15 +483,23 @@ class SimpleChannelDataBlockParser(ElementHandler):
                 whatever the Dataset says is current.
             @return: The number of subsamples read from the element's payload.
         """
-        block = self.product(element)
-        timestamp, channel = block.getHeader()
+        try:
+            block = self.product(element)
+            timestamp, channel = block.getHeader()
+        except struct.error, e:
+            # TODO: Log error
+            print "Element would not parse: %s (ID 0x%02x) @%d (%s)" % (element.name, element.id, element.stream.offset, e)
+            return 0
         
         block.startTime = int(self.fixOverflow(block, timestamp))
         if block.endTime is not None:
             block.endTime = int(self.fixOverflow(block, block.endTime))
-            
+
+        if channel not in self.doc.channels:
+            # TODO: Log error
+            return 0
+
         self.doc.channels[channel].getSession(sessionId).append(block)
-        
         return block.getNumSamples(self.doc.channels[0].parser)
 
 

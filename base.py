@@ -112,7 +112,7 @@ class ViewerPanel(wx.Panel):
             btn.SetBitmapDisabled(bitmaps[1].GetBitmap())
             
         if tooltip is not None:
-            btn.SetToolTip(tooltip)
+            btn.SetToolTipString(tooltip)
      
         sizer.Add(btn, 0, sizerFlags)
         self.Bind(wx.EVT_BUTTON, evtHandler, btn)
@@ -230,5 +230,5 @@ else:
 
 __all__ = filter(lambda x: not(x.startswith("_") or x.startswith('wx')),
                  _moduleDict.keys())
-print __all__
+
 del _moduleDict

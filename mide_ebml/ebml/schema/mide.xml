@@ -100,6 +100,7 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="HwRev" level="2" id="0x5216" type="uinteger" mandatory="0" multiple="0" minver="1">Hardware revision level</element>
 			<element name="FwRev" level="2" id="0x5217" type="uinteger" mandatory="0" multiple="0" minver="1">Firmware revision level</element>
 
+        <!-- SensorList and PlotList are optional; there are defaults that will be used. The use of defaults is all-or-nothing; the file should define all sensors or have no SensorList at all. -->
 		<element name="SensorList" level="1" id="0x5240" type="master" mandatory="0" multiple="0" minver="1">Master element for the SensorList items</element>
 			<element name="Sensor" level="2" id="0x5241" type="master" mandatory="0" multiple="0" minver="1">Master element for a Sensor entry</element>
 				<element name="SensorID" level="3" id="0x5242" type="uinteger" mandatory="0" multiple="0" minver="1">ID of a given Sensor entry; can be used to refer back to this sensor.</element>
@@ -164,8 +165,7 @@ default="123" or a text value that may or may not be the name of another tag
 	<!-- degree 0: 1 coef block [A] (trivial case for completeness): y = A(x-xref)^0(y-yref)^0 = A -->
 	<!-- degree 1: 4 coef block [A B C D]: A(x-xref)(y-yref) + B(x-xref) + C(y-yref) + D  -->
 	
-	<!-- Rules: David FIXME: Do the child tags have to come in a specific order? What are the limitations, if any, on where the PolynomialCoef elements may be written? -->
-	<!-- (I assume we probably shouldn't interleave them arbitrarily with other *Polynomial child elements, but if that will actually break something, we should document it here. -->
+	<!-- Rules: This should appear after the Recording properties element (more specifically, after SensorList and PlotList), if one exists and the Bivariate polynomials reference non-default (sub)channels. -->
 	
 	<element name="CalibrationList" level="0" id="0x4B00" type="master" mandatory="0" multiple="0" minver="1">Master element for the CalibrationList items</element>
 		<element name="UnivariatePolynomial" level="1" id="0x4B01" type="master" mandatory="0" multiple="1" minver="1">Master element for a univariate (1-variable) calibration entry</element>
@@ -179,7 +179,6 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="BivariateChannelIDRef" level="2" id="0x4B06" type="uinteger" mandatory="0" multiple="0" minver="1">Channel ID of the channel to be used as the 2nd parameter for bivariate compensation</element>
 			<element name="BivariateSubChannelIDRef" level="2" id="0x4B07" type="uinteger" mandatory="0" multiple="0" minver="1">SubChannel ID of the subchannel to be used as the 2nd parameter for bivariate compensation</element>
 			<element name="PolynomialCoef" level="2" id="0x4B08" type="float" mandatory="0" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</element>			
-
 
 
 

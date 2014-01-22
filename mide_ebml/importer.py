@@ -275,8 +275,8 @@ def readData(doc, updater=None, numUpdates=500, updateInterval=1.0,
             else:
                 # Unknown block type
                 if __DEBUG__ is True:
-                    print "unknown block %r (ID %r), continuing" % \
-                        (r.name, r.id)
+                    print "unknown block %r (ID 0x%02x) @%d, continuing" % \
+                        (r.name, r.id, r.stream.offset)
                 pass
             
             # More progress display stuff

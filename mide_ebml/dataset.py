@@ -1202,7 +1202,9 @@ class EventList(Cascading):
         else:
             startBlockIdx = self._getBlockIndexWithTime(startTime)
             startBlock = self._data[startBlockIdx]
-            startIdx = int(startBlock.indexRange[0] + ((startTime - startBlock.startTime) / self._getBlockSampleTime(startBlockIdx)) + 1)
+            startIdx = int(startBlock.indexRange[0] + \
+                           ((startTime - startBlock.startTime) / \
+                            self._getBlockSampleTime(startBlockIdx)) + 1)
             
         if endTime is None:
             endIdx = self._data[-1].indexRange[1]

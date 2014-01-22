@@ -33,7 +33,7 @@ from base import *
 # Custom controls
 from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
 from timeline import EVT_INDICATOR_CHANGED
-from export_dialog import ModalExportProgress, ExportDialog
+from export_dialog import ModalExportProgress, CSVExportDialog, FFTExportDialog
 
 # Graphics (icons, etc.)
 import images
@@ -46,24 +46,6 @@ import mide_ebml
 
 ANTIALIASING_MULTIPLIER = 6.66
 RESAMPLING_JITTER = 0.125
-
-#===============================================================================
-# 
-#===============================================================================
-
-def expandRange(l, v):
-    """ Given a two element list containing a minimum and maximum value, 
-        expand it if the given value is outside that range. 
-    """
-    l[0] = min(l[0],v)
-    l[1] = max(l[1],v)
-
-
-#===============================================================================
-# 
-#===============================================================================
-
-
 
 
 #===============================================================================
@@ -615,11 +597,15 @@ class TimeNavigator(ViewerPanel):
         sizer.Add(self.timeline, -1, wx.EXPAND)
         
         self.zoomOutButton = self._addButton(sizer, images.zoomOutH,
-                                             self.OnZoomOut)
+                                             self.OnZoomOut, 
+                                             tooltip="Zoom Out (X axis)")
         self.zoomInButton = self._addButton(sizer, images.zoomInH,
-                                            self.OnZoomIn)
+                                            self.OnZoomIn, 
+                                            tooltip="Zoom In (X axis)")
         self.zoomFitButton = self._addButton(sizer, images.zoomFitH,
-                                             self.OnZoomFit)
+                                             self.OnZoomFit, 
+                                             tooltip="Zoom to fit entire "
+                                             "loaded time range (X axis)")
         
         self.SetSizer(sizer)
         
@@ -772,11 +758,15 @@ class LegendArea(ViewerPanel):
         self.defaultSizerFlags = 0
         
         self.zoomInButton = self._addButton(subsizer, images.zoomInV, 
-                                            self.OnZoomIn)
+                                            self.OnZoomIn, 
+                                            tooltip="Zoom In (Y axis)")
         self.zoomOutButton = self._addButton(subsizer, images.zoomOutV, 
-                                             self.OnZoomOut)
+                                             self.OnZoomOut, 
+                                             tooltip="Zoom Out (Y axis)")
         self.zoomFitButton = self._addButton(subsizer, images.zoomFitV, 
-                                             self.OnZoomFit)
+                                            self.OnZoomFit, 
+                                            tooltip="Zoom to fit min and max "
+                                            "values in displayed interval")
         
         # Vertical axis label
         self.unitLabel = wx.StaticText(self, -1, self.Parent.yUnits[0], 
@@ -1558,6 +1548,7 @@ class Viewer(wx.Frame):
     ID_RECENTFILES = wx.NewId()
     ID_EXPORT = wx.NewId()
     ID_EXPORT_VISIBLE = wx.NewId()
+    ID_RENDER_FFT = wx.NewId()
     ID_DEVICE_TIME = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
     ID_DEVICE_SET_CLOCK = wx.NewId()
@@ -1636,8 +1627,11 @@ class Viewer(wx.Frame):
         addItem(fileMenu, wx.ID_REVERT, "&Reload Current File", "", 
                 self.OnFileReloadMenu, False)
         fileMenu.AppendSeparator()
-        addItem(fileMenu, self.ID_EXPORT, "Export Data...", "", 
+        addItem(fileMenu, self.ID_EXPORT, "Export Data (CSV)...", "", 
                 self.OnFileExportMenu, True)
+        fileMenu.AppendSeparator()
+        addItem(fileMenu, self.ID_RENDER_FFT, "Render FFT...", "", 
+                self.OnFileRenderFFTMenu, True)
         fileMenu.AppendSeparator()
         addItem(fileMenu, wx.ID_PRINT, "&Print...", "", 
                 None, False)
@@ -1758,6 +1752,7 @@ class Viewer(wx.Frame):
         result = dlg.ShowModal()
         dlg.Destroy()
         return result
+
 
     #===========================================================================
     # 
@@ -1927,15 +1922,18 @@ class Viewer(wx.Frame):
         """
         """
         if self.dataset is not None and self.dataset.loading is True:
-            if self.ask("Abort loading the current?") != wx.ID_YES:
+            if self.ask("Abort loading the current file?") != wx.ID_YES:
                 return
             else:
                 self.cancelOperation()
+                self.closeFile()
         try:
             stream = ThreadAwareFile(filename, 'rb')
             newDoc = mide_ebml.dataset.Dataset(stream)
             self.app.addRecentFile(filename, 'import')
+        # More specific exceptions should be caught here, before ultimately:
         except Exception as err:
+            # Catch-all for unanticipated errors
             self.handleException(err)
             return
         
@@ -1956,7 +1954,7 @@ class Viewer(wx.Frame):
     def exportCsv(self, evt=None):
         """ Export the active plot view's data as CSV.
         """
-        dlg = ExportDialog(self, -1, "Export CSV", root=self)
+        dlg = CSVExportDialog(self, -1, "Export CSV", root=self)
         result = dlg.ShowModal()
         subchannels = dlg.getSelectedChannels()
         startTime, stopTime = dlg.getExportRange()
@@ -1965,9 +1963,8 @@ class Viewer(wx.Frame):
             return
 
         if self.dataset.loading:
-            x = self.ask("A dataset is currently being loaded. "
-                         "This will make exporting slow. "
-                         "Export anyway?")
+            x = self.ask("A dataset is currently being loaded. This will make "
+                         "exporting slow. Export anyway?")
             if x != wx.ID_OK:
                 return
         
@@ -2011,6 +2008,37 @@ class Viewer(wx.Frame):
         self.drawingSuspended = False
 
 
+    def renderFFT(self):
+        """
+        """
+        dlg = FFTExportDialog(self, -1, "Render FFT", root=self)
+        result = dlg.ShowModal()
+        subchannels = dlg.getSelectedChannels()
+        startTime, stopTime = dlg.getExportRange()
+        dlg.Destroy()
+        
+        if result == wx.ID_CANCEL:
+            return
+        elif len(subchannels) == 0 or (startTime >= stopTime):
+            return
+        
+        subchannelIds = [c.id for c in subchannels]
+        source = subchannels[0].parent.getSession(self.session.sessionId)
+        start, stop = source.getRangeIndices(startTime, stopTime)
+        numRows = stop-start
+        if numRows < 1:
+            self.ask("Selected range contained no data!", "Render FFT",
+                     style=wx.OK, icon=wx.ICON_ERROR)
+            return
+            
+        if self.dataset.loading:
+            x = self.ask("A dataset is currently being loaded. This will make "
+                         "FFT generation slow. Proceed anyway?")
+            if x != wx.ID_OK:
+                return
+        
+
+        
     #===========================================================================
     # 
     #===========================================================================
@@ -2066,6 +2094,12 @@ class Viewer(wx.Frame):
         """ Handle File->Export menu events.
         """
         self.exportCsv()
+
+
+    def OnFileRenderFFTMenu(self, evt):
+        """ Handle File->Render FFT menu events.
+        """
+        self.renderFFT()
 
 
     def OnFileExitMenu(self, evt):
@@ -2254,10 +2288,13 @@ class Viewer(wx.Frame):
     #===========================================================================
     
     def handleException(self, err, msg=None, icon=wx.ICON_ERROR, 
-                        raiseException=False, fatal=False):
+                        raiseException=False, what=None, where=None,
+                        fatal=False):
         """ General-purpose exception handler that attempts to provide a 
             meaningful error message. Also works as an event handler for
-            custom error events (e.g. `EvtImportError`).
+            custom error events (e.g. `EvtImportError`). Exception handling
+            elsewhere in the program should attempt to catch expected
+            exceptions first, then call this for the naked `Exception`.
             
             @param err: The raised exception, an event object (e.g.
                 `EvtImportError`), or `None`.
@@ -2265,35 +2302,43 @@ class Viewer(wx.Frame):
             @keyword icon: The icon to show in the dialog box.
             @keyword raiseException: If `True`, the exception will be raised
                 before the dialog is displayed.
+            @keyword what: A description of the operation being performed that
+                raised the exception.
+            @keyword where: The method in which the exception was raised; a
+                lightweight sort of traceback.
             @keyword fatal: If `True`, the app Viewer will shut down. 
                 
         """
         if isinstance(err, wx.Event):
             err = err.err
             msg = getattr(err, 'msg', None)
-            
+        
+        if what is not None:
+            what = " while %s" % what
+        
         if not isinstance(msg, basestring):
-            if isinstance(err, EnvironmentError):
-                # IOError or OSError; use the the error code.
-                # TODO: Improve this
-                msg = unicode(err)
-            elif isinstance(err, MemoryError):
-                msg = "Out of memory!"
+            # Slightly more specific error messages go here.
+            if isinstance(err, MemoryError):
+                msg = "The system ran out of memory%s"
             else:
-                msg = u"An unexpected error occurred:\n\n%s: %s" % \
+                msg = u"An unexpected %s occurred%%s:\n\n%s" % \
                         (err.__class__.__name__, unicode(err))
 
         # If exceptions are explicitly raised, raise it.
         if raiseException and isinstance(err, Exception):
             raise err
 
-        dlg = wx.MessageDialog(self, msg, APPNAME, wx.OK | icon)
+        if fatal:
+            msg += "\n\nThe application will now shut down."
+
+        dlg = wx.MessageDialog(self, msg % what, APPNAME, wx.OK | icon)
         dlg.ShowModal()
         ctrlPressed = wx.GetKeyState(wx.WXK_CONTROL)
         dlg.Destroy()
         
         # Holding control when okaying alert shows more more info. 
         if ctrlPressed and isinstance(err, Exception):
+            # TODO: Use a better error log display than stderr
             raise err
         
         # The error occurred someplace critical; self-destruct!
@@ -2313,7 +2358,8 @@ class ViewerApp(wx.App):
     """
     
 #     prefsFile = os.path.realpath(os.path.expanduser("~/.ssx_viewer.cfg"))
-    prefsFile = os.path.realpath(os.path.join(os.path.dirname(__file__), 'ssx_viewer.cfg'))
+    prefsFile = os.path.realpath(os.path.join(os.path.dirname(__file__), 
+                                              'ssx_viewer.cfg'))
     
     defaultPrefs = {
         'importTypes': ["MIDE Data File (*.ide)|*.ide", 

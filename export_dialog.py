@@ -4,6 +4,8 @@ Created on Nov 21, 2013
 @author: dstokes
 '''
 
+import locale
+
 import wx.lib.agw.customtreectrl as CT
 import wx; wx=wx
 import wx.lib.sized_controls as sc
@@ -20,6 +22,7 @@ class ModalExportProgress(wx.ProgressDialog):
     """
     def __init__(self, *args, **kwargs):
         self.cancelled = False
+        self.message = kwargs.pop('message', 'Exporting %d of %d samples')
         style = wx.PD_CAN_ABORT|wx.PD_APP_MODAL|wx.PD_REMAINING_TIME
         kwargs.setdefault("style", style)
         super(ModalExportProgress, self).__init__(*args, **kwargs)
@@ -29,7 +32,7 @@ class ModalExportProgress(wx.ProgressDialog):
                  done=False):
         if done:
             return
-        msg = "Exporting %d of %d" % (count, total)
+        msg = self.message % (count, total)
         keepGoing, skip = super(ModalExportProgress, self).Update(count, msg)
         self.cancelled = not keepGoing
         return keepGoing, skip
@@ -89,6 +92,7 @@ class ExportDialog(sc.SizedDialog):
         
         self.Bind(wx.EVT_RADIOBUTTON, self.OnAnyRBSelected)
         self.Bind(CT.EVT_TREE_ITEM_CHECKED, self.OnTreeItemSelected)
+        self.Bind(wx.EVT_TEXT, self.updateMessages)
 
 
     def _formatRange(self, val):
@@ -147,6 +151,7 @@ class ExportDialog(sc.SizedDialog):
         self.rangeWarnIcon = wx.StaticBitmap(warnPane, -1, self.noBmp)
         self.rangeWarnMsg = wx.StaticText(warnPane,-1,"")
         self.rangeWarnMsg.SetForegroundColour("RED")
+        self.rangeWarnMsg.SetSizerProps(valign="center")
         warnPane.SetSizerProps(expand=True)
         rangePane.SetSizerProps(expand=True)
         wx.StaticLine(pane, -1).SetSizerProps(expand=True)
@@ -165,7 +170,6 @@ class ExportDialog(sc.SizedDialog):
     def InitUI(self):
         """ Set up and display actual data in the dialog.
         """
-        self.OnAnyRBSelected(None)
         self.treeRoot = self.tree.AddRoot(self.root.dataset.name)
         for sensor in self.root.dataset.sensors.itervalues():
             self._addTreeItems(self.treeRoot, sensor, types=(CT.TREE_ITEMTYPE_RADIO,
@@ -188,7 +192,9 @@ class ExportDialog(sc.SizedDialog):
             r.SetSize((w-16,-1))
         
         self.showColumnsMsg(msg="")
-        
+        self.updateMessages()
+        self.OnAnyRBSelected(None)
+
         
     def _addRangeRB(self, parent, ID, label, **kwargs):
         """ Helper to add range RadioButtons
@@ -263,7 +269,20 @@ class ExportDialog(sc.SizedDialog):
         self.treeMsg.SetLabel(msg)
 
 
-    def showRangeMsg(self, icon, msg):
+    def showRangeMsg(self, num=0, msg=None):
+        """
+        """
+        if msg is None:
+            if num > 0:
+                countStr = locale.format("%d", num, grouping=True)
+                msg = "Selected time range contains %s samples" % countStr
+            else:
+                msg = "Selected time range contains %d samples" %\
+                    self.getEventCount()
+        self.rangeMsg.SetLabel(msg)
+
+
+    def showWarning(self, icon, msg):
         """ Show a warning message about the selected export time range.
         
             @param icon: An icon ID (e.g. wx.ART_WARNING, wx.ART_ERROR, 
@@ -278,13 +297,25 @@ class ExportDialog(sc.SizedDialog):
         self.rangeWarnMsg.Show()
 
 
-    def hideRangeMsg(self):
+    def hideWarning(self):
         """ Hide the export range warning.
         """
         self.rangeWarnMsg.SetLabel("")
         self.rangeWarnIcon.Hide()
         self.rangeWarnMsg.Hide()
 
+
+    def updateMessages(self, event=None):
+        """
+        """
+        numEvents = 0
+        channels = self.getSelectedChannels()
+        self.showColumnsMsg(len(channels))
+        if len(channels) > 0:
+            numEvents = self.getEventCount()
+        self.showRangeMsg(numEvents)
+        self.validateSettings(channels)
+        
 
     def validateSettings(self, selected=None):
         """ High-level validation of input range; handles warning displays
@@ -299,6 +330,21 @@ class ExportDialog(sc.SizedDialog):
         okToExport = okToExport and len(selected) > 0        
         self.okButton.Enable(okToExport)
         return True
+
+
+    def getEventCount(self):
+        """ Get the number of events in the specified time span.
+        """
+        subchannels = self.getSelectedChannels()
+        if len(subchannels) == 0:
+            return 0
+        timerange = self.getExportRange()
+        if timerange[0] >= timerange[1]:
+            return 0
+        events = subchannels[0].getSession(self.root.session.sessionId)
+        first, last = events.getRangeIndices(*timerange)
+        return last - first
+        
 
     #===========================================================================
     # 
@@ -320,6 +366,7 @@ class ExportDialog(sc.SizedDialog):
         custom = rbId == self.RB_RANGE_CUSTOM
         self.rangeStartT.Enable(custom)
         self.rangeEndT.Enable(custom)
+        self.updateMessages()
 
 
     def OnTreeItemSelected(self, evt):
@@ -332,7 +379,7 @@ class ExportDialog(sc.SizedDialog):
         treeItem = evt.GetItem()
         if treeItem.GetChildrenCount() == 0:
             treeItem = treeItem.GetParent()
-        self.validateSettings(self.getSelectedChannels(treeItem))
+        self.updateMessages()
 
 #===============================================================================
 # 
@@ -351,7 +398,7 @@ class CSVExportDialog(ExportDialog):
         """ Called before the buttons are added.
         """
         pane = self.GetContentsPane()
-        self.headerCheck = wx.CheckBox(pane, -1, "Include column headers in CSV")
+        self.headerCheck = wx.CheckBox(pane, -1, "Include column headers")
         self.headerCheck.SetValue(self._addHeaders)
 
     @property
@@ -370,11 +417,28 @@ class FFTExportDialog(ExportDialog):
 
     SEQUENTIAL = 0
     INTERLACED = 1
+    SAMPLE_ORDER = ['Sequential', 'Interlaced']
 
-    windowsizes = map(str, [2**x for x in xrange(8,17)])
-    defaultWinSize = 512
+    windowsizes = map(str, [2**x for x in xrange(10,21)])
+    defaultWinSize = 2**16
+    
+    # These will be removed later, once memory usage is accurately computed.
+    manyEvents = 750000
+    maxEvents = 1000000
+    
     
     def __init__(self, *args, **kwargs):
+        """ Constructor. Takes the same arguments as any other dialog, plus
+            some additional keywords:
+            
+            @keyword root: The root Viewer window
+            @keyword units: The range units to show (e.g. seconds) 
+            @keyword scalar: The range units scalar for the display.
+            @keyword windowSize: The size of the sample window for use with
+                Welch's method
+            @keyword samplingOrder: The order in which the samples are taken.
+                Not currently implemented.
+        """
         self._samplingOrder = kwargs.pop('samplingOrder', self.SEQUENTIAL)
         self._windowSize = str(kwargs.pop('samplingOrder', ''))
         if self._windowSize not in self.windowsizes:
@@ -388,15 +452,68 @@ class FFTExportDialog(ExportDialog):
         subpane = sc.SizedPanel(self.GetContentsPane(),-1)
         subpane.SetSizerType("form")
         subpane.SetSizerProps(expand=True)
-        wx.StaticText(subpane, -1, "Sampling Window Size:")
-        self.sizeList = wx.Choice(subpane, -1, choices=self.windowsizes)
-        self.sizeList.SetSizerProps(expand=True)
-        wx.StaticText(subpane, -1, "Sampling order:")
-        self.orderList = wx.Choice(subpane, -1, choices=['Sequential','Interlaced'])
-        self.orderList.SetSizerProps(expand=True)
         
+        wx.StaticText(subpane, -1, "Sampling Window Size:"
+                      ).SetSizerProps(valign="center")
+        self.sizeList = wx.Choice(subpane, -1, choices=self.windowsizes)
+        self.sizeList.SetToolTipString("The size of the 'window' used in "
+                                       "Welch's method")
+        self.sizeList.SetSizerProps(expand=True)
         self.sizeList.Select(self.sizeList.FindString(self._windowSize))
-        self.orderList.Select(self._samplingOrder)
+        
+#         wx.StaticText(subpane, -1, "Sampling order:"
+#                       ).SetSizerProps(valign="center")
+#         self.orderList = wx.Choice(subpane, -1, choices=self.SAMPLE_ORDER)
+#         self.orderList.SetSizerProps(expand=True)
+#         self.orderList.Select(self._samplingOrder)
+        
+
+    def showColumnsMsg(self, num=0, msg=None):
+        """ Display a message below the tree view, meant to show the number
+            of columns that will be exported.
+        """
+        if msg is None:
+            if num == 1:
+                msg = "%d subchannel selected" % num
+            else:
+                msg = "%d subchannels selected" % num
+        self.treeMsg.SetLabel(msg)
+
+
+    def validateSettings(self, selected=None):
+        """ High-level validation of input range; handles warning displays
+            and enabling the "OK" button.
+        """
+        okToExport = super(FFTExportDialog, self).validateSettings(selected)
+        
+        numEvents = self.getEventCount()
+        
+        eventLimits = self.getSafeEventCount()
+        if numEvents > eventLimits[0]:
+            if numEvents > eventLimits[1]:
+                # TODO: possibly disable OK, but this guess is too broad, so
+                #    just warn and go ahead and let them try to export.
+                icon = wx.ART_ERROR
+            else:
+                icon = wx.ART_WARNING
+
+            self.showWarning(icon, 
+                            "Memory may be insufficient for this many samples")
+        else:
+            self.hideWarning()
+        
+        self.okButton.Enable(okToExport)
+        return True
+
+
+    def getSafeEventCount(self):
+        """ Get the number of events that the available memory can support.
+        
+            @return: A tuple with the max safe count and the upper limit.
+        """
+        # TODO: Actually compute how many events will exceed available memory.
+        return self.manyEvents, self.maxEvents
+
 
     @property
     def windowSize(self):
@@ -404,7 +521,7 @@ class FFTExportDialog(ExportDialog):
     
     @property
     def samplingOrder(self):
-        return self.orderList.GetSelection
+        return self.orderList.GetSelection()
 
 #===============================================================================
 # 
@@ -412,6 +529,8 @@ class FFTExportDialog(ExportDialog):
 
 # XXX: FOR DEVELOPMENT TESTING. REMOVE ME!
 if __name__ == '__main__':# or True:
+    locale.setlocale(locale.LC_ALL, 'English_United States.1252')
+    
 #     DIALOG_TO_SHOW = ExportDialog
 #     DIALOG_TO_SHOW = CSVExportDialog
     DIALOG_TO_SHOW = FFTExportDialog
@@ -446,7 +565,7 @@ if __name__ == '__main__':# or True:
         results['addHeaders'] = dlg.addHeaders
     elif DIALOG_TO_SHOW == FFTExportDialog:
         results['windowSize'] = dlg.windowSize
-        results['samplingOrder'] = dlg.samplingOrder
+#         results['samplingOrder'] = dlg.samplingOrder
     dlg.Destroy()
     pprint(results)
     app.MainLoop()
