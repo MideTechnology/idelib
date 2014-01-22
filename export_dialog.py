@@ -137,7 +137,7 @@ class ExportDialog(sc.SizedDialog):
         rangeFieldPane.SetSizerType("horizontal")
         self._addRangeRB(rangeFieldPane, self.RB_RANGE_CUSTOM, "Specific Range:")
         self.rangeStartT = wx.TextCtrl(rangeFieldPane, -1, "0", size=(80, -1))#, validator=TimeValidator())
-        self.rangeEndT = wx.TextCtrl(rangeFieldPane, -1, str(2**32*1.0e-07), size=(80, -1))#, validator=TimeValidator())
+        self.rangeEndT = wx.TextCtrl(rangeFieldPane, -1, "999", size=(80, -1))#, validator=TimeValidator())
         wx.StaticText(rangeFieldPane, -1, self.units[1])
         self.rangeMsg = wx.StaticText(rangePane, 0)
 

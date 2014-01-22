@@ -168,14 +168,18 @@ default="123" or a text value that may or may not be the name of another tag
 	<!-- (I assume we probably shouldn't interleave them arbitrarily with other *Polynomial child elements, but if that will actually break something, we should document it here. -->
 	
 	<element name="CalibrationList" level="0" id="0x4B00" type="master" mandatory="0" multiple="0" minver="1">Master element for the CalibrationList items</element>
-		<element name="UnivariatePolynomial" level="1" id="0x4B01" type="master" mandatory="0" multiple="0" minver="1">Master element for a univariate (1-variable) calibration entry</element>
-		<element name="BivariatePolynomial" level="1" id="0x4B02" type="master" mandatory="0" multiple="0" minver="1">Master element for a bivariate (2-variable) calibration entry</element>
+		<element name="UnivariatePolynomial" level="1" id="0x4B01" type="master" mandatory="0" multiple="1" minver="1">Master element for a univariate (1-variable) calibration entry</element>
+			<element name="CalID" level="2" id="0x4B03" type="uinteger" mandatory="0" multiple="0" minver="1">ID of this entry. Actually mandatory, but I don't know how that works with Level=-1.</element>
+			<element name="CalReferenceValue" level="2" id="0x4B04" type="float" mandatory="0" multiple="0" minver="1">Reference value for this channel</element>
+			<element name="PolynomialCoef" level="2" id="0x4B08" type="float" mandatory="0" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</element>			
+		<element name="BivariatePolynomial" level="1" id="0x4B02" type="master" mandatory="0" multiple="1" minver="1">Master element for a bivariate (2-variable) calibration entry</element>
 			<element name="CalID" level="2" id="0x4B03" type="uinteger" mandatory="0" multiple="0" minver="1">ID of this entry. Actually mandatory, but I don't know how that works with Level=-1.</element>
 			<element name="CalReferenceValue" level="2" id="0x4B04" type="float" mandatory="0" multiple="0" minver="1">Reference value for this channel</element>
 			<element name="BivariateCalReferenceValue" level="2" id="0x4B05" type="float" mandatory="0" multiple="0" minver="1">Reference value for the 2nd channel when using bivariate calibration</element>
 			<element name="BivariateChannelIDRef" level="2" id="0x4B06" type="uinteger" mandatory="0" multiple="0" minver="1">Channel ID of the channel to be used as the 2nd parameter for bivariate compensation</element>
 			<element name="BivariateSubChannelIDRef" level="2" id="0x4B07" type="uinteger" mandatory="0" multiple="0" minver="1">SubChannel ID of the subchannel to be used as the 2nd parameter for bivariate compensation</element>
 			<element name="PolynomialCoef" level="2" id="0x4B08" type="float" mandatory="0" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</element>			
+
 
 
 

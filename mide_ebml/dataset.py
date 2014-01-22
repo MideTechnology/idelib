@@ -66,7 +66,7 @@ class Transform(object):
     def __init__(self, *args, **kwargs):
         pass
     
-    def __call__(self,  event, channel=None, session=None):
+    def __call__(self,  event, session=None):
         if session is None:
             return event
         return event[0] + session.startTime, event[1]
@@ -76,22 +76,6 @@ class Transform(object):
         return args[0]
 
 
-
-#===============================================================================
-# 
-#===============================================================================
-
-class ConfidenceThreshold(object):
-    """
-    """
-    def __init__(self, source, validRange):
-        self.source = source
-        self.range = validRange
-        
-    def getValueAt(self, t):
-        """
-        """
-        
 
 #===============================================================================
 # 
@@ -139,9 +123,7 @@ class MultiLerp(Lerp):
 #===============================================================================
 
 class Cascading(object):
-    """ A base/mix-in class providing an acquisition chain of attributes; if
-        one object doesn't have the attribute, the request is sent to the
-        object's parent. 
+    """ A base/mix-in class for objects in a hierarchy. 
     """
 
     parent = None
@@ -167,10 +149,14 @@ class Cascading(object):
             if v not in ignore:
                 return self, v
         if self == last or self.parent is None:
+            # A bit of a hack; NotImplemented is used as the default for
+            # `default`, rather than complicate the method's argument handling.
+            # the argument parsing.
             if default is NotImplemented:
                 raise AttributeError("%r not found in chain ending with %r" % \
                                      (attname, self))
             return None, default
+        
         return self.parent.getAttribute(attname, default, ignore)
 
 
@@ -201,7 +187,7 @@ class Cascading(object):
             lowest-level parent) to last (the transform, if any, on the
             object itself).
             
-            Applicable only to objects derived from `Transformable`.
+            Applicable only to objects also derived from `Transformable`.
         """
         _tlist = [] if _tlist is None else _tlist
         if getattr(self, "_transform", None) is not None:
@@ -218,7 +204,14 @@ class Cascading(object):
 
 
     def setAllAttributes(self, attname, val, last=None):
-        """
+        """ Set the value of the specified attribute for the object and its
+            parents. Objects that don't specifically have the attribute are
+            unchanged.
+            
+            @param attname: The name of the attribute.
+            @param val: The attribute's new value.
+            @keyword last: The final object in the chain, to keep searches
+                from crawling too far back.
         """
         if hasattr(self, attname):
             setattr(self, attname, val)
@@ -236,8 +229,8 @@ class Cascading(object):
 #===============================================================================
 
 class Transformable(object):
-    """ A mix-in class for objects that transform data, making it easy to turn
-        it on or off.
+    """ A mix-in class for objects that transform data (apply calibration,
+        etc.), making it easy to turn the transformation on or off.
         
         @ivar transform: The transformation function/object
         @ivar raw: If `False`, the transform will not be applied to data.  
@@ -279,7 +272,8 @@ class Transformable(object):
         if self._raw:
             self._transform, self._mapTransform = self._rawTransforms
         else:
-            self._transform = tuple([Transform.null if t is None else t for t in self.transform])
+            self._transform = tuple([Transform.null if t is None \
+                                     else t for t in self.transform])
             self._mapTransform = self.transform
 
 
@@ -294,28 +288,20 @@ class Dataset(Cascading):
         Dictionary attributes are all keyed by the relevant ID (sensor ID,
         channel ID, et cetera).
         
-        @ivar loading: `True` if a file is loading (or has not yet been
+        @ivar loading: Boolean; `True` if a file is loading (or has not yet been
             loaded).
-        @type loading: `bool`
-        @ivar fileDamaged: `True` if the file ended prematurely.
-        @type fileDamaged: `bool`
-        @ivar loadCancelled: `True` if the file loading was aborted partway
-            through.
-        @type loadCancelled: `bool`
+        @ivar fileDamaged: Boolean; `True` if the file ended prematurely.
+        @ivar loadCancelled: Boolean; `True` if the file loading was aborted 
+            part way through.
         @ivar sessions: A list of individual Session objects in the data set.
             A valid file will have at least one, even if there are no 
             `Session` elements in the data.
-        @type sessions: `list`
         @ivar sensors: A dictionary of Sensors.
-        @type sensors: `dict`
         @ivar channels: A dictionary of individual Sensor channels.
-        @type channels: `dict`
         @ivar plots: A dictionary of individual Plots, the modified output of
             a Channel (or even another plot).
-        @type plots: `dict`
         @ivar transforms: A dictionary of functions (or function-like objects)
             for adjusting/calibrating sensor data.
-        @type transforms: `dict`
     """
         
     def __init__(self, stream, name=None):
@@ -328,6 +314,7 @@ class Dataset(Cascading):
         self.transforms = {}
         self.parent = None
         self.currentSession = None
+        self.recorderInfo = None
         
         self.useIndices = False
         
@@ -367,28 +354,47 @@ class Dataset(Cascading):
             self.currentSession = None
         
     
-    def addSensor(self, sensorId, name=None, sensorClass=None):
+    def addSensor(self, sensorId=None, name=None, sensorClass=None, 
+                  traceData=None, transform=None):
         """ Create a new Sensor object, and add it to the dataset, and return
-            it. To add a sensor object created elsewhere, use 
-            `sensors[sensorId]` directly.
+            it. If the given sensor ID already exists, the existing sensor is 
+            returned instead. To modify a sensor or add a sensor object created 
+            elsewhere, use `Dataset.sensors[sensorId]` directly. 
             
-            @param sensorId: The ID of the new sensor
+            @param sensorId: The ID of the new sensor.
             @keyword name: The new sensor's name
             @keyword sensorClass: An alternate (sub)class of sensor. Defaults
                 to `None`, which creates a `Sensor`.
             @return: The new sensor
         """
+        # `sensorId` is mandatory; it's a keyword argument to streamline import.
+        if sensorId is None:
+            raise TypeError("%s.addSensor() requires a sensorId" %
+                            self.__class__.__name__)
+            
         if sensorId in self.sensors:
             return self.sensors[sensorId]
+        
         sensorClass = Sensor if sensorClass is None else sensorClass
-        sensor = sensorClass(self,sensorId,name=name)
+        sensor = sensorClass(self,sensorId,name=name, transform=transform,
+                             traceData=traceData)
         self.sensors[sensorId] = sensor
         return sensor
 
 
+    def addTransform(self, transform):
+        """
+        """
+        if transform.id is None:
+            raise ValueError("Added transform did not have an ID")
+        
+        self.transforms[transform.id] = transform
+        
+
     def path(self):
+        """ Get the combined names of all the object's parents/grandparents.
         """
-        """
+        # Dataset is the root.
         return self.name
     
     
@@ -412,10 +418,12 @@ class Dataset(Cascading):
         
     
     def getPlots(self, subchannels=True, plots=True, debug=True, sort=True):
-        """ Get all plottable data: sensor subchannels and/or Plots.
+        """ Get all plottable data sources: sensor SubChannels and/or Plots.
         
             @keyword subchannels: Include subchannels if `True`.
             @keyword plots: Include Plots if `True`.
+            @keyword debug: If `False`, exclude debugging/diagnostic channels.
+            @keyword sort: Sort the plots by name if `True`. 
         """
         result = []
         test = lambda x: debug or not x.name.startswith("DEBUG")
@@ -461,12 +469,14 @@ class Sensor(Cascading):
     """ One Sensor object. A Dataset contains at least one.
     """
     
-    def __init__(self, dataset, sensorId, name=None):
+    def __init__(self, dataset, sensorId, name=None, transform=None,
+                  traceData=None):
         self.name = "Sensor%02d" if name is None else name
         self.dataset = dataset
         self.parent = dataset
         self.id = sensorId
         self.channels = {}
+        self.traceData = traceData
 
 
     def addChannel(self, channelId, parser, **kwargs):
@@ -506,7 +516,7 @@ class Channel(Cascading, Transformable):
     """
     
     def __init__(self, sensor, channelId, parser, name=None, units=('',''), 
-                 calibration=None, displayRange=None, interpolators=None):
+                 transform=None, displayRange=None, interpolators=None):
         """ Constructor.
         
             @param sensor: The parent sensor.
@@ -515,7 +525,7 @@ class Channel(Cascading, Transformable):
             @keyword name: A custom name for this channel.
             @keyword units: The units measured in this channel, used if units
                 are not explicitly indicated in the Channel's SubChannels.
-            @keyword calibration: A Transform object for adjusting sensor
+            @keyword transform: A Transform object for adjusting sensor
                 readings at the Channel level. 
         """
         self.id = channelId
@@ -551,10 +561,10 @@ class Channel(Cascading, Transformable):
         
         self.subsampleCount = [0,sys.maxint]
 
-        if calibration is None:
-            calibration = (None,) * len(self.subchannels)
+        if transform is None:
+            transform = (None,) * len(self.subchannels)
             
-        self.setTransform(calibration)
+        self.setTransform(transform)
         
         # Optimization. Memoization-like cache of the last block parsed.
         self._lastParsed = (None, None)
@@ -586,7 +596,6 @@ class Channel(Cascading, Transformable):
     def addSubChannel(self, subchannelId, **kwargs):
         """ Create a new SubChannel of the Channel.
         """
-#         print subchannelId,name
         if subchannelId > len(self.subchannels):
             raise IndexError(
                 "Channel's parser only generates %d subchannels" % \
@@ -664,7 +673,7 @@ class SubChannel(Channel):
     """
     
     def __init__(self, parent, subChannelId, name=None, units=('',''), 
-                 calibration=None, displayRange=None):
+                 transform=None, displayRange=None):
         """ Constructor.
         """
         self.id = subChannelId
@@ -682,7 +691,7 @@ class SubChannel(Channel):
         
         self._sessions = None
         
-        self.setTransform(calibration)
+        self.setTransform(transform)
         
         if displayRange is None:
             self.displayRange = self.parent.displayRange[self.id]
@@ -960,7 +969,6 @@ class EventList(Cascading):
                 For multiple results, a list of (time, value) tuples.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
-        print "__getitem__", idx
         if isinstance(idx, Iterable):
             result = []
             for t in idx:
@@ -989,10 +997,10 @@ class EventList(Cascading):
         value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
         
         if self.hasSubchannels:
-            event=tuple((f((timestamp,v)) for f,v in izip(self.parent._transform, value)))
+            event=tuple((f((timestamp,v),self.session) for f,v in izip(self.parent._transform, value)))
             event=(event[0][0], tuple((e[1] for e in event)))
         else:
-            event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value)))
+            event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value),self.session))
         
         if self.dataset.useIndices:
             return Event(idx, event[0], event[1])
@@ -1005,7 +1013,6 @@ class EventList(Cascading):
             events.
         """
         return self.iterSlice()
-#         print "__iter__"
 #         for block in self._data:
 #             indexRange = block.indexRange[0], block.indexRange[1]+1
 #             sampleTime = self._getBlockSampleTime(block.blockIndex)
@@ -1070,19 +1077,19 @@ class EventList(Cascading):
                     for eIdx,eTime,eVal in izip(indices,times,values):
                         if self.hasSubchannels:
                             # TODO: (post Transform fix) Refactor later
-                            event=[f((eTime,v)) for f,v in izip(self.parent._transform, eVal)]
+                            event=[f((eTime,v), self.session) for f,v in izip(self.parent._transform, eVal)]
                             yield Event(eIdx, event[0][0], tuple((e[1] for e in event)))
                         else:
-                            eTime, eVal = self.parent._transform((eTime, eVal))
+                            eTime, eVal = self.parent._transform((eTime, eVal), self.session)
                             yield Event(eIdx,eTime,eVal)
                 else:
                     for event in izip(times,values):
                         if self.hasSubchannels:
                             # TODO: (post Transform fix) Refactor later
-                            event=[f((event[-2],v)) for f,v in izip(self.parent._transform, event[-1])]
+                            event=[f((event[-2],v), self.session) for f,v in izip(self.parent._transform, event[-1])]
                             event=(event[0][0], tuple((e[1] for e in event)))
                         else:
-                            event = self.parent._transform(self.parent.parent._transform[self.parent.id](event))
+                            event = self.parent._transform(self.parent.parent._transform[self.parent.id](event, self.session),self.session)
                         yield event
 
       
@@ -1129,10 +1136,10 @@ class EventList(Cascading):
             for event in izip(times, values):
                 if self.hasSubchannels:
                     # TODO: (post Transform fix) Refactor later
-                    event=[f((event[-2],v)) for f,v in izip(self.parent._transform, event[-1])]
+                    event=[f((event[-2],v),self.session) for f,v in izip(self.parent._transform, event[-1])]
                     event=(event[0][0], tuple((e[1] for e in event)))
                 else:
-                    event = self.parent._transform(self.parent.parent._transform[self.parent.id](event))
+                    event = self.parent._transform(self.parent.parent._transform[self.parent.id](event, self.session))
                 yield event
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1182,10 +1189,10 @@ class EventList(Cascading):
             for event in izip(times, values):
                 if self.hasSubchannels:
                     # TODO: (post Transform fix) Refactor later
-                    event=[f((event[-2],v)) for f,v in izip(self.parent._transform, event[-1])]
+                    event=[f((event[-2],v), self.session) for f,v in izip(self.parent._transform, event[-1])]
                     event=(event[0][0], tuple((e[1] for e in event)))
                 else:
-                    event = self.parent._transform(self.parent.parent._transform[self.parent.id](event))
+                    event = self.parent._transform(self.parent.parent._transform[self.parent.id](event, self.session), self.session)
                 yield event
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1565,6 +1572,7 @@ class Plot(Transformable):
     
     def __init__(self, source, name=None, transform=None, units=None):
         self.source = source
+        self.session = source.session
         self.dataset = source.dataset
         self.name = source.path() if name is None else name
         self.units = source.units if units is None else units
@@ -1576,8 +1584,8 @@ class Plot(Transformable):
     def __getitem__(self, idx):
         result = self.source[idx]
         if isinstance(result, tuple):
-            return self._transform(result)
-        return map(self._mapTransform, result)
+            return self._transform(result, self.session)
+        return [self._transform(evt, self.session) for evt in result]
     
     def __iter__(self):
         # Note: self._transform is used here instead of self._mapTransform;

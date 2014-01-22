@@ -63,21 +63,21 @@ default_sensors = {
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
                        "parser": struct.Struct("<HHH"), #AccelerometerParser(),
-                        "calibration": (AccelTransform(),
-                                        AccelTransform(),
-                                        AccelTransform()),
-                        "subchannels":{0: {"name": "Accelerometer Z", 
-                                           "units":('g','g'),
-#                                            "displayRange": (-100.0,100.0),
-                                           },
-                                       1: {"name": "Accelerometer Y", 
-                                           "units":('g','g'),
-#                                            "displayRange": (-100.0,100.0),
-                                           },
-                                       2: {"name": "Accelerometer X", 
-                                           "units":('g','g'),
-#                                            "displayRange": (-100.0,100.0),
-                                           },
+                       "transform": (AccelTransform(),
+                                     AccelTransform(),
+                                     AccelTransform()),
+                       "subchannels":{0: {"name": "Accelerometer Z", 
+                                          "units":('g','g'),
+#                                           "displayRange": (-100.0,100.0),
+                                         },
+                                      1: {"name": "Accelerometer Y", 
+                                          "units":('g','g'),
+#                                           "displayRange": (-100.0,100.0),
+                                          },
+                                      2: {"name": "Accelerometer X", 
+                                          "units":('g','g'),
+#                                           "displayRange": (-100.0,100.0),
+                                          },
                                     },
                        },
                 0x40: {"name": "Pressure/Temperature",
@@ -113,7 +113,7 @@ def createDefaultSensors(doc, sensors=default_sensors):
         for channelId, channelInfo in sensorInfo['channels'].iteritems():
             channel = sensor.addChannel(channelId, channelInfo['parser'],
                                         name=channelInfo.get('name',None),
-                                        calibration=channelInfo.get('calibration',None))
+                                        transform=channelInfo.get('transform',None))
             if 'subchannels' not in channelInfo:
                 continue
             for subChId, subChInfo in channelInfo['subchannels'].iteritems():

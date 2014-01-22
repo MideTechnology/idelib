@@ -3,28 +3,27 @@ This file contains three types of things: special-case data parsers, handlers
 for specific EBML elements, and wrapper classes for EBML data-containing
 elements.
 
-Special-case data-parsing objects are for parsing element data needing 
-more post-processing than simply grabbing values with a `struct.Struct`, 
-such as a sensor that produces data in a non-power-of-two length (e.g. 
-24 bits). Special-case parsers must (to a limited degree) quack like 
-`struct.Struct` objects; they must provide `size` and `format` attributes 
-(the latter should be `None`), and they must implement the method
-`unpack_from()`.
+Special-case data-parsing objects are for parsing element data needing more 
+post-processing than simply grabbing values with a `struct.Struct`, such as a 
+sensor that produces data in a non-power-of-two length (e.g. 24 bits). 
+Special-case parsers must (to a limited degree) quack like `struct.Struct` 
+objects; they must provide `size` and `format` attributes (the latter should be 
+`None`), and they must implement the method `unpack_from()`.
 
 Element handlers are called by the importer as it iterates through the 'root'
-elements of an EBML file. Generally, handlers are instantiated only once.
-Handlers of data-containing elements (e.g. `ChannelDataBlock` and
-`SimpleChannelDataBlock`) operate as factories, manufacturing instances of
-their respective wrapper objects. All handlers have an `elementName`
-attribute containing the name of the EBML element on which they work.
-Data-producing handlers also have a `product` attribute, which is a
-reference to the class of the object they manufacture. It is up to the
-handler to handle any children of their respective elements.
+elements of an EBML file. Generally, handlers are instantiated only once, just
+after the new `Dataset` has been created. Handlers of data-containing elements 
+(e.g. `ChannelDataBlock` and `SimpleChannelDataBlock`) operate as factories, 
+manufacturing instances of their respective wrapper objects. All handlers have 
+an `elementName` attribute containing the name of the EBML element on which 
+they work. A single handler class handles a single element type. Data-producing 
+handlers also have a `product` attribute, which is a reference to the class of 
+the object they manufacture. It is up to the handler to handle any children of 
+their respective elements.
 
-Data elements wrap EBML elements and abstract the details of getting
-at their data. A sensor that outputs the same data in both normal 
-`ChannelDataBlock` and `SimpleChannelDataBlock` elements are
-represented the same way in the API.
+Data elements wrap EBML elements and abstract the details of getting at their 
+data. A sensor that outputs the same data in both normal `ChannelDataBlock` 
+and `SimpleChannelDataBlock` elements are represented the same way in the API.
 
 See the `dataset` module for more information.
 
@@ -32,11 +31,64 @@ Created on Sep 26, 2013
 @author: dstokes
 '''
 
+from collections import Sequence
 import struct
 import sys
 import types
 
 import calibration
+
+#===============================================================================
+# 
+#===============================================================================
+
+def read_ebml(elements):
+    """ Reads a sequence of EBML elements and builds a (nested) dictionary,
+        keyed by element name. Elements marked as "multiple" in the schema
+        will produce a list containing one item for each element.
+    """
+    result = {}
+    if not isinstance(elements, Sequence):
+        elements = [elements]
+    for el in elements:
+        if isinstance(el.value, list) or el.children:
+            value = read_ebml(el.value)
+        else:
+            value = el.value
+        if el.multiple:
+            result.setdefault(el.name, []).append(value)
+        else:
+            result[el.name] = value
+    return result
+            
+    
+def renameKeys(d, renamed, exclude=True, recurse=True):
+    """ Create a new dictionary from and old one, using different keys.
+    
+        @param d: The source dictionary
+        @param renamed: A dictionary of new names keyed by old names
+        @keyword exclude: If `True`, only keys appearing in `renamed` are
+            copied to the new dictionary.
+        @keyword recurse: If `True`, the renaming operates over all nested
+            dictionaries.
+        @return: A new dictionary, a deep copy of the original, with different
+            keys.
+    """
+    if isinstance(d, Sequence):
+        return [renameKeys(i, renamed, exclude) for i in d]
+    if not isinstance(d, dict):
+        return d
+    
+    result = {}
+    for oldname,v in d.iteritems():
+        if oldname not in renamed and exclude:
+            continue
+        newname = renamed.get(oldname, oldname)
+        if recurse:
+            result[newname] = renameKeys(v, renamed, exclude, recurse)
+        else:
+            result[newname] = v
+    return result
 
 #===============================================================================
 # 
@@ -102,8 +154,8 @@ def getParserRanges(parser):
 #===============================================================================
 
 def getElementHandlers(module=None, subElements=False):
-    """ Retrieve all EBML element handlers from a module. Handlers are
-        identified by being subclasses of `ElementHandler`.
+    """ Retrieve all EBML element handlers (parsers) from a module. Handlers
+        are identified by being subclasses of `ElementHandler`.
     
         @keyword module: The module from which to get the handlers. Defaults to
             the current module (i.e. `mide_ebml.parsers`).
@@ -125,7 +177,6 @@ def getElementHandlers(module=None, subElements=False):
             continue
         if issubclass(p, ElementHandler):
             if subElements or not p.isSubElement:
-#                 print "Installing handler for", p.elementName
                 elementParserTypes.append(p)
     return elementParserTypes
 
@@ -179,14 +230,13 @@ class MPL3115PressureTempParser(object):
     def unpack_from(self, data, offset=0):
         """ Special-case parsing of a temperature data block.
         """
-        # TODO: Make sure if fractional part is calculated correctly for negative values
+        # TODO: Make sure if fractional part is correct for negative values
         rawpressure = self._pressureParser.unpack_from(data, offset)[0] >> 13
         fracpressure, rawtemp, fractemp = self._parser.unpack_from(data, offset)
         fracpressure = ((fracpressure >> 3) & 0b11) * 0.25
         fractemp = (fractemp >> 3) * 0.0625
 
         return (rawpressure + fracpressure, rawtemp + fractemp)
-
 
 
 class AccelerometerParser(object):
@@ -218,23 +268,52 @@ class AccelerometerParser(object):
 class ElementHandler(object):
     """ Base class for all element handlers (i.e. parsers). ElementHandlers are
         instantiated after a `Dataset` has been created, and their `parse()`
-        methods add data to, or otherwise modify, that Dataset.
+        methods add data to (or modify) that Dataset.
         
-        @cvar product: The class of object generated by the handler (if any)
+        @cvar product: The class of object generated by the handler (if any).
+            Used by data block parsers.
         @cvar elementName: The name of the EBML element handled.
         @cvar isSubElement: `False` if the element occurs at the root level of
             the EBML file.
+        @cvar children: A list/tuple of the parsers for sub-elements of this
+            element, if any.
     """
     product = None
     elementName = None
     isSubElement = False
+    children = None
     
     def __init__(self, doc, **kwargs):
         self.doc = doc
         
-    def parse(self, element):
-#         print "Handling %s" % self.elementName
-        pass
+        # Initialize the sub-element handlers
+        if self.children is not None:
+            self.childHandlers = {}
+            for parser in self.children:
+                self.childHandlers[parser.elementName] = parser(self.doc)
+                
+        
+    def parse(self, element, **kwargs):
+        """ Process an EBML element's contents. Handlers that generate data
+            blocks should return the number of samples read. Other element
+            types can return whatever their role requires.
+        """ 
+        # Apply the sub-element handlers (if any) to the element's payload
+        if self.children is not None:
+            result = []
+            for el in element.value:
+                if el.name in self.childHandlers:
+                    result.append(self.childHandlers[el.name](el, **kwargs))
+            return result
+
+    
+    def getElementName(self, element):
+        """ Generate a string with an element's name, ID, and file position
+            for debugging/error reporting.
+        """
+        return "%r (0x%x) @%r" % (element.name, element.id, 
+                                  element.stream.offset)
+
 
     def makesData(self):
         """ Does this handler produce sample data?
@@ -249,7 +328,9 @@ class BaseDataBlock(object):
         
         @cvar headerSize: The size of the header information stored in the
             element's payload, if any.
-        @cvar maxTimestamp: The 
+        @cvar maxTimestamp: The modulus of the data's timestamp
+        @cvar timeScalar: The scaling factor to convert native units (i.e.
+            clock ticks) to microseconds.
     """
     headerSize = 0
     maxTimestamp = 2**16
@@ -270,6 +351,7 @@ class BaseDataBlock(object):
         self.body_size = None
         self.minValue = self.maxValue = None
 
+
     def parseWith(self, parser, start=0, end=-1, subchannel=None, step=1):
         """ Parse an element's payload. Use this instead of directly using
             `parser.parse()` for consistency's sake.
@@ -281,7 +363,11 @@ class BaseDataBlock(object):
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload.value
         start = self.headerSize + (start*parser.size)
-        end = self.payload.body_size + end if end < 0 else self.headerSize + (end*parser.size)
+        if end < 0:
+            end += self.payload.body_size
+        else:
+            end = self.headerSize + (end * parser.size)
+            
         for i in xrange(start,end,parser.size*step):
             if subchannel is not None:
                 yield parser.unpack_from(data, i)[subchannel]
@@ -404,6 +490,11 @@ class SimpleChannelDataBlockParser(ElementHandler):
    
     def parse(self, element, sessionId=None):
         """ Create a (Simple)ChannelDataBlock from the given EBML element.
+        
+            @param element: A sample-carrying EBML element.
+            @keyword sessionId: The session currently being read; defaults to
+                whatever the Dataset says is current.
+            @return: The number of subsamples read from the element's payload.
         """
         block = self.product(element)
         timestamp, channel = block.getHeader()
@@ -461,10 +552,9 @@ class ChannelDataBlock(BaseDataBlock):
     
     
     def getHeader(self):
-        """ Extract the block's header info.
+        """ Extract the block's header info (timestamp and channel ID).
         """
         return self._timestamp, self.channel
-
 
     
 class ChannelDataBlockParser(SimpleChannelDataBlockParser):
@@ -490,101 +580,178 @@ class ChannelDataBlockParser(SimpleChannelDataBlockParser):
 # 
 #===============================================================================
 
-class BaseCalibration(object):
-    """
-    """
-    
-
-class BasePolynomialParser(ElementHandler):
+class PolynomialParser(ElementHandler):
     """ The handler for both Univariate and Bivariate calibration polynomials.
         Each are a subclass of this, although this class does all the work.
     """
     isSubElement = True
     
+    # Parameter names: mapping of element names to the keyword arguments used
+    # to instantiate a polynomial object.
+    parameterNames = {"CalID": "calId",
+                      "CalReferenceValue": "reference",
+                      "BivariateCalReferenceValue": "reference2",
+                      "BivariateChannelIDRef": "channel",
+                      "BivariateSubChannelIDRef": "subchannel",
+                      "PolynomialCoef": "coeffs"}
+
     def parse(self, element, **kwargs):
         """
         """
         # Element name (plus ID and file position) for error messages
-        elName = "%r (0x%x) @%r" % (element.name, element.id, 
-                                    element.stream.offset)
-
-        calId = None
-        calRef = 0
-        coeffs = []
-        biCalRef = 0
-        biChannel = None
-        biSubchannel = None
+        elName = self.getElementName(element)
+        params = renameKeys(read_ebml(element.value), self.parameterNames)
         
-        for el in element.value:
-            if el.name == "PolynomialCoef":
-                coeffs.append(el.value)
-            elif el.name == "CalID":
-                calId = el.value
-            elif el.name == "CalReferenceValue":
-                calRef = el.value
-            elif el.name == "BivariateCalReferenceValue":
-                biCalRef = el.value
-            elif el.name == "BivariateChannelIDRef":
-                biChannel = el.value
-            elif el.name == "BivariateSubChannelIDRef":
-                biSubchannel = el.value
-        
-        
-        if calId is None:
-            raise ParsingError("%s had no calibration ID" % elName)
-        if len(coeffs) == 0:
+        coeffs = params.pop("coeffs", None)
+        if coeffs is None:
             raise ParsingError("%s had no coefficients" % elName)
+        
+        if "calId" not in params:
+            raise ParsingError("%s had no calibration ID" % elName)
         
         if element.name == "BivariatePolynomial":
             # Bivariate polynomial. Do extra error checking.
-            if biChannel is None or biSubchannel is None:
-                raise ParsingError("%s had no channel reference!" % \
-                    (elName, element.id, element.offset))
+            if "channel" not in params or "subchannel" not in params:
+                raise ParsingError("%s had no channel reference!" % elName)
             if len(coeffs) != 4:
                 raise ParsingError("%s supplied %d coefficients; 4 required" % \
-                                   (el.name, len(coeffs)))
-                
-            function = calibration.Bivariate(coeffs)
-            # XXX: CREATE THE POLYNOMIAL HERE!
+                                   (elName, len(coeffs)))
+            cal = calibration.Bivariate(coeffs, **params)
+            
+        elif element.name == "UnivariatePolynomial":
+            cal = calibration.Univariate(coeffs, **params)
             
         else:
-            # Univariate polynomial
-            function = calibration.Univariate(coeffs)
-            
-            # XXX: CREATE THE POLYNOMIAL HERE!
-
-
-class CalibrationListParser(ElementHandler):
-    """
-    """
-    elementName = "CalibrationList"
-    
-    def __init__(self, *args, **kwargs):
-        """
-        """
-        super(CalibrationListParser, self).__init__(*args, **kwargs)
-        handlers = filter(lambda x:issubclass(x, BasePolynomialParser),
-                          getElementHandlers(subElements=True))
-        self.handlers = dict(((obj.elementName, obj(self.doc)) \
-                              for obj in handlers))
+            # Unknown polynomial type. 
+            raise ParsingError("%s: unknown polynomial type" % elName)
         
-    
-    def parse(self, element, **kwargs):
-        for el in element.value:
-            if el.name in self.handlers:
-                self.handlers[el.name].parse(el)
+        # self.doc might (validly) be None if a configuration tool were 
+        # reading the device info file, rather than reading a recording file. 
+        if self.doc is not None:
+            self.doc.addTransform(cal)
+        
+        return cal
 
-
-class UnivariatePolynomialParser(BasePolynomialParser):
-    """
+class UnivariatePolynomialParser(PolynomialParser):
+    """ Parses a single-variable polynomial. 
     """
     elementName = "UnivariatePolynomial"
 
 
-class BivariatePolynomialParser(UnivariatePolynomialParser):
-    """
+class BivariatePolynomialParser(PolynomialParser):
+    """ Parses a two-variable polynomial. 
     """
     elementName = "BivariatePolynomial"
+
+
+class CalibrationListParser(ElementHandler):
+    """ Root-level parser for calibration data. Handles parsing of the
+        individual calibration elements (its children). Unlike (most) other
+        parsers, this one can be instantiated without a reference to a 
+        `dataset.Dataset`. It also keeps a copy of all the calibration items
+        in a `items` attribute (a list). 
+    """
+    elementName = "CalibrationList"
+    children = (UnivariatePolynomialParser, BivariatePolynomialParser)
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class SensorParser(ElementHandler):
+    """ Handle `Sensor` elements, children of `SensorList`.
+    """
+    elementName = "Sensor"
+    isSubElement = True
+
+    # Parameter names: mapping of element names to the keyword arguments used
+    # to instantiate the various children of SensorParser.
+    parameterNames = {
+        "Sensor": "sensors",
+                      
+      "SensorID": "sensorId",
+      "SensorName": "name", 
+      "TraceabilityData": "traceData",
+      "SensorCalibrationIDRef": "transform",
+      "SensorChannel": "channels",
+
+      "SensorChannelID": "channelId",
+      "SensorChannelName": "name", 
+      "TimeCodeScale": "timeScale",
+      "TimeCodeModulus": "timeModulus",
+      "SensorChannelFormat": "parser", # TBD;
+      "SensorChannelCalibrationIDRef": "transform",
+      "SensorSubChannel": "subchannels",   
+
+      "SubChannelID": "id",
+      "SubChannelName": "name",
+      "SubChannelCalibrationIDRef": "transform",
+      "SubChannelSubChannelAxisName": "axisName",
+      "SubChannelSubChannelAxisName": "axisId",
+      "SubChannelUnitsName": "units",
+      "SubChannelUnitsXRef": "unitsId",
+      "SubChannelRangeMin": "rangeMin",
+      "SubChannelRangeMax": "rangeMax"
+    }
+    
+    def __init__(self, *args, **kwargs):
+        """
+        """
+        super(SensorParser, self).__init__(*args, **kwargs)
+        self.channelParser = self.SensorChanelParser(self.doc)
+
+   
+    def parse(self, element, **kwargs):
+        """
+        """
+        def getXform(d):
+            if "transform" in d:
+                d['transform'] = self.doc.transforms[d['transform']]
+        
+        data = renameKeys(read_ebml(element.value), self.parameterNames)
+        getXform(data)
+        
+        if "transform" in data:
+            data["transform"] = self.doc.transforms[data["transform"]]
+            
+        for channel in data.pop("channels", ""):
+            getXform(channel)
+            for subchannel in channel.pop("subchannels", ""):
+                getXform(subchannel)
+
+
+class SensorListParser(ElementHandler):
+    """ Handle the `SensorList` element, child of RecorderInfo. 
+    """
+    elementName = "SensorList"
+    isSubElement = True
+    children = (SensorParser, )
+
+
+class RecorderInfoParser(ElementHandler):
+    """ Handle the `RecorderInfo` element, child of RecordingProperties.
+    """
+    elementName = "RecorderInfo"
+    isSubElement = True
+    
+    def parse(self, element, **kwargs):
+        """
+        """
+        # This one is simple; it just sticks the data into the Dataset.
+        self.doc.recorderInfo = read_ebml(element.value) 
+        return self.doc.recorderInfo  
+
+
+class RecordingPropertiesParser(ElementHandler):
+    """ Stub for RecordingProperties element handler.
+    
+        @cvar elementName: The name of the element handled by this parser
+        @todo: Implement RecordingPropertiesParser
+    """
+    elementName = "RecordingProperties"
+    children = (RecorderInfoParser, SensorListParser)
+
 
 
 #===============================================================================
@@ -639,15 +806,6 @@ class SyncParser(ElementHandler):
 #===============================================================================
 # 
 #===============================================================================
-
-
-class RecordingPropertiesParser(ElementHandler):
-    """ Stub for RecordingProperties element handler.
-    
-        @cvar elementName: The name of the element handled by this parser
-        @todo: Implement RecordingPropertiesParser
-    """
-    elementName = "RecordingProperties"
 
 
 class TimeCodeScaleParser(ElementHandler):
