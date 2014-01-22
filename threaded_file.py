@@ -26,8 +26,8 @@ class ThreadAwareFile(object):
         self.initKwargs = kwargs.copy()
         self.threads = {ident: file(*args, **kwargs)}
         self.forceIdent = None
-        
-       
+
+
     def getIdent(self):
         """ Get the identity of the current thread. If the attribute
             `forceIdent` is not `None`, `forceIdent` will be returned
@@ -50,9 +50,32 @@ class ThreadAwareFile(object):
 
 
     def closeAll(self):
+        """ Close all open streams. 
+        
+            Warning: May not be thread-safe in some situations!
+        """
         for v in self.threads.itervalues():
             v.close()
 
+
+    def changeFile(self, *args, **kwargs):
+        """ Change the path of the file being accessed. Intended for 
+            maintaining access to a file after a 'Save As' without
+            having to reload all the data. The arguments are the
+            same as `file()`.
+            
+            Warning: May not be thread-safe in some situations!
+        """
+        if len(args) > 1:
+            if isinstance(args[1], basestring) and 'w' in args[1]:
+                raise IOError("ThreadAwareFile is read-only")
+        self.initArgs = args[:]
+        self.initKwargs = kwargs.copy()
+        ids = self.threads.keys()
+        for i in ids:
+            self.threads[i].close()
+            del self.threads[i]
+        
 
     def cleanup(self):
         """ Delete all closed streams.
@@ -65,6 +88,9 @@ class ThreadAwareFile(object):
 
     @property
     def closed(self):
+        """ Is the file open? Note: A thread that never accessed the file 
+            will get `True`.
+        """
         ident = self.getIdent()
         if ident in self.threads:
             return self.threads[ident].closed

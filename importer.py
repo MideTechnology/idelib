@@ -61,10 +61,11 @@ default_sensors = {
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
                        "parser": struct.Struct("<HHH"), #AccelerometerParser(),
-                       "subchannels":{0: {"name": "X", 'calibration': AccelTransform()},
-                                      1: {"name": "Y", 'calibration': AccelTransform()},
-                                      2: {"name": "Z", 'calibration': AccelTransform()}
-                                      },
+                        "calibration": (AccelTransform(),AccelTransform(),AccelTransform()),
+                        "subchannels":{0: {"name": "X"},#, 'calibration': AccelTransform()},
+                                       1: {"name": "Y"},#, 'calibration': AccelTransform()},
+                                       2: {"name": "Z"},#, 'calibration': AccelTransform()}
+                                    },
                        },
                 0x40: {"name": "Pressure/Temperature",
                        "parser": parsers.MPL3115PressureTempParser(),
@@ -92,7 +93,8 @@ def createDefaultSensors(doc, sensors=default_sensors):
         sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
         for channelId, channelInfo in sensorInfo['channels'].iteritems():
             channel = sensor.addChannel(channelId, channelInfo['parser'],
-                                        name=channelInfo.get('name',None))
+                                        name=channelInfo.get('name',None),
+                                        calibration=channelInfo.get('calibration',None))
             if 'subchannels' not in channelInfo:
                 continue
             for subChId, subChInfo in channelInfo['subchannels'].iteritems():

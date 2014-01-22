@@ -118,7 +118,7 @@ def getElementHandlers(module=None, subElements=False):
             continue
         if issubclass(p, ElementHandler):
             if subElements or not p.isSubElement:
-                print "Installing handler for", p.elementName
+#                 print "Installing handler for", p.elementName
                 elementParserTypes.append(p)
     return elementParserTypes
 

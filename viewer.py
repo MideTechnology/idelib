@@ -1,15 +1,22 @@
 '''
-Created on Oct 21, 2013
+Slam Stick eXtreme Data Viewer
 
-@author: dstokes
+Description should go here. At the moment, this is also the text that appears
+in the About Box.
+
 '''
 
 APPNAME = u"Slam Stick X Data Viewer"
 __version__="0.0.1"
+__created__="Oct 21, 2013"
+__date__="Oct 21, 2013"
 __copyright__=u"Copyright (c) 2013 MID\xc9 Technology"
+__url__ = ("http://mide.com", "")
 __credits__=["David R. Stokes", "Tim Gipson"]
 
 from datetime import datetime
+# import errno
+import fnmatch
 import json
 import locale
 import os
@@ -28,18 +35,14 @@ from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
 from timeline import EVT_INDICATOR_CHANGED, RealFormat
 
 # Graphics (icons, etc.)
-from icons import MideLogo_77px as MideLogo
-from icons import SlamStickX_Logo_Black_Alpha_116px as SSXLogo
+import images
 
-# Special helper objects
+# Special helper objects and functions
 from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
 from dataset import Dataset
 import importer
-
-# XXX: FOR TESTING PURPOSES ONLY:
-# from fakedata import makeFakeData
 
 
 #===============================================================================
@@ -54,9 +57,6 @@ def expandRange(l, v):
     l[1] = max(l[1],v)
 
 
-def lerp(v1, v2, percent):
-    return 0.0 + v1 + percent * (v2 - v1)
-
 #===============================================================================
 # Custom Events (for multithreaded UI updating)
 #===============================================================================
@@ -67,6 +67,7 @@ def lerp(v1, v2, percent):
 (EvtProgressUpdate, EVT_PROGRESS_UPDATE) = wx.lib.newevent.NewEvent()
 (EvtProgressEnd, EVT_PROGRESS_END) = wx.lib.newevent.NewEvent()
 (EvtInitPlots, EVT_INIT_PLOTS) = wx.lib.newevent.NewEvent()
+(EvtImportError, EVT_IMPORT_ERROR) = wx.lib.newevent.NewEvent()
 
 
 #===============================================================================
@@ -123,7 +124,7 @@ class Loader(Thread):
         """
         countStr = locale.format("%d", count, grouping=True)
 
-        if est is None or est.seconds < 1:
+        if est is None or est.seconds < 2:
             estStr = ""
         elif est.seconds < 60:
             estStr = "- Est. finish in %d sec." % est.seconds
@@ -148,21 +149,7 @@ class Loader(Thread):
         
         if error is not None:
             self.cancel()
-            if isinstance(error, IOError):
-                # A file IO error of some sort, other than premature EOF
-                # TODO: Implement this
-                pass
-            elif isinstance(error, MemoryError):
-                # Typically out-of-memory error
-                # TODO: Implement this
-                pass
-            elif isinstance(error, EnvironmentError):
-                # A broad, operating-system-level error
-                # TODO: Implement this
-                pass
-            else:
-                # TODO: Implement this
-                pass
+            wx.PostEvent(self.root, EvtImportError(err=error))
             return
         
         if done:
@@ -230,6 +217,27 @@ class Loader(Thread):
 # 
 #===============================================================================
 
+class ModalExportProgress(wx.ProgressDialog):
+    """ Subclass of the standard progress dialog, implementing the __call__
+        method and other attributes needed for a callback (like the Loader).
+    """
+    def __init__(self, *args, **kwargs):
+        self.cancelled = False
+        super(ModalExportProgress, self).__init__(*args, **kwargs)
+        
+    
+    def __call__(self, count=0, percent=None, total=None, error=None, done=False):
+        if done:
+            return
+        msg = "Exporting %d of %d" % (count, total)
+        keepGoing, skip = super(ModalExportProgress, self).Update(count, msg)
+        self.cancelled = not keepGoing
+        return keepGoing, skip
+    
+#===============================================================================
+# 
+#===============================================================================
+
 class StatusBar(wx.StatusBar):
     """
     The viewer status bar.  It mainly provides a progress bar and status text
@@ -251,7 +259,7 @@ class StatusBar(wx.StatusBar):
         if self.root is None:
             self.root = self.GetParent().root
         
-        logo = MideLogo.GetBitmap()
+        logo = images.MideLogo.GetBitmap()
         self.logo = wx.StaticBitmap(self, -1, logo)
 
         self.progressBar = wx.Gauge(self, -1, 1000)
@@ -288,7 +296,6 @@ class StatusBar(wx.StatusBar):
 
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.TimerHandler)
-
 
 
     def __del__(self):
@@ -604,8 +611,8 @@ class Timeline(wx.Panel):
 #===============================================================================
 
 class TimeNavigator(wx.Panel):
-    """ The full timeline view shown above the graph.
-        
+    """ The full timeline view shown above the graph. Includes moveable markers 
+        showing the currently visible interval.
     """
     
     def __init__(self, *args, **kwargs):
@@ -624,17 +631,21 @@ class TimeNavigator(wx.Panel):
         
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         
-        logo = wx.StaticBitmap(self, -1, SSXLogo.GetBitmap())
+        logo = wx.StaticBitmap(self, -1, images.SSXLogo.GetBitmap())
         sizer.Add(logo, 0, wx.ALIGN_CENTER)
         
         self.timeline = TimeNavigatorCtrl(self,-1)
         sizer.Add(self.timeline, -1, wx.EXPAND)
         
-        self.zoomOutButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomOut_H_22px.png'))
-        self.zoomOutButton.SetBitmapDisabled(wx.Bitmap('images/ZoomOut_Disabled_22px.png'))
+        self.zoomOutButton = wx.BitmapButton(self, -1, images.zoomOutH.GetBitmap())
+        self.zoomOutButton.SetBitmapDisabled(images.zoomOutDisabled.GetBitmap())
+#         self.zoomOutButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomOut_H_22px.png'))
+#         self.zoomOutButton.SetBitmapDisabled(wx.Bitmap('images/ZoomOut_Disabled_22px.png'))
         sizer.Add(self.zoomOutButton, 0, wx.EXPAND)
-        self.zoomInButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomIn_H_22px.png'))
-        self.zoomInButton.SetBitmapDisabled(wx.Bitmap('images/ZoomIn_Disabled_22px.png'))
+        self.zoomInButton = wx.BitmapButton(self, -1, images.zoomInH.GetBitmap())
+        self.zoomInButton.SetBitmapDisabled(images.zoomOutDisabled.GetBitmap())
+#         self.zoomOutButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomIn_H_22px.png'))
+#         self.zoomOutButton.SetBitmapDisabled(wx.Bitmap('images/ZoomIn_Disabled_22px.png'))
         sizer.Add(self.zoomInButton, 0, wx.EXPAND)
         
         self.SetSizer(sizer)
@@ -762,7 +773,8 @@ class TimeNavigator(wx.Panel):
 #===============================================================================
 
 class LegendArea(wx.Panel):
-    """
+    """ The vertical axis of the plot. Contains the scale and the vertical
+        zoom buttons.
     """
     
     def __init__(self, *args, **kwargs):
@@ -784,17 +796,30 @@ class LegendArea(wx.Panel):
         
         # Zoom buttons
         buttonStyle = wx.DEFAULT | wx.ALIGN_BOTTOM
-        self.zoomInButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomIn_V_22px.png'), style=buttonStyle)
-        self.zoomInButton.SetBitmapDisabled(wx.Bitmap('images/ZoomIn_Disabled_22px.png'))
+        self.zoomInButton = wx.BitmapButton(self, -1, 
+                                            images.zoomInV.GetBitmap(), 
+                                            style=buttonStyle)
+        self.zoomInButton.SetBitmapDisabled(images.zoomInDisabled.GetBitmap())
+#         self.zoomInButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomIn_V_22px.png'), style=buttonStyle)
+#         self.zoomInButton.SetBitmapDisabled(wx.Bitmap('images/ZoomIn_Disabled_22px.png'))
         subsizer.Add(self.zoomInButton, -1, wx.EXPAND)
-        self.zoomOutButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomOut_V_22px.png'), style=buttonStyle)
-        self.zoomOutButton.SetBitmapDisabled(wx.Bitmap('images/ZoomOut_Disabled_22px.png'))
+        self.zoomOutButton = wx.BitmapButton(self, -1, 
+                                             images.zoomOutV.GetBitmap(), 
+                                             style=buttonStyle)
+        self.zoomOutButton.SetBitmapDisabled(images.zoomOutDisabled.GetBitmap())
+#         self.zoomOutButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomOut_V_22px.png'), style=buttonStyle)
+#         self.zoomOutButton.SetBitmapDisabled(wx.Bitmap('images/ZoomOut_Disabled_22px.png'))
         subsizer.Add(self.zoomOutButton, -1, wx.EXPAND)
-        self.zoomFitButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomFit_V_22px.png'), style=buttonStyle)
-        self.zoomFitButton.SetBitmapDisabled(wx.Bitmap('images/ZoomFit_Disabled_22px.png'))
+        self.zoomFitButton = wx.BitmapButton(self, -1, 
+                                             images.zoomFitV.GetBitmap(), 
+                                             style=buttonStyle)
+        self.zoomFitButton.SetBitmapDisabled(images.zoomFitDisabled.GetBitmap())
+#         self.zoomFitButton = wx.BitmapButton(self, -1, wx.Bitmap('images/ZoomFit_V_22px.png'), style=buttonStyle)
+#         self.zoomFitButton.SetBitmapDisabled(wx.Bitmap('images/ZoomFit_Disabled_22px.png'))
         subsizer.Add(self.zoomFitButton, -1, wx.EXPAND)
         
         self.unitsPerPixel = 1.0
+        self.scrollUnitsPerUnit = 1.0
         self.scale = VerticalScaleCtrl(self, -1, size=(1200,-1), style=wx.NO_BORDER|wx.ALIGN_RIGHT)
         self.scale.SetFormat(RealFormat)
         self.scale.SetRange(*self.visibleRange)
@@ -847,11 +872,13 @@ class LegendArea(wx.Panel):
     
     
     def getValueRange(self):
+        """ Get the currently displayed range of time.
+        """
         return self.visibleRange
 
 
     def getValueAt(self, vpos):
-        """
+        """ Get the value corresponding to a given pixel location.
         """
         return self.visibleRange[1] - (vpos * self.unitsPerPixel)
         
@@ -873,13 +900,14 @@ class LegendArea(wx.Panel):
     #===========================================================================
     
     def OnResize(self, evt):
-        self.unitsPerPixel = abs((self.visibleRange[0] - self.visibleRange[1]) / (evt.Size[1] + 0.0))
-#         print evt.Size, self.visibleRange, self.unitsPerPixel
+        self.unitsPerPixel = abs((self.visibleRange[0] - self.visibleRange[1]) \
+                                 / (evt.Size[1] + 0.0))
         evt.Skip()
     
     def OnMouseMotion(self, evt):
         self.root.showMouseVPos(self.getValueAt(evt.GetY()), 
                                 units=self.Parent.yUnits[1])
+        evt.Skip()
     
     def OnZoomIn(self, evt):
         self.zoom(.25)
@@ -908,29 +936,29 @@ class PlotCanvas(wx.ScrolledWindow):
         self.weight = kwargs.pop('weight',1)
         kwargs.setdefault('style',wx.VSCROLL|wx.BORDER_SUNKEN)
         super(PlotCanvas, self).__init__(*args, **kwargs)
+        self.SetBackgroundColour("white")
         
         if self.root is None:
             self.root = self.GetParent().root
         
-        self.SetBackgroundColour("white")
-        self.setPen()
-        self.initPens()
-        self.Bind(wx.EVT_PAINT, self.OnPaint)
-        self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
+        self.originHLinePen = wx.Pen(
+            self.root.app.prefs.get("originHLineColor", "GRAY"), 1, wx.SOLID)
+        self.majorHLinePen = wx.Pen(
+            self.root.app.prefs.get("majorHLineColor", "GRAY"), 1, wx.DOT)
+        self.minorHLinePen = wx.Pen(
+            self.root.app.prefs.get("minorHLineColor", "GRAY"), 1, wx.DOT)
         
         self.lines = None
         self.points = None
         self.lastEvents = None
         self.lastRange = None
+
+        self.setPen()
+        
+        self.Bind(wx.EVT_PAINT, self.OnPaint)
+        self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
         
     
-    def initPens(self):
-        self.majorHLinePen = wx.Pen(
-            self.root.app.prefs.get("majorHLineColor", "GRAY"), 1, wx.DOT)
-        self.minorHLinePen = wx.Pen(
-            self.root.app.prefs.get("minorHLineColor", "GRAY"), 1, wx.DOT)
-
-
     def setPen(self, color=None, weight=None, style=wx.SOLID):
         """
         """
@@ -965,14 +993,11 @@ class PlotCanvas(wx.ScrolledWindow):
     
     def setVisibleRange(self, start=None, end=None, instigator=None,
                         tracking=False):
-        print "PlotCanvas.setVisibleRange"
         if instigator != self and not tracking:
             self.Refresh()
     
     
     def OnMouseMotion(self, evt):
-        """
-        """
         self.root.showMouseHPos(evt.GetX())
         self.root.showMouseVPos(self.Parent.legend.getValueAt(evt.GetY()),
                                 units=self.Parent.yUnits[1])
@@ -986,21 +1011,12 @@ class PlotCanvas(wx.ScrolledWindow):
         self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
 
         self.InvalidateBestSize()
-        dc = wx.PaintDC(self) # wx.BufferedPaintDC(self)
+        dc = wx.PaintDC(self)
         dc.SetAxisOrientation(True,False)
-#         gc = wx.GraphicsContext.Create(dc)
-#         if self.root.app._antiAliasingEnabled:
-#             if not isinstance(dc, wx.GCDC):
-#                 try:
-#                     dc = wx.GCDC(dc)
-#                 except:
-#                     pass
-#         print dc.GetLogicalScale()
 
         dc.Clear()
         dc.BeginDrawing()
 
-        updateBox = self.GetUpdateRegion().GetBox()
         size = dc.GetSize()
         
         tenth = size[0]/10
@@ -1009,13 +1025,12 @@ class PlotCanvas(wx.ScrolledWindow):
         vRange = self.Parent.legend.scale.GetRange()
         
         # TODO: Implement regional redrawing.
-        updateHRange = (self.root.timeline.getValueAt(updateBox[0]),
-                  self.root.timeline.getValueAt(updateBox[2]))
-        updateVRange = (self.Parent.legend.getValueAt(updateBox[1]),
-                  self.Parent.legend.getValueAt(updateBox[3]))        
-        
-#         print "updateBox:",updateBox,"\nupdateHRange:",updateHRange,"\nupdateVRange:", updateVRange
-        
+#         updateBox = self.GetUpdateRegion().GetBox()
+#         updateHRange = (self.root.timeline.getValueAt(updateBox[0]),
+#                   self.root.timeline.getValueAt(updateBox[2]))
+#         updateVRange = (self.Parent.legend.getValueAt(updateBox[1]),
+#                   self.Parent.legend.getValueAt(updateBox[3]))        
+
         hScale = (size.x + 0.0) / (hRange[1]-hRange[0])
         vScale = (size.y + 0.0) / (vRange[1]-vRange[0])
         thisRange = (hScale, vScale, hRange, vRange)
@@ -1036,7 +1051,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.DrawLineList(minorHLines, self.minorHLinePen)
         
         dc.SetPen(self._pen)
-        if self.lastRange != thisRange or self.lines is None:
+        if self.lastRange != thisRange or self.lines is None and not self.root.drawingSuspended:
             i=1
             self.lines=[]
             self.points=[]
@@ -1046,7 +1061,7 @@ class PlotCanvas(wx.ScrolledWindow):
             lineSubset = []
             
             events = self.Parent.source.iterResampledRange(hRange[0], hRange[1], size[0])
-#             events = self.Parent.source.iterRange(hRange[0], hRange[1], 619)
+#             print "no. events:", i, "source len:", len(self.Parent.source)
             try:
                 self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
                 event = events.next()
@@ -1081,12 +1096,10 @@ class PlotCanvas(wx.ScrolledWindow):
             # Draw the remaining lines (if any)
             dc.DrawLineList(lineSubset)
             
-            print "no. events:", i, "source len:", len(self.Parent.source)
-            
+
         else:
             # No change in displayed range; Use cached lines.
             dc.DrawLineList(self.lines)
-            
 
         if self.Parent.firstPlot:
             # First time the plot was drawn. Don't draw; scale to fit.
@@ -1097,6 +1110,7 @@ class PlotCanvas(wx.ScrolledWindow):
             return
         
         if len(self.lines) < size[0] / 4:
+            # More pixels than points: draw actual points as circles.
             dc.SetPen(self._pointPen)
             dc.SetBrush(self._pointBrush)
             for p in self.points:
@@ -1114,6 +1128,9 @@ class Plot(wx.Panel):
     """ A single plotted channel, consisting of the vertical scale and actual
         plot-drawing canvas.
     """
+    _sbMax = 10000.0
+    _minThumbSize = 100
+    
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Panel arguments plus:
@@ -1127,12 +1144,15 @@ class Plot(wx.Panel):
         self.yUnits= kwargs.pop('units',None)
         color = kwargs.pop('color', 'BLACK')
         scale = kwargs.pop('scale', (-1,1))
+        self.range = kwargs.pop('range', (-(2**16), (2**16)-1))
         super(Plot, self).__init__(*args, **kwargs)
         
         self.firstPlot = True
         self.visibleValueRange = None
         self.drawMajorHLines = True
         self.drawMinorHLines = False
+        self.scrollUnitsPerUnit = 1.0
+        self.unitsPerPixel = 1.0
         
         if self.root is None:
             self.root = self.Parent.root
@@ -1191,9 +1211,15 @@ class Plot(wx.Panel):
         start = self.visibleValueRange[0] if start is None else start
         end = self.visibleValueRange[1] if end is None else end
         self.legend.setValueRange(start, end, instigator, tracking)
+        
+#         self.scrollUnitsPerUnit = self._sbMax / (start-end)
+#         self.scrollbar.SetScrollbar(self.scrollUnitsPerUnit * (self.currentTime - self.timerange[0]), 
+#                                     self.scrollUnitsPerUSec * self.displayLength, 
+#                                     self._sbMax,
+#                                     self.scrollUnitsPerUSec * self.displayLength)
+                                    
         if not tracking:
             self.plot.Refresh()
-        pass
     
     
     def setVisibleRange(self, start=None, end=None, instigator=None,
@@ -1409,7 +1435,10 @@ class Corner(wx.Panel):
         
         if self.root is None:
             self.root = self.GetParent().root
-            
+        
+        self.updating = False
+        self.formatting = "%.4f"
+        
         sizer = wx.FlexGridSizer(2,3, hgap=4, vgap=4)
         sizer.AddGrowableCol(0,-2)
         sizer.AddGrowableCol(1,-4)
@@ -1442,6 +1471,22 @@ class Corner(wx.Panel):
         self.endField.Bind(wx.EVT_TEXT_ENTER, self.OnRangeChanged)
 
 
+    def _setValue(self, field, val):
+        """ Sets displayed value of a field. Used internally.
+        """
+        if val is not None:
+            field.SetValue(self.formatting % (self.root.timeScalar * val))
+    
+    
+    def _parse(self, val, default=None):
+        """ Turns a string value into a float. Used internally.
+        """
+        try:
+            return float(val) / self.root.timeScalar
+        except ValueError:
+            return default
+        
+    
     def setXUnits(self, symbol=None):
         """
         """
@@ -1457,33 +1502,29 @@ class Corner(wx.Panel):
         if instigator == self:
             return
 
-        if start is not None:
-            self.startField.SetValue("%.6f" % (self.root.timeScalar * start))
-        if end is not None:
-            self.endField.SetValue("%.6f" % (self.root.timeScalar * end))
-            
-        self.Parent.setVisibleRange(start, end, self, tracking)
-
+        self.updating = True
+        self._setValue(self.startField, start)
+        self._setValue(self.endField, end)
+        self.updating = False
+        
 
     def setTimeRange(self, start=None, end=None, instigator=None, 
                      tracking=None):
         """
         """
+        # This display doesn't show the full time range.
         pass
     
-    
+
     def OnRangeChanged(self, evt):
         """
         """
-        print evt.GetEventObject()
-        start = end = None
-        try:
-            start = float(self.startField.GetValue()) / self.root.timeScalar
-            end = float(self.endField.GetValue()) / self.root.timeScalar
-        except ValueError:
-            pass
+        start = self._parse(self.startField.GetValue())
+        end = self._parse(self.endField.GetValue())
         
-#         self.setVisibleRange(start, end, instigator=self)
+        if not self.updating:
+            self.Parent.setVisibleRange(start, end, None, False)
+            
     
 #===============================================================================
 # 
@@ -1500,6 +1541,7 @@ class Viewer(wx.Frame):
         """
         self.app = kwargs.pop('app', None)
         self.units = kwargs.pop('units',('seconds','s'))
+        self.drawingSuspended = False
         
         displaySize = wx.DisplaySize()
         windowSize = int(displaySize[0]*.66), int(displaySize[1]*.66)
@@ -1526,16 +1568,17 @@ class Viewer(wx.Frame):
         self.Bind(EVT_PROGRESS_UPDATE, self.OnProgressUpdate)
         self.Bind(EVT_PROGRESS_END, self.OnProgressEnd)
         self.Bind(EVT_INIT_PLOTS, self.initPlots)
+        self.Bind(EVT_IMPORT_ERROR, self.handleException)
+        
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
 
         # XXX: TEST CODE BELOW. REMOVE LATER.
         self.openFile(r"C:\Users\dstokes\workspace\wvr\test_full_cdb_huge.dat")
 
 
-
     def InitMenus(self):
         """
-        """
-        
+        """        
         self.menuItems = {}
         
         # Just to make the menu adding less tedious
@@ -1605,6 +1648,12 @@ class Viewer(wx.Frame):
         self.root = self
         self.timeDisplays = []
         
+        self.SetIcon(images.icon.GetIcon())
+#         self.SetIcon(wx.Icon("images/ssx_icon_white.png", 
+#                              wx.BITMAP_TYPE_PNG))
+        
+        self.SetMinSize((320,240))
+        
         self.navigator = TimeNavigator(self, root=self)
         self.corner = Corner(self, root=self)
         self.plotarea = PlotSet(self, -1, root=self)
@@ -1630,9 +1679,6 @@ class Viewer(wx.Frame):
         self.statusBar = StatusBar(self)
         self.SetStatusBar(self.statusBar)
 
-        icon = wx.Icon("images/ssx_icon_white.png", wx.BITMAP_TYPE_PNG)
-        self.SetIcon(icon)
-        
         self.InitMenus()
 
 
@@ -1662,7 +1708,13 @@ class Viewer(wx.Frame):
     #===========================================================================
     
     def initPlots(self, evt=None):
-        """
+        """ Set up the plot views specified in the dataset. Should only be
+            called after the file's RecordingProperties and first data block
+            have been read.
+            
+            @param evt: The event that initiated the initialization, if any.
+                Not actually used; just there for compatibility with event
+                handlers.
         """
         if self.dataset is None:
             return
@@ -1684,6 +1736,10 @@ class Viewer(wx.Frame):
 
     def setXUnits(self, name=None, symbol=None, displayScale=timeScalar):
         """ Set the horizontal units.
+        
+            @keyword name: The full name of the units used.
+            @keyword symbol: The symbol or abbreviation of the unit.
+            @keyword displayScale: A scaling factor for displaying the data. 
         """
         if name == symbol == None:
             name = symbol = ''
@@ -1714,13 +1770,13 @@ class Viewer(wx.Frame):
                 current end.
             @keyword instigator: The object that initiated the change, in 
                 order to avoid an infinite loop of child calling parent 
-                calling child.
+                calling child. The call is aborted if the instigator is the
+                object itself.
             @keyword tracking: `True` if the widget doing the update is
                 tracking (a/k/a scrubbing), `False` if the update is final.
                 Elements that take a long time to draw shouldn't respond
                 if `tracking` is `True`.
         """
-#         print "setVisibleRange", start, end
         if instigator == self:
             return
         instigator = self if instigator is None else instigator
@@ -1740,13 +1796,13 @@ class Viewer(wx.Frame):
                 current end.
             @keyword instigator: The object that initiated the change, in 
                 order to avoid an infinite loop of child calling parent 
-                calling child.
+                calling child. The call is aborted if the instigator is the
+                object itself.
             @keyword tracking: `True` if the widget doing the update is
                 tracking (a/k/a scrubbing), `False` if the update is final.
                 Elements that take a long time to draw shouldn't respond
                 if `tracking` is `True`.
         """
-#         print "setTimeRange", start, end
         if instigator == self:
             return
         start = start if start is not None else self.timerange[0]
@@ -1757,7 +1813,11 @@ class Viewer(wx.Frame):
             if liveUpdate or not tracking and display != instigator:
                 display.setTimeRange(start, end, instigator)
 
+
     def getVisibleRange(self):
+        """ Retrieve the beginning and end of the currently displayed interval
+            of time.
+        """
         return self.timeline.getVisibleRange()
 
     #===========================================================================
@@ -1767,6 +1827,7 @@ class Viewer(wx.Frame):
     def getDefaultImport(self):
         """ Get the path and name of the default data file. """
         # TODO: Better way of determining this
+        # Maybe app-level?
         return (os.getcwd(), 'test.dat')
 
 
@@ -1777,7 +1838,7 @@ class Viewer(wx.Frame):
         return (os.getcwd(), "export.csv")
 
 
-    def getCurrentFile(self):
+    def getCurrentFilename(self):
         """ Returns the path and name of the currently open file.
         """
         if self.dataset is None:
@@ -1788,8 +1849,8 @@ class Viewer(wx.Frame):
     def okayToExit(self):
         """ Returns `True` if the app is in a state to immediately quit.
         """
-        # XXX: IMPLEMENT ME
-        return True
+        # TODO: Prompt to veto quitting only if an export is underway.
+        return self.ask("Really quit?") == wx.ID_YES
 
     #===========================================================================
     # 
@@ -1801,11 +1862,10 @@ class Viewer(wx.Frame):
         try:
             stream = ThreadAwareFile(filename, 'rb')
             newDoc = Dataset(stream)
-#         except IOError as err:
-#             pass
+            self.app.addRecentFile(filename, 'import')
         except Exception as err:
-            raise err
-            pass
+            self.handleException(err)
+            return
         
         self.dataset = newDoc
         loader = Loader(self, newDoc, **self.app.prefs['loader'])
@@ -1814,7 +1874,7 @@ class Viewer(wx.Frame):
     
     
     def exportCsv(self, start=0, stop=-1):
-        """
+        """ Export the active plot view's data as CSV.
         """
         plot = self.plotarea.getActivePage()
         if plot is None:
@@ -1825,7 +1885,8 @@ class Viewer(wx.Frame):
         dlg = wx.FileDialog(self, 
             message="Export visible interval as ...", 
             defaultDir=defaultDir,  defaultFile=defaultFile, 
-            wildcard='|'.join(self.app.exportTypes), style=wx.SAVE)
+            wildcard='|'.join(self.app.prefs['exportTypes']), 
+            style=wx.SAVE|wx.OVERWRITE_PROMPT)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
@@ -1833,26 +1894,49 @@ class Viewer(wx.Frame):
         
         if filename is None:
             return
-                
+
         try:
             stream = open(filename, 'w')
-#         except IOError as err:
-#             pass
         except Exception as err:
-            print "TODO: Handle export error: %s" % err
+            self.handleException(err)
             return
         
+        self.drawingSuspended = True
         sourceName = plot.source.name
         if stop < 0:
             stop += len(plot.source)
         numRows = stop-start
         msg = "Exporting %d samples from %s" % (numRows, sourceName)
-        dlg = wx.ProgressDialog("Exporting CSV", msg, maximum=numRows,
+        dlg = ModalExportProgress("Exporting CSV", msg, maximum=numRows,
             parent=self, 
             style=wx.PD_CAN_ABORT|wx.PD_APP_MODAL|wx.PD_REMAINING_TIME)
+        plot.source.exportCsv(stream, start=start, stop=stop, callback=dlg,
+                              callbackInterval=0.005, raiseExceptions=True)
+        dlg.Destroy()
+        stream.close()
+        self.drawingSuspended = False
+        
         # XXX: FINISH THIS.
 
-        
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def OnClose(self, evt):
+        """ Close the viewer.
+        """
+        if evt.CanVeto():
+            if not self.okayToExit():
+                evt.Veto()
+                return False
+        # Kill all background processes
+        for _ in self.cancelQueue:
+            self.cancelOperation()
+        self.Destroy()
+        evt.Skip()
+    
+    
     #===========================================================================
     # Menu Events
     #===========================================================================
@@ -1866,7 +1950,7 @@ class Viewer(wx.Frame):
                             defaultDir=defaultDir, 
                             defaultFile=defaultFile,
                             wildcard="|".join(self.app.prefs['importTypes']),
-                            style=wx.OPEN | wx.CHANGE_DIR)
+                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
@@ -1884,6 +1968,8 @@ class Viewer(wx.Frame):
     def OnFileExportMenu(self, evt):
         """ Handle File->Export menu events.
         """
+        self.exportCsv()
+        return
         print "export"
         defaultDir, defaultFile = self.getDefaultExport()
         dlg = wx.FileDialog(self, 
@@ -1947,9 +2033,8 @@ class Viewer(wx.Frame):
         info.Name = APPNAME
         info.Version = __version__
         info.Copyright = __copyright__
-        info.Description = wordwrap("This would be the about text.", 
-                                    350, wx.ClientDC(self))
-        info.WebSite = ("http://mide.com", "")
+        info.Description = wordwrap(__doc__, 350, wx.ClientDC(self))
+        info.WebSite = __url__
 #         info.Developers = __credits__
 #         info.License = wordwrap(__license__, 500, wx.ClientDC(self))
         wx.AboutBox(info)
@@ -1960,35 +2045,40 @@ class Viewer(wx.Frame):
     #===========================================================================
     
     def OnSetVisibleRange(self, evt):
-        """
+        """ Handle the event signifying a change in visual range. Used
+            primarily by the import thread.
         """
         self.setVisibleRange(evt.start, evt.end, instigator=evt.instigator, 
                              tracking=evt.tracking)
         
         
     def OnSetTimeRange(self, evt):
-        """
+        """ Handle the event signifying a change in the dataset's total
+            time range. Used primarily by the import thread.
         """
         self.setTimeRange(evt.start, evt.end, instigator=evt.instigator, 
-                             tracking=evt.tracking)
+                          tracking=evt.tracking)
         
         
     def OnProgressStart(self, evt):
-        """
+        """ Handle the event signifying the start of the progress bar. Used
+            primarily by the import thread.
         """
         self.statusBar.startProgress(evt.label, evt.initialVal, 
                                      evt.cancellable, evt.cancelEnabled)
 
 
     def OnProgressUpdate(self, evt):
-        """
+        """ Handle the event signifying an update of the progress bar. Used
+            primarily by the import thread.
         """
         self.statusBar.updateProgress(val=evt.val, label=evt.label, 
                                       cancellable=evt.cancellable)
     
     
     def OnProgressEnd(self, evt):
-        """
+        """ Handle the event signifying a the completion of the progress bar. 
+            Used primarily by the import thread.
         """
         self.statusBar.stopProgress(evt.label)
 
@@ -1998,7 +2088,7 @@ class Viewer(wx.Frame):
     #===========================================================================
 
     def pushOperation(self, job, modal=False):
-        """
+        """ 
         """
         self.cancelQueue.append(job)
         
@@ -2090,13 +2180,61 @@ class Viewer(wx.Frame):
     def getPref(self, *args, **kwargs):
         return self.app.prefs.get(*args, **kwargs)
     
+    
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def handleException(self, err, msg=None, icon=wx.ICON_ERROR, 
+                        raiseException=False, fatal=False):
+        """ General-purpose exception handler that attempts to provide a 
+            meaningful error message. Also works as an event handler for
+            custom error events (e.g. `EvtImportError`).
+            
+            @param err: The raised exception, an `EvtImportError` event
+                object, or `None`.
+            @keyword msg: An alternative error message, to be shown verbatim.
+            @keyword icon: The icon to show in the dialog box.
+            @keyword raiseException: If `True`, the exception will be raised
+                after the dialog is displayed. 
+                
+        """
+        if isinstance(err, wx.Event):
+            err = err.err
+        if isinstance(msg, basestring):
+            # display the supplied message instead of the one in the exception
+            pass
+        elif isinstance(err, EnvironmentError):
+            # IOError or OSError; use the the error code.
+            # TODO: Improve this
+            msg = unicode(err)
+        elif isinstance(err, MemoryError):
+            msg = "Out of memory!"
+        else:
+            msg = unicode(err)
+
+        dlg = wx.MessageDialog(self, msg, APPNAME, wx.OK | icon)
+        dlg.ShowModal()
+        ctrlPressed = wx.GetKeyState(wx.WXK_CONTROL)
+        dlg.Destroy()
+        
+        # Holding control when okaying alert shows more more info. 
+        if raiseException or ctrlPressed and isinstance(err, Exception):
+            raise err
+        
+        if fatal:
+            self.Destroy()
+ 
+        
         
 #===============================================================================
 # 
 #===============================================================================
 
 class ViewerApp(wx.App):
-    """
+    """ The main class of the SSX Data Viewer. Most of the work is done by the
+        Viewer; the app mainly handles global settings like preferences 
+        (and the primary functionality inherited from `wx.App`, of course).
     """
     
     prefsFile = os.path.join(os.path.dirname(__file__), 'ssx_viewer.cfg')
@@ -2125,60 +2263,90 @@ class ViewerApp(wx.App):
                           "BLUE VIOLET"],
         'locale': 'English_United States.1252',
         'loader': dict(numUpdates=100, updateInterval=1.0),
-#         'loader': dict(numUpdates=10, updateInterval=2.0),
         'history': {},
         'historySize': 10,
+        'originHLineColor': wx.Color(220,220,220),
         'majorHLineColor': wx.Color(220,220,220),
         'minorHLineColor': wx.Color(240,240,240),
+        'warnBeforeQuit': True,
+        'antialiasing': True,
     }
 
 
     def loadPrefs(self, filename=prefsFile):
+        """ Load saved preferences from file.
         """
-        """
+        def tuple2color(c):
+            if isinstance(c, list):
+                return wx.Color(*c)
+            return c
+        
         if not filename:
             return {}
         try:
             with open(filename) as f:
                 prefs = json.load(f)
                 if isinstance(prefs, dict):
+                    # De-serialize *Color attributes (single colors)
+                    for k in fnmatch.filter(prefs.keys(), "*Color"):
+                        prefs[k] = tuple2color(prefs[k])
+                    # De-serialize *Colors attributes (lists of colors)
+                    for k in fnmatch.filter(prefs.keys(), "*Colors"):
+                        if isinstance(prefs[k], list):
+                            for i in xrange(len(prefs[k])):
+                                prefs[k][i] = tuple2color(prefs[k][i])
                     return prefs
-        except IOError:
+        except Exception:#IOError:
             # TODO: Report a problem, or just ignore?
             pass
         return {}
 
 
     def savePrefs(self, filename=prefsFile):
+        """ Write custom preferences to a file.
         """
-        """
+        prefs = self.prefs.copy()
+        # Convert wx.Color objects and RGB sequences to tuples:
+        for k in fnmatch.filter(prefs.keys(), "*Color"):
+            if not isinstance(prefs[k], basestring):
+                prefs[k] = tuple(prefs[k])
+        for k in fnmatch.filter(prefs.keys(), "*Colors"):
+            for i in xrange(len(prefs[k])):
+                if not isinstance(prefs[k][i], basestring):
+                    prefs[k][i] = tuple(prefs[k][i])
         try:
             with open(filename, 'w') as f:
-                json.dump(self.prefs, f, indent="  ", sort_keys=True)
+                json.dump(prefs, f, indent=2, sort_keys=True)
         except IOError:
             # TODO: Report a problem, or just ignore?
             pass
     
     
     def addRecentFile(self, filename, category="import"):
+        """ Add a file to a history list. If the list is at capacity, the
+            oldest file is removed.
         """
-        """
-        allFiles = self.prefs['history']
+        allFiles = self.prefs.setdefault('import', {})
         files = allFiles.setdefault(category, [])
         if filename:
             if filename in files:
                 files.remove(filename)
             files.append(filename)
         allFiles[category] = files[:-(self.prefs['historySize'])]
-        
-    
+
+
+    #===========================================================================
+    # 
+    #===========================================================================
+
     def __init__(self, *args, **kwargs):
         prefsFile = kwargs.pop('prefsFile', self.prefsFile)
         self.prefs = self.defaultPrefs.copy()
         self.prefs.update(self.loadPrefs(prefsFile))
-        locale.setlocale(locale.LC_ALL, self.prefs['locale'])
+        locale.setlocale(locale.LC_ALL, str(self.prefs['locale']))
         
         super(ViewerApp, self).__init__(*args, **kwargs)
+        self.savePrefs(self.prefsFile)
                 
 
     def OnInit(self):
@@ -2188,14 +2356,18 @@ class ViewerApp(wx.App):
         
         for v in self.viewers:
             v.Show() 
-            
+        
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
         return True
 
+
+    def OnClose(self, evt):
+        print "saving to",self.prefsFile
+        self.savePrefs(self.prefsFile)
         
 #===============================================================================
 # 
 #===============================================================================
-# print ViewerApp.getDevices()
 
 # XXX: Change this back for 'real' version
 if True:#__name__ == '__main__':

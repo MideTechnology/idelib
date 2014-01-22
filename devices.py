@@ -8,11 +8,49 @@ Created on Nov 14, 2013
 '''
 
 import ctypes
+import os
 import string
 import sys
 
+#===============================================================================
+# 
+#===============================================================================
 
-def getDeviceInfo(cls, dev):
+def isRecorder(dev):
+    """
+    """
+    if not os.path.exists(os.path.join(dev, "/system/dev/devinfo.SSX")):
+        return False
+    # TODO: Read device info
+    return True
+    
+#===============================================================================
+# Windows-specific versions of the functions
+#===============================================================================
+
+if 'win' in sys.platform:
+    kernel32 = ctypes.windll.kernel32
+else:
+    kernel32 = None
+
+
+def win_getDevices():
+    """
+    """
+    drivebits = kernel32.GetLogicalDrives()
+    result = []
+    for letter in string.uppercase:
+        if drivebits & 1:
+            driveLetter = '%s:\\' % letter
+            devtype = kernel32.GetDriveTypeA(driveLetter)
+            # Device type 2 is removable
+            if devtype == 2 and isRecorder(driveLetter):
+                result.append(driveLetter)
+        drivebits >>= 1
+    return result
+
+
+def win_getDeviceInfo(dev):
     """
     """
     if "win" in sys.platform:
@@ -34,17 +72,40 @@ def getDeviceInfo(cls, dev):
         return dev, volumeNameBuffer.value, hex(serial_number.value), fileSystemNameBuffer.value
 
 
+win_last_devices = 0
+
+def win_deviceChanged():
+    global win_last_devices
+    newDevices = kernel32.GetLogicalDrives()
+    result = newDevices != win_last_devices
+    win_last_devices = newDevices
+    return result
+ 
+
+#===============================================================================
+# 
+#===============================================================================
+
 def getDevices():
     """
     """
-    if "win" in sys.platform:
-        kernel32 = ctypes.windll.kernel32
-        drivebits = kernel32.GetLogicalDrives()
-        result = []
-        for letter in string.uppercase:
-            if drivebits & 1:
-                result.append(getDeviceInfo('%s:\\' % letter))
-            drivebits >>= 1
-        return result
+    raise NotImplementedError("Only windows version currently implemented!")
+
+def getDeviceInfo():
+    """
+    """
+    raise NotImplementedError("Only windows version currently implemented!")
+
+def deviceChanged():
+    """ Returns `True` if a drive has been connected or disconnected since
+        the last call to `deviceChanged()`.
+    """
+    raise NotImplementedError("Only windows version currently implemented!")
+
             
-        
+if "win" in sys.platform:
+    getDevices = win_getDevices
+    getDeviceInfo = win_getDeviceInfo
+    deviceChanged = win_deviceChanged
+
+
