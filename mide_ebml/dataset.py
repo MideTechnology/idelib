@@ -1005,7 +1005,7 @@ class EventList(Cascading):
             raise IndexError("EventList index out of range")
         
         if idx < 0:
-            idx = min(0, len(self) + idx)
+            idx = max(0, len(self) + idx)
         
         blockIdx = self._getBlockIndexWithIndex(idx)
         subIdx = idx - self._getBlockIndexRange(blockIdx)[0]
@@ -1044,12 +1044,19 @@ class EventList(Cascading):
         return self._data[-1].indexRange[-1]-1
 
 
-    def itervalues(self, start=0, end=-1, step=1):
+    def itervalues(self, start=0, end=-1, step=1, subchannels=True):
         """ Iterate all values in the list.
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
-        for v in self.iterSlice(start, end, step):
-            yield v[-1]
+        if self.hasSubchannels and subchannels != True:
+            # Create a function instead of chewing the subchannels every time
+            fun = eval("lambda x: (%s)" % \
+                       ",".join([("x[%d]" % c) for c in subchannels]))
+            for v in self.iterSlice(start, end, step):
+                yield fun(v[-1])
+        else:
+            for v in self.iterSlice(start, end, step):
+                yield v[-1]
         
 
     def iterSlice(self, start=0, end=-1, step=1):

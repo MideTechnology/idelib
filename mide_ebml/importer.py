@@ -41,8 +41,9 @@ elementParserTypes = parsers.getElementHandlers()
 # XXX: Remove me before production.
 # testFile = r"e:\test.dat"
 # testFile = r"test_full_cdb.DAT"
-testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\test_full_cdb_huge.dat"
-
+# testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\test_full_cdb_huge.dat"
+# testFile = r"P:\WVR_RIF\06_Testing_Calibration\06_Thermal_Tests\02_Test_to_-20C\Slamstick_Data\VIB00015.IDE"
+testFile = "C:\\Users\\dstokes\\workspace\\wvr\\test_files\\VIB00014.IDE"
 
 class AccelTransform(Transform):
     """ A simple transform to convert accelerometer values (recorded as
@@ -80,7 +81,7 @@ default_sensors = {
                                           },
                                     },
                        },
-                0x40: {"name": "Pressure/Temperature",
+                0x01: {"name": "Pressure/Temperature",
                        "parser": parsers.MPL3115PressureTempParser(),
                        "subchannels": {0: {"name": "Pressure", 
                                            "units":('kPa','kPa'),
@@ -140,6 +141,10 @@ class SimpleUpdater(object):
     """
     
     def __init__(self, cancelAt=1.0):
+        """ Constructor.
+            @keyword cancelAt: A percentage at which to abort the import. For
+                testing purposes.
+        """
         self.cancelled = False
         self.startTime = None
         self.cancelAt = cancelAt
@@ -177,13 +182,14 @@ class SimpleUpdater(object):
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
 
-def importFile(filename=testFile, updater=None, numUpdates=500, 
+def importFile(filename=testFile, updater=nullUpdater, numUpdates=500, 
                updateInterval=1.0, parserTypes=elementParserTypes, 
                defaultSensors=default_sensors):
     """ Create a new Dataset object and import the data from a MIDE file. 
         Primarily for testing purposes. The GUI does the file creation and 
         data loading in two discrete steps, as it will need a reference to 
-        the document before the loading starts.
+        the new document before the loading starts.
+        @see: `readData`
     """
     stream = open(filename, "rb")
     doc = Dataset(stream)
@@ -193,7 +199,7 @@ def importFile(filename=testFile, updater=None, numUpdates=500,
     return doc
 
 
-def readData(doc, updater=None, numUpdates=500, updateInterval=1.0,
+def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
              parserTypes=elementParserTypes, defaultSensors=default_sensors):
     """ Import the data from a file into a Dataset.
     
@@ -207,16 +213,16 @@ def readData(doc, updater=None, numUpdates=500, updateInterval=1.0,
             attribute that is `True`, the CSV export will be aborted.
             The default callback is `None` (nothing will be notified).
         @keyword numUpdates: The minimum number of calls to the updater to be
-            made. 
+            made. More updates will be made if the updates take longer than
+            than the specified `updateInterval`. 
         @keyword updateInterval: The maximum number of seconds between
-            calls to the updater
-        @keyword parserTypes: 
-        @keyword defaultSensors:
- 
+            calls to the updater. More updates will be made if indicated by the
+            specified `numUpdates`.
+        @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
+        @keyword defaultSensors: A nested dictionary containing a default set 
+            of sensors, channels, and subchannels. These will only be used if
+            the dataset contains no sensor/channel/subchannel definitions. 
     """
-    
-    if updater is None:
-        updater = nullUpdater
     
     elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
 

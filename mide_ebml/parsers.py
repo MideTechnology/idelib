@@ -44,7 +44,9 @@ from util import read_ebml
 #===============================================================================            
     
 def renameKeys(d, renamed, exclude=True, recurse=True):
-    """ Create a new dictionary from and old one, using different keys.
+    """ Create a new dictionary from and old one, using different keys. Used
+        primarily for converting EBML element names to function keyword
+        arguments.
     
         @param d: The source dictionary
         @param renamed: A dictionary of new names keyed by old names
@@ -75,7 +77,7 @@ def renameKeys(d, renamed, exclude=True, recurse=True):
 # 
 #===============================================================================
 
-# The minimum and maximum values for values parsed out of data blocks.
+# The minimum and maximum values for data parsed out of data blocks.
 # Used to provide an initial range, which is later corrected for actual
 # values. Note that floats default to the normalized range of (-1.0, 1.0).
 RANGES = {'c': None,
@@ -190,7 +192,8 @@ class MPL3115PressureTempParser(object):
                 Bits [7..4] fractional value (unsigned)
                 Bits [3..0] (ignored)
         
-        @todo: Make sure fraction part is correct for negative whole values.
+        @todo: Make sure the unsigned fraction part is correct for negative 
+            whole values. This currently assumes -1 and .5 is -0.5, not -1.5
     """
 
     # Custom parsers need to provide a subset of a struct.Struct's methods
@@ -212,10 +215,10 @@ class MPL3115PressureTempParser(object):
         """ Special-case parsing of a temperature data block.
         """
         # TODO: Make sure if fractional part is correct for negative values
-        rawpressure = self._pressureParser.unpack_from(data, offset)[0] >> 13
+        rawpressure = self._pressureParser.unpack_from(data, offset)[0] >> 13#14
         fracpressure, rawtemp, fractemp = self._parser.unpack_from(data, offset)
-        fracpressure = ((fracpressure >> 3) & 0b11) * 0.25
-        fractemp = (fractemp >> 3) * 0.0625
+        fracpressure = ((fracpressure >> 4) & 0b11) * 0.25
+        fractemp = (fractemp >> 4) * 0.0625
 
         return (rawpressure + fracpressure, rawtemp + fractemp)
 
@@ -336,6 +339,10 @@ class BaseDataBlock(object):
         self.minValue = self.maxValue = None
 
 
+    def __repr__(self):
+        return "<%s Channel: 0x%02x>" % (self.__class__.__name__, self.getHeader()[1])
+
+
     def parseWith(self, parser, start=0, end=-1, step=1, subchannel=None):
         """ Parse an element's payload. Use this instead of directly using
             `parser.parse()` for consistency's sake.
@@ -363,7 +370,8 @@ class BaseDataBlock(object):
 
 
     def parseByIndexWith(self, parser, indices, subchannel=None):
-        """ Parse an element's payload and get a specific set of samples.
+        """ Parse an element's payload and get a specific set of samples. Used
+            primarily for resampling tricks.
             
             @param parser: The DataParser to use
             @param indices: A list of indices into the block's data. 
@@ -458,20 +466,21 @@ class SimpleChannelDataBlockParser(ElementHandler):
     def __init__(self, doc, **kwargs):
         super(SimpleChannelDataBlockParser, self).__init__(doc, **kwargs)
         
-        self.timestampOffset = 0
-        self.stampRollover = 0
-        self.lastStamp = 0
+        self.timestampOffset = {}
+        self.stampRollover = {}
+        self.lastStamp = {}
     
     
     def fixOverflow(self, block, timestamp):
         """ Return an adjusted, scaled time from a low-resolution timestamp.
         """
-        timestamp += self.timestampOffset
+        channel = block.getHeader()[1]
+        timestamp += self.timestampOffset.setdefault(channel, 0)
         # NOTE: This might need to just be '<' (for discontinuities)
-        if timestamp <= self.lastStamp:
+        if timestamp <= self.lastStamp.get(channel,0):
             timestamp += block.maxTimestamp
-            self.timestampOffset += block.maxTimestamp
-        self.lastStamp = timestamp
+            self.timestampOffset[channel] += block.maxTimestamp
+        self.lastStamp[channel] = timestamp
         return timestamp * block.timeScalar
     
    
@@ -500,7 +509,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
             return 0
 
         self.doc.channels[channel].getSession(sessionId).append(block)
-        return block.getNumSamples(self.doc.channels[0].parser)
+        return block.getNumSamples(self.doc.channels[channel].parser)
 
 
 #===============================================================================
@@ -518,7 +527,9 @@ class ChannelDataBlock(BaseDataBlock):
         
         self.element = element
         for num, el in enumerate(element.value):
-            if el.name == "ChannelIDRef":
+            if el.name == "Void":
+                continue
+            elif el.name == "ChannelIDRef":
                 self.channel = el.value
             elif el.name == "StartTimeCodeAbsMod":
                 self.startTime = el.value
@@ -531,6 +542,9 @@ class ChannelDataBlock(BaseDataBlock):
             elif el.name == "ChannelDataPayload":
                 self._payloadIdx = num
                 self.body_size = el.body_size
+            elif el.name == "ChannelFlags":
+                # TODO: Handle channel flag bits
+                continue
             # Add other child element handlers here.
         
         # Single-sample blocks have a total time of 0.
@@ -543,10 +557,15 @@ class ChannelDataBlock(BaseDataBlock):
     def payload(self):
         # 'value' is actually a property that does the file seek, so it (and
         # not a reference to a child element) has to be used every time.
+        # TODO: Optimize value retrieval (fix python-ebml caching)
         try:
             return self.element.value[self._payloadIdx]
         except Exception, e:
-            print " ".join(map(str,["bad _payloadIdx:", self.element.name, "channel:", self.channel, "fpos:", self.element.stream.offset, "children:",self.element.value])) 
+            # XXX: TESTING - REMOVE ME
+            print " ".join(map(str,[e, "bad _payloadIdx:", self.element.name, 
+                                    "channel:", self.channel, 
+                                    "fpos:", self.element.stream.offset, 
+                                    "children:",self.element.value])) 
     
     
     def getHeader(self):
@@ -565,13 +584,16 @@ class ChannelDataBlockParser(SimpleChannelDataBlockParser):
     """
     product = ChannelDataBlock
     elementName = product.__name__
-   
+
+    timeScalar = 1000000.0 / 2**15
+
     def __init__(self, doc, **kwargs):
         super(ChannelDataBlockParser, self).__init__(doc, **kwargs)
         
-        self.timestampOffset = 0
-        self.stampRollover = 0
-        self.lastStamp = 0
+        self.timestampOffset = {}
+        self.stampRollover = {}
+        self.lastStamp = {}
+
 
 
 #===============================================================================

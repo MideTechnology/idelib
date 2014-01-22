@@ -31,9 +31,11 @@ import wx; wx = wx # Workaround for Eclipse code comprehension
 from base import *
 
 # Custom controls
+from common import StatusBar
 from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
-from timeline import EVT_INDICATOR_CHANGED
 from export_dialog import ModalExportProgress, CSVExportDialog, FFTExportDialog
+
+import fft
 
 # Graphics (icons, etc.)
 import images
@@ -188,177 +190,6 @@ class Loader(Thread):
             return
         while self.isAlive():
             pass
-                        
-
-
-#===============================================================================
-# 
-#===============================================================================
-
-class StatusBar(wx.StatusBar):
-    """
-    The viewer status bar.  It mainly provides a progress bar and status text
-    when the Viewer is doing something in the background (i.e. file import or
-    export). The progress bar can show an actual value, or it can just run 
-    continuously.
-    """
-    frameDelay = 30
-    numFields = 6
-    
-    def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel arguments, plus:
-        
-            @keyword root: The viewer's 'root' window.
-        """
-        self.root = kwargs.pop('root', None)
-        wx.StatusBar.__init__(self, *args, **kwargs)
-        
-        if self.root is None:
-            self.root = self.GetParent().root
-        
-        logo = images.MideLogo.GetBitmap()
-        self.logo = wx.StaticBitmap(self, -1, logo)
-
-        self.progressBar = wx.Gauge(self, -1, 1000)
-        self.cancelButton = wx.Button(self, wx.ID_CANCEL, style=wx.BU_EXACTFIT)
-        bwidth, bheight = self.cancelButton.GetBestSize()
-        self.buttonWidth = bwidth + 2
-        self.cancelButton.SetSize((bwidth, bheight-2))
-
-        fieldWidths = [-1] * self.numFields
-
-        self.buttonFieldNum = self.numFields-1
-        self.progressFieldNum = self.numFields-2
-        self.messageFieldNum = self.numFields-3
-        self.yFieldNum = self.numFields-4
-        self.xFieldNum = self.numFields-5
-        self.logoFieldNum = 0
-
-        fieldWidths[self.logoFieldNum] = logo.GetSize()[0]
-        fieldWidths[self.messageFieldNum] = -4
-        fieldWidths[self.progressFieldNum] = -2
-        fieldWidths[self.buttonFieldNum] = bwidth
-
-        self.SetFieldsCount(self.numFields)
-        self.SetStatusWidths(fieldWidths)
-
-        self.SetStatusText("Welcome to %s v%s" % (APPNAME, __version__), 
-                           self.messageFieldNum)
-
-        self.Bind(wx.EVT_SIZE, self.repositionProgressBar)
-        self.Bind(wx.EVT_BUTTON, self.OnCancelClicked, self.cancelButton)
-        
-        self.repositionProgressBar()
-
-        self.timer = wx.Timer(self)
-        self.Bind(wx.EVT_TIMER, self.TimerHandler)
-
-
-    def __del__(self):
-        self.timer.Stop()
-
-
-    def OnCancelClicked(self, evt):
-        """ Process a click to the 'Cancel' button, checking with the parent
-            to make sure it's okay.
-        """
-        cancelled = self.GetParent().cancelOperation(evt, prompt=True)
-        if cancelled is not False:
-            if isinstance(cancelled, basestring):
-                self.stopProgress(cancelled)
-            else:
-                self.stopProgress()
-
-
-    def TimerHandler(self, event):
-        """ Update the indefinite progress bar (if active). 
-        """
-        self.progressBar.Pulse()
-   
-        
-    def repositionProgressBar(self, evt=None):
-        """ The positions of the progress bar and cancel button need to be 
-            manually set after resize.
-            
-            @keyword evt: The event that triggered the repositioning.
-        """
-        rect = self.GetFieldRect(self.numFields-2)
-        self.progressBar.SetSize((rect.width-8, rect.height-8))
-        self.progressBar.SetPosition((rect.x+4, rect.y+4))
-        
-        buttonRect = self.GetFieldRect(self.numFields-1)
-        self.cancelButton.SetPosition(buttonRect[:2])
-
-        
-    def startProgress(self, label="Working...", initialVal=0, cancellable=True,
-                      cancelEnabled=None, delay=frameDelay):
-        """ Start the progress bar, showing a specific value.
-        
-            @keyword label: Text to display in the status bar.
-            @keyword initialVal: The starting value displayed. -1 will start
-                the progress bar in indefinite mode.
-            @keyword cancellable: If `True`, the Cancel button will be visible.
-            @keyword cancelEnabled: If `False` and `cancellable` is `True`,
-                the Cancel button will be visible but disabled (grayed out).
-                For use in cases where a process can only be cancelled after
-                a certain point.
-        """
-        self.SetStatusText(label, 0)
-        self.progressBar.Show(True)
-        if initialVal < 0 or initialVal > 1.0:
-            self.timer.Start(delay)
-        else:
-            self.timer.Stop()
-            self.progressBar.SetValue(initialVal*1000.0)
-            
-        cancelEnabled = cancellable if cancelEnabled is None else cancelEnabled
-        self.cancelButton.Show(cancellable)
-        self.cancelButton.Enable(cancelEnabled)
-
-
-    def updateProgress(self, val=None, label=None, cancellable=None):
-        """ Change the progress bar's value and/or label. If the value is
-            greater than 1.0, the bar automatically changes to its
-            'throbber' mode (indefinite cycling bar).
-        
-            @param val: The value to display on the progress bar, as a
-                normalized float.
-            @keyword label: Text to display in the status bar.
-            @keyword cancelEnabled: If the Cancel button is visible,
-                `True` will enable it, `False` will disable it.
-                `None` (default) will leave it as-is.
-        """
-        self.progressBar.Show(True)
-
-        if label is not None:
-            self.SetStatusText(label, self.messageFieldNum)
-        if cancellable is not None:
-            self.cancelButton.Enable(cancellable)
-            if cancellable is True:
-                self.progressBar.Show(True)
-            
-        if val is None:
-            return
-        
-        if val > 1.0 or val < 0:
-            if not self.timer.IsRunning():
-                self.timer.Start(self.frameDelay)
-        else:
-            if self.timer.IsRunning():
-                self.timer.Stop()
-            self.progressBar.SetValue(val*1000.0)
-
-        
-    def stopProgress(self, label=""):
-        """ Hide the progress bar and Cancel button (if visible).
-            
-            @keyword label: Text to display in the status bar.
-        """
-        self.timer.Stop()
-        if label is not None:
-            self.SetStatusText(label, self.messageFieldNum)
-        self.progressBar.Show(False)
-        self.cancelButton.Show(False)
 
 
 #===============================================================================
@@ -611,7 +442,7 @@ class TimeNavigator(ViewerPanel):
         
         self.movingMarks = False
         
-        self.Bind(EVT_INDICATOR_CHANGED, self.OnMarkChanged)
+        self.Bind(TimeNavigatorCtrl.EVT_INDICATOR_CHANGED, self.OnMarkChanged)
         self.timeline.Bind(wx.EVT_LEFT_UP, self.OnMouseLeftUp)
         
 
@@ -876,7 +707,7 @@ class LegendArea(ViewerPanel):
 # 
 #===============================================================================
 
-class PlotCanvas(wx.ScrolledWindow):
+class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     """ The actual plot-drawing area.
     """
     
@@ -889,32 +720,40 @@ class PlotCanvas(wx.ScrolledWindow):
         self.color = kwargs.pop('color', "BLUE")
         self.weight = kwargs.pop('weight',1)
         kwargs.setdefault('style',wx.VSCROLL|wx.BORDER_SUNKEN)
+        
         super(PlotCanvas, self).__init__(*args, **kwargs)
         self.SetBackgroundColour("white")
         
         if self.root is None:
             self.root = self.GetParent().root
         
-        self.originHLinePen = wx.Pen(
-            self.root.app.getPref("originHLineColor", "GRAY"), 1, wx.SOLID)
-        self.majorHLinePen = wx.Pen(
-            self.root.app.getPref("majorHLineColor", "GRAY"), 1, wx.DOT)
-        self.minorHLinePen = wx.Pen(
-            self.root.app.getPref("minorHLineColor", "GRAY"), 1, wx.DOT)
+        self.originHLinePen = self.loadPen("originHLineColor", "GRAY")
+        self.majorHLinePen = self.loadPen("majorHLineColor", style=wx.DOT)
+        self.minorHLinePen = self.loadPen("minorHLineColor", style=wx.DOT)
         
         self.lines = None
         self.points = None
         self.lastEvents = None
         self.lastRange = None
 
-        self.setPen()
+        self.setPlotPen()
+        
+        self.setContextMenu(wx.Menu())
+        self.addMenuItem(self.contextMenu, -1, "Select Color...", "", 
+                         self.OnMenuColor)
         
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
-                
-    
-    def setPen(self, color=None, weight=None, style=wx.SOLID):
+
+       
+    def loadPen(self, name, defaultColor="GRAY", width=1, style=wx.SOLID):
+        """ Create a pen using a color in the preferences.
         """
+        return wx.Pen(self.root.app.getPref(name, defaultColor), width, style)
+
+
+    def setPlotPen(self, color=None, weight=None, style=wx.SOLID):
+        """ Set the color, weight, and/or style of the plotting pens.
         """
         self.color = color if color is not None else self.color
         self.weight = weight if weight is not None else self.weight
@@ -928,18 +767,16 @@ class PlotCanvas(wx.ScrolledWindow):
                      tracking=False):
         """ Set the current time range. Propagates to its children.
             
-            @keyword start: The first time in the range. Defaults to
-                the current start.
-            @keyword end: The last time in the range. Defaults to the
-                current end.
+            @keyword start: The first time in the range. No change if `None`.
+            @keyword end: The last time in the range. No change if `None`.
             @keyword instigator: The object that initiated the change, in order
                 to avoid an infinite loop of child calling parent calling child.
             @keyword tracking: `True` if the widget doing the update is
                 tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond
-                if `tracking` is `True`.
+                Elements that take a long time to draw shouldn't respond if
+                `tracking` is `True`.
         """
-        print "PlotCanvas.setTimeRange"
+#         print "PlotCanvas.setTimeRange"
         if instigator == self:
             return
         pass
@@ -975,8 +812,31 @@ class PlotCanvas(wx.ScrolledWindow):
         evt.Skip()
 
 
-    def makeHGridlines(self, points, width, scale):
-        return [(0, p.pos * scale, width * scale, p.pos * scale) for p in points]
+    def makeHGridlines(self, pts, width, scale):
+        """ Create the coordinates for the horizontal grid lines.
+            Used internally.
+        """
+        return [(0, p.pos * scale, width * scale, p.pos * scale) for p in pts]
+
+    
+    def getRelPos(self):
+        """ Get the time range for the current window, based on the parent
+            view's timeline. Used internally.
+        """
+        rect = self.GetScreenRect()
+        trect = self.root.timeline.GetScreenRect()
+        
+        p1 = rect[0] - trect[0]
+        p2 = p1 + self.GetSize()[0]
+
+        result = (int(self.root.timeline.getValueAt(p1)),
+                int(self.root.timeline.getValueAt(p2)))
+        
+#         print self.Parent.source.parent.name, 
+#         print self.GetScreenRect(), self.root.timeline.GetScreenRect(),  
+#         print result
+        
+        return result
 
 
     def OnPaint(self, evt):
@@ -1009,7 +869,12 @@ class PlotCanvas(wx.ScrolledWindow):
         
         tenth = size[0]/10 * viewScale
         
-        hRange = map(int,self.root.getVisibleRange())
+
+        # XXX: This does not work for vertically split plots; they all start
+        # at the start of the visible range instead of relative position on
+        # the timeline. Investigate.
+#         hRange = map(int,self.root.getVisibleRange())
+        hRange = self.getRelPos()
         vRange = legend.scale.GetRange()
         
         # TODO: Implement regional redrawing.
@@ -1033,9 +898,11 @@ class PlotCanvas(wx.ScrolledWindow):
         minorHLines = []
         if self.Parent.drawMajorHLines:
             self.majorHLinePen.SetWidth(viewScale)
-            majorHLines = self.makeHGridlines(legend.scale._majorlabels, size[0], viewScale)
+            majorHLines = self.makeHGridlines(legend.scale._majorlabels, 
+                                              size[0], viewScale)
         if self.Parent.drawMinorHLines:
-            minorHLines = self.makeHGridlines(legend.scale._miorlabels, size[0], viewScale)
+            minorHLines = self.makeHGridlines(legend.scale._miorlabels, 
+                                              size[0], viewScale)
 
         if not self.Parent.firstPlot:
             dc.DrawLineList(majorHLines, self.majorHLinePen)
@@ -1055,10 +922,6 @@ class PlotCanvas(wx.ScrolledWindow):
             events = self.Parent.source.iterResampledRange(hRange[0], hRange[1],
                 size[0]*oversampling, padding=1, jitter=self.root.noisyResample)
             
-#             print "iterResampledRange(%s, %s, %s)" % (hRange[0], hRange[1], size[0]*3.33),
-#             print "timespan:", hRange[1]-hRange[0]
-#             print "no. events:", i, "source len:", len(self.Parent.source)
-
             try:
                 self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
                 event = events.next()
@@ -1096,7 +959,6 @@ class PlotCanvas(wx.ScrolledWindow):
         else:
             # No change in displayed range; Use cached lines.
             dc.DrawLineList(self.lines)
-#         print "len lines:", len(self.lines), size, self.lines[-1]
         
         if self.Parent.firstPlot and not self.Parent.source.hasDisplayRange:
             # First time the plot was drawn. Don't draw; scale to fit.
@@ -1113,11 +975,28 @@ class PlotCanvas(wx.ScrolledWindow):
             for p in self.points:
                 dc.DrawCirclePoint(p,self.weight*3)
         
-#         for l in self.lines[-10:]: print l
-        
         dc.EndDrawing()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
+
+    def OnMenuColor(self, evt):
+        data = wx.ColourData()
+        data.SetChooseFull(True)
+        data.SetColour(self.color)
+        dlg = wx.ColourDialog(self, data)
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            color = dlg.GetColourData().GetColour().Get()
+            self.setPlotPen(color=color)
+            self.Refresh()
+    
+    
+    def OnMenuAntialiasing(self, evt):
+        evt.IsChecked()
+        pass
+    
+    def OnMenuJitter(self, evt):
+        pass
 
 #===============================================================================
 # 
@@ -1157,9 +1036,8 @@ class Plot(ViewerPanel):
         if self.yUnits is None:
             self.yUnits = getattr(self.source, "units", ('',''))
         
-        scale = self.source.displayRange if getattr(self.source, 
-                                                    'hasDisplayRange', False) \
-                                                    else scale
+        if hasattr(self.source, 'hasDisplayRange'):
+            scale = self.source.displayRange
         
         self.legend = LegendArea(self, -1, 
                                  visibleRange=(max(*scale),min(*scale)))
@@ -1538,13 +1416,14 @@ class Corner(ViewerPanel):
 # 
 #===============================================================================
 
-class Viewer(wx.Frame):
+class Viewer(wx.Frame, MenuMixin):
     """ The main data viewer frame, wrapping all major functionality.
     """
     
     timeScalar = 1.0/(10**6)
     timerange = (1043273L * timeScalar*2,7672221086L * timeScalar)
 
+    # Custom menu IDs
     ID_RECENTFILES = wx.NewId()
     ID_EXPORT = wx.NewId()
     ID_EXPORT_VISIBLE = wx.NewId()
@@ -1587,6 +1466,9 @@ class Viewer(wx.Frame):
         self.aaMultiplier = ANTIALIASING_MULTIPLIER
         self.noisyResample = False
         
+        # TODO: FFT views as separate windows will eventually be refactored.
+        self.fftViews = {}
+        
         self.Bind(EVT_SET_VISIBLE_RANGE, self.OnSetVisibleRange)
         self.Bind(EVT_SET_TIME_RANGE, self.OnSetTimeRange)
         self.Bind(EVT_PROGRESS_START, self.OnProgressStart)
@@ -1605,71 +1487,59 @@ class Viewer(wx.Frame):
         """ Construct and configure the view's menu bar. Called one by
             `InitUI()`.
         """        
-        self.menuItems = {}
-        
-        # Just to make the menu adding less tedious
-        def addItem(menu, id_, text, helpString, handler, enabled=True, 
-                    kind=wx.ITEM_NORMAL):
-            item = menu.Append(id_, text, helpString, kind)
-            item.Enable(enabled)
-            if handler is not None:
-                self.Bind(wx.EVT_MENU, handler, item)
-            self.menuItems[id] = item
-            return item
-        
         self.menubar = wx.MenuBar()
         
         fileMenu = wx.Menu()
-        addItem(fileMenu, wx.ID_OPEN, "&Open...", "", 
+        self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...", "", 
                 self.OnFileOpenMenu, True)
-        addItem(fileMenu, wx.ID_CANCEL, "Stop Loading File\tCrtl-.", "", 
-                self.cancelOperation, False)
-        addItem(fileMenu, wx.ID_REVERT, "&Reload Current File", "", 
-                self.OnFileReloadMenu, False)
+        self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCrtl-.", "", 
+                self.cancelOperation, enabled=False)
+        self.addMenuItem(fileMenu, wx.ID_REVERT, "&Reload Current File", "", 
+                self.OnFileReloadMenu, enabled=False)
         fileMenu.AppendSeparator()
-        addItem(fileMenu, self.ID_EXPORT, "Export Data (CSV)...", "", 
+        self.addMenuItem(fileMenu, self.ID_EXPORT, "Export Data (CSV)...", "", 
                 self.OnFileExportMenu, True)
         fileMenu.AppendSeparator()
-        addItem(fileMenu, self.ID_RENDER_FFT, "Render FFT...", "", 
+        self.addMenuItem(fileMenu, self.ID_RENDER_FFT, "Render FFT...", "", 
                 self.OnFileRenderFFTMenu, True)
         fileMenu.AppendSeparator()
-        addItem(fileMenu, wx.ID_PRINT, "&Print...", "", 
-                None, False)
-        addItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
-                None, False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", 
+                None, enabled=False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
+                None, enabled=False)
         fileMenu.AppendSeparator()
 #         self.recentFilesMenu = wx.Menu()
 #         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", self.recentFilesMenu)
 #         fileMenu.AppendSeparator()
-        addItem(fileMenu, wx.ID_EXIT, 'E&xit', '', 
+        self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit', '', 
                 self.OnFileExitMenu, True)
         wx.App.SetMacExitMenuItemId(wx.ID_EXIT)
         self.menubar.Append(fileMenu, '&File')
         
         editMenu = wx.Menu()
-        addItem(editMenu, wx.ID_CUT, "Cut", "", None, False)
-        addItem(editMenu, wx.ID_COPY, "Copy", "", None, False)
-        addItem(editMenu, wx.ID_PASTE, "Paste", "", None, False)
+        self.addMenuItem(editMenu, wx.ID_CUT, "Cut", "", None, enabled=False)
+        self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", None, enabled=False)
+        self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", None, enabled=False)
         self.menubar.Append(editMenu, '&Edit')
 
         deviceMenu = wx.Menu()
-        addItem(deviceMenu, self.ID_DEVICE_CONFIG, "Configure Device...", "",
-                None, False)
-        addItem(deviceMenu, self.ID_DEVICE_SET_CLOCK, "Set Device Clock", "",
-                None, False)
+        self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, "Configure Device...", "",
+                None, enabled=False)
+        self.addMenuItem(deviceMenu, self.ID_DEVICE_SET_CLOCK, "Set Device Clock", "",
+                None, enabled=False)
         self.menubar.Append(deviceMenu, 'De&vice')
         
         
         debugMenu = wx.Menu()
-        addItem(debugMenu, wx.NewId(), "Toggle Antialiasing Drawing", 
+        self.addMenuItem(debugMenu, wx.NewId(), "Toggle Antialiasing Drawing", 
                 "Primarily a visual effect, although it does do more resampling", 
                 self.DEBUG_OnToggleAA, kind=wx.ITEM_CHECK)
-        addItem(debugMenu, wx.NewId(), "Toggle Noisy Resampling", "", 
+        self.addMenuItem(debugMenu, wx.NewId(), "Toggle Noisy Resampling", "", 
                 self.DEBUG_OnToggleNoise, kind=wx.ITEM_CHECK)
         self.menubar.Append(debugMenu, 'DEBUG')
         
         helpMenu = wx.Menu()
-        addItem(helpMenu, wx.ID_ABOUT, "About %s..." % APPNAME, "", 
+        self.addMenuItem(helpMenu, wx.ID_ABOUT, "About %s..." % APPNAME, "", 
                 self.OnHelpAboutMenu)
         self.menubar.Append(helpMenu, '&Help')
 
@@ -2022,7 +1892,8 @@ class Viewer(wx.Frame):
         elif len(subchannels) == 0 or (startTime >= stopTime):
             return
         
-        subchannelIds = [c.id for c in subchannels]
+        subchannels.sort(key=lambda x: x.name)
+#         subchannelIds = [c.id for c in subchannels]
         source = subchannels[0].parent.getSession(self.session.sessionId)
         start, stop = source.getRangeIndices(startTime, stopTime)
         numRows = stop-start
@@ -2036,6 +1907,16 @@ class Viewer(wx.Frame):
                          "FFT generation slow. Proceed anyway?")
             if x != wx.ID_OK:
                 return
+        
+        title = "FFT: %s (%ss to %ss)" % (
+            ", ".join([c.name for c in subchannels]), 
+            startTime * self.timeScalar, 
+            stopTime * self.timeScalar)
+        viewId = wx.NewId()
+        view = fft.FFTView(self, viewId, title=title, size=self.GetSize(), 
+                           root=self, sources=subchannels, 
+                           start=startTime, end=stopTime)
+        self.fftViews[viewId] = view
         
 
         
@@ -2383,6 +2264,10 @@ class ViewerApp(wx.App):
                           "GOLD",
                           "BLACK",
                           "BLUE VIOLET"],
+        'plotColors': {"00.0": "BLUE",
+                       "00.1": "GREEN",
+                       "00.2": "RED",
+        },
         'locale': 'English_United States.1252',
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'fileHistory': {},
@@ -2519,6 +2404,6 @@ class ViewerApp(wx.App):
 #===============================================================================
 
 # XXX: Change this back for 'real' version
-if True:#__name__ == '__main__':
+if __name__ == '__main__' or True:
     app = ViewerApp()
     app.MainLoop()

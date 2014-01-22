@@ -6,6 +6,7 @@ Created on Dec 18, 2013
 # TODO: See about removing the pylab dependency.
 
 from collections import Iterable
+import csv
 
 import numpy as np
 from pylab import hstack
@@ -15,7 +16,7 @@ import wx; wx = wx
 
 import spectrum as spec
 
-
+from common import StatusBar
 
 #===============================================================================
 # 
@@ -25,6 +26,8 @@ class FFTView(wx.Frame):
     """
     """
     
+    ID_EXPORT = wx.NewId()
+    
     def __init__(self, *args, **kwargs):
         """ FFT view main panel. Takes standard wx.Window arguments plus:
         
@@ -33,37 +36,132 @@ class FFTView(wx.Frame):
             @keyword start: 
             @keyword end: 
         """
+        kwargs.setdefault("title", "FFT")
         self.root = kwargs.pop("root", None)
         self.sources = kwargs.pop("sources", None)
         self.range = (kwargs.pop("start",0), kwargs.pop("end",-1))
+        self.data = kwargs.pop("data",None)
+        self.sliceSize = kwargs.pop("sliceSize", 2**16)
+        
         super(FFTView, self).__init__(*args, **kwargs)
         
         self.canvas = wx.lib.plot.PlotCanvas(self)
+        self.canvas.SetEnableAntiAliasing(True)
         self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
         self.canvas.SetFontSizeAxis(10)
         self.canvas.SetFontSizeLegend(7)
         self.canvas.setLogScale((False,False))
-        self.canvas.SetXSpec('auto')
-        self.canvas.SetYSpec('auto')
+        self.canvas.SetXSpec('min')
+        self.canvas.SetYSpec('min')
         
+        self.initMenus()
+        
+        self.statusBar = StatusBar(self)
+        self.statusBar.stopProgress()
+        self.SetStatusBar(self.statusBar)
+        
+        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
         self.Show(True)
+        self.Update()
         
-        self.makeLineList()
-        self.canvas.Draw(self.lines)
         
+        self.lines = None
+        
+        if self.sources is not None:
+            channel = self.sources[0].parent.getSession(self.root.session.sessionId)
+            subchannelIds = [c.id for c in self.sources]
+            start, stop = channel.getRangeIndices(*self.range)
+            data = channel.itervalues(start, stop, subchannels=subchannelIds)
+            fs = (channel[-1][-2] - channel[0][-2]) / (len(channel) + 0.0)
+            self.data = self.generateFFTData(data, stop-start, len(self.sources), fs, self.sliceSize)
+            
+        if self.data is not None:
+            self.makeLineList()
+
+        if self.lines is not None:
+#             print "data shape =", self.data.shape
+#             print self.data
+#             print self.lines
+            self.canvas.Draw(self.lines)
+
+        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        
+    
+    def initMenus(self):
+        """
+        """
+        self.menubar = wx.MenuBar()
+        fileMenu = wx.Menu()
+        fileMenu.Append(self.ID_EXPORT, "&Export CSV...", "")
+        fileMenu.AppendSeparator()
+        fileMenu.Append(wx.ID_CLOSE, "Close &Window")
+        self.menubar.Append(fileMenu, "File")
+        
+        editMenu = wx.Menu()
+        self.menubar.Append(editMenu, "Edit")
+        editMenu.Append(-1, "None of these work yet.", "")
+        editMenu.Append(wx.ID_CUT, "Cut", "").Enable(False)
+        editMenu.Append(wx.ID_COPY, "Copy", "").Enable(False)
+        editMenu.Append(wx.ID_PASTE, "Paste", "").Enable(False)
+
+#         viewMenu = wx.Menu()
+#         self.menubar.Append(viewMenu, "View")
+        
+        self.SetMenuBar(self.menubar)
+        self.Bind(wx.EVT_MENU, self.OnClose, id=wx.ID_CLOSE)
+        self.Bind(wx.EVT_MENU, self.OnExportCsv, id=self.ID_EXPORT)
+    
+    
+    def OnExportCsv(self, evt):
+        dlg = wx.FileDialog(self, 
+            message="Export CSV...", 
+#             defaultDir=defaultDir,  defaultFile=defaultFile, 
+            wildcard='|'.join(self.root.app.getPref('exportTypes')), 
+            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            filename = dlg.GetPath()
+        dlg.Destroy()
+        
+        if filename is None:
+            return
+        
+        try:
+            self.exportCsv(filename)
+        except Exception as err:
+            self.root.handleException(err, what="exporting FFT as CSV")
+            return
+        
+    
+    def OnClose(self, evt):
+        self.Close()
+    
         
     def makeLineList(self):
         """
         """
+#         print "makeLineList, self.data.shape =",self.data.shape
         lines = []
-        
+#         colors = "BLUE","GREEN","RED"
+        colors = (wx.Colour(0,0,255,128),
+                  wx.Colour(0,255,0,128),
+                  wx.Colour(255,0,0,128),
+                  )
         cols = self.data.shape[-1]-1
+        
+        freqs = self.data[:,0].reshape(-1,1)
+#         print freqs
         for i in range(cols):
-            points = (hstack((self.data[:,0], self.data[:,i+1])))
+            points = (hstack((freqs, self.data[:,i+1].reshape(-1,1))))
             name = self.sources[i].name
 
-            lines.append(wx.lib.plot.PolyLine(points, legend=name))
-        self.lines = wx.lib.plot.PlotGraphics(lines, "FFT", "Frequency", "Amplitude")
+            lines.append(wx.lib.plot.PolyLine(points, legend=name, colour=colors[i]))
+#             print "i=",i, points.shape
+#             print points
+        self.lines = wx.lib.plot.PlotGraphics(lines, 
+                                              title=self.GetTitle(), 
+                                              xLabel="Frequency", 
+                                              yLabel="Amplitude")
         
     
     
@@ -120,13 +218,14 @@ class FFTView(wx.Frame):
         def nextPow2(x):
             """ Round up to the nearest power-of-two.
             """
-            if x & (x-1) == 0:
+            x = long(x)
+            if x & (x-1L) == 0L:
                 # already a power of 2
                 return x
-            x -= 1
+            x -= 1L
             for i in xrange(5):
-                x |= x >> (x**i)
-            return x+1
+                x |= x >> (2**long(i))
+            return x+1L
     
 
         points = self.from2diter(data, rows, cols)
@@ -148,16 +247,27 @@ class FFTView(wx.Frame):
                                         noverlap=sliceSize/2, sides='onesided', 
                                         scale_by_freq=False, pad_to=sliceSize, 
                                         window=spec.window_hanning)
-            
             tmp_fft = tmp_fft / scalar
             tmp_fft = tmp_fft.reshape(-1,1)
             fftData = hstack((fftData, tmp_fft))
             
             # Remove huge DC component from displayed data; so data of interest 
             # can be seen after auto axis fitting
-            fftData[0,i] = 0
-            fftData[1,i] = 0
-            fftData[2,i] = 0
-            
+            thisCol = i+1
+            fftData[0,thisCol] = 0
+            fftData[1,thisCol] = 0
+            fftData[2,thisCol] = 0
+#             print "column %s min=%s, max=%s" % (i, fftData[:,thisCol].min(),
+#                                                 fftData[:,thisCol].max())
+        
         return fftData
 
+
+
+
+    def exportCsv(self, filename):
+        out = open(filename, "wb")
+        writer = csv.writer(out)
+        writer.writerows(self.data)
+        out.close()
+        

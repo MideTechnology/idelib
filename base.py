@@ -1,6 +1,6 @@
 '''
-Base classes, custom events, utility functions and other stuff used by
-multiple components of the viewer. 
+Base classes, mixin classes, custom events, utility functions and other 
+(non-stand-alone) stuff used by multiple components of the viewer. 
 
 Created on Dec 4, 2013
 
@@ -204,7 +204,53 @@ class ViewerPanel(wx.Panel):
     
     def OnScrollEnd(self, evt):
         evt.Skip()
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class MenuMixin(object):
+    """
+    """
+    def addMenuItem(self, menu, id_, text, helpString, handler=None, 
+                    enabled=True, kind=wx.ITEM_NORMAL):
+        item = menu.Append(id_, text, helpString, kind)
+        item.Enable(enabled)
+        if handler is not None:
+            self.Bind(wx.EVT_MENU, handler, item)
+        if not hasattr(self, 'menuItems'):
+            self.menuItems = {}
+        self.menuItems[id_] = item
+        return item
+
+
+    def setContextMenu(self, menu):
+        """ Set a menu as the the context (e.g. 'right click') popup menu,
+            and bind it so it pops up on demand.
+            This assumes the object has only one context menu named
+            `contextMenu`; bind
+        """
+        self.contextMenu = menu
+        self.Bind(wx.EVT_CONTEXT_MENU, self.OnContextMenu)
+        self.contextMenuEnabled = True
+        return menu
     
+    
+    def enableContextMenu(self, enabled=True):
+        self.contextMenuEnabled = enabled
+
+
+    def OnContextMenu(self, evt):
+        """ Handler for context menu popup.
+        """
+        if not self.contextMenuEnabled:
+            evt.Skip()
+            return
+        if isinstance(getattr(self, 'contextMenu', None), wx.Menu):
+            self.PopupMenu(self.contextMenu)
+    
+
 
 #===============================================================================
 # Custom Events (for multithreaded UI updating)
