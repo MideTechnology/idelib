@@ -81,7 +81,8 @@ default="123" or a text value that may or may not be the name of another tag
 <!--     Class B (2-byte IDs):  -->
 <!--         0x42 0xXX ("B") seem to be used in the EBML header itself. -->
 <!--         0x43 0xXX ("C") we reserve for configuration-file children. -->
-<!--         0x52 0xXX ("R") we reserve for represational data (RecordingProperties children). Leave space after (0x53, etc.) in case we need more than 127. -->
+<!--         0x52 0xXX ("R") we reserve for represational data (RecordingProperties children). Leave space after (0x53, etc.) in case we need more than 255. -->
+<!--         0x4B 0xXX ("K") we reserve for calibration elements. -->
 <!--         0x54 0xXX ("T") we reserve for time-related data. -->
 <!-- -->
   
@@ -136,8 +137,46 @@ default="123" or a text value that may or may not be the name of another tag
 				<element name="PlotRangeMin" level="3" id="0x5298" type="uinteger" mandatory="0" multiple="1" minver="1">Initial value for lower axis bound.</element>
 				<element name="PlotRangeMax" level="3" id="0x5299" type="uinteger" mandatory="0" multiple="1" minver="1">Initial value for upper axis bound.</element>
 
-		<element name="CalibrationList" level="1" id="0x52C0" type="master" mandatory="0" multiple="0" minver="1">Master element for the CalibrationList items</element>
-			<element name="Calibration" level="2" id="0x52C1" type="master" mandatory="0" multiple="0" minver="1">Master element for a Calibration entry</element>
+
+	<!-- Calibration entries. Any dynamically-generated data pertaining to plotting or syncing channels will eventually be written here. These are stored top-level to minimize the memory footprint -->
+	<!-- of any device-side reprocessing of these entries. -->
+
+	<!-- Each calibration entry in the CalibrationList will be either a UnivariatePolynomial OR a BivariatePolynomial. The level-2 entries below are actually shared between these master types. -->
+	<!-- In the case of a BivariatePolynomial, the BivariateChannelIDRef and BivariateSubChannelIDRef are mandatory.-->
+	
+	<!-- The calibration entry types and their coefficient blocks specify an n-degree univariate or bivariate polynomial, respectively. -->
+
+	<!-- Univariate: Evaluated in the form y = sum( A(x-xref)^n ) for all n, where y is the output sample, A is the coefficient, x is the input sample, xref is the reference value, n is the degree of each term and the terms are expressed from highest to lowest degree. -->
+	<!-- Examples: -->
+	<!-- 2 coef block [A B]: y = A(x-xref) + B -->
+	<!-- 4 coef block [A B C D]: y = A(x-xref)^3 + B(x-xref)^2 + C(x-xref) + D -->
+
+	<!-- Bivariate: Evaluated in the form y = sum( A(x-xref)^m(y-yref)^n ) for all m and n, where: -->
+	<!-- y is the output sample, -->
+	<!-- A is the coefficient, -->
+	<!-- x,y are the input samples for this and the 2nd channel, -->
+	<!-- xref,yref are the reference values for this and the 2nd channel, -->
+	<!-- m,n are the degrees of the x and y terms. -->
+	<!-- Ordering here is a little trickier: for any degree, a term must exist for every permutation the degrees 0~n for x and y, e.g. x^2y^2, x^2y, xy^2, xy, ... -->
+	<!-- Terms are expressed  from highest to lowest total degree (m*n), with terms of equal degree sorted by degree of the 1st channel term (for example, x^2y^1 would come before x^1y^2), assuming the 1st channel term is always expressed first. -->
+	<!-- Due to the permutation, legal coefficient block lengths are those which satisfy the number of permuted terms, or generally, nCoefs=(degree+1)^2 . (FIXME: CHECKME: Valid up to 2nd order; have not checked further...) -->
+	<!-- Examples: -->
+	<!-- degree 0: 1 coef block [A] (trivial case for completeness): y = A(x-xref)^0(y-yref)^0 = A -->
+	<!-- degree 1: 4 coef block [A B C D]: A(x-xref)(y-yref) + B(x-xref) + C(y-yref) + D  -->
+	
+	<!-- Rules: David FIXME: Do the child tags have to come in a specific order? What are the limitations, if any, on where the PolynomialCoef elements may be written? -->
+	<!-- (I assume we probably shouldn't interleave them arbitrarily with other *Polynomial child elements, but if that will actually break something, we should document it here. -->
+	
+	<element name="CalibrationList" level="0" id="0x4B00" type="master" mandatory="0" multiple="0" minver="1">Master element for the CalibrationList items</element>
+		<element name="UnivariatePolynomial" level="1" id="0x4B01" type="master" mandatory="0" multiple="0" minver="1">Master element for a univariate (1-variable) calibration entry</element>
+		<element name="BivariatePolynomial" level="1" id="0x4B02" type="master" mandatory="0" multiple="0" minver="1">Master element for a bivariate (2-variable) calibration entry</element>
+			<element name="CalID" level="2" id="0x4B03" type="uinteger" mandatory="0" multiple="0" minver="1">ID of this entry. Actually mandatory, but I don't know how that works with Level=-1.</element>
+			<element name="CalReferenceValue" level="2" id="0x4B04" type="float" mandatory="0" multiple="0" minver="1">Reference value for this channel</element>
+			<element name="BivariateCalReferenceValue" level="2" id="0x4B05" type="float" mandatory="0" multiple="0" minver="1">Reference value for the 2nd channel when using bivariate calibration</element>
+			<element name="BivariateChannelIDRef" level="2" id="0x4B06" type="uinteger" mandatory="0" multiple="0" minver="1">Channel ID of the channel to be used as the 2nd parameter for bivariate compensation</element>
+			<element name="BivariateSubChannelIDRef" level="2" id="0x4B07" type="uinteger" mandatory="0" multiple="0" minver="1">SubChannel ID of the subchannel to be used as the 2nd parameter for bivariate compensation</element>
+			<element name="PolynomialCoef" level="2" id="0x4B08" type="float" mandatory="0" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</element>			
+
 
 
   <!-- Elements of a configuration file -->

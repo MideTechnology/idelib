@@ -268,7 +268,7 @@ def readData(doc, updater=None, numUpdates=500, updateInterval=1.0,
                     dataSize = filesize - firstDataPos + 0.0
                     readingData = True
             
-                added = parser(r)
+                added = parser.parse(r)
                 if added is not None:
                     eventsRead += added
 
