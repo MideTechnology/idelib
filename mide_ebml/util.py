@@ -9,6 +9,9 @@ Created on Dec 10, 2013
 '''
 
 from collections import Sequence
+import pkgutil
+import sys
+import xml.dom.minidom
 
 from ebml import core as ebml_core
 from ebml.schema import base as schema_base
@@ -17,11 +20,17 @@ from ebml.schema import base as schema_base
 import importlib
 
 #===============================================================================
+# 
+#===============================================================================
+
+DEFAULT_SCHEMA = "ebml.schema.mide"
+
+#===============================================================================
 # Element types and encoding schemes
 #===============================================================================
 
-def encode_container(data, length=None, schema="ebml.schema.mide", 
-                     elements=None):
+def encode_container(data, length=None, schema=DEFAULT_SCHEMA, 
+                     elements=None, sizes={}):
     """ EBML encoder for a 'container' (i.e. 'master') element, compatible with
         the `ebml.core` encoding methods for primitive types. Recursively calls 
         other encoders for its contents. 
@@ -37,7 +46,8 @@ def encode_container(data, length=None, schema="ebml.schema.mide",
         data = data.items()
     for child in data:
         if child[1] is not None:
-            result.extend(build_ebml(*child, schema=schema, elements=elements))
+            result.extend(build_ebml(*child, schema=schema, elements=elements,
+                                     sizes=sizes))
     return result
 
 
@@ -71,28 +81,57 @@ ENCODERS = {
 # MIDE_ELEMENTS = dict(((k[:-7],v) for k,v in mide_schema.__dict__.iteritems() \
 #                       if k.endswith("Element")))
 
-def getSchemaElements(schema="ebml.schema.mide"):
-    """
+def getSchemaElements(schema=DEFAULT_SCHEMA):
+    """ Get all the EBML element classes for a given schema.
+
+        @keyword schema: The full module name of the EBML schema.
+        @return: A dictionary of element classes keyed on element name.
     """
     schemaMod = importlib.import_module(schema)
     return dict(((k[:-7],v) for k,v in schemaMod.__dict__.iteritems() \
                  if k.endswith("Element")))
 
 
-def getSchemaDocument(schema="ebml.schema.mide"):
-    """
-    """
+def getSchemaDocument(schema=DEFAULT_SCHEMA):
+    """ Get the `Document` class for a given EBML schema.
+    
+        @keyword schema: The full module name of the EBML schema.
+        @return: A subclass of `ebml.schema.base.Document`.
+        """
     schemaMod = importlib.import_module(schema)
     for k,v in schemaMod.__dict__.iteritems():
         if k.endswith("Document"):
             return v
     return None
 
+
+def getElementSizes(schema=DEFAULT_SCHEMA):
+    """ Parse the schema's XML file to get element `size` attribute for any
+        element that specifies one. Intended for writing fixed-size EBML
+        data. 
+        
+        @note: The `size` attribute is not part of the standard python-ebml 
+            implementation.
+            
+        @keyword schema: The full module name of the EBML schema.
+        @return: A dictionary of sizes keyed on element name.
+    """
+    results = {}
+    filename = schema.split('.')[-1] + ".xml"
+    doc = xml.dom.minidom.parseString(pkgutil.get_data(schema, filename))
+    for el in doc.getElementsByTagName('element'):
+        name = el.getAttribute('name')
+        length = el.getAttribute('length')
+        if name and length:
+            results[name] = int(length)
+    return results
+
+
 #===============================================================================
 # Writing EBML
 #===============================================================================
 
-def build_ebml(name, value, schema="ebml.schema.mide", elements=None):
+def build_ebml(name, value, schema=DEFAULT_SCHEMA, elements=None, sizes=None):
     """ Construct an EBML element of the given type containing the given
         data. Operates recursively. Note that this function does not do any 
         significant type-checking, nor does it check against the schema.
@@ -104,10 +143,22 @@ def build_ebml(name, value, schema="ebml.schema.mide", elements=None):
             "multiple" elements, it can be a list of identically-typed items;
             each item will become its own element of the specified type, in the
             same order as elements in the list.
+        @keyword schema: The full module name of the EBML schema.
+        @keyword elements: A dictionary of the schema's elements keyed by name.
+            This should generally be left `None`, which defaults to all
+            elements in the schema.
+        @keyword sizes: A dictionary of element fixed sizes keyed by name.
+            Elements appearing in the dictionary will be written at the
+            specified size. `None` will read the sizes from the schema's XML 
+            file. `False` will not use fixed sizes.
         @return: A `bytearray` containing the raw binary EBML.
     """
     if elements is None:
         elements = getSchemaElements(schema)
+    if sizes is None:
+        sizes = getElementSizes(schema)
+    elif sizes is False:
+        sizes = {}
         
     if name not in elements:
         raise TypeError("Unknown element type: %r" % name)
@@ -121,13 +172,13 @@ def build_ebml(name, value, schema="ebml.schema.mide", elements=None):
     if not isinstance(value, basestring) and isinstance(value, Sequence):
         payload = bytearray()
         for v in value:
-            payload.extend(build_ebml(name, v, schema, elements))
+            payload.extend(build_ebml(name, v, schema, elements, sizes))
         return payload
     
     if elementClass.type == CONTAINER:
-        payload = elementEncoder(value, schema=schema, elements=elements)
+        payload = elementEncoder(value, None, schema, elements, sizes)
     else:
-        payload = elementEncoder(value)
+        payload = elementEncoder(value, length=sizes.get(name, None))
     
     result = ebml_core.encode_element_id(elementId)
     result.extend(ebml_core.encode_element_size(len(payload)))
@@ -160,25 +211,47 @@ def read_ebml(elements):
     return result
             
     
-def dump_ebml(el, indent=0, tabsize=4):
+def dump_ebml(el, stream=None, indent=0, tabsize=4):
     """ Testing: Crawl an EBML Document and dump its contents, showing the 
         stream offset, name, and value of each child element. 
     """
+    if stream is None:
+        stream = sys.stdout
+        
     if isinstance(el, schema_base.Document):
-        print "offset  name/value"
-        print "------  --------------------------------"
+        stream.write("offset  name/value\n")
+        stream.write("------  --------------------------------\n")
         for r in el.iterroots():
-            dump_ebml(r, indent, tabsize)
+            dump_ebml(r, stream, indent, tabsize)
         return
     
-    print ("%6d  %s%s:" % (el.stream.offset," "*indent, el.name)),
+    stream.write("%6d  %s%s:" % (el.stream.offset," "*indent, el.name))
     if not el.children:
-        print "%r" % el.value
+        stream.write("%r\n" % el.value)
     else:
-        print ""
+        stream.write("\n")
         for child in el.value:
-            dump_ebml(child, indent+tabsize) 
+            dump_ebml(child, stream, indent+tabsize, tabsize) 
 
+
+#===============================================================================
+# 
+#===============================================================================
+
+def verify(data, schema=DEFAULT_SCHEMA):
+    """ Basic sanity-check of data validity. If the data is bad an exception
+        will be raised. The specific exception varies depending on the problem
+        in the data.
+        
+        @keyword schema: The full module name of the EBML schema.
+        @return: `True`. Any problems will raise exceptions.
+    """
+    docclass = getSchemaDocument(schema)
+    if docclass is None:
+        raise TypeError("Schema %r contained no Document" % schema)
+    doc = docclass(StringIO(data))
+    read_ebml(doc)
+    return True
 
 #===============================================================================
 # 

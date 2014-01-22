@@ -7,11 +7,14 @@ __author__ = "David Stokes"
 __date__ = "Nov 14, 2013"
 
 
+import calendar
 import ctypes
+from datetime import datetime
 import os
 import string
 import struct
 import sys
+import time
 
 from mide_ebml import devices
 
@@ -28,6 +31,13 @@ timeParser = struct.Struct("Q")
 def isRecorder(dev):
     """ Simple test whether a given path/drive letter refers to a recorder,
         based on the presence (or absence) of its /SYSTEM/DEV/DEVINFO file.
+        Invalid paths return `False` (i.e. not a recorder); if you need to
+        differentiate bad paths from non-recorders you should perform 
+        your own checks first.
+        
+        @param dev: The path to the recording device.
+        @return: `True` if the path is a device, `False` if not (or the path
+            is bad).
     """
     try:
         return os.path.exists(os.path.join(dev, INFO_FILE))
@@ -36,7 +46,10 @@ def isRecorder(dev):
     
 
 def getRecorderInfo(dev):
-    """ Retrieve recorder device information, such as .
+    """ Retrieve a recorder's device information.
+    
+        @param dev: The path to the recording device.
+        @return: A dictionary containing the device data.
     """
     if isRecorder(dev):
         try:
@@ -52,12 +65,43 @@ def getRecorderInfo(dev):
     return False
 
 
-def getDeviceTime(dev):
+def getDeviceTime(dev, parser=timeParser):
+    """ Read the date/time from the device. 
+    
+        @note: This is currently unreliable under Windows due to its caching
+            mechanism.
+
+        @param dev: The path to the recording device.
+        @return: The time, as integer seconds since the epoch ('Unix time').
+    """
     f = open(os.path.join(dev,CLOCK_FILE), 'rb', 0)
     t = f.read(8)
     f.close()
-    return timeParser.unpack_from(t)
+    return parser.unpack_from(t)
 
+
+def setDeviceTime(dev, t=None, parser=timeParser):
+    """ Set a recorder's date/time. 
+    
+        @param dev: The path to the recording device.
+        @keyword t: The time to write, as either seconds since the epoch (i.e.
+            'Unix time'), `datetime.datetime` or a UTC `time.struct_time`. The 
+            current time  (from the host) is used if `None` (default).
+        @return: The time that was set, as integer seconds since the epoch.
+    """
+    if t is None:
+        t = int(time.time())
+    elif isinstance(t, datetime):
+        t = calendar.timegm(t.timetuple())
+    elif isinstance(t, time.struct_time) or isinstance(t, tuple):
+        t = calendar.timegm(t)
+    else:
+        t = int(t)
+        
+    with open(os.path.join(dev,CLOCK_FILE),'rb') as f:
+        f.write(parser.pack(t))
+    return t
+    
 #===============================================================================
 # Windows-specific versions of the functions
 #===============================================================================

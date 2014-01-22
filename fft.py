@@ -11,7 +11,7 @@ import csv
 import numpy as np
 from pylab import hstack
 
-import wx.lib.plot
+import wx.lib.plot as P
 import wx; wx = wx 
 
 import spectrum as spec
@@ -26,7 +26,13 @@ class FFTView(wx.Frame):
     """
     """
     
-    ID_EXPORT = wx.NewId()
+    ID_EXPORT_CSV = wx.NewId()
+    ID_EXPORT_IMG = wx.NewId()
+    
+    IMAGE_FORMATS = "Windows Bitmap (*.bmp)|*.bmp|" \
+                     "JPEG (*.jpg)|*.jpg|" \
+                     "Portable Network Graphics (*.png)|*.png" 
+
     
     def __init__(self, *args, **kwargs):
         """ FFT view main panel. Takes standard wx.Window arguments plus:
@@ -45,14 +51,14 @@ class FFTView(wx.Frame):
         
         super(FFTView, self).__init__(*args, **kwargs)
         
-        self.canvas = wx.lib.plot.PlotCanvas(self)
+        self.canvas = P.PlotCanvas(self)
         self.canvas.SetEnableAntiAliasing(True)
         self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
         self.canvas.SetFontSizeAxis(10)
         self.canvas.SetFontSizeLegend(7)
         self.canvas.setLogScale((False,False))
         self.canvas.SetXSpec('min')
-        self.canvas.SetYSpec('min')
+        self.canvas.SetYSpec('auto')
         
         self.initMenus()
         
@@ -72,16 +78,15 @@ class FFTView(wx.Frame):
             subchannelIds = [c.id for c in self.sources]
             start, stop = channel.getRangeIndices(*self.range)
             data = channel.itervalues(start, stop, subchannels=subchannelIds)
-            fs = (channel[-1][-2] - channel[0][-2]) / (len(channel) + 0.0)
+            # XXX: Calculation of real sample rate is wrong. Investigate.
+#             fs = (channel[stop][-2] - channel[start][-2]) / ((stop-start) + 0.0)
+            fs = channel.getSampleRate()
             self.data = self.generateFFTData(data, stop-start, len(self.sources), fs, self.sliceSize)
             
         if self.data is not None:
             self.makeLineList()
 
         if self.lines is not None:
-#             print "data shape =", self.data.shape
-#             print self.data
-#             print self.lines
             self.canvas.Draw(self.lines)
 
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
@@ -92,27 +97,39 @@ class FFTView(wx.Frame):
         """
         self.menubar = wx.MenuBar()
         fileMenu = wx.Menu()
-        fileMenu.Append(self.ID_EXPORT, "&Export CSV...", "")
+        fileMenu.Append(self.ID_EXPORT_CSV, "&Export CSV...", "")
+        fileMenu.Append(self.ID_EXPORT_IMG, "Export &Image...", "")
         fileMenu.AppendSeparator()
+        fileMenu.Append(wx.ID_PRINT, "&Print...").Enable(False)
+        fileMenu.Append(wx.ID_PRINT_SETUP, "Print Setup...").Enable(False)
         fileMenu.Append(wx.ID_CLOSE, "Close &Window")
+        fileMenu.AppendSeparator()
         self.menubar.Append(fileMenu, "File")
         
         editMenu = wx.Menu()
         self.menubar.Append(editMenu, "Edit")
         editMenu.Append(-1, "None of these work yet.", "")
         editMenu.Append(wx.ID_CUT, "Cut", "").Enable(False)
-        editMenu.Append(wx.ID_COPY, "Copy", "").Enable(False)
+        editMenu.Append(wx.ID_COPY, "&Copy", "").Enable(False)
         editMenu.Append(wx.ID_PASTE, "Paste", "").Enable(False)
 
-#         viewMenu = wx.Menu()
-#         self.menubar.Append(viewMenu, "View")
+        viewMenu = wx.Menu()
+        self.menubar.Append(viewMenu, "View")
+        viewMenu.Append(-1, "None of these work yet.", "")
+        
+        helpMenu = wx.Menu()
+        self.menubar.Append(helpMenu, "Help")
+        viewMenu.Append(wx.ID_HELP_INDEX, "FFT View Help")
         
         self.SetMenuBar(self.menubar)
         self.Bind(wx.EVT_MENU, self.OnClose, id=wx.ID_CLOSE)
-        self.Bind(wx.EVT_MENU, self.OnExportCsv, id=self.ID_EXPORT)
+        self.Bind(wx.EVT_MENU, self.OnExportCsv, id=self.ID_EXPORT_CSV)
+        self.Bind(wx.EVT_MENU, self.OnExportImage, id=self.ID_EXPORT_IMG)
+        self.Bind(wx.EVT_MENU, self.OnHelp, id=wx.ID_HELP_INDEX)
     
     
     def OnExportCsv(self, evt):
+        filename = None
         dlg = wx.FileDialog(self, 
             message="Export CSV...", 
 #             defaultDir=defaultDir,  defaultFile=defaultFile, 
@@ -124,23 +141,53 @@ class FFTView(wx.Frame):
         dlg.Destroy()
         
         if filename is None:
-            return
+            return False
         
         try:
-            self.exportCsv(filename)
+            out = open(filename, "wb")
+            writer = csv.writer(out)
+            writer.writerows(self.data)
+            out.close()
+            return True
         except Exception as err:
             self.root.handleException(err, what="exporting FFT as CSV")
-            return
+            return False
         
+    
+    def OnExportImage(self, event):
+        filename = None
+        dlg = wx.FileDialog(self, 
+            message="Export Image...", 
+            wildcard=self.IMAGE_FORMATS, 
+            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            filename = dlg.GetPath()
+        dlg.Destroy()
+        
+        if filename is None:
+            return False
+        
+        try:
+            return self.canvas.SaveFile(filename)
+        except Exception as err:
+            self.root.handleException(err, what="exporting FFT as an image")
+            return False
+    
+    
+    def OnHelp(self, evt):
+        self.root.ask("DEBUG", "Not implemented", style=wx.OK)
     
     def OnClose(self, evt):
         self.Close()
     
-        
+    #===========================================================================
+    # 
+    #===========================================================================
+    
     def makeLineList(self):
         """
         """
-#         print "makeLineList, self.data.shape =",self.data.shape
         lines = []
 #         colors = "BLUE","GREEN","RED"
         colors = (wx.Colour(0,0,255,128),
@@ -150,18 +197,15 @@ class FFTView(wx.Frame):
         cols = self.data.shape[-1]-1
         
         freqs = self.data[:,0].reshape(-1,1)
-#         print freqs
+
         for i in range(cols):
             points = (hstack((freqs, self.data[:,i+1].reshape(-1,1))))
-            name = self.sources[i].name
+            name = self.sources[i-1].name
 
-            lines.append(wx.lib.plot.PolyLine(points, legend=name, colour=colors[i]))
-#             print "i=",i, points.shape
-#             print points
-        self.lines = wx.lib.plot.PlotGraphics(lines, 
-                                              title=self.GetTitle(), 
-                                              xLabel="Frequency", 
-                                              yLabel="Amplitude")
+            lines.append(P.PolyLine(points, legend=name, colour=colors[i]))
+            
+        self.lines = P.PlotGraphics(lines, title=self.GetTitle(), 
+                                    xLabel="Frequency", yLabel="Amplitude")
         
     
     
@@ -177,8 +221,8 @@ class FFTView(wx.Frame):
             if hasattr(data, '__len__'):
                 rows = len(data)
         
-        # Build a 2D array. 
-        # Numpy's `fromiter()` is 1D, but there's probably a better way to do this.
+        # Build a 2D array. Numpy's `fromiter()` is 1D, but there's probably a 
+        # better way to do this.
         dataIter = iter(data)
         row1 = dataIter.next()
         if isinstance(row1, Iterable):
@@ -214,6 +258,8 @@ class FFTView(wx.Frame):
             @return: A multidimensional array, with the first column the 
                 frequency.
         """
+        
+        print "generateFFTData(data=%r, rows=%r, cols=%r, fs=%r, slizeSize=%r)" % (data, rows, cols, fs, sliceSize)
         
         def nextPow2(x):
             """ Round up to the nearest power-of-two.
@@ -262,12 +308,3 @@ class FFTView(wx.Frame):
         
         return fftData
 
-
-
-
-    def exportCsv(self, filename):
-        out = open(filename, "wb")
-        writer = csv.writer(out)
-        writer.writerows(self.data)
-        out.close()
-        

@@ -46,7 +46,7 @@ from threaded_file import ThreadAwareFile
 # The actual data-related stuff
 import mide_ebml
 
-ANTIALIASING_MULTIPLIER = 6.66
+ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
 
 
@@ -454,16 +454,16 @@ class TimeNavigator(ViewerPanel):
                      tracking=False):
         """ Set the current time range. Propagates to its children.
             
-            @keyword start: The first time in the range. Defaults to
-                the current start.
-            @keyword end: The last time in the range. Defaults to the
-                current end.
+            @keyword start: The first time in the range. Defaults to the 
+                current start.
+            @keyword end: The last time in the range. Defaults to the current 
+                end.
             @keyword instigator: The object that initiated the change, in order
                 to avoid an infinite loop of child calling parent calling child.
             @keyword tracking: `True` if the widget doing the update is
                 tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond
-                if `tracking` is `True`.
+                Elements that take a long time to draw shouldn't respond if 
+                `tracking` is `True`.
         """
         if instigator != self:
             self.timerange = start, end
@@ -481,10 +481,10 @@ class TimeNavigator(ViewerPanel):
                 current end.
             @keyword instigator: The object that initiated the change, in order
                 to avoid an infinite loop of child calling parent calling child.
-            @keyword tracking: `True` if the widget doing the update is
+            @keyword tracking: `True` if the widget doing the update is 
                 tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond
-                if `tracking` is `True`.
+                Elements that take a long time to draw shouldn't respond if 
+                `tracking` is `True`.
         """
         if instigator != self:
             self.timeline.setVisibleRange(start * self.root.timeScalar, 
@@ -1452,7 +1452,10 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.uiBgColor = wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DFACE)
         
-        self.InitUI()
+        self.xFormatter = "X: %%.%df %%s" % self.app.getPref('precisionX', 4)
+        self.yFormatter = "Y: %%.%df %%s" % self.app.getPref('precisionY', 4)
+        
+        self.buildUI()
         self.Centre()
         self.Show()
         
@@ -1479,34 +1482,33 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
-        # TODO: Remove this later? 
+        # TODO: Remove this later? Viewer is also used to configure devices.
         self.OnFileOpenMenu(None)
 
 
-    def InitMenus(self):
+    def buildMenus(self):
         """ Construct and configure the view's menu bar. Called one by
-            `InitUI()`.
+            `buildUI()`.
         """        
         self.menubar = wx.MenuBar()
         
         fileMenu = wx.Menu()
         self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...", "", 
-                self.OnFileOpenMenu, True)
+                         self.OnFileOpenMenu)
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCrtl-.", "", 
-                self.cancelOperation, enabled=False)
+                         self.cancelOperation, enabled=False)
         self.addMenuItem(fileMenu, wx.ID_REVERT, "&Reload Current File", "", 
-                self.OnFileReloadMenu, enabled=False)
+                         self.OnFileReloadMenu, enabled=False)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_EXPORT, "Export Data (CSV)...", "", 
-                self.OnFileExportMenu, True)
+                         self.exportCsv)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_RENDER_FFT, "Render FFT...", "", 
-                self.OnFileRenderFFTMenu, True)
+                         self.renderFFT)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", 
-                None, enabled=False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", enabled=False)
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
-                None, enabled=False)
+                         enabled=False)
         fileMenu.AppendSeparator()
 #         self.recentFilesMenu = wx.Menu()
 #         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", self.recentFilesMenu)
@@ -1517,26 +1519,25 @@ class Viewer(wx.Frame, MenuMixin):
         self.menubar.Append(fileMenu, '&File')
         
         editMenu = wx.Menu()
-        self.addMenuItem(editMenu, wx.ID_CUT, "Cut", "", None, enabled=False)
-        self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", None, enabled=False)
-        self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", None, enabled=False)
+        self.addMenuItem(editMenu, wx.ID_CUT, "Cut", "", enabled=False)
+        self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", enabled=False)
+        self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", enabled=False)
         self.menubar.Append(editMenu, '&Edit')
 
         deviceMenu = wx.Menu()
-        self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, "Configure Device...", "",
-                None, enabled=False)
-        self.addMenuItem(deviceMenu, self.ID_DEVICE_SET_CLOCK, "Set Device Clock", "",
-                None, enabled=False)
+        self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
+                         "Configure Device...", "", None, enabled=False)
+        self.addMenuItem(deviceMenu, self.ID_DEVICE_SET_CLOCK, 
+                         "Set Device Clock", "", None, enabled=False)
         self.menubar.Append(deviceMenu, 'De&vice')
         
-        
-        debugMenu = wx.Menu()
-        self.addMenuItem(debugMenu, wx.NewId(), "Toggle Antialiasing Drawing", 
-                "Primarily a visual effect, although it does do more resampling", 
-                self.DEBUG_OnToggleAA, kind=wx.ITEM_CHECK)
-        self.addMenuItem(debugMenu, wx.NewId(), "Toggle Noisy Resampling", "", 
-                self.DEBUG_OnToggleNoise, kind=wx.ITEM_CHECK)
-        self.menubar.Append(debugMenu, 'DEBUG')
+        viewMenu = wx.Menu()
+        self.addMenuItem(viewMenu, wx.NewId(), "Toggle Antialiasing Drawing", 
+            "Primarily a visual effect, although it does do more resampling", 
+            self.OnToggleAA, kind=wx.ITEM_CHECK)
+        self.addMenuItem(viewMenu, wx.NewId(), "Toggle Noisy Resampling", "", 
+                self.OnToggleNoise, kind=wx.ITEM_CHECK)
+        self.menubar.Append(viewMenu, 'View')
         
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, "About %s..." % APPNAME, "", 
@@ -1546,15 +1547,13 @@ class Viewer(wx.Frame, MenuMixin):
         self.SetMenuBar(self.menubar)
         
     
-    def InitUI(self):
+    def buildUI(self):
         """
         """
         self.root = self
         self.timeDisplays = []
         
         self.SetIcon(images.icon.GetIcon())
-#         self.SetIcon(wx.Icon("images/ssx_icon_white.png", 
-#                              wx.BITMAP_TYPE_PNG))
         
         self.SetMinSize((320,240))
         
@@ -1585,7 +1584,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.enableChildren(False)
 
-        self.InitMenus()
+        self.buildMenus()
 
 
     def enableMenus(self, enabled=True):
@@ -1822,7 +1821,11 @@ class Viewer(wx.Frame, MenuMixin):
         
     
     def exportCsv(self, evt=None):
-        """ Export the active plot view's data as CSV.
+        """ Export the active plot view's data as CSV. after getting input from
+            the user (range, window size, etc.).
+            
+            @keyword evt: An event (not actually used), making this method
+                compatible with event handlers.
         """
         dlg = CSVExportDialog(self, -1, "Export CSV", root=self)
         result = dlg.ShowModal()
@@ -1878,13 +1881,18 @@ class Viewer(wx.Frame, MenuMixin):
         self.drawingSuspended = False
 
 
-    def renderFFT(self):
-        """
+    def renderFFT(self, evt=None):
+        """ Create a 1D FFT plot after getting input from the user (range,
+            window size, etc.).
+            
+            @keyword evt: An event (not actually used), making this method
+                compatible with event handlers.
         """
         dlg = FFTExportDialog(self, -1, "Render FFT", root=self)
         result = dlg.ShowModal()
         subchannels = dlg.getSelectedChannels()
         startTime, stopTime = dlg.getExportRange()
+        sliceSize = dlg.windowSize
         dlg.Destroy()
         
         if result == wx.ID_CANCEL:
@@ -1909,14 +1917,19 @@ class Viewer(wx.Frame, MenuMixin):
                 return
         
         title = "FFT: %s (%ss to %ss)" % (
-            ", ".join([c.name for c in subchannels]), 
-            startTime * self.timeScalar, 
-            stopTime * self.timeScalar)
+                                      ", ".join([c.name for c in subchannels]), 
+                                      startTime * self.timeScalar, 
+                                      stopTime * self.timeScalar)
         viewId = wx.NewId()
-        view = fft.FFTView(self, viewId, title=title, size=self.GetSize(), 
-                           root=self, sources=subchannels, 
-                           start=startTime, end=stopTime)
-        self.fftViews[viewId] = view
+        
+        try:
+            view = fft.FFTView(self, viewId, title=title, size=self.GetSize(), 
+                               root=self, sources=subchannels, 
+                               start=startTime, end=stopTime,
+                               sliceSize=sliceSize)
+            self.fftViews[viewId] = view
+        except Exception as e:
+            self.handleException(e, what="generating FFT")
         
 
         
@@ -1963,24 +1976,12 @@ class Viewer(wx.Frame, MenuMixin):
             else:
                 openNew = self.ask("Are you sure you want to close the "
                                    "current file and open another?", 
-                                   "Open File")
+                                   "Open File", style=wx.YES_NO|wx.CANCEL)
                 if openNew == wx.ID_YES:
                     self.openFile(filename)
             
         # Note to self: do this last!
         dlg.Destroy()
-
-
-    def OnFileExportMenu(self, evt):
-        """ Handle File->Export menu events.
-        """
-        self.exportCsv()
-
-
-    def OnFileRenderFFTMenu(self, evt):
-        """ Handle File->Render FFT menu events.
-        """
-        self.renderFFT()
 
 
     def OnFileExitMenu(self, evt):
@@ -2012,13 +2013,15 @@ class Viewer(wx.Frame, MenuMixin):
         wx.AboutBox(info)
     
 
-    def DEBUG_OnToggleAA(self, evt):
+    def OnToggleAA(self, evt):
         self.antialias = evt.IsChecked()
         self.plotarea.redraw()
         
-    def DEBUG_OnToggleNoise(self, evt):
+
+    def OnToggleNoise(self, evt):
         if evt.IsChecked():
-            self.noisyResample = RESAMPLING_JITTER
+            self.noisyResample = self.app.getPref('resamplingJitter', 
+                                                  RESAMPLING_JITTER)
         else:
             self.noisyResample = 0
         self.plotarea.redraw()
@@ -2136,8 +2139,8 @@ class Viewer(wx.Frame, MenuMixin):
             msg = ""
         else:
             units = self.units[1] if units is None else units
-            msg = u"X: %.6f %s" % (self.timeline.getValueAt(pos) * self.timeScalar,
-                                   units)
+            msg = self.xFormatter % (
+                        self.timeline.getValueAt(pos) * self.timeScalar, units)
         self.statusBar.SetStatusText(msg, self.statusBar.xFieldNum)
         
     
@@ -2151,7 +2154,7 @@ class Viewer(wx.Frame, MenuMixin):
         if pos is None:
             msg = ""
         else:
-            msg = u"Y: %.6f %s" % (pos, units)
+            msg = self.yFormatter % (pos, units)
         self.statusBar.SetStatusText(msg, self.statusBar.yFieldNum)
         
 
@@ -2267,7 +2270,13 @@ class ViewerApp(wx.App):
         'plotColors': {"00.0": "BLUE",
                        "00.1": "GREEN",
                        "00.2": "RED",
+                       "01.0": "DARK GREEN",
+                       "01.1": "VIOLET"
         },
+        'precisionX': 4,
+        'precisionY': 4,
+        'resamplingJitter': RESAMPLING_JITTER,
+        'antialiasingResampling': ANTIALIASING_MULTIPLIER,
         'locale': 'English_United States.1252',
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'fileHistory': {},

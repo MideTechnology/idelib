@@ -59,7 +59,7 @@ class CheckboxMessageDialog(GenericMessageDialog):
                                                     agwStyle, pos=pos, 
                                                     size=size, style=style,
                                                     wrap=wrap)
-        
+        print self.Children
 
     def CreateSeparatedButtonSizer(self, flags):
         """ Create a sizer for the standard buttons; also add the checkbox
@@ -106,7 +106,7 @@ if True or __name__ == '__main__':
     msg = "This is a test of the checkbox dialog.\n\n%s" %\
         " ".join((l.strip() for l in CheckboxMessageDialog.__doc__.split('\n')))
     dlg = CheckboxMessageDialog(frame, msg, "Confirm", 
-                                wx.ICON_INFORMATION|wx.YES|wx.NO, 
+                                wx.ICON_INFORMATION|wx.OK,#wx.YES|wx.NO, 
                                 style=wx.CAPTION, wrap=300, 
                                 check=foo).ShowModal()
     print "Dialog returned %r" % dlg

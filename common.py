@@ -1,4 +1,6 @@
 '''
+Controls, dialogs, and other things used by multiple files. 
+
 Created on Dec 31, 2013
 
 @author: dstokes
@@ -58,9 +60,6 @@ class StatusBar(wx.StatusBar):
 
         self.SetFieldsCount(self.numFields)
         self.SetStatusWidths(fieldWidths)
-
-#         self.SetStatusText("Welcome to %s v%s" % (APPNAME, __version__), 
-#                            self.messageFieldNum)
 
         self.Bind(wx.EVT_SIZE, self.repositionProgressBar)
         self.Bind(wx.EVT_BUTTON, self.OnCancelClicked, self.cancelButton)

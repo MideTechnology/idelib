@@ -1,4 +1,6 @@
 '''
+A utility script/module for converting XML to EBML and back. 
+
 Created on Dec 20, 2013
 
 @author: dstokes
@@ -11,7 +13,7 @@ from StringIO import StringIO
 import xml.dom.minidom
 
 from ebml import core as ebml_core
-from util import getSchemaElements, getSchemaDocument, ENCODERS
+from util import getSchemaElements, getSchemaDocument, getElementSizes, ENCODERS
 
 DEFAULT_SCHEMA = "ebml.schema.mide"
 
@@ -34,21 +36,8 @@ TYPES = {
 }
 
 
-def getSizeList(schema):
-    """
-    """
-    results = {}
-    filename = schema.split('.')[-1] + ".xml"
-    doc = xml.dom.minidom.parseString(pkgutil.get_data(schema, filename))
-    for el in doc.getElementsByTagName('element'):
-        name = el.getAttribute('name')
-        length = el.getAttribute('length')
-        if name and length:
-            results[name] = int(length)
-    return results
-
-
-def encode_container(data, length=None, elements=None, sizes={}):
+def encode_container(data, length=None, elements=None, sizes={}, 
+                     schema=DEFAULT_SCHEMA):
     """ EBML encoder for a 'container' (i.e. 'master') element, compatible with
         the `ebml.core` encoding methods for primitive types. Recursively calls 
         other encoders for its contents. 
@@ -61,7 +50,8 @@ def encode_container(data, length=None, elements=None, sizes={}):
     
     for c in data.childNodes:
         if c.nodeType != c.TEXT_NODE:
-            result.extend(build_ebml(c, elements=elements, sizes=sizes))
+            result.extend(build_ebml(c, elements=elements, sizes=sizes,
+                                     schema=schema))
             
     return result
 
@@ -71,19 +61,17 @@ def build_ebml(xmlElement, schema=DEFAULT_SCHEMA, elements=None, sizes=None):
         data. Operates recursively. Note that this function does not do any 
         significant type-checking, nor does it check against the schema.
         
-        @param name: The name of the EBML element to create. It must match
-            one defined in the Mide schema.
-        @param value: The value for the EBML element. For non-"multiple" 
-            elements, it can be either a primitive type or a dictionary. For 
-            "multiple" elements, it can be a list of identically-typed items;
-            each item will become its own element of the specified type, in the
-            same order as elements in the list.
+        @param xmlElement: 
+        @keyword schema: The full Python name of the module containing the
+            schema. It must be in the current `PYTHONPATH`!
+        @keyword elements:
+        @keyword sizes: 
         @return: A `bytearray` containing the raw binary EBML.
     """
     if elements is None:
         elements = getSchemaElements(schema)
     if sizes is None:
-        sizes = getSizeList(schema)
+        sizes = getElementSizes(schema)
         
     name, value = xmlElement.tagName, xmlElement.getAttribute('value')
     
@@ -97,7 +85,8 @@ def build_ebml(xmlElement, schema=DEFAULT_SCHEMA, elements=None, sizes=None):
     elementId = elementClass.id
     
     if elementClass.type == CONTAINER:
-        payload = encode_container(xmlElement, elements=elements, sizes=sizes)
+        payload = encode_container(xmlElement, elements=elements, sizes=sizes,
+                                   schema=schema)
     else:
         elementEncoder = ENCODERS[elementClass.type]
         elementTyper = TYPES[elementClass.type]
@@ -158,6 +147,8 @@ def dumpXml(ebmldoc, indent=0, tabsize=2):
 
 
 def readEbml(data, schema=DEFAULT_SCHEMA):
+    """ Wrapper for reading a file or set of bytes as EBML.
+    """
     if isinstance(data, bytearray):
         stream = StringIO(data)
     else:

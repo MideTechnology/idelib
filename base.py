@@ -69,6 +69,14 @@ class ViewerPanel(wx.Panel):
     """
     
     def __init__(self, *args, **kwargs):
+        """ Constructor. Takes the standard `wx.Panel` arguments, plus:
+        
+            @keyword root: 
+            @keyword visibleRange: 
+            @keyword timerange: 
+            @keyword defaultButtonStyle: 
+            @keyword defaultSizerFlags: 
+        """
         self.root = kwargs.pop('root', None)
         self.visibleRange = kwargs.pop('visibleRange',(1.0,-1.0))
         self.timerange = kwargs.pop('timerange',(0,10**6))
