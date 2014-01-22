@@ -11,13 +11,17 @@ Created on Dec 10, 2013
 from collections import Sequence
 
 from ebml import core as ebml_core
-from ebml.schema import mide as mide_schema
+from ebml.schema import base as schema_base
+# from ebml.schema import mide as mide_schema
+
+import importlib
 
 #===============================================================================
 # Element types and encoding schemes
 #===============================================================================
 
-def encode_container(data, length=None):
+def encode_container(data, length=None, schema="ebml.schema.mide", 
+                     elements=None):
     """ EBML encoder for a 'container' (i.e. 'master') element, compatible with
         the `ebml.core` encoding methods for primitive types. Recursively calls 
         other encoders for its contents. 
@@ -33,7 +37,7 @@ def encode_container(data, length=None):
         data = data.items()
     for child in data:
         if child[1] is not None:
-            result.extend(build_ebml(*child))
+            result.extend(build_ebml(*child, schema=schema, elements=elements))
     return result
 
 
@@ -64,14 +68,31 @@ ENCODERS = {
 }
 
 # Mapping of all Mide element type names to their respective classes
-MIDE_ELEMENTS = dict(((k[:-7],v) for k,v in mide_schema.__dict__.iteritems() \
-                      if k.endswith("Element")))
+# MIDE_ELEMENTS = dict(((k[:-7],v) for k,v in mide_schema.__dict__.iteritems() \
+#                       if k.endswith("Element")))
+
+def getSchemaElements(schema="ebml.schema.mide"):
+    """
+    """
+    schemaMod = importlib.import_module(schema)
+    return dict(((k[:-7],v) for k,v in schemaMod.__dict__.iteritems() \
+                 if k.endswith("Element")))
+
+
+def getSchemaDocument(schema="ebml.schema.mide"):
+    """
+    """
+    schemaMod = importlib.import_module(schema)
+    for k,v in schemaMod.__dict__.iteritems():
+        if k.endswith("Document"):
+            return v
+    return None
 
 #===============================================================================
 # Writing EBML
 #===============================================================================
 
-def build_ebml(name, value):
+def build_ebml(name, value, schema="ebml.schema.mide", elements=None):
     """ Construct an EBML element of the given type containing the given
         data. Operates recursively. Note that this function does not do any 
         significant type-checking, nor does it check against the schema.
@@ -85,9 +106,12 @@ def build_ebml(name, value):
             same order as elements in the list.
         @return: A `bytearray` containing the raw binary EBML.
     """
-    if name not in MIDE_ELEMENTS:
+    if elements is None:
+        elements = getSchemaElements(schema)
+        
+    if name not in elements:
         raise TypeError("Unknown element type: %r" % name)
-    elementClass = MIDE_ELEMENTS[name]
+    elementClass = elements[name]
     if elementClass.type not in ENCODERS:
         raise NotImplementedError("No encoder for element type %r" % name)
     
@@ -97,10 +121,13 @@ def build_ebml(name, value):
     if not isinstance(value, basestring) and isinstance(value, Sequence):
         payload = bytearray()
         for v in value:
-            payload.extend(build_ebml(name, v))
+            payload.extend(build_ebml(name, v, schema, elements))
         return payload
     
-    payload = elementEncoder(value)
+    if elementClass.type == CONTAINER:
+        payload = elementEncoder(value, schema=schema, elements=elements)
+    else:
+        payload = elementEncoder(value)
     
     result = ebml_core.encode_element_id(elementId)
     result.extend(ebml_core.encode_element_size(len(payload)))
@@ -133,15 +160,24 @@ def read_ebml(elements):
     return result
             
     
-def dump_ebml(el, indent=0):
-    """ Testing: crawl an EBML file and dump its contents. """
-    print ("%s%s:" % ("    "*indent, el.name)),
+def dump_ebml(el, indent=0, tabsize=4):
+    """ Testing: Crawl an EBML Document and dump its contents, showing the 
+        stream offset, name, and value of each child element. 
+    """
+    if isinstance(el, schema_base.Document):
+        print "offset  name/value"
+        print "------  --------------------------------"
+        for r in el.iterroots():
+            dump_ebml(r, indent, tabsize)
+        return
+    
+    print ("%6d  %s%s:" % (el.stream.offset," "*indent, el.name)),
     if not el.children:
         print "%r" % el.value
     else:
         print ""
         for child in el.value:
-            dump_ebml(child, indent+1) 
+            dump_ebml(child, indent+tabsize) 
 
 
 #===============================================================================
@@ -152,12 +188,12 @@ if __name__ == "__main__":
     # TODO: Move this testing into a real unit test.
     from pprint import pprint
     from StringIO import StringIO
-    from mide_ebml.dataset import MideDocument
+    from dataset import MideDocument
     
     print "\n*** Testing configuration EBML input and output"
     
     def uglyprint(*args, **kwargs):
-        print args[0]
+        print repr(args[0])
         
     def testWriteRead(parentElementName, children, pretty=True):
         printer = pprint if pretty else uglyprint
@@ -170,15 +206,18 @@ if __name__ == "__main__":
         config = build_ebml(parentElementName, children)
         printer(config)
         
-        print "\n*** Creating MideDocument from data:"
+        print "\n*** Creating MideDocument from data: ",
         doc = MideDocument(StringIO(config))
         printer(doc)
         
-        print "\n*** Reading data from generated EBML document:"
+        print "*** Document structure:"
+        dump_ebml(doc)
+        
+        print "\n*** Parsed Data:"
         readConfig = read_ebml(doc.roots)[parentElementName]
         printer(readConfig)
         
-        print "\n*** Comparing the output to the input..."
+        print "\n*** Comparing the output to the input...", 
         try:
             assert(readConfig == children)
             print "Input matches the output!"

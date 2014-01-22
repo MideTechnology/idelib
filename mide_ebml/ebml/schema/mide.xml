@@ -92,8 +92,8 @@ default="123" or a text value that may or may not be the name of another tag
   
     <element name="RecordingProperties" level="0" id="0x18526570" type="master" mandatory="0" multiple="0" minver="1">Master element for the RecordingProperties branch of the file, if present.</element>  
 		<element name="RecorderInfo" level="1" id="0x5210" type="master" mandatory="0" multiple="0" minver="1">Master element for the RecorderInfo items (ID, etc.).</element>  
-			<element name="RecorderTypeUID" level="2" id="0x5211" type="uinteger" mandatory="0" multiple="0" minver="1">Unique Type ID assigned to each recorder variation. May be used to lookup remaining RecordingProperties when streaming.</element>
-			<element name="RecorderSerial" level="2" id="0x5212" type="uinteger" mandatory="0" multiple="0" minver="1">Recorder unique serial number</element>
+			<element name="RecorderTypeUID" level="2" id="0x5211" type="uinteger" mandatory="0" multiple="0" minver="1" length="4">Unique Type ID assigned to each recorder variation. May be used to lookup remaining RecordingProperties when streaming.</element>
+			<element name="RecorderSerial" level="2" id="0x5212" type="uinteger" mandatory="0" multiple="0" minver="1" length="8">Recorder unique serial number</element>
 			<element name="SchemaID" level="2" id="0x5213" type="uinteger" mandatory="0" multiple="0" minver="1">ID referencing Schema in use by recorder</element>
 			<element name="ProductName" level="2" id="0x5214" type="string" mandatory="0" multiple="0" minver="1">Product designation of the recording device</element>
 			<element name="UserDeviceName" level="2" id="0x5215" type="string" mandatory="0" multiple="0" minver="1">Text name of this recorder, if any. Probably set by the user.</element>

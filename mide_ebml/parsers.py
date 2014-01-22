@@ -543,7 +543,10 @@ class ChannelDataBlock(BaseDataBlock):
     def payload(self):
         # 'value' is actually a property that does the file seek, so it (and
         # not a reference to a child element) has to be used every time.
-        return self.element.value[self._payloadIdx]
+        try:
+            return self.element.value[self._payloadIdx]
+        except Exception, e:
+            print " ".join(map(str,["bad _payloadIdx:", self.element.name, "channel:", self.channel, "fpos:", self.element.stream.offset, "children:",self.element.value])) 
     
     
     def getHeader(self):

@@ -1,10 +1,15 @@
 '''
-Created on Nov 21, 2013
+Dialogs for exporting data: selecting channels, time range, progress, et cetera.
 
+@todo: Validate time fields.
+
+Created on Nov 21, 2013
 @author: dstokes
 '''
 
 import locale
+
+import time
 
 import wx.lib.agw.customtreectrl as CT
 import wx; wx=wx
@@ -148,10 +153,10 @@ class ExportDialog(sc.SizedDialog):
 
         warnPane = sc.SizedPanel(pane,-1)
         warnPane.SetSizerType("horizontal")
-        self.rangeWarnIcon = wx.StaticBitmap(warnPane, -1, self.noBmp)
-        self.rangeWarnMsg = wx.StaticText(warnPane,-1,"")
-        self.rangeWarnMsg.SetForegroundColour("RED")
-        self.rangeWarnMsg.SetSizerProps(valign="center")
+        self.warningIcon = wx.StaticBitmap(warnPane, -1, self.noBmp)
+        self.warningMsg = wx.StaticText(warnPane,-1,"")
+        self.warningMsg.SetForegroundColour("RED")
+        self.warningMsg.SetSizerProps(valign="center")
         warnPane.SetSizerProps(expand=True)
         rangePane.SetSizerProps(expand=True)
         wx.StaticLine(pane, -1).SetSizerProps(expand=True)
@@ -185,7 +190,8 @@ class ExportDialog(sc.SizedDialog):
         self.rangeStartT.SetValue(str(scaledVisRange[0]))
         self.rangeEndT.SetValue(str(scaledVisRange[1]))
         self.rangeBtns[0].SetLabel("All %s" % self._formatRange(scaledRange))
-        self.rangeBtns[1].SetLabel("Visible Time Range %s" % self._formatRange(scaledVisRange))
+        self.rangeBtns[1].SetLabel("Visible Time Range %s" % \
+                                   self._formatRange(scaledVisRange))
         
         w,_ = self.GetSize()
         for r in self.rangeBtns[:2]:
@@ -216,7 +222,8 @@ class ExportDialog(sc.SizedDialog):
         else:
             ct_type = defaultType
             
-        childItem = self.tree.AppendItem(parentItem, obj.name, ct_type=ct_type, data=obj)
+        childItem = self.tree.AppendItem(parentItem, obj.name, ct_type=ct_type, 
+                                         data=obj)
         if ct_type == CT.TREE_ITEMTYPE_CHECK or self.tree.GetPrevSibling(childItem) is None:
             childItem.Set3StateValue(wx.CHK_CHECKED)
         for c in obj.children:
@@ -229,14 +236,24 @@ class ExportDialog(sc.SizedDialog):
         """ Get all selected (sub-)channels. Recursive. Don't call with
             arguments. 
         """
-        _item = self.treeRoot if _item is None else _item
+        t0 = time.time()
+        if _item is None:
+            print "*"*40, t0
+        parentItem = self.treeRoot if _item is None else _item
         _selected = [] if _selected is None else _selected
-        for subitem in _item.GetChildren():
+        if _item is not None and not _item.IsChecked():
+            return _selected
+        for subitem in parentItem.GetChildren():
+            print "subitem label:", subitem.GetText(), "enabled:", subitem.IsEnabled()
+            if not subitem.IsEnabled():
+                continue
             if subitem.HasChildren() and subitem.IsChecked():
                 self.getSelectedChannels(subitem, _selected)
-            elif subitem.IsChecked():
+            elif subitem.IsChecked() and subitem.IsEnabled():
                 _selected.append(subitem.GetData())
                 
+        if _item is None:
+            print "*"*40, t0
         return _selected
     
     
@@ -291,25 +308,31 @@ class ExportDialog(sc.SizedDialog):
         """
         if icon is not None:
             bmp = wx.ArtProvider.GetBitmap(icon, wx.ART_CMN_DIALOG, (16,16))
-            self.rangeWarnIcon.Show()
-            self.rangeWarnIcon.SetBitmap(bmp)
-        self.rangeWarnMsg.SetLabel(msg)
-        self.rangeWarnMsg.Show()
+            self.warningIcon.Show()
+            self.warningIcon.SetBitmap(bmp)
+        self.warningMsg.SetLabel(msg)
+        self.warningMsg.Show()
 
 
     def hideWarning(self):
         """ Hide the export range warning.
         """
-        self.rangeWarnMsg.SetLabel("")
-        self.rangeWarnIcon.Hide()
-        self.rangeWarnMsg.Hide()
+        self.warningMsg.SetLabel("")
+        self.warningIcon.Hide()
+        self.warningMsg.Hide()
 
 
-    def updateMessages(self, event=None):
-        """
+    def updateMessages(self, event=None, treeItem=None):
+        """ Update the number of selected channels and time range messages.
+        
+            @keyword event: a `wx.Event`, so this method can be used as an
+                event handler.
+            @keyword item: The selected parent item in the tree. Used by the
+                tree item check handler to work around an issue detecting
+                selected items. Do not use.
         """
         numEvents = 0
-        channels = self.getSelectedChannels()
+        channels = self.getSelectedChannels(_item=treeItem)
         self.showColumnsMsg(len(channels))
         if len(channels) > 0:
             numEvents = self.getEventCount()
@@ -372,14 +395,14 @@ class ExportDialog(sc.SizedDialog):
     def OnTreeItemSelected(self, evt):
         """ Event handler for tree item selection.
         """
-        evt.Skip()
         # This song-and-dance is to get around the fact that when the checked
         # item changes, both the previous and new items are considered
         # checked until the event finishes processing.
         treeItem = evt.GetItem()
         if treeItem.GetChildrenCount() == 0:
             treeItem = treeItem.GetParent()
-        self.updateMessages()
+            
+        self.updateMessages(treeItem=treeItem)
 
 #===============================================================================
 # 

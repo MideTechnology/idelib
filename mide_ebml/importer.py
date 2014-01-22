@@ -80,7 +80,7 @@ default_sensors = {
                                           },
                                     },
                        },
-                0x40: {"name": "Pressure/Temperature",
+                0x01: {"name": "Pressure/Temperature",
                        "parser": parsers.MPL3115PressureTempParser(),
                        "subchannels": {0: {"name": "Pressure", 
                                            "units":('kPa','kPa'),
@@ -92,12 +92,12 @@ default_sensors = {
                                            }
                                        },
                        },
-                0x43: {"name": "DEBUG Crystal Drift",
-                       "parser": struct.Struct(">II") 
-                       },
-                0x45: {"name": "DEBUG Gain/Offset",
-                       "parser": struct.Struct("<i"), 
-                       },
+#                 0x43: {"name": "DEBUG Crystal Drift",
+#                        "parser": struct.Struct(">II") 
+#                        },
+#                 0x45: {"name": "DEBUG Gain/Offset",
+#                        "parser": struct.Struct("<i"), 
+#                        },
                 },
            },
 }
