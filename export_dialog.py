@@ -236,15 +236,11 @@ class ExportDialog(sc.SizedDialog):
         """ Get all selected (sub-)channels. Recursive. Don't call with
             arguments. 
         """
-        t0 = time.time()
-        if _item is None:
-            print "*"*40, t0
         parentItem = self.treeRoot if _item is None else _item
         _selected = [] if _selected is None else _selected
         if _item is not None and not _item.IsChecked():
             return _selected
         for subitem in parentItem.GetChildren():
-            print "subitem label:", subitem.GetText(), "enabled:", subitem.IsEnabled()
             if not subitem.IsEnabled():
                 continue
             if subitem.HasChildren() and subitem.IsChecked():
@@ -252,8 +248,6 @@ class ExportDialog(sc.SizedDialog):
             elif subitem.IsChecked() and subitem.IsEnabled():
                 _selected.append(subitem.GetData())
                 
-        if _item is None:
-            print "*"*40, t0
         return _selected
     
     

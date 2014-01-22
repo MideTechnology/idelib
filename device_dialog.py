@@ -80,7 +80,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
         self.list.SetSizerProps(expand=True, proportion=1)
 
-        self.infoText = wx.StaticText(pane, -1, "This is maybe\na multi-line\ntext thing")
+        self.infoText = wx.StaticText(pane, -1, "Selected device information here.")#"This is maybe\na multi-line\ntext thing")
         self.infoText.SetSizerProps(expand=True)
         
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))

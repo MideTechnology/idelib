@@ -120,7 +120,7 @@ def readXml(filename, schema=DEFAULT_SCHEMA):
     """
     with open(filename,'rb') as f:
         doc = xml.dom.minidom.parse(f)
-    
+        
     result = bytearray()
     for c in doc.childNodes:
         if c.nodeType == c.ELEMENT_NODE:

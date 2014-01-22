@@ -265,7 +265,7 @@ class ConfigDialog(sc.SizedDialog):
         super(ConfigDialog, self).__init__(*args, **kwargs)
         
         # Dummy info
-        self.recorderInfo = {"RecorderTypeUID": 0xDEFECA73,
+        self.recorderInfo = {"RecorderTypeUID": 0x000DEFEC,
                              "RecorderSerial": 0xD1DAC71C,
                              "SchemaID": 0x01,
                              "ProductName": "Slam Stick X",
