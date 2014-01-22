@@ -224,7 +224,7 @@ class Timeline(ViewerPanel):
     _minThumbSize = 100
     
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel arguments plus:
+        """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
             @keyword root: The viewer's 'root' window.
             @keyword timerange: The default time range, in microseconds. 
@@ -424,7 +424,7 @@ class TimeNavigator(ViewerPanel):
     """
     
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel arguments plus:
+        """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
             @keyword root: The viewer's 'root' window.
             @keyword timerange: The default time range, in microseconds. 
@@ -586,7 +586,7 @@ class LegendArea(ViewerPanel):
     """
     
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel arguments plus:
+        """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
             @keyword root: The viewer's 'root' window.
         """
@@ -725,7 +725,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     """
     
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel arguments plus:
+        """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
             @keyword root: The viewer's 'root' window.
         """
@@ -1024,7 +1024,7 @@ class Plot(ViewerPanel):
     _minThumbSize = 100
     
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel arguments plus:
+        """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
             @keyword root: The viewer's 'root' window.
             @keyword source: The source of data for the plot (i.e. a
@@ -1268,7 +1268,7 @@ class PlotSet(aui.AuiNotebook):
     """
     
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel arguments plus:
+        """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
             @keyword root: The viewer's 'root' window.
         """
@@ -1548,7 +1548,7 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel arguments plus:
+        """ Constructor. Takes the standard wx.Frame/MenuMixin arguments plus:
         
             @keyword app: The viewer's parent application.
         """
@@ -2395,6 +2395,21 @@ class ViewerApp(wx.App):
                         "Slam Stick X Data File (*.dat)|*.dat",
                         "All files (*.*)|*.*"],
         'exportTypes': ["Comma Separated Values (*.csv)|*.csv"],
+        'fileHistory': {},
+        'fileHistorySize': 10,
+        
+        # Precision display of numbers
+        'precisionX': 4,
+        'precisionY': 4,
+        
+        # Rendering
+        'antialiasing': False,
+        'antialiasingMultiplier': ANTIALIASING_MULTIPLIER,
+        'resamplingJitter': False,
+        'resamplingJitterAmount': RESAMPLING_JITTER,
+        'originHLineColor': wx.Colour(200,200,200),
+        'majorHLineColor': wx.Colour(220,220,220),
+        'minorHLineColor': wx.Colour(240,240,240),
         'defaultColors': ["RED",
                           "GREEN",
                           "BLUE",
@@ -2412,29 +2427,23 @@ class ViewerApp(wx.App):
                           "GOLD",
                           "BLACK",
                           "BLUE VIOLET"],
+        # TODO: Stop using defaultColors, use plotColors instead (with default
+        #    as a set of colors for unknown devices/channels (there shouldn't be
+        #    any for this release of the software).
         'plotColors': {"00.0": "BLUE",
                        "00.1": "GREEN",
                        "00.2": "RED",
                        "01.0": "DARK GREEN",
                        "01.1": "VIOLET"
         },
-        'precisionX': 4,
-        'precisionY': 4,
-        'antialiasing': False,
-        'antialiasingMultiplier': ANTIALIASING_MULTIPLIER,
-        'resamplingJitter': False,
-        'resamplingJitterAmount': RESAMPLING_JITTER,
+
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name
 #         'locale': 'English_United States.1252', # Python's locale name string
         'loader': dict(numUpdates=100, updateInterval=1.0),
-        'fileHistory': {},
-        'fileHistorySize': 10,
-        'originHLineColor': wx.Colour(200,200,200),
-        'majorHLineColor': wx.Colour(220,220,220),
-        'minorHLineColor': wx.Colour(240,240,240),
         'warnBeforeQuit': False, #True,
         'showDebugChannels': False,
-        
+
+        # WVR/SSX-specific parameters: the hardcoded warning range.        
         'wvr_tempMin': -20.0,
         'wvr_tempMax': 60.0,
     }
