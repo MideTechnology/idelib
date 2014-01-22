@@ -1171,8 +1171,10 @@ class Plot(ViewerPanel):
                                                     'hasDisplayRange', False) \
                                                     else scale
         
-        self.legend = LegendArea(self, -1, visibleRange=(max(*scale),min(*scale)))
-        self.plot = PlotCanvas(self, -1, color=color)#, style=wx.FULL_REPAINT_ON_RESIZE)
+        self.legend = LegendArea(self, -1, 
+                                 visibleRange=(max(*scale),min(*scale)))
+        self.plot = PlotCanvas(self, -1, color=color)#, 
+#                                style=wx.FULL_REPAINT_ON_RESIZE)
         self.scrollbar = wx.ScrollBar(self, -1, style=wx.SB_VERTICAL)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(self.legend, 0, wx.EXPAND)
@@ -1334,7 +1336,8 @@ class PlotSet(aui.AuiNotebook):
         return self.GetPage(p)
         
         
-    def addPlot(self, source, title=None, name=None, scale=None, color="BLACK", units=None):
+    def addPlot(self, source, title=None, name=None, scale=None, color="BLACK", 
+                units=None):
         """ Add a new Plot to the display.
         
             @param source: The source of data for the plot (i.e. a

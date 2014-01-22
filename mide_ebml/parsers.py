@@ -37,30 +37,11 @@ import sys
 import types
 
 import calibration
+from util import read_ebml
 
 #===============================================================================
 # 
-#===============================================================================
-
-def read_ebml(elements):
-    """ Reads a sequence of EBML elements and builds a (nested) dictionary,
-        keyed by element name. Elements marked as "multiple" in the schema
-        will produce a list containing one item for each element.
-    """
-    result = {}
-    if not isinstance(elements, Sequence):
-        elements = [elements]
-    for el in elements:
-        if isinstance(el.value, list) or el.children:
-            value = read_ebml(el.value)
-        else:
-            value = el.value
-        if el.multiple:
-            result.setdefault(el.name, []).append(value)
-        else:
-            result[el.name] = value
-    return result
-            
+#===============================================================================            
     
 def renameKeys(d, renamed, exclude=True, recurse=True):
     """ Create a new dictionary from and old one, using different keys.
@@ -639,6 +620,7 @@ class PolynomialParser(ElementHandler):
         
         return cal
 
+
 class UnivariatePolynomialParser(PolynomialParser):
     """ Parses a single-variable polynomial. 
     """
@@ -712,9 +694,6 @@ class SensorParser(ElementHandler):
         
         data = renameKeys(read_ebml(element.value), self.parameterNames)
         getXform(data)
-        
-        if "transform" in data:
-            data["transform"] = self.doc.transforms[data["transform"]]
         
         channels = data.pop("channels","")
         sensor = self.doc.addSensor(**data)

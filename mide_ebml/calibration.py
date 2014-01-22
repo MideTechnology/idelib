@@ -127,7 +127,7 @@ class Univariate(object):
         """ Apply the polynomial to an event. 
         
             @param event: The event to process (a time/value tuple or a
-                `Dataset.Event` named tuple).
+                `dataset.Event` named tuple).
             @keyword session: The session containing the event. Not used in
                 this transform.
         """

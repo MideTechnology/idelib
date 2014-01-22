@@ -4,107 +4,86 @@ Created on Dec 16, 2013
 @author: dstokes
 '''
 
-from numbers import Number
 import string
+import time
 
-import  wx.lib.scrolledpanel as scrolled
 import wx.lib.sized_controls as sc
 from wx.lib.masked import TimeCtrl
-import  wx.lib.rcsizer  as rcs
 
 import wx; wx = wx
+
 
 #===============================================================================
 # 
 #===============================================================================
 
-class TriggerPanel(wx.Panel):
-    """
-    """
-    
-    def __init__(self, *args, **kwargs):
-        self.root = kwargs.pop('root', None)
-        super(TriggerPanel, self,).__init__(*args, **kwargs)
-        
-
-
-class TriggerList(scrolled.ScrolledPanel):
-    pass
-
-
-class TriggerConfigPanel(wx.Panel):
+class BaseConfigPanel(sc.SizedPanel):
     """ A configuration dialog page with miscellaneous editable recorder
         properties.
     """
+
+    def addField(self, labelText, fieldText="" ,fieldSize=(-1,-1), 
+                 fieldStyle=None):
+        """ Helper method to create and configure a labeled text field. 
+        """
+        txt = unicode(fieldText)
+        c = wx.StaticText(self, -1, labelText)
+        c.SetSizerProps(valign="center")
+        if fieldStyle is None:
+            t = wx.TextCtrl(self, -1, txt, size=fieldSize)
+        else:
+            t = wx.TextCtrl(self, -1, txt, size=fieldSize, style=fieldStyle)
+        
+        return t
+    
+
+    def addCheckField(self, checkText, fieldText="", fieldSize=(-1,-1), 
+                      fieldStyle=None):
+        """ Helper method to create and configure checkbox/field pairs, and add
+            them to the set of controls.
+        """
+        txt = unicode(fieldText)
+        c = wx.CheckBox(self, -1, checkText)
+        c.SetSizerProps(valign="center")
+        if fieldStyle is None:
+            t = wx.TextCtrl(self, -1, txt, size=fieldSize)
+        else:
+            t = wx.TextCtrl(self, -1, txt, size=fieldSize, style=fieldStyle)
+        self.controls[c] = [t]
+        return c, t
+    
     
     def __init__(self, *args, **kwargs):
+        """
+        """
         self.root = kwargs.pop('root', None)
-        super(TriggerConfigPanel, self).__init__(*args, **kwargs)
-
+        super(BaseConfigPanel, self).__init__(*args, **kwargs)
+        
+        self.SetSizerType("form", {'hgap':10, 'vgap':10})
         self.controls = {}
-        outerSizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.SetSizer(outerSizer)
-        sizer = wx.FlexGridSizer(3,3,8,8)
-        outerSizer.Add(sizer, 1, wx.EXPAND|wx.ALL, border=10)
-        
-        wakeSizer = wx.BoxSizer(wx.HORIZONTAL)
-        self.wakeCheck = wx.CheckBox(self, -1, "Wake at specific time:")
-        self.wakeDateField = wx.DatePickerCtrl(self, size=(120,-1),
-            style = wx.DP_DROPDOWN)#|wx.DP_ALLOWNONE )
-        self.wakeTimeField = TimeCtrl(self, -1, fmt24hr=True)
-        self.wakeTimeSpin = wx.SpinButton(self, -1, 
-            size=(-1,self.wakeTimeField.GetSize().height), style=wx.SP_VERTICAL)
-        self.wakeTimeField.BindSpinButton(self.wakeTimeSpin)
-        sizer.Add(self.wakeCheck, -1, wx.ALIGN_CENTRE_VERTICAL)
-        sizer.Add(self.wakeDateField, -1, wx.EXPAND)
-        wakeSizer.Add(self.wakeTimeField, -1, wx.EXPAND)
-        wakeSizer.Add(self.wakeTimeSpin, 0, wx.EXPAND)
-        sizer.Add(wakeSizer, 2,0)
-        
-        self.controls[self.wakeCheck] = (self.wakeDateField, self.wakeTimeField, self.wakeTimeSpin)
-        
-        self.delayCheck = wx.CheckBox(self, -1, "Wake after delay:")
-        self.delayField = wx.TextCtrl(self, -1, size=self.wakeDateField.GetSize())
-#         self.delayUnitsList = wx.Choice(self, -1, choices=['Seconds','Minutes','Hours'])
-        sizer.Add(self.delayCheck, -1, wx.ALIGN_CENTRE_VERTICAL)
-        sizer.Add(self.delayField, -1, wx.EXPAND)
-#         sizer.Add(self.delayUnitsList, 0, wx.EXPAND)
-        sizer.Add(wx.BoxSizer())
-
-        self.controls[self.delayCheck] = (self.delayField, )#self.delayUnitsList)
-
-        self.timeCheck = wx.CheckBox(self, -1, "Limit recording time to:")
-        self.timeField = wx.TextCtrl(self, -1, size=self.wakeDateField.GetSize())
-        self.rearmCheck = wx.CheckBox(self, -1, "Re-triggerable")
-#         self.timeUnitsList = wx.Choice(self, -1, choices=['Seconds','Minutes','Hours'])
-        sizer.Add(self.timeCheck, -1, wx.EXPAND|wx.ALIGN_CENTRE_VERTICAL)
-        sizer.Add(self.timeField, -1, wx.EXPAND)
-        sizer.AddStretchSpacer()
-         
-        
-        sizer.Add(self.rearmCheck, -1, wx.EXPAND|wx.ALIGN_CENTRE_VERTICAL)
-        sizer.AddStretchSpacer()
-        sizer.AddStretchSpacer()
-        
-        self.controls[self.timeCheck] = (self.rearmCheck, )
-        
-        
-        
-        self.Bind(wx.EVT_DATE_CHANGED, self.OnDateChanged, self.wakeDateField)
+        self.buildUI()
+        self.initUI()
         self.Bind(wx.EVT_CHECKBOX, self.OnCheckChanged)
 
-        self.initUI()
+
+    def buildUI(self):
+        """ Create the UI elements within the page. Every subclass should
+            implement this. Called after __init__() and before initUI().
+        """
+        pass
 
 
     def initUI(self):
-        """
+        """ Do any setup work on the page. Most subclasses should override
+            this.
         """
         for c in self.controls:
             self.enableAll(c)
 
 
     def enableAll(self, checkbox, state=True):
-        """
+        """ Enable (or disable) all the other controls associated with a
+            checkbox.
         """
         for c in self.controls[checkbox]:
             c.Enable(checkbox.GetValue())
@@ -127,6 +106,60 @@ class TriggerConfigPanel(wx.Panel):
         return total
 
 
+    def OnCheckChanged(self, evt):
+        cb = evt.EventObject
+        if cb in self.controls:
+            self.enableAll(cb)
+
+#===============================================================================
+# 
+#===============================================================================
+
+class TriggerConfigPanel(BaseConfigPanel):
+    """ A configuration dialog page with miscellaneous editable recorder
+        properties.
+    """
+
+    def buildUI(self):
+        self.wakeCheck = wx.CheckBox(self, -1, "Wake at specific time:")
+        self.wakeCheck.SetSizerProps(valign='center')
+        wakePane = sc.SizedPanel(self, -1)
+        wakePane.SetSizerType("horizontal")
+        self.wakeDateField = wx.DatePickerCtrl(wakePane, style=wx.DP_DROPDOWN)
+        self.wakeTimeField = TimeCtrl(wakePane, -1, fmt24hr=True)
+        fieldSize = self.wakeDateField.GetSize()
+        self.wakeTimeSpin = wx.SpinButton(wakePane, -1, 
+            size=(-1,fieldSize.height), style=wx.SP_VERTICAL)
+        self.wakeTimeField.BindSpinButton(self.wakeTimeSpin)
+        
+        self.controls[self.wakeCheck] = [self.wakeDateField, self.wakeTimeField,
+                                         self.wakeTimeSpin]
+        
+        self.delayCheck, self.delayField = \
+            self.addCheckField("Wake After Delay:", fieldSize=fieldSize)
+
+        self.timeCheck, self.timeField = \
+            self.addCheckField("Limit recording time to:", fieldSize=fieldSize)
+        
+        self.rearmCheck = wx.CheckBox(self, -1, "Re-triggerable")
+        sc.SizedPanel(self, -1)
+        
+        self.controls[self.timeCheck].append(self.rearmCheck)
+        
+        self.accelTriggerCheck, self.accelTriggerField = \
+            self.addCheckField("Accelerometer Trigger (High):", "", fieldSize)
+        self.pressLoTrigger, self.pressLoTrigger = \
+            self.addCheckField("Pressure Trigger (Low)", "", fieldSize)
+        self.pressHiTrigger, self.pressHiTrigger = \
+            self.addCheckField("Pressure Trigger (High)", "", fieldSize)
+        self.tempLoTrigger, self.tempLoTrigger = \
+            self.addCheckField("Temperature Trigger (Low)", "", fieldSize)
+        self.tempHiTrigger, self.tempHiTrigger = \
+            self.addCheckField("Temperature Trigger (High)", "", fieldSize)
+
+        self.Bind(wx.EVT_DATE_CHANGED, self.OnDateChanged, self.wakeDateField)
+
+
     def OnDateChanged(self, evt):
         evt.Skip()
 
@@ -144,28 +177,26 @@ class TriggerConfigPanel(wx.Panel):
 # 
 #===============================================================================
 
-class OptionsPanel(sc.SizedPanel):
+class OptionsPanel(BaseConfigPanel):
     """ A configuration dialog page with miscellaneous editable recorder
         properties.
     """
     
-    def __init__(self, *args, **kwargs):
-        self.root = kwargs.pop("root", None)
-        super(OptionsPanel,self).__init__(*args, **kwargs)
-        self.SetSizerType("form")#, {'hgap':10, 'vgap':10})
-        
-        wx.StaticText(self, -1, "Device Name:").SetSizerProps(valign='center')
-        self.nameField = wx.TextCtrl(self, -1, "Slam Stick X")
+    def buildUI(self):
+        self.nameField = self.addField("Device Name:")
         self.nameField.SetSizerProps(expand=True)
+
+        self.noteField = self.addField("Device Notes:", 
+                                       fieldStyle=wx.TE_MULTILINE)
+        noteSize = self.noteField.GetSize()
+        self.noteField.SetSize((noteSize[0], noteSize[1]*3))
+        self.noteField.SetSizerProps(expand=True)
       
-        sc.SizedPanel(self, -1)
-        sc.SizedPanel(self, -1)
-        
-        self.samplingCheck = wx.CheckBox(self, -1, "Sampling Frequency:")
-        self.samplingField = wx.TextCtrl(self, -1, "5000")
+        self.samplingCheck, self.samplingField = \
+            self.addCheckField("Sampling Rate:",)
         
         self.oversamplingCheck = wx.CheckBox(self, -1, "Oversampling")
-        sc.SizedPanel(self, -1)
+        sc.SizedPanel(self, -1) # Spacer
  
         self.timeBtn = wx.Button(self, -1, "Set Device Time")
         self.timeBtn.SetSizerProps(expand=True)
@@ -175,46 +206,49 @@ class OptionsPanel(sc.SizedPanel):
                       ).SetSizerProps(valign='center')
         self.utcOffsetField = wx.TextCtrl(timeFieldPane, -1, "999")
         self.localTimeBtn = wx.Button(timeFieldPane, -1, "Get Local")
+        self.localTimeBtn.SetToolTipString(time.tzname[time.daylight])
         
         self.Fit()
         
+        self.timeBtn.Bind(wx.EVT_BUTTON, self.OnSetTime)
+        self.localTimeBtn.Bind(wx.EVT_BUTTON, self.OnSetTZ)
+
+
+    def OnSetTime(self, event):
+        pass
+    
+    def OnSetTZ(self, event):
+        val = str(time.timezone / 60 / 60) 
+        self.utcOffsetField.SetValue(val)
+
 #===============================================================================
 # 
 #===============================================================================
         
-class InfoPanel(sc.SizedPanel):
+class InfoPanel(TriggerConfigPanel):
     """ A configuration dialog page showing various read-only properties of
         a recorder.
     """
     
-    def __init__(self, *args, **kwargs):
-        self.root = kwargs.pop("root", None)
-        self.props = kwargs.pop("props", {})
-        
-        super(InfoPanel,self).__init__(*args, **kwargs)
-        self.SetSizerType("form", {'hgap':10, 'vgap':10})
-    
+    def buildUI(self):
         infoColor = wx.Colour(60,60,60)
         mono = wx.Font(10, wx.MODERN, wx.NORMAL, wx.NORMAL, False, 
                        u'monospace')
         
-        sc.SizedPanel(self, -1)
+        sc.SizedPanel(self, -1) # Spacer
         wx.StaticText(self, -1, "All values are read-only"
                       ).SetForegroundColour("RED")
         
-        for k,v in self.props.iteritems():
-            wx.StaticText(self, -1, '%s:' % k).SetSizerProps(valign='center')
-            
+        for k,v in self.root.recorderInfo.iteritems():
             if isinstance(v, int) or isinstance(v, long):
-                v = "0x%08x" % v
-            t = wx.TextCtrl(self, -1, unicode(v), style=wx.TE_READONLY)
+                v = "0x%08X" % v
+                
+            t = self.addField('%s:' % k, v, fieldStyle=wx.TE_READONLY)
             t.SetSizerProps(expand=True)
             t.SetFont(mono)
             t.SetForegroundColour(infoColor)
     
         self.Fit()
-
-
 
         
 #===============================================================================
@@ -230,13 +264,22 @@ class ConfigDialog(sc.SizedDialog):
         
         super(ConfigDialog, self).__init__(*args, **kwargs)
         
+        # Dummy info
+        self.recorderInfo = {"RecorderTypeUID": 0xDEFECA73,
+                             "RecorderSerial": 0xD1DAC71C,
+                             "SchemaID": 0x01,
+                             "ProductName": "Slam Stick X",
+                             "HwRev": 0x01,
+                             "FwRev": 0x01
+                             }
+        
         pane = self.GetContentsPane()
         
         self.notebook = wx.Notebook(pane, -1)
         
-        t = TriggerConfigPanel(self.notebook, -1)
-        p = OptionsPanel(self.notebook, -1)
-        info = InfoPanel(self.notebook, -1, props={"RecorderTypeUID": 12345})
+        t = TriggerConfigPanel(self.notebook, -1, root=self)
+        p = OptionsPanel(self.notebook, -1, root=self)
+        info = InfoPanel(self.notebook, -1, root=self)
 
         self.notebook.AddPage(p, "General")
         self.notebook.AddPage(t, "Triggers")
@@ -252,7 +295,17 @@ class ConfigDialog(sc.SizedDialog):
 # 
 #===============================================================================
 
+def configureRecorder(path):
+    """
+    """
+    dlg = ConfigDialog(None, -1, "Configure Device (%s)" % path)
+    dlg.ShowModal()    
+
+
+#===============================================================================
+# 
+#===============================================================================
+
 if True or __name__ == "__main__":
     app = wx.App()
-    dlg = ConfigDialog(None, -1, "Preferences", size=(640,480))
-    dlg.ShowModal()
+    configureRecorder("e:\\")

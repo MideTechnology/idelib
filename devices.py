@@ -146,3 +146,22 @@ if "win" in sys.platform:
     deviceChanged = win_deviceChanged
 
 
+#===============================================================================
+# 
+#===============================================================================
+
+class Recorder(object):
+    """
+    """
+    
+    @classmethod
+    def fromPath(cls, path):
+        """ 
+        """
+        return Recorder(path)
+
+
+    def __init__(self, path=None):
+        self.path = path
+        
+        

@@ -230,5 +230,5 @@ else:
 
 __all__ = filter(lambda x: not(x.startswith("_") or x.startswith('wx')),
                  _moduleDict.keys())
-
+print __all__
 del _moduleDict

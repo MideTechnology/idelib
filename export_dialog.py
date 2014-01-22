@@ -8,7 +8,7 @@ import wx.lib.agw.customtreectrl as CT
 import wx; wx=wx
 import wx.lib.sized_controls as sc
 
-from base import TimeValidator
+# from base import TimeValidator
 
 #===============================================================================
 # 
@@ -25,7 +25,8 @@ class ModalExportProgress(wx.ProgressDialog):
         super(ModalExportProgress, self).__init__(*args, **kwargs)
         
     
-    def __call__(self, count=0, percent=None, total=None, error=None, done=False):
+    def __call__(self, count=0, percent=None, total=None, error=None, 
+                 done=False):
         if done:
             return
         msg = "Exporting %d of %d" % (count, total)
