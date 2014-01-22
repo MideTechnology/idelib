@@ -100,9 +100,10 @@ class Lerp(Interpolation):
     """ A simple linear interpolation between two values.
     """
     def __call__(self, events, idx1, idx2, percent):
+        percent += 0.0
         v1 = events[idx1][-1]
         v2 = events[idx2][-1]
-        return v1 + percent * (v2 - v1)
+        return v1 + (percent * (v2 - v1))
 
     
 class MultiLerp(Lerp):
@@ -786,7 +787,8 @@ class EventList(Cascading):
     """ A list-like object containing discrete time/value pairs. Data is 
         dynamically read from the underlying EBML file. 
         
-        @todo: Consider a subclass optimized for non-subsampled data.
+        @todo: Consider a subclass optimized for non-subsampled data (i.e. 
+            one sample per data block).
     """
 
     def __init__(self, parent, session=None):
@@ -1365,10 +1367,10 @@ class EventList(Cascading):
         if self.hasSubchannels:
             result = startEvt[-1][:]
             for i in xrange(len(self.parent.types)):
-                result[i] = self.parent.interpolators[i](startEvt[-1][i], endEvt[-1][i], percent)
+                result[i] = self.parent.interpolators[i](self, startIdx, startIdx+1, percent)
                 result[i] = self.parent.types[i](result[i])
         else:
-            result = self.parent.types[0](self.parent.interpolators[0](startEvt[-1], endEvt[-1], percent))
+            result = self.parent.types[0](self.parent.interpolators[0](self, startIdx, startIdx+1, percent))
         if self.dataset.useIndices:
             return None, at, result
         return at, result
@@ -1391,6 +1393,7 @@ class EventList(Cascading):
                 lastIdx = blockIdx
                 for event in self.iterSlice(idx, min(stop,thisRange[1]+1), step):
                     yield event
+#         yield stop, self.getValueAt(stop)
     
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
@@ -1573,3 +1576,66 @@ class CompositePlot(Plot):
 #===============================================================================
 # 
 #===============================================================================
+
+class WarningRange(object):
+    """
+    """
+    
+    def __repr__(self):
+        return "<%s (%s<%s<%s)>" % (self.__class__.__name__, self.low, 
+                                    self.source.parent.name, self.high)
+    
+    def __init__(self, source, low=None, high=None):
+        """
+        """
+        self.high = high
+        self.low = low
+        self.source = source
+        self.valid = lambda x: x > low and x < high
+        
+        
+    def getRange(self, start=None, end=None):
+        """
+        """
+        if start is None:
+            start = self.source[0][-2]
+        if end is None:
+            end = self.source[-1][-2]
+            
+        result = []
+        v = self.getValueAt(start)
+        if v is None:
+            return result
+        
+        outOfRange =  v[-1] != True
+
+        if outOfRange:
+            result = [[start,start]]
+        
+        for t,v in self.source.iterRange(start, end):
+            if self.valid(v):
+                if outOfRange:
+                    result[-1][1] = t
+                    outOfRange = False
+            else:
+                if not outOfRange:
+                    result.append([t,t])
+                    outOfRange = True
+        
+        # Close out any open invalid range
+        if outOfRange:
+            result[-1][1] = -1 #end
+        
+        return result
+    
+    
+    def getValueAt(self, at):
+        """ Retrieve the value at a specific time. 
+        """
+        t = max(min(at, self.source[0][-2]),self.source[1][-2])
+#         if at < self.source[0][-2] or at > self.source[-1][-2]:
+#             return None
+        val = self.source.getValueAt(t)
+        return at, self.valid(val[-1])
+    
+    

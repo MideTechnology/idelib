@@ -37,7 +37,7 @@ import sys
 import types
 
 import calibration
-from util import read_ebml
+from util import parse_ebml
 
 #===============================================================================
 # 
@@ -621,7 +621,7 @@ class PolynomialParser(ElementHandler):
         """
         # Element name (plus ID and file position) for error messages
         elName = self.getElementName(element)
-        params = renameKeys(read_ebml(element.value), self.parameterNames)
+        params = renameKeys(parse_ebml(element.value), self.parameterNames)
         
         coeffs = params.pop("coeffs", None)
         if coeffs is None:
@@ -725,7 +725,7 @@ class SensorParser(ElementHandler):
             if "transform" in d:
                 d['transform'] = self.doc.transforms[d['transform']]
         
-        data = renameKeys(read_ebml(element.value), self.parameterNames)
+        data = renameKeys(parse_ebml(element.value), self.parameterNames)
         getXform(data)
         
         channels = data.pop("channels","")
@@ -782,7 +782,7 @@ class RecorderInfoParser(ElementHandler):
         """
         """
         # This one is simple; it just sticks the data into the Dataset.
-        self.doc.recorderInfo = read_ebml(element.value) 
+        self.doc.recorderInfo = parse_ebml(element.value) 
         return self.doc.recorderInfo  
 
 

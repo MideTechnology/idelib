@@ -92,8 +92,8 @@ default="123" or a text value that may or may not be the name of another tag
   
     <element name="RecordingProperties" level="0" id="0x18526570" type="master" mandatory="0" multiple="0" minver="1">Master element for the RecordingProperties branch of the file, if present.</element>  
 		<element name="RecorderInfo" level="1" id="0x5210" type="master" mandatory="0" multiple="0" minver="1">Master element for the RecorderInfo items (ID, etc.).</element>  
-			<element name="RecorderTypeUID" level="2" id="0x5211" type="uinteger" mandatory="0" multiple="0" minver="1" length="4">Unique Type ID assigned to each recorder variation. May be used to lookup remaining RecordingProperties when streaming.</element>
-			<element name="RecorderSerial" level="2" id="0x5212" type="uinteger" mandatory="0" multiple="0" minver="1" length="8">Recorder unique serial number</element>
+			<element name="RecorderTypeUID" level="2" id="0x5211" type="uinteger" mandatory="0" multiple="0" minver="1">Unique Type ID assigned to each recorder variation. May be used to lookup remaining RecordingProperties when streaming.</element>
+			<element name="RecorderSerial" level="2" id="0x5212" type="uinteger" mandatory="0" multiple="0" minver="1">Recorder unique serial number</element>
 			<element name="SchemaID" level="2" id="0x5213" type="uinteger" mandatory="0" multiple="0" minver="1">ID referencing Schema in use by recorder</element>
 			<element name="ProductName" level="2" id="0x5214" type="string" mandatory="0" multiple="0" minver="1">Product designation of the recording device</element>
 			<element name="UserDeviceName" level="2" id="0x5215" type="string" mandatory="0" multiple="0" minver="1">Text name of this recorder, if any. Probably set by the user.</element>
@@ -196,11 +196,14 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="AutoRearm" level="2" id="0x4352" type="uinteger" mandatory="0" multiple="0" minver="1">Automatically rearm at end of triggered recording (do not require button press)</element>			
 			<element name="RecordingTime" level="2" id="0x4353" type="uinteger" mandatory="0" multiple="0" minver="1">Time in seconds to record for when triggered. Omit to impose no limit.</element>
 			<!-- Some IDs reserved for specifying activity behavior, e.g. restart the RecordingTime as long as something interesting is happening -->
-			<element name="Trigger" level="2" id="0x4360" type="master" mandatory="0" multiple="0" minver="1">Master element for a generic trigger.</element>
+			<element name="Trigger" level="2" id="0x4360" type="master" mandatory="0" multiple="1" minver="1">Master element for a generic trigger.</element>
 				<element name="TriggerChannel" level="3" id="0x4361" type="integer" mandatory="0" multiple="0" minver="1">The sensor channel used as the trigger. Mandatory for all Triggers.</element>
 				<element name="TriggerSubChannel" level="3" id="0x4362" type="integer" mandatory="0" multiple="0" minver="1">The sensor subchannel used by the trigger.</element>
 				<element name="TriggerWindowLo" level="3" id="0x4363" type="integer" mandatory="0" multiple="0" minver="1">Lower value of trigger window in native units.</element>
 				<element name="TriggerWindowHi" level="3" id="0x4364" type="integer" mandatory="0" multiple="0" minver="1">Upper value of trigger window in native units.</element>
+        <element name="RecorderUserData" level="1" id="0x43F0" type="master" mandatory="0" multiple="0" minver="1">The user-defined properties of the recorder, not used by the recorder itself.</element>
+            <element name="RecorderName" level="2" id="0x43F1" type="binary" mandatory="0" multiple="0" minver="1">The user-defined name of the recorder</element>
+            <element name="RecorderDesc" level="2" id="0x43F2" type="binary" mandatory="0" multiple="0" minver="1">The user-defined description of/notes on the recorder</element>
 
 
 

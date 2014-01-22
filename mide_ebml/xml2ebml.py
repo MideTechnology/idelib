@@ -8,7 +8,6 @@ Created on Dec 20, 2013
 
 import argparse
 import os.path
-import pkgutil
 from StringIO import StringIO
 import xml.dom.minidom
 
@@ -49,7 +48,7 @@ def encode_container(data, length=None, elements=None, sizes={},
     result = bytearray()
     
     for c in data.childNodes:
-        if c.nodeType != c.TEXT_NODE:
+        if c.nodeType == c.ELEMENT_NODE:
             result.extend(build_ebml(c, elements=elements, sizes=sizes,
                                      schema=schema))
             
@@ -72,7 +71,7 @@ def build_ebml(xmlElement, schema=DEFAULT_SCHEMA, elements=None, sizes=None):
         elements = getSchemaElements(schema)
     if sizes is None:
         sizes = getElementSizes(schema)
-        
+
     name, value = xmlElement.tagName, xmlElement.getAttribute('value')
     
     if name not in elements:
@@ -92,7 +91,7 @@ def build_ebml(xmlElement, schema=DEFAULT_SCHEMA, elements=None, sizes=None):
         elementTyper = TYPES[elementClass.type]
         payload = elementEncoder(elementTyper(value),
                                  length=sizes.get(name, None))
-    
+
     result = ebml_core.encode_element_id(elementId)
     result.extend(ebml_core.encode_element_size(len(payload)))
     result.extend(payload)
@@ -117,20 +116,25 @@ def readXml(filename, schema=DEFAULT_SCHEMA):
     return result
 
 
-def dumpXmlElement(el, indent=0, tabsize=2):
+def dumpXmlElement(el, indent=0, tabsize=4):
     """ Dump an EBML element as XML. The format is similar to the imported one,
         with the addition of an `offset` attribute, which is the EBML element's
         offset in the file.
     """
+    tab = " " * tabsize * indent
     if el.children:
-        results = ['%s<%s offset="%d">' % (" "*indent, el.name, el.stream.offset)]
+        results = ['%s<%s offset="%d" body_size="%s">' % \
+                   (tab, el.name, el.stream.offset, el.size)]
         for child in el.value:
-            results.append(dumpXmlElement(child, indent+tabsize))
-        results.append('%s</%s>' % ("  "*indent, el.name))
+            results.append(dumpXmlElement(child, indent+1, tabsize))
+        results.append('%s</%s>' % (tab, el.name))
         return "\n".join(results)
     
-    return '%s<%s offset="%d" value="%s" />' % \
-        ("  "*indent, el.name, el.stream.offset, el.value)
+    if el.name == 'Void':
+        return '%s<%s offset="%d" size="%s" />' % \
+            (tab, el.name, el.stream.offset, el.size)
+    return '%s<%s offset="%d" size="%s" value="%s" />' % \
+        (tab, el.name, el.stream.offset, el.size, el.value)
 
 
 def dumpXml(ebmldoc, indent=0, tabsize=2):

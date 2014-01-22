@@ -28,17 +28,18 @@ from wx.lib.rcsizer import RowColSizer
 from wx.lib.wordwrap import wordwrap
 import wx; wx = wx # Workaround for Eclipse code comprehension
 
-from base import *
+# Graphics (icons, etc.)
+import images
 
 # Custom controls
-from common import StatusBar
-from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
+from base import ViewerPanel, MenuMixin
+from common import *
 from export_dialog import ModalExportProgress, CSVExportDialog, FFTExportDialog
+from device_dialog import selectDevice
+from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
 
 import fft
 
-# Graphics (icons, etc.)
-import images
 
 # Special helper objects and functions
 from threaded_file import ThreadAwareFile
@@ -248,8 +249,8 @@ class Timeline(ViewerPanel):
         # Initial value: probably not true, but is changed almost immediately.
         self.scrollUnitsPerUSec = 1.0
         self.unitsPerPixel = 1.0
-        self.currentTime = 1000 # the start of the displayed interval, in microseconds
-        self.displayLength = 5000 # The length of the displayed interval, in microseconds
+        self.currentTime = 1000 # start of displayed interval, in microseconds
+        self.displayLength = 5000 # The length of displayed interval, in micros.
         self.setTimeRange(*self.timerange)
         
 
@@ -327,12 +328,12 @@ class Timeline(ViewerPanel):
                               self.root.timeScalar * end)
         
         self.scrollbar.SetScrollbar(
-                self.scrollUnitsPerUSec * (self.currentTime - self.timerange[0]), 
+                self.scrollUnitsPerUSec * (self.currentTime-self.timerange[0]), 
                 self.scrollUnitsPerUSec * self.displayLength, 
                 self._sbMax,
                 self.scrollUnitsPerUSec * self.displayLength)
         
-        self.unitsPerPixel = (self.displayLength/self.timebar.GetSize()[0] + 0.0)
+        self.unitsPerPixel = (self.displayLength/self.timebar.GetSize()[0]+0.0)
         
         if broadcast:
             instigator = self if instigator is None else instigator
@@ -406,7 +407,7 @@ class Timeline(ViewerPanel):
 #===============================================================================
 
 class TimeNavigator(ViewerPanel):
-    """ The full timeline view shown above the graph. Includes moveable markers 
+    """ The full timeline view shown above the graph. Includes movable markers 
         showing the currently visible interval.
     """
     
@@ -841,6 +842,9 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
     def OnPaint(self, evt):
         """ Event handler to redraw the plot.
+        
+            @todo: Apply offset and scaling transforms to the DC itself, 
+                eliminating all the per-point math.
         """
         if self.Parent.source is None:
             return
@@ -854,21 +858,20 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
         size = dc.GetSize()
         
-        # XXX: EXPERIMENTAL ANTIALIASING
+        # Antialiasing
         viewScale = 1.0
-        oversampling = 3.33
+        oversampling = 2.0 #3.33 # XXX: Clean this up!
         if self.root.antialias:
             dc = wx.GCDC(dc)
             viewScale = self.root.aaMultiplier
             oversampling = viewScale * 1.33
-            dc.SetUserScale(1/viewScale,1/viewScale)
+            dc.SetUserScale(1.0/viewScale, 1.0/viewScale)
         
         dc.BeginDrawing()
 
         legend = self.Parent.legend
         
-        tenth = size[0]/10 * viewScale
-        
+        tenth = int(size[0]/2 * oversampling)
 
         # XXX: This does not work for vertically split plots; they all start
         # at the start of the visible range instead of relative position on
@@ -891,6 +894,9 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             vScale = -(size.y + 0.0) * viewScale
         thisRange = (hScale, vScale, hRange, vRange)
         
+        for r in self.Parent.warningRange:
+            r.draw(dc, hRange, hScale, viewScale, size)
+                
         # Get the horizontal grid lines. 
         # NOTE: This might not work in the future. Consider modifying
         #    VerticalScaleCtrl to ensure we've got access to the labels!
@@ -909,7 +915,6 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             dc.DrawLineList(minorHLines, self.minorHLinePen)
         
         dc.SetPen(self._pen)
-        
         if self.lastRange != thisRange or self.lines is None and not self.root.drawingSuspended:
             i=1
             self.lines=[]
@@ -921,7 +926,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             
             events = self.Parent.source.iterResampledRange(hRange[0], hRange[1],
                 size[0]*oversampling, padding=1, jitter=self.root.noisyResample)
-            
+
             try:
                 self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
                 event = events.next()
@@ -929,7 +934,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                 lastPt = ((event[-2] - hRange[0]) * hScale, 
                           (event[-1] - vRange[0]) * vScale)
                 
-                for i, event in enumerate(events):
+                for i, event in enumerate(events,1):
                     # Using negative indices here in case doc.useIndices is True
                     pt = ((event[-2] - hRange[0]) * hScale, 
                           (event[-1] - vRange[0]) * vScale)
@@ -941,8 +946,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                         lineSubset.append(line)
                         self.lines.append(line)
                         expandRange(self.Parent.visibleValueRange, event[-1])
-
-                                        
+                    
                     if i % tenth == 0:
                         dc.DrawLineList(lineSubset)
                         lineSubset = []
@@ -978,6 +982,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         dc.EndDrawing()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
+        # XXX: IDIOT LIGHT!
 
     def OnMenuColor(self, evt):
         data = wx.ColourData()
@@ -1015,12 +1020,17 @@ class Plot(ViewerPanel):
             @keyword root: The viewer's 'root' window.
             @keyword source: The source of data for the plot (i.e. a
                 sensor channel's dataset.EventList or dataset.Plot)
+            @keyword units: 
+            @keyword scale: 
+            @keyword range: 
+            @keyword warningRange: 
         """
         self.source = kwargs.pop('source', None)
         self.yUnits= kwargs.pop('units',None)
         color = kwargs.pop('color', 'BLACK')
         scale = kwargs.pop('scale', (-1,1))
         self.range = kwargs.pop('range', (-(2**16), (2**16)-1))
+        self.warningRange = kwargs.pop("warningRange", [])
         super(Plot, self).__init__(*args, **kwargs)
         
         self.firstPlot = True
@@ -1084,11 +1094,13 @@ class Plot(ViewerPanel):
         end = self.visibleValueRange[1] if end is None else end
         self.legend.setValueRange(start, end, instigator, tracking)
         
+        # TODO: Implement/Enable vertical scrolling
 #         self.scrollUnitsPerUnit = self._sbMax / (start-end)
-#         self.scrollbar.SetScrollbar(self.scrollUnitsPerUnit * (self.currentTime - self.timerange[0]), 
-#                                     self.scrollUnitsPerUSec * self.displayLength, 
-#                                     self._sbMax,
-#                                     self.scrollUnitsPerUSec * self.displayLength)
+#         self.scrollbar.SetScrollbar(
+#             self.scrollUnitsPerUnit * (self.currentTime - self.timerange[0]), 
+#             self.scrollUnitsPerUSec * self.displayLength, 
+#             self._sbMax,
+#             self.scrollUnitsPerUSec * self.displayLength)
                                     
         if not tracking:
             self.plot.Refresh()
@@ -1163,6 +1175,58 @@ class Plot(ViewerPanel):
 # 
 #===============================================================================
 
+class WarningRangeIndicator(object):
+    """ A visual indicator showing intervals in which a sensor's readings
+        were outside a specific range.
+    """
+    
+    def __init__(self, source, color="PINK", style=wx.BDIAGONAL_HATCH):
+        self.source = source
+        self.brush = wx.Brush(color, style=style)
+        self.pen = wx.Pen(color, style=wx.TRANSPARENT)
+        self.oldDraw = None
+        self.rects = None
+        
+        
+    def draw(self, dc, hRange, hScale, scale=1.0, size=None):
+        """ Draw a series of out-of-bounds rectangles in the given drawing
+            context.
+            
+            @todo: Apply transforms to the DC itself before passing it, 
+                eliminating all the scale and offset stuff.
+            
+            @param dc: TThe drawing context (a `wx.DC` subclass). 
+        """
+        oldPen = dc.GetPen()
+        oldBrush = dc.GetBrush()
+        size = dc.GetSize() if size is None else size
+        dc.SetPen(self.pen)
+        dc.SetBrush(self.brush)
+
+        thisDraw = (hRange, hScale, scale, size)
+        if thisDraw != self.oldDraw or not self.rects:
+            self.oldDraw = thisDraw
+            self.rects = []
+            for r in self.source.getRange(*hRange):
+                # TODO: Apply transforms to DC in PlotCanvas.OnPaint() before
+                # calling WarningRangeIndicator.draw(), eliminating these
+                # offsets and scalars.
+                x = (r[0]-hRange[0])*hScale
+                y = 0
+                w = ((r[1]-hRange[0])*hScale)-x if r[1] != -1 else size[0]*scale
+                h = size[1] * scale
+                rect = int(x),int(y),int(w),int(h)
+                self.rects.append(rect)
+            
+        dc.DrawRectangleList(self.rects)
+        
+        dc.SetPen(oldPen)
+        dc.SetBrush(oldBrush)
+
+#===============================================================================
+# 
+#===============================================================================
+
 class PlotSet(aui.AuiNotebook):
     """ A tabbed window containing multiple Plots. The individual plots (pages)
         can be accessed by index like a tuple or list.
@@ -1196,7 +1260,7 @@ class PlotSet(aui.AuiNotebook):
     
     
     def getActivePage(self):
-        """
+        """ Retrieve the current plot (i.e. the one in focus).
         """
         p = self.GetSelection()
         if p == -1:
@@ -1213,6 +1277,18 @@ class PlotSet(aui.AuiNotebook):
             @keyword title: The name displayed on the plot's tab
                 (defaults to 'Plot #')
         """
+        
+        # NOTE: Hardcoded warning range is for WVR hardware; modify later.
+        try:
+            warnLow = self.root.app.getPref("wvr_tempMin", -20.0)
+            warnHigh = self.root.app.getPref("wvr_tempMax", 60.0)
+            warningRange = mide_ebml.dataset.WarningRange(
+                source.dataset.channels[1][1].getSession(), warnLow, warnHigh)
+            warnings = [WarningRangeIndicator(warningRange)]
+        except (IndexError, KeyError):
+            # Dataset had no data for channel and/or subchannel.
+            # Should not occur, but not fatal.
+            warnings = []
 
         title = source.name or title
         title = "Plot %s" % len(self) if title is None else title
@@ -1222,7 +1298,7 @@ class PlotSet(aui.AuiNotebook):
             scale = getattr(source, "displayRange", (-1.0,1.0))
             
         plot = Plot(self, source=source, root=self.root, scale=scale, 
-                    color=color, units=units)
+                    color=color, units=units, warningRange=warnings)
         plot.SetToolTipString(name)
         self.AddPage(plot, title)
         self.Refresh()
@@ -1466,7 +1542,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.plots = []
         self.setVisibleRange(self.timerange[0], self.timerange[1])
         self.antialias = False
-        self.aaMultiplier = ANTIALIASING_MULTIPLIER
+        self.aaMultiplier = self.app.getPref('antialiasingMultiplier', 
+                                             ANTIALIASING_MULTIPLIER)
         self.noisyResample = False
         
         # TODO: FFT views as separate windows will eventually be refactored.
@@ -1487,7 +1564,7 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def buildMenus(self):
-        """ Construct and configure the view's menu bar. Called one by
+        """ Construct and configure the view's menu bar. Called once by
             `buildUI()`.
         """        
         self.menubar = wx.MenuBar()
@@ -1511,7 +1588,8 @@ class Viewer(wx.Frame, MenuMixin):
                          enabled=False)
         fileMenu.AppendSeparator()
 #         self.recentFilesMenu = wx.Menu()
-#         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", self.recentFilesMenu)
+#         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", 
+#                             self.recentFilesMenu)
 #         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit', '', 
                 self.OnFileExitMenu, True)
@@ -1526,7 +1604,7 @@ class Viewer(wx.Frame, MenuMixin):
 
         deviceMenu = wx.Menu()
         self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
-                         "Configure Device...", "", None, enabled=False)
+                         "Configure Device...", "", self.OnDeviceConfigMenu)
         self.addMenuItem(deviceMenu, self.ID_DEVICE_SET_CLOCK, 
                          "Set Device Clock", "", None, enabled=False)
         self.menubar.Append(deviceMenu, 'De&vice')
@@ -1998,6 +2076,15 @@ class Viewer(wx.Frame, MenuMixin):
         print "File:Reload"
         pass
 
+
+    def OnDeviceConfigMenu(self, evt):
+        """ Handle Device->Configure Device menu events.
+        """
+        dev = selectDevice()
+        if dev is not None:
+            # XXX: IMPLEMENT ME
+            pass
+    
     
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.
@@ -2275,18 +2362,22 @@ class ViewerApp(wx.App):
         },
         'precisionX': 4,
         'precisionY': 4,
-        'resamplingJitter': RESAMPLING_JITTER,
-        'antialiasingResampling': ANTIALIASING_MULTIPLIER,
+        'antialiasing': False,
+        'antialiasingMultiplier': ANTIALIASING_MULTIPLIER,
+        'resamplingJitter': False,
+        'resamplingJitterAmount': RESAMPLING_JITTER,
         'locale': 'English_United States.1252',
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'fileHistory': {},
         'fileHistorySize': 10,
-        'originHLineColor': wx.Color(220,220,220),
-        'majorHLineColor': wx.Color(220,220,220),
-        'minorHLineColor': wx.Color(240,240,240),
+        'originHLineColor': wx.Colour(220,220,220),
+        'majorHLineColor': wx.Colour(220,220,220),
+        'minorHLineColor': wx.Colour(240,240,240),
         'warnBeforeQuit': True,
-        'antialiasing': True,
         'showDebugChannels': False,
+        
+        'wvr_tempMin': -20.0,
+        'wvr_tempMax': 60.0,
     }
 
 
@@ -2295,7 +2386,7 @@ class ViewerApp(wx.App):
         """
         def tuple2color(c):
             if isinstance(c, list):
-                return wx.Color(*c)
+                return wx.Colour(*c)
             return c
         
         if not filename:
@@ -2326,7 +2417,7 @@ class ViewerApp(wx.App):
             hideFile = os.path.basename(filename).startswith(".")
             
         prefs = self.prefs.copy()
-        # Convert wx.Color objects and RGB sequences to tuples:
+        # Convert wx.Colour objects and RGB sequences to tuples:
         for k in fnmatch.filter(prefs.keys(), "*Color"):
             if not isinstance(prefs[k], basestring):
                 prefs[k] = tuple(prefs[k])
@@ -2338,7 +2429,7 @@ class ViewerApp(wx.App):
             with open(filename, 'w') as f:
                 json.dump(prefs, f, indent=2, sort_keys=True)
             if hideFile and "win" in sys.platform:
-                os.system("attrib +h %s" % filename)
+                os.system('attrib +h "%s"' % filename)
         except IOError as err:
             # TODO: Report a problem, or just ignore?
             err

@@ -16,13 +16,35 @@ import struct
 import sys
 import time
 
-from mide_ebml import devices
+# from mide_ebml import devices
+from mide_ebml import util
 
-SYSTEM_PATH = "/SYSTEM/DEV/".replace("/",os.sep)
-INFO_FILE = os.path.join(SYSTEM_PATH, "DEVINFO")
-CLOCK_FILE = os.path.join(SYSTEM_PATH, "CLOCK")
+SYSTEM_PATH = "SYSTEM"
+INFO_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVINFO")
+CLOCK_FILE = os.path.join(SYSTEM_PATH, "DEV", "CLOCK")
+CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
 
 timeParser = struct.Struct("Q")
+
+#===============================================================================
+# 
+#===============================================================================
+
+class Recorder(object):
+    """ XXX: Complete and use, or remove.
+    """
+    @classmethod
+    def fromPath(cls, path):
+        """ 
+        """
+        return Recorder(path)
+
+
+    def __init__(self, path=None):
+        self.path = path
+        
+        
+    
 
 #===============================================================================
 # Cross-platform functions
@@ -41,7 +63,7 @@ def isRecorder(dev):
     """
     try:
         return os.path.exists(os.path.join(dev, INFO_FILE))
-    except IOError:
+    except (IOError, TypeError):
         return False
     
 
@@ -49,21 +71,43 @@ def getRecorderInfo(dev):
     """ Retrieve a recorder's device information.
     
         @param dev: The path to the recording device.
-        @return: A dictionary containing the device data.
+        @return: A dictionary containing the device data. An additional key,
+            `"_PATH"`, is added with the path to the device (e.g. the drive
+            letter under Windows).
     """
     if isRecorder(dev):
         try:
-            with open(INFO_FILE, 'rb') as stream:
-                devinfo = devices.importDeviceInfo(stream)
+            devinfo = util.read_ebml(os.path.join(dev, INFO_FILE))
+#             with open(os.path.join(dev, INFO_FILE), 'rb') as stream:
+#                 devinfo = devices.importDeviceInfo(stream)
             props = devinfo.get('RecordingProperties', '')
             if 'RecorderInfo' in props:
                 info = props['RecorderInfo']
-                info['PATH'] = dev
+                info['_PATH'] = dev
+                    
                 return info
         except IOError:
             pass
     return False
 
+
+def getRecorderConfig(dev):
+    """ Retrieve a recorder's device information.
+    
+        @param dev: The path to the recording device.
+        @return: A dictionary containing the device data.
+    """
+    if isRecorder(dev):
+        try:
+            devinfo = util.read_ebml(os.path.join(dev, CONFIG_FILE))
+#             with open(os.path.join(dev, CONFIG_FILE), 'rb') as stream:
+#                 devinfo = devices.importDeviceInfo(stream)
+            return devinfo.get('RecorderConfiguration', '')
+        except IOError:
+            pass
+    return False
+
+    
 
 def getDeviceTime(dev, parser=timeParser):
     """ Read the date/time from the device. 
@@ -81,7 +125,8 @@ def getDeviceTime(dev, parser=timeParser):
 
 
 def setDeviceTime(dev, t=None, parser=timeParser):
-    """ Set a recorder's date/time. 
+    """ Set a recorder's date/time. A variety of standard time types are
+        accepted.
     
         @param dev: The path to the recording device.
         @keyword t: The time to write, as either seconds since the epoch (i.e.
@@ -155,16 +200,25 @@ def win_getDriveInfo(dev):
 
 
 win_last_devices = 0
+win_last_recorders = None
 
-def win_deviceChanged():
+def win_deviceChanged(recordersOnly=False):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
     """
-    global win_last_devices
+    global win_last_devices, win_last_recorders
     newDevices = kernel32.GetLogicalDrives()
-    result = newDevices != win_last_devices
+    changed = newDevices != win_last_devices
     win_last_devices = newDevices
-    return result
+    
+#     if not changed or not recordersOnly:
+    if not recordersOnly:
+        return changed
+    
+    newRecorders = tuple(win_getDevices())
+    changed = newRecorders != win_last_recorders
+    win_last_recorders = newRecorders
+    return changed
  
 
 #===============================================================================
@@ -193,19 +247,3 @@ if "win" in sys.platform:
 #===============================================================================
 # 
 #===============================================================================
-
-class Recorder(object):
-    """
-    """
-    
-    @classmethod
-    def fromPath(cls, path):
-        """ 
-        """
-        return Recorder(path)
-
-
-    def __init__(self, path=None):
-        self.path = path
-        
-        

@@ -3,9 +3,7 @@ from collections import namedtuple
 
 import wx; wx=wx
 import wx.lib.sized_controls as sc
-import  wx.lib.mixins.listctrl  as  listmix
-
-# from devices import getDevices, getRecorderInfo
+import wx.lib.mixins.listctrl  as  listmix
 
 # XXX: Fake 'devices' fixtures; remove later!
 import random
@@ -17,10 +15,15 @@ def getRecorderInfo(x):
     return {'FwRev': 0,
             'HwRev': 1,
             'ProductName': 'Slam Stick X (100g)',
-            'RecorderSerial': random.randint(1000000000, 9999999999),
+            'RecorderSerial': random.randint(0x11111111, 0xffffffff),
             'RecorderTypeUID': 1,
             'UserDeviceName': 'My Device %s' % x.strip(':\\'),
-            'PATH': x}
+            '_PATH': x}
+
+from common import hex32
+from devices import getDevices, getRecorderInfo
+from devices import deviceChanged
+
 
 #===============================================================================
 # 
@@ -30,12 +33,13 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     """ The dialog for selecting data to export.
     """
 
-    ColumnInfo = namedtuple("ColumnInfo", ['name','propName','formatter','default'])
+    ColumnInfo = namedtuple("ColumnInfo", 
+                            ['name','propName','formatter','default'])
 
-    COLUMNS = (ColumnInfo("Path", "PATH", unicode, ''),
+    COLUMNS = (ColumnInfo("Path", "_PATH", unicode, ''),
                ColumnInfo("Name", "UserDeviceName", unicode, ''),
                ColumnInfo("Type", "ProductName", unicode, ''),
-               ColumnInfo("Serial #", "RecorderSerial", hex, ''))
+               ColumnInfo("Serial #", "RecorderSerial", hex32, ''))
 
     class DeviceListCtrl(wx.ListCtrl, listmix.ListCtrlAutoWidthMixin):
         def __init__(self, parent, ID, pos=wx.DefaultPosition,
@@ -43,6 +47,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             wx.ListCtrl.__init__(self, parent, ID, pos, size, style)
             listmix.ListCtrlAutoWidthMixin.__init__(self)
             
+
+    def GetListCtrl(self):
+        # Required by ColumnSorterMixin
+        return self.list
 
     def __init__(self, *args, **kwargs):
         """
@@ -55,13 +63,18 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             | wx.SYSTEM_MENU
             
         self.root = kwargs.pop('root', None)
+        self.autoUpdate = kwargs.pop('autoUpdate', 500)
         kwargs.setdefault('style', style)
-        super(DeviceSelectionDialog, self).__init__(*args, **kwargs)
+        
+#         super(DeviceSelectionDialog, self).__init__(*args, **kwargs)
+        sc.SizedDialog.__init__(self, *args, **kwargs)
         
         self.recorders = []
+        self.recorderPaths = tuple(getDevices())
         self.listWidth = 300
         self.selected = None
         self.selectedIdx = None
+        self.firstDrawing = True
                 
         pane = self.GetContentsPane()
         pane.SetSizerProps(expand=True)
@@ -74,21 +87,23 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                                  | wx.LC_HRULES
                                  | wx.LC_SINGLE_SEL
                                  )
-        
-        for i, c in enumerate(self.COLUMNS):
-            self.list.InsertColumn(i, c[0])
 
+        
         self.list.SetSizerProps(expand=True, proportion=1)
 
-        self.infoText = wx.StaticText(pane, -1, "Selected device information here.")#"This is maybe\na multi-line\ntext thing")
-        self.infoText.SetSizerProps(expand=True)
+#         self.infoText = wx.StaticText(pane, -1, "Selected device info here.")
+#         self.infoText.SetSizerProps(expand=True)
         
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
         self.okButton = self.FindWindowById(wx.ID_OK)
         self.okButton.Enable(False)
 
+        # call deviceChanged() to set the initial state
+        deviceChanged(recordersOnly=True)
+        self.addColumns()
         self.populateList()
-        
+        listmix.ColumnSorterMixin.__init__(self, len(self.ColumnInfo._fields))
+
         self.Fit()
         self.SetSize((self.listWidth + (self.GetDialogBorder()*4),300))
         self.SetMinSize((self.listWidth + (self.GetDialogBorder()*4),300))
@@ -100,6 +115,33 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnItemSelected, self.list)
         self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.OnItemDeselected, self.list)
         self.list.Bind(wx.EVT_LEFT_DCLICK, self.OnItemDoubleClick)
+        self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.list)
+                   
+        # XXX: TEST
+        self.timer = wx.Timer(self)
+        self.Bind(wx.EVT_TIMER, self.TimerHandler)
+        
+        if self.autoUpdate:
+            self.timer.Start(self.autoUpdate)
+
+
+    def TimerHandler(self, evt):
+        if deviceChanged(recordersOnly=True):
+            self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+            newPaths = tuple(getDevices())
+            if newPaths == self.recorderPaths:
+                self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+                return
+            self.recorderPaths = newPaths
+            self.list.ClearAll()
+            self.addColumns()
+            self.populateList()
+            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+
+
+    def addColumns(self):
+        for i, c in enumerate(self.COLUMNS):
+            self.list.InsertColumn(i, c[0])
 
 
     def populateList(self):
@@ -113,50 +155,81 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 return col.default
         
         pathWidth = self.GetTextExtent(" Path ")[0]+8
-        
-        self.recorders = [getRecorderInfo(p) for p in getDevices()]
-        for info in self.recorders:
-            index = self.list.InsertStringItem(sys.maxint, info['PATH'])
+                
+        self.recorders = {}
+        self.itemDataMap = {} # required by ColumnSorterMixin
+        recorders = [getRecorderInfo(p) for p in getDevices()]
+        for info in recorders:
+            if info is False:
+                continue
+            path = info['_PATH']
+            index = self.list.InsertStringItem(sys.maxint, path)
+            self.recorders[index] = info
             self.list.SetColumnWidth(0, max(pathWidth,
-                                            self.GetTextExtent(info['PATH'])[0]))
+                                            self.GetTextExtent(path)[0]))
             for i, col in enumerate(self.COLUMNS[1:], 1):
                 self.list.SetStringItem(index, i, thing2string(info, col))
                 self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
-                self.listWidth = max(self.listWidth, self.list.GetItemRect(index)[2])
+                self.listWidth = max(self.listWidth, 
+                                     self.list.GetItemRect(index)[2])
+            self.list.SetItemData(index, index)
+            self.itemDataMap[index] = [info[c.propName] for c in self.COLUMNS]
         
-        self.list.Fit()
+        if self.firstDrawing:
+            self.list.Fit()
+            self.firstDrawing = False
 
+
+    def getSelected(self):
+        if self.selected is None:
+            return None
+        return self.recorders.get(self.selected, None)
+    
+
+    def OnColClick(self, evt):
+        # Required by ColumnSorterMixin
+        evt.Skip()
 
     def OnItemSelected(self,evt):
-        print "Item selected:", evt.m_itemIndex
-        self.selectedIdx = evt.m_itemIndex
+        self.selected = self.list.GetItemData(evt.m_item.GetId())
         self.okButton.Enable(True)
         evt.Skip()
 
     def OnItemDeselected(self, evt):
-        print "Item deselected"
-        self.okButton.Enable(self.list.GetSelectedItemCount() > 0)
+        self.selected = None
+        self.okButton.Enable(False)
         evt.Skip()
 
+
     def OnItemDoubleClick(self, evt):
-        print "Double-click"
-        if self.list.GetSelectedItemCount() == 0:
-            # Don't close the dialog
-            print "nothing selected"
-            pass
-        else:
+        if self.list.GetSelectedItemCount() > 0:
             # Close the dialog
-            print "selected:", self.list.GetFirstSelected()
-            pass
+            self.EndModal(wx.ID_OK)
         evt.Skip()
 
 #===============================================================================
 # 
 #===============================================================================
 
-if __name__ == '__main__': #or True:
-    app = wx.App()
-    dlg = DeviceSelectionDialog(None, -1, "Import from Recorder")
-    result = dlg.ShowModal()
+def selectDevice(title="Select Recorder", autoUpdate=500):
+    result = None
+    dlg = DeviceSelectionDialog(None, -1, title, autoUpdate=autoUpdate)
+    
+    if dlg.ShowModal() == wx.ID_OK:
+        result = dlg.getSelected()
+        
     dlg.Destroy()
+    return result
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == '__main__':# or True:
+    app = wx.App()
+    
+    result = selectDevice()
+    print result
+    
     app.MainLoop()    

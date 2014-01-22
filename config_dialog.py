@@ -9,9 +9,10 @@ import string
 import time
 
 import wx.lib.sized_controls as sc
-from wx.lib.masked import TimeCtrl
+import wx.lib.masked as mc
 import wx; wx = wx
 
+from common import time2int
 from mide_ebml import util
 
 #===============================================================================
@@ -19,8 +20,9 @@ from mide_ebml import util
 #===============================================================================
 
 class BaseConfigPanel(sc.SizedPanel):
-    """ A configuration dialog page with miscellaneous editable recorder
-        properties.
+    """ The base class for the various configuration pages. Defines some
+        common methods for adding controls, setting defaults, and reading
+        values.
     """
 
     def addField(self, labelText, name=None, fieldText="", fieldSize=None, 
@@ -49,6 +51,9 @@ class BaseConfigPanel(sc.SizedPanel):
     
     
     def addCheck(self, checkText, name=None, tooltip=None):
+        """ Helper method to create a single checkbox and add it to the set of
+            controls. 
+        """
         c = wx.CheckBox(self, -1, checkText)
         if name is not None:
             self.fieldMap[name] = c
@@ -88,11 +93,14 @@ class BaseConfigPanel(sc.SizedPanel):
 
 
     def addTimeField(self, checkText, name=None, value=None, tooltip=None):
+        """ Helper method to create a checkbox and a time-entry field pair, and
+            add them to the set of controls.
+        """ 
         check = wx.CheckBox(self, -1, checkText)
         check.SetSizerProps(valign='center')
         timePane = sc.SizedPanel(self, -1)
         timePane.SetSizerType("horizontal")
-        ctrl = TimeCtrl(timePane, -1, fmt24hr=True)
+        ctrl = mc.TimeCtrl(timePane, -1, fmt24hr=True)
         timeSpin = wx.SpinButton(timePane, -1, size=(-1,self.fieldSize.height), 
                                  style=wx.SP_VERTICAL)
         ctrl.BindSpinButton(timeSpin)
@@ -119,8 +127,13 @@ class BaseConfigPanel(sc.SizedPanel):
         
         self.fieldSize = (-1,-1)
         self.SetSizerType("form", {'hgap':10, 'vgap':10})
+        
+        # controls: fields keyed by their corresponding checkbox.
         self.controls = {}
+        
+        # fieldMap: All fields keyed by their corresponding key in the data.
         self.fieldMap = {}
+        
         self.buildUI()
         self.initUI()
         self.Bind(wx.EVT_CHECKBOX, self.OnCheckChanged)
@@ -151,7 +164,7 @@ class BaseConfigPanel(sc.SizedPanel):
 
     def parseTime(self, timeStr):
         """ Turn a string containing a length of time as S.s, M:S.s, or H:M:S.s
-            into the corresponding number of seconds
+            into the corresponding number of seconds. For parsing text fields.
         """
         t = map(lambda x: float(x.strip(string.letters+" ,")), 
                 reversed(timeStr.strip().replace(',',':').split(':')))
@@ -167,6 +180,8 @@ class BaseConfigPanel(sc.SizedPanel):
 
 
     def setCheckField(self, checkbox, value):
+        """ Check a checkbox and set its associated field.
+        """
         checkbox.SetValue(True)
         if checkbox in self.controls and self.controls[checkbox]:
             field = self.controls[checkbox][0]
@@ -227,7 +242,7 @@ class TriggerConfigPanel(BaseConfigPanel):
             tooltip="Enable event-based triggers after a given number of seconds")
         
         self.timeCheck, self.timeField = self.addCheckField(
-            "Limit recording time to:" "RecordingTime")
+            "Limit recording time to:", "RecordingTime")
         
         self.rearmCheck = self.addCheck("Re-triggerable", "AutoRearm")
         self.controls[self.timeCheck].append(self.rearmCheck)
@@ -244,6 +259,7 @@ class TriggerConfigPanel(BaseConfigPanel):
             self.addCheckField("Temperature Trigger (High)")
 
 #         self.Bind(wx.EVT_DATE_CHANGED, self.OnDateChanged, self.wakeDateField)
+        print self.timeField.GetValue()
 
 
     def OnDateChanged(self, evt):
@@ -255,7 +271,10 @@ class TriggerConfigPanel(BaseConfigPanel):
         if cb in self.controls:
             self.enableAll(cb)
             if cb == self.delayCheck or cb == self.wakeCheck:
-                other = self.delayCheck if cb == self.wakeCheck else self.wakeCheck
+                if cb == self.wakeCheck:
+                    other = self.delayCheck
+                else:
+                    other = self.wakeCheck
                 other.SetValue(False)
                 self.enableAll(other)
 
@@ -265,11 +284,6 @@ class TriggerConfigPanel(BaseConfigPanel):
         """
         if not self.data:
             return
-        
-        fieldmap = {"WakeTimeUTC": self.wakeCheck,
-                    "PreRecordingDelay": self.triggerDelayCheck,
-                    "RecordingTime": self.timeCheck,
-                    "AutoRearm": self.rearmCheck}
         
         for k,v in self.data.iteritems():
             if k == "AutoRearm":
@@ -282,10 +296,10 @@ class TriggerConfigPanel(BaseConfigPanel):
             elif k == "PreRecordingDelay":
                 self.setCheckField(self.triggerDelayCheck, str(v))
             elif k == "RecordingTime":
-                self.timeCheck.SetValue(True)
-                self.timeField.SetValue(str(v))
+                self.setCheckField(self.timeCheck, str(v))
             elif k == "AutoRearm":
                 self.rearmCheck.SetValue(v != 0)
+                
             elif k == "Trigger":
                 for trigger in v:
                     channel = trigger['TriggerChannel']
@@ -301,21 +315,15 @@ class TriggerConfigPanel(BaseConfigPanel):
                             # Temperature
                             pass 
         self.enableAll()
-                    
-            
-        
 
-    def time2utc(self, val):
-        # XXX: IMPLEMENT ME
-        return val
 
-    def buildEbml(self):
+    def getData(self):
         """
         """
         data = OrderedDict()
         triggers = []
         
-        self.addVal(self.wakeCheck, data, "WakeTimeUTC", self.time2utc)
+        self.addVal(self.wakeCheck, data, "WakeTimeUTC", time2int)
         self.addVal(self.delayCheck, data, "PreRecordDelay")
         self.addVal(self.timeCheck, data, "RecordingTime")
         
@@ -408,12 +416,13 @@ class OptionsPanel(BaseConfigPanel):
     def OnSetTime(self, event):
         pass
     
+    
     def OnSetTZ(self, event):
         val = str(time.timezone / 60 / 60)
         self.utcOffsetField.SetValue(val)
 
 
-    def buildEbml(self):
+    def getData(self):
         """
         """
         data = OrderedDict()
@@ -522,16 +531,18 @@ class ConfigDialog(sc.SizedDialog):
 
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
         self.okButton = self.FindWindowById(wx.ID_OK)
+        
+        self.SetMinSize((436, 475))
         self.Fit()
         
         
-    def buildEbml(self, schema=util.DEFAULT_SCHEMA):
+    def getData(self, schema=util.DEFAULT_SCHEMA):
         data = {}
-        data.update(self.options.buildEbml())
-        data.update(self.triggers.buildEbml())
+        data.update(self.options.getData())
+        data.update(self.triggers.getData())
         
-        return util.encode_container(data, schema=schema)
-#         return data
+#         return util.encode_container(data, schema=schema)
+        return data
         
 #===============================================================================
 # 
@@ -541,8 +552,10 @@ def configureRecorder(path):
     """
     """
     dlg = ConfigDialog(None, -1, "Configure Device (%s)" % path)
-    dlg.ShowModal()   
-    print dlg.buildEbml()
+    dlg.ShowModal()
+    
+    print "dlg.getData() = %r" %  dlg.getData()
+    return dlg
 
 
 #===============================================================================

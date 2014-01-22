@@ -1,29 +1,34 @@
 '''
 Utility functions for doing low-level, general-purpose EBML reading and writing.
 
-Most important are `build_ebml()` and `read_ebml()`.
+Most important are `build_ebml()` and `parse_ebml()`.
 
 Created on Dec 10, 2013
 
 @author: dstokes
 '''
 
-from collections import Sequence
+from collections import Sequence, OrderedDict
+import importlib
 import pkgutil
 import sys
 import xml.dom.minidom
 
 from ebml import core as ebml_core
 from ebml.schema import base as schema_base
+from ebml.schema import specs as schema_specs
+from ebml.schema.base import INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
 # from ebml.schema import mide as mide_schema
 
-import importlib
 
 #===============================================================================
 # 
 #===============================================================================
 
 DEFAULT_SCHEMA = "ebml.schema.mide"
+# if __package__ is not None:
+#     DEFAULT_SCHEMA = '.'.join([__package__, DEFAULT_SCHEMA])
+# print "DEFAULT_SCHEMA = %r" % DEFAULT_SCHEMA
 
 #===============================================================================
 # Element types and encoding schemes
@@ -37,7 +42,7 @@ def encode_container(data, length=None, schema=DEFAULT_SCHEMA,
         
         @param data: The data to put into the container, either a `dict` or
             a set of `(name, value)` pairs. The data can be nested, combining
-            both.
+            both.  
         @keyword length: Unused; for compatibility with `ebml.core` methods.
         @return: A `bytearray` of binary EBML data.
     """
@@ -52,18 +57,23 @@ def encode_container(data, length=None, schema=DEFAULT_SCHEMA,
 
 
 def encode_binary(data, length=None):
-    """ EBML encoder for a binary element, which does nothing (binary is
-        binary). Compatible with the `ebml.core` encoding methods.
+    """ EBML encoder for a binary element. Compatible with the `ebml.core` 
+        encoding methods.
         
-        @param data: The data to put into the container, either a `dict` or
-            a set of `(name, value)` pairs. The data can be nested, combining
-            both.
-        @keyword length: Unused; for compatibility with `ebml.core` methods.
+        @param data: The raw binary data to write, presumably a string or 
+            bytearray.
+        @keyword length: A forced, fixed size of the resulting data.
     """
-    return data
+    # The existing string encoders are basically the same as binary encoders.
+    # Note that if python-ebml changes encode_string so that it is no longer
+    # compatible with bytearrays this will fail!
+    if isinstance(data, basestring):
+        return ebml_core.encode_unicode_string(data, length)
+    return ebml_core.encode_string(bytearray(data), length)
+
 
 # Element data type IDs, as used in `ebml.schema.base`.
-INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER = range(0, 8)
+# INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER = range(0, 8)
 
 # Mapping of encoder data type IDs to their respective EBML encoder.
 ENCODERS = {
@@ -77,9 +87,39 @@ ENCODERS = {
     CONTAINER: encode_container
 }
 
-# Mapping of all Mide element type names to their respective classes
-# MIDE_ELEMENTS = dict(((k[:-7],v) for k,v in mide_schema.__dict__.iteritems() \
-#                       if k.endswith("Element")))
+
+def _getSchemaModule(schema=DEFAULT_SCHEMA):
+    """ Import a schema module.
+    
+        @keyword schema: The full module name of the EBML schema. If the module
+            cannot be found as specified, a path relative to the current
+            module is used.
+    """
+    try:
+        return importlib.import_module(schema)
+    except ImportError as err:
+        if __package__ is None:
+            raise err
+        return importlib.import_module("%s.%s" % (__package__, schema))
+            
+    
+
+def _getSchemaItems(schema=DEFAULT_SCHEMA, itemType=schema_specs.Element):
+    """ Helper to retrieve data from a schema module.
+    """
+    result = []
+    schemaMod = _getSchemaModule(schema)
+    for k,v in schemaMod.__dict__.iteritems():
+        if k.startswith('_'): 
+            continue
+        try:
+            if issubclass(v, itemType):
+                result.append((k,v))
+        except TypeError:
+            # issubclass() doesn't like some types
+            pass
+    return result
+
 
 def getSchemaElements(schema=DEFAULT_SCHEMA):
     """ Get all the EBML element classes for a given schema.
@@ -87,9 +127,8 @@ def getSchemaElements(schema=DEFAULT_SCHEMA):
         @keyword schema: The full module name of the EBML schema.
         @return: A dictionary of element classes keyed on element name.
     """
-    schemaMod = importlib.import_module(schema)
-    return dict(((k[:-7],v) for k,v in schemaMod.__dict__.iteritems() \
-                 if k.endswith("Element")))
+    elements = _getSchemaItems(schema, schema_specs.Element)
+    return dict([(el.name, el) for _, el in elements])
 
 
 def getSchemaDocument(schema=DEFAULT_SCHEMA):
@@ -98,11 +137,12 @@ def getSchemaDocument(schema=DEFAULT_SCHEMA):
         @keyword schema: The full module name of the EBML schema.
         @return: A subclass of `ebml.schema.base.Document`.
         """
-    schemaMod = importlib.import_module(schema)
-    for k,v in schemaMod.__dict__.iteritems():
-        if k.endswith("Document"):
-            return v
-    return None
+    docs = _getSchemaItems(schema, schema_specs.Document)
+    if len(docs) == 0:
+        return None
+    docname, doctype = docs[0]
+    setattr(doctype, "name", docname)
+    return doctype
 
 
 def getElementSizes(schema=DEFAULT_SCHEMA):
@@ -111,10 +151,12 @@ def getElementSizes(schema=DEFAULT_SCHEMA):
         data. 
         
         @note: The `size` attribute is not part of the standard python-ebml 
-            implementation.
+            implementation, but its addition does not adversely affect the
+            reading of the schema file.
             
         @keyword schema: The full module name of the EBML schema.
-        @return: A dictionary of sizes keyed on element name.
+        @return: A dictionary of sizes keyed on element name. Only elements
+            that have the `size` attribute will be included.
     """
     results = {}
     filename = schema.split('.')[-1] + ".xml"
@@ -191,17 +233,20 @@ def build_ebml(name, value, schema=DEFAULT_SCHEMA, elements=None, sizes=None):
 # Reading EBML
 #===============================================================================
 
-def read_ebml(elements):
+def parse_ebml(elements, ordered=True):
     """ Reads a sequence of EBML elements and builds a (nested) dictionary,
         keyed by element name. Elements marked as "multiple" in the schema
         will produce a list containing one item for each element.
     """
-    result = {}
+    if ordered:
+        result = OrderedDict()
+    else:
+        result = {}
     if not isinstance(elements, Sequence):
         elements = [elements]
     for el in elements:
         if isinstance(el.value, list) or el.children:
-            value = read_ebml(el.value)
+            value = parse_ebml(el.value, ordered)
         else:
             value = el.value
         if el.multiple:
@@ -210,7 +255,44 @@ def read_ebml(elements):
             result[el.name] = value
     return result
             
-    
+
+def read_ebml(stream, schema=DEFAULT_SCHEMA, ordered=True):
+    """ Import data from an EBML file. Wraps the process of creating the
+        EBML document and parsing its contents.
+        
+        @param stream: The source EBML data. This can be a stream or a
+            filename.
+        @keyword schema: The full module name of the EBML schema.
+        @keyword ordered: If `True` (default), the results are returned as
+            instances of `OrderedDict` rather than standard dictionaries, 
+            preserving the order of the elements.
+        @return: A nested dictionary of values keyed by element name. Elements 
+            marked as "multiple" in the schema will produce a list containing 
+            one item for each element.
+    """
+    newStream = False
+    if isinstance(stream, basestring):
+        newStream = True
+        stream = open(stream, 'rb')
+    else:
+        try:
+            stream.seek(0)
+        except IOError as e:
+            # Some stream-like objects (like stdout) don't support seek.
+            if e.errno != 9:
+                raise e
+            
+    doctype = getSchemaDocument(schema)
+    result = parse_ebml(doctype(stream).roots, ordered)
+    if newStream:
+        stream.close()
+    return result
+
+
+#===============================================================================
+# 
+#===============================================================================
+
 def dump_ebml(el, stream=None, indent=0, tabsize=4):
     """ Testing: Crawl an EBML Document and dump its contents, showing the 
         stream offset, name, and value of each child element. 
@@ -250,7 +332,7 @@ def verify(data, schema=DEFAULT_SCHEMA):
     if docclass is None:
         raise TypeError("Schema %r contained no Document" % schema)
     doc = docclass(StringIO(data))
-    read_ebml(doc)
+    parse_ebml(doc)
     return True
 
 #===============================================================================
@@ -287,7 +369,7 @@ if __name__ == "__main__":
         dump_ebml(doc)
         
         print "\n*** Parsed Data:"
-        readConfig = read_ebml(doc.roots)[parentElementName]
+        readConfig = parse_ebml(doc.roots, ordered=False)[parentElementName]
         printer(readConfig)
         
         print "\n*** Comparing the output to the input...", 
@@ -311,12 +393,12 @@ if __name__ == "__main__":
             'PreRecordDelay': 0,
             'AutoRearm': 0,
             'RecordingTime': 0,
-            'Trigger': {
+            'Trigger': [{
                 'TriggerChannel': -1,
                 'TriggerSubChannel': -1,
                 'TriggerWindowLo': -1,
                 'TriggerWindowHi': 1,
-            },
+            }],
         },
     })
 

@@ -1,15 +1,96 @@
 '''
-Controls, dialogs, and other things used by multiple files. 
+Custom events, controls, dialogs, 'constants', functions, and other things 
+used by multiple files. 
 
 Created on Dec 31, 2013
 
 @author: dstokes
 '''
 
+from datetime import datetime as _datetime
+import sys as _sys
+
+import wx.lib.newevent
 import wx; wx = wx;
 
-import images
+import images as _images
 
+#===============================================================================
+# 
+#===============================================================================
+
+def expandRange(l, v):
+    """ Given a two element list containing a minimum and maximum value, 
+        expand it if the given value is outside that range. 
+    """
+    l[0] = min(l[0],v)
+    l[1] = max(l[1],v)
+
+#===============================================================================
+# Formatting and parsing helpers
+#===============================================================================
+
+def hex32(val):
+    """ Format an integer as an 8 digit hex number. """
+    return "0x%08x" % val
+
+def hex16(val):
+    """ Format an integer as an 4 digit hex number. """
+    return "0x%04x" % val
+
+def hex8(val):
+    """ Format an integer as a 2 digit hex number. """
+    return "0x%02x" % val
+
+def str2int(val):
+    """ Semi-smart conversion of string to integer; works for decimal and hex.
+    """
+    try:
+        return int(val)
+    except ValueError:
+        return int(val, 16)
+        
+def time2int(val):
+    """ Parse a time string (as returned from `TimeCtrl.GetValue()`) into
+        seconds since midnight.
+    """
+    t = _datetime.strptime(val, '%H:%M:%S')
+    return (t.hour * 60 * 60) + (t.minute * 60) + t.second
+
+#===============================================================================
+# 
+#===============================================================================
+
+# class TimeValidator(wx.PyValidator):
+#     """
+#     """
+#     validCharacters = "-+.0123456789"
+#     
+#     def __init__(self):
+#         super(TimeValidator, self).__init__()
+#         self.Bind(wx.EVT_CHAR, self.OnChar)
+# 
+#     def Validate(self, win):
+#         val = self.GetWindow.GetValue()
+#         return all((c in self.validCharacters for c in val))
+# 
+#     def OnChar(self, evt):
+#         key = evt.GetKeyCode()
+# 
+#         if key < wx.WXK_SPACE or key == wx.WXK_DELETE or key > 255:
+#             evt.Skip()
+#             return
+# 
+#         if chr(key) in self.validCharacters:
+#             evt.Skip()
+#             return
+# 
+#         if not wx.Validator_IsSilent():
+#             wx.Bell()
+#             
+#         return        
+    
+    
 #===============================================================================
 # 
 #===============================================================================
@@ -22,7 +103,7 @@ class StatusBar(wx.StatusBar):
     continuously.
     """
     frameDelay = 30
-    numFields = 6
+    numFields = 7
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Panel arguments, plus:
@@ -35,26 +116,28 @@ class StatusBar(wx.StatusBar):
         if self.root is None:
             self.root = self.GetParent().root
         
-        logo = images.MideLogo.GetBitmap()
+        logo = _images.MideLogo.GetBitmap()
         self.logo = wx.StaticBitmap(self, -1, logo)
 
         self.progressBar = wx.Gauge(self, -1, 1000)
         self.cancelButton = wx.Button(self, wx.ID_CANCEL, style=wx.BU_EXACTFIT)
         bwidth, bheight = self.cancelButton.GetBestSize()
         self.buttonWidth = bwidth + 2
-        self.cancelButton.SetSize((bwidth, bheight-2))
+        self.cancelButton.SetSize((bwidth, bheight-4))
 
         fieldWidths = [-1] * self.numFields
 
         self.buttonFieldNum = self.numFields-1
         self.progressFieldNum = self.numFields-2
         self.messageFieldNum = self.numFields-3
-        self.yFieldNum = self.numFields-4
-        self.xFieldNum = self.numFields-5
+        self.warnFieldNum = self.numFields-4
+        self.yFieldNum = 2
+        self.xFieldNum = 1
         self.logoFieldNum = 0
 
         fieldWidths[self.logoFieldNum] = logo.GetSize()[0]
         fieldWidths[self.messageFieldNum] = -4
+        fieldWidths[self.warnFieldNum] = -4
         fieldWidths[self.progressFieldNum] = -2
         fieldWidths[self.buttonFieldNum] = bwidth
 
@@ -178,6 +261,28 @@ class StatusBar(wx.StatusBar):
 
 
 #===============================================================================
-# 
+# Custom Events (for multithreaded UI updating)
 #===============================================================================
 
+(EvtSetVisibleRange, EVT_SET_VISIBLE_RANGE) = wx.lib.newevent.NewEvent()
+(EvtSetTimeRange, EVT_SET_TIME_RANGE) = wx.lib.newevent.NewEvent()
+(EvtProgressStart, EVT_PROGRESS_START) = wx.lib.newevent.NewEvent()
+(EvtProgressUpdate, EVT_PROGRESS_UPDATE) = wx.lib.newevent.NewEvent()
+(EvtProgressEnd, EVT_PROGRESS_END) = wx.lib.newevent.NewEvent()
+(EvtInitPlots, EVT_INIT_PLOTS) = wx.lib.newevent.NewEvent()
+(EvtImportError, EVT_IMPORT_ERROR) = wx.lib.newevent.NewEvent()
+
+
+#===============================================================================
+# Automatically build list of things for 'from base import *'
+#===============================================================================
+
+if __name__ in _sys.modules:
+    _moduleDict = _sys.modules[__name__].__dict__
+else:
+    _moduleDict = globals()
+
+__all__ = filter(lambda x: not(x.startswith("_") or x.startswith('wx')),
+                 _moduleDict.keys())
+
+del _moduleDict

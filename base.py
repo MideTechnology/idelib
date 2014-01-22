@@ -9,56 +9,10 @@ Created on Dec 4, 2013
 
 import sys as _sys
 
-import wx.lib.newevent
 import wx; wx = wx # Workaround for Eclipse code comprehension
 
+from common import EvtSetTimeRange, EvtSetVisibleRange
 
-#===============================================================================
-# 
-#===============================================================================
-
-def expandRange(l, v):
-    """ Given a two element list containing a minimum and maximum value, 
-        expand it if the given value is outside that range. 
-    """
-    l[0] = min(l[0],v)
-    l[1] = max(l[1],v)
-
-
-#===============================================================================
-# 
-#===============================================================================
-
-class TimeValidator(wx.PyValidator):
-    """
-    """
-    validCharacters = "-+.0123456789"
-    
-    def __init__(self):
-        super(TimeValidator, self).__init__()
-        self.Bind(wx.EVT_CHAR, self.OnChar)
-
-    def Validate(self, win):
-        val = self.GetWindow.GetValue()
-        return all((c in self.validCharacters for c in val))
-
-    def OnChar(self, evt):
-        key = evt.GetKeyCode()
-
-        if key < wx.WXK_SPACE or key == wx.WXK_DELETE or key > 255:
-            evt.Skip()
-            return
-
-        if chr(key) in self.validCharacters:
-            evt.Skip()
-            return
-
-        if not wx.Validator_IsSilent():
-            wx.Bell()
-            
-        return        
-    
-    
 #===============================================================================
 # 
 #===============================================================================
@@ -235,9 +189,9 @@ class MenuMixin(object):
 
     def setContextMenu(self, menu):
         """ Set a menu as the the context (e.g. 'right click') popup menu,
-            and bind it so it pops up on demand.
-            This assumes the object has only one context menu named
-            `contextMenu`; bind
+            and bind it so it pops up on demand. This assumes the object has 
+            only one context menu named `contextMenu`; bind any other context 
+            menus manually.
         """
         self.contextMenu = menu
         self.Bind(wx.EVT_CONTEXT_MENU, self.OnContextMenu)
@@ -258,19 +212,6 @@ class MenuMixin(object):
         if isinstance(getattr(self, 'contextMenu', None), wx.Menu):
             self.PopupMenu(self.contextMenu)
     
-
-
-#===============================================================================
-# Custom Events (for multithreaded UI updating)
-#===============================================================================
-
-(EvtSetVisibleRange, EVT_SET_VISIBLE_RANGE) = wx.lib.newevent.NewEvent()
-(EvtSetTimeRange, EVT_SET_TIME_RANGE) = wx.lib.newevent.NewEvent()
-(EvtProgressStart, EVT_PROGRESS_START) = wx.lib.newevent.NewEvent()
-(EvtProgressUpdate, EVT_PROGRESS_UPDATE) = wx.lib.newevent.NewEvent()
-(EvtProgressEnd, EVT_PROGRESS_END) = wx.lib.newevent.NewEvent()
-(EvtInitPlots, EVT_INIT_PLOTS) = wx.lib.newevent.NewEvent()
-(EvtImportError, EVT_IMPORT_ERROR) = wx.lib.newevent.NewEvent()
 
 
 #===============================================================================
