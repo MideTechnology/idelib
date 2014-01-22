@@ -1,6 +1,6 @@
 '''
-Functions for retrieving lists of devices and information on said
-devices.
+Functions for detecting, identifying, and retrieving information about
+data-logging devices.
 
 Created on Nov 14, 2013
 
@@ -12,6 +12,10 @@ import os
 import string
 import sys
 
+SYSTEM_PATH = "/SYSTEM/DEV/".replace("/",os.sep)
+INFO_FILE = os.path.join(SYSTEM_PATH, "DEVINFO")
+CLOCK_FILE = os.path.join(SYSTEM_PATH, "CLOCK")
+
 #===============================================================================
 # 
 #===============================================================================
@@ -19,7 +23,7 @@ import sys
 def isRecorder(dev):
     """
     """
-    if not os.path.exists(os.path.join(dev, "/system/dev/devinfo.SSX")):
+    if not os.path.exists(os.path.join(dev, INFO_FILE)):
         return False
     # TODO: Read device info
     return True
@@ -53,23 +57,22 @@ def win_getDevices():
 def win_getDeviceInfo(dev):
     """
     """
-    if "win" in sys.platform:
-        kernel32 = ctypes.windll.kernel32
-        volumeNameBuffer = ctypes.create_unicode_buffer(1024)
-        fileSystemNameBuffer = ctypes.create_unicode_buffer(1024)
-        serial_number = ctypes.c_uint(0)
-#         file_system_flags =  ctypes.c_uint(0)
-        kernel32.GetVolumeInformationW(
-            ctypes.c_wchar_p(dev),
-            volumeNameBuffer,
-            ctypes.sizeof(volumeNameBuffer),
-            ctypes.byref(serial_number),
-            None, #max_component_length,
-            None, #ctypes.byref(file_system_flags),
-            fileSystemNameBuffer,
-            ctypes.sizeof(fileSystemNameBuffer)
-        )
-        return dev, volumeNameBuffer.value, hex(serial_number.value), fileSystemNameBuffer.value
+    volumeNameBuffer = ctypes.create_unicode_buffer(1024)
+    fileSystemNameBuffer = ctypes.create_unicode_buffer(1024)
+    serial_number = ctypes.c_uint(0)
+#     file_system_flags =  ctypes.c_uint(0)
+    kernel32.GetVolumeInformationW(
+        ctypes.c_wchar_p(dev),
+        volumeNameBuffer,
+        ctypes.sizeof(volumeNameBuffer),
+        ctypes.byref(serial_number),
+        None, #max_component_length,
+        None, #ctypes.byref(file_system_flags),
+        fileSystemNameBuffer,
+        ctypes.sizeof(fileSystemNameBuffer)
+    )
+    return (dev, volumeNameBuffer.value, hex(serial_number.value), 
+            fileSystemNameBuffer.value, kernel32.GetDriveTypeA(dev))
 
 
 win_last_devices = 0

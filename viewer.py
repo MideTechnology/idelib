@@ -33,6 +33,7 @@ import wx; wx = wx # Workaround for Eclipse code comprehension
 # Custom controls
 from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
 from timeline import EVT_INDICATOR_CHANGED, RealFormat
+from export_dialog import ModalExportProgress
 
 # Graphics (icons, etc.)
 import images
@@ -106,16 +107,16 @@ class Loader(Thread):
 
 
     def run(self):
-        wx.PostEvent(self.root, 
-                     EvtProgressStart(label="Importing...", initialVal=-1, 
-                                      cancellable=True, cancelEnabled=None))
+        evt = EvtProgressStart(label="Importing...", initialVal=-1, 
+                               cancellable=True, cancelEnabled=None)
+        wx.PostEvent(self.root, evt)
         
         self.totalUpdates = 0
         importer.readData(self.dataset, self, numUpdates=self.numUpdates, 
                           updateInterval=self.updateInterval)
 
-        wx.PostEvent(self.root, 
-                     EvtProgressEnd(label=self.formatMessage(self.lastCount)))
+        evt = EvtProgressEnd(label=self.formatMessage(self.lastCount))
+        wx.PostEvent(self.root, evt)
 
 
     def formatMessage(self, count, est=None):
@@ -132,7 +133,6 @@ class Loader(Thread):
             estStr = "- Est. finish in %s" % str(est)[:-7].lstrip("0:")
             
         return "%s samples imported %s" % (countStr, estStr)
-        
         
 
     def __call__(self, count=0, percent=None, total=None, error=None, done=False):
@@ -166,17 +166,15 @@ class Loader(Thread):
                 if endTime is None:
                     endTime = self.root.session.lastTime
                 if endTime is not None:
-                    startTime = self.root.session.firstTime
-                    wx.PostEvent(self.root,
-                        EvtSetTimeRange(start=startTime, end=endTime, 
-                                        instigator=None, tracking=False))
-                    wx.PostEvent(self.root, 
-                        EvtSetVisibleRange(start=startTime, end=endTime, 
-                                           instigator=None, tracking=False))
+                    kwargs = {'start': self.root.session.firstTime, 
+                              'end': endTime, 
+                              'instigator': None, 
+                              'tracking': False}
+                    wx.PostEvent(self.root, EvtSetTimeRange(**kwargs))
+                    wx.PostEvent(self.root, EvtSetVisibleRange(**kwargs))
             else:
                 # Still in header; don't update.
                 return
-        
         
         est = None
         thisTime = datetime.now()
@@ -194,9 +192,9 @@ class Loader(Thread):
 
         if self.dataset.lastSession == self.root.session:
             evt = EvtSetTimeRange(start=self.root.session.firstTime, 
-                                     end=self.root.session.lastTime, 
-                                     instigator=None, 
-                                     tracking=True)
+                                  end=self.root.session.lastTime, 
+                                  instigator=None, 
+                                  tracking=True)
             wx.PostEvent(self.root, evt)
         
         self.lastTime = thisTime
@@ -213,27 +211,7 @@ class Loader(Thread):
             pass
                         
 
-#===============================================================================
-# 
-#===============================================================================
 
-class ModalExportProgress(wx.ProgressDialog):
-    """ Subclass of the standard progress dialog, implementing the __call__
-        method and other attributes needed for a callback (like the Loader).
-    """
-    def __init__(self, *args, **kwargs):
-        self.cancelled = False
-        super(ModalExportProgress, self).__init__(*args, **kwargs)
-        
-    
-    def __call__(self, count=0, percent=None, total=None, error=None, done=False):
-        if done:
-            return
-        msg = "Exporting %d of %d" % (count, total)
-        keepGoing, skip = super(ModalExportProgress, self).Update(count, msg)
-        self.cancelled = not keepGoing
-        return keepGoing, skip
-    
 #===============================================================================
 # 
 #===============================================================================
@@ -287,7 +265,6 @@ class StatusBar(wx.StatusBar):
 
         self.SetStatusText("Welcome to %s v%s" % (APPNAME, __version__), 
                            self.messageFieldNum)
-
 
         self.Bind(wx.EVT_SIZE, self.repositionProgressBar)
         self.Bind(wx.EVT_BUTTON, self.OnCancelClicked, self.cancelButton)
@@ -392,7 +369,6 @@ class StatusBar(wx.StatusBar):
                 self.timer.Stop()
             self.progressBar.SetValue(val*1000.0)
 
-
         
     def stopProgress(self, label=""):
         """ Hide the progress bar and Cancel button (if visible).
@@ -450,15 +426,16 @@ class Timeline(wx.Panel):
         sizer.Add(self.scrollbar, 0, wx.EXPAND|wx.ALIGN_BOTTOM)
         self.SetSizer(sizer)
 
-        self.scrollbar.Bind(wx.EVT_SCROLL, self.OnScroll) # Used to bind all scroll events
-        self.scrollbar.Bind(wx.EVT_SCROLL_TOP, self.OnScroll) # scroll-to-top events (minimum position)
-        self.scrollbar.Bind(wx.EVT_SCROLL_BOTTOM, self.OnScroll) # scroll-to-bottom events (maximum position)
-        self.scrollbar.Bind(wx.EVT_SCROLL_LINEUP, self.OnScroll) # line up events
-        self.scrollbar.Bind(wx.EVT_SCROLL_LINEDOWN, self.OnScroll) # line down events
-        self.scrollbar.Bind(wx.EVT_SCROLL_PAGEUP, self.OnScroll) # page up events
-        self.scrollbar.Bind(wx.EVT_SCROLL_PAGEDOWN, self.OnScroll) # page down events
-        self.scrollbar.Bind(wx.EVT_SCROLL_THUMBTRACK, self.OnScrollTrack) # drag events
-        self.scrollbar.Bind(wx.EVT_SCROLL_CHANGED, self.OnScrollEnd) # End of scrolling
+        # TODO: Double-check which of these are required.
+        self.scrollbar.Bind(wx.EVT_SCROLL, self.OnScroll)
+        self.scrollbar.Bind(wx.EVT_SCROLL_TOP, self.OnScroll)
+        self.scrollbar.Bind(wx.EVT_SCROLL_BOTTOM, self.OnScroll)
+        self.scrollbar.Bind(wx.EVT_SCROLL_LINEUP, self.OnScroll)
+        self.scrollbar.Bind(wx.EVT_SCROLL_LINEDOWN, self.OnScroll)
+        self.scrollbar.Bind(wx.EVT_SCROLL_PAGEUP, self.OnScroll)
+        self.scrollbar.Bind(wx.EVT_SCROLL_PAGEDOWN, self.OnScroll)
+        self.scrollbar.Bind(wx.EVT_SCROLL_THUMBTRACK, self.OnScrollTrack)
+        self.scrollbar.Bind(wx.EVT_SCROLL_CHANGED, self.OnScrollEnd)
         
         self.timebar.Bind(wx.EVT_MOTION, self.OnMouseMotion)
         self.timebar.Bind(wx.EVT_LEFT_DOWN, self.OnTimebarClick)
@@ -685,7 +662,7 @@ class TimeNavigator(wx.Panel):
         
     def setVisibleRange(self, start=None, end=None, instigator=None,
                         tracking=False):
-        """ Set the currently visible time range. Propagates to its children.
+        """ Set the currently visible time range.
             
             @keyword start: The first time in the visible range. Defaults to
                 the current start.
@@ -993,6 +970,21 @@ class PlotCanvas(wx.ScrolledWindow):
     
     def setVisibleRange(self, start=None, end=None, instigator=None,
                         tracking=False):
+        """ Set the currently visible time range.
+            
+            @keyword start: The first time in the visible range. Defaults to
+                the current start.
+            @keyword end: The last time in the visible range. Defaults to the
+                current end.
+            @keyword instigator: The object that initiated the change, in 
+                order to avoid an infinite loop of child calling parent 
+                calling child. The call is aborted if the instigator is the
+                object itself.
+            @keyword tracking: `True` if the widget doing the update is
+                tracking (a/k/a scrubbing), `False` if the update is final.
+                Elements that take a long time to draw shouldn't respond
+                if `tracking` is `True`.
+        """
         if instigator != self and not tracking:
             self.Refresh()
     
@@ -1035,12 +1027,11 @@ class PlotCanvas(wx.ScrolledWindow):
         vScale = (size.y + 0.0) / (vRange[1]-vRange[0])
         thisRange = (hScale, vScale, hRange, vRange)
         
-        majorHLines = []
-        minorHLines = []
-        
         # Get the horizontal grid lines. 
         # NOTE: This might not work in the future. Consider modifying
         #    VerticalScaleCtrl to ensure we've got access to the labels!
+        majorHLines = []
+        minorHLines = []
         if self.Parent.drawMajorHLines:
             majorHLines = [(0, p.pos, size[0], p.pos) for p in self.Parent.legend.scale._majorlabels]
         if self.Parent.drawMinorHLines:
@@ -1095,7 +1086,6 @@ class PlotCanvas(wx.ScrolledWindow):
 
             # Draw the remaining lines (if any)
             dc.DrawLineList(lineSubset)
-            
 
         else:
             # No change in displayed range; Use cached lines.
@@ -1130,7 +1120,6 @@ class Plot(wx.Panel):
     """
     _sbMax = 10000.0
     _minThumbSize = 100
-    
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Panel arguments plus:
@@ -1224,7 +1213,7 @@ class Plot(wx.Panel):
     
     def setVisibleRange(self, start=None, end=None, instigator=None,
                         tracking=False):
-        """ Set the currently visible time range. Propagates to its children.
+        """ Set the currently visible time range.
             
             @keyword start: The first time in the visible range. Defaults to
                 the current start.
@@ -1261,6 +1250,14 @@ class Plot(wx.Panel):
 
 
     def zoomToFit(self, instigator=None, padding=0.05):
+        """ Adjust the visible vertical range to fit the values in the
+            currently displayed interval.
+            
+            @keyword instigator: The object that initiated the change, in order
+                to avoid an infinite loop of child calling parent calling child.
+            @keyword padding: The extra space to add to the top and bottom,
+                as a normalized percent.
+        """
         if self.visibleValueRange is None:
             return
         d = (self.visibleValueRange[1] - self.visibleValueRange[0]) * padding
@@ -1268,7 +1265,6 @@ class Plot(wx.Panel):
                            self.visibleValueRange[1] + d, 
                            instigator, 
                            False)
-
 
 
     #===========================================================================
@@ -1280,7 +1276,6 @@ class Plot(wx.Panel):
         self.root.showMouseVPos(None)
         evt.Skip()
 
-    
     def OnScroll(self, evt):
         evt.Skip()
         
@@ -1295,7 +1290,8 @@ class Plot(wx.Panel):
 #===============================================================================
 
 class PlotSet(wx.aui.AuiNotebook):
-    """ A tabbed window containing multiple Plots.
+    """ A tabbed window containing multiple Plots. The individual plots (pages)
+        can be accessed by index like a tuple or list.
     """
     
     def __init__(self, *args, **kwargs):
@@ -1405,7 +1401,7 @@ class PlotSet(wx.aui.AuiNotebook):
 
 
     def removePlot(self, idx):
-        """
+        """ Delete a plot page by index.
         """
         pagecount = len(self)
         idx = pagecount + idx if idx < 0 else idx
@@ -1415,9 +1411,8 @@ class PlotSet(wx.aui.AuiNotebook):
                 self.DeletePage(pIdx)
 
     
-    
     def clearAllPlots(self):
-        """
+        """ Delete all plots.
         """
         for _ in xrange(self.GetPageCount):
             self.removePlot(0)
@@ -1428,7 +1423,10 @@ class PlotSet(wx.aui.AuiNotebook):
 
 class Corner(wx.Panel):
     """ A 'bug' to fit into the empty space in the lower left corner.
+        Provides a space for 'manually' entering an interval of time to
+        display.
     """
+    
     def __init__(self, *args, **kwargs):
         self.root = kwargs.pop('root',None)
         super(Corner, self).__init__(*args, **kwargs)
@@ -1439,33 +1437,33 @@ class Corner(wx.Panel):
         self.updating = False
         self.formatting = "%.4f"
         
+        fieldAtts = {'size': (56,-1),
+                     'style': wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB}
+        labelAtts = {'size': (30,-1),
+                     'style': wx.ALIGN_RIGHT | wx.ALIGN_BOTTOM}
+        
+        self.startField = wx.TextCtrl(self, -1, "start", **fieldAtts)
+        startLabel = wx.StaticText(self,-1,"Start:", **labelAtts)
+        self.startUnits = wx.StaticText(self, -1, " ", style=wx.ALIGN_LEFT)
+
+        self.endField = wx.TextCtrl(self, -1, "end", **fieldAtts)
+        endLabel = wx.StaticText(self,-1,"End:", **labelAtts)
+        self.endUnits = wx.StaticText(self, -1, " ", style=wx.ALIGN_LEFT)
+
         sizer = wx.FlexGridSizer(2,3, hgap=4, vgap=4)
         sizer.AddGrowableCol(0,-2)
         sizer.AddGrowableCol(1,-4)
         sizer.AddGrowableCol(2,-1)
-        
-        self.startField = wx.TextCtrl(self, -1, "start", size=(56, -1), 
-                                      style=wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB)
-        startLabel = wx.StaticText(self,-1,"Start:",size=(30,-1),
-                                   style=wx.ALIGN_RIGHT)
-        self.startUnits = wx.StaticText(self, -1, self.root.units[1], 
-                                        style=wx.ALIGN_LEFT)
-        sizer.Add(startLabel,0,0)
+        sizer.Add(startLabel,0,0,wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.ALL)
         sizer.Add(self.startField,1,0)
         sizer.Add(self.startUnits, 2,0)
-        
-        self.endField = wx.TextCtrl(self, -1, "end", size=(56, -1), 
-                                    style=wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB)
-        endLabel = wx.StaticText(self,-1,"End:",size=(30,-1),
-                                 style=wx.ALIGN_RIGHT)
-        self.endUnits = wx.StaticText(self, -1, self.root.units[1], 
-                                      style=wx.ALIGN_LEFT)
         sizer.Add(endLabel,1,0)
         sizer.Add(self.endField,1,1)
         sizer.Add(self.endUnits, 2,1)
-
         self.SetSizer(sizer)
+
         self.SetBackgroundColour(self.root.uiBgColor)
+        self.setXUnits()
         
         self.startField.Bind(wx.EVT_TEXT_ENTER, self.OnRangeChanged)
         self.endField.Bind(wx.EVT_TEXT_ENTER, self.OnRangeChanged)
@@ -1478,17 +1476,17 @@ class Corner(wx.Panel):
             field.SetValue(self.formatting % (self.root.timeScalar * val))
     
     
-    def _parse(self, val, default=None):
-        """ Turns a string value into a float. Used internally.
+    def _getValue(self, field, default=None):
+        """ Get the value (in dataset time units) of a field.
         """
         try:
-            return float(val) / self.root.timeScalar
+            return float(field.GetValue()) / self.root.timeScalar
         except ValueError:
             return default
         
     
     def setXUnits(self, symbol=None):
-        """
+        """ Set the displayed symbol for the horizontal units (e.g. time).
         """
         symbol = self.root.units[1] if symbol is None else symbol
         self.startUnits.SetLabel(symbol)
@@ -1497,7 +1495,20 @@ class Corner(wx.Panel):
 
     def setVisibleRange(self, start=None, end=None, instigator=None, 
                         tracking=None):
-        """
+        """ Set the currently visible time range.
+            
+            @keyword start: The first time in the visible range. Defaults to
+                the current start.
+            @keyword end: The last time in the visible range. Defaults to the
+                current end.
+            @keyword instigator: The object that initiated the change, in 
+                order to avoid an infinite loop of child calling parent 
+                calling child. The call is aborted if the instigator is the
+                object itself.
+            @keyword tracking: `True` if the widget doing the update is
+                tracking (a/k/a scrubbing), `False` if the update is final.
+                Elements that take a long time to draw shouldn't respond
+                if `tracking` is `True`.
         """
         if instigator == self:
             return
@@ -1510,17 +1521,17 @@ class Corner(wx.Panel):
 
     def setTimeRange(self, start=None, end=None, instigator=None, 
                      tracking=None):
+        """ Change the total range start and/or end time. Not applicable to
+            this display, but implemented for compatibility.
         """
-        """
-        # This display doesn't show the full time range.
         pass
     
 
     def OnRangeChanged(self, evt):
         """
         """
-        start = self._parse(self.startField.GetValue())
-        end = self._parse(self.endField.GetValue())
+        start = self._getValue(self.startField)
+        end = self._getValue(self.endField)
         
         if not self.updating:
             self.Parent.setVisibleRange(start, end, None, False)
@@ -1573,7 +1584,7 @@ class Viewer(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
         # XXX: TEST CODE BELOW. REMOVE LATER.
-        self.openFile(r"C:\Users\dstokes\workspace\wvr\test_full_cdb_huge.dat")
+        self.openFile(r"C:\Users\dstokes\workspace\wvr\test_files\test_full_cdb_huge.dat")
 
 
     def InitMenus(self):
@@ -1592,6 +1603,8 @@ class Viewer(wx.Frame):
         
         self.menubar = wx.MenuBar()
         self.ID_EXPORT_VISIBLE = wx.NewId()
+        self.ID_DEVICE_TIME = wx.NewId()
+        self.ID_DEVICE_CONFIG = wx.NewId()
         
         fileMenu = wx.Menu()
         addItem(fileMenu, wx.ID_OPEN, "&Open...", "", self.OnFileOpenMenu)
@@ -1634,6 +1647,12 @@ class Viewer(wx.Frame):
         dataSessionsMenu.Append(30001, "Session 0", "", wx.ITEM_RADIO)
         dataMenu.AppendMenu(300, "Sessions", dataSessionsMenu)
         self.menubar.Append(dataMenu, '&Data')
+        
+        deviceMenu = wx.Menu()
+        addItem(deviceMenu, self.ID_DEVICE_CONFIG, "Configure Device...", "", None, False)
+        addItem(deviceMenu, self.ID_DEVICE_CONFIG, "Set Device Clock", "", None, False)
+        self.menubar.Append(deviceMenu, 'De&vice')
+        
         
         helpMenu = wx.Menu()
         addItem(helpMenu, wx.ID_ABOUT, "About %s..." % APPNAME, "", self.OnHelpAboutMenu)
@@ -1720,7 +1739,7 @@ class Viewer(wx.Frame):
             return
         
         if self.session is None:
-            self.session = self.dataset.sessions[0]
+            self.session = self.dataset.lastSession
         
         for d,c in zip(self.dataset.getPlots(), self.app.prefs['defaultColors']):
             name = d.name
@@ -2039,6 +2058,8 @@ class Viewer(wx.Frame):
 #         info.License = wordwrap(__license__, 500, wx.ClientDC(self))
         wx.AboutBox(info)
 
+
+    
 
     #===========================================================================
     # Custom Events

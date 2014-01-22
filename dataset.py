@@ -37,7 +37,6 @@ from parsers import getParserTypes, getParserRanges
 
 __DEBUG__ = True
 
-
 if __DEBUG__:
     import ebml
     print "*** Loaded python-ebml from", os.path.abspath(ebml.__file__)
@@ -59,6 +58,8 @@ class Transform(object):
         requires, including basic calibration at the low level and 
         adjustments for display at the high level.
     """
+    modifiesTime = False
+    modifiesValue = False
     
     def __init__(self, *args, **kwargs):
         pass
@@ -69,10 +70,9 @@ class Transform(object):
         return event[0] + session.startTime, event[1]
 
     @classmethod
-    def null(cls, x):
-        return x
+    def null(cls, *args, **kwargs):
+        return args[0]
 
-nullTransform = lambda x: x
 
 
 #===============================================================================
@@ -191,6 +191,37 @@ class Cascading(object):
         return result
 
 
+    def getTransforms(self, id_=None, _tlist=None):
+        """ Get a list of all transforms applied to the data, from first (the
+            lowest-level parent) to last (the transform, if any, on the
+            object itself).
+            
+            Applicable only to objects derived from `Transformable`.
+        """
+        _tlist = [] if _tlist is None else _tlist
+        if getattr(self, "_transform", None) is not None:
+            if isinstance(self._transform, Iterable) and id_ is not None:
+                x = self._transform[id_]
+            else:
+                x = self._transform
+            if x != Transform.null:
+                _tlist.insert(0, x)
+        if isinstance(self.parent, Cascading):
+            subchannelId = getattr(self, "id", None)
+            self.parent.getTransforms(subchannelId, _tlist)
+        return _tlist
+
+
+    def setAllAttributes(self, attname, val, last=None):
+        """
+        """
+        if hasattr(self, attname):
+            setattr(self, attname, val)
+        if self == last or self.parent is None:
+            return
+        self.parent.setAllAttributes(attname, val, last)
+        
+
     def __repr__(self):
         return "<%s %r>" % (self.__class__.__name__, self.path())
     
@@ -232,13 +263,13 @@ class Transformable(object):
 
     @property
     def raw(self):
-        """ If `True`, the transform will be applied to all events. """
+        """ If `True`, the transform will not be applied. """
         return getattr(self, '_raw', False)
  
     @raw.setter
     def raw(self, v):
-        # Rather than use conditionals in loops, the transform object/function
-        # gets changed. 
+        # Rather than use conditionals in loops, the transform object (or
+        # function) gets changed. 
         self._raw = v == True
         if self._raw:
             self._transform, self._mapTransform = self._rawTransforms
@@ -305,7 +336,6 @@ class Dataset(Cascading):
             self.name = os.path.splitext(os.path.basename(self.filename))[0]
         else:
             self.name = name
-
 
 
     def addSession(self, startTime=None, endTime=None):
@@ -445,6 +475,9 @@ class Sensor(Cascading):
     def __getitem__(self, idx):
         return self.channels[idx]
 
+    @property
+    def children(self):
+        return self.channels.values()
 
 #===============================================================================
 # Channels
@@ -514,8 +547,13 @@ class Channel(Cascading, Transformable):
         self._lastParsed = (None, None)
 
 
+    @property
+    def children(self):
+        return list(iter(self))
+
+
     def __repr__(self):
-        return '<%s %x: %r>' % (self.__class__.__name__, self.id, self.path())
+        return '<%s 0x%02x: %r>' % (self.__class__.__name__, self.id, self.path())
 
 
     def __getitem__(self, idx):
@@ -530,18 +568,6 @@ class Channel(Cascading, Transformable):
         for i in xrange(len(self)):
             yield self.getSubChannel(i)
 
-    def _countSubsamples(self, n):
-        """ Keep track of the number of subsamples per sample. For future
-            optimization work.
-        """
-        # This will work for Channels and SubChannels; for the latter,
-        # it will change its parent's subsample count.
-        ss = self.getAttribute('subsampleCount')[1]
-        if ss is None:
-            return
-        ss[0] = max(ss[0], n)
-        ss[1] = min(ss[1], n)
-        
 
     def addSubChannel(self, subchannelId, name=None, units=('',''), 
                  calibration=None):
@@ -575,13 +601,17 @@ class Channel(Cascading, Transformable):
         return self.subchannels[subchannelId]
 
 
-    def getSession(self, sessionId):
+    def getSession(self, sessionId=None):
         """ Retrieve a session 
         """
-        if not self.dataset.hasSession(sessionId):
+        if sessionId is None:
+            session = self.dataset.lastSession
+            sessionId = session.sessionId
+        elif self.dataset.hasSession(sessionId):
+            session = self.dataset.sessions[sessionId]
+        else:
             raise KeyError("Dataset has no Session id=%r" % sessionId)
-        return self.sessions.setdefault(sessionId, 
-                    EventList(self, session=self.dataset.sessions[sessionId]))
+        return self.sessions.setdefault(sessionId, EventList(self, session))
     
     
     def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None):
@@ -633,6 +663,9 @@ class SubChannel(Channel):
         
         self.setTransform(calibration)
 
+    @property
+    def children(self):
+        return []
 
     @property
     def possibleRange(self):
@@ -666,15 +699,17 @@ class SubChannel(Channel):
         return self.parent.parseBlock(block, start, end, step=step, subchannel=self.id)
     
         
-    def getSession(self, sessionId):
+    def getSession(self, sessionId=None):
         """ Retrieve a session 
         """
         if self._sessions is None:
             self._sessions = {}
-        if sessionId not in self._sessions:
-            el = self.parent.getSession(sessionId).copy(self)
-            self._sessions[sessionId] = el
-        return self._sessions[sessionId]
+        elif sessionId in self._sessions:
+            return self._sessions[sessionId]
+        el = self.parent.getSession(sessionId).copy(self)
+        sessionId = el.session.sessionId
+        self._sessions[sessionId] = el
+        return el
     
     
     def addSubChannel(self, *args, **kwargs):
@@ -717,7 +752,7 @@ class EventList(Cascading):
 
 
     def path(self):
-        return "%s:%s" % (self.parent.path(), self.session.sessionId)
+        return "%s, %s" % (self.parent.path(), self.session.sessionId)
 
 
     def copy(self, newParent=None):
@@ -746,7 +781,6 @@ class EventList(Cascading):
         self._data.append(block)
         self._length += block.numSamples
         block.indexRange = (oldLength, self._length - 1)
-        self.parent._countSubsamples(block.numSamples)
 
         # Cache the index range for faster searching
         tableIdx = block.indexRange[0] / 10000
@@ -918,7 +952,8 @@ class EventList(Cascading):
         value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
         
         if self.hasSubchannels:
-            event=[f((timestamp,v)) for f,v in izip(self.parent._transform, value)]
+            event=tuple((f((timestamp,v)) for f,v in izip(self.parent._transform, value)))
+            event=(event[0][0], tuple((e[1] for e in event)))
         else:
             event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value)))
         
@@ -986,12 +1021,19 @@ class EventList(Cascading):
                 if self.dataset.useIndices:
                     indices = range(blockRange[0]+thisStart, blockRange[0]+thisEnd, step)
                     for eIdx,eTime,eVal in izip(indices,times,values):
-                        eTime, eVal = self.parent._transform((eTime, eVal))
-                        yield Event(eIdx,eTime,eVal)
+                        if self.hasSubchannels:
+                            # TODO: (post Transform fix) Refactor later
+                            event=[f((eTime,v)) for f,v in izip(self.parent._transform, eVal)]
+                            yield Event(eIdx, event[0][0], tuple((e[1] for e in event)))
+                        else:
+                            eTime, eVal = self.parent._transform((eTime, eVal))
+                            yield Event(eIdx,eTime,eVal)
                 else:
                     for event in izip(times,values):
                         if self.hasSubchannels:
+                            # TODO: (post Transform fix) Refactor later
                             event=[f((event[-2],v)) for f,v in izip(self.parent._transform, event[-1])]
+                            event=(event[0][0], tuple((e[1] for e in event)))
                         else:
                             event = self.parent._transform(self.parent.parent._transform[self.parent.id](event))
                         yield event
@@ -1193,6 +1235,7 @@ class EventList(Cascading):
         endTime = endEvt[-2] - startEvt[-2] + 0.0
         percent = relAt/endTime
         if self.hasSubchannels:
+            print startEvt
             result = startEvt[-1][:]
             for i in xrange(len(self.parent.types)):
                 result[i] = self.parent.interpolators[i](startEvt[-1][i], endEvt[-1][i], percent)
@@ -1291,7 +1334,7 @@ class EventList(Cascading):
                     yield event
         
 
-    def exportCsv(self, stream, start=0, stop=-1, step=1,
+    def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False):
         """ Export events as CSV to a stream (e.g. a file).
@@ -1300,6 +1343,9 @@ class EventList(Cascading):
             @keyword start: The first event index to export.
             @keyword stop: The last event index to export.
             @keyword step: The number of events between exported lines.
+            @keyword subchannels: A sequence of individual subchannel numbers
+                to export. Only applicable to objects with subchannels.
+                `True` (default) exports them all.
             @keyword timeScalar: A scaling factor for the even times.
                 The default is 1 (microseconds).
             @keyword callback: A function (or function-like object) to notify
@@ -1318,6 +1364,8 @@ class EventList(Cascading):
         def singleVal(x): return ", ".join(map(str,x))
         def multiVal(x): return "%s, %s" % (str(x[-2]*timeScalar), 
                                             str(x[-1]).strip("[({})]"))
+        def someVal(x): return "%s, %s" % (str(x[-2]*timeScalar),
+                                           str([x[-1][v] for v in subchannels]).strip("[({})]"))
         
         if callback is None:
             noCallback = True
@@ -1325,7 +1373,14 @@ class EventList(Cascading):
         else:
             noCallback = False
         
-        formatter = multiVal if self.hasSubchannels else singleVal
+        if self.hasSubchannels:
+            if isinstance(subchannels, Iterable):
+                formatter = someVal
+            else:
+                formatter = multiVal
+        else:
+            formatter = singleVal
+            
         
         totalLines = (stop - start) / (step + 0.0)
         updateInt = int(totalLines * callbackInterval)
@@ -1334,7 +1389,8 @@ class EventList(Cascading):
         stop = stop + len(self) if stop < 0 else stop
         
         t0 = datetime.now()
-        try:
+#         try:
+        if True:
             for num, evt in enumerate(self.iterSlice(start, stop, step)):
                 if getattr(callback, 'cancelled', False):
                     callback(done=True)
@@ -1343,11 +1399,11 @@ class EventList(Cascading):
                 if updateInt == 0 or num % updateInt == 0:
                     callback(num, total=totalLines)
                 callback(done=True)
-        except Exception as e:
-            if raiseExceptions or noCallback:
-                raise e
-            else:
-                callback(error=e)
+#         except Exception as e:
+#             if raiseExceptions or noCallback:
+#                 raise e
+#             else:
+#                 callback(error=e)
                 
         return num+1, datetime.now() - t0
 
