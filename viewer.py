@@ -3,13 +3,21 @@ Slam Stick eXtreme Data Viewer
 
 Description should go here. At the moment, this is also the text that appears
 in the About Box.
+
+### This line and below are not in the About Box. ###
+
+@todo: See individual TODO tags in the body of code. The long-term items
+    are also listed here.
+@todo: Revamp the zooming and navigation to be event-driven, handled as far up
+    the chain as possible. Consider using wx.lib.pubsub if it's thread-safe.
+
+
 '''
 
 APPNAME = u"Slam Stick X Data Viewer"
 __version__="0.0.1"
-__created__="Oct 21, 2013"
 __date__="Oct 21, 2013"
-__copyright__=u"Copyright (c) 2013 Mid\xe9 Technology"
+__copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 __url__ = ("http://mide.com", "")
 __credits__=["David R. Stokes", "Tim Gipson"]
 
@@ -21,6 +29,7 @@ import json
 import locale
 import os
 import sys
+from textwrap import dedent
 from threading import Thread
 
 from wx import aui
@@ -33,8 +42,9 @@ import images
 
 # Custom controls
 from base import ViewerPanel, MenuMixin
-from common import *
+from common import StatusBar, expandRange
 import config_dialog
+from events import *
 from export_dialog import ModalExportProgress, CSVExportDialog, FFTExportDialog
 from device_dialog import selectDevice
 from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
@@ -252,7 +262,7 @@ class Timeline(ViewerPanel):
         self.scrollUnitsPerUSec = 1.0
         self.unitsPerPixel = 1.0
         self.currentTime = 1000 # start of displayed interval, in microseconds
-        self.displayLength = 5000 # The length of displayed interval, in micros.
+        self.displayLength = 5000 # The length of displayed interval, in us.
         self.setTimeRange(*self.timerange)
         
 
@@ -816,13 +826,13 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
 
     def makeHGridlines(self, pts, width, scale):
-        """ Create the coordinates for the horizontal grid lines.
-            Used internally.
+        """ Create the coordinates for the horizontal grid lines from a list of
+            ruler indicator marks. Used internally.
         """
         return [(0, p.pos * scale, width * scale, p.pos * scale) for p in pts]
 
     
-    def getRelPos(self):
+    def getRelRange(self):
         """ Get the time range for the current window, based on the parent
             view's timeline. Used internally.
         """
@@ -834,10 +844,6 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
         result = (int(self.root.timeline.getValueAt(p1)),
                 int(self.root.timeline.getValueAt(p2)))
-        
-#         print self.Parent.source.parent.name, 
-#         print self.GetScreenRect(), self.root.timeline.GetScreenRect(),  
-#         print result
         
         return result
 
@@ -875,11 +881,11 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         
         tenth = int(size[0]/2 * oversampling)
 
-        # XXX: This does not work for vertically split plots; they all start
+        # BUG: This does not work for vertically split plots; they all start
         # at the start of the visible range instead of relative position on
         # the timeline. Investigate.
 #         hRange = map(int,self.root.getVisibleRange())
-        hRange = self.getRelPos()
+        hRange = self.getRelRange()
         vRange = legend.scale.GetRange()
         
         # TODO: Implement regional redrawing.
@@ -904,14 +910,16 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         #    VerticalScaleCtrl to ensure we've got access to the labels!
         majorHLines = []
         minorHLines = []
+        if self.Parent.drawMinorHLines:
+            self.minorHLinePen.SetWidth(viewScale)
+            minorHLines = self.makeHGridlines(legend.scale._minorlabels, 
+                                              size[0], viewScale)
         if self.Parent.drawMajorHLines:
             self.majorHLinePen.SetWidth(viewScale)
             majorHLines = self.makeHGridlines(legend.scale._majorlabels, 
                                               size[0], viewScale)
-        if self.Parent.drawMinorHLines:
-            minorHLines = self.makeHGridlines(legend.scale._miorlabels, 
-                                              size[0], viewScale)
 
+        # The first drawing only sets up the scale; don't draw.
         if not self.Parent.firstPlot:
             dc.DrawLineList(majorHLines, self.majorHLinePen)
             dc.DrawLineList(minorHLines, self.minorHLinePen)
@@ -956,7 +964,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                     lastPt = pt
                     
             except StopIteration:
-                # This will occur if there are no events, but that's okay.
+                # This will occur if there are 0-1 events, but that's okay.
                 pass
 
             # Draw the remaining lines (if any)
@@ -984,7 +992,6 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         dc.EndDrawing()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
-        # XXX: IDIOT LIGHT!
 
     def OnMenuColor(self, evt):
         data = wx.ColourData()
@@ -1065,10 +1072,13 @@ class Plot(ViewerPanel):
         
         self.plot.Bind(wx.EVT_LEAVE_WINDOW, self.OnMouseLeave)
 
-        # TODO: Finish scrolling implementation
+        # TODO: Finish scrolling implementation!
         self.scrollbar.Enable(False)
         self._bindScrollEvents(self.scrollbar, self.OnScroll, 
                               self.OnScrollTrack, self.OnScrollEnd)
+        
+#         self.Bind(wx.EVT_CHAR_HOOK, self.OnKeypress)
+        self.plot.Bind(wx.EVT_KEY_UP, self.OnKeypress)
         
 
     def setValueRange(self, start=None, end=None, instigator=None, 
@@ -1155,6 +1165,7 @@ class Plot(ViewerPanel):
             @keyword padding: The extra space to add to the top and bottom,
                 as a normalized percent.
         """
+        # TODO: Make all zooming event-based and handled by plot parents
         if self.visibleValueRange is None:
             return
         d = (self.visibleValueRange[1] - self.visibleValueRange[0]) * padding
@@ -1167,6 +1178,28 @@ class Plot(ViewerPanel):
     #===========================================================================
     # 
     #===========================================================================
+
+
+    def OnKeypress(self, evt):
+        keycode = evt.GetUnicodeKey()
+        keychar = unichr(keycode)
+        
+        if keychar == u'R':
+            self.plot.Refresh()
+        elif evt.CmdDown():
+            # TODO: These won't necessarily work on international keyboards
+            # (e.g. '=' is a shift combination on German keyboards)
+            if keychar == u'-':
+                self.legend.OnZoomOut(None)
+            elif keychar == u'=':
+                self.legend.OnZoomIn(None)
+            elif keychar == u'0':
+                self.zoomToFit()
+            else:
+                evt.Skip()
+        else:
+            evt.Skip()
+        
     
     def OnMouseLeave(self, evt):
         self.root.showMouseHPos(None)
@@ -1506,6 +1539,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_EXPORT = wx.NewId()
     ID_EXPORT_VISIBLE = wx.NewId()
     ID_RENDER_FFT = wx.NewId()
+    ID_RENDER_SPEC = wx.NewId()
     ID_DEVICE_TIME = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
     ID_DEVICE_SET_CLOCK = wx.NewId()
@@ -1522,6 +1556,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.units = kwargs.pop('units',('seconds','s'))
         self.drawingSuspended = False
         
+        filename = kwargs.pop('filename', None)
         self.showDebugChannels = self.app.getPref('showDebugChannels', True)
         
         displaySize = wx.DisplaySize()
@@ -1563,8 +1598,11 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
-        # TODO: Remove this later? Viewer is also used to configure devices.
-        self.OnFileOpenMenu(None)
+        if filename:
+            self.openFile(filename)
+        else:
+            # TODO: Remove this later? Viewer is also used to configure devices.
+            self.OnFileOpenMenu(None)
 
 
     def buildMenus(self):
@@ -1578,14 +1616,14 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnFileOpenMenu)
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCrtl-.", "", 
                          self.cancelOperation, enabled=False)
-        self.addMenuItem(fileMenu, wx.ID_REVERT, "&Reload Current File", "", 
-                         self.OnFileReloadMenu, enabled=False)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_EXPORT, "Export Data (CSV)...", "", 
                          self.exportCsv)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_RENDER_FFT, "Render FFT...", "", 
                          self.renderFFT)
+        self.addMenuItem(fileMenu, self.ID_RENDER_SPEC, "Render Spectrogram (2D FFT)...", "", 
+                         self.renderSpectrogram)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", enabled=False)
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
@@ -1609,8 +1647,8 @@ class Viewer(wx.Frame, MenuMixin):
         deviceMenu = wx.Menu()
         self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
                          "Configure Device...", "", self.OnDeviceConfigMenu)
-        self.addMenuItem(deviceMenu, self.ID_DEVICE_SET_CLOCK, 
-                         "Set Device Clock", "", None, enabled=False)
+#         self.addMenuItem(deviceMenu, self.ID_DEVICE_SET_CLOCK, 
+#                          "Set Device Clock", "", None, enabled=False)
         self.menubar.Append(deviceMenu, 'De&vice')
         
         viewMenu = wx.Menu()
@@ -1870,7 +1908,9 @@ class Viewer(wx.Frame, MenuMixin):
         """ Returns `True` if the app is in a state to immediately quit.
         """
         # TODO: Prompt to veto quitting only if an export is underway.
-        return self.ask("Really quit?") == wx.ID_YES
+        if self.app.getPref('warnBeforeQuit', True):
+            return self.ask("Really quit?") == wx.ID_YES
+        return True
 
     #===========================================================================
     # 
@@ -2023,6 +2063,12 @@ class Viewer(wx.Frame, MenuMixin):
             self.handleException(e, what="generating FFT")
         
 
+
+    def renderSpectrogram(self, evt=None):
+        """
+        """
+        # XXX: IMPLEMENT renderSpectrogram!
+        self.ask("Render Spectrogram not yet implemented!", "Not Implemented", wx.OK, wx.ICON_INFORMATION)
         
     #===========================================================================
     # 
@@ -2085,16 +2131,14 @@ class Viewer(wx.Frame, MenuMixin):
     def OnFileReloadMenu(self, evt):
         """ Handle File->Reload menu events.
         """
-        # XXX: IMPLEMENT ME
-        print "File:Reload"
-        pass
+        # XXX: IMPLEMENT OnFileReload!
+        self.ask("File:Reload not yet implemented!", "Not Implemented", wx.OK, wx.ICON_INFORMATION)
 
 
     def OnDeviceConfigMenu(self, evt):
         """ Handle Device->Configure Device menu events.
         """
         dev = selectDevice()
-        print dev
         if dev is not None:
             config_dialog.configureRecorder(dev)
     
@@ -2102,11 +2146,15 @@ class Viewer(wx.Frame, MenuMixin):
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.
         """
+        # Goofy trick to reformat the __doc__ for the dialog:
+        desc = dedent(__doc__[:__doc__.index("###")])
+        desc = desc.replace('\n\n','\0').replace('\n',' ').replace('\0','\n\n')
+        
         info = wx.AboutDialogInfo()
         info.Name = APPNAME
         info.Version = __version__
         info.Copyright = __copyright__
-        info.Description = wordwrap(__doc__, 350, wx.ClientDC(self))
+        info.Description = wordwrap(desc, 350, wx.ClientDC(self))
         info.WebSite = __url__
 #         info.Developers = __credits__
 #         info.License = wordwrap(__license__, 500, wx.ClientDC(self))
@@ -2376,15 +2424,15 @@ class ViewerApp(wx.App):
         'antialiasingMultiplier': ANTIALIASING_MULTIPLIER,
         'resamplingJitter': False,
         'resamplingJitterAmount': RESAMPLING_JITTER,
-        'locale': 'LANGUAGE_ENGLISH_US',
-#         'locale': 'English_United States.1252',
+        'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name
+#         'locale': 'English_United States.1252', # Python's locale name string
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'fileHistory': {},
         'fileHistorySize': 10,
-        'originHLineColor': wx.Colour(220,220,220),
+        'originHLineColor': wx.Colour(200,200,200),
         'majorHLineColor': wx.Colour(220,220,220),
         'minorHLineColor': wx.Colour(240,240,240),
-        'warnBeforeQuit': True,
+        'warnBeforeQuit': False, #True,
         'showDebugChannels': False,
         
         'wvr_tempMin': -20.0,
@@ -2392,7 +2440,7 @@ class ViewerApp(wx.App):
     }
 
 
-    def loadPrefs(self, filename=prefsFile):
+    def loadPrefs(self, filename=None):
         """ Load saved preferences from file.
         """
         def tuple2color(c):
@@ -2400,8 +2448,12 @@ class ViewerApp(wx.App):
                 return wx.Colour(*c)
             return c
         
+        filename = filename or self.prefsFile
         if not filename:
             return {}
+        
+        filename = os.path.realpath(os.path.expanduser(filename))
+
         try:
             with open(filename) as f:
                 prefs = json.load(f)
@@ -2415,17 +2467,21 @@ class ViewerApp(wx.App):
                             for i in xrange(len(prefs[k])):
                                 prefs[k][i] = tuple2color(prefs[k][i])
                     return prefs
-        except Exception:#IOError:
+        except Exception:#IOError as err:
             # TODO: Report a problem, or just ignore?
             pass
         return {}
 
 
-    def savePrefs(self, filename=prefsFile, hideFile=None):
+    def savePrefs(self, filename=None, hideFile=None):
         """ Write custom preferences to a file.
         """
+        filename = filename or self.prefsFile
+        
         if hideFile is None:
             hideFile = os.path.basename(filename).startswith(".")
+        
+        filename = os.path.realpath(os.path.expanduser(filename))
             
         prefs = self.prefs.copy()
         # Convert wx.Colour objects and RGB sequences to tuples:
@@ -2441,9 +2497,8 @@ class ViewerApp(wx.App):
                 json.dump(prefs, f, indent=2, sort_keys=True)
             if hideFile and "win" in sys.platform:
                 os.system('attrib +h "%s"' % filename)
-        except IOError as err:
+        except IOError:# as err:
             # TODO: Report a problem, or just ignore?
-            err
             pass
     
     
@@ -2477,7 +2532,11 @@ class ViewerApp(wx.App):
 
     def __init__(self, *args, **kwargs):
         prefsFile = kwargs.pop('prefsFile', self.prefsFile)
-        self.prefs = self.loadPrefs(prefsFile)
+        if prefsFile is not None:
+            self.prefsFile = prefsFile
+        self.initialFilename = kwargs.pop('filename')
+        
+        self.prefs = self.loadPrefs(self.prefsFile)
 #         locale.setlocale(locale.LC_ALL, str(self.getPref('locale')))
         
         self.viewers = []
@@ -2485,21 +2544,21 @@ class ViewerApp(wx.App):
         super(ViewerApp, self).__init__(*args, **kwargs)
         localeName = self.getPref('locale', 'LANGUAGE_ENGLISH_US')
         self.locale = wx.Locale(getattr(wx, localeName, wx.LANGUAGE_ENGLISH_US))
-                
 
-    def createNewView(self, title=None):
+        
+    def createNewView(self, title=None, filename=None):
         """ Create a new viewer window.
         """
         if title is None:
             title = u'%s v%s' % (APPNAME, __version__)
-        viewer = Viewer(None, title=title, app=self)
+        viewer = Viewer(None, title=title, app=self, filename=filename)
         self.viewers.append(viewer)
         viewer.Show()
         
 
     def OnInit(self):
         self._antiAliasingEnabled = True
-        self.createNewView()
+        self.createNewView(filename=self.initialFilename)
         
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         return True
@@ -2518,5 +2577,13 @@ class ViewerApp(wx.App):
 
 # XXX: Change this back for 'real' version
 if __name__ == '__main__' or True:
-    app = ViewerApp()
+    import argparse
+    parser = argparse.ArgumentParser(description=APPNAME)
+    parser.add_argument('--filename', '-f', 
+                        help="The name of the MIDE file to import")
+    parser.add_argument("--prefsFile", '-p', 
+                        help="An alternate preferences file")
+    args = parser.parse_args()
+
+    app = ViewerApp(**vars(args))
     app.MainLoop()

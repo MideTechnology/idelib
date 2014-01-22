@@ -5,23 +5,8 @@ import wx; wx=wx
 import wx.lib.sized_controls as sc
 import wx.lib.mixins.listctrl  as  listmix
 
-# XXX: Fake 'devices' fixtures; remove later!
-# import random
-# 
-# def getDevices():
-#     return ["%s:\\" % d for d in "EFGHI"]
-# 
-# def getRecorderInfo(x):
-#     return {'FwRev': 0,
-#             'HwRev': 1,
-#             'ProductName': 'Slam Stick X (100g)',
-#             'RecorderSerial': random.randint(0x11111111, 0xffffffff),
-#             'RecorderTypeUID': 1,
-#             'UserDeviceName': 'My Device %s' % x.strip(':\\'),
-#             '_PATH': x}
-
 from common import hex32
-from devices import getDevices, getRecorderInfo
+from devices import getDevices, getRecorderConfig, getRecorderInfo
 from devices import deviceChanged
 
 
@@ -37,9 +22,22 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                             ['name','propName','formatter','default'])
 
     COLUMNS = (ColumnInfo("Path", "_PATH", unicode, ''),
-               ColumnInfo("Name", "UserDeviceName", unicode, ''),
+               ColumnInfo("Name", "RecorderName", unicode, ''),
                ColumnInfo("Type", "ProductName", unicode, ''),
                ColumnInfo("Serial #", "RecorderSerial", hex32, ''))
+
+
+    def getDeviceListing(self, dev):
+        """ Get the recorder data for its entry in the list.
+        """
+        # Data comes from two sources: the device info file and user config.
+        info = getRecorderInfo(dev) or False
+        if info:
+            # Add in the user-defined name
+            config = getRecorderConfig(dev, {})
+            info.update(config.get('RecorderUserData', {}))
+        return info
+
 
     class DeviceListCtrl(wx.ListCtrl, listmix.ListCtrlAutoWidthMixin):
         def __init__(self, parent, ID, pos=wx.DefaultPosition,
@@ -158,7 +156,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 
         self.recorders = {}
         self.itemDataMap = {} # required by ColumnSorterMixin
-        recorders = [getRecorderInfo(p) for p in getDevices()]
+        recorders = [self.getDeviceListing(p) for p in getDevices() if p]
         for info in recorders:
             if info is False:
                 continue
@@ -172,8 +170,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
                 self.listWidth = max(self.listWidth, 
                                      self.list.GetItemRect(index)[2])
+                
             self.list.SetItemData(index, index)
-            self.itemDataMap[index] = [info[c.propName] for c in self.COLUMNS]
+            self.itemDataMap[index] = [info.get(c.propName, c.default) \
+                                       for c in self.COLUMNS]
         
         if self.firstDrawing:
             self.list.Fit()
@@ -211,9 +211,18 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 # 
 #===============================================================================
 
-def selectDevice(title="Select Recorder", autoUpdate=500):
+def selectDevice(title="Select Recorder", autoUpdate=1000, parent=None):
+    """ Display a device-selection dialog and return the path to a recorder.
+        The dialog will (optionally) update automatically when devices are
+        added or removed.
+        
+        @keyword title: A title string for the dialog
+        @keyword autoUpdate: A number of milliseconds to delay between checks
+            for changes to attached recorders. 0 will never update.
+        @return: The path of the selected device.
+    """
     result = None
-    dlg = DeviceSelectionDialog(None, -1, title, autoUpdate=autoUpdate)
+    dlg = DeviceSelectionDialog(parent, -1, title, autoUpdate=autoUpdate)
     
     if dlg.ShowModal() == wx.ID_OK:
         result = dlg.getSelected()
@@ -234,4 +243,3 @@ if __name__ == '__main__':# or True:
     result = selectDevice()
     print result
     
-    app.MainLoop()    

@@ -317,17 +317,6 @@ class StatusBar(wx.StatusBar):
         self.cancelButton.Show(False)
 
 
-#===============================================================================
-# Custom Events (for multithreaded UI updating)
-#===============================================================================
-
-(EvtSetVisibleRange, EVT_SET_VISIBLE_RANGE) = wx.lib.newevent.NewEvent()
-(EvtSetTimeRange, EVT_SET_TIME_RANGE) = wx.lib.newevent.NewEvent()
-(EvtProgressStart, EVT_PROGRESS_START) = wx.lib.newevent.NewEvent()
-(EvtProgressUpdate, EVT_PROGRESS_UPDATE) = wx.lib.newevent.NewEvent()
-(EvtProgressEnd, EVT_PROGRESS_END) = wx.lib.newevent.NewEvent()
-(EvtInitPlots, EVT_INIT_PLOTS) = wx.lib.newevent.NewEvent()
-(EvtImportError, EVT_IMPORT_ERROR) = wx.lib.newevent.NewEvent()
 
 
 #===============================================================================

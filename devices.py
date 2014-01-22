@@ -78,8 +78,6 @@ def getRecorderInfo(dev, default=None):
     if isRecorder(dev):
         try:
             devinfo = util.read_ebml(os.path.join(dev, INFO_FILE))
-#             with open(os.path.join(dev, INFO_FILE), 'rb') as stream:
-#                 devinfo = devices.importDeviceInfo(stream)
             props = devinfo.get('RecordingProperties', '')
             if 'RecorderInfo' in props:
                 info = props['RecorderInfo']
@@ -95,24 +93,28 @@ def getRecorderConfig(dev, default=None):
     """ Retrieve a recorder's device information.
     
         @param dev: The path to the recording device.
-        @return: A dictionary containing the device data.
+        @return: A set of nested dictionaries containing the device data.
     """
     if isRecorder(dev):
         try:
             devinfo = util.read_ebml(os.path.join(dev, CONFIG_FILE))
-#             with open(os.path.join(dev, CONFIG_FILE), 'rb') as stream:
-#                 devinfo = devices.importDeviceInfo(stream)
             return devinfo.get('RecorderConfiguration', '')
         except IOError:
             pass
     return default
 
 
-def setRecorderConfig(dev, data):
-    """
+def setRecorderConfig(dev, data, verify=True):
+    """ Write a dictionary of configuration data to a device. 
+    
+        @param dev: The path to the recording device.
+        @param data: The configuration data to write, as a set of nested
+            dictionaries.
+        @keyword verify: If `True`, the validity of the EBML is checked before
+            the data is written.
     """
     ebml = util.build_ebml("RecorderConfiguration", data)
-    if not util.verify(ebml):
+    if verify and not util.verify(ebml):
         raise ValueError("Generated config EBML could not be verified")
     with open(os.path.join(dev, CONFIG_FILE), 'wb') as f:
         f.write(ebml)
@@ -148,7 +150,7 @@ def setDeviceTime(dev, t=None):
         t = int(time.time())
     elif isinstance(t, datetime):
         t = calendar.timegm(t.timetuple())
-    elif isinstance(t, time.struct_time) or isinstance(t, tuple):
+    elif isinstance(t, (time.struct_time, tuple)):
         t = calendar.timegm(t)
     else:
         t = int(t)

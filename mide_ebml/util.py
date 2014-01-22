@@ -87,6 +87,16 @@ ENCODERS = {
     CONTAINER: encode_container
 }
 
+PYTHONTYPES = {
+    INT: int,
+    UINT: int,
+    FLOAT: float,
+    STRING: str,
+    UNICODE: unicode,
+    DATE: int,
+    BINARY: bytearray,
+    CONTAINER: None
+}
 
 def getSchemaModule(schema=DEFAULT_SCHEMA):
     """ Import a schema module.
@@ -170,6 +180,14 @@ def getElementSizes(schema=DEFAULT_SCHEMA):
     return results
 
 
+def getElementTypes(schema=DEFAULT_SCHEMA):
+    """
+    """
+    els = getSchemaElements(schema)
+    for name,el in els.iteritems():
+        els[name] = PYTHONTYPES.get(el.type, None)
+    return els
+    
 #===============================================================================
 # Writing EBML
 #===============================================================================
@@ -286,6 +304,7 @@ def read_ebml(stream, schema=DEFAULT_SCHEMA, ordered=True):
     doctype = getSchemaDocument(schema)
     result = parse_ebml(doctype(stream).roots, ordered)
     if newStream:
+        print "close new stream"
         stream.close()
     return result
 
@@ -343,7 +362,6 @@ def verify(data, schema=DEFAULT_SCHEMA):
 if __name__ == "__main__":
     # TODO: Move this testing into a real unit test.
     from pprint import pprint
-    from StringIO import StringIO
     from dataset import MideDocument
     
     print "\n*** Testing configuration EBML input and output"

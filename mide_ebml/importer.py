@@ -15,13 +15,12 @@ From Slam Stick X: 0:06:47.506000
 '''
 
 from datetime import datetime
-# import os
 import struct
 import sys
 import time
 
-from calibration import AccelTransform, AccelTransform10G
-from dataset import Dataset, Transform
+import calibration
+from dataset import Dataset
 import parsers
 
 from dataset import __DEBUG__
@@ -56,9 +55,9 @@ default_sensors = {
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
                        "parser": struct.Struct("<HHH"), #AccelerometerParser(),
-                       "transform": (AccelTransform(),
-                                     AccelTransform(),
-                                     AccelTransform()),
+                       "transform": (calibration.AccelTransform(),
+                                     calibration.AccelTransform(),
+                                     calibration.AccelTransform()),
                        "subchannels":{0: {"name": "Accelerometer Z", 
                                           "units":('g','g'),
 #                                           "displayRange": (-100.0,100.0),

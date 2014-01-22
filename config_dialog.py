@@ -26,15 +26,6 @@ from mide_ebml import util
 # 
 #===============================================================================
 
-def strOrNone(val):
-    try:
-        val = unicode(val).strip()
-        if val == u'':
-            return None
-    except ValueError:
-        return None
-    return val
-
 #===============================================================================
 # 
 #===============================================================================
@@ -44,6 +35,16 @@ class BaseConfigPanel(sc.SizedPanel):
         common methods for adding controls, setting defaults, and reading
         values.
     """
+
+    def strOrNone(self, val):
+        try:
+            val = unicode(val).strip()
+            if val == u'':
+                return None
+        except ValueError:
+            return None
+        return val
+    
 
     def addField(self, labelText, name=None, fieldText="", fieldSize=None, 
                  fieldStyle=None, tooltip=None):
@@ -68,6 +69,7 @@ class BaseConfigPanel(sc.SizedPanel):
             t = wx.TextCtrl(self, -1, txt, size=fieldSize, style=fieldStyle)
 
         if tooltip is not None:
+            c.SetToolTipString(unicode(tooltip))
             t.SetToolTipString(unicode(tooltip))
             
         if self.fieldSize is None:
@@ -90,12 +92,14 @@ class BaseConfigPanel(sc.SizedPanel):
             @keyword tooltip: A tooltip string for the field.
         """
         c = wx.CheckBox(self, -1, checkText)
-        if name is not None:
-            self.fieldMap[name] = c
         sc.SizedPanel(self, -1) # Spacer
+        if tooltip is not None:
+            c.SetToolTipString(unicode(tooltip))
+            
         self.controls[c] = [None]
         if name is not None:
             self.fieldMap[name] = c
+            
         return c
 
 
@@ -125,6 +129,7 @@ class BaseConfigPanel(sc.SizedPanel):
         
         if tooltip is not None:
             c.SetToolTipString(unicode(tooltip))
+            t.SetToolTipString(unicode(tooltip))
         
         if fieldSize == (-1,-1):
             self.fieldSize = t.GetSize()
@@ -192,6 +197,10 @@ class BaseConfigPanel(sc.SizedPanel):
         if name is not None:
             self.fieldMap[name] = check
 
+        if tooltip is not None:
+            check.SetToolTipString(unicode(tooltip))
+            ctrl.SetToolTipString(unicode(tooltip))
+            
         return check#, ctrl #ctrl
         
 
@@ -482,13 +491,15 @@ class OptionsPanel(BaseConfigPanel):
 
  
     def buildUI(self):
-        self.nameField = self.addField("Device Name:", "RecorderName", "")
+        self.nameField = self.addField("Device Name:", "RecorderName", 
+            tooltip="A custom name for the recorder. Not the same as the "
+                    "volume label.")
         self.nameField.SetSizerProps(expand=True)
 
         noteSize = self.nameField.GetSize()
         self.noteField = self.addField("Device Notes:", "RecorderDesc",
-                                       fieldSize=(noteSize[0], noteSize[1]*3),
-                                       fieldStyle=wx.TE_MULTILINE)
+            fieldSize=(noteSize[0], noteSize[1]*3), fieldStyle=wx.TE_MULTILINE,
+            tooltip="Custom notes about the recorder (position, user ID, etc.)")
         self.noteField.SetSizerProps(expand=True)
 
         wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL)
@@ -539,7 +550,7 @@ class OptionsPanel(BaseConfigPanel):
         
         for name,control in self.fieldMap.iteritems():
             if name in ('RecorderName', 'RecorderDesc'):
-                self.addVal(control, userConfig, name, strOrNone)
+                self.addVal(control, userConfig, name, self.strOrNone)
             else:
                 self.addVal(control, ssxConfig, name)
 
@@ -611,6 +622,12 @@ class SSXInfoPanel(BaseConfigPanel):
 #===============================================================================
 
 class ConfigDialog(sc.SizedDialog):
+    """ The parent dialog for all the recorder configuration tabs. 
+    
+        @todo: Choose the tabs dynamically based on the recorder type, once
+            there are multiple types of recorders using the MIDE format.
+    """
+    
     def __init__(self, *args, **kwargs):
         self.devPath = kwargs.pop('device', None)
         self.root = kwargs.pop('root', None)
@@ -667,16 +684,27 @@ class ConfigDialog(sc.SizedDialog):
 #===============================================================================
 
 def configureRecorder(path):
+    """ Create the configuration dialog for a recording device. 
+    
+        @param path: The path to the data recorder (e.g. a mount point under
+            *NIX or a drive letter under Windows)
+        @return: The data written to the recorder as a nested dictionary, or
+            `None` if the configuration is cancelled.
     """
-    """
+    if not devices.isRecorder(path):
+        raise ValueError("Specified path %r does not appear to be a recorder" %\
+                         path)
+        
     dlg = ConfigDialog(None, -1, "Configure Device (%s)" % path, device=path)
+    
     if dlg.ShowModal() == wx.ID_OK:
         data = dlg.getData()
         devices.setRecorderConfig(path, data)
-    
-    print "dlg.getData() = %r" %  dlg.getData()
+    else:
+        data = None
     
     dlg.Destroy()
+    return data
 
 
 #===============================================================================
@@ -685,4 +713,4 @@ def configureRecorder(path):
 
 if __name__ == "__main__":
     app = wx.App()
-    configureRecorder("G:\\")
+    print configureRecorder("G:\\")

@@ -259,7 +259,7 @@ class FFTView(wx.Frame):
                 frequency.
         """
         
-        print "generateFFTData(data=%r, rows=%r, cols=%r, fs=%r, slizeSize=%r)" % (data, rows, cols, fs, sliceSize)
+#         print "generateFFTData(data=%r, rows=%r, cols=%r, fs=%r, slizeSize=%r)" % (data, rows, cols, fs, sliceSize)
         
         def nextPow2(x):
             """ Round up to the nearest power-of-two.

@@ -38,7 +38,7 @@ from parsers import getParserTypes, getParserRanges
 # 
 #===============================================================================
 
-__DEBUG__ = True
+__DEBUG__ = False#True
 
 if __DEBUG__:
     import ebml

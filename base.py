@@ -11,7 +11,7 @@ import sys as _sys
 
 import wx; wx = wx # Workaround for Eclipse code comprehension
 
-from common import EvtSetTimeRange, EvtSetVisibleRange
+from events import EvtSetTimeRange, EvtSetVisibleRange
 
 #===============================================================================
 # 
