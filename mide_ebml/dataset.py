@@ -26,6 +26,7 @@ from collections import namedtuple, Iterable
 from datetime import datetime
 from itertools import imap, izip
 import os.path
+import random
 import sys
 
 from ebml.schema.mide import MideDocument
@@ -494,13 +495,13 @@ class Channel(Cascading, Transformable):
         
         @ivar types: A tuple with the type of data in each of the Channel's
             Subchannels.
-        @ivar possibleRange: The possible ranges of each subchannel, dictated
+        @ivar displayRange: The possible ranges of each subchannel, dictated
             by the parser. Not necessarily the same as the range of actual
             values recorded in the file!
     """
     
     def __init__(self, sensor, channelId, parser, name=None, units=('',''), 
-                 calibration=None, interpolators=None):
+                 calibration=None, displayRange=None, interpolators=None):
         """ Constructor.
         
             @param sensor: The parent sensor.
@@ -525,7 +526,10 @@ class Channel(Cascading, Transformable):
         
         # Custom parsers will define `types`, otherwise generate it.
         self.types = getParserTypes(parser)
-        self.possibleRange = getParserRanges(parser)
+        self.displayRange = displayRange if displayRange is not None \
+                            else getParserRanges(parser)
+        
+        self.hasDisplayRange = displayRange is not None
         
         # Channels have 1 or more subchannels
         self.subchannels = [None] * len(self.types)
@@ -557,7 +561,8 @@ class Channel(Cascading, Transformable):
 
 
     def __repr__(self):
-        return '<%s 0x%02x: %r>' % (self.__class__.__name__, self.id, self.path())
+        return '<%s 0x%02x: %r>' % (self.__class__.__name__, 
+                                    self.id, self.path())
 
 
     def __getitem__(self, idx):
@@ -573,19 +578,19 @@ class Channel(Cascading, Transformable):
             yield self.getSubChannel(i)
 
 
-    def addSubChannel(self, subchannelId, name=None, units=('',''), 
-                 calibration=None):
+    def addSubChannel(self, subchannelId, **kwargs):
         """ Create a new SubChannel of the Channel.
         """
 #         print subchannelId,name
         if subchannelId > len(self.subchannels):
-            raise IndexError("Channel's parser only generates %d subchannels" % \
-                             len(self.subchannels))
+            raise IndexError(
+                "Channel's parser only generates %d subchannels" % \
+                 len(self.subchannels))
         else:
             sc = self.subchannels[subchannelId]
             if sc is not None:
                 return self.subchannels[subchannelId]
-            sc = SubChannel(self, subchannelId, name, units, calibration)
+            sc = SubChannel(self, subchannelId, **kwargs)
             self.subchannels[subchannelId] = sc
             return sc
         
@@ -639,6 +644,12 @@ class Channel(Cascading, Transformable):
         return result
 
 
+    def parseBlockByIndex(self, block, indices, subchannel=None):
+        """
+        """
+        return list(block.parseByIndexWith(self.parser, indices, subchannel=subchannel))
+        
+
 #===============================================================================
 
 class SubChannel(Channel):
@@ -647,7 +658,8 @@ class SubChannel(Channel):
         like a 'real' channel.
     """
     
-    def __init__(self, parent, subChannelId, name=None, units=('',''), calibration=None):
+    def __init__(self, parent, subChannelId, name=None, units=('',''), 
+                 calibration=None, displayRange=None):
         """ Constructor.
         """
         self.id = subChannelId
@@ -666,21 +678,23 @@ class SubChannel(Channel):
         self._sessions = None
         
         self.setTransform(calibration)
+        
+        if displayRange is None:
+            self.displayRange = self.parent.displayRange[self.id]
+            self.hasDisplayRange = self.parent.hasDisplayRange
+        else:
+            self.hasDisplayRange = True
+            self.displayRange = displayRange
+            
 
     @property
     def children(self):
         return []
 
-    @property
-    def possibleRange(self):
-        """ The range of values *possible* given the type of data recorded. 
-            NOT necessarily the range of *actual* values recorded!
-        """
-        return self.parent.possibleRange[self.id]
-
 
     def __repr__(self):
-        return '<%s 0x%02x.%x: %r>' % (self.__class__.__name__, self.parent.id, self.id, self.path())
+        return '<%s 0x%02x.%x: %r>' % (self.__class__.__name__, 
+                                       self.parent.id, self.id, self.path())
 
 
     @property
@@ -698,9 +712,16 @@ class SubChannel(Channel):
     
 
     def parseBlock(self, block, start=0, end=-1, step=1):
+        """ TODO: Document
         """
+        return self.parent.parseBlock(block, start, end, step=step, 
+                                      subchannel=self.id)
+
+
+    def parseBlockByIndex(self, block, indices):
+        """ TODO: Document
         """
-        return self.parent.parseBlock(block, start, end, step=step, subchannel=self.id)
+        return self.parent.parseBlockByIndex(block, indices, subchannel=self.id)
     
         
     def getSession(self, sessionId=None):
@@ -748,6 +769,11 @@ class EventList(Cascading):
         # The first is the earliest block with the index,
         # The second is the latest block.
         self._blockIdxTable = ({},{})
+        
+        self._hasSubsamples = False
+        
+        self.hasDisplayRange = self.parent.hasDisplayRange
+        self.displayRange = self.parent.displayRange
 
 
     @property
@@ -800,7 +826,9 @@ class EventList(Cascading):
         self._blockIdxTable[0].setdefault(tableIdx, block.blockIndex)
         self._blockIdxTable[1][tableIdx] = block.blockIndex
         
-        
+        self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
+
+
     def getInterval(self):
         """ Get the first and last event times in the set.
         """
@@ -1058,8 +1086,11 @@ class EventList(Cascading):
         else:
             end = min(end, len(self))
         
+        if step is None:
+            step = 1
+        
         startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
-        endBlockIdx = self._getBlockIndexWithIndex(end, start=startBlockIdx)
+        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
 
         blockStep = max(1, (step + 0.0) / self._data[startBlockIdx].numSamples)
         numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
@@ -1071,10 +1102,9 @@ class EventList(Cascading):
         for i in xrange(numBlocks):
             blockIdx = int(startBlockIdx + (i * blockStep))
             block = self._data[blockIdx]
-            blockRange = block.indexRange
             sampleTime = self._getBlockSampleTime(i)
-            lastSubIdx = endSubIdx if blockIdx == endBlockIdx else blockRange[1]-blockRange[0]+1
-            times = (block.startTime + sampleTime * t for t in xrange(subIdx, block.numSamples, step))
+            lastSubIdx = endSubIdx if blockIdx == endBlockIdx else block.numSamples
+            times = (block.startTime + sampleTime * t for t in xrange(subIdx, lastSubIdx, step))
             values = self.parent.parseBlock(block, start=subIdx, end=lastSubIdx, step=step)
             for event in izip(times, values):
                 if self.hasSubchannels:
@@ -1084,7 +1114,60 @@ class EventList(Cascading):
                 else:
                     event = self.parent._transform(self.parent.parent._transform[self.parent.id](event))
                 yield event
-            subIdx = (subIdx+step) % block.numSamples
+            subIdx = (lastSubIdx-1+step) % block.numSamples
+
+
+    def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5):
+        """ Create an iterator producing events for a range indices.
+        """
+        if start is None:
+            start = 0
+        elif start < 0:
+            start += len(self)
+            
+        if end is None:
+            end = len(self)
+        elif end < 0:
+            end += len(self) + 1
+        else:
+            end = min(end, len(self))
+        
+        if step is None:
+            step = 1
+        
+        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
+        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
+
+        blockStep = max(1, (step + 0.0) / self._data[startBlockIdx].numSamples)
+        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
+        
+        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
+        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
+        
+        # in each block, the next subIdx is (step+subIdx)%numSamples
+        for i in xrange(numBlocks):
+            blockIdx = int(startBlockIdx + (i * blockStep))
+            block = self._data[blockIdx]
+            sampleTime = self._getBlockSampleTime(i)
+            lastSubIdx = endSubIdx if blockIdx == endBlockIdx else block.numSamples
+            
+            indices = range(subIdx, lastSubIdx, step)
+            if step > 1:
+                for x in xrange(2, len(indices)-1):
+#                     indices[x] = random.randint(indices[x-1],indices[x+1])
+                    indices[x] = int(indices[x] + (((random.random()*2)-1) * jitter * step))
+                
+            times = (block.startTime + sampleTime * t for t in indices)
+            values = self.parent.parseBlockByIndex(block, indices)
+            for event in izip(times, values):
+                if self.hasSubchannels:
+                    # TODO: (post Transform fix) Refactor later
+                    event=[f((event[-2],v)) for f,v in izip(self.parent._transform, event[-1])]
+                    event=(event[0][0], tuple((e[1] for e in event)))
+                else:
+                    event = self.parent._transform(self.parent.parent._transform[self.parent.id](event))
+                yield event
+            subIdx = (lastSubIdx-1+step) % block.numSamples
 
       
     def getEventIndexBefore(self, t):
@@ -1119,8 +1202,8 @@ class EventList(Cascading):
 
 
     def getRangeIndices(self, startTime, endTime):
-        """ Get the first and event indices that fall within the specified
-            interval.
+        """ Get the first and last event indices that fall within the 
+            specified interval.
             
             @keyword startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
@@ -1134,20 +1217,22 @@ class EventList(Cascading):
             startBlockIdx = self._getBlockIndexWithTime(startTime)
             startBlock = self._data[startBlockIdx]
             startIdx = int(startBlock.indexRange[0] + ((startTime - startBlock.startTime) / self._getBlockSampleTime(startBlockIdx)) + 1)
+            
         if endTime is None:
             endIdx = self._data[-1].indexRange[1]
         elif endTime <= self._data[0].startTime:
-            endIdx = endBlockIdx = 0
+            endIdx = 0
         else:
-            endBlockIdx = self._getBlockIndexWithTime(endTime)#, start=startBlockIdx) 
-            if endBlockIdx > 0:
-                endBlock = self._data[endBlockIdx]
-                if endBlockIdx < len(self._data) - 1:
-                    endIdx = self._data[endBlockIdx+1].indexRange[0] - 1
-                else:
-                    endIdx = int(endBlock.indexRange[0] + ((endTime - endBlock.startTime) / self._getBlockSampleTime(endBlockIdx) + 0.0) - 1)
-            else:
-                endIdx = 0
+            endIdx = self.getEventIndexBefore(endTime)
+#             endBlockIdx = self._getBlockIndexWithTime(endTime)#, start=startBlockIdx) 
+#             if endBlockIdx > 0:
+#                 endBlock = self._data[endBlockIdx]
+#                 if endBlockIdx < len(self._data) - 1:
+#                     endIdx = self._data[endBlockIdx+1].indexRange[0] - 1
+#                 else:
+#                     endIdx = int(endBlock.indexRange[0] + ((endTime - endBlock.startTime) / self._getBlockSampleTime(endBlockIdx) + 0.0) - 1)
+#             else:
+#                 endIdx = 0
         return startIdx, endIdx
     
 
@@ -1207,7 +1292,7 @@ class EventList(Cascading):
             # Only one block; can't compute from that!
             raise NotImplementedError("TODO: Implement getting sample rate in case of single block")
         elif blockIdx == len(self._data) - 1:
-            # last block. Use previous.
+            # Last block; use previous.
             startTime = self._data[blockIdx-1].startTime
             endTime = block.startTime
         else:
@@ -1270,12 +1355,12 @@ class EventList(Cascading):
         if startIdx < 0:
             if self[0][-2] == at:
                 return self[0]
-            # TODO: How to handle times before first event?
+            # TODO: How best to handle times before first event?
             raise IndexError("Specified time occurs before first event (%d)" % self[0][-2])
         elif startIdx >= len(self) - 1:
             if self[-1][-2] == at:
                 return self[-1]
-            # TODO How to handle times after last event?
+            # TODO How best to handle times after last event?
             raise IndexError("Specified time occurs after last event (%d)" % self[startIdx][-2])
         
         startEvt, endEvt = self[startIdx:startIdx+2]
@@ -1283,7 +1368,6 @@ class EventList(Cascading):
         endTime = endEvt[-2] - startEvt[-2] + 0.0
         percent = relAt/endTime
         if self.hasSubchannels:
-            print startEvt
             result = startEvt[-1][:]
             for i in xrange(len(self.parent.types)):
                 result[i] = self.parent.interpolators[i](startEvt[-1][i], endEvt[-1][i], percent)
@@ -1314,7 +1398,7 @@ class EventList(Cascading):
                     yield event
     
     
-    def iterResampledRange(self, startTime, stopTime, maxPoints, threshold=1.0):
+    def iterResampledRange_old(self, startTime, stopTime, maxPoints, threshold=1.0):
         """ Retrieve the events occurring within a given interval,
             undersampled as to not exceed a given length (e.g. the size of
             the data viewer's screen width).
@@ -1349,7 +1433,8 @@ class EventList(Cascading):
                 continue
 
 
-    def iterResampledRange2(self, startTime, stopTime, maxPoints, threshold=1.0):
+    def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
+                           jitter=0):
         """ Retrieve the events occurring within a given interval,
             undersampled as to not exceed a given length (e.g. the size of
             the data viewer's screen width).
@@ -1358,15 +1443,15 @@ class EventList(Cascading):
             Not very efficient, particularly not with single-sample blocks.
             Redo without _getBlockIndexWithIndex
             
-            ALSO: I HAVE NO IDEA HOW THIS WORKS ANYMORE.
         """
-        # TODO: Handle possible variations in sample rate.
-        blockIdx = self._getBlockIndexWithTime(startTime)
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
-        numPoints = (stopTime - startTime) / (self.getSampleTime(blockIdx) + 0.0)
-        step = int(max(numPoints / maxPoints,1))
-        for event in self.iterSlice(startIdx, stopIdx, step):
-            yield event
+        numPoints = (stopIdx - startIdx)
+        startIdx = max(startIdx-padding, 0)
+        stopIdx = min(stopIdx+padding, len(self))
+        step = max(int(numPoints / maxPoints),1)
+        if jitter != 0:
+            return self.iterJitterySlice(startIdx, stopIdx, step, jitter=jitter)
+        return self.iterSlice(startIdx, stopIdx, step)
         
 
 
@@ -1387,8 +1472,8 @@ class EventList(Cascading):
                 The default is 1 (microseconds).
             @keyword callback: A function (or function-like object) to notify
                 as work is done. It should take four keyword arguments:
-                `count` (the current line number), `total` (the total number of
-                lines), `error` (an exception, if raised during the
+                `count` (the current line number), `total` (the total number
+                of lines), `error` (an exception, if raised during the
                 export), and `done` (will be `True` when the export is
                 complete). If the callback object has a `cancelled`
                 attribute that is `True`, the CSV export will be aborted.
@@ -1397,12 +1482,15 @@ class EventList(Cascading):
                 normalized percent of the total lines to export.
             @return: The number of rows exported and the elapsed time.
         """
+        # Dummy callback to be used if none is supplied
         def dummyCallback(*args, **kwargs): pass
+        
+        # Functions for formatting the data.
         def singleVal(x): return ", ".join(map(str,x))
         def multiVal(x): return "%s, %s" % (str(x[-2]*timeScalar), 
                                             str(x[-1]).strip("[({})]"))
         def someVal(x): return "%s, %s" % (str(x[-2]*timeScalar),
-                                           str([x[-1][v] for v in subchannels]).strip("[({})]"))
+                    str([x[-1][v] for v in subchannels]).strip("[({})]"))
         
         if callback is None:
             noCallback = True
@@ -1417,7 +1505,6 @@ class EventList(Cascading):
                 formatter = multiVal
         else:
             formatter = singleVal
-            
         
         totalLines = (stop - start) / (step + 0.0)
         updateInt = int(totalLines * callbackInterval)
@@ -1427,7 +1514,6 @@ class EventList(Cascading):
         
         t0 = datetime.now()
         try:
-#         if True:
             for num, evt in enumerate(self.iterSlice(start, stop, step)):
                 if getattr(callback, 'cancelled', False):
                     callback(done=True)
@@ -1441,8 +1527,9 @@ class EventList(Cascading):
                 raise e
             else:
                 callback(error=e)
-                
-        return num+1, datetime.now() - t0
+        t1 = datetime.now()
+        
+        return num+1, t1 - t0
 
         
 #===============================================================================

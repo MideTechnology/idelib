@@ -309,8 +309,7 @@ class ExportDialog(sc.SizedDialog):
 
         
      
-if __name__ == '__main__':
-# if True:
+if __name__ == '__main__': #or True:
     import importer
     doc=importer.importFile(updater=importer.SimpleUpdater(0.01))
     

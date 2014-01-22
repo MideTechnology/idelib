@@ -324,7 +324,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
         binary payload of raw data prefixed with a 16b timestamp and an 8b
         channel ID. Also keeps track of some metadata used by its Channel.
     """
-    headerParser = struct.Struct("<HB")
+    headerParser = struct.Struct(">HB")
     headerSize = headerParser.size
 
     def __init__(self, element):
@@ -501,9 +501,9 @@ class TimeBaseUTCParser(ElementHandler):
 #===============================================================================
 
 class SyncParser(ElementHandler):
-    """ Stub for Session element handler
+    """ Stub for Session element handler.
+    
         @cvar elementName: The name of the element handled by this parser
-        @todo: Implement TimeBaseUTCParser
     """
     elementName = "Sync"
     
@@ -518,7 +518,8 @@ class SyncParser(ElementHandler):
 
 
 class RecordingPropertiesParser(ElementHandler):
-    """ Stub for RecordingProperties element handler
+    """ Stub for RecordingProperties element handler.
+    
         @cvar elementName: The name of the element handled by this parser
         @todo: Implement RecordingPropertiesParser
     """
@@ -526,7 +527,8 @@ class RecordingPropertiesParser(ElementHandler):
 
 
 class TimeCodeScaleParser(ElementHandler):
-    """
+    """ Stub for TimeCodeScale element handler.
+    
         @cvar elementName: The name of the element handled by this parser
     """
     elementName = "TimeCodeScale"
@@ -534,7 +536,8 @@ class TimeCodeScaleParser(ElementHandler):
 
 
 class TimeCodeModulusParser(ElementHandler):
-    """
+    """ Stub for TimeCodeModulus element handler.
+    
         @cvar elementName: The name of the element handled by this parser
     """
     elementName="TimeCodeModulus"

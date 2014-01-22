@@ -27,6 +27,7 @@ class TimelineCtrl(RC.RulerCtrl):
     """
 
     def __init__(self, *args, **kwargs):
+        
         super(TimelineCtrl, self).__init__(*args, **kwargs)
         self._format = RC.RealFormat
         self._flip = True

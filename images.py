@@ -1,5 +1,6 @@
 from wx.lib.embeddedimage import PyEmbeddedImage
 
+# Application icon
 icon = PyEmbeddedImage(
     "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlw"
     "SFlzAAAFCQAABQkBSFsRaQAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
@@ -23,6 +24,7 @@ icon = PyEmbeddedImage(
     "tQfRaLwMVHwbNzj2k1Ew79oBCOkZXLduAzftO0h6fkGcbiop4+Zvj5JbVaMJQPlfkOLnVDRl"
     "kd+8A+uqNQk/p3Gl/u/v+d9ZrpP6nDKRRwAAAABJRU5ErkJggg==")
 
+# Disabled zoom-to-fit button. Used for both H and V axes.
 zoomFitDisabled = PyEmbeddedImage(
     "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
     "SFlzAAADJgAAAyYBy+DXbwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
@@ -45,29 +47,7 @@ zoomFitDisabled = PyEmbeddedImage(
     "o9G4Vy6X1y+DAgDP5XJXpZT/RO+Wy+WvL4sCgBIEwU1FUU7Rer1+t1KprBORdVkUACJCiPAM"
     "eudpoADAFUXJMcZerdfrv1ar1e+eBgoAfwPHx1iBFynQQQAAAABJRU5ErkJggg==")
 
-zoomFitV = PyEmbeddedImage(
-    "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
-    "SFlzAAADMgAAAzIBfQlAtwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
-    "AAPCSURBVDiNpZTdi1R1GMc/z3mZGYfBXLd1diCISs1FiV6Uds3FSnohXLwsEYlWKurGYKMl"
-    "0IuCqK4yyX+gq+imCLGaIratdovC1crJjBzZdc2Z45ydmTM7zpmZc54u9gyMmwrpA8/FD37P"
-    "5/d9Xn4PqoqqAvQC93bOyx24BXgdOCYi/wBlYBo4DNz5n/tdge8D318D+qSIXATUsqxGKpUq"
-    "plKpedM0q4ACPnAAkE6MqCoisg44BdjA06r6MZGJyH7gUCwW8zdv3nxm586duZ6eHse2bSeX"
-    "y7UmJyfXzMzM7A6CIA18paqP03lBRD4FdkWsc8AGVfVFZK2InEqlUs3R0dGTK1euNFQ18Dzv"
-    "cqVS8VzX9RYWFqqGYfw1PT29t9lsbgH2q+phgB1ROt0+HpXgO8Mw2nv27PlxYGCgdJV7Cqhh"
-    "GN727dtHDMNwAQ9IW8AzwE/ABiAJHAceFZEPgW2ZTOb8vn37/s5ms/ds3LhxcXx8/IzjOOVi"
-    "sbhQLBbL2Wx2YH5+fsg0Tfr6+o4UCoUDwIuWqj4f1fKLaCoGo/MOgEwmc8G27cUwDDUWi9W3"
-    "bt0667puuVQqlRzHcaampm4FaLfbwaZNmyYLhQLAfRbXtgcA0un0rOd51Xa7Hdbr9ZbjOJcW"
-    "l6xWr9cvt1qtNkAYhmF/f39ZRDxVXXs9sAvgum7ouu5CEARBo9HwC4XCJd/3L1cqFa9arXqt"
-    "VqvVCWg2m5aqJoG6JSLPsTT8twNJEXklaso3APl8fk2pVCoFQRD6vt8sFovFVqvVrNVqi9Vq"
-    "ter7vt8B53K5OwAT+BPgtat0+iPAAGqmaTpjY2O74/F40TCMRiKRuJBIJObj8fh527ZnRaQM"
-    "6PDw8BPJZPJoFP+SADEgB9wVPeyzNMfnROQg8OaqVauOptPpE3Nzc7uiMdQgCEIgBFixYsXx"
-    "3t7embNnzx4BfgFGLFVtisirwCcR+L0IGgcWgdPlcvmpMAy9kZGRFyzLCpY3Y2Ji4rF8Pv8u"
-    "SzP8hqpelEgBIjIB3A2sB9rAl8C2qIkusM40zblUKnVs9erVv9u23XBdd32tVhtuNBqDQAH4"
-    "AHhbVYPuRXM/8CyQACaiNBVoAu8AhyJFy/vRBL4FHgGMK5ZQx6L0PwceBgQIgBPAXlX9Q0Ru"
-    "AwaBIaAH+BX4GTitqqUr6tOlOAZ83aW0zdL33nKtHX0970BtINsFDYAZ4MEbgXaqYEXpd0NP"
-    "AkM3Cu2AD0awDvQ34KGbgaoqBjAHNCLFp4GXVfWH5bP6vy2S/RbwGTB8s0o7/i/B6g9MVK+A"
-    "OAAAAABJRU5ErkJggg==")
-
+# Vertical zoom-to-fit button, normal and disabled. 
 zoomInDisabled = PyEmbeddedImage(
     "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
     "SFlzAAADJgAAAyYBy+DXbwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
@@ -91,51 +71,7 @@ zoomInDisabled = PyEmbeddedImage(
     "eFEUAIAqpWavGgUAoK7ryqdo46pQAABmmuZviPhaNpt9kMlkfroKFADgX8FhVcKHDnkaAAAA"
     "AElFTkSuQmCC")
 
-zoomInH = PyEmbeddedImage(
-    "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
-    "SFlzAAADMQAAAzEB0LBh2gAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
-    "AAOfSURBVDiNjZRNSFxXFMd/982854wf40dUtFRLQW0r1LSgIw1ByoC2LoRJRYoQKATsorR1"
-    "0VJwIRRaCqFfi5aGtJsuJItubMkq46KiJDSxAxoTE0GLENs6b+ZNphP1jTPz3u1invT5otM8"
-    "OIt3zz2/e865/3uQUvIkBpwGvgN+B0wgDSwAF4H6x/Y/AVADPgGKQgi7oqLiUSgU+rOysnJH"
-    "UZR9QAIZ4C13nHCCj/2EED4nqzMNDQ0PI5HI3XA4vBUKhVK2bSfX1taKsVisc2NjY8y27Vrg"
-    "kpTyHeB/wR8BF7u6uh5MTk7ej0Qi2UwmU5iamnquqqrq75GRkVgikUitrq7mZ2dnP7Ms61lg"
-    "VEr5i1IG2gl8WldXl5mYmFiPRqOypaWlSVXVhvn5+ZeXl5df1DStQtM0tb29fa+3t/dDIYQF"
-    "fCuEqDoRDEQBta+vb31wcDDt9/v9gUAgqKqqzzlYCCGEoijCtm3R0dHxV01NzU/A00DUXwbc"
-    "pyhKoaenZ2tzc5OFhQVN0zQrmUwGAEzT1GKxWLthGLWpVKqps7PTaGxsvJ7NZs8D4XJquB8M"
-    "BtPT09PfjI+Pxyjd/ok2NDQUGRgYGHL+Y+UyTuTz+ba9vb1/mpub/+jv7/9NCEGhUFDi8Xg4"
-    "EAg8bG1tvW6aZi6Xy+UCgcDB9vb2U07so3LgJcuyBlZWVoLRaPR2d3f3uhBC6LquxePxsKZp"
-    "ibGxsR8Mw8jkcjkTwDCM553Y2+Uu7xrA0tLSWV3XUzs7O7qu60ld11MAxWKx4IYeHByoqVTq"
-    "PKVXefNEsJRyDvg1m832zszM9Oi6rjtwXVXVB8D2IRRgbm7ugmVZzwBXgVsnPhAhxCvA28Co"
-    "EEKrr6+/PDw8POPdl06nKxcXF9/f3d09B9wDLkgpbx4LFkKcAy4DTcAW4APafD7fVjAYvFVd"
-    "XX3HsqxK0zRf2N/fP2vb9ilKw+lrKeWVw5K9MnsDSPCflHaA14AfKU00t8yKwDbwPdDt5hxR"
-    "hRBiFLjkZAqlqXUFuCGlvCaEaAZ6gZccfxwwgDtSytyRsl2ZjgG6K5s08BXOrAXOAEvA654K"
-    "N4F3Af9j89iBJo+DAm1O1oc+LzjjrN8FhlzrvHlMpl8Cp4CPgX2O9nXXgR2a7fFfBdqhJBE3"
-    "9Augzjn1VWDZE3gD+NlleZcvA3wAqAAxwHIu4XOg1lOqQknPh1Ud1woLR57uVvidLN/zQj2A"
-    "WqdFEc/6LHDau/9fWWl7IU1I4vYAAAAASUVORK5CYII=")
-
-zoomInV = PyEmbeddedImage(
-    "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
-    "SFlzAAADJgAAAyYBy+DXbwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
-    "AAPTSURBVDiNpZRfTBx1EMc/s7vHn+NPOXoNpFiFEvFPUmwag1gjBo196IMWQ0MfiFJTifFi"
-    "UvVBlOc2+qS2mhiDGuXF9gUTY1JytPRBbGswGDmi2GikGgvHHR4cV1iW3fHB39WTBhPbSX7J"
-    "zmbms7Mz39+gqqgqwFZgd97feIDbgGPAORFJi8g8MAocB6I3xBckvgN8tQn0WRHJAlpUVJSr"
-    "rKy8WlZW9odt2zlAgSxwpDBHVBURuROYAkJAl6qexpiIvAe8EA6Hl/fu3Tvd3t5+ORKJzNu2"
-    "PTc1NeXF4/GG6enpQ0EQVAEfquoR4Dr4c+BJw/oVuFtVXRF5DBipqalJx2Kx7zs6OhaCIHD7"
-    "+vqaPM9bPHjw4JepVGp+YmLCHRoaOu77/k6gU1WHLJOchwLUA0dFpEREPg6FQm5nZ+ePPT09"
-    "q3V1ddsikUhkdHT0vvHx8T0lJSVFjuOE6uvrr7W0tLwkIh5wQkRKLeAQcAlYBDzz/CjwiKru"
-    "aGxsvNLV1fW74zhOWVlZ2HEcx7QIMRYEgTQ0NCQrKipOmSF3OKr6nAk8Y1TRavxXABobG6+4"
-    "ruvG43GrtLR01XVdOwgC1tfXrbGxsZp0Oh1KpVLhaDS6EI1GLy4tLT0NtBRO/gwwW+APiojX"
-    "29v7UX9//2dm+pue1tbWJ9ra2vYZf9hhc0urqp1KpVa2b9+eaW5unrAsy1JVnZyc3GVZ1lpt"
-    "be2llZUVd21tbaW8vPxaMpncZnJXHBE5DGwB7gDCInLUfHUckEQiUdve3n42Fov9Ztu27fu+"
-    "H4vFjoVCocXu7u4TCwsLmVwutwyQSCQeMuCEA2wD3iyo9C3gFPAqEMzMzOyenZ09XVxcHLJt"
-    "2/J9PwiCQH3f9zOZzJ+5XC4HoKqSTqcPGAGMW8DbwM8FYBfoU9UZ4BPXdXcODAzsSyaT83Nz"
-    "c8lkMjkvIsuqupTNZnP5pHg8/pTnebuBs8CF/AU5AAyZmDdU9TURqQJeBGIiEqmqqvpg//79"
-    "n24chO/71sjIyKFUKhUDZoHDqnpWjAIQkfPAXUATEObvBXMPcNX83u2O4/xUUVExXF1dPamq"
-    "oUwm05TNZh/3PO9e4BfgJHBSVf1Cue0BnjE9T/CPlJaA54FBYJUbpZYDvgAexqyI60sobyKy"
-    "1VS6y7xaBc4DL6vqDyKyA2gDWoAS4DtgArisqul/9aig4moTlK9kFRgG7t9sR//XyUOrgG83"
-    "QONAy81A813YAnxTAHWBc8ADNwvNgwcLoGumpw/eClRVcYyc1g34IvC6ql7YqNf/a/kL8j5Q"
-    "Cbyrql/fKhTgL5SXwYpLgmuBAAAAAElFTkSuQmCC")
-
+# Disabled zoom-out button image. Used for both H and V axes.
 zoomOutDisabled = PyEmbeddedImage(
     "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
     "SFlzAAADJgAAAyYBy+DXbwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
@@ -159,7 +95,106 @@ zoomOutDisabled = PyEmbeddedImage(
     "gpuKojxBj46OfiuVSrcRsXVZFACACiHCU/Tw8PD+i0ABAJiiKDlCyKsHBwf5SqVy50WgAAD/"
     "Ao8CR8H+uwG/AAAAAElFTkSuQmCC")
 
-zoomOutH = PyEmbeddedImage(
+# Vertical zoom-to-fit button, normal and disabled. 
+zoomFitV = (PyEmbeddedImage(
+    "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
+    "SFlzAAADMgAAAzIBfQlAtwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
+    "AAPCSURBVDiNpZTdi1R1GMc/z3mZGYfBXLd1diCISs1FiV6Uds3FSnohXLwsEYlWKurGYKMl"
+    "0IuCqK4yyX+gq+imCLGaIratdovC1crJjBzZdc2Z45ydmTM7zpmZc54u9gyMmwrpA8/FD37P"
+    "5/d9Xn4PqoqqAvQC93bOyx24BXgdOCYi/wBlYBo4DNz5n/tdge8D318D+qSIXATUsqxGKpUq"
+    "plKpedM0q4ACPnAAkE6MqCoisg44BdjA06r6MZGJyH7gUCwW8zdv3nxm586duZ6eHse2bSeX"
+    "y7UmJyfXzMzM7A6CIA18paqP03lBRD4FdkWsc8AGVfVFZK2InEqlUs3R0dGTK1euNFQ18Dzv"
+    "cqVS8VzX9RYWFqqGYfw1PT29t9lsbgH2q+phgB1ROt0+HpXgO8Mw2nv27PlxYGCgdJV7Cqhh"
+    "GN727dtHDMNwAQ9IW8AzwE/ABiAJHAceFZEPgW2ZTOb8vn37/s5ms/ds3LhxcXx8/IzjOOVi"
+    "sbhQLBbL2Wx2YH5+fsg0Tfr6+o4UCoUDwIuWqj4f1fKLaCoGo/MOgEwmc8G27cUwDDUWi9W3"
+    "bt0667puuVQqlRzHcaampm4FaLfbwaZNmyYLhQLAfRbXtgcA0un0rOd51Xa7Hdbr9ZbjOJcW"
+    "l6xWr9cvt1qtNkAYhmF/f39ZRDxVXXs9sAvgum7ouu5CEARBo9HwC4XCJd/3L1cqFa9arXqt"
+    "VqvVCWg2m5aqJoG6JSLPsTT8twNJEXklaso3APl8fk2pVCoFQRD6vt8sFovFVqvVrNVqi9Vq"
+    "ter7vt8B53K5OwAT+BPgtat0+iPAAGqmaTpjY2O74/F40TCMRiKRuJBIJObj8fh527ZnRaQM"
+    "6PDw8BPJZPJoFP+SADEgB9wVPeyzNMfnROQg8OaqVauOptPpE3Nzc7uiMdQgCEIgBFixYsXx"
+    "3t7embNnzx4BfgFGLFVtisirwCcR+L0IGgcWgdPlcvmpMAy9kZGRFyzLCpY3Y2Ji4rF8Pv8u"
+    "SzP8hqpelEgBIjIB3A2sB9rAl8C2qIkusM40zblUKnVs9erVv9u23XBdd32tVhtuNBqDQAH4"
+    "AHhbVYPuRXM/8CyQACaiNBVoAu8AhyJFy/vRBL4FHgGMK5ZQx6L0PwceBgQIgBPAXlX9Q0Ru"
+    "AwaBIaAH+BX4GTitqqUr6tOlOAZ83aW0zdL33nKtHX0970BtINsFDYAZ4MEbgXaqYEXpd0NP"
+    "AkM3Cu2AD0awDvQ34KGbgaoqBjAHNCLFp4GXVfWH5bP6vy2S/RbwGTB8s0o7/i/B6g9MVK+A"
+    "OAAAAABJRU5ErkJggg=="),
+    zoomFitDisabled)
+
+# Horizontal zoom-to-fit button, normal and disabled. 
+zoomFitH = (PyEmbeddedImage(
+    "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
+    "SFlzAAADMgAAAzIBfQlAtwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
+    "AAOLSURBVDiNjZVNaFxVFMd/971O+joZMvlohFBsEqgkVYKKDQQdFwHNBCRoxZBABMEKWlei"
+    "ojt3UUEEqwsjYrsSt0KbhcaQZBOjdJdkkVAKKtZ07pt592XmzXuZmfeui7zB6SQde+Fszsf/"
+    "nPM/596L1poHEeAR4EtgAygBLvArcAU4c8T/AQBN4EMhRAWIEolEOZVK3U0mk3uGYXiABnzg"
+    "fUDU40QcfN8jhPgJmEin0/vj4+PbmUzmdkdHhx1Fkb25uRmurKyc3dnZeSUMw9PADa31FPUM"
+    "LUDfBBYGBwfvzMzM3DYMoy0IgmqpVPJd1y05jlNyXXffsqzt9fX1N6rV6pPAZa31QisKzggh"
+    "yqlUan9+fv4Xy7KqcdtHxDTNQjabfU4IoYB94KETLVh4UWt9amxs7Lfh4WEvCIIT09PTcnJy"
+    "8g8ppbJtW0kp1eLi4qht24/39fWVenp6vrFt+wPg9VbAGSAaHR295ft+G0A6nc5nMpk/C4WC"
+    "Y9t2PpfL2cvLy+cAKpVKNDQ0tBYDXzBaAI8kEolyd3f3P0qpIoBSysvlcnml1L7neV4QBH6t"
+    "VgvjeeiBgQEphPCBc60qlrVabahcLivP8wwAx3E8KaX0fd8vFotF13WL1Wq1Vg8oFApJrbUF"
+    "FFtV/LvWOrG6utotpXQAXNctSSll/vA4Sik3DMNKPWB3d3cYEMB2q614BtDt7e03Z2dn3wK0"
+    "YRgV0zQ9wzA8wzBKQogSUAHCubm5UcuyNoAQePX/9vhn4Pn+/v6PoyjqVEo9BqC1jqIoCqMo"
+    "0gBdXV1rWuu2vb29j4BV4OJ9gYUQTwHvAFNCiGRnZ+fVbDZ7zTTNqNHv4OAgsbS0dMl13deA"
+    "PIdrunEssBDiBeAa0AvcAapAv2EYfyeTyY1UKrWltTY9zzvv+/7TYRj2AbeAT7TWV4nbauZ2"
+    "Csjx382SwLPAd4DD0ZtnAz8Ajzbi3FOxEOIl4FvgdKxyge+Bd7XWB0KIh4ER4AkgAdwE7gJb"
+    "WuvgnrYbKn05zl6vxOHw/W2P7RPAJjDW1OFfwNuAeeQ9BqaPAf0CSAJDwI0GWzNwEOu3gIkG"
+    "PTPxNOuBBeDzmI4r8eAaOS0CqkGaOb8OnCWeZl2ZBz4DTsVZLzbZNbAG/NggYYNNAe/F/LMS"
+    "G23gU8BqarWNw2+nXt1xVNSABaC3kYqTwFfAZeBkiyveC3wNXGjSXwdGmv3/BYDitRQYsJRN"
+    "AAAAAElFTkSuQmCC"),
+    zoomFitDisabled)
+
+# Horizontal zoom-in button images, normal and disabled
+zoomInH = (PyEmbeddedImage(
+    "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
+    "SFlzAAADMQAAAzEB0LBh2gAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
+    "AAOfSURBVDiNjZRNSFxXFMd/982854wf40dUtFRLQW0r1LSgIw1ByoC2LoRJRYoQKATsorR1"
+    "0VJwIRRaCqFfi5aGtJsuJItubMkq46KiJDSxAxoTE0GLENs6b+ZNphP1jTPz3u1invT5otM8"
+    "OIt3zz2/e865/3uQUvIkBpwGvgN+B0wgDSwAF4H6x/Y/AVADPgGKQgi7oqLiUSgU+rOysnJH"
+    "UZR9QAIZ4C13nHCCj/2EED4nqzMNDQ0PI5HI3XA4vBUKhVK2bSfX1taKsVisc2NjY8y27Vrg"
+    "kpTyHeB/wR8BF7u6uh5MTk7ej0Qi2UwmU5iamnquqqrq75GRkVgikUitrq7mZ2dnP7Ms61lg"
+    "VEr5i1IG2gl8WldXl5mYmFiPRqOypaWlSVXVhvn5+ZeXl5df1DStQtM0tb29fa+3t/dDIYQF"
+    "fCuEqDoRDEQBta+vb31wcDDt9/v9gUAgqKqqzzlYCCGEoijCtm3R0dHxV01NzU/A00DUXwbc"
+    "pyhKoaenZ2tzc5OFhQVN0zQrmUwGAEzT1GKxWLthGLWpVKqps7PTaGxsvJ7NZs8D4XJquB8M"
+    "BtPT09PfjI+Pxyjd/ok2NDQUGRgYGHL+Y+UyTuTz+ba9vb1/mpub/+jv7/9NCEGhUFDi8Xg4"
+    "EAg8bG1tvW6aZi6Xy+UCgcDB9vb2U07so3LgJcuyBlZWVoLRaPR2d3f3uhBC6LquxePxsKZp"
+    "ibGxsR8Mw8jkcjkTwDCM553Y2+Uu7xrA0tLSWV3XUzs7O7qu60ld11MAxWKx4IYeHByoqVTq"
+    "PKVXefNEsJRyDvg1m832zszM9Oi6rjtwXVXVB8D2IRRgbm7ugmVZzwBXgVsnPhAhxCvA28Co"
+    "EEKrr6+/PDw8POPdl06nKxcXF9/f3d09B9wDLkgpbx4LFkKcAy4DTcAW4APafD7fVjAYvFVd"
+    "XX3HsqxK0zRf2N/fP2vb9ilKw+lrKeWVw5K9MnsDSPCflHaA14AfKU00t8yKwDbwPdDt5hxR"
+    "hRBiFLjkZAqlqXUFuCGlvCaEaAZ6gZccfxwwgDtSytyRsl2ZjgG6K5s08BXOrAXOAEvA654K"
+    "N4F3Af9j89iBJo+DAm1O1oc+LzjjrN8FhlzrvHlMpl8Cp4CPgX2O9nXXgR2a7fFfBdqhJBE3"
+    "9Augzjn1VWDZE3gD+NlleZcvA3wAqAAxwHIu4XOg1lOqQknPh1Ud1woLR57uVvidLN/zQj2A"
+    "WqdFEc/6LHDau/9fWWl7IU1I4vYAAAAASUVORK5CYII="),
+    zoomInDisabled)
+
+# Vertical zoom-in button images, normal and disabled. 
+zoomInV = (PyEmbeddedImage(
+    "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
+    "SFlzAAADJgAAAyYBy+DXbwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
+    "AAPTSURBVDiNpZRfTBx1EMc/s7vHn+NPOXoNpFiFEvFPUmwag1gjBo196IMWQ0MfiFJTifFi"
+    "UvVBlOc2+qS2mhiDGuXF9gUTY1JytPRBbGswGDmi2GikGgvHHR4cV1iW3fHB39WTBhPbSX7J"
+    "zmbms7Mz39+gqqgqwFZgd97feIDbgGPAORFJi8g8MAocB6I3xBckvgN8tQn0WRHJAlpUVJSr"
+    "rKy8WlZW9odt2zlAgSxwpDBHVBURuROYAkJAl6qexpiIvAe8EA6Hl/fu3Tvd3t5+ORKJzNu2"
+    "PTc1NeXF4/GG6enpQ0EQVAEfquoR4Dr4c+BJw/oVuFtVXRF5DBipqalJx2Kx7zs6OhaCIHD7"
+    "+vqaPM9bPHjw4JepVGp+YmLCHRoaOu77/k6gU1WHLJOchwLUA0dFpEREPg6FQm5nZ+ePPT09"
+    "q3V1ddsikUhkdHT0vvHx8T0lJSVFjuOE6uvrr7W0tLwkIh5wQkRKLeAQcAlYBDzz/CjwiKru"
+    "aGxsvNLV1fW74zhOWVlZ2HEcx7QIMRYEgTQ0NCQrKipOmSF3OKr6nAk8Y1TRavxXABobG6+4"
+    "ruvG43GrtLR01XVdOwgC1tfXrbGxsZp0Oh1KpVLhaDS6EI1GLy4tLT0NtBRO/gwwW+APiojX"
+    "29v7UX9//2dm+pue1tbWJ9ra2vYZf9hhc0urqp1KpVa2b9+eaW5unrAsy1JVnZyc3GVZ1lpt"
+    "be2llZUVd21tbaW8vPxaMpncZnJXHBE5DGwB7gDCInLUfHUckEQiUdve3n42Fov9Ztu27fu+"
+    "H4vFjoVCocXu7u4TCwsLmVwutwyQSCQeMuCEA2wD3iyo9C3gFPAqEMzMzOyenZ09XVxcHLJt"
+    "2/J9PwiCQH3f9zOZzJ+5XC4HoKqSTqcPGAGMW8DbwM8FYBfoU9UZ4BPXdXcODAzsSyaT83Nz"
+    "c8lkMjkvIsuqupTNZnP5pHg8/pTnebuBs8CF/AU5AAyZmDdU9TURqQJeBGIiEqmqqvpg//79"
+    "n24chO/71sjIyKFUKhUDZoHDqnpWjAIQkfPAXUATEObvBXMPcNX83u2O4/xUUVExXF1dPamq"
+    "oUwm05TNZh/3PO9e4BfgJHBSVf1Cue0BnjE9T/CPlJaA54FBYJUbpZYDvgAexqyI60sobyKy"
+    "1VS6y7xaBc4DL6vqDyKyA2gDWoAS4DtgArisqul/9aig4moTlK9kFRgG7t9sR//XyUOrgG83"
+    "QONAy81A813YAnxTAHWBc8ADNwvNgwcLoGumpw/eClRVcYyc1g34IvC6ql7YqNf/a/kL8j5Q"
+    "Cbyrql/fKhTgL5SXwYpLgmuBAAAAAElFTkSuQmCC"),
+    zoomInDisabled)
+
+# Horizontal zoom-out button, normal and disabled. 
+zoomOutH = (PyEmbeddedImage(
     "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
     "SFlzAAADOAAAAzgBJn2LWwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
     "AAOmSURBVDiNjZVPTBxVHMc/b2Z22F3Y7G4oEGgskJAUE3toKkEUiGy0JEi1mBqPRj2QevGA"
@@ -179,9 +214,12 @@ zoomOutH = PyEmbeddedImage(
     "b4ETnssGfgBuK6V+FUI8BTwDnAUM4LbXxKZSynnk2L5OX/c0qnWT5XD+Nnvx88Am8FzdCf8B"
     "3gP0I/MYeOMY6BdAGDgN3PDF6sEVz78FnPf5eRNI+wozwGeeHNeBgzpd88C+z1SdLQGn8G6z"
     "5kwDc0DI23UKuFdXuAb86DPXF9vn8CcJwOGDdj0pPgGCdUc1gQ983R0nxb/APNDml6IJ+Aq4"
-    "DDQ1+PvagK+BZ+v8S8CZ+vz/AANFgmCi0YBZAAAAAElFTkSuQmCC")
+    "DDQ1+PvagK+BZ+v8S8CZ+vz/AANFgmCi0YBZAAAAAElFTkSuQmCC"),
+    zoomOutDisabled)
 
-zoomOutV = PyEmbeddedImage(
+
+# Vertical zoom-out button, normal and disabled. 
+zoomOutV = (PyEmbeddedImage(
     "iVBORw0KGgoAAAANSUhEUgAAABYAAAAWCAYAAADEtGw7AAAABHNCSVQICAgIfAhkiAAAAAlw"
     "SFlzAAADMgAAAzIBfQlAtwAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
     "AAO/SURBVDiNpZRPaBx1FMc/b2Z2mqS7Ndll6y45+K+2HnLQQjCKVbQYipF4tCwENSA5JNAS"
@@ -202,7 +240,10 @@ zoomOutV = PyEmbeddedImage(
     "8CHwnqo22wfNUeAloAOYCX+gAj7wLnAeqLbtt3//AXianUOopfD53wBPAgI0gRvAiKrOi0hv"
     "+IoBoAf4I6zpgqoWaVdbxjbwHdtjUMNy/Ab07zajb2ctaAS42gZtAteAR+8E2qqCBXy1A3oD"
     "GLhTaAt8NoS1oL8Dj+8FqqoYwC3ACzOeA8ZV9Sf2qjDtd4AvgGN7zbRl/wEAsfxY7DXSSgAA"
-    "AABJRU5ErkJggg==")
+    "AABJRU5ErkJggg=="),
+    zoomOutDisabled)
+
+# Device logo, appears at top of window
 SSXLogo = PyEmbeddedImage(
     "iVBORw0KGgoAAAANSUhEUgAAAHQAAAAWCAYAAAARprh2AAAABHNCSVQICAgIfAhkiAAAAAlw"
     "SFlzAAAC8gAAAvIBAK7ozgAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
@@ -241,7 +282,8 @@ SSXLogo = PyEmbeddedImage(
     "Dz4fXVVjMHYp0D8suOhY8yVr3N+yfYBWEdkUfp5x6DmAhX0Gs7HLB+6yrh+4108uX3nPymc2"
     "n8kORhmCa2xghmLs0Mcvv+jQmo+b/4Hrrv+WqDtTQy8wZGroBYb/APScfHF+1pLFAAAAAElF"
     "TkSuQmCC")
- 
+
+# MIDE logo, appears at bottom of window
 MideLogo = PyEmbeddedImage(
     "iVBORw0KGgoAAAANSUhEUgAAAE0AAAAWCAYAAACFQBGEAAAABHNCSVQICAgIfAhkiAAAAAlw"
     "SFlzAAACFgAAAhYBt2mHsgAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoA"
