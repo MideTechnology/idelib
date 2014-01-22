@@ -253,9 +253,11 @@ class Transformable(object):
             # non-transforms for them.
             self._rawTransforms = ((Transform.null,) * len(transform),
                                    (None,) * len(transform))
-            self._transform = tuple([Transform.null if t is None else t for t in transform])
+            self._transform = tuple([Transform.null if t is None \
+                                     else t for t in transform])
         else:
-            self._transform = Transform.null if self.transform is None else self.transform
+            self._transform = Transform.null if self.transform is None \
+                                else self.transform
         self._mapTransform = self.transform
         self._raw = raw
 
@@ -286,7 +288,7 @@ class Dataset(Cascading):
         Typically represents a single MIDE EMBL file.
         
         Dictionary attributes are all keyed by the relevant ID (sensor ID,
-        channel ID, et cetera).
+        channel ID, etc.).
         
         @ivar loading: Boolean; `True` if a file is loading (or has not yet been
             loaded).
@@ -383,7 +385,8 @@ class Dataset(Cascading):
 
 
     def addTransform(self, transform):
-        """
+        """ Add a transform (calibration, etc.) to the dataset. Various child
+            objects will reference them by ID.
         """
         if transform.id is None:
             raise ValueError("Added transform did not have an ID")
@@ -479,12 +482,17 @@ class Sensor(Cascading):
         self.traceData = traceData
 
 
-    def addChannel(self, channelId, parser, **kwargs):
+    def addChannel(self, channelId=None, parser=None, **kwargs):
         """ Add a Channel to a Sensor. 
         
             @param channelId: An unique ID number for the channel.
             @param parser: The Channel's data parser
         """
+        if channelId is None or parser is None:
+            raise TypeError("addChannel() requires a channel ID")
+        if parser is None:
+            raise TypeError("addChannel() requires a parser")
+        
         if channelId in self.channels:
             return self.channels[channelId]
         channel = Channel(self, channelId, parser, **kwargs)
@@ -593,9 +601,12 @@ class Channel(Cascading, Transformable):
             yield self.getSubChannel(i)
 
 
-    def addSubChannel(self, subchannelId, **kwargs):
+    def addSubChannel(self, subchannelId=None, **kwargs):
         """ Create a new SubChannel of the Channel.
         """
+        if subchannelId is None:
+            raise TypeError("addSubChannel() requires a subchannelId")
+        
         if subchannelId > len(self.subchannels):
             raise IndexError(
                 "Channel's parser only generates %d subchannels" % \
@@ -661,7 +672,8 @@ class Channel(Cascading, Transformable):
     def parseBlockByIndex(self, block, indices, subchannel=None):
         """
         """
-        return list(block.parseByIndexWith(self.parser, indices, subchannel=subchannel))
+        return list(block.parseByIndexWith(self.parser, indices, 
+                                           subchannel=subchannel))
         
 
 #===============================================================================
@@ -726,20 +738,27 @@ class SubChannel(Channel):
     
 
     def parseBlock(self, block, start=0, end=-1, step=1):
-        """ TODO: Document
+        """ Parse subsamples out of a data block. Used internally.
+            @param block: The data block from which to parse subsamples.
+            @keyword start: The first block index to retrieve.
+            @keyword end: The last block index to retrieve.
+            @keyword step: The number of steps between samples.
         """
         return self.parent.parseBlock(block, start, end, step=step, 
                                       subchannel=self.id)
 
 
     def parseBlockByIndex(self, block, indices):
-        """ TODO: Document
+        """ Parse specific subsamples out of a data block. 
+            @param block: The data block from which to parse subsamples.
+            @param indices: A list of individual index numbers to get.
         """
         return self.parent.parseBlockByIndex(block, indices, subchannel=self.id)
     
         
     def getSession(self, sessionId=None):
-        """ Retrieve a session 
+        """ Retrieve a session by ID. If none is provided, the last session in
+            the Dataset is returned.
         """
         if self._sessions is None:
             self._sessions = {}
@@ -1013,12 +1032,6 @@ class EventList(Cascading):
             events.
         """
         return self.iterSlice()
-#         for block in self._data:
-#             indexRange = block.indexRange[0], block.indexRange[1]+1
-#             sampleTime = self._getBlockSampleTime(block.blockIndex)
-#             times = iter([block.startTime + sampleTime * t for t in xrange(*indexRange)])            
-#             for v in self.parent.parseBlock(block):
-#                 yield self.parent._transform((times.next(), v))
                 
 
     def __len__(self):
@@ -1034,65 +1047,11 @@ class EventList(Cascading):
     def itervalues(self, start=0, end=-1, step=1):
         """ Iterate all values in the list.
         """
-        # TODO: Optimize
+        # TODO: Optimize; times don't need to be computed since they aren't used
         for v in self.iterSlice(start, end, step):
             yield v[-1]
         
 
-    def iterSlice_old(self, start=0, end=-1, step=1):
-        """ Create an iterator producing events for a range indices.
-        """
-        if start is None:
-            start = 0
-        elif start < 0:
-            start += len(self)
-            
-        if end is None:
-            end = len(self)
-        elif end < 0:
-            end += len(self) + 1
-        else:
-            end = min(end, len(self))
-        
-        if start < end and start < len(self):
-            step = 1 if step is None else step
-    
-            startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
-            startSubIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
-            
-            endBlockIdx = self._getBlockIndexWithIndex(end, start=startBlockIdx)
-            endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-            
-            for i in xrange(startBlockIdx, endBlockIdx+1):
-                block = self._data[i]
-                blockRange = block.indexRange
-                sampleTime = self._getBlockSampleTime(i)
-                thisStart = startSubIdx if i == startBlockIdx else 0
-                thisEnd = endSubIdx if i == endBlockIdx else blockRange[1]-blockRange[0]+1
-        
-                times = [block.startTime + sampleTime * t for t in xrange(thisStart, thisEnd, step)]
-                values = self.parent.parseBlock(block, start=thisStart, end=thisEnd, step=step)
-                if self.dataset.useIndices:
-                    indices = range(blockRange[0]+thisStart, blockRange[0]+thisEnd, step)
-                    for eIdx,eTime,eVal in izip(indices,times,values):
-                        if self.hasSubchannels:
-                            # TODO: (post Transform fix) Refactor later
-                            event=[f((eTime,v), self.session) for f,v in izip(self.parent._transform, eVal)]
-                            yield Event(eIdx, event[0][0], tuple((e[1] for e in event)))
-                        else:
-                            eTime, eVal = self.parent._transform((eTime, eVal), self.session)
-                            yield Event(eIdx,eTime,eVal)
-                else:
-                    for event in izip(times,values):
-                        if self.hasSubchannels:
-                            # TODO: (post Transform fix) Refactor later
-                            event=[f((event[-2],v), self.session) for f,v in izip(self.parent._transform, event[-1])]
-                            event=(event[0][0], tuple((e[1] for e in event)))
-                        else:
-                            event = self.parent._transform(self.parent.parent._transform[self.parent.id](event, self.session),self.session)
-                        yield event
-
-      
     def iterSlice(self, start=0, end=-1, step=1):
         """ Create an iterator producing events for a range indices.
         """
@@ -1424,41 +1383,6 @@ class EventList(Cascading):
                 for event in self.iterSlice(idx, min(stop,thisRange[1]+1), step):
                     yield event
     
-    
-    def iterResampledRange_old(self, startTime, stopTime, maxPoints, threshold=1.0):
-        """ Retrieve the events occurring within a given interval,
-            undersampled as to not exceed a given length (e.g. the size of
-            the data viewer's screen width).
-        
-            XXX: EXPERIMENTAL!
-            Not very efficient, particularly not with single-sample blocks.
-            Redo without _getBlockIndexWithIndex
-            
-            ALSO: I HAVE NO IDEA HOW THIS WORKS ANYMORE.
-        """
-        # TODO: Handle possible variations in sample rate.
-        blockIdx = self._getBlockIndexWithTime(startTime)
-        lastBlockIdx = self._getBlockIndexWithTime(stopTime, start=blockIdx)+1
-        startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
-        numPoints = (stopTime - startTime) / (self.getSampleTime(blockIdx) + 0.0)
-        step = numPoints / maxPoints
-        if step < threshold or blockIdx == lastBlockIdx:
-            for p in self.iterSlice(startIdx, stopIdx, max(step,1)):
-                yield p
-        else:
-            step = int(step)
-            thisRange = self._getBlockIndexRange(blockIdx)
-            lastIdx = -1
-            for idx in xrange(startIdx, stopIdx, step):
-                if idx > thisRange[1]:
-                    blockIdx = self._getBlockIndexWithIndex(idx, start=blockIdx+1, stop=lastBlockIdx)
-                    thisRange = self._getBlockIndexRange(blockIdx)
-                if blockIdx > lastIdx:
-                    lastIdx = blockIdx
-                    for event in self.iterSlice(idx, min(stopIdx,thisRange[1]+1), step):
-                        yield event
-                continue
-
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
                            jitter=0):
@@ -1567,16 +1491,18 @@ class EventList(Cascading):
 class Plot(Transformable):
     """ A processed set of sensor data. These are typically the final form of
         the data. Transforms applied are intended to be for display purposes
-        (e.g. converting data in centimeters to meters).
+        (e.g. converting data in foot-pounds to pascals).
     """
     
-    def __init__(self, source, name=None, transform=None, units=None):
+    def __init__(self, source, plotId, name=None, transform=None, units=None):
         self.source = source
+        self.id = plotId
         self.session = source.session
         self.dataset = source.dataset
         self.name = source.path() if name is None else name
         self.units = source.units if units is None else units
         self.setTransform(transform)
+    
     
     def __len__(self):
         return len(self.source)

@@ -280,8 +280,8 @@ def readData(doc, updater=None, numUpdates=500, updateInterval=1.0,
                 pass
             
             # More progress display stuff
-            # TODO: Possibly do the update check every nth elements.
-            #    That would have slightly less work per cycle.
+            # TODO: Possibly do the update check every nth elements; that would
+            #    have slightly less work per cycle.
             thisOffset = r.stream.offset
             thisTime = time.time()
             if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:

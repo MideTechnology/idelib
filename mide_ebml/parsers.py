@@ -96,7 +96,7 @@ def renameKeys(d, renamed, exclude=True, recurse=True):
 
 # The minimum and maximum values for values parsed out of data blocks.
 # Used to provide an initial range, which is later corrected for actual
-# values.
+# values. Note that floats default to the normalized range of (-1.0, 1.0).
 RANGES = {'c': None,
           'b': (-127,126),
           'B': (0,255),
@@ -255,10 +255,13 @@ class AccelerometerParser(object):
         self.size = self.parser.size
         self.ranges = ((outMin, outMax),) * 3
         
-        self.adjustment = lambda v: (v - inMin + 0.0) * (outMax - outMin) / (inMax - inMin) + outMin
+        self.adjustment = lambda v: \
+            (v - inMin + 0.0) * (outMax - outMin) / (inMax - inMin) + outMin
+
 
     def unpack_from(self, data, offset=0):
-        return tuple(map(self.adjustment, self.parser.unpack_from(data, offset)))
+        return tuple(map(self.adjustment, 
+                         self.parser.unpack_from(data, offset)))
     
 
 #===============================================================================
@@ -352,13 +355,16 @@ class BaseDataBlock(object):
         self.minValue = self.maxValue = None
 
 
-    def parseWith(self, parser, start=0, end=-1, subchannel=None, step=1):
+    def parseWith(self, parser, start=0, end=-1, step=1, subchannel=None):
         """ Parse an element's payload. Use this instead of directly using
             `parser.parse()` for consistency's sake.
             
             @param parser: The DataParser to use
-            @param start: First subsample index to parse 
-            @param end: Last subsample index to parse
+            @keyword start: First subsample index to parse 
+            @keyword end: Last subsample index to parse
+            @keyword step: The number of samples to skip, if the start and end
+                cover more than one sample.
+            @keyword subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload.value
@@ -587,7 +593,8 @@ class PolynomialParser(ElementHandler):
     isSubElement = True
     
     # Parameter names: mapping of element names to the keyword arguments used
-    # to instantiate a polynomial object.
+    # to instantiate a polynomial object. Also used to remove unknown elements
+    # (see `renameKeys`).
     parameterNames = {"CalID": "calId",
                       "CalReferenceValue": "reference",
                       "BivariateCalReferenceValue": "reference2",
@@ -666,42 +673,36 @@ class SensorParser(ElementHandler):
     isSubElement = True
 
     # Parameter names: mapping of element names to the keyword arguments used
-    # to instantiate the various children of SensorParser.
+    # to instantiate the various children of SensorParser. Also used to remove
+    # unknown elements (see `renameKeys`).
     parameterNames = {
         "Sensor": "sensors",
                       
-      "SensorID": "sensorId",
-      "SensorName": "name", 
-      "TraceabilityData": "traceData",
-      "SensorCalibrationIDRef": "transform",
-      "SensorChannel": "channels",
+        "SensorID": "sensorId",
+        "SensorName": "name", 
+        "TraceabilityData": "traceData",
+        "SensorCalibrationIDRef": "transform",
+        "SensorChannel": "channels",
+      
+        "SensorChannelID": "channelId",
+        "SensorChannelName": "name", 
+        "TimeCodeScale": "timeScale",
+        "TimeCodeModulus": "timeModulus",
+#         "SensorChannelFormat": "parser", # TBD;
+        "SensorChannelCalibrationIDRef": "transform",
+        "SensorSubChannel": "subchannels",   
 
-      "SensorChannelID": "channelId",
-      "SensorChannelName": "name", 
-      "TimeCodeScale": "timeScale",
-      "TimeCodeModulus": "timeModulus",
-      "SensorChannelFormat": "parser", # TBD;
-      "SensorChannelCalibrationIDRef": "transform",
-      "SensorSubChannel": "subchannels",   
-
-      "SubChannelID": "id",
-      "SubChannelName": "name",
-      "SubChannelCalibrationIDRef": "transform",
-      "SubChannelSubChannelAxisName": "axisName",
-      "SubChannelSubChannelAxisName": "axisId",
-      "SubChannelUnitsName": "units",
-      "SubChannelUnitsXRef": "unitsId",
-      "SubChannelRangeMin": "rangeMin",
-      "SubChannelRangeMax": "rangeMax"
+        "SubChannelID": "subchannelId",
+        "SubChannelName": "name",
+        "SubChannelCalibrationIDRef": "transform",
+        "SubChannelSubChannelAxisName": "axisName",
+        "SubChannelSubChannelAxisName": "axisId",
+        "SubChannelUnitsName": "units",
+        "SubChannelUnitsXRef": "unitsId",
+        "SubChannelRangeMin": "rangeMin",
+        "SubChannelRangeMax": "rangeMax"
     }
     
-    def __init__(self, *args, **kwargs):
-        """
-        """
-        super(SensorParser, self).__init__(*args, **kwargs)
-        self.channelParser = self.SensorChanelParser(self.doc)
-
-   
     def parse(self, element, **kwargs):
         """
         """
@@ -714,20 +715,50 @@ class SensorParser(ElementHandler):
         
         if "transform" in data:
             data["transform"] = self.doc.transforms[data["transform"]]
-            
-        for channel in data.pop("channels", ""):
-            getXform(channel)
-            for subchannel in channel.pop("subchannels", ""):
-                getXform(subchannel)
+        
+        channels = data.pop("channels","")
+        sensor = self.doc.addSensor(**data)
+        
+        for channelData in channels:
+            getXform(channelData)
+            subchannels = channelData.pop("subchannels","")
+            channel = self.doc.addChannel(**channelData)
+            for subchannelData in subchannels:
+                getXform(subchannelData)
+                channel.addSubChannel(**subchannelData)
+        
+        return sensor
 
 
 class SensorListParser(ElementHandler):
-    """ Handle the `SensorList` element, child of RecorderInfo. 
+    """ Handle the `SensorList` element, child of RecorderInfo. Really only
+        a wrapper around a set of `Sensor` elements.
     """
     elementName = "SensorList"
     isSubElement = True
     children = (SensorParser, )
 
+
+class PlotParser(ElementHandler):
+    """
+    """
+    elementName = "Plot"
+    isSubElement = True
+    
+    def parse(self, element, **kwargs):
+        """
+        """
+        # TODO: IMPLEMENT, but later. Not required for immediate goals.
+        pass
+
+
+class PlotListParser(ElementHandler):
+    """
+    """
+    elementName = "PlotList"
+    isSubElement = True
+    children = (PlotParser, )
+    
 
 class RecorderInfoParser(ElementHandler):
     """ Handle the `RecorderInfo` element, child of RecordingProperties.
@@ -744,12 +775,14 @@ class RecorderInfoParser(ElementHandler):
 
 
 class RecordingPropertiesParser(ElementHandler):
-    """ Stub for RecordingProperties element handler.
+    """ Stub for RecordingProperties element handler. All relevant data is in
+        its child elements.
     
         @cvar elementName: The name of the element handled by this parser
         @todo: Implement RecordingPropertiesParser
     """
     elementName = "RecordingProperties"
+    isSubElement = False
     children = (RecorderInfoParser, SensorListParser)
 
 

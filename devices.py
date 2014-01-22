@@ -10,6 +10,7 @@ __date__ = "Nov 14, 2013"
 import ctypes
 import os
 import string
+import struct
 import sys
 
 from mide_ebml import devices
@@ -17,6 +18,8 @@ from mide_ebml import devices
 SYSTEM_PATH = "/SYSTEM/DEV/".replace("/",os.sep)
 INFO_FILE = os.path.join(SYSTEM_PATH, "DEVINFO")
 CLOCK_FILE = os.path.join(SYSTEM_PATH, "CLOCK")
+
+timeParser = struct.Struct("Q")
 
 #===============================================================================
 # Cross-platform functions
@@ -49,12 +52,23 @@ def getRecorderInfo(dev):
     return False
 
 
+def getDeviceTime(dev):
+    f = open(os.path.join(dev,CLOCK_FILE), 'rb', 0)
+    t = f.read(8)
+    f.close()
+    return timeParser.unpack_from(t)
+
 #===============================================================================
 # Windows-specific versions of the functions
 #===============================================================================
 
 if 'win' in sys.platform:
     kernel32 = ctypes.windll.kernel32
+    FILE_SHARE_READ =           0x00000001
+    OPEN_EXISTING =             0x00000003
+    FILE_FLAG_NO_BUFFERING =    0x20000000
+    GENERIC_READ =              0x80000000
+
 else:
     kernel32 = None
 

@@ -24,10 +24,11 @@ import sys
 from threading import Thread
 
 from wx import aui
-import wx.lib.newevent
 from wx.lib.rcsizer import RowColSizer
 from wx.lib.wordwrap import wordwrap
 import wx; wx = wx # Workaround for Eclipse code comprehension
+
+from base import *
 
 # Custom controls
 from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
@@ -62,157 +63,7 @@ def expandRange(l, v):
 # 
 #===============================================================================
 
-class ViewerPanel(wx.Panel):
-    """ Base class for Viewer component panels. Contains common utility
-        methods; also does some viewer-specific initialization.
-    """
-    
-    def __init__(self, *args, **kwargs):
-        self.root = kwargs.pop('root', None)
-        self.visibleRange = kwargs.pop('visibleRange',(1.0,-1.0))
-        self.timerange = kwargs.pop('timerange',(0,10**6))
-        self.defaultButtonStyle=kwargs.pop('defaultButtonStyle',None)
-        self.defaultSizerFlags=kwargs.pop('defaultSizerFlags',wx.EXPAND)
-        
-        super(ViewerPanel, self).__init__(*args, **kwargs)
 
-        if self.root is None:
-            self.root = self.GetParent().root
-                
-
-    def _addButton(self, sizer, bitmaps, evtHandler, Id=-1, tooltip=None,
-                   buttonStyle=None, sizerFlags=None):
-        """ Helper method to do the nitty gritty part of button adding.
-            Used internally.
-            
-            @param sizer: The sizer to which to add the button.
-            @param bitmaps: A 1 or more element tuple/list with the normal
-                and (optionally) the disabled button images.
-            @param evtHandler: The event handler called by the button.
-            @keyword Id: The button's ID.
-            @keyword tooltip: The button's hover text.
-            @keyword buttonStyle: The style for the button. Defaults to
-                `self.defaultButtonStyle`.
-            @keyword sizerFlags: The flags to use when adding the button to
-                the sizer. Defaults to `self.defaultSizerFlags`. 
-        """
-        if buttonStyle is None:
-            buttonStyle = self.defaultButtonStyle
-        if sizerFlags is None:
-            sizerFlags = self.defaultSizerFlags
-            
-        if buttonStyle is not None:
-            btn = wx.BitmapButton(self, Id, bitmaps[0].GetBitmap(), 
-                                  style=buttonStyle)
-        else:
-            btn = wx.BitmapButton(self, Id, bitmaps[0].GetBitmap())
-            
-        if len(bitmaps) < 2 or bitmaps[1] is not None:
-            btn.SetBitmapDisabled(bitmaps[1].GetBitmap())
-            
-        if tooltip is not None:
-            btn.SetToolTip(tooltip)
-     
-        sizer.Add(btn, 0, sizerFlags)
-        self.Bind(wx.EVT_BUTTON, evtHandler, btn)
-        
-        return btn
-        
-        
-    def _bindScrollEvents(self, parent, scroll, scrollTrack, scrollEnd):
-        # http://www.wxpython.org/docs/api/wx.ScrollEvent-class.html
-        parent.Bind(wx.EVT_SCROLL, scroll)
-        parent.Bind(wx.EVT_SCROLL_TOP, scroll)
-        parent.Bind(wx.EVT_SCROLL_BOTTOM, scroll)
-        parent.Bind(wx.EVT_SCROLL_LINEUP, scroll)
-        parent.Bind(wx.EVT_SCROLL_LINEDOWN, scroll)
-        parent.Bind(wx.EVT_SCROLL_PAGEUP, scroll)
-        parent.Bind(wx.EVT_SCROLL_PAGEDOWN, scroll)
-        parent.Bind(wx.EVT_SCROLL_THUMBTRACK, scrollTrack)
-        parent.Bind(wx.EVT_SCROLL_CHANGED, scrollEnd)
-#         parent.Bind(wx.EVT_SCROLL_THUMBRELEASE, scroll) # thumb release events
-
-
-    def setTimeRange(self, start=None, end=None, instigator=None, 
-                     tracking=None):
-        """ Change the total range start and/or end time. Not applicable to
-            this display, but implemented for compatibility.
-        """
-        pass
-    
-
-    def setVisibleRange(self, start=None, end=None, instigator=None,
-                        tracking=False, broadcast=False):
-        pass
-    
-    #===========================================================================
-    # 
-    #===========================================================================
-    
-    def postSetVisibleRangeEvent(self, start, end, tracking=False, 
-                                 instigator=False):
-        """ Send a change in visible range event to the root window.
-        
-            @param start: The first time in the visible range.
-            @param end: The last time in the visible range. 
-            @keyword instigator: The object that initiated the change, in 
-                order to avoid an infinite loop of child calling parent 
-                calling child. Defaults to `self`.
-            @keyword tracking: `True` if the widget doing the update is
-                tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond
-                if `tracking` is `True`.
-        """
-        if instigator is False:
-            instigator = self
-        wx.PostEvent(self.root, EvtSetVisibleRange(
-            start=start, end=end, instigator=instigator, tracking=tracking))
-
-
-    def postSetTimeRangeEvent(self, start, end, tracking=False, 
-                                 instigator=False):
-        """ Send a change in the total time range event to the root window.
-        
-            @param start: The first time in the new range.
-            @param end: The last time in the new range. 
-            @keyword instigator: The object that initiated the change, in 
-                order to avoid an infinite loop of child calling parent 
-                calling child. Defaults to `self`.
-            @keyword tracking: `True` if the widget doing the update is
-                tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond
-                if `tracking` is `True`.
-        """
-        if instigator is False:
-            instigator = self
-        wx.PostEvent(self.root, EvtSetTimeRange(
-            start=start, end=end, instigator=instigator, tracking=tracking))
-        
-    #===========================================================================
-    # 
-    #===========================================================================
-
-    def OnScroll(self, evt):
-        evt.Skip()
-        
-    def OnScrollTrack(self, evt):
-        evt.Skip()
-    
-    def OnScrollEnd(self, evt):
-        evt.Skip()
-    
-
-#===============================================================================
-# Custom Events (for multithreaded UI updating)
-#===============================================================================
-
-(EvtSetVisibleRange, EVT_SET_VISIBLE_RANGE) = wx.lib.newevent.NewEvent()
-(EvtSetTimeRange, EVT_SET_TIME_RANGE) = wx.lib.newevent.NewEvent()
-(EvtProgressStart, EVT_PROGRESS_START) = wx.lib.newevent.NewEvent()
-(EvtProgressUpdate, EVT_PROGRESS_UPDATE) = wx.lib.newevent.NewEvent()
-(EvtProgressEnd, EVT_PROGRESS_END) = wx.lib.newevent.NewEvent()
-(EvtInitPlots, EVT_INIT_PLOTS) = wx.lib.newevent.NewEvent()
-(EvtImportError, EVT_IMPORT_ERROR) = wx.lib.newevent.NewEvent()
 
 
 #===============================================================================
@@ -668,7 +519,7 @@ class Timeline(ViewerPanel):
                 self._sbMax,
                 self.scrollUnitsPerUSec * self.displayLength)
         
-        self.unitsPerPixel = (self.displayLength / self.timebar.GetSize()[0] + 0.0)
+        self.unitsPerPixel = (self.displayLength/self.timebar.GetSize()[0] + 0.0)
         
         if broadcast:
             instigator = self if instigator is None else instigator
@@ -725,14 +576,14 @@ class Timeline(ViewerPanel):
 
 
     def OnScrollTrack(self, evt):
-        start = (evt.GetPosition() / self.scrollUnitsPerUSec) + self.timerange[0]
+        start = (evt.GetPosition()/self.scrollUnitsPerUSec) + self.timerange[0]
         end = start + self.displayLength
         self.setVisibleRange(start, end, None, tracking=True, broadcast=True)
 
 
     def OnScrollEnd(self, evt):
         self.scrolling = False
-        start = (evt.GetPosition() / self.scrollUnitsPerUSec) + self.timerange[0]
+        start = (evt.GetPosition()/self.scrollUnitsPerUSec) + self.timerange[0]
         end = start + self.displayLength
         self.setVisibleRange(start, end, None, tracking=False, broadcast=True)
 
@@ -1222,11 +1073,13 @@ class PlotCanvas(wx.ScrolledWindow):
                 self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
                 event = events.next()
                 expandRange(self.Parent.visibleValueRange, event[-1])
-                lastPt = (event[-2] - hRange[0]) * hScale, (event[-1] - vRange[0]) * vScale
+                lastPt = ((event[-2] - hRange[0]) * hScale, 
+                          (event[-1] - vRange[0]) * vScale)
                 
                 for i, event in enumerate(events):
                     # Using negative indices here in case doc.useIndices is True
-                    pt = (event[-2] - hRange[0]) * hScale, (event[-1] - vRange[0]) * vScale
+                    pt = ((event[-2] - hRange[0]) * hScale, 
+                          (event[-1] - vRange[0]) * vScale)
                     self.points.append(pt)
                     
                     # A value of None is a discontinuity; don't draw a line.
@@ -1270,7 +1123,6 @@ class PlotCanvas(wx.ScrolledWindow):
             for p in self.points:
                 dc.DrawCirclePoint(p,self.weight*3)
         
-#         dc.DrawLineList(((100,100,500,100),(500,100,500,500),(500,500,100,500),(100,500,100,100)))
 #         for l in self.lines[-10:]: print l
         
         dc.EndDrawing()
@@ -1315,7 +1167,9 @@ class Plot(ViewerPanel):
         if self.yUnits is None:
             self.yUnits = getattr(self.source, "units", ('',''))
         
-        scale = self.source.displayRange if getattr(self.source, 'hasDisplayRange', False) else scale
+        scale = self.source.displayRange if getattr(self.source, 
+                                                    'hasDisplayRange', False) \
+                                                    else scale
         
         self.legend = LegendArea(self, -1, visibleRange=(max(*scale),min(*scale)))
         self.plot = PlotCanvas(self, -1, color=color)#, style=wx.FULL_REPAINT_ON_RESIZE)
@@ -1496,7 +1350,8 @@ class PlotSet(aui.AuiNotebook):
         if scale is None:
             scale = getattr(source, "displayRange", (-1.0,1.0))
             
-        plot = Plot(self, source=source, root=self.root, scale=scale, color=color, units=units)
+        plot = Plot(self, source=source, root=self.root, scale=scale, 
+                    color=color, units=units)
         plot.SetToolTipString(name)
         self.AddPage(plot, title)
         self.Refresh()
@@ -1759,7 +1614,8 @@ class Viewer(wx.Frame):
         self.menuItems = {}
         
         # Just to make the menu adding less tedious
-        def addItem(menu, id_, text, helpString, handler, enabled=True, kind=wx.ITEM_NORMAL):
+        def addItem(menu, id_, text, helpString, handler, enabled=True, 
+                    kind=wx.ITEM_NORMAL):
             item = menu.Append(id_, text, helpString, kind)
             item.Enable(enabled)
             if handler is not None:
@@ -1809,9 +1665,10 @@ class Viewer(wx.Frame):
         
         debugMenu = wx.Menu()
         addItem(debugMenu, wx.NewId(), "Toggle Antialiasing Drawing", 
-                "Primarily a visual effect, although it does do more resampling", self.DEBUG_OnToggleAA, kind=wx.ITEM_CHECK)
-        addItem(debugMenu, wx.NewId(), "Toggle Noisy Resampling", 
-                "Really probably doesn't work", self.DEBUG_OnToggleNoise, kind=wx.ITEM_CHECK)
+                "Primarily a visual effect, although it does do more resampling", 
+                self.DEBUG_OnToggleAA, kind=wx.ITEM_CHECK)
+        addItem(debugMenu, wx.NewId(), "Toggle Noisy Resampling", "", 
+                self.DEBUG_OnToggleNoise, kind=wx.ITEM_CHECK)
         self.menubar.Append(debugMenu, 'DEBUG')
         
         helpMenu = wx.Menu()
@@ -2192,7 +2049,9 @@ class Viewer(wx.Frame):
             if self.dataset is None or self.dataset.filename == filename:
                 self.openFile(filename)
             else:
-                openNew = self.ask("Are you sure you want to close the current file and open another?", "Open File")
+                openNew = self.ask("Are you sure you want to close the "
+                                   "current file and open another?", 
+                                   "Open File")
                 if openNew == wx.ID_YES:
                     self.openFile(filename)
             
