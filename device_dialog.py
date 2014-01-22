@@ -1,79 +1,162 @@
+import sys
+from collections import namedtuple
+
 import wx; wx=wx
+import wx.lib.sized_controls as sc
+import  wx.lib.mixins.listctrl  as  listmix
+
+# from devices import getDevices, getRecorderInfo
+
+# XXX: Fake 'devices' fixtures; remove later!
+import random
+
+def getDevices():
+    return ["%s:\\" % d for d in "EFGHI"]
+
+def getRecorderInfo(x):
+    return {'FwRev': 0,
+            'HwRev': 1,
+            'ProductName': 'Slam Stick X (100g)',
+            'RecorderSerial': random.randint(1000000000, 9999999999),
+            'RecorderTypeUID': 1,
+            'UserDeviceName': 'My Device %s' % x.strip(':\\'),
+            'PATH': x}
 
 #===============================================================================
 # 
 #===============================================================================
 
-class DeviceSelectionDialog(wx.Dialog):
-    def __init__(
-            self, parent, ID, title, size=wx.DefaultSize, pos=wx.DefaultPosition, 
-            style=wx.DEFAULT_DIALOG_STYLE,
-            useMetal=False,
-            ):
+class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
+    """ The dialog for selecting data to export.
+    """
 
-        # Instead of calling wx.Dialog.__init__ we precreate the dialog
-        # so we can set an extra style that must be set before
-        # creation, and then we create the GUI object using the Create
-        # method.
-        pre = wx.PreDialog()
-        pre.SetExtraStyle(wx.DIALOG_EX_CONTEXTHELP)
-        pre.Create(parent, ID, title, pos, size, style)
+    ColumnInfo = namedtuple("ColumnInfo", ['name','propName','formatter','default'])
 
-        # This next step is the most important, it turns this Python
-        # object into the real wrapper of the dialog (instead of pre)
-        # as far as the wxPython extension is concerned.
-        self.PostCreate(pre)
+    COLUMNS = (ColumnInfo("Path", "PATH", unicode, ''),
+               ColumnInfo("Name", "UserDeviceName", unicode, ''),
+               ColumnInfo("Type", "ProductName", unicode, ''),
+               ColumnInfo("Serial #", "RecorderSerial", hex, ''))
 
-        sizer = wx.BoxSizer(wx.VERTICAL)
+    class DeviceListCtrl(wx.ListCtrl, listmix.ListCtrlAutoWidthMixin):
+        def __init__(self, parent, ID, pos=wx.DefaultPosition,
+                     size=wx.DefaultSize, style=0):
+            wx.ListCtrl.__init__(self, parent, ID, pos, size, style)
+            listmix.ListCtrlAutoWidthMixin.__init__(self)
+            
+
+    def __init__(self, *args, **kwargs):
+        """
+        """
+        style = wx.DEFAULT_DIALOG_STYLE \
+            | wx.RESIZE_BORDER \
+            | wx.MAXIMIZE_BOX \
+            | wx.MINIMIZE_BOX \
+            | wx.DIALOG_EX_CONTEXTHELP \
+            | wx.SYSTEM_MENU
+            
+        self.root = kwargs.pop('root', None)
+        kwargs.setdefault('style', style)
+        super(DeviceSelectionDialog, self).__init__(*args, **kwargs)
         
-        label = wx.StaticText(self, -1, "This is a wx.Dialog")
-        label.SetHelpText("This is the help text for the label")
-        sizer.Add(label, 0, wx.ALIGN_CENTRE|wx.ALL, 5)
+        self.recorders = []
+        self.listWidth = 300
+        self.selected = None
+        self.selectedIdx = None
+                
+        pane = self.GetContentsPane()
+        pane.SetSizerProps(expand=True)
 
-        box = wx.BoxSizer(wx.HORIZONTAL)
-
-        label = wx.StaticText(self, -1, "Field #1:")
-        label.SetHelpText("This is the help text for the label")
-        box.Add(label, 0, wx.ALIGN_CENTRE|wx.ALL, 5)
-
-        text = wx.TextCtrl(self, -1, "", size=(80,-1))
-        text.SetHelpText("Here's some help text for field #1")
-        box.Add(text, 1, wx.ALIGN_CENTRE|wx.ALL, 5)
-
-        sizer.Add(box, 0, wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5)
-
-        box = wx.BoxSizer(wx.HORIZONTAL)
-
-        label = wx.StaticText(self, -1, "Field #2:")
-        label.SetHelpText("This is the help text for the label")
-        box.Add(label, 0, wx.ALIGN_CENTRE|wx.ALL, 5)
-
-        text = wx.TextCtrl(self, -1, "", size=(80,-1))
-        text.SetHelpText("Here's some help text for field #2")
-        box.Add(text, 1, wx.ALIGN_CENTRE|wx.ALL, 5)
-
-        sizer.Add(box, 0, wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5)
-
-        line = wx.StaticLine(self, -1, size=(20,-1), style=wx.LI_HORIZONTAL)
-        sizer.Add(line, 0, wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.RIGHT|wx.TOP, 5)
-
-        btnsizer = wx.StdDialogButtonSizer()
+        self.list = self.DeviceListCtrl(pane, -1, 
+                                 style=wx.LC_REPORT 
+                                 | wx.BORDER_SUNKEN
+                                 | wx.LC_SORT_ASCENDING
+                                 | wx.LC_VRULES
+                                 | wx.LC_HRULES
+                                 | wx.LC_SINGLE_SEL
+                                 )
         
-        if wx.Platform != "__WXMSW__":
-            btn = wx.ContextHelpButton(self)
-            btnsizer.AddButton(btn)
+        for i, c in enumerate(self.COLUMNS):
+            self.list.InsertColumn(i, c[0])
+
+        self.list.SetSizerProps(expand=True, proportion=1)
+
+        self.infoText = wx.StaticText(pane, -1, "This is maybe\na multi-line\ntext thing")
+        self.infoText.SetSizerProps(expand=True)
         
-        btn = wx.Button(self, wx.ID_OK)
-        btn.SetHelpText("The OK button completes the dialog")
-        btn.SetDefault()
-        btnsizer.AddButton(btn)
+        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
+        self.okButton = self.FindWindowById(wx.ID_OK)
+        self.okButton.Enable(False)
 
-        btn = wx.Button(self, wx.ID_CANCEL)
-        btn.SetHelpText("The Cancel button cancels the dialog. (Cool, huh?)")
-        btnsizer.AddButton(btn)
-        btnsizer.Realize()
+        self.populateList()
+        
+        self.Fit()
+        self.SetSize((self.listWidth + (self.GetDialogBorder()*4),300))
+        self.SetMinSize((self.listWidth + (self.GetDialogBorder()*4),300))
+        self.SetMaxSize((1500,600))
+        
+        self.Layout()
+        self.Centre()
+    
+        self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnItemSelected, self.list)
+        self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.OnItemDeselected, self.list)
+        self.list.Bind(wx.EVT_LEFT_DCLICK, self.OnItemDoubleClick)
 
-        sizer.Add(btnsizer, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALL, 5)
 
-        self.SetSizer(sizer)
-        sizer.Fit(self)
+    def populateList(self):
+        """ Find recorders and add them to the list.
+        """
+        
+        def thing2string(info, col):
+            try:
+                return col.formatter(info.get(col.propName, col.default))
+            except TypeError:
+                return col.default
+        
+        pathWidth = self.GetTextExtent(" Path ")[0]+8
+        
+        self.recorders = [getRecorderInfo(p) for p in getDevices()]
+        for info in self.recorders:
+            index = self.list.InsertStringItem(sys.maxint, info['PATH'])
+            self.list.SetColumnWidth(0, max(pathWidth,
+                                            self.GetTextExtent(info['PATH'])[0]))
+            for i, col in enumerate(self.COLUMNS[1:], 1):
+                self.list.SetStringItem(index, i, thing2string(info, col))
+                self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
+                self.listWidth = max(self.listWidth, self.list.GetItemRect(index)[2])
+        
+        self.list.Fit()
+
+
+    def OnItemSelected(self,evt):
+        print "Item selected:", evt.m_itemIndex
+        self.selectedIdx = evt.m_itemIndex
+        self.okButton.Enable(True)
+        evt.Skip()
+
+    def OnItemDeselected(self, evt):
+        print "Item deselected"
+        self.okButton.Enable(self.list.GetSelectedItemCount() > 0)
+        evt.Skip()
+
+    def OnItemDoubleClick(self, evt):
+        print "Double-click"
+        if self.list.GetSelectedItemCount() == 0:
+            # Don't close the dialog
+            print "nothing selected"
+            pass
+        else:
+            # Close the dialog
+            print "selected:", self.list.GetFirstSelected()
+            pass
+        evt.Skip()
+
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == '__main__': #or True:
+    app = wx.App()
+    dlg = DeviceSelectionDialog(None, -1, "Import from Recorder")
+    result = dlg.ShowModal()
+    dlg.Destroy()
+    app.MainLoop()    

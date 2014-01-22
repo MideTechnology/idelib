@@ -65,7 +65,12 @@ RANGES = {'c': None,
 
 
 def getParserTypes(parser):
-    """ Get the Python types produced by a parser. 
+    """ Get the Python types produced by a parser. If the parser doesn't
+        explicitly define them in a `types` attribute, the types are
+        derived from what the parser generates.
+        
+        @param parser: A `struct.Struct`-like parser.
+        @return: A tuple of Python types.
     """
     if hasattr(parser, "types"):
         return parser.types
@@ -73,12 +78,13 @@ def getParserTypes(parser):
 
 
 def getParserRanges(parser):
-    """ Get the theoretical minimum and maximum values that can be returned
-        for each value parsed out of sensor data. Note that floating point
-        values are typically reported as (-1.0,1.0).
+    """ Get the range of values created by a parser. If the parser doesn't
+        explicitly define them in a `ranges` attribute, the theoretical 
+        minimum and maximum values of the resulting data type are returned.
+        Note that floating point values are typically reported as (-1.0,1.0).
         
         @param parser: A `struct.Struct`-like parser.
-        @return: A collection of (min, max) tuples. Non-numeric values will
+        @return: A tuple of (min, max) tuples. Non-numeric values will
             have a reported range of `None`.
     """
     if hasattr(parser, "ranges"):
@@ -99,10 +105,10 @@ def getElementHandlers(module=None, subElements=False):
         identified by being subclasses of `ElementHandler`.
     
         @keyword module: The module from which to get the handlers. Defaults to
-            the current module (ie. `parsers`).
+            the current module (i.e. `mide_ebml.parsers`).
         @keyword subElements: `True` if the set of handlers should also
             include non-root elements (e.g. the sub-elements of a
-            RecordingProperties or ChannelDataBlock).
+            `RecordingProperties` or `ChannelDataBlock`).
         @return: A list of element handler classes.
     """
     elementParserTypes = []
@@ -121,6 +127,7 @@ def getElementHandlers(module=None, subElements=False):
 #                 print "Installing handler for", p.elementName
                 elementParserTypes.append(p)
     return elementParserTypes
+
 
 #===============================================================================
 # EXCEPTIONS
@@ -429,7 +436,12 @@ class ChannelDataBlock(BaseDataBlock):
                 self._payloadIdx = num
                 self.body_size = el.body_size
             # Add other child element handlers here.
-                      
+        
+        # Single-sample blocks have a total time of 0.
+        # Set endTime to None, so the end times will be computed.
+        if self.startTime == self.endTime:
+            self.endTime = None
+    
     
     @property
     def payload(self):

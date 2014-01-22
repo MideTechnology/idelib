@@ -411,19 +411,24 @@ class Dataset(Cascading):
         return sessionId >= 0 and sessionId < len(self.sessions)
         
     
-    def getPlots(self, subchannels=True, plots=True):
+    def getPlots(self, subchannels=True, plots=True, debug=True, sort=True):
         """ Get all plottable data: sensor subchannels and/or Plots.
         
             @keyword subchannels: Include subchannels if `True`.
             @keyword plots: Include Plots if `True`.
         """
         result = []
+        test = lambda x: debug or not x.name.startswith("DEBUG")
         if plots:
-            result = self.plots.values()
+            result = [p for p in self.plots.values() if test(p)]
         if subchannels:
             for c in self.channels.itervalues():
                 for i in xrange(len(c.subchannels)):
-                    result.append(c.getSubChannel(i))
+                    subc = c.getSubChannel(i)
+                    if test(subc):
+                        result.append(subc)
+        if sort:
+            result.sort(key=lambda x: x.name)
         return result
             
         
@@ -955,7 +960,7 @@ class EventList(Cascading):
                 For multiple results, a list of (time, value) tuples.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
-        
+        print "__getitem__", idx
         if isinstance(idx, Iterable):
             result = []
             for t in idx:
@@ -999,12 +1004,14 @@ class EventList(Cascading):
         """ Iterator for the EventList. WAY faster than getting individual
             events.
         """
-        for block in self._data:
-            indexRange = block.indexRange[0], block.indexRange[1]+1
-            sampleTime = self._getBlockSampleTime(block.blockIndex)
-            times = iter([block.startTime + sampleTime * t for t in xrange(*indexRange)])            
-            for v in self.parent.parseBlock(block):
-                yield self.parent._transform((times.next(), v))
+        return self.iterSlice()
+#         print "__iter__"
+#         for block in self._data:
+#             indexRange = block.indexRange[0], block.indexRange[1]+1
+#             sampleTime = self._getBlockSampleTime(block.blockIndex)
+#             times = iter([block.startTime + sampleTime * t for t in xrange(*indexRange)])            
+#             for v in self.parent.parseBlock(block):
+#                 yield self.parent._transform((times.next(), v))
                 
 
     def __len__(self):
@@ -1016,6 +1023,14 @@ class EventList(Cascading):
 #         return self._length
         return self._data[-1].indexRange[-1]-1
 
+
+    def itervalues(self, start=0, end=-1, step=1):
+        """ Iterate all values in the list.
+        """
+        # TODO: Optimize
+        for v in self.iterSlice(start, end, step):
+            yield v[-1]
+        
 
     def iterSlice_old(self, start=0, end=-1, step=1):
         """ Create an iterator producing events for a range indices.
@@ -1074,6 +1089,11 @@ class EventList(Cascading):
     def iterSlice(self, start=0, end=-1, step=1):
         """ Create an iterator producing events for a range indices.
         """
+        if isinstance (start, slice):
+            step = start.step
+            end = start.stop
+            start = start.start
+        
         if start is None:
             start = 0
         elif start < 0:
@@ -1450,7 +1470,7 @@ class EventList(Cascading):
         stopIdx = min(stopIdx+padding, len(self))
         step = max(int(numPoints / maxPoints),1)
         if jitter != 0:
-            return self.iterJitterySlice(startIdx, stopIdx, step, jitter=jitter)
+            return self.iterJitterySlice(startIdx, stopIdx, step, jitter)
         return self.iterSlice(startIdx, stopIdx, step)
         
 

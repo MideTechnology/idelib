@@ -2,11 +2,13 @@
 
 FOR TESTING: 
 
+From outside the mide_ebml directory:
+
 Read entire file:
-import importer; doc=importer.importFile(updater=importer.SimpleUpdater()); l=doc.channels[0].getSession(0)
+from mide_ebml import importer; doc=importer.importFile(updater=importer.SimpleUpdater()); l=doc.channels[0].getSession(0)
 
 Read 25%
-import importer; doc=importer.importFile(updater=importer.SimpleUpdater(0.25)); l=doc.channels[0].getSession(0)
+from mide_ebml import importer; doc=importer.importFile(updater=importer.SimpleUpdater(0.25)); l=doc.channels[0].getSession(0)
 
 Time to read file:
 From Slam Stick X: 0:06:47.506000
@@ -64,15 +66,15 @@ default_sensors = {
                         "calibration": (AccelTransform(),
                                         AccelTransform(),
                                         AccelTransform()),
-                        "subchannels":{0: {"name": "X", 
+                        "subchannels":{0: {"name": "Accelerometer Z", 
                                            "units":('g','g'),
 #                                            "displayRange": (-100.0,100.0),
                                            },
-                                       1: {"name": "Y", 
+                                       1: {"name": "Accelerometer Y", 
                                            "units":('g','g'),
 #                                            "displayRange": (-100.0,100.0),
                                            },
-                                       2: {"name": "Z", 
+                                       2: {"name": "Accelerometer X", 
                                            "units":('g','g'),
 #                                            "displayRange": (-100.0,100.0),
                                            },
@@ -90,10 +92,10 @@ default_sensors = {
                                            }
                                        },
                        },
-                0x43: {"name": "Crystal Drift",
+                0x43: {"name": "DEBUG Crystal Drift",
                        "parser": struct.Struct(">II") 
                        },
-                0x45: {"name": "Gain/Offset",
+                0x45: {"name": "DEBUG Gain/Offset",
                        "parser": struct.Struct("<i"), 
                        },
                 },

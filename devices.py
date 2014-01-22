@@ -12,6 +12,8 @@ import os
 import string
 import sys
 
+from mide_ebml import devices
+
 SYSTEM_PATH = "/SYSTEM/DEV/".replace("/",os.sep)
 INFO_FILE = os.path.join(SYSTEM_PATH, "DEVINFO")
 CLOCK_FILE = os.path.join(SYSTEM_PATH, "CLOCK")
@@ -21,13 +23,30 @@ CLOCK_FILE = os.path.join(SYSTEM_PATH, "CLOCK")
 #===============================================================================
 
 def isRecorder(dev):
-    """ Check to see if a given path (or drive letter under Windows) refers to
-        a data recorder.
+    """ Simple test whether a given path/drive letter refers to a recorder,
+        based on the presence (or absence) of its /SYSTEM/DEV/DEVINFO file.
     """
-    if not os.path.exists(os.path.join(dev, INFO_FILE)):
+    try:
+        return os.path.exists(os.path.join(dev, INFO_FILE))
+    except IOError:
         return False
-    # TODO: Read device info
-    return True
+    
+
+def getRecorderInfo(dev):
+    """ Retrieve recorder device information, such as .
+    """
+    if isRecorder(dev):
+        try:
+            with open(INFO_FILE, 'rb') as stream:
+                devinfo = devices.importDeviceInfo(stream)
+            props = devinfo.get('RecordingProperties', '')
+            if 'RecorderInfo' in props:
+                info = props['RecorderInfo']
+                info['PATH'] = dev
+                return info
+        except IOError:
+            pass
+    return False
 
 
 #===============================================================================
@@ -41,7 +60,7 @@ else:
 
 
 def win_getDevices():
-    """ Get a list of data recorder, as their respective drive letter.
+    """ Get a list of data recorders, as their respective drive letter.
     """
     drivebits = kernel32.GetLogicalDrives()
     result = []
@@ -49,15 +68,15 @@ def win_getDevices():
         if drivebits & 1:
             driveLetter = '%s:\\' % letter
             devtype = kernel32.GetDriveTypeA(driveLetter)
-            # Device type 2 is removable
+            # First cut: only consider devices of type 2 (removable
             if devtype == 2 and isRecorder(driveLetter):
                 result.append(driveLetter)
         drivebits >>= 1
     return result
 
 
-def win_getDeviceInfo(dev):
-    """
+def win_getDriveInfo(dev):
+    """ Get general device information. Not currently used.
     """
     volumeNameBuffer = ctypes.create_unicode_buffer(1024)
     fileSystemNameBuffer = ctypes.create_unicode_buffer(1024)
@@ -107,7 +126,7 @@ def deviceChanged():
     """
     raise NotImplementedError("Only windows version currently implemented!")
 
-            
+
 if "win" in sys.platform:
     getDevices = win_getDevices
     deviceChanged = win_deviceChanged

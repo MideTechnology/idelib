@@ -43,7 +43,7 @@ from threaded_file import ThreadAwareFile
 # The actual data-related stuff
 import mide_ebml
 
-
+ANTIALIASING_MULTIPLIER = 6.66
 RESAMPLING_JITTER = 0.125
 
 #===============================================================================
@@ -1134,6 +1134,10 @@ class PlotCanvas(wx.ScrolledWindow):
         evt.Skip()
 
 
+    def makeHGridlines(self, points, width, scale):
+        return [(0, p.pos * scale, width * scale, p.pos * scale) for p in points]
+
+
     def OnPaint(self, evt):
         """ Event handler to redraw the plot.
         """
@@ -1154,24 +1158,25 @@ class PlotCanvas(wx.ScrolledWindow):
         oversampling = 3.33
         if self.root.antialias:
             dc = wx.GCDC(dc)
-            viewScale = 10.0
+            viewScale = self.root.aaMultiplier
             oversampling = viewScale * 1.33
             dc.SetUserScale(1/viewScale,1/viewScale)
         
         dc.BeginDrawing()
 
+        legend = self.Parent.legend
         
-        tenth = size[0]/10
+        tenth = size[0]/10 * viewScale
         
         hRange = map(int,self.root.getVisibleRange())
-        vRange = self.Parent.legend.scale.GetRange()
+        vRange = legend.scale.GetRange()
         
         # TODO: Implement regional redrawing.
 #         updateBox = self.GetUpdateRegion().GetBox()
 #         updateHRange = (self.root.timeline.getValueAt(updateBox[0]),
 #                   self.root.timeline.getValueAt(updateBox[2]))
-#         updateVRange = (self.Parent.legend.getValueAt(updateBox[1]),
-#                   self.Parent.legend.getValueAt(updateBox[3]))        
+#         updateVRange = (legend.getValueAt(updateBox[1]),
+#                   legend.getValueAt(updateBox[3]))        
 
         hScale = (size.x + 0.0) / (hRange[1]-hRange[0]) * viewScale
         if vRange[0] != vRange[1]:
@@ -1186,15 +1191,17 @@ class PlotCanvas(wx.ScrolledWindow):
         majorHLines = []
         minorHLines = []
         if self.Parent.drawMajorHLines:
-            majorHLines = [(0, p.pos * viewScale, size[0], p.pos * viewScale) for p in self.Parent.legend.scale._majorlabels]
+            self.majorHLinePen.SetWidth(viewScale)
+            majorHLines = self.makeHGridlines(legend.scale._majorlabels, size[0], viewScale)
         if self.Parent.drawMinorHLines:
-            minorHLines = [(0, p.pos * viewScale, size[0], p.pos * viewScale) for p in self.Parent.legend.scale._minorlabels]
+            minorHLines = self.makeHGridlines(legend.scale._miorlabels, size[0], viewScale)
 
         if not self.Parent.firstPlot:
             dc.DrawLineList(majorHLines, self.majorHLinePen)
             dc.DrawLineList(minorHLines, self.minorHLinePen)
         
         dc.SetPen(self._pen)
+        
         if self.lastRange != thisRange or self.lines is None and not self.root.drawingSuspended:
             i=1
             self.lines=[]
@@ -1204,10 +1211,13 @@ class PlotCanvas(wx.ScrolledWindow):
             # Lines are drawn in sets to provide more immediate results
             lineSubset = []
             
-            events = self.Parent.source.iterResampledRange(hRange[0], hRange[1],size[0]*oversampling, padding=1, jitter=self.root.noisyResample)
+            events = self.Parent.source.iterResampledRange(hRange[0], hRange[1],
+                size[0]*oversampling, padding=1, jitter=self.root.noisyResample)
+            
 #             print "iterResampledRange(%s, %s, %s)" % (hRange[0], hRange[1], size[0]*3.33),
 #             print "timespan:", hRange[1]-hRange[0]
 #             print "no. events:", i, "source len:", len(self.Parent.source)
+
             try:
                 self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
                 event = events.next()
@@ -1218,16 +1228,15 @@ class PlotCanvas(wx.ScrolledWindow):
                     # Using negative indices here in case doc.useIndices is True
                     pt = (event[-2] - hRange[0]) * hScale, (event[-1] - vRange[0]) * vScale
                     self.points.append(pt)
+                    
+                    # A value of None is a discontinuity; don't draw a line.
                     if event[-1] is not None:
                         line = lastPt + pt
                         lineSubset.append(line)
                         self.lines.append(line)
                         expandRange(self.Parent.visibleValueRange, event[-1])
-                    else:
-                        # A value of None is a discontinuity.
-                        # TODO: Draw something different for discontinuities.
-                        pass
-                    
+
+                                        
                     if i % tenth == 0:
                         dc.DrawLineList(lineSubset)
                         lineSubset = []
@@ -1585,25 +1594,29 @@ class Corner(ViewerPanel):
                      'style': wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB}
         labelAtts = {'size': (30,-1),
                      'style': wx.ALIGN_RIGHT | wx.ALIGN_BOTTOM}
+        unitAtts = {'style': wx.ALIGN_LEFT}
         
         self.startField = wx.TextCtrl(self, -1, "start", **fieldAtts)
         startLabel = wx.StaticText(self,-1,"Start:", **labelAtts)
-        self.startUnits = wx.StaticText(self, -1, " ", style=wx.ALIGN_LEFT)
+        self.startUnits = wx.StaticText(self, -1, " ", **unitAtts)
 
         self.endField = wx.TextCtrl(self, -1, "end", **fieldAtts)
         endLabel = wx.StaticText(self,-1,"End:", **labelAtts)
-        self.endUnits = wx.StaticText(self, -1, " ", style=wx.ALIGN_LEFT)
+        self.endUnits = wx.StaticText(self, -1, " ", **unitAtts)
 
         sizer = wx.FlexGridSizer(2,3, hgap=4, vgap=4)
         sizer.AddGrowableCol(0,-2)
         sizer.AddGrowableCol(1,-4)
         sizer.AddGrowableCol(2,-1)
+        
         sizer.Add(startLabel,0,0,wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.ALL)
         sizer.Add(self.startField,1,0)
         sizer.Add(self.startUnits, 2,0)
+        
         sizer.Add(endLabel,1,0)
         sizer.Add(self.endField,1,1)
         sizer.Add(self.endUnits, 2,1)
+        
         self.SetSizer(sizer)
 
         self.SetBackgroundColour(self.root.uiBgColor)
@@ -1701,6 +1714,8 @@ class Viewer(wx.Frame):
         self.units = kwargs.pop('units',('seconds','s'))
         self.drawingSuspended = False
         
+        self.showDebugChannels = self.getPref('showDebugChannels', True)
+        
         displaySize = wx.DisplaySize()
         windowSize = int(displaySize[0]*.66), int(displaySize[1]*.66)
         kwargs['size'] = kwargs.get('size', windowSize)
@@ -1720,6 +1735,7 @@ class Viewer(wx.Frame):
         self.plots = []
         self.setVisibleRange(self.timerange[0], self.timerange[1])
         self.antialias = False
+        self.aaMultiplier = ANTIALIASING_MULTIPLIER
         self.noisyResample = False
         
         self.Bind(EVT_SET_VISIBLE_RANGE, self.OnSetVisibleRange)
@@ -1902,10 +1918,10 @@ class Viewer(wx.Frame):
         if self.session is None:
             self.session = self.dataset.lastSession
         
-        for d,c in zip(self.dataset.getPlots(), self.app.getPref('defaultColors')):
-            name = d.name
+        for d,c in zip(self.dataset.getPlots(debug=self.showDebugChannels), 
+                       self.app.getPref('defaultColors')):
             self.plotarea.addPlot(d.getSession(self.session.sessionId), 
-                                  title=name,
+                                  title=d.name,
                                   scale=(65407,128), 
                                   color=c)
         
@@ -2468,6 +2484,7 @@ class ViewerApp(wx.App):
         'minorHLineColor': wx.Color(240,240,240),
         'warnBeforeQuit': True,
         'antialiasing': True,
+        'showDebugChannels': False,
     }
 
 

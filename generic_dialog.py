@@ -10,8 +10,9 @@ import wx; wx = wx
 
 class CheckboxMessageDialog(GenericMessageDialog):
     """ Extended version of the standard GenericMessageDialog with an
-        optional checkbox (e.g. to suppress the dialog from coming up
-        again).
+        optional checkbox (e.g. to suppress the dialog from coming up again).
+        Can be used as a (more-or-less) drop-in replacement for its
+        superclass (`GenericMessageDialog`).
         
         The constructor takes an extra keyword argument: `check`. This should
         be either `None` or a 1 or 2 element list. The first element is the
@@ -55,19 +56,18 @@ class CheckboxMessageDialog(GenericMessageDialog):
         self.check = check
         
         super(CheckboxMessageDialog, self).__init__(parent, message, caption,
-                                                     agwStyle, pos=pos, 
-                                                     size=size, style=style,
-                                                     wrap=wrap)
+                                                    agwStyle, pos=pos, 
+                                                    size=size, style=style,
+                                                    wrap=wrap)
         
 
     def CreateSeparatedButtonSizer(self, flags):
-        """
-        Creates a sizer with standard buttons using L{CreateButtonSizer} separated
-        from the rest of the dialog contents by a horizontal `wx.StaticLine`.
+        """ Create a sizer for the standard buttons; also add the checkbox
+            (if any). of the dialog contents by a horizontal `wx.StaticLine`.
+            
+            @see `CreateButtonSizer` for a list of valid flags.
 
-        :param `flags`: the button sizer flags.
-
-        :see: L{CreateButtonSizer} for a list of valid flags.
+            @param flags: the button sizer flags.
         """
 
         sizer = self.CreateButtonSizer(flags)
@@ -83,7 +83,7 @@ class CheckboxMessageDialog(GenericMessageDialog):
         self.checkbox = wx.CheckBox(self, -1, checkMsg)
         self.checkbox.SetValue(self.check[0])
         checkSizer.AddF(self.checkbox, 
-                        wx.SizerFlags().Expand().DoubleBorder(wx.BOTTOM))
+                        wx.SizerFlags().Expand().DoubleBorder(wx.BOTTOM).Right())
 
         self.checkbox.Bind(wx.EVT_CHECKBOX, self.OnCheckboxChange)
         checkSizer.AddF(sizer, wx.SizerFlags().Expand())
@@ -92,16 +92,22 @@ class CheckboxMessageDialog(GenericMessageDialog):
 
 
     def OnCheckboxChange(self, evt):
-        print "onCheckboxChange"
-        self.check[0] = self.checkbox.GetValue()
+        self.check[0] = evt.IsChecked()
 
 
 
-if __name__ == '__main__':
+if True or __name__ == '__main__':
+    # XXX: FOR DEV TESTING. REMOVE ME!
     app = wx.App()
     frame = wx.Frame(None, title="Test")
     foo = [False, "Don't show this message again"]
-    print foo
-    msg = " ".join((l.strip() for l in CheckboxMessageDialog.__doc__.split('\n')))
-    CheckboxMessageDialog(frame, "This is a test of the checkbox dialog.\n\n"+msg, "Confirm", wx.ICON_INFORMATION|wx.OK, wrap=300, check=foo).ShowModal()
-    print foo
+    print "check list before:",foo
+    
+    msg = "This is a test of the checkbox dialog.\n\n%s" %\
+        " ".join((l.strip() for l in CheckboxMessageDialog.__doc__.split('\n')))
+    dlg = CheckboxMessageDialog(frame, msg, "Confirm", 
+                                wx.ICON_INFORMATION|wx.YES|wx.NO, 
+                                style=wx.CAPTION, wrap=300, 
+                                check=foo).ShowModal()
+    print "Dialog returned %r" % dlg
+    print "check list after:",foo

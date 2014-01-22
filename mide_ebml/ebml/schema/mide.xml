@@ -90,14 +90,78 @@ default="123" or a text value that may or may not be the name of another tag
   <!-- Elements of the RecordingProperties branch (representational/metadata) of the file -->
   
     <element name="RecordingProperties" level="0" id="0x18526570" type="master" mandatory="0" multiple="0" minver="1">Master element for the RecordingProperties branch of the file, if present.</element>  
+		<element name="RecorderInfo" level="1" id="0x5210" type="master" mandatory="0" multiple="0" minver="1">Master element for the RecorderInfo items (ID, etc.).</element>  
+			<element name="RecorderTypeUID" level="2" id="0x5211" type="uinteger" mandatory="0" multiple="0" minver="1">Unique Type ID assigned to each recorder variation. May be used to lookup remaining RecordingProperties when streaming.</element>
+			<element name="RecorderSerial" level="2" id="0x5212" type="uinteger" mandatory="0" multiple="0" minver="1">Recorder unique serial number</element>
+			<element name="SchemaID" level="2" id="0x5213" type="uinteger" mandatory="0" multiple="0" minver="1">ID referencing Schema in use by recorder</element>
+			<element name="ProductName" level="2" id="0x5214" type="string" mandatory="0" multiple="0" minver="1">Product designation of the recording device</element>
+			<element name="UserDeviceName" level="2" id="0x5215" type="string" mandatory="0" multiple="0" minver="1">Text name of this recorder, if any. Probably set by the user.</element>
+			<element name="HwRev" level="2" id="0x5216" type="uinteger" mandatory="0" multiple="0" minver="1">Hardware revision level</element>
+			<element name="FwRev" level="2" id="0x5217" type="uinteger" mandatory="0" multiple="0" minver="1">Firmware revision level</element>
 
-  
-  <!-- RecordingProperties -> SensorList -> Sensor -> SensorChannel -> these. TODO... -->
-  
-      <element name="TimeCodeScale" level="4" id="0x5274" type="uinteger" mandatory="0" multiple="1" minver="1">Configuration child (eventually)... Ticks/sec (n integer + 1 fractional byte), i.e. encoded as (ticks/sec)*256; decode by dividing by 256. Applies to all subsequent Abs timecodes. If not set, use channel default.</element>
-  <element name="TimeCodeModulus" level="4" id="0x5275" type="uinteger" mandatory="0" multiple="1" minver="1">Configuration child (eventually)... The modulus at which modulo timestamps for this channel roll over.</element>
-  
-  
+		<element name="SensorList" level="1" id="0x5240" type="master" mandatory="0" multiple="0" minver="1">Master element for the SensorList items</element>
+			<element name="Sensor" level="2" id="0x5241" type="master" mandatory="0" multiple="0" minver="1">Master element for a Sensor entry</element>
+				<element name="SensorID" level="3" id="0x5242" type="uinteger" mandatory="0" multiple="0" minver="1">ID of a given Sensor entry; can be used to refer back to this sensor.</element>
+				<element name="SensorName" level="3" id="0x5243" type="string" mandatory="0" multiple="0" minver="1">Text name assigned to a sensor; probably the sensor make/model if present.</element>
+				<element name="TraceabilityData" level="3" id="0x5244" type="master" mandatory="0" multiple="0" minver="1">Master element for any traceability data tied to the Sensor.</element>
+					<!-- Child elements TBD... -->
+				<element name="SensorCalibrationIDRef" level="3" id="0x524C" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a Calibration in CalibrationList.</element>
+				<element name="SensorChannel" level="3" id="0x5250" type="master" mandatory="0" multiple="0" minver="1">Master element for a SensorChannel entry</element>
+					<element name="SensorChannelID" level="4" id="0x5251" type="uinteger" mandatory="0" multiple="1" minver="1">ID of a given SensorChannel entry; can be used to refer to this entry. Referenced by ChannelDataBlock/SimpleChannelDataBlock/etc.</element>
+					<element name="SensorChannelName" level="4" id="0x5252" type="string" mandatory="0" multiple="1" minver="1">Text name of this channel</element>
+					<element name="SensorChannelCalibrationIDRef" level="4" id="0x5253" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a Calibration in CalibrationList.</element>
+					<element name="SensorChannelFormat" level="4" id="0x5254" type="string" mandatory="0" multiple="0" minver="1">TBD? Declaration of the format and representation of the (sub)channels' data.</element>
+					<element name="TimeCodeScale" level="4" id="0x5258" type="uinteger" mandatory="0" multiple="1" minver="1">SensorChannel Ticks/sec (n integer + 1 fractional byte), i.e. encoded as (ticks/sec)*256; decode by dividing by 256. Applies to all subsequent Abs timecodes. If not set, use channel default.</element>
+					<element name="TimeCodeModulus" level="4" id="0x5259" type="uinteger" mandatory="0" multiple="1" minver="1">The modulus at which modulo timestamps for this channel roll over.</element>
+					<element name="SensorSubChannel" level="4" id="0x5260" type="master" mandatory="0" multiple="1" minver="1">Master element for SensorSubChannels.</element>
+						<element name="SubChannelID" level="5" id="0x5261" type="integer" mandatory="0" multiple="1" minver="1">SubChannelID</element>
+						<element name="SubChannelName" level="5" id="0x5262" type="string" mandatory="0" multiple="1" minver="1">Text name of the subchannel (e.g. axis?).</element>
+						<element name="SubChannelCalibrationIDRef" level="5" id="0x5263" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a Calibration in CalibrationList.</element>
+						<element name="SubChannelAxisName" level="5" id="0x5264" type="string" mandatory="0" multiple="1" minver="1">Text name of the axis(?).</element>
+						<element name="SubChannelAxisXRef" level="5" id="0x5265" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to an Axis.</element>
+						<element name="SubChannelUnitsName" level="5" id="0x5266" type="string" mandatory="0" multiple="1" minver="1">Text name of the sensor output units.</element>
+						<element name="SubChannelUnitsXRef" level="5" id="0x5267" type="uinteger" mandatory="0" multiple="1" minver="1">Reference to a numbered, standardized SI unit.</element>
+						<element name="SubChannelRangeMin" level="5" id="0x5268" type="uinteger" mandatory="0" multiple="1" minver="1">Minimum valid sensor value.</element>
+						<element name="SubChannelRangeMax" level="5" id="0x5269" type="uinteger" mandatory="0" multiple="1" minver="1">Maximum valid sensor value.</element>
+
+		<element name="PlotList" level="1" id="0x5280" type="master" mandatory="0" multiple="0" minver="1">Master element for the PlotList items</element>
+			<element name="Plot" level="2" id="0x5281" type="master" mandatory="0" multiple="0" minver="1">Master element for a Plot entry</element>		
+				<element name="PlotID" level="3" id="0x5291" type="integer" mandatory="0" multiple="1" minver="1">SubChannelID</element>
+				<element name="PlotName" level="3" id="0x5292" type="string" mandatory="0" multiple="1" minver="1">Text name of the subchannel (e.g. axis?).</element>
+				<element name="PlotCalibrationIDRef" level="3" id="0x5293" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a Calibration in CalibrationList. A basic Calibration item just consists of a polynomial, so this may be used to perform unit or various other conversions (pressure to altitude, log to linear, etc.) between the recorded and displayed variable.</element>
+				<element name="PlotAxisName" level="3" id="0x5294" type="string" mandatory="0" multiple="1" minver="1">Text name of the axis(?).</element>
+				<element name="PlotAxisXRef" level="3" id="0x5295" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to an Axis.</element>
+				<element name="PlotUnitsName" level="3" id="0x5296" type="string" mandatory="0" multiple="1" minver="1">Text name of the sensor output units.</element>
+				<element name="PlotUnitsXRef" level="3" id="0x5297" type="uinteger" mandatory="0" multiple="1" minver="1">Reference to a numbered, standardized SI unit.</element>
+				<element name="PlotRangeMin" level="3" id="0x5298" type="uinteger" mandatory="0" multiple="1" minver="1">Initial value for lower axis bound.</element>
+				<element name="PlotRangeMax" level="3" id="0x5299" type="uinteger" mandatory="0" multiple="1" minver="1">Initial value for upper axis bound.</element>
+
+		<element name="CalibrationList" level="1" id="0x52C0" type="master" mandatory="0" multiple="0" minver="1">Master element for the CalibrationList items</element>
+			<element name="Calibration" level="2" id="0x52C1" type="master" mandatory="0" multiple="0" minver="1">Master element for a Calibration entry</element>
+
+
+  <!-- Elements of a configuration file -->
+    <!-- This is stuck into the main schema for convenience, but really it has no relation. If the configfile were to be attached to a recording as metadata, it would be as a binary blob - the 'Level's need not be consistent with the recording file. -->
+	<element name="RecorderConfiguration" level="0" id="0x18436667" type="master" mandatory="0" multiple="0" minver="1">Master element for the RecorderConfiguration block, if present. This allows a mechanism to attach the actual recorder configuration to the file as metadata, and (hacky) use the same schema document to parse output files and write configuration files. It is expected that by necessity, children of RecorderConfiguration will be recorder-specific.</element>
+	    <element name="SSXBasicRecorderConfiguration" level="1" id="0x4300" type="master" mandatory="0" multiple="0" minver="1">Master element for the SSX-specific RecorderConfiguration block. This and its subelements are specific to the basic Slam Stick X.</element>
+			<element name="SampleFreq" level="2" id="0x4310" type="uinteger" mandatory="0" multiple="0" minver="1">Sampling frequency for the high speed channel(s) in Hz.</element>
+			<element name="AAFilterCornerFreq" level="2" id="0x4311" type="uinteger" mandatory="0" multiple="0" minver="1">Antialias filter corner frequency for the high speed channel(s) in Hz. Omit to let the device choose based on the sampling rate. Enter 0 to disable (bypass) AA filter. (Beware: diagnostic usage only; calibration will be invalid in this state.)</element>
+			<element name="OSR" level="2" id="0x4312" type="uinteger" mandatory="0" multiple="0" minver="1">Oversampling ratio. Allowed values are 1 or power-of-2 integer in the range from 16 to 4096. Omit to let the device choose based on the sampling rate.</element>
+
+	    <element name="SSXTriggerConfiguration" level="1" id="0x4340" type="master" mandatory="0" multiple="0" minver="1">Master element for SSX trigger configuration.</element>
+			<element name="WakeTimeUTC" level="2" id="0x4350" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute, calendar time in UTC at which to arm/start the recorder. WakeTimeUTC and PreRecordDelay are mutually exclusive.</element>
+			<element name="PreRecordDelay" level="2" id="0x4351" type="uinteger" mandatory="0" multiple="0" minver="1">Delay in seconds before the start of recording (or trigger arming). WakeTimeUTC and PreRecordDelay are mutually exclusive.</element>
+			<element name="AutoRearm" level="2" id="0x4352" type="uinteger" mandatory="0" multiple="0" minver="1">Automatically rearm at end of triggered recording (do not require button press)</element>			
+			<element name="RecordingTime" level="2" id="0x4353" type="uinteger" mandatory="0" multiple="0" minver="1">Time in seconds to record for when triggered. Omit to impose no limit.</element>
+			<!-- Some IDs reserved for specifying activity behavior, e.g. restart the RecordingTime as long as something interesting is happening -->
+			<element name="Trigger" level="2" id="0x4360" type="master" mandatory="0" multiple="0" minver="1">Master element for a generic trigger.</element>
+				<element name="TriggerChannel" level="3" id="0x4361" type="integer" mandatory="0" multiple="0" minver="1">The sensor channel used as the trigger. Mandatory for all Triggers.</element>
+				<element name="TriggerSubChannel" level="3" id="0x4362" type="integer" mandatory="0" multiple="0" minver="1">The sensor subchannel used by the trigger.</element>
+				<element name="TriggerWindowLo" level="3" id="0x4363" type="integer" mandatory="0" multiple="0" minver="1">Lower value of trigger window in native units.</element>
+				<element name="TriggerWindowHi" level="3" id="0x4364" type="integer" mandatory="0" multiple="0" minver="1">Upper value of trigger window in native units.</element>
+
+
+
   <!-- Elements of the actual recording(s) (Session branch(es) of the file) -->
   
   <element name="Session" level="0" id="0x18538067" type="master" multiple="1" minver="1">This element contains all other top-level (level 1) elements. A session basically comprises one 'recording' and may contain any number of individual channels. A typical file should consist of one segment (mostly because we won't really know its length in advance).</element>
@@ -118,15 +182,55 @@ default="123" or a text value that may or may not be the name of another tag
 
 
 
+<!-- Rules for generated files / streams -->
+
+	<!-- General -->
+		<!-- The file/stream MAY contain tags not recognized by the viewer (e.g. for internal debugging or defined after a given viewer / schema version was released). The viewer is expected to skip the unrecognized data without crashing. The viewer MAY inform the user that unrecognized data is present, but isn't required to. -->
+		<!-- Files may contain any global tag defined by the EBML standard, including VOID tags, at any document level. -->
+		<!-- Length-encoded EBML data may encode length data using any number of bytes equal or greater than the minimum required to encode the value. For example, a length of 1 may be encoded as 0x81 or 0x4001 or 0x200001, etc. ("Gassy" encodings may be used by the device to enforce memory alignment or consume slack bytes in a fixed buffer allocation, etc.) -->
+		<!-- If the Schema or RecorderProperties are unavailable for any reason, the reader MAY substitute its best guess for this data, such as a default copy based on some signal (device ID, etc.). No guaranteees can be made about the ability of a given reader to parse a given file if these data are not present in the file. In the case of a Stream, the reader is free to ignore/discard all data received before both a SYNC tag and a reference to a valid Schema/RecordingProperties are received. (Really, there are no guarantees about anyone receiving or parsing the streamed data, period.) -->
+		<!-- For the time being, devices SHALL NOT write files consisting of multiple sessions, and must assume any representation of sessions in the file may be ignored. For the time being (forseeable future), the reader MAY define child elements of Session (datablocks, etc.) to actually be siblings. -->
+
+<!-- Rules for channels -->
+
+	<!-- General -->
+		<!-- Although expressed as a signed type, channels written by the device must be positive. Negative channel numbers are reserved (may be used by the reader for e.g. virtual channels consisting of processed data). -->
+		<!-- Channel numbering is arbitrary and is not necessarily consecutive. -->
+		<!-- The device MAY list channels in its RecorderProperties that have no datablocks associated with them. (The channel information may be hardcoded and channels may appear for sensors that are disabled in the current configuration or aren't populated on the device.) -->
+		<!-- The device SHOULD NOT generate datablocks for channels that do not have a corresponding entry in RecorderProperties. The behavior of the reader upon encountering such channels is undefined. (A nice response would be to silently ignore them, but it could just crash, and it's your own damn fault, dear firmware writer.) -->
+
+
+<!-- Rules for datablocks -->
+
+	<!-- General -->
+		<!-- The device MAY (and often will) use different block types for different channels. Most commonly, full CDBs for data taken at high rates and/or precise timing requirements, and a 'Simple' blocktype (e.g. SCDB) for low-rate channels consisting of only a few or single samples. The device MAY mix block types in a single channel. (It probably won't, but is not expressly forbidden from doing so.) -->
+		<!-- As a point of clarification, if the device mixes blocktypes in a channel, the types MAY use different timecode formats, and modulo timecodes may have different moduli. The usual rules below still apply - the device may not 'lose' rollovers. -->
+
+	<!-- Datablock timecoding rules: -->
+		<!-- General -->
+			<!-- The timecode scale, representation and modulus is allowed to differ between channnels, so accounting for rollovers in modulo timestamps should be handled per-channel. -->
+			<!-- Where modulo timestamps are used, the device MUST NOT allow more than one rollover period to elapse between blocks in a given channel. In the case of long gaps between datablocks in a channel, the device MUST either write a datablock using a timecode format large enough to correctly represent the time elapsed, OR write one or more dummy (zero-sample) datablocks such that all rollovers are "caught up" before the next datablock sample. -->
+			<!-- If a Start and End timecode are provided, the Start timecode is the time of the first sample in the block; the End timecode is the time of the last sample in the block. For formats that provide only a single timecode, it corresponds to the first sample in the block. -->
+
+		<!-- Modulo timecodes and mixing of timecodes -->
+			<!-- The modulus is defined as the exact value *at* which a given value is equal to zero. In other words, it is one more than the maximum possible remainder value. For example, a 16-bit timecode with a maximum legal value of 0xFFFF has a modulus of 0x10000. -->
+			<!-- A modulo timecode has rolled over if the current value is LESS THAN the previous value. Given two consecutive datablocks with identical modulo timecode 'n', no time has elapsed between them. Given two blocks with timecodes n and n-1, respectively, the maximum allowable time for the timecode's modulus has elapsed. -->
+
+		<!-- Timecode ordering -->
+			<!-- Timecodes in the datablocks written for a given channel MUST be monotonically increasing. That is, the device MUST NOT write a datablock for a given channel with an earlier timecode than an already written datablock. It can be safely assumed that a decrease in any modulo timecode represents a rollover, and any decrease in a non-modulo absolute timecode is an error condition. (This is a litter stricter than Matroska, which allows out-of-order timecodes as long as elements referencing another element's timecode come after said referenced element. The monotonicity requirement is to allow random-access seeking time ranges within the files.) -->
+			<!-- However, datablocks are NOT required to be monotonically increasing ACROSS channels. -->
+			<!-- In other words, given an output such as: <datablock1 ch=1> <datablock2 ch=2> <datablock3 ch=1>, datablock2 may have an earlier timecode than datablock1 (because they are different channels), but datablock3 may not (same channel). -->
+
+
 
   <element name="TimeBaseUTC" level="0" id="0x5462" type="uinteger" mandatory="0" multiple="1" minver="1">Session time base value in Unix Time. If present, used as the base for all future timecodes in the session.</element>
   
 
 
-  <element name="SimpleChannelDataBlock" level="0" id="0xA0" type="binary" multiple="1" minver="1">This element contains potentially-channelized instrumentation data in a minimalist format. Its mandatory, fixed-length header includes a 2-byte modulo timecode (scaled to the channel's TimecodeScale, default of 1/32768 sec) and a 1-byte ChannelID.</element>
+  <element name="SimpleChannelDataBlock" level="0" id="0xA0" type="binary" multiple="1" minver="1">This element contains potentially-channelized instrumentation data in a minimalist format. Its mandatory, fixed-length header includes a 2-byte modulo timecode (scaled to the channel's TimecodeScale, default of 1/32768 sec) and a 1-byte integer ChannelID.</element>
 
   <element name="ChannelDataBlock" level="0" id="0xA1" type="master" multiple="1" minver="1">This element contains child elements including instrumentation data associated to a channel. This is used for e.g. binding a timestamp(s) and/or metadata to a specific multi-sample block of sensor data, which may be written asynchronously with respect to other channels' data (i.e. multiplexed).</element>
-  <element name="ChannelIDRef" level="1" id="0xB0" type="uinteger" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</element>
+  <element name="ChannelIDRef" level="1" id="0xB0" type="integer" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</element>
   <element name="ChannelFlags" level="1" id="0xB1" type="uinteger" multiple="0" minver="1">Child of ChannelDataBlock: optional flags to indicate datablock features such as discontinuity</element>
   <element name="ChannelDataPayload" level="1" id="0xB2" type="binary" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</element>
   <element name="StartTimeCodeAbs" level="1" id="0xB8" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from the session TimeBase. If included at the Channel level, it is at the Channel scale.</element>
