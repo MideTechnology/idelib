@@ -1,0 +1,1 @@
+pyinstaller --noconfirm --onefile -i .\ssx.ico viewer.spec

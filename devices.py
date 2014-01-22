@@ -67,20 +67,24 @@ def isRecorder(dev):
         return False
     
 
-def isOnRecorder(path):
-    """ Returns `True` if the given file is on a recorder. The test is only
-        whether the path is on a recorder, not whether or not the path or file
-        actually exists; if you need to know if the path is valid, perform
-        your own checks first.
+def onRecorder(path):
+    """ Returns the root directory of a recorder from a path to a directory or
+        file on that recorder. It can be used to test whether a file is on
+        a recorder. `False` is returned if the path is not on a recorder.
+        The test is only whether the path refers to a recorder, not whether or 
+        not the path or file actually exists; if you need to know if the path 
+        is valid, perform your own checks first.
         
         @param path: The full path/name of a file.
-        @return: `True` if the path is to a subdirectory on a recording
+        @return: The path to the root directory of a recorder (e.g. the drive
+            letter in Windows) if the path is to a subdirectory on a recording 
             device, `False` if not.
     """
     oldp = None
+    path = os.path.realpath(path)
     while path != oldp:
         if isRecorder(path):
-            return True
+            return path
         oldp = path
         path = os.path.dirname(path)
     return False

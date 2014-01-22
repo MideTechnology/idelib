@@ -9,13 +9,14 @@ in the About Box.
 @todo: See individual TODO tags in the body of code. The long-term items
     are also listed here.
 @todo: Revamp the zooming and navigation to be event-driven, handled as far up
-    the chain as possible. Consider using wx.lib.pubsub if it's thread-safe.
+    the chain as possible. Consider using wx.lib.pubsub if it's thread-safe
+    in conjunction with wxPython views.
 
 
 '''
 
 APPNAME = u"Slam Stick X Data Viewer"
-__version__="0.0.1"
+__version__="0.1.0"
 __date__="Oct 21, 2013"
 __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 __url__ = ("http://mide.com", "")
@@ -52,6 +53,7 @@ from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
 import fft
 
 # Special helper objects and functions
+import devices
 from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
@@ -876,6 +878,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         """
         if self.Parent.source is None:
             return
+        if self.root.drawingSuspended:
+            return
         
         self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
 
@@ -945,7 +949,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             dc.DrawLineList(minorHLines, self.minorHLinePen)
         
         dc.SetPen(self._pen)
-        if self.lastRange != thisRange or self.lines is None and not self.root.drawingSuspended:
+        if self.lastRange != thisRange or self.lines is None:
             i=1
             self.lines=[]
             self.points=[]
@@ -1206,7 +1210,7 @@ class Plot(ViewerPanel):
         
         if keychar == u'R':
             self.plot.Refresh()
-        elif evt.CmdDown():
+        elif evt.CmdDown() and not evt.ShiftDown():
             # TODO: These won't necessarily work on international keyboards
             # (e.g. '=' is a shift combination on German keyboards)
             if keychar == u'-':
@@ -1419,7 +1423,7 @@ class PlotSet(aui.AuiNotebook):
     def clearAllPlots(self):
         """ Delete all plots.
         """
-        for _ in xrange(self.GetPageCount):
+        for _ in xrange(self.GetPageCount()):
             self.removePlot(0)
     
     
@@ -1476,6 +1480,10 @@ class Corner(ViewerPanel):
         sizer.Add(self.endUnits, 2,1)
         
         self.SetSizer(sizer)
+        startLabel.SetSizerProps(valign="center")
+        endLabel.SetSizerProps(valign="center")
+        self.startUnits.SetSizerProps(valign="center")
+        self.endUnits.SetSizerProps(valign="center")
 
         self.SetBackgroundColour(self.root.uiBgColor)
         self.setXUnits()
@@ -1905,10 +1913,19 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
 
     def getDefaultImport(self):
-        """ Get the path and name of the default data file. """
-        # TODO: Better way of determining this
-        # Maybe app-level?
-        return (os.getcwd(), 'test.dat')
+        """ Get the path and name of the default data file. If the app is
+            running directly off a recorder, the recorder's data directory
+            is returned.
+        """
+        curdir = os.path.realpath(os.path.curdir)
+        recorder = devices.onRecorder(curdir)
+        if recorder:
+            datadir = os.path.join(recorder, "DATA")
+            if os.path.exists(datadir):
+                return (datadir, '')
+            return (recorder, '')
+        # TODO: Use a path from the file history, maybe?
+        return (curdir, '')
 
 
     def getDefaultExport(self):
@@ -1916,9 +1933,9 @@ class Viewer(wx.Frame, MenuMixin):
         """
         # TODO: This should be based on the current path.
         if not self.dataset or not self.dataset.filename:
-            return (os.getcwd(), "export.csv")
+            return (os.path.realpath(os.path.curdir), "export.csv")
         filename = os.path.splitext(os.path.basename(self.dataset.filename))[0]
-        return (os.getcwd(), filename + ".csv")
+        return (os.path.realpath(os.path.curdir), filename + ".csv")
 
 
     def getCurrentFilename(self):
@@ -1944,12 +1961,21 @@ class Viewer(wx.Frame, MenuMixin):
     def openFile(self, filename):
         """
         """
-        if self.dataset is not None and self.dataset.loading is True:
-            if self.ask("Abort loading the current file?") != wx.ID_YES:
-                return
+        if self.dataset is not None:
+            if self.dataset.loading is True:
+                if self.ask("Abort loading the current file?") != wx.ID_YES:
+                    return
             else:
-                self.cancelOperation()
-                self.closeFile()
+                q = self.ask("Do you want to close the current file?\n'No' will open the file in another window.","Open File",style=wx.YES_NO|wx.CANCEL)
+                if q == wx.ID_NO:
+                    self.app.createNewView(filename=filename)
+                    return
+                elif q == wx.ID_CANCEL:
+                    return
+                
+        self.cancelOperation()
+        self.closeFile()
+        
         try:
             stream = ThreadAwareFile(filename, 'rb')
             newDoc = mide_ebml.dataset.Dataset(stream)
@@ -2095,7 +2121,7 @@ class Viewer(wx.Frame, MenuMixin):
         """
         """
         # XXX: IMPLEMENT renderSpectrogram!
-        self.ask("Render Spectrogram not yet implemented!", "Not Implemented", wx.OK, wx.ICON_INFORMATION)
+        self.ask("Render Spectrogram not yet implemented!", "TODO:", wx.OK, wx.ICON_INFORMATION)
         
     #===========================================================================
     # 
@@ -2117,7 +2143,11 @@ class Viewer(wx.Frame, MenuMixin):
         
         # Close related windows
         for fft in self.fftViews.itervalues():
-            fft.Destroy()
+            try:
+                fft.Destroy()
+            except (AttributeError, wx.PyDeadObjectError):
+                # FFT view may already have been destroyed; that's okay.
+                pass
             
         self.Destroy()
         evt.Skip()
@@ -2618,11 +2648,15 @@ class ViewerApp(wx.App):
 
 # XXX: Change this back for 'real' version
 if __name__ == '__main__' or True:
+#     print "__file__:",__file__
+#     print "curdir:", os.path.curdir, os.path.realpath(os.path.curdir)
+#     print "cwd:", os.getcwd()
     import argparse
-    parser = argparse.ArgumentParser(description=APPNAME)
-    parser.add_argument('--filename', '-f', 
+    desc = "%s v%s \n%s" % (APPNAME, __version__, __copyright__)
+    parser = argparse.ArgumentParser(description=desc)
+    parser.add_argument('-f', '--filename',  
                         help="The name of the MIDE file to import")
-    parser.add_argument("--prefsFile", '-p', 
+    parser.add_argument("-p", "--prefsFile", 
                         help="An alternate preferences file")
     args = parser.parse_args()
 

@@ -75,7 +75,7 @@ default_sensors = {
                 0x01: {"name": "Pressure/Temperature",
                        "parser": parsers.MPL3115PressureTempParser(),
                        "subchannels": {0: {"name": "Pressure", 
-                                           "units":('kPa','kPa'),
+                                           "units":('Pa','Pa'),
                                            "displayRange": (0.0,120000.0),
                                            },
                                        1: {"name": "Temperature", 

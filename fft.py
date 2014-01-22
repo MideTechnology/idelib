@@ -1,15 +1,17 @@
 '''
 Created on Dec 18, 2013
 
+@todo: Re-implement spectrum to reduce dependencies and make spec.welch()
+    work using just the window instead of the full-size array.
+
 @author: dstokes
 '''
-# TODO: See about removing the pylab dependency.
 
 from collections import Iterable
 import csv
 
 import numpy as np
-from pylab import hstack
+from numpy.core import hstack
 
 import wx.lib.plot as P
 import wx; wx = wx 
@@ -37,10 +39,10 @@ class FFTView(wx.Frame):
     def __init__(self, *args, **kwargs):
         """ FFT view main panel. Takes standard wx.Window arguments plus:
         
-            @keyword root: 
-            @keyword sources: 
-            @keyword start: 
-            @keyword end: 
+            @keyword root: The parent viewer window
+            @keyword sources: A list of subchannels
+            @keyword start: The start of the time interval to render
+            @keyword end: The end of the time interval to render
         """
         kwargs.setdefault("title", "FFT")
         self.root = kwargs.pop("root", None)
@@ -78,10 +80,12 @@ class FFTView(wx.Frame):
             subchannelIds = [c.id for c in self.sources]
             start, stop = channel.getRangeIndices(*self.range)
             data = channel.itervalues(start, stop, subchannels=subchannelIds)
-            # XXX: Calculation of real sample rate is wrong. Investigate.
-#             fs = (channel[stop][-2] - channel[start][-2]) / ((stop-start) + 0.0)
+            # BUG: Calculation of actual sample rate is wrong. Investigate.
+#             fs = (channel[stop][-2]-channel[start][-2]) / ((stop-start) + 0.0)
             fs = channel.getSampleRate()
-            self.data = self.generateFFTData(data, stop-start, len(self.sources), fs, self.sliceSize)
+            self.data = self.generateFFTData(data, stop-start, 
+                                             len(self.sources), fs, 
+                                             self.sliceSize)
             
         if self.data is not None:
             self.makeLineList()
@@ -102,13 +106,13 @@ class FFTView(wx.Frame):
         fileMenu.AppendSeparator()
         fileMenu.Append(wx.ID_PRINT, "&Print...").Enable(False)
         fileMenu.Append(wx.ID_PRINT_SETUP, "Print Setup...").Enable(False)
-        fileMenu.Append(wx.ID_CLOSE, "Close &Window")
         fileMenu.AppendSeparator()
+        fileMenu.Append(wx.ID_CLOSE, "Close &Window")
         self.menubar.Append(fileMenu, "File")
         
         editMenu = wx.Menu()
         self.menubar.Append(editMenu, "Edit")
-        editMenu.Append(-1, "None of these work yet.", "")
+#         editMenu.Append(-1, "None of these work yet.", "")
         editMenu.Append(wx.ID_CUT, "Cut", "").Enable(False)
         editMenu.Append(wx.ID_COPY, "&Copy", "").Enable(False)
         editMenu.Append(wx.ID_PASTE, "Paste", "").Enable(False)
@@ -119,7 +123,7 @@ class FFTView(wx.Frame):
         
         helpMenu = wx.Menu()
         self.menubar.Append(helpMenu, "Help")
-        viewMenu.Append(wx.ID_HELP_INDEX, "FFT View Help")
+        viewMenu.Append(wx.ID_HELP_INDEX, "FFT View Help").Enable(False)
         
         self.SetMenuBar(self.menubar)
         self.Bind(wx.EVT_MENU, self.OnClose, id=wx.ID_CLOSE)
@@ -177,7 +181,8 @@ class FFTView(wx.Frame):
     
     def OnHelp(self, evt):
         self.root.ask("DEBUG", "Not implemented", style=wx.OK)
-    
+
+
     def OnClose(self, evt):
         self.Close()
     
@@ -186,10 +191,11 @@ class FFTView(wx.Frame):
     #===========================================================================
     
     def makeLineList(self):
-        """
+        """ Turn each column of data into its own line plot.
         """
         lines = []
 #         colors = "BLUE","GREEN","RED"
+        # TODO: Read colors from viewer preferences
         colors = (wx.Colour(0,0,255,128),
                   wx.Colour(0,255,0,128),
                   wx.Colour(255,0,0,128),
@@ -214,8 +220,8 @@ class FFTView(wx.Frame):
             `EventList.itervalues`). 
             
             @todo: This is not the best implementation; even though 
-                'numpy.fromiter()` doesn't support 2D arrays, there may be something
-                else in Numpy for doing this.
+                'numpy.fromiter()` doesn't support 2D arrays, there may be 
+                something else in Numpy for doing this.
         """
         if rows is None:
             if hasattr(data, '__len__'):
@@ -259,10 +265,8 @@ class FFTView(wx.Frame):
                 frequency.
         """
         
-#         print "generateFFTData(data=%r, rows=%r, cols=%r, fs=%r, slizeSize=%r)" % (data, rows, cols, fs, sliceSize)
-        
         def nextPow2(x):
-            """ Round up to the nearest power-of-two.
+            """ Round up to the next greater than or equal to power-of-two.
             """
             x = long(x)
             if x & (x-1L) == 0L:
@@ -279,7 +283,7 @@ class FFTView(wx.Frame):
         shape = points.shape
         points.resize((max(nextPow2(shape[0]),sliceSize), shape[1]))
         
-        # XXX: Copied verbatim from old viewer. Revisit whether or not all this
+        # NOTE: Copied verbatim from old viewer. Revisit whether or not all this
         #     shaping and stacking is really necessary.
         fftData = np.arange(0, sliceSize/2.0 + 1) * (fs/float(sliceSize))
         fftData = fftData.reshape(-1,1)
@@ -289,10 +293,10 @@ class FFTView(wx.Frame):
         for i in xrange(cols):
             # Returns (FFT data, frequencies)
             tmp_fft, _ = spec.welch(points[:,i], NFFT=sliceSize, Fs=fs, 
-                                        detrend=spec.detrend_mean, 
-                                        noverlap=sliceSize/2, sides='onesided', 
-                                        scale_by_freq=False, pad_to=sliceSize, 
-                                        window=spec.window_hanning)
+                                    detrend=spec.detrend_mean, 
+                                    noverlap=sliceSize/2, sides='onesided', 
+                                    scale_by_freq=False, pad_to=sliceSize, 
+                                    window=spec.window_hanning)
             tmp_fft = tmp_fft / scalar
             tmp_fft = tmp_fft.reshape(-1,1)
             fftData = hstack((fftData, tmp_fft))
@@ -303,8 +307,6 @@ class FFTView(wx.Frame):
             fftData[0,thisCol] = 0
             fftData[1,thisCol] = 0
             fftData[2,thisCol] = 0
-#             print "column %s min=%s, max=%s" % (i, fftData[:,thisCol].min(),
-#                                                 fftData[:,thisCol].max())
         
         return fftData
 

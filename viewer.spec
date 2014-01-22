@@ -33,10 +33,11 @@ exe = EXE(pyz,
           a.scripts,
           exclude_binaries=True,
           name='viewer.exe',
+		  icon='ssx.ico',
           debug=False,
           strip=None,
           upx=True,
-          console=True )
+          console=False )
 coll = COLLECT(exe,
 				a.binaries,
                 a.zipfiles,
