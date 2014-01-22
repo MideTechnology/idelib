@@ -365,6 +365,7 @@ class Timeline(ViewerPanel):
     #===========================================================================
     
     def OnTimebarClick(self, evt):
+        # Capture the click position for processing drags
         self.barClickPos = evt.GetX()
         evt.Skip()
 
@@ -630,6 +631,8 @@ class LegendArea(ViewerPanel):
         self.SetMinSize((self.root.corner.GetSize()[0],-1))
         self.SetBackgroundColour(self.root.uiBgColor)
 
+        self.barClickPos = None
+
         self.scale.Bind(wx.EVT_SIZE, self.OnResize)
         self.scale.Bind(wx.EVT_MOTION, self.OnMouseMotion)
 
@@ -715,6 +718,23 @@ class LegendArea(ViewerPanel):
 
     def OnZoomFit(self, evt):
         self.Parent.zoomToFit()
+
+
+    def OnScaleClick(self, evt):
+        # Capture the click position for processing drags
+        self.barClickPos = evt.GetY()
+        evt.Skip()
+
+
+    def OnScaleRelease(self, evt):
+        if self.barClickPos is not None:
+            self.postSetVisibleRangeEvent(self.currentTime, 
+                                          self.currentTime + self.displayLength)
+            self.barClickPos = None
+            self.scale.SetBackgroundColour(self.root.uiBgColor)
+        evt.Skip()
+
+
 
 #===============================================================================
 # 
@@ -1313,7 +1333,7 @@ class PlotSet(aui.AuiNotebook):
                 (defaults to 'Plot #')
         """
         
-        # NOTE: Hardcoded warning range is for WVR hardware; modify later.
+        # NOTE: Hard-coded warning range is for WVR hardware! Modify later.
         try:
             warnLow = self.root.app.getPref("wvr_tempMin", -20.0)
             warnHigh = self.root.app.getPref("wvr_tempMax", 60.0)
@@ -1406,6 +1426,7 @@ class PlotSet(aui.AuiNotebook):
     def redraw(self):
         """ Force a redraw.
         """
+        # Clear the cached lines from all plots
         for p in self:
             p.plot.lines = None
         self.Refresh()
@@ -1622,7 +1643,8 @@ class Viewer(wx.Frame, MenuMixin):
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_RENDER_FFT, "Render FFT...", "", 
                          self.renderFFT)
-        self.addMenuItem(fileMenu, self.ID_RENDER_SPEC, "Render Spectrogram (2D FFT)...", "", 
+        self.addMenuItem(fileMenu, self.ID_RENDER_SPEC, 
+                         "Render Spectrogram (2D FFT)...", "", 
                          self.renderSpectrogram)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", enabled=False)
@@ -1892,8 +1914,11 @@ class Viewer(wx.Frame, MenuMixin):
     def getDefaultExport(self):
         """ Get the path and name of the default export file.
         """
-        # TODO: This should be based on the current filename.
-        return (os.getcwd(), "export.csv")
+        # TODO: This should be based on the current path.
+        if not self.dataset or not self.dataset.filename:
+            return (os.getcwd(), "export.csv")
+        filename = os.path.splitext(os.path.basename(self.dataset.filename))[0]
+        return (os.getcwd(), filename + ".csv")
 
 
     def getCurrentFilename(self):
@@ -2046,11 +2071,13 @@ class Viewer(wx.Frame, MenuMixin):
                          "FFT generation slow. Proceed anyway?")
             if x != wx.ID_OK:
                 return
-        
+            
+        places = self.app.getPref("precisionX", 4)
+        timeFormat = "%%.%df" % places
         title = "FFT: %s (%ss to %ss)" % (
-                                      ", ".join([c.name for c in subchannels]), 
-                                      startTime * self.timeScalar, 
-                                      stopTime * self.timeScalar)
+                                    ", ".join([c.name for c in subchannels]), 
+                                    timeFormat % (startTime * self.timeScalar), 
+                                    timeFormat % (stopTime * self.timeScalar))
         viewId = wx.NewId()
         
         try:
@@ -2087,6 +2114,11 @@ class Viewer(wx.Frame, MenuMixin):
         # Kill all background processes
         for _ in self.cancelQueue:
             self.cancelOperation()
+        
+        # Close related windows
+        for fft in self.fftViews.itervalues():
+            fft.Destroy()
+            
         self.Destroy()
         evt.Skip()
     
@@ -2437,13 +2469,13 @@ class ViewerApp(wx.App):
                        "01.1": "VIOLET"
         },
 
-        'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name
+        'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
 #         'locale': 'English_United States.1252', # Python's locale name string
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'warnBeforeQuit': False, #True,
         'showDebugChannels': False,
 
-        # WVR/SSX-specific parameters: the hardcoded warning range.        
+        # WVR/SSX-specific parameters: the hard-coded warning range.        
         'wvr_tempMin': -20.0,
         'wvr_tempMax': 60.0,
     }

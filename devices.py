@@ -67,6 +67,25 @@ def isRecorder(dev):
         return False
     
 
+def isOnRecorder(path):
+    """ Returns `True` if the given file is on a recorder. The test is only
+        whether the path is on a recorder, not whether or not the path or file
+        actually exists; if you need to know if the path is valid, perform
+        your own checks first.
+        
+        @param path: The full path/name of a file.
+        @return: `True` if the path is to a subdirectory on a recording
+            device, `False` if not.
+    """
+    oldp = None
+    while path != oldp:
+        if isRecorder(path):
+            return True
+        oldp = path
+        path = os.path.dirname(path)
+    return False
+
+
 def getRecorderInfo(dev, default=None):
     """ Retrieve a recorder's device information.
     
