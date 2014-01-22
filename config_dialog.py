@@ -8,12 +8,13 @@ Created on Dec 16, 2013
 @author: dstokes
 '''
 
+__all__ = ['configureRecorder']
+
 from collections import OrderedDict
 import string
 import time
 
 import wx.lib.sized_controls as sc
-import wx.lib.masked as mc
 import wx; wx = wx
 
 from common import datetime2int, DateTimeCtrl
@@ -172,63 +173,6 @@ class BaseConfigPanel(sc.SizedPanel):
         return c
 
 
-    def addTimeField(self, checkText, name=None, tooltip=None):
-        """ Helper method to create a checkbox and a time-entry field pair, and
-            add them to the set of controls.
- 
-            @param checkText: The checkbox's label text.
-            @keyword name: The name of the key in the config data, if the
-                field maps directly to a value.
-            @keyword tooltip: A tooltip string for the field.
-        """ 
-        check = wx.CheckBox(self, -1, checkText)
-        check.SetSizerProps(valign='center')
-        timePane = sc.SizedPanel(self, -1)
-        timePane.SetSizerType("horizontal")
-        ctrl = mc.TimeCtrl(timePane, -1, fmt24hr=True)
-        timeSpin = wx.SpinButton(timePane, -1, size=(-1,self.fieldSize.height), 
-                                 style=wx.SP_VERTICAL)
-        ctrl.BindSpinButton(timeSpin)
-        if tooltip is not None:
-            check.SetToolTipString(unicode(tooltip))
-
-        self.controls[check] = [ctrl, timeSpin]
-        
-        if name is not None:
-            self.fieldMap[name] = ctrl
-
-        return check
-
-
-    def old_addDateTimeField(self, checkText, name=None, tooltip=None):
-        """ Helper method to create a checkbox and a time-entry field pair, and
-            add them to the set of controls.
- 
-            @param checkText: The checkbox's label text.
-            @keyword name: The name of the key in the config data, if the
-                field maps directly to a value.
-            @keyword tooltip: A tooltip string for the field.
-        """ 
-        check = wx.CheckBox(self, -1, checkText)
-        check.SetSizerProps(valign='center')
-        timePane = sc.SizedPanel(self, -1)
-        timePane.SetSizerType("horizontal")
-        dateCtrl = wx.DatePickerCtrl(timePane, style=wx.DP_DROPDOWN)
-        ctrl = mc.TimeCtrl(timePane, -1, fmt24hr=True)
-        timeSpin = wx.SpinButton(timePane, -1, size=(-1,self.fieldSize.height), 
-                                 style=wx.SP_VERTICAL)
-        ctrl.BindSpinButton(timeSpin)
-        if tooltip is not None:
-            check.SetToolTipString(unicode(tooltip))
-
-        self.controls[check] = [dateCtrl, ctrl, timeSpin]
-        
-        if name is not None:
-            self.fieldMap[name] = check
-
-        return check#, dateCtrl #ctrl
-        
-
     def addDateTimeField(self, checkText, name=None, tooltip=None):
         """ Helper method to create a checkbox and a time-entry field pair, and
             add them to the set of controls.
@@ -291,7 +235,6 @@ class BaseConfigPanel(sc.SizedPanel):
         """ Do any setup work on the page. Most subclasses should override
             this.
         """
-#         print "initUi", self.__class__.__name__
         if self.data:
             for k,v in self.data.iteritems():
                 c = self.fieldMap.get(k, None)
@@ -488,26 +431,27 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         for name,control in self.fieldMap.iteritems():
             self.addVal(control, data, name)
             
-        if self.accelLoCheck.GetValue() or self.accelHiCheck.GetValue():
-            trig = OrderedDict(TriggerChannel=0)
-            self.addVal(self.accelLoCheck, trig, "TriggerWindowLo")
-            self.addVal(self.accelHiCheck, trig, "TriggerWindowHi")
-            if len(trig) > 2:
-                triggers.append(trig)
-                
-        if self.pressLoCheck.GetValue() or self.pressHiCheck.GetValue():
-            trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=0)
-            self.addVal(self.pressLoCheck, trig, 'TriggerWindowLo')
-            self.addVal(self.pressHiCheck, trig, 'TriggerWindowHi')
-            if len(trig) > 2:
-                triggers.append(trig)
-                    
-        if self.tempLoCheck.GetValue() or self.tempHiCheck.GetValue():
-            trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=1)
-            self.addVal(self.tempLoCheck, trig, 'TriggerWindowLo')
-            self.addVal(self.tempHiCheck, trig, 'TriggerWindowHi')
-            if len(trig) > 2:
-                triggers.append(trig)
+        # XXX: RESTORE AFTER TRIGGERS GET DEFAULT VALUES
+#         if self.accelLoCheck.GetValue() or self.accelHiCheck.GetValue():
+#             trig = OrderedDict(TriggerChannel=0)
+#             self.addVal(self.accelLoCheck, trig, "TriggerWindowLo")
+#             self.addVal(self.accelHiCheck, trig, "TriggerWindowHi")
+#             if len(trig) > 2:
+#                 triggers.append(trig)
+#                 
+#         if self.pressLoCheck.GetValue() or self.pressHiCheck.GetValue():
+#             trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=0)
+#             self.addVal(self.pressLoCheck, trig, 'TriggerWindowLo')
+#             self.addVal(self.pressHiCheck, trig, 'TriggerWindowHi')
+#             if len(trig) > 2:
+#                 triggers.append(trig)
+#                     
+#         if self.tempLoCheck.GetValue() or self.tempHiCheck.GetValue():
+#             trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=1)
+#             self.addVal(self.tempLoCheck, trig, 'TriggerWindowLo')
+#             self.addVal(self.tempHiCheck, trig, 'TriggerWindowHi')
+#             if len(trig) > 2:
+#                 triggers.append(trig)
         
         if len(triggers) > 0:
             data['Trigger'] = triggers
@@ -532,7 +476,9 @@ class OptionsPanel(BaseConfigPanel):
     def getDeviceData(self):
         self.data = self.root.deviceConfig.get('SSXBasicRecorderConfiguration', 
                                                {})
-        self.data.update(self.data.get('RecorderUserData', {}))
+        # Hack: flatten RecorderUserData into the rest of the configuration,
+        # making things simpler to handle
+        self.data.update(self.root.deviceConfig.get('RecorderUserData', {}))
 
  
     def buildUI(self):
@@ -548,20 +494,18 @@ class OptionsPanel(BaseConfigPanel):
         wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL)
         sc.SizedPanel(self, -1) # Spacer
       
-        self.samplingCheck = self.addCheckField("Sampling Rate:",)
+        self.samplingCheck = self.addCheckField("Sampling Frequency:",
+                                                "SampleFreq")
         
-#         self.oversamplingCheck = wx.CheckBox(self, -1, "Oversampling")
-#         sc.SizedPanel(self, -1) # Spacer
- 
-        self.osrCheck = self.addChoiceField(
-            "Oversampling Ratio:", "OSR", self.OVERSAMPLING)
+        self.osrCheck = self.addChoiceField("Oversampling Ratio:", "OSR", 
+                                            self.OVERSAMPLING)
 
         self.addCheckField("UTC Offset (hours):", "UTCOffset", 
                            str(time.timezone/60/60))
         
         self.timeBtn = wx.Button(self, -1, "Set Device Time")
         self.timeBtn.SetToolTipString(
-            "Set the device's clock. Happens immediate.y.")
+            "Set the device's clock. Applied immediately.")
         self.timeBtn.SetSizerProps()
         timeFieldPane = sc.SizedPanel(self,-1)
         timeFieldPane.SetSizerType("horizontal")
@@ -594,9 +538,7 @@ class OptionsPanel(BaseConfigPanel):
         userConfig = OrderedDict()
         
         for name,control in self.fieldMap.iteritems():
-            print name
             if name in ('RecorderName', 'RecorderDesc'):
-                print "add",name
                 self.addVal(control, userConfig, name, strOrNone)
             else:
                 self.addVal(control, ssxConfig, name)
@@ -681,6 +623,7 @@ class ConfigDialog(sc.SizedDialog):
         self.deviceInfo = devices.getRecorderInfo(self.devPath, {})
         self.deviceConfig = devices.getRecorderConfig(self.devPath, {})
         
+#         print self.deviceConfig
 #         triggerData = self.deviceConfig.setdefault('SSXTriggerConfiguration', {})
 #         optionsData = self.deviceConfig.setdefault('SSXBasicRecorderConfiguration', {})
 #         optionsData.update(self.deviceConfig.setdefault('RecorderUserData', {}))
@@ -727,16 +670,19 @@ def configureRecorder(path):
     """
     """
     dlg = ConfigDialog(None, -1, "Configure Device (%s)" % path, device=path)
-    dlg.ShowModal()
+    if dlg.ShowModal() == wx.ID_OK:
+        data = dlg.getData()
+        devices.setRecorderConfig(path, data)
     
     print "dlg.getData() = %r" %  dlg.getData()
-    return dlg
+    
+    dlg.Destroy()
 
 
 #===============================================================================
 # 
 #===============================================================================
 
-if True or __name__ == "__main__":
+if __name__ == "__main__":
     app = wx.App()
-    configureRecorder("H:\\")
+    configureRecorder("G:\\")

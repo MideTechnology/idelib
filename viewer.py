@@ -3,7 +3,6 @@ Slam Stick eXtreme Data Viewer
 
 Description should go here. At the moment, this is also the text that appears
 in the About Box.
-
 '''
 
 APPNAME = u"Slam Stick X Data Viewer"
@@ -35,6 +34,7 @@ import images
 # Custom controls
 from base import ViewerPanel, MenuMixin
 from common import *
+import config_dialog
 from export_dialog import ModalExportProgress, CSVExportDialog, FFTExportDialog
 from device_dialog import selectDevice
 from timeline import TimelineCtrl, TimeNavigatorCtrl, VerticalScaleCtrl
@@ -104,6 +104,8 @@ class Loader(Thread):
         """ Create a nice message string containing the total import count
             and (optionally) the estimated time remaining.
         """
+        # BUG: wxPython is forcing the use of their own wx.Locale, but it 
+        # doesn't format numbers correctly. Figure out why.
         countStr = locale.format("%d", count, grouping=True)
 
         if est is None or est.seconds < 2:
@@ -2092,9 +2094,9 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handle Device->Configure Device menu events.
         """
         dev = selectDevice()
+        print dev
         if dev is not None:
-            # XXX: IMPLEMENT ME
-            pass
+            config_dialog.configureRecorder(dev)
     
     
     def OnHelpAboutMenu(self, evt):
@@ -2374,7 +2376,8 @@ class ViewerApp(wx.App):
         'antialiasingMultiplier': ANTIALIASING_MULTIPLIER,
         'resamplingJitter': False,
         'resamplingJitterAmount': RESAMPLING_JITTER,
-        'locale': 'English_United States.1252',
+        'locale': 'LANGUAGE_ENGLISH_US',
+#         'locale': 'English_United States.1252',
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'fileHistory': {},
         'fileHistorySize': 10,
@@ -2475,11 +2478,13 @@ class ViewerApp(wx.App):
     def __init__(self, *args, **kwargs):
         prefsFile = kwargs.pop('prefsFile', self.prefsFile)
         self.prefs = self.loadPrefs(prefsFile)
-        locale.setlocale(locale.LC_ALL, str(self.getPref('locale')))
+#         locale.setlocale(locale.LC_ALL, str(self.getPref('locale')))
         
         self.viewers = []
         
         super(ViewerApp, self).__init__(*args, **kwargs)
+        localeName = self.getPref('locale', 'LANGUAGE_ENGLISH_US')
+        self.locale = wx.Locale(getattr(wx, localeName, wx.LANGUAGE_ENGLISH_US))
                 
 
     def createNewView(self, title=None):

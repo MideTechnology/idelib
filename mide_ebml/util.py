@@ -11,6 +11,7 @@ Created on Dec 10, 2013
 from collections import Sequence, OrderedDict
 import importlib
 import pkgutil
+from StringIO import StringIO
 import sys
 import xml.dom.minidom
 
@@ -47,6 +48,7 @@ def encode_container(data, length=None, schema=DEFAULT_SCHEMA,
     result = bytearray()
     if isinstance(data, dict):
         data = data.items()
+
     for child in data:
         if child[1] is not None:
             result.extend(build_ebml(*child, schema=schema, elements=elements,
@@ -157,6 +159,7 @@ def getElementSizes(schema=DEFAULT_SCHEMA):
             that have the `size` attribute will be included.
     """
     results = {}
+    schema = getSchemaModule(schema).__name__
     filename = schema.split('.')[-1] + ".xml"
     doc = xml.dom.minidom.parseString(pkgutil.get_data(schema, filename))
     for el in doc.getElementsByTagName('element'):
@@ -330,7 +333,7 @@ def verify(data, schema=DEFAULT_SCHEMA):
     if docclass is None:
         raise TypeError("Schema %r contained no Document" % schema)
     doc = docclass(StringIO(data))
-    parse_ebml(doc)
+    parse_ebml(doc.roots)
     return True
 
 #===============================================================================
