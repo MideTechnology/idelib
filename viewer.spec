@@ -1,5 +1,23 @@
 # -*- mode: python -*-
 
+import os
+# HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
+HOME_DIR = os.getcwd()
+
+# This is a kludgey auto-incrementing build number. Remove later!
+try:
+	import sys
+	sys.path.append(HOME_DIR)
+	from dev_build_number import BUILD_NUMBER
+	BUILD_NUMBER += 1
+	logging.logger.info("*** Build number %d" % BUILD_NUMBER)
+	with open('dev_build_number.py', 'wb') as f:
+		f.write('# DO NOT CHANGE THE FOLLOWING LINE MANUALLY!\n')
+		f.write('BUILD_NUMBER = %d\n' % BUILD_NUMBER)
+except Exception:
+	logging.logger.warning("*** Couldn't read and/or change build number!")
+
+
 # Collect data files (needed for getting schema XML)
 # http://www.pyinstaller.org/wiki/Recipe/CollectDatafiles
 def Datafiles(*filenames, **kw):
@@ -24,7 +42,7 @@ schemas = Datafiles('mide_ebml/ebml/schema/mide.xml',
 					strip_path=False)
 		
 a = Analysis(['viewer.py'],
-             pathex=['C:\\Users\\dstokes\\workspace\\wvr'],
+             pathex=[HOME_DIR],
              hiddenimports=[],
              hookspath=None,
              runtime_hooks=None)
