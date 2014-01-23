@@ -1205,6 +1205,7 @@ class Plot(ViewerPanel):
 
 
     def OnKeypress(self, evt):
+        """ Handle a keypress event in a plot. """
         keycode = evt.GetUnicodeKey()
         keychar = unichr(keycode)
         
@@ -1641,6 +1642,11 @@ class Viewer(wx.Frame, MenuMixin):
         self.menubar = wx.MenuBar()
         
         fileMenu = wx.Menu()
+        self.addMenuItem(fileMenu, wx.ID_NEW, "&New Viewer Window", "",
+                         self.OnFileNewMenu)
+#         self.addMenuItem(fileMenu, wx.ID_CLOSE, "Close Viewer Window", "",
+#                          None)
+        fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...", "", 
                          self.OnFileOpenMenu)
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCrtl-.", "", 
@@ -1691,8 +1697,9 @@ class Viewer(wx.Frame, MenuMixin):
         self.menubar.Append(viewMenu, 'View')
         
         helpMenu = wx.Menu()
-        self.addMenuItem(helpMenu, wx.ID_ABOUT, "About %s..." % APPNAME, "", 
-                self.OnHelpAboutMenu)
+        self.addMenuItem(helpMenu, wx.ID_ABOUT, 
+                         "About %s %s..." % (APPNAME, __version__), "", 
+                         self.OnHelpAboutMenu)
         self.menubar.Append(helpMenu, '&Help')
 
         self.SetMenuBar(self.menubar)
@@ -1958,10 +1965,16 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
     
-    def openFile(self, filename):
+    def openFile(self, filename, prompt=True):
+        """ Open a recording file. This also handles prompting the user when
+            a file is loading or has already been loaded.
+            
+            @param filename: The full path and name of the file to open. 
+            @keyword prompt: If `True`, the user will be warned before loading
+                a new file over the old one. If `False`, the old file will
+                get clobbered automatically.
         """
-        """
-        if self.dataset is not None:
+        if prompt and self.dataset is not None:
             if self.dataset.loading is True:
                 if self.ask("Abort loading the current file?") != wx.ID_YES:
                     return
@@ -1989,6 +2002,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.dataset = newDoc
         loader = Loader(self, newDoc, **self.app.getPref('loader'))
         self.pushOperation(loader, modal=False)
+        self.SetTitle(self.app.getWindowTitle(filename))
         loader.start()
         self.enableMenus(True)
     
@@ -2156,6 +2170,12 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
     # Menu Events
     #===========================================================================
+
+    def OnFileNewMenu(self, evt):
+        """
+        """
+        self.app.createNewView()
+
 
     def OnFileOpenMenu(self, evt):
         """ Handle File->Open menu events.
@@ -2504,6 +2524,7 @@ class ViewerApp(wx.App):
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'warnBeforeQuit': False, #True,
         'showDebugChannels': False,
+        'showFullPath': False,
 
         # WVR/SSX-specific parameters: the hard-coded warning range.        
         'wvr_tempMin': -20.0,
@@ -2587,13 +2608,13 @@ class ViewerApp(wx.App):
 
 
     def getPref(self, *args):
-        """
+        """ Retrieve a value from the preferences.
         """
         return self.prefs.get(args[0], self.defaultPrefs.get(*args))
 
 
     def setPref(self, name, val):
-        """
+        """ Set the value of a preference.
         """
         self.prefs[name] = val
 
@@ -2625,7 +2646,27 @@ class ViewerApp(wx.App):
         viewer = Viewer(None, title=title, app=self, filename=filename)
         self.viewers.append(viewer)
         viewer.Show()
-        
+    
+    
+    def getWindowTitle(self, filename=None):
+        """ Generate a unique viewer window title.
+        """
+        basetitle = u'%s v%s' % (APPNAME, __version__)
+        if filename:
+            if self.getPref('showFullPath', False):
+                # TODO: Abbreviate path if it's really long (ellipsis in center)
+                basetitle = u'%s - %s' % (basetitle, filename)
+            else:
+                basetitle = u'%s - %s' % (basetitle, os.path.basename(filename))
+            
+        title = basetitle
+        existingTitles = [v.GetTitle() for v in self.viewers]
+        i = 0
+        while title in existingTitles:
+            i += 1
+            title = u"%s (%d)" % (basetitle, i)
+        return title 
+            
 
     def OnInit(self):
         self._antiAliasingEnabled = True
