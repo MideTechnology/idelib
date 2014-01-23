@@ -16,12 +16,15 @@ in the About Box.
 '''
 
 APPNAME = u"Slam Stick X Data Viewer"
-__version__="0.1.0"
+__version__="0.1"
 __date__="Oct 21, 2013"
 __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 __url__ = ("http://mide.com", "")
 __credits__=["David R. Stokes", "Tim Gipson"]
 
+# XXX: REMOVE THIS BEFORE RELEASE!
+from dev_build_number import BUILD_NUMBER
+__version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
 
 from datetime import datetime
 # import errno
