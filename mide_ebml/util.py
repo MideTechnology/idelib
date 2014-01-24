@@ -257,10 +257,7 @@ def parse_ebml(elements, ordered=True):
         keyed by element name. Elements marked as "multiple" in the schema
         will produce a list containing one item for each element.
     """
-    if ordered:
-        result = OrderedDict()
-    else:
-        result = {}
+    result = OrderedDict() if ordered else dict()
     if not isinstance(elements, Sequence):
         elements = [elements]
     for el in elements:
@@ -289,9 +286,8 @@ def read_ebml(stream, schema=DEFAULT_SCHEMA, ordered=True):
             marked as "multiple" in the schema will produce a list containing 
             one item for each element.
     """
-    newStream = False
-    if isinstance(stream, basestring):
-        newStream = True
+    newStream = isinstance(stream, basestring)
+    if newStream:
         stream = open(stream, 'rb')
     else:
         try:
@@ -304,7 +300,6 @@ def read_ebml(stream, schema=DEFAULT_SCHEMA, ordered=True):
     doctype = getSchemaDocument(schema)
     result = parse_ebml(doctype(stream).roots, ordered)
     if newStream:
-        print "close new stream"
         stream.close()
     return result
 

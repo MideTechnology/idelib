@@ -98,7 +98,8 @@ class Univariate(Transform):
             result = result.replace(old, new)
         return result
     
-    def __init__(self, coeffs, calId=None, dataset=None, reference=0, varName="x"):
+    def __init__(self, coeffs, calId=None, dataset=None, reference=0, 
+                 varName="x"):
         """ Construct a simple polynomial function from a set of coefficients.
             
             @param coeffs: A list of coefficients
@@ -224,7 +225,7 @@ class Bivariate(Univariate):
         self.channelId, self.subchannelId = channelId, subchannelId
         if channelId is None or subchannelId is None:
             raise ValueError("Bivariate polynomial requires channel and " \
-                         "subchannel IDs; got %r, %d" % (channelId, subchannelId))
+                    "subchannel IDs; got %r, %d" % (channelId, subchannelId))
         
         if len(coeffs) != 4:
             raise ValueError("Bivariate polynomial must have exactly 4 "

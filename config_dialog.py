@@ -529,9 +529,9 @@ class OptionsPanel(BaseConfigPanel):
 
     def OnSetTime(self, event):
         try:
-            devices.setDeviceTime()
-        except IOError:#, e:
-            wx.MessageBox("An error occurred when trying to access the device.",
+            devices.setDeviceTime(self.root.devPath)
+        except IOError as e:
+            wx.MessageBox("An error occurred when trying to access the device: %s" % e,
                           "Set Device Time", parent=self)
     
     

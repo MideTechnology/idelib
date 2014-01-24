@@ -66,6 +66,9 @@ ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
 
 
+# XXX: Debugging. Remove later!
+from mide_ebml.dataset import __DEBUG__
+
 #===============================================================================
 # 
 #===============================================================================
@@ -1301,8 +1304,10 @@ class PlotSet(aui.AuiNotebook):
             @keyword root: The viewer's 'root' window.
         """
         self.root = kwargs.pop('root', None)
-        kwargs.setdefault('style', aui.AUI_NB_TOP|aui.AUI_NB_TAB_SPLIT |
-                          aui.AUI_NB_TAB_MOVE | aui.AUI_NB_SCROLL_BUTTONS)
+        kwargs.setdefault('style', aui.AUI_NB_TOP | 
+                                   aui.AUI_NB_TAB_SPLIT |
+                                   aui.AUI_NB_TAB_MOVE | 
+                                   aui.AUI_NB_SCROLL_BUTTONS)
         super(PlotSet, self).__init__(*args, **kwargs)
         
         if self.root is None:
@@ -1350,7 +1355,7 @@ class PlotSet(aui.AuiNotebook):
             warnings = [WarningRangeIndicator(warningRange)]
         except (IndexError, KeyError):
             # Dataset had no data for channel and/or subchannel.
-            # Should not occur, but not fatal.
+            # Should not normally occur, but not fatal.
             warnings = []
 
         title = source.name or title
@@ -1757,11 +1762,11 @@ class Viewer(wx.Frame, MenuMixin):
                 to disable.
         """
         # These are the menus enabled only when a file is open.
-        menus = [wx.ID_CANCEL, wx.ID_REVERT, wx.ID_SAVEAS, self.ID_RECENTFILES, 
+        menus = (wx.ID_CANCEL, wx.ID_REVERT, wx.ID_SAVEAS, self.ID_RECENTFILES, 
                  self.ID_EXPORT, self.ID_RENDER_FFT, wx.ID_PRINT, 
                  wx.ID_PRINT_SETUP, self.ID_VIEW_ANTIALIAS, self.ID_VIEW_JITTER,
 #                  wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE
-                 ]
+                 )
         
         for menuId in menus:
             m = self.menubar.FindItemById(menuId)
@@ -2526,7 +2531,7 @@ class ViewerApp(wx.App):
 #         'locale': 'English_United States.1252', # Python's locale name string
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'warnBeforeQuit': False, #True,
-        'showDebugChannels': False,
+        'showDebugChannels': __DEBUG__,
         'showFullPath': False,
 
         # WVR/SSX-specific parameters: the hard-coded warning range.        

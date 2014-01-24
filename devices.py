@@ -178,7 +178,7 @@ def setDeviceTime(dev, t=None):
     else:
         t = int(t)
         
-    with open(os.path.join(dev,CLOCK_FILE),'rb') as f:
+    with open(os.path.join(dev,CLOCK_FILE),'wb') as f:
         f.write(timeParser.pack(t))
     return t
     

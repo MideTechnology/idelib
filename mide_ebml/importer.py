@@ -84,15 +84,18 @@ default_sensors = {
                                            }
                                        },
                        },
-#                 0x43: {"name": "DEBUG Crystal Drift",
-#                        "parser": struct.Struct(">II") 
-#                        },
-#                 0x45: {"name": "DEBUG Gain/Offset",
-#                        "parser": struct.Struct("<i"), 
-#                        },
                 },
            },
 }
+
+
+# if __DEBUG__:
+#     default_sensors[0x00]["channels"].update({
+#                     0x43: {"name": "DEBUG Crystal Drift",
+#                            "parser": struct.Struct(">II")},
+#                     0x45: {"name": "DEBUG Gain/Offset",
+#                            "parser": struct.Struct("<i")},
+#     })
 
 
 def createDefaultSensors(doc, sensors=default_sensors):
