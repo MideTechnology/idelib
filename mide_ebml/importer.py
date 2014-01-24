@@ -43,7 +43,7 @@ elementParserTypes = parsers.getElementHandlers()
 # testFile = r"test_full_cdb.DAT"
 # testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\test_full_cdb_huge.dat"
 # testFile = r"P:\WVR_RIF\06_Testing_Calibration\06_Thermal_Tests\02_Test_to_-20C\Slamstick_Data\VIB00015.IDE"
-testFile = "C:\\Users\\dstokes\\workspace\\wvr\\test_files\\VIB00014.IDE"
+testFile = "H:\\DATA\\VIB00003.IDE"
 
 
 # from parsers import AccelerometerParser
@@ -249,24 +249,30 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
                 break
 
             if r.name in elementParsers:
-                readRecordingProperties = r.name == "RecordingProperties" 
-                parser = elementParsers[r.name]
-                    
-                if not readingData and parser.makesData():
-                    # The first data has been read. Notify the updater!
-                    updater(0)
-                    if not readRecordingProperties:
-                        # Got data before the recording props; use defaults.
-                        if defaultSensors is not None:
-                            createDefaultSensors(doc, defaultSensors)
-                        readRecordingProperties = True
-                    firstDataPos = r.stream.offset
-                    dataSize = filesize - firstDataPos + 0.0
-                    readingData = True
-            
-                added = parser.parse(r)
-                if added is not None:
-                    eventsRead += added
+                try:
+                    readRecordingProperties = r.name == "RecordingProperties" 
+                    parser = elementParsers[r.name]
+                        
+                    if not readingData and parser.makesData():
+                        # The first data has been read. Notify the updater!
+                        updater(0)
+                        if not readRecordingProperties:
+                            # Got data before the recording props; use defaults.
+                            if defaultSensors is not None:
+                                createDefaultSensors(doc, defaultSensors)
+                            readRecordingProperties = True
+                        firstDataPos = r.stream.offset
+                        dataSize = filesize - firstDataPos + 0.0
+                        readingData = True
+                
+                    added = parser.parse(r)
+                    if isinstance(added, int):
+                        eventsRead += added
+                        
+                except parsers.ParsingError as err:
+                    # TODO: Error messages
+                    if __DEBUG__:
+                        print "Parsing error during import: %s" % err
 
             else:
                 # Unknown block type
@@ -291,7 +297,7 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
             
     except IOError as e:
         if e.errno is None:
-            # The EBML library raises an empty IOError if it his EOF.
+            # The EBML library raises an empty IOError if it hits EOF.
             # TODO: Handle other cases of empty IOError (lots in python-ebml)
             doc.fileDamaged = True
         else:

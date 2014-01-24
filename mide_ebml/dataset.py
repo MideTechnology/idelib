@@ -35,11 +35,14 @@ from calibration import Transform
 from parsers import getParserTypes, getParserRanges
 
 #===============================================================================
-# 
+# DEBUGGING: XXX: Remove later!
 #===============================================================================
 
-__DEBUG__ = False#True
+# __DEBUG__ = True
 
+import socket
+__DEBUG__ = socket.gethostname() in ('DEDHAM',)
+    
 if __DEBUG__:
     import ebml
     print "*** Loaded python-ebml from", os.path.abspath(ebml.__file__)

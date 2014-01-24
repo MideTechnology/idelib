@@ -263,7 +263,10 @@ class Document(object):
 	@property
 	def roots(self):
 		if self._roots is None:
-			self._roots = read_elements(self.stream, self, self.children)
+			self._roots = []
+			# This won't totally fail if the file was damaged
+			for r in iter_elements(self.stream, self, self.children):
+				self._roots.append(r)
 		return self._roots
 	
 	# NOTE: This is my addition -DRS
@@ -271,11 +274,5 @@ class Document(object):
 		""" Iterate over the document's root elements. Allows use of a
 			damaged file; just catch an `IOError` in the root-reading loop.
 		"""
-		# Collect the list of roots, too, if not already gathered.
-		noRoots = self._roots is None
-		if noRoots:
-			self._roots = []
-		for r in iter_elements(self.stream, self, self.children):
-			if noRoots:
-				self._roots.append(r)
-			yield r
+		return iter_elements(self.stream, self, self.children)#:
+# 			yield r

@@ -293,7 +293,8 @@ class ElementHandler(object):
             result = []
             for el in element.value:
                 if el.name in self.childHandlers:
-                    result.append(self.childHandlers[el.name](el, **kwargs))
+                    result.append(self.childHandlers[el.name].parse(el, 
+                                                                    **kwargs))
             return result
 
     
@@ -615,8 +616,8 @@ class PolynomialParser(ElementHandler):
     parameterNames = {"CalID": "calId",
                       "CalReferenceValue": "reference",
                       "BivariateCalReferenceValue": "reference2",
-                      "BivariateChannelIDRef": "channel",
-                      "BivariateSubChannelIDRef": "subchannel",
+                      "BivariateChannelIDRef": "channelId",
+                      "BivariateSubChannelIDRef": "subchannelId",
                       "PolynomialCoef": "coeffs"}
 
     def parse(self, element, **kwargs):
@@ -636,7 +637,7 @@ class PolynomialParser(ElementHandler):
         
         if element.name == "BivariatePolynomial":
             # Bivariate polynomial. Do extra error checking.
-            if "channel" not in params or "subchannel" not in params:
+            if "channelId" not in params or "subchannelId" not in params:
                 raise ParsingError("%s had no channel reference!" % elName)
             if len(coeffs) != 4:
                 raise ParsingError("%s supplied %d coefficients; 4 required" % \
@@ -831,6 +832,7 @@ class SessionParser(ElementHandler):
 
 class TimeBaseUTCParser(ElementHandler):
     """ Stub for Session element handler
+    
         @todo: Implement TimeBaseUTCParser
     """
     elementName = "TimeBaseUTC"
@@ -848,7 +850,7 @@ class SyncParser(ElementHandler):
     elementName = "Sync"
     
     def parse(self, *args, **kwargs):
-        # Override the default to suppress console spam: these are many.
+        # The contents aren't (and will never be) important; continue.
         pass
     
 
@@ -878,3 +880,14 @@ class TimeCodeModulusParser(ElementHandler):
 #===============================================================================
 # 
 #===============================================================================
+
+class EBMLParser(ElementHandler):
+    """ Stub for gracefully handling the standard EBML element, typically the 
+        first in any EBML file.
+    """
+    elementName="EBML"
+    
+    def parse(self, element, **kwargs):
+        # Don't care about this tag; the library automatically parses it.
+        pass
+

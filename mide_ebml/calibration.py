@@ -98,7 +98,7 @@ class Univariate(Transform):
             result = result.replace(old, new)
         return result
     
-    def __init__(self, coeffs, dataset=None, reference=0, varName="x"):
+    def __init__(self, coeffs, calId=None, dataset=None, reference=0, varName="x"):
         """ Construct a simple polynomial function from a set of coefficients.
             
             @param coeffs: A list of coefficients
@@ -107,6 +107,7 @@ class Univariate(Transform):
             @keyword varName: The name of the variable to be used in the
                 string version of the polynomial. For display purposes.
         """
+        self.id = calId
         self.dataset = dataset
         varName = str(varName)
         srcVarName = "x"
@@ -259,7 +260,7 @@ class Bivariate(Univariate):
         src = self._stremove(src, ('(0*x*y)+', '(0*x)+', '(0*y)+'))
         src = src.replace("(1*", "(")
         if src.endswith('+0'):
-            src = self.source[:-2]
+            src = src[:-2]
 
         # 2. If there's a reference value, replace the variable with (v-ref)           
         references = map(self._floatOrInt, (reference, reference2))
