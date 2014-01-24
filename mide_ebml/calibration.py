@@ -53,7 +53,7 @@ class AccelTransform(Transform):
         return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
 
 
-class AccelTransform10G(Transform):
+class AccelTransform25G(Transform):
     """ A simple transform to convert accelerometer values (recorded as
         uint16) to floats in the range -10 to 10 G.
         
@@ -62,7 +62,7 @@ class AccelTransform10G(Transform):
     """
     modifiesValue = True
     def __call__(self, event, session=None):
-        return event[:-1] + ((event[-1] * 20.0) / 65535 - 10,)
+        return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
 
 
 

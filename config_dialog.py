@@ -26,10 +26,6 @@ from mide_ebml import util
 # 
 #===============================================================================
 
-#===============================================================================
-# 
-#===============================================================================
-
 class BaseConfigPanel(sc.SizedPanel):
     """ The base class for the various configuration pages. Defines some
         common methods for adding controls, setting defaults, and reading
@@ -324,7 +320,8 @@ class BaseConfigPanel(sc.SizedPanel):
             self.enableField(cb)
 
 
-    def addVal(self, control, trig, name, kind=int):
+    def addVal(self, control, trig, name, kind=int, transform=None,
+               default=None):
         """ Helper method to add a field's value to a dictionary if its
             corresponding checkbox is checked. For exporting EBML.
          """
@@ -352,9 +349,15 @@ class BaseConfigPanel(sc.SizedPanel):
             try:
                 val = kind(val)
                 if val is not None:
+                    if transform is not None:
+                        val = transform(val)
                     trig[name] = val
+                elif default is not None:
+                    trig[name] = default
             except ValueError:
-                trig[name] = val
+                trig[name] = val or default
+                
+            
         
 
 #===============================================================================
@@ -408,14 +411,26 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         """
         """
         super(SSXTriggerConfigPanel, self).initUI()
-        
+
+        accelType = self.root.deviceInfo.get('RecorderTypeUID', 0x12) & 0xff
+        if accelType == 0x10:
+            # 0x10: 25G accelerometer
+            accelTransform = lambda x: (x * 50.0) / 65535 - 25
+        else:
+            # 0x12: 100G accelerometer
+            accelTransform = lambda x: (x * 200.0) / 65535 - 100
+
         # Special case for the list of Triggers         
         for trigger in self.data.get("Trigger", []):
             channel = trigger['TriggerChannel']
             subchannel = trigger.get('TriggerSubChannel', None)
-            low = trigger.get('TriggerWindowLow', None)
+            low = trigger.get('TriggerWindowLo', None)
             high = trigger.get('TriggerWindowHi', None)
             if channel == 0:
+                if low is not None:
+                    low = accelTransform(low)
+                if high is not None:
+                    high = accelTransform(high)
                 self.setField(self.accelLoCheck, low)
                 self.setField(self.accelHiCheck, high)
             elif channel == 1:
@@ -439,28 +454,39 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         
         for name,control in self.fieldMap.iteritems():
             self.addVal(control, data, name)
-            
-        # XXX: RESTORE AFTER TRIGGERS GET DEFAULT VALUES
-#         if self.accelLoCheck.GetValue() or self.accelHiCheck.GetValue():
-#             trig = OrderedDict(TriggerChannel=0)
-#             self.addVal(self.accelLoCheck, trig, "TriggerWindowLo")
-#             self.addVal(self.accelHiCheck, trig, "TriggerWindowHi")
-#             if len(trig) > 2:
-#                 triggers.append(trig)
-#                 
-#         if self.pressLoCheck.GetValue() or self.pressHiCheck.GetValue():
-#             trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=0)
-#             self.addVal(self.pressLoCheck, trig, 'TriggerWindowLo')
-#             self.addVal(self.pressHiCheck, trig, 'TriggerWindowHi')
-#             if len(trig) > 2:
-#                 triggers.append(trig)
-#                     
-#         if self.tempLoCheck.GetValue() or self.tempHiCheck.GetValue():
-#             trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=1)
-#             self.addVal(self.tempLoCheck, trig, 'TriggerWindowLo')
-#             self.addVal(self.tempHiCheck, trig, 'TriggerWindowHi')
-#             if len(trig) > 2:
-#                 triggers.append(trig)
+        
+        accelType = self.root.deviceInfo.get('RecorderTypeUID', 0x12) & 0xff
+        if accelType == 0x10:
+            # 0x10: 25G accelerometer
+            accelTransform = lambda x: int(((x + 25)/50.0) * 65535)
+        else:
+            # 0x12: 100G accelerometer
+            accelTransform = lambda x: int(((x + 100)/200.0) * 65535)
+
+        
+        if self.accelLoCheck.GetValue() or self.accelHiCheck.GetValue():
+            trig = OrderedDict(TriggerChannel=0)
+            self.addVal(self.accelLoCheck, trig, "TriggerWindowLo", kind=float,
+                        transform=accelTransform, default=0)
+            self.addVal(self.accelHiCheck, trig, "TriggerWindowHi", kind=float,
+                        transform=accelTransform, default=65535)
+            if len(trig) > 2:
+                triggers.append(trig)
+                 
+        if self.pressLoCheck.GetValue() or self.pressHiCheck.GetValue():
+            trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=0)
+            self.addVal(self.pressLoCheck, trig, 'TriggerWindowLo')
+            self.addVal(self.pressHiCheck, trig, 'TriggerWindowHi')
+            self.trig.setdefault()
+            if len(trig) > 2:
+                triggers.append(trig)
+                     
+        if self.tempLoCheck.GetValue() or self.tempHiCheck.GetValue():
+            trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=1)
+            self.addVal(self.tempLoCheck, trig, 'TriggerWindowLo')
+            self.addVal(self.tempHiCheck, trig, 'TriggerWindowHi')
+            if len(trig) > 2:
+                triggers.append(trig)
         
         if len(triggers) > 0:
             data['Trigger'] = triggers
@@ -530,8 +556,8 @@ class OptionsPanel(BaseConfigPanel):
     def OnSetTime(self, event):
         try:
             devices.setDeviceTime(self.root.devPath)
-        except IOError as e:
-            wx.MessageBox("An error occurred when trying to access the device: %s" % e,
+        except IOError:
+            wx.MessageBox("An error occurred when trying to access the device.",
                           "Set Device Time", parent=self)
     
     
@@ -541,7 +567,7 @@ class OptionsPanel(BaseConfigPanel):
 
 
     def getData(self):
-        """
+        """ Retrieve the values entered in the dialog.
         """
         data = OrderedDict()
         
@@ -640,18 +666,6 @@ class ConfigDialog(sc.SizedDialog):
         self.deviceInfo = devices.getRecorderInfo(self.devPath, {})
         self.deviceConfig = devices.getRecorderConfig(self.devPath, {})
         
-#         print self.deviceConfig
-#         triggerData = self.deviceConfig.setdefault('SSXTriggerConfiguration', {})
-#         optionsData = self.deviceConfig.setdefault('SSXBasicRecorderConfiguration', {})
-#         optionsData.update(self.deviceConfig.setdefault('RecorderUserData', {}))
-# 
-#         triggerData['AutoRearm'] = 1
-#         triggerData['WakeTimeUTC'] = 1389589291
-#         triggerData['Trigger'] = [{'TriggerChannel': 0, 'TriggerWindowHi': 42},
-#                                   {'TriggerChannel': 1, 'TriggerSubChannel':0, 'TriggerWindowHi':999, 'TriggerWindowLow': 12},
-#                                   {'TriggerChannel': 1, 'TriggerSubChannel':1,  'TriggerWindowLow': 12},
-#                                   ]
-#         
         pane = self.GetContentsPane()
         self.notebook = wx.Notebook(pane, -1)
         self.triggers = SSXTriggerConfigPanel(self.notebook, -1, root=self)
