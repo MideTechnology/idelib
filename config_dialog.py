@@ -514,6 +514,9 @@ class OptionsPanel(BaseConfigPanel):
         # Hack: flatten RecorderUserData into the rest of the configuration,
         # making things simpler to handle
         self.data.update(self.root.deviceConfig.get('RecorderUserData', {}))
+        
+        if 'UTCOffset' in self.data:
+            self.data['UTCOffset'] /= 3600
 
  
     def buildUI(self):
@@ -550,7 +553,6 @@ class OptionsPanel(BaseConfigPanel):
         self.Fit()
         
         self.timeBtn.Bind(wx.EVT_BUTTON, self.OnSetTime)
-#         self.localTimeBtn.Bind(wx.EVT_BUTTON, self.OnSetTZ)
 
 
     def OnSetTime(self, event):
@@ -580,6 +582,8 @@ class OptionsPanel(BaseConfigPanel):
             else:
                 self.addVal(control, ssxConfig, name)
 
+        if 'UTCOffset' in ssxConfig:
+            ssxConfig['UTCOffset'] *= 3600
         if ssxConfig:
             data["SSXBasicRecorderConfiguration"] = ssxConfig
         if userConfig:
