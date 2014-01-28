@@ -78,6 +78,30 @@ class BaseConfigPanel(sc.SizedPanel):
         return t
     
     
+    def addButton(self, label, id_=-1, handler=None, tooltip=None, 
+                  size=None, style=None):
+        """ Helper method to create a button in the first column.
+            
+            @param label: The button's label text
+            @keyword id_: The ID for the button
+            @keyword handler: The `wx.EVT_BUTTON` event handling method
+            @keyword tooltip: A tooltip string for the field.
+        """
+        size = size or (self.fieldSize[0]+20, self.fieldSize[1])
+        if style is None:
+            b = wx.Button(self, id_, label, size=size)
+        else:
+            b = wx.Button(self, id_, label, size=size, style=style)
+        b.SetSizerProps()
+        sc.SizedPanel(self, -1) # Spacer
+        
+        if tooltip is not None:
+            b.SetToolTipString(unicode(tooltip))
+        if handler is not None:
+            b.Bind(wx.EVT_BUTTON, handler)
+        return b
+    
+    
     def addCheck(self, checkText, name=None, tooltip=None):
         """ Helper method to create a single checkbox and add it to the set of
             controls. 
@@ -298,7 +322,8 @@ class BaseConfigPanel(sc.SizedPanel):
             field = self.controls[checkbox][0]
             if field is None:
                 return
-            elif isinstance(field, wx.TextCtrl):
+            field.Enable()
+            if isinstance(field, wx.TextCtrl):
                 value = str(value)
             elif isinstance(field, DateTimeCtrl):
                 value = wx.DateTimeFromTimeT(float(value))
@@ -542,19 +567,16 @@ class OptionsPanel(BaseConfigPanel):
             self.OVERSAMPLING, tooltip="Checking this field overrides the "
             "device's default.")
 
-        self.addCheckField("UTC Offset (hours):", "UTCOffset", 
+        self.utcCheck = self.addCheckField("UTC Offset (hours):", "UTCOffset", 
                            str(-time.timezone/60/60))
         
-        self.timeBtn = wx.Button(self, -1, "Set Device Time")
-        self.timeBtn.SetToolTipString(
+        self.tzBtn = self.addButton("Get Local UTC Offset", -1, self.OnSetTZ,
+            "Fill the UTC Offset field with the offset for the local timezone")
+        self.timeBtn = self.addButton("Set Device Time", -1, self.OnSetTime, 
             "Set the device's clock. Applied immediately.")
-        self.timeBtn.SetSizerProps()
-        timeFieldPane = sc.SizedPanel(self,-1)
-        timeFieldPane.SetSizerType("horizontal")
         
         self.Fit()
         
-        self.timeBtn.Bind(wx.EVT_BUTTON, self.OnSetTime)
 
 
     def OnSetTime(self, event):
@@ -567,7 +589,7 @@ class OptionsPanel(BaseConfigPanel):
     
     def OnSetTZ(self, event):
         val = str(-time.timezone / 60 / 60)
-        self.utcOffsetField.SetValue(val)
+        self.setField(self.utcCheck, val)
 
 
     def getData(self):
