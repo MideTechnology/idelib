@@ -208,7 +208,7 @@ class FFTView(wx.Frame):
             points = (hstack((freqs, self.data[:,i+1].reshape(-1,1))))
             name = self.sources[i-1].name
 
-            lines.append(P.PolyLine(points, legend=name, colour=colors[i]))
+            lines.append(P.PolyLine(points, legend=name, colour=self.root.getPlotColor(self.sources[i-1])))#colors[i]))
             
         self.lines = P.PlotGraphics(lines, title=self.GetTitle(), 
                                     xLabel="Frequency", yLabel="Amplitude")

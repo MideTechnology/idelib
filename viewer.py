@@ -879,6 +879,13 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
 
     def OnPaint(self, evt):
+        try:
+            self._OnPaint(evt)
+        except IOError as err:
+            self.root.handleException(err, what="plotting data")
+        
+
+    def _OnPaint(self, evt):
         """ Event handler to redraw the plot.
         
             @todo: Apply offset and scaling transforms to the DC itself, 
@@ -1153,14 +1160,20 @@ class Plot(ViewerPanel):
                 Elements that take a long time to draw shouldn't respond
                 if `tracking` is `True`.
         """
-        if start == end:
+        if instigator is self:
+            return
+        
+        if start == end == 0:
+            # shouldn't happen, but it could
+            start, end = self.range
+        elif start == end:
             # this can occur if there are no events in the current interval
             start *= .99
             end *= 1.01
-        if instigator is self:
-            return
+            
         if not self.scrolling:
             self.updateScrollbar()
+            
         if (start is None or end is None) and self.visibleValueRange is None:
             return
         instigator = self if instigator is None else instigator
@@ -1234,7 +1247,6 @@ class Plot(ViewerPanel):
     # 
     #===========================================================================
 
-
     def OnKeypress(self, evt):
         """ Handle a keypress event in a plot. """
         keycode = evt.GetUnicodeKey()
@@ -1281,7 +1293,8 @@ class Plot(ViewerPanel):
         self.setValueRange(self.scrollbar2val(start), self.scrollbar2val(end), 
                            None, tracking=False)
         self.scrolling = False
-        
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -1381,7 +1394,7 @@ class PlotSet(aui.AuiNotebook):
         return self.GetPage(p)
         
         
-    def addPlot(self, source, title=None, name=None, color="BLACK", 
+    def addPlot(self, source, title=None, name=None, color=None, 
                 units=None):
         """ Add a new Plot to the display.
         
@@ -1406,6 +1419,9 @@ class PlotSet(aui.AuiNotebook):
         title = source.name or title
         title = "Plot %s" % len(self) if title is None else title
         name = name or title
+        
+        if color is None:
+            color = self.root.getPlotColor(source)
         
         plot = Plot(self, source=source, root=self.root, 
                     color=color, units=units, warningRange=warnings)
@@ -1659,6 +1675,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.cancelQueue = []
         
         self.plots = []
+        self._nextColor = 0
         self.setVisibleRange(self.timerange[0], self.timerange[1])
         self.antialias = False
         self.aaMultiplier = self.app.getPref('antialiasingMultiplier', 
@@ -1856,11 +1873,9 @@ class Viewer(wx.Frame, MenuMixin):
         if self.session is None:
             self.session = self.dataset.lastSession
         
-        for d,c in zip(self.dataset.getPlots(debug=self.showDebugChannels), 
-                       self.app.getPref('defaultColors')):
+        for d in self.dataset.getPlots(debug=self.showDebugChannels):
             self.plotarea.addPlot(d.getSession(self.session.sessionId), 
-                                  title=d.name,
-                                  color=c)
+                                  title=d.name)
         
         self.enableChildren(True)
 
@@ -2028,14 +2043,15 @@ class Viewer(wx.Frame, MenuMixin):
                 if self.ask("Abort loading the current file?") != wx.ID_YES:
                     return
             else:
-                q = self.ask("Do you want to close the current file?\n'No' will open the file in another window.","Open File",style=wx.YES_NO|wx.CANCEL)
+                q = self.ask("Do you want to close the current file?\n"
+                             "'No' will open the file in another window.",
+                             "Open File",style=wx.YES_NO|wx.CANCEL)
                 if q == wx.ID_NO:
                     self.app.createNewView(filename=filename)
                     return
                 elif q == wx.ID_CANCEL:
                     return
                 
-        self.cancelOperation()
         self.closeFile()
         
         try:
@@ -2045,7 +2061,7 @@ class Viewer(wx.Frame, MenuMixin):
         # More specific exceptions should be caught here, before ultimately:
         except Exception as err:
             # Catch-all for unanticipated errors
-            self.handleException(err)
+            self.handleException(err, what="importing the file %s" % filename)
             return
         
         self.dataset = newDoc
@@ -2059,6 +2075,7 @@ class Viewer(wx.Frame, MenuMixin):
     def closeFile(self):
         """ Close a file. Does not close the viewer window itself.
         """
+        self.cancelOperation()
         self.plotarea.clearAllPlots()
         self.dataset = None
         self.enableChildren(False)
@@ -2189,7 +2206,30 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
     # 
     #===========================================================================
-    
+
+    def getPlotColor(self, source):
+        """ Get the plotting color for a data source. 
+        
+            @param source: The source, either `mide_ebml.dataset.Channel`,
+                `mide_ebml.dataset.SubChannel`, or `mide_ebml.dataset.EventList`
+        """
+        if isinstance(source, mide_ebml.dataset.EventList):
+            source = source.parent
+            
+        try:
+            sourceId = "%02x.%d" % (source.parent.id, 
+                                    source.id)
+            color = self.root.app.getPref('plotColors')[sourceId]
+        except (KeyError, AttributeError):
+            defaults = self.app.getPref('defaultColors')
+            color = defaults[self._nextColor % len(defaults)]
+            self._nextColor += 1
+        
+        return color
+            
+    #===========================================================================
+    # 
+    #===========================================================================
     def OnClose(self, evt):
         """ Close the viewer.
         """
@@ -2449,8 +2489,8 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
     
     def handleException(self, err, msg=None, icon=wx.ICON_ERROR, 
-                        raiseException=False, what=None, where=None,
-                        fatal=False):
+                        raiseException=False, what='', where=None,
+                        fatal=False, closeFile=False):
         """ General-purpose exception handler that attempts to provide a 
             meaningful error message. Also works as an event handler for
             custom error events (e.g. `EvtImportError`). Exception handling
@@ -2474,7 +2514,7 @@ class Viewer(wx.Frame, MenuMixin):
             err = err.err
             msg = getattr(err, 'msg', None)
         
-        if what is not None:
+        if what:
             what = " while %s" % what
         
         if not isinstance(msg, basestring):
@@ -2505,6 +2545,9 @@ class Viewer(wx.Frame, MenuMixin):
         # The error occurred someplace critical; self-destruct!
         if fatal:
             self.Destroy()
+            
+        if closeFile:
+            self.closeFile()
  
 
 #===============================================================================
@@ -2541,9 +2584,9 @@ class ViewerApp(wx.App):
         'originHLineColor': wx.Colour(200,200,200),
         'majorHLineColor': wx.Colour(220,220,220),
         'minorHLineColor': wx.Colour(240,240,240),
-        'defaultColors': ["RED",
-                          "GREEN",
-                          "BLUE",
+        'defaultColors': [#"RED",
+                          #"GREEN",
+                          #"BLUE",
                           "DARK GREEN",
                           "VIOLET",
                           "GREY",
