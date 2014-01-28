@@ -535,10 +535,12 @@ class OptionsPanel(BaseConfigPanel):
         sc.SizedPanel(self, -1) # Spacer
       
         self.samplingCheck = self.addCheckField("Sampling Frequency:",
-                                                "SampleFreq")
+            "SampleFreq", tooltip="Checking this field overrides the "
+            "device's default.")
         
         self.osrCheck = self.addChoiceField("Oversampling Ratio:", "OSR", 
-                                            self.OVERSAMPLING)
+            self.OVERSAMPLING, tooltip="Checking this field overrides the "
+            "device's default.")
 
         self.addCheckField("UTC Offset (hours):", "UTCOffset", 
                            str(time.timezone/60/60))

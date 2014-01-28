@@ -23,7 +23,20 @@ import calibration
 from dataset import Dataset
 import parsers
 
+#===============================================================================
+# 
+#===============================================================================
+
 from dataset import __DEBUG__
+
+import logging
+logger = logging.getLogger('mide_ebml')
+logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+
+if __DEBUG__:
+    logger.setLevel(logging.INFO)
+else:
+    logger.setLevel(logging.ERROR)
 
 #===============================================================================
 # Parsers/Element Handlers
@@ -50,6 +63,7 @@ testFile = "H:\\DATA\\VIB00003.IDE"
 
 # Hard-coded sensor/channel mapping. Will eventually be read from EBML file,
 # but these should be default for the standard Slam Stick X.
+# TODO: Base default sensors on the device type UID.
 default_sensors = {
     0x00: {"name": "SlamStick Combined Sensor", 
            "channels": {
@@ -60,15 +74,15 @@ default_sensors = {
                                      calibration.AccelTransform()),
                        "subchannels":{0: {"name": "Accelerometer Z", 
                                           "units":('g','g'),
-#                                           "displayRange": (-100.0,100.0),
+                                          "displayRange": (-100.0,100.0),
                                          },
                                       1: {"name": "Accelerometer Y", 
                                           "units":('g','g'),
-#                                           "displayRange": (-100.0,100.0),
+                                          "displayRange": (-100.0,100.0),
                                           },
                                       2: {"name": "Accelerometer X", 
                                           "units":('g','g'),
-#                                           "displayRange": (-100.0,100.0),
+                                          "displayRange": (-100.0,100.0),
                                           },
                                     },
                        },
@@ -151,11 +165,11 @@ class SimpleUpdater(object):
         if self.startTime is None:
             self.startTime = datetime.now()
         if starting:
-            "Import started at %s" % self.startTime
+            logger.info("Import started at %s" % self.startTime)
             return
         if done:
-            print "\nImport completed in %s" % (datetime.now() - self.startTime)
-            print "Original estimate was %s" % self.estSum
+            logger.info("Import completed in %s" % (datetime.now() - self.startTime))
+            logger.info("Original estimate was %s" % self.estSum)
         else:
             sys.stdout.write('\x0d%s samples read' % count)
             if percent is not None:
@@ -197,20 +211,19 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
     """ Import the data from a file into a Dataset.
     
         @param doc: The Dataset document into which to import the data.
-        @keyword updater: A function (or function-like object) to notify
-            as work is done. It should take four keyword arguments:
-            `count` (the current line number), `total` (the total number of
-            lines), `error` (an unexpected exception, if raised during the
-            import), and `done` (will be `True` when the export is
-            complete). If the updater object has a `cancelled`
-            attribute that is `True`, the CSV export will be aborted.
-            The default callback is `None` (nothing will be notified).
+        @keyword updater: A function (or function-like object) to notify as 
+            work is done. It should take four keyword arguments: `count` (the 
+            current line number), `total` (the total number of lines), `error` 
+            (an unexpected exception, if raised during the import), and `done` 
+            (will be `True` when the export is complete). If the updater object 
+            has a `cancelled` attribute that is `True`, the CSV export will be 
+            aborted. The default callback is `None` (nothing will be notified).
         @keyword numUpdates: The minimum number of calls to the updater to be
             made. More updates will be made if the updates take longer than
             than the specified `updateInterval`. 
-        @keyword updateInterval: The maximum number of seconds between
-            calls to the updater. More updates will be made if indicated by the
-            specified `numUpdates`.
+        @keyword updateInterval: The maximum number of seconds between calls to 
+            the updater. More updates will be made if indicated by the specified
+            `numUpdates`.
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
         @keyword defaultSensors: A nested dictionary containing a default set 
             of sensors, channels, and subchannels. These will only be used if
@@ -274,15 +287,12 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
                         
                 except parsers.ParsingError as err:
                     # TODO: Error messages
-                    if __DEBUG__:
-                        print "Parsing error during import: %s" % err
+                    logger.error("Parsing error during import: %s" % err)
 
             else:
                 # Unknown block type
-                if __DEBUG__ is True:
-                    print "unknown block %r (ID 0x%02x) @%d, continuing" % \
-                        (r.name, r.id, r.stream.offset)
-                pass
+                logger.warning("unknown block %r (ID 0x%02x) @%d" % \
+                               (r.name, r.id, r.stream.offset))
             
             # More progress display stuff
             # TODO: Possibly do the update check every nth elements; that would

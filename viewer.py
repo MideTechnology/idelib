@@ -68,7 +68,7 @@ RESAMPLING_JITTER = 0.125
 
 # XXX: Debugging. Remove later!
 from mide_ebml.dataset import __DEBUG__
-
+import time
 #===============================================================================
 # 
 #===============================================================================
@@ -650,7 +650,8 @@ class LegendArea(ViewerPanel):
     
     def setValueRange(self, top=None, bottom=None, instigator=None,
                       tracking=False):
-        """ Set the currently visible time range. Propagates to its children.
+        """ Set the currently visible range of values (i.e. the vertical axis). 
+            Propagates to its children.
             
             @keyword start: The first time in the visible range. Defaults to
                 the current start.
@@ -674,18 +675,19 @@ class LegendArea(ViewerPanel):
         self.visibleRange = top, bottom
         self.scale.SetRange(bottom,top)
         self.unitsPerPixel = abs((top - bottom) / (vSize + 0.0))
+        self.Parent.updateScrollbar()
         if not tracking:
             self.Parent.Refresh()
     
     
     def getValueRange(self):
-        """ Get the currently displayed range of time.
+        """ Get the currently displayed range of time (i.e. the vertical axis).
         """
         return self.visibleRange
 
 
     def getValueAt(self, vpos):
-        """ Get the value corresponding to a given pixel location.
+        """ Get the value corresponding to a given vertical pixel location.
         """
         return self.visibleRange[1] - (vpos * self.unitsPerPixel)
         
@@ -1004,7 +1006,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             # No change in displayed range; Use cached lines.
             dc.DrawLineList(self.lines)
         
-        if self.Parent.firstPlot and not self.Parent.source.hasDisplayRange:
+        if self.Parent.firstPlot:
             # First time the plot was drawn. Don't draw; scale to fit.
             self.Parent.zoomToFit(self)
             self.Parent.firstPlot = False
@@ -1050,7 +1052,7 @@ class Plot(ViewerPanel):
     """ A single plotted channel, consisting of the vertical scale and actual
         plot-drawing canvas.
     """
-    _sbMax = 10000.0
+    _sbMax = 10000.0 #(2**32)/2-1 + 0.0
     _minThumbSize = 100
     
     def __init__(self, *args, **kwargs):
@@ -1078,6 +1080,7 @@ class Plot(ViewerPanel):
         self.drawMinorHLines = False
         self.scrollUnitsPerUnit = 1.0
         self.unitsPerPixel = 1.0
+        self.scrolling = False
         
         if self.root is None:
             self.root = self.Parent.root
@@ -1086,12 +1089,11 @@ class Plot(ViewerPanel):
             self.yUnits = getattr(self.source, "units", ('',''))
         
         if hasattr(self.source, 'hasDisplayRange'):
-            scale = self.source.displayRange
+            self.range = self.source.displayRange
         
         self.legend = LegendArea(self, -1, 
-                                 visibleRange=(max(*scale),min(*scale)))
-        self.plot = PlotCanvas(self, -1, color=color)#, 
-#                                style=wx.FULL_REPAINT_ON_RESIZE)
+                                 visibleRange=(max(*self.range),min(*self.range)))
+        self.plot = PlotCanvas(self, -1, color=color)
         self.scrollbar = wx.ScrollBar(self, -1, style=wx.SB_VERTICAL)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(self.legend, 0, wx.EXPAND)
@@ -1102,14 +1104,39 @@ class Plot(ViewerPanel):
         
         self.plot.Bind(wx.EVT_LEAVE_WINDOW, self.OnMouseLeave)
 
-        # TODO: Finish scrolling implementation!
-        self.scrollbar.Enable(False)
         self._bindScrollEvents(self.scrollbar, self.OnScroll, 
                               self.OnScrollTrack, self.OnScrollEnd)
         
-#         self.Bind(wx.EVT_CHAR_HOOK, self.OnKeypress)
         self.plot.Bind(wx.EVT_KEY_UP, self.OnKeypress)
         
+
+    def maprange(self, x, in_min, in_max, out_min, out_max):
+        return (x - in_min + 0.0) * (out_max - out_min) / (in_max - in_min) + out_min
+    
+    def val2scrollbar(self, x):
+        """
+        """
+        return int(self.maprange(x, self.range[0], self.range[1], self._sbMax, 0))
+        
+    
+    def scrollbar2val(self, x):
+        return self.maprange(x+0.0, 0.0, self._sbMax, self.range[1], self.range[0])
+    
+
+    def updateScrollbar(self):
+        """
+        """
+        start, end = self.legend.getValueRange()
+        if start == end:
+            return
+        
+        tpos = self.val2scrollbar(end)
+        tsize = self.val2scrollbar(start) - tpos
+        
+        self.scrollbar.SetScrollbar(tpos, tsize, self._sbMax, int(tsize*.9))
+        
+        self.scrollUnitsPerUnit = self._sbMax / (start - end)
+
 
     def setValueRange(self, start=None, end=None, instigator=None, 
                       tracking=False):
@@ -1129,6 +1156,8 @@ class Plot(ViewerPanel):
         """
         if instigator is self:
             return
+        if not self.scrolling:
+            self.updateScrollbar()
         if (start is None or end is None) and self.visibleValueRange is None:
             return
         instigator = self if instigator is None else instigator
@@ -1136,14 +1165,7 @@ class Plot(ViewerPanel):
         end = self.visibleValueRange[1] if end is None else end
         self.legend.setValueRange(start, end, instigator, tracking)
         
-        # TODO: Implement/Enable vertical scrolling
-#         self.scrollUnitsPerUnit = self._sbMax / (start-end)
-#         self.scrollbar.SetScrollbar(
-#             self.scrollUnitsPerUnit * (self.currentTime - self.timerange[0]), 
-#             self.scrollUnitsPerUSec * self.displayLength, 
-#             self._sbMax,
-#             self.scrollUnitsPerUSec * self.displayLength)
-                                    
+        
         if not tracking:
             self.plot.Refresh()
     
@@ -1237,6 +1259,26 @@ class Plot(ViewerPanel):
         self.root.showMouseVPos(None)
         evt.Skip()
 
+
+    def OnScroll(self, evt):
+        self.scrolling = True
+
+
+    def OnScrollTrack(self, evt):
+        self.visibleValueRange[1] - self.visibleValueRange[0]
+        end = evt.GetPosition()
+        start = evt.EventObject.GetThumbSize() + end
+        self.setValueRange(self.scrollbar2val(start), self.scrollbar2val(end), 
+                           None, tracking=True)
+
+
+    def OnScrollEnd(self, evt):
+        end = evt.GetPosition()
+        start = evt.EventObject.GetThumbSize() + end
+        self.setValueRange(self.scrollbar2val(start), self.scrollbar2val(end), 
+                           None, tracking=False)
+        self.scrolling = False
+        
 #===============================================================================
 # 
 #===============================================================================
@@ -1336,7 +1378,7 @@ class PlotSet(aui.AuiNotebook):
         return self.GetPage(p)
         
         
-    def addPlot(self, source, title=None, name=None, scale=None, color="BLACK", 
+    def addPlot(self, source, title=None, name=None, color="BLACK", 
                 units=None):
         """ Add a new Plot to the display.
         
@@ -1362,10 +1404,7 @@ class PlotSet(aui.AuiNotebook):
         title = "Plot %s" % len(self) if title is None else title
         name = name or title
         
-        if scale is None:
-            scale = getattr(source, "displayRange", (-1.0,1.0))
-            
-        plot = Plot(self, source=source, root=self.root, scale=scale, 
+        plot = Plot(self, source=source, root=self.root, 
                     color=color, units=units, warningRange=warnings)
         plot.SetToolTipString(name)
         self.AddPage(plot, title)
@@ -1818,7 +1857,6 @@ class Viewer(wx.Frame, MenuMixin):
                        self.app.getPref('defaultColors')):
             self.plotarea.addPlot(d.getSession(self.session.sessionId), 
                                   title=d.name,
-                                  scale=(65407,128), 
                                   color=c)
         
         self.enableChildren(True)
