@@ -1386,8 +1386,6 @@ class EventList(Cascading):
         
             XXX: EXPERIMENTAL!
             Not very efficient, particularly not with single-sample blocks.
-            Redo without _getBlockIndexWithIndex
-            
         """
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
         numPoints = (stopIdx - startIdx)

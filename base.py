@@ -9,7 +9,7 @@ Created on Dec 4, 2013
 
 import sys as _sys
 
-import wx; wx = wx # Workaround for Eclipse code comprehension
+import wx; wx = wx # Workaround for PyDev code comprehension
 
 from events import EvtSetTimeRange, EvtSetVisibleRange
 
@@ -25,11 +25,13 @@ class ViewerPanel(wx.Panel):
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard `wx.Panel` arguments, plus:
         
-            @keyword root: 
-            @keyword visibleRange: 
-            @keyword timerange: 
-            @keyword defaultButtonStyle: 
-            @keyword defaultSizerFlags: 
+            @keyword root: The Viewer root window.
+            @keyword visibleRange: The currently displayed time interval
+            @keyword timerange: The complete time interval
+            @keyword defaultButtonStyle: A default style for buttons added with
+                `ViewerPanel._addButton()`
+            @keyword defaultSizerFlags: A default set of sizer flags for
+                automatically-added controls
         """
         self.root = kwargs.pop('root', None)
         self.visibleRange = kwargs.pop('visibleRange',(1.0,-1.0))
@@ -112,7 +114,7 @@ class ViewerPanel(wx.Panel):
         pass
     
     #===========================================================================
-    # 
+    # Event-posting methods
     #===========================================================================
     
     def postSetVisibleRangeEvent(self, start, end, tracking=False, 
@@ -155,7 +157,7 @@ class ViewerPanel(wx.Panel):
             start=start, end=end, instigator=instigator, tracking=tracking))
         
     #===========================================================================
-    # 
+    # Default scrolling methods. Override these.
     #===========================================================================
 
     def OnScroll(self, evt):
@@ -173,10 +175,25 @@ class ViewerPanel(wx.Panel):
 #===============================================================================
 
 class MenuMixin(object):
+    """ A mix-in class that adds menu-related functionality.
+    
+        @ivar contextMenu: The object's context menu, if any.
     """
-    """
+    
     def addMenuItem(self, menu, id_, text, helpString, handler=None, 
                     enabled=True, kind=wx.ITEM_NORMAL):
+        """ Helper method for doing the grunt work involved in adding a menu
+            item to a menu.
+            
+            @param menu: The menu to which to add the menu item.
+            @param id_: The menu item's ID (e.g. `wx.OPEN`, `wx.CLOSE`, etc.)
+            @param text: The menu item text.
+            @param helpString: Help text for the menu item.
+            @keyword handler: A method for handling `wx.EVT_MENU` events.
+            @keyword enabled: The initial enabled state of the menu item.
+            @keyword kind: WX flags for the menu item type (e.g.
+                `wx.ITEM_NORMAL`, `wx.ITEM_CHECK`, etc).
+        """
         item = menu.Append(id_, text, helpString, kind)
         item.Enable(enabled)
         if handler is not None:
@@ -197,11 +214,12 @@ class MenuMixin(object):
     
     
     def enableContextMenu(self, enabled=True):
+        """ Enable (or disable) the context menu. """
         self.contextMenuEnabled = enabled
 
 
     def OnContextMenu(self, evt):
-        """ Handler for context menu popup.
+        """ Event handler for context menu popup.
         """
         if not self.contextMenuEnabled:
             evt.Skip()
