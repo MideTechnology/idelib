@@ -12,7 +12,6 @@ from datetime import datetime as _datetime
 import sys as _sys
 
 import wx; wx = wx;
-import wx.lib.newevent
 import wx.lib.masked as wx_mc
 
 import images as _images
@@ -27,6 +26,15 @@ def expandRange(l, v):
     """
     l[0] = min(l[0],v)
     l[1] = max(l[1],v)
+
+
+def mapRange(x, in_min, in_max, out_min, out_max):
+    """ Given a value `x` between `in_min` and `in_max`, get the equivalent
+        value relative to `out_min` and `out_max`.
+    """
+    return ((x - in_min + 0.0) * (out_max - out_min) / 
+            (in_max - in_min) + out_min)
+
 
 #===============================================================================
 # Formatting and parsing helpers

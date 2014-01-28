@@ -46,7 +46,7 @@ import images
 
 # Custom controls
 from base import ViewerPanel, MenuMixin
-from common import StatusBar, expandRange
+from common import StatusBar, expandRange, mapRange
 import config_dialog
 from events import *
 from export_dialog import ModalExportProgress, CSVExportDialog, FFTExportDialog
@@ -1069,7 +1069,6 @@ class Plot(ViewerPanel):
         self.source = kwargs.pop('source', None)
         self.yUnits= kwargs.pop('units',None)
         color = kwargs.pop('color', 'BLACK')
-        scale = kwargs.pop('scale', (-1,1))
         self.range = kwargs.pop('range', (-(2**16), (2**16)-1))
         self.warningRange = kwargs.pop("warningRange", [])
         super(Plot, self).__init__(*args, **kwargs)
@@ -1110,21 +1109,21 @@ class Plot(ViewerPanel):
         self.plot.Bind(wx.EVT_KEY_UP, self.OnKeypress)
         
 
-    def maprange(self, x, in_min, in_max, out_min, out_max):
-        return (x - in_min + 0.0) * (out_max - out_min) / (in_max - in_min) + out_min
-    
     def val2scrollbar(self, x):
+        """ Convert a plot value to a scrollbar position. 
         """
-        """
-        return int(self.maprange(x, self.range[0], self.range[1], self._sbMax, 0))
+        return int(mapRange(x, self.range[0], self.range[1], self._sbMax, 0))
         
     
     def scrollbar2val(self, x):
-        return self.maprange(x+0.0, 0.0, self._sbMax, self.range[1], self.range[0])
+        """ Convert a scrollbar position to the plot value.
+        """
+        return mapRange(x, 0.0, self._sbMax, self.range[1], self.range[0])
     
 
     def updateScrollbar(self):
-        """
+        """ Update the position and size of the vertical scrollbar to match
+            the displayed value range.
         """
         start, end = self.legend.getValueRange()
         if start == end:
@@ -1154,6 +1153,10 @@ class Plot(ViewerPanel):
                 Elements that take a long time to draw shouldn't respond
                 if `tracking` is `True`.
         """
+        if start == end:
+            # this can occur if there are no events in the current interval
+            start *= .99
+            end *= 1.01
         if instigator is self:
             return
         if not self.scrolling:
