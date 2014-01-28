@@ -543,7 +543,7 @@ class OptionsPanel(BaseConfigPanel):
             "device's default.")
 
         self.addCheckField("UTC Offset (hours):", "UTCOffset", 
-                           str(time.timezone/60/60))
+                           str(-time.timezone/60/60))
         
         self.timeBtn = wx.Button(self, -1, "Set Device Time")
         self.timeBtn.SetToolTipString(
@@ -566,7 +566,7 @@ class OptionsPanel(BaseConfigPanel):
     
     
     def OnSetTZ(self, event):
-        val = str(time.timezone / 60 / 60)
+        val = str(-time.timezone / 60 / 60)
         self.utcOffsetField.SetValue(val)
 
 
