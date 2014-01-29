@@ -776,11 +776,13 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def ask(self, message, title="Confirm", 
-              style=wx.YES_NO | wx.NO_DEFAULT, icon=wx.ICON_QUESTION):
+              style=wx.YES_NO | wx.NO_DEFAULT, icon=wx.ICON_QUESTION,
+              parent=None):
         """ Generate a simple modal dialog box and get the button clicked.
         """
         style |= icon
-        dlg = wx.MessageDialog(self, message, title, style)
+        parent = parent or self
+        dlg = wx.MessageDialog(parent, message, title, style)
         result = dlg.ShowModal()
         dlg.Destroy()
         return result
@@ -1015,6 +1017,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.enableMenus(False)
         
     
+        
+        
     def exportCsv(self, evt=None):
         """ Export the active plot view's data as CSV. after getting input from
             the user (range, window size, etc.).
@@ -1083,7 +1087,7 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword evt: An event (not actually used), making this method
                 compatible with event handlers.
         """
-        dlg = FFTExportDialog(self, -1, "Render FFT", root=self)
+        dlg = FFTExportDialog(self, -1, root=self)
         result = dlg.ShowModal()
         subchannels = dlg.getSelectedChannels()
         startTime, stopTime = dlg.getExportRange()

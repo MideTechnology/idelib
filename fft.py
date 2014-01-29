@@ -18,15 +18,18 @@ import wx; wx = wx
 
 import spectrum as spec
 
-from common import StatusBar
+from base import MenuMixin
+from common import StatusBar, nextPow2
 
 #===============================================================================
 # 
 #===============================================================================
 
-class FFTView(wx.Frame):
+class FFTView(wx.Frame, MenuMixin):
     """
     """
+    NAME = "FFT"
+    FULLNAME = "FFT View"
     
     ID_EXPORT_CSV = wx.NewId()
     ID_EXPORT_IMG = wx.NewId()
@@ -44,7 +47,7 @@ class FFTView(wx.Frame):
             @keyword start: The start of the time interval to render
             @keyword end: The end of the time interval to render
         """
-        kwargs.setdefault("title", "FFT")
+        kwargs.setdefault("title", self.FULLNAME)
         self.root = kwargs.pop("root", None)
         self.sources = kwargs.pop("sources", None)
         self.range = (kwargs.pop("start",0), kwargs.pop("end",-1))
@@ -73,8 +76,11 @@ class FFTView(wx.Frame):
         self.Update()
         
         
+        self.draw()
+
+
+    def draw(self):
         self.lines = None
-        
         if self.sources is not None:
             channel = self.sources[0].parent.getSession(self.root.session.sessionId)
             subchannelIds = [c.id for c in self.sources]
@@ -99,37 +105,39 @@ class FFTView(wx.Frame):
     def initMenus(self):
         """
         """
+        helpText = "%s Help" % self.FULLNAME
+        
         self.menubar = wx.MenuBar()
         fileMenu = wx.Menu()
-        fileMenu.Append(self.ID_EXPORT_CSV, "&Export CSV...", "")
-        fileMenu.Append(self.ID_EXPORT_IMG, "Export &Image...", "")
+        self.addMenuItem(fileMenu, self.ID_EXPORT_CSV, "&Export CSV...", "", 
+                         self.OnExportCsv)
+        self.addMenuItem(fileMenu, self.ID_EXPORT_IMG, "Export &Image...", "", 
+                         self.OnExportImage)
         fileMenu.AppendSeparator()
-        fileMenu.Append(wx.ID_PRINT, "&Print...").Enable(False)
-        fileMenu.Append(wx.ID_PRINT_SETUP, "Print Setup...").Enable(False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", 
+                         None, False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
+                         None, False)
         fileMenu.AppendSeparator()
-        fileMenu.Append(wx.ID_CLOSE, "Close &Window")
+        self.addMenuItem(fileMenu, wx.ID_CLOSE, "Close &Window", "", 
+                         self.OnClose)
         self.menubar.Append(fileMenu, "File")
         
         editMenu = wx.Menu()
+        self.addMenuItem(editMenu, wx.ID_CUT, "Cut", "", None, False)
+        self.addMenuItem(editMenu, wx.ID_COPY, "&Copy", "", None, False)
+        self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", None, False)
         self.menubar.Append(editMenu, "Edit")
-#         editMenu.Append(-1, "None of these work yet.", "")
-        editMenu.Append(wx.ID_CUT, "Cut", "").Enable(False)
-        editMenu.Append(wx.ID_COPY, "&Copy", "").Enable(False)
-        editMenu.Append(wx.ID_PASTE, "Paste", "").Enable(False)
 
         viewMenu = wx.Menu()
-        self.menubar.Append(viewMenu, "View")
         viewMenu.Append(-1, "None of these work yet.", "")
+        self.menubar.Append(viewMenu, "View")
         
         helpMenu = wx.Menu()
+        self.addMenuItem(helpMenu, wx.ID_HELP_INDEX, helpText, '', self.OnHelp)
         self.menubar.Append(helpMenu, "Help")
-        viewMenu.Append(wx.ID_HELP_INDEX, "FFT View Help").Enable(False)
         
         self.SetMenuBar(self.menubar)
-        self.Bind(wx.EVT_MENU, self.OnClose, id=wx.ID_CLOSE)
-        self.Bind(wx.EVT_MENU, self.OnExportCsv, id=self.ID_EXPORT_CSV)
-        self.Bind(wx.EVT_MENU, self.OnExportImage, id=self.ID_EXPORT_IMG)
-        self.Bind(wx.EVT_MENU, self.OnHelp, id=wx.ID_HELP_INDEX)
     
     
     def OnExportCsv(self, evt):
@@ -154,7 +162,8 @@ class FFTView(wx.Frame):
             out.close()
             return True
         except Exception as err:
-            self.root.handleException(err, what="exporting FFT as CSV")
+            what = "exporting %s as CSV" % self.NAME
+            self.root.handleException(err, what=what)
             return False
         
     
@@ -175,12 +184,13 @@ class FFTView(wx.Frame):
         try:
             return self.canvas.SaveFile(filename)
         except Exception as err:
-            self.root.handleException(err, what="exporting FFT as an image")
+            what = "exporting %s as an image" % self.NAME
+            self.root.handleException(err, what=what)
             return False
     
     
     def OnHelp(self, evt):
-        self.root.ask("DEBUG", "Not implemented", style=wx.OK)
+        self.root.ask("FFT Help not implemented!", "TODO:", style=wx.OK, parent=self)
 
 
     def OnClose(self, evt):
@@ -194,12 +204,6 @@ class FFTView(wx.Frame):
         """ Turn each column of data into its own line plot.
         """
         lines = []
-#         colors = "BLUE","GREEN","RED"
-        # TODO: Read colors from viewer preferences
-        colors = (wx.Colour(0,0,255,128),
-                  wx.Colour(0,255,0,128),
-                  wx.Colour(255,0,0,128),
-                  )
         cols = self.data.shape[-1]-1
         
         freqs = self.data[:,0].reshape(-1,1)
@@ -265,19 +269,6 @@ class FFTView(wx.Frame):
                 frequency.
         """
         
-        def nextPow2(x):
-            """ Round up to the next greater than or equal to power-of-two.
-            """
-            x = long(x)
-            if x & (x-1L) == 0L:
-                # already a power of 2
-                return x
-            x -= 1L
-            for i in xrange(5):
-                x |= x >> (2**long(i))
-            return x+1L
-    
-
         points = self.from2diter(data, rows, cols)
         rows, cols = points.shape
         shape = points.shape
@@ -310,3 +301,49 @@ class FFTView(wx.Frame):
         
         return fftData
 
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class SpectrogramView(FFTView):
+    """
+    """
+    NAME = "Spectrogram"
+    FULLNAME = "Spectrogram View"
+    
+    
+    def draw(self):
+        """
+        """
+        # self.canvas is the plot canvas
+        pass
+
+    
+    def OnHelp(self, evt):
+        self.root.ask("Spectrogram Help not implemented!", "TODO:", style=wx.OK, parent=self)
+
+
+    def generateSpecData(self, data, rows=None, cols=1, fs=5000, 
+                        sliceSize=2**16):
+        """ Compute 2D FFT from one or more channels of data.
+        
+            @note: This is the implementation from the old viewer and does not
+                scale well to massive datasets. This *will* run of of memory; 
+                the exact number of samples/RAM has yet to be determined.
+                
+            @param data: An iterable collection of event values (no times!). The
+                data can have one or more channels (e.g. accelerometer X or XYZ
+                together). This can be an iterator, generator, or array.
+            @keyword rows: The number of rows (samples) in the set, if known.
+            @keyword cols: The number of columns (channels) in the set; a 
+                default if the dataset does not contain multiple columns.
+            @keyword fs: Frequency of sample, i.e. the sample rate (Hz)
+            @keyword sliceSize: The size of the 'window' used to compute the 
+                FFTs via Welch's method. Should be a power of 2!
+            @return: A multidimensional array, with the first column the 
+                frequency.
+        """
+        pass
+        

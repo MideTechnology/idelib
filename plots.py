@@ -68,6 +68,7 @@ class LegendArea(ViewerPanel):
                                        style=wx.NO_BORDER|wx.ALIGN_RIGHT)
         self.scale.SetRange(*self.visibleRange)
         self.scale.SetBackgroundColour(self.root.uiBgColor)
+        self.scale.SetCursor(wx.StockCursor(wx.CURSOR_SIZENS))
         sizer.Add(self.scale, -1, wx.EXPAND)
         self.SetSizer(sizer)
         self.SetMinSize((self.root.corner.GetSize()[0],-1))

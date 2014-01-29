@@ -8,7 +8,10 @@ from threading import Thread
 
 import wx; wx = wx # Workaround for Eclipse code comprehension
 
-from events import *
+from events import EvtProgressStart, EvtProgressEnd, EvtProgressUpdate
+from events import EvtInitPlots, EvtSetTimeRange, EvtSetVisibleRange
+from events import EvtImportError
+
 import mide_ebml
 
 class Loader(Thread):

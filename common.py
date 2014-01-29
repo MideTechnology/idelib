@@ -36,6 +36,18 @@ def mapRange(x, in_min, in_max, out_min, out_max):
             (in_max - in_min) + out_min)
 
 
+def nextPow2(x):
+    """ Round up to the next greater than or equal to power-of-two.
+    """
+    x = long(x)
+    if x & (x-1L) == 0L:
+        # already a power of 2
+        return x
+    x -= 1L
+    for i in xrange(5):
+        x |= x >> (2**long(i))
+    return x+1L
+
 #===============================================================================
 # Formatting and parsing helpers
 #===============================================================================

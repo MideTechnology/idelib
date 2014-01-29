@@ -9,8 +9,6 @@ Created on Nov 21, 2013
 
 import locale
 
-import time
-
 import wx.lib.agw.customtreectrl as CT
 import wx; wx=wx
 import wx.lib.sized_controls as sc
@@ -57,6 +55,7 @@ class ExportDialog(sc.SizedDialog):
     RB_RANGE_VIS = wx.NewId()
     RB_RANGE_CUSTOM = wx.NewId()
     
+    defaultTitle = "Export..."
     defaultUnits = ("seconds", "s")
     
     def __init__(self, *args, **kwargs):
@@ -71,6 +70,7 @@ class ExportDialog(sc.SizedDialog):
 
         self.root = kwargs.pop('root', None)
         kwargs.setdefault('style', style)
+        kwargs.setdefault('title', self.defaultTitle)
         self.units = kwargs.pop("units", self.defaultUnits)
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
 
@@ -133,7 +133,7 @@ class ExportDialog(sc.SizedDialog):
                                        style=wx.SUNKEN_BORDER,
                                        agwStyle=CT.TR_HAS_BUTTONS)
         self.tree.SetSizerProps(expand=True, proportion=1)
-        self.treeMsg = wx.StaticText(pane, 0, "")#(export description, i.e. number of columns)")
+        self.treeMsg = wx.StaticText(pane, 0, "")
         
         #=======================================================================
         # Export range selection
@@ -231,6 +231,52 @@ class ExportDialog(sc.SizedDialog):
         if ct_type == CT.TREE_ITEMTYPE_RADIO:
             self.tree.Expand(parentItem)
 
+
+    def _addChoice(self, label, choices, default=None, tooltip=None, parent=None):
+        """ Add a drop-down list widget. 
+        
+            @param label: 
+            @param choices: A list of strings 
+            @keyword default: The pre-selected item, either a string or an index
+                into `choices`.
+            @keyword tooltip: A pop-up help string.
+            @keyword parent: The list's parent. Use if adding multiple choice
+                controls.
+            @return: A tuple with (control, parent)
+        """
+        if parent is None:
+            parent = sc.SizedPanel(self.GetContentsPane(),-1)
+            parent.SetSizerType("form")
+            parent.SetSizerProps(expand=True)
+        wx.StaticText(parent, -1, label).SetSizerProps(valign="center")
+        ctrl = wx.Choice(parent, -1, choices=choices)
+        if tooltip:
+            ctrl.SetToolTipString(tooltip)
+        ctrl.SetSizerProps(expand=True)
+        if isinstance(default, basestring) and default in choices:
+            ctrl.Select(choices.index(default))
+        elif isinstance(default, int):
+            ctrl.Select(default)
+        return ctrl, parent
+
+
+    def _addCheck(self, label, default=False, tooltip=None, parent=None):
+        """ Add a checkbox widget. 
+        
+            @param label: The checkbox's text
+            @keyword default: `True` to check, `False` if unchecked.
+            @keyword tooltip: A pop-up help string.
+            @keyword parent: The list's parent, if not the window's main pane.
+            @return: A tuple with (control, parent)
+        """
+        if parent is None:
+            parent = self.GetContentsPane()
+        ctrl = wx.CheckBox(parent, -1, label)
+        ctrl.SetValue(default)
+        if isinstance(tooltip, basestring):
+            ctrl.SetToolTipString(tooltip)
+        return ctrl, parent
+    
     
     def getSelectedChannels(self, _item=None, _selected=None):
         """ Get all selected (sub-)channels. Recursive. Don't call with
@@ -267,6 +313,26 @@ class ExportDialog(sc.SizedDialog):
             # All (presumably)
             return self.range
         
+    
+    def getSettings(self):
+        """
+        """
+        channels = self.getSelectedChannels()
+        if len(channels) == 0:
+            return None
+        
+        timeRange = self.getExportRange()
+        if timeRange[0] >= timeRange[1]:
+            return None
+        
+        source = channels[0].parent.getSession(self.root.session.sessionId)
+        indexRange = source.getRangeIndices(*timeRange)
+
+        return {'range': timeRange,
+                'indexRange': indexRange,
+                'channels': channels,
+                'numRows': indexRange[1]-indexRange[0]}
+    
 
     def showColumnsMsg(self, num=0, msg=None):
         """ Display a message below the tree view, meant to show the number
@@ -398,6 +464,58 @@ class ExportDialog(sc.SizedDialog):
             
         self.updateMessages(treeItem=treeItem)
 
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    @classmethod
+    def getExport(cls, *args, **kwargs):
+        """ Display the export settings dialog and return the results. Standard
+            warnings and error messages will be displayed (no data, etc).
+            
+            @keyword root: The root viewer window.
+            @keyword title: The dialog's title, overrides the dialog's default.
+            @keyword parent: The dialog's parent. Defaults to `root` if `root`
+                is applicable.
+            @keyword warnSlow: If `True`, warn the user if an import is 
+                underway (it will make export slow).
+            @keyword sortChannels: If `True`, sort channels by name.
+            @return: A dictionary of settings or `None`
+        """
+        title = kwargs.get('title', cls.defaultTitle)
+        root = kwargs['root']
+        parent = root if isinstance(root, wx.Window) else None
+        warnSlow = kwargs.pop('warnSlow', True)
+        sortChannels = kwargs.pop('sortChannels', True)
+        
+        dialog = cls(parent, -1, **kwargs)
+        result = dialog.ShowModal()
+        settings = dialog.getSettings()
+        numRows = dialog.getEventCount()
+        dialog.Destroy()
+        
+        if result == wx.ID_CANCEL or settings is None:
+            return None
+
+        if numRows <= 0:
+            root.ask("The export range contained no data.", title,
+                     style=wx.OK, icon=wx.ICON_ERROR)
+            return None
+
+        if warnSlow and root.dataset.loading:
+            x = root.ask("A dataset is currently being loaded. This will "
+                           "make exporting slow. Export anyway?", 
+                           title=title)
+            if x != wx.ID_OK:
+                return None
+        
+        if sortChannels:
+            settings['channels'].sort(key=lambda x: x.name)
+
+        return settings
+
+    
 #===============================================================================
 # 
 #===============================================================================
@@ -414,14 +532,21 @@ class CSVExportDialog(ExportDialog):
     def buildSpecialUI(self):
         """ Called before the buttons are added.
         """
-        pane = self.GetContentsPane()
-        self.headerCheck = wx.CheckBox(pane, -1, "Include column headers")
-        self.headerCheck.SetValue(self._addHeaders)
+        self.headerCheck, _ = self._addCheck("Include Column Headers",
+                                             default=self._addHeaders)
 
     @property
     def addHeaders(self):
         return self.headerCheck.GetValue()
 
+
+    def getSettings(self):
+        result = super(CSVExportDialog, self).getSettings()
+        if result is None:
+            return None
+        
+        result['addHeaders'] = self.addHeaders
+        return result
 
 #===============================================================================
 # 
@@ -466,24 +591,14 @@ class FFTExportDialog(ExportDialog):
     def buildSpecialUI(self):
         """ Called before the OK/Cancel buttons are added.
         """
-        subpane = sc.SizedPanel(self.GetContentsPane(),-1)
-        subpane.SetSizerType("form")
-        subpane.SetSizerProps(expand=True)
         
-        wx.StaticText(subpane, -1, "Sampling Window Size:"
-                      ).SetSizerProps(valign="center")
-        self.sizeList = wx.Choice(subpane, -1, choices=self.windowsizes)
-        self.sizeList.SetToolTipString("The size of the 'window' used in "
-                                       "Welch's method")
-        self.sizeList.SetSizerProps(expand=True)
-        self.sizeList.Select(self.sizeList.FindString(self._windowSize))
+        self.sizeList, _subpane = self._addChoice("Sampling Window Size:",
+            choices=self.windowsizes, default=self._windowSize, 
+            tooltip="The size of the 'window' used in Welch's method")
         
-#         wx.StaticText(subpane, -1, "Sampling order:"
-#                       ).SetSizerProps(valign="center")
-#         self.orderList = wx.Choice(subpane, -1, choices=self.SAMPLE_ORDER)
-#         self.orderList.SetSizerProps(expand=True)
-#         self.orderList.Select(self._samplingOrder)
-        
+#         self.orderList, _ = self._addChoice("Sampling Order:",
+#             choices=self.SAMPLE_ORDER, default=self._samplingOrder,
+#             parent = subpane)        
 
     def showColumnsMsg(self, num=0, msg=None):
         """ Display a message below the tree view, meant to show the number
@@ -540,9 +655,42 @@ class FFTExportDialog(ExportDialog):
     def samplingOrder(self):
         return self.orderList.GetSelection()
 
+
+    def getSettings(self):
+        result = super(FFTExportDialog, self).getSettings()
+        if result is None:
+            return None
+        
+        result['windowSize'] = self.windowSize
+#         result['samplingOrder'] = self.samplingOrder
+        return result
+
 #===============================================================================
 # 
 #===============================================================================
+
+class SpectrogramExportDialog(ExportDialog):
+    """
+    """
+    
+    def buildSpecialUI(self):
+        """ Called before the OK/Cancel buttons are added.
+        """
+        self.resList, _parent = self._addChoice("Resolution:", choices=[],
+                tooltip="The granularity of the horizontal axis")
+        
+    def getSettings(self):
+        result = super(SpectrogramExportDialog, self).getSettings()
+        if result is None:
+            return None
+        result['resolution'] = self.resList.GetSelection()
+        return result
+
+
+#===============================================================================
+# 
+#===============================================================================
+
 
 # XXX: FOR DEVELOPMENT TESTING. REMOVE ME!
 if __name__ == '__main__':# or True:
@@ -550,7 +698,8 @@ if __name__ == '__main__':# or True:
     
 #     DIALOG_TO_SHOW = ExportDialog
 #     DIALOG_TO_SHOW = CSVExportDialog
-    DIALOG_TO_SHOW = FFTExportDialog
+#     DIALOG_TO_SHOW = FFTExportDialog
+    DIALOG_TO_SHOW = SpectrogramExportDialog
     
     from pprint import pprint
     from mide_ebml import importer
@@ -572,17 +721,10 @@ if __name__ == '__main__':# or True:
     results = {}
     app = wx.App()
     title = "Testing %s" % DIALOG_TO_SHOW.__name__
-    dlg = DIALOG_TO_SHOW(None, -1, title, root=FakeViewer())
-    result = dlg.ShowModal()
-    results['selectedChannels'] = dlg.getSelectedChannels()
-    results['exportRange'] = dlg.getExportRange()
-    if DIALOG_TO_SHOW == CSVExportDialog:
-        results['selectedChannels'] = dlg.getSelectedChannels()
-        results['exportRange'] = dlg.getExportRange()
-        results['addHeaders'] = dlg.addHeaders
-    elif DIALOG_TO_SHOW == FFTExportDialog:
-        results['windowSize'] = dlg.windowSize
-#         results['samplingOrder'] = dlg.samplingOrder
-    dlg.Destroy()
+#     dlg = DIALOG_TO_SHOW(None, -1, title, root=FakeViewer())
+#     dlg.ShowModal()
+#     results = dlg.getSettings()
+    results = DIALOG_TO_SHOW.getExport(root=FakeViewer(), title=title)
+
     pprint(results)
     app.MainLoop()
