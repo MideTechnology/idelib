@@ -23,7 +23,7 @@ __url__ = ("http://mide.com", "")
 __credits__=["David R. Stokes", "Tim Gipson"]
 
 # XXX: REMOVE THIS BEFORE RELEASE!
-from dev_build_number import BUILD_NUMBER
+from dev_build_number import BUILD_NUMBER, BUILD_TIME
 __version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
 
 from datetime import datetime
@@ -68,7 +68,7 @@ RESAMPLING_JITTER = 0.125
 
 # XXX: Debugging. Remove later!
 from mide_ebml.dataset import __DEBUG__
-import time
+
 #===============================================================================
 # 
 #===============================================================================
@@ -279,7 +279,7 @@ class Timeline(ViewerPanel):
     #===========================================================================
     
     def getValueAt(self, hpos):
-        """
+        """ Retrieve the value at a given horizontal pixel position.
         """
         return (hpos * self.unitsPerPixel) + self.currentTime
         
@@ -373,7 +373,7 @@ class Timeline(ViewerPanel):
     #===========================================================================
     
     def OnTimebarClick(self, evt):
-        # Capture the click position for processing drags
+        # Capture the click position for processing drags in OnMouseMotion
         self.barClickPos = evt.GetX()
         evt.Skip()
 
@@ -392,6 +392,7 @@ class Timeline(ViewerPanel):
         if self.scrolling:
             return
         if self.barClickPos is not None and evt.LeftIsDown():
+            # The timeline is being dragged
             self.timebar.SetBackgroundColour(self.highlightColor)
             newPos = evt.GetX()
             moved = self.barClickPos - newPos
@@ -449,16 +450,12 @@ class TimeNavigator(ViewerPanel):
         self.timeline = TimeNavigatorCtrl(self,-1)
         sizer.Add(self.timeline, -1, wx.EXPAND)
         
-        self.zoomOutButton = self._addButton(sizer, images.zoomOutH,
-                                             self.OnZoomOut, 
-                                             tooltip="Zoom Out (X axis)")
-        self.zoomInButton = self._addButton(sizer, images.zoomInH,
-                                            self.OnZoomIn, 
-                                            tooltip="Zoom In (X axis)")
-        self.zoomFitButton = self._addButton(sizer, images.zoomFitH,
-                                             self.OnZoomFit, 
-                                             tooltip="Zoom to fit entire "
-                                             "loaded time range (X axis)")
+        self._addButton(sizer, images.zoomOutH, self.OnZoomOut, 
+                        tooltip="Zoom Out (X axis)")
+        self._addButton(sizer, images.zoomInH, self.OnZoomIn, 
+                        tooltip="Zoom In (X axis)")
+        self._addButton(sizer, images.zoomFitH, self.OnZoomFit, 
+                        tooltip="Zoom to fit entire loaded time range (X axis)")
         
         self.SetSizer(sizer)
         
@@ -873,20 +870,25 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         p2 = p1 + self.GetSize()[0]
 
         result = (int(self.root.timeline.getValueAt(p1)),
-                int(self.root.timeline.getValueAt(p2)))
+                  int(self.root.timeline.getValueAt(p2)))
         
         return result
 
 
     def OnPaint(self, evt):
+        """ Event handler for redrawing the plot. Catches common exceptions.
+        """
         try:
             self._OnPaint(evt)
         except IOError as err:
+            msg = "An error occurred while trying to read the recording file."
+            self.root.handleException(err, msg, closeFile=True)
+        except Exception:
             self.root.handleException(err, what="plotting data")
         
 
     def _OnPaint(self, evt):
-        """ Event handler to redraw the plot.
+        """ Redraws the plot. Called by `PlotCanvas.OnPaint()`.
         
             @todo: Apply offset and scaling transforms to the DC itself, 
                 eliminating all the per-point math.
@@ -1415,6 +1417,9 @@ class PlotSet(aui.AuiNotebook):
             # Dataset had no data for channel and/or subchannel.
             # Should not normally occur, but not fatal.
             warnings = []
+        except Exception as err:
+            self.handleException(err, 
+                                 what="creating a plot view warning indicator")
 
         title = source.name or title
         title = "Plot %s" % len(self) if title is None else title
@@ -1697,8 +1702,7 @@ class Viewer(wx.Frame, MenuMixin):
 
         if filename:
             self.openFile(filename)
-        else:
-            # TODO: Remove this later? Viewer is also used to configure devices.
+        elif self.app.getPref('openOnStart', True):
             self.OnFileOpenMenu(None)
 
 
@@ -2061,7 +2065,8 @@ class Viewer(wx.Frame, MenuMixin):
         # More specific exceptions should be caught here, before ultimately:
         except Exception as err:
             # Catch-all for unanticipated errors
-            self.handleException(err, what="importing the file %s" % filename)
+            self.handleException(err, what="importing the file %s" % filename,
+                                 closeFile=True)
             return
         
         self.dataset = newDoc
@@ -2125,7 +2130,7 @@ class Viewer(wx.Frame, MenuMixin):
         try:
             stream = open(filename, 'w')
         except Exception as err:
-            self.handleException(err)
+            self.handleException(err, what="exporting CSV")
             return
         
         self.drawingSuspended = True
@@ -2208,7 +2213,9 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
 
     def getPlotColor(self, source):
-        """ Get the plotting color for a data source. 
+        """ Get the plotting color for a data source. The color is retrieved
+            from the preferences. Channel/subchannel combinations not known are
+            assigned one of the standard default colors.
         
             @param source: The source, either `mide_ebml.dataset.Channel`,
                 `mide_ebml.dataset.SubChannel`, or `mide_ebml.dataset.EventList`
@@ -2320,12 +2327,15 @@ class Viewer(wx.Frame, MenuMixin):
         # Goofy trick to reformat the __doc__ for the dialog:
         desc = dedent(__doc__[:__doc__.index("###")])
         desc = desc.replace('\n\n','\0').replace('\n',' ').replace('\0','\n\n')
+        desc = wordwrap(desc, 350, wx.ClientDC(self))
+        vers = "Version %s (build %d), %s" % (__version__, BUILD_NUMBER, 
+                                    datetime.fromtimestamp(BUILD_TIME).date())
         
         info = wx.AboutDialogInfo()
         info.Name = APPNAME
         info.Version = __version__
         info.Copyright = __copyright__
-        info.Description = wordwrap(desc, 350, wx.ClientDC(self))
+        info.Description = "%s\n%s" % (desc, vers)
         info.WebSite = __url__
 #         info.Developers = __credits__
 #         info.License = wordwrap(__license__, 500, wx.ClientDC(self))
@@ -2520,10 +2530,10 @@ class Viewer(wx.Frame, MenuMixin):
         if not isinstance(msg, basestring):
             # Slightly more specific error messages go here.
             if isinstance(err, MemoryError):
-                msg = "The system ran out of memory%s"
+                msg = "The system ran out of memory%s" % what
             else:
-                msg = u"An unexpected %s occurred%%s:\n\n%s" % \
-                        (err.__class__.__name__, unicode(err))
+                msg = u"An unexpected %s occurred%s:\n\n%s" % \
+                        (err.__class__.__name__, what, unicode(err))
 
         # If exceptions are explicitly raised, raise it.
         if raiseException and isinstance(err, Exception):
@@ -2532,7 +2542,7 @@ class Viewer(wx.Frame, MenuMixin):
         if fatal:
             msg += "\n\nThe application will now shut down."
 
-        dlg = wx.MessageDialog(self, msg % what, APPNAME, wx.OK | icon)
+        dlg = wx.MessageDialog(self, msg, APPNAME, wx.OK | icon)
         dlg.ShowModal()
         ctrlPressed = wx.GetKeyState(wx.WXK_CONTROL)
         dlg.Destroy()
@@ -2545,7 +2555,7 @@ class Viewer(wx.Frame, MenuMixin):
         # The error occurred someplace critical; self-destruct!
         if fatal:
             self.Destroy()
-            
+        
         if closeFile:
             self.closeFile()
  
@@ -2615,6 +2625,7 @@ class ViewerApp(wx.App):
 #         'locale': 'English_United States.1252', # Python's locale name string
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'warnBeforeQuit': False, #True,
+        'openOnStart': True,
         'showDebugChannels': __DEBUG__,
         'showFullPath': False,
 
@@ -2780,10 +2791,7 @@ class ViewerApp(wx.App):
 #===============================================================================
 
 # XXX: Change this back for 'real' version
-if __name__ == '__main__' or True:
-#     print "__file__:",__file__
-#     print "curdir:", os.path.curdir, os.path.realpath(os.path.curdir)
-#     print "cwd:", os.getcwd()
+if __name__ == '__main__':# or True:
     import argparse
     desc = "%s v%s \n%s" % (APPNAME, __version__, __copyright__)
     parser = argparse.ArgumentParser(description=desc)

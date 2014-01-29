@@ -6,14 +6,16 @@ HOME_DIR = os.getcwd()
 
 # This is a kludgey auto-incrementing build number. Remove later!
 try:
-	import sys
+	import socket, sys, time
 	sys.path.append(HOME_DIR)
 	from dev_build_number import BUILD_NUMBER
 	BUILD_NUMBER += 1
 	logging.logger.info("*** Build number %d" % BUILD_NUMBER)
 	with open('dev_build_number.py', 'wb') as f:
-		f.write('# DO NOT CHANGE THE FOLLOWING LINE MANUALLY!\n')
+		f.write('# AUTOMDO NOT CHANGE THIS FILE MANUALLY!\n')
 		f.write('BUILD_NUMBER = %d\n' % BUILD_NUMBER)
+		f.write('BUILD_TIME = %d\n' % time.time())
+		f.write('BUILD_MACHINE = %r\n' % socket.gethostname())
 except Exception:
 	logging.logger.warning("*** Couldn't read and/or change build number!")
 
