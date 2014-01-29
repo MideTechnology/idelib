@@ -34,6 +34,8 @@ class LegendArea(ViewerPanel):
         kwargs.setdefault('style',wx.NO_BORDER)
         super(LegendArea, self).__init__(*args, **kwargs)
         
+        self.highlightColor = wx.Colour(255,255,255)
+
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         subsizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(subsizer)
@@ -72,9 +74,13 @@ class LegendArea(ViewerPanel):
         self.SetBackgroundColour(self.root.uiBgColor)
 
         self.barClickPos = None
+        self.originalRange = self.visibleRange[:]
 
         self.scale.Bind(wx.EVT_SIZE, self.OnResize)
         self.scale.Bind(wx.EVT_MOTION, self.OnMouseMotion)
+        self.scale.Bind(wx.EVT_LEFT_DOWN, self.OnScaleClick)
+        self.scale.Bind(wx.EVT_LEFT_UP, self.OnScaleRelease)
+        self.scale.Bind(wx.EVT_LEAVE_WINDOW, self.OnMouseExit)
 
     #===========================================================================
     # 
@@ -146,17 +152,33 @@ class LegendArea(ViewerPanel):
         bRect = self.zoomFitButton.GetRect()
         self.unitLabel.SetPosition((-1,max(evt.Size[1]/2,bRect[1]+bRect[3])))
         evt.Skip()
-    
+
+
     def OnMouseMotion(self, evt):
-        self.root.showMouseVPos(self.getValueAt(evt.GetY()), 
-                                units=self.Parent.yUnits[1])
+        if self.barClickPos is not None and evt.LeftIsDown():
+            # The scale bar is being dragged
+            self.scale.SetBackgroundColour(self.highlightColor)
+            newPos = evt.GetY()
+            moved = self.barClickPos - newPos
+            start = self.visibleRange[0] - moved * self.unitsPerPixel
+            end = self.visibleRange[1] - moved * self.unitsPerPixel
+            if start >= self.Parent.range[0] and end <= self.Parent.range[1]:
+                self.Parent.setValueRange(start, end, None, tracking=True)
+            self.barClickPos = newPos
+        else:
+            self.barClickPos = None
+            self.root.showMouseVPos(self.getValueAt(evt.GetY()), 
+                                    units=self.Parent.yUnits[1])
         evt.Skip()
+    
     
     def OnZoomIn(self, evt):
         self.zoom(.25)
     
+    
     def OnZoomOut(self, evt):
         self.zoom(-.25)
+
 
     def OnZoomFit(self, evt):
         self.Parent.zoomToFit()
@@ -165,18 +187,24 @@ class LegendArea(ViewerPanel):
     def OnScaleClick(self, evt):
         # Capture the click position for processing drags
         self.barClickPos = evt.GetY()
+        self.originalRange = self.visibleRange[:]
         evt.Skip()
 
 
     def OnScaleRelease(self, evt):
         if self.barClickPos is not None:
-            self.postSetVisibleRangeEvent(self.currentTime, 
-                                          self.currentTime + self.displayLength)
             self.barClickPos = None
             self.scale.SetBackgroundColour(self.root.uiBgColor)
+            self.Parent.setVisibleRange(instigator=self, tracking=False)
         evt.Skip()
 
 
+    def OnMouseExit(self, evt):
+        if self.barClickPos is not None:
+            self.barClickPos = None
+            self.scale.SetBackgroundColour(self.root.uiBgColor)
+            self.setValueRange(*self.originalRange, instigator=None, tracking=False)
+        evt.Skip()
 
 #===============================================================================
 # 

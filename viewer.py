@@ -17,7 +17,6 @@ in the About Box.
 
 APPNAME = u"Slam Stick X Data Viewer"
 __version__="0.1"
-__date__="Oct 21, 2013"
 __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 __url__ = ("http://mide.com", "")
 __credits__=["David R. Stokes", "Tim Gipson"]
@@ -27,7 +26,6 @@ from dev_build_number import BUILD_NUMBER, BUILD_TIME
 __version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
 
 from datetime import datetime
-# import errno
 import fnmatch
 import json
 import os
@@ -41,19 +39,19 @@ import wx; wx = wx # Workaround for Eclipse code comprehension
 # Graphics (icons, etc.)
 import images
 
-# Custom controls
+# Custom controls, events and base classes
 from base import ViewerPanel, MenuMixin
 from common import StatusBar
-import config_dialog
 from events import *
-from export_dialog import ModalExportProgress, CSVExportDialog, FFTExportDialog
-from device_dialog import selectDevice
 from timeline import TimelineCtrl, TimeNavigatorCtrl
 
+# Views, dialogs and such
+import config_dialog
+from device_dialog import selectDevice
+from export_dialog import ModalExportProgress, CSVExportDialog, FFTExportDialog
+from fft import FFTView
 from loader import Loader
 from plots import PlotSet
-
-import fft
 
 # Special helper objects and functions
 import devices
@@ -68,10 +66,6 @@ RESAMPLING_JITTER = 0.125
 
 # XXX: Debugging. Remove later!
 from mide_ebml.dataset import __DEBUG__
-
-#===============================================================================
-# 
-#===============================================================================
 
 #===============================================================================
 # 
@@ -1126,10 +1120,10 @@ class Viewer(wx.Frame, MenuMixin):
         viewId = wx.NewId()
         
         try:
-            view = fft.FFTView(self, viewId, title=title, size=self.GetSize(), 
-                               root=self, sources=subchannels, 
-                               start=startTime, end=stopTime,
-                               sliceSize=sliceSize)
+            view = FFTView(self, viewId, title=title, size=self.GetSize(), 
+                           root=self, sources=subchannels, 
+                           start=startTime, end=stopTime,
+                           sliceSize=sliceSize)
             self.fftViews[viewId] = view
         except Exception as e:
             self.handleException(e, what="generating FFT")

@@ -1,8 +1,7 @@
 '''
-Created on Jan 29, 2014
-
-@author: dstokes
+The MIDE EBML recording file importer. 
 '''
+
 from datetime import datetime
 import locale
 from threading import Thread
