@@ -48,7 +48,7 @@ from timeline import TimelineCtrl, TimeNavigatorCtrl
 # Views, dialogs and such
 import config_dialog
 from device_dialog import selectDevice
-from export_dialog import ModalExportProgress, CSVExportDialog, FFTExportDialog
+import export_dialog as xd
 from fft import FFTView
 from loader import Loader
 from plots import PlotSet
@@ -775,6 +775,10 @@ class Viewer(wx.Frame, MenuMixin):
             c.Enable(enabled)
 
 
+    #===========================================================================
+    # 
+    #===========================================================================
+
     def ask(self, message, title="Confirm", 
               style=wx.YES_NO | wx.NO_DEFAULT, icon=wx.ICON_QUESTION,
               parent=None):
@@ -787,6 +791,28 @@ class Viewer(wx.Frame, MenuMixin):
         dlg.Destroy()
         return result
 
+
+
+    def getSaveFile(self, message, defaults=None, types=None, 
+                    style=wx.SAVE|wx.OVERWRITE_PROMPT):
+        """ Wrapper for showing getting the name of an output file.
+        """
+        defaults = self.getDefaultExport() if defaults is None else defaults
+        types = self.app.getPref('exportTypes') if types is None else types
+        
+        defaultDir, defaultFile = defaults
+        filename = None
+        
+        dlg = wx.FileDialog(self, message=message, 
+                            defaultDir=defaultDir,  defaultFile=defaultFile, 
+                            wildcard='|'.join(types), 
+                            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            filename = dlg.GetPath()
+        dlg.Destroy()
+        
+        return filename
 
     #===========================================================================
     # 
@@ -1015,9 +1041,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.dataset = None
         self.enableChildren(False)
         self.enableMenus(False)
-        
-    
-        
+
         
     def exportCsv(self, evt=None):
         """ Export the active plot view's data as CSV. after getting input from
@@ -1026,36 +1050,17 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword evt: An event (not actually used), making this method
                 compatible with event handlers.
         """
-        dlg = CSVExportDialog(self, -1, "Export CSV", root=self)
-        result = dlg.ShowModal()
-        subchannels = dlg.getSelectedChannels()
-        startTime, stopTime = dlg.getExportRange()
-        dlg.Destroy()
-        if result == wx.ID_CANCEL or len(subchannels) == 0:
+        settings = xd.CSVExportDialog.getExport(root=self)
+        
+        if settings is None:
             return
-
-        if self.dataset.loading:
-            x = self.ask("A dataset is currently being loaded. This will make "
-                         "exporting slow. Export anyway?")
-            if x != wx.ID_OK:
-                return
         
+        source = settings['source']
+        subchannels = settings['channels']
         subchannelIds = [c.id for c in subchannels]
-        source = subchannels[0].parent.getSession(self.session.sessionId)
-        start, stop = source.getRangeIndices(startTime, stopTime)
+        start, stop = settings['indexRange']
         
-        defaultDir, defaultFile = self.getDefaultExport()
-        filename = None
-        dlg = wx.FileDialog(self, 
-            message="Export CSV...", 
-            defaultDir=defaultDir,  defaultFile=defaultFile, 
-            wildcard='|'.join(self.app.getPref('exportTypes')), 
-            style=wx.SAVE|wx.OVERWRITE_PROMPT)
-        
-        if dlg.ShowModal() == wx.ID_OK:
-            filename = dlg.GetPath()
-        dlg.Destroy()
-        
+        filename = self.getSaveFile("Export CSV...")
         if filename is None:
             return
 
@@ -1068,13 +1073,14 @@ class Viewer(wx.Frame, MenuMixin):
         self.drawingSuspended = True
         numRows = stop-start
         msg = "Exporting %d rows" % numRows
-        dlg = ModalExportProgress("Exporting CSV", msg, maximum=numRows, 
-                                  parent=self)
+        dlg = xd.ModalExportProgress("Exporting CSV", msg, maximum=numRows, 
+                                     parent=self)
+        
         source.exportCsv(stream, start=start, stop=stop, 
-                         subchannels=subchannelIds,
-                         timeScalar=self.timeScalar,
+                         subchannels=subchannelIds, timeScalar=self.timeScalar, 
                          callback=dlg, callbackInterval=0.0005, 
                          raiseExceptions=True)
+        
         dlg.Destroy()
         stream.close()
         self.drawingSuspended = False
@@ -1087,34 +1093,14 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword evt: An event (not actually used), making this method
                 compatible with event handlers.
         """
-        dlg = FFTExportDialog(self, -1, root=self)
-        result = dlg.ShowModal()
-        subchannels = dlg.getSelectedChannels()
-        startTime, stopTime = dlg.getExportRange()
-        sliceSize = dlg.windowSize
-        dlg.Destroy()
-        
-        if result == wx.ID_CANCEL:
-            return
-        elif len(subchannels) == 0 or (startTime >= stopTime):
+        settings = xd.FFTExportDialog.getExport(root=self)
+        if settings is None:
             return
         
-        subchannels.sort(key=lambda x: x.name)
-#         subchannelIds = [c.id for c in subchannels]
-        source = subchannels[0].parent.getSession(self.session.sessionId)
-        start, stop = source.getRangeIndices(startTime, stopTime)
-        numRows = stop-start
-        if numRows < 1:
-            self.ask("Selected range contained no data!", "Render FFT",
-                     style=wx.OK, icon=wx.ICON_ERROR)
-            return
-            
-        if self.dataset.loading:
-            x = self.ask("A dataset is currently being loaded. This will make "
-                         "FFT generation slow. Proceed anyway?")
-            if x != wx.ID_OK:
-                return
-            
+        subchannels = settings['channels']
+        startTime, stopTime = settings['timeRange']
+        sliceSize = settings['windowSize']
+        
         places = self.app.getPref("precisionX", 4)
         timeFormat = "%%.%df" % places
         title = "FFT: %s (%ss to %ss)" % (
@@ -1134,10 +1120,15 @@ class Viewer(wx.Frame, MenuMixin):
         
 
 
+
     def renderSpectrogram(self, evt=None):
-        """
+        """ Create a 2D FFT/Time plot.
+            
+            @keyword evt: An event (not actually used), making this method
+                compatible with event handlers.
         """
         # XXX: IMPLEMENT renderSpectrogram!
+        settings = xd.SpectrogramExportDialog.getExport(root=self)
         self.ask("Render Spectrogram not yet implemented!", "TODO:", wx.OK, wx.ICON_INFORMATION)
         
     #===========================================================================

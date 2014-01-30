@@ -49,14 +49,20 @@ class ExportDialog(sc.SizedDialog):
     """ The dialog for selecting data to export. This is in a moderately
         generic form; it can be used as-is, or export types with more specific 
         requirements can subclass it.
+        
+        @cvar DEFAULT_TITLE: The dialog's default title.
+        @cvar DEFAULT_UNITS: 
+        @cvar WHAT: The 'verb' associated with the data, e.g. 'rendering',
+            for use in warning dialogs.
     """
     
     RB_RANGE_ALL = wx.NewId()
     RB_RANGE_VIS = wx.NewId()
     RB_RANGE_CUSTOM = wx.NewId()
     
-    defaultTitle = "Export..."
-    defaultUnits = ("seconds", "s")
+    DEFAULT_TITLE = "Export..."
+    DEFAULT_UNITS = ("seconds", "s")
+    WHAT = "exporting"
     
     def __init__(self, *args, **kwargs):
         """
@@ -70,8 +76,8 @@ class ExportDialog(sc.SizedDialog):
 
         self.root = kwargs.pop('root', None)
         kwargs.setdefault('style', style)
-        kwargs.setdefault('title', self.defaultTitle)
-        self.units = kwargs.pop("units", self.defaultUnits)
+        kwargs.setdefault('title', self.DEFAULT_TITLE)
+        self.units = kwargs.pop("units", self.DEFAULT_UNITS)
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
 
         super(ExportDialog, self).__init__(*args, **kwargs)
@@ -322,16 +328,14 @@ class ExportDialog(sc.SizedDialog):
             return None
         
         timeRange = self.getExportRange()
-        if timeRange[0] >= timeRange[1]:
-            return None
-        
         source = channels[0].parent.getSession(self.root.session.sessionId)
         indexRange = source.getRangeIndices(*timeRange)
 
-        return {'range': timeRange,
+        return {'timeRange': timeRange,
                 'indexRange': indexRange,
                 'channels': channels,
-                'numRows': indexRange[1]-indexRange[0]}
+                'numRows': indexRange[1]-indexRange[0],
+                'source': source}
     
 
     def showColumnsMsg(self, num=0, msg=None):
@@ -347,15 +351,14 @@ class ExportDialog(sc.SizedDialog):
 
 
     def showRangeMsg(self, num=0, msg=None):
-        """
+        """ Display a message about the selected time range (i.e. the number
+            of samples it contains).
         """
         if msg is None:
-            if num > 0:
-                countStr = locale.format("%d", num, grouping=True)
-                msg = "Selected time range contains %s samples" % countStr
-            else:
-                msg = "Selected time range contains %d samples" %\
-                    self.getEventCount()
+            if num == 0:
+                num = self.getEventCount()
+            countStr = locale.format("%d", num, grouping=True)
+            msg = "Selected time range contains %s samples" % countStr
         self.rangeMsg.SetLabel(msg)
 
 
@@ -483,7 +486,7 @@ class ExportDialog(sc.SizedDialog):
             @keyword sortChannels: If `True`, sort channels by name.
             @return: A dictionary of settings or `None`
         """
-        title = kwargs.get('title', cls.defaultTitle)
+        title = kwargs.get('title', cls.DEFAULT_TITLE)
         root = kwargs['root']
         parent = root if isinstance(root, wx.Window) else None
         warnSlow = kwargs.pop('warnSlow', True)
@@ -505,7 +508,7 @@ class ExportDialog(sc.SizedDialog):
 
         if warnSlow and root.dataset.loading:
             x = root.ask("A dataset is currently being loaded. This will "
-                           "make exporting slow. Export anyway?", 
+                           "make %s slow. Export anyway?" % cls.WHAT, 
                            title=title)
             if x != wx.ID_OK:
                 return None
@@ -525,9 +528,12 @@ class CSVExportDialog(ExportDialog):
         applicable only to CSV.
     """
     
+    DEFAULT_TITLE= "Export CSV"
+    
     def __init__(self, *args, **kwargs):
         self._addHeaders = kwargs.pop('addHeaders', True)
         super(CSVExportDialog, self).__init__(*args, **kwargs)
+
 
     def buildSpecialUI(self):
         """ Called before the buttons are added.
@@ -535,17 +541,13 @@ class CSVExportDialog(ExportDialog):
         self.headerCheck, _ = self._addCheck("Include Column Headers",
                                              default=self._addHeaders)
 
-    @property
-    def addHeaders(self):
-        return self.headerCheck.GetValue()
-
 
     def getSettings(self):
         result = super(CSVExportDialog, self).getSettings()
         if result is None:
             return None
         
-        result['addHeaders'] = self.addHeaders
+        result['addHeaders'] = self.headerCheck.GetValue()
         return result
 
 #===============================================================================
@@ -568,6 +570,8 @@ class FFTExportDialog(ExportDialog):
     manyEvents = 750000
     maxEvents = 1000000
     
+    DEFAULT_TITLE = "Render FFT"
+    WHAT = "rendering"
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the same arguments as any other dialog, plus
@@ -647,22 +651,13 @@ class FFTExportDialog(ExportDialog):
         return self.manyEvents, self.maxEvents
 
 
-    @property
-    def windowSize(self):
-        return int(self.sizeList.GetString(self.sizeList.GetSelection()))
-    
-    @property
-    def samplingOrder(self):
-        return self.orderList.GetSelection()
-
-
     def getSettings(self):
         result = super(FFTExportDialog, self).getSettings()
         if result is None:
             return None
         
-        result['windowSize'] = self.windowSize
-#         result['samplingOrder'] = self.samplingOrder
+        result['windowSize'] = int(self.sizeList.GetString(self.sizeList.GetSelection()))
+#         result['samplingOrder'] = self.orderList.GetSelection()
         return result
 
 #===============================================================================
@@ -673,12 +668,16 @@ class SpectrogramExportDialog(ExportDialog):
     """
     """
     
+    DEFAULT_TITLE = "Render Spectrogram"
+    WHAT = "rendering"
+    
     def buildSpecialUI(self):
         """ Called before the OK/Cancel buttons are added.
         """
         self.resList, _parent = self._addChoice("Resolution:", choices=[],
                 tooltip="The granularity of the horizontal axis")
-        
+
+
     def getSettings(self):
         result = super(SpectrogramExportDialog, self).getSettings()
         if result is None:
@@ -696,10 +695,12 @@ class SpectrogramExportDialog(ExportDialog):
 if __name__ == '__main__':# or True:
     locale.setlocale(locale.LC_ALL, 'English_United States.1252')
     
-#     DIALOG_TO_SHOW = ExportDialog
-#     DIALOG_TO_SHOW = CSVExportDialog
-#     DIALOG_TO_SHOW = FFTExportDialog
-    DIALOG_TO_SHOW = SpectrogramExportDialog
+    DIALOGS_TO_SHOW = (
+        ExportDialog,
+        CSVExportDialog,
+        FFTExportDialog,
+        SpectrogramExportDialog,
+    )
     
     from pprint import pprint
     from mide_ebml import importer
@@ -718,13 +719,11 @@ if __name__ == '__main__':# or True:
         def getTimeRange(self):
             return self.timerange
     
-    results = {}
     app = wx.App()
-    title = "Testing %s" % DIALOG_TO_SHOW.__name__
-#     dlg = DIALOG_TO_SHOW(None, -1, title, root=FakeViewer())
-#     dlg.ShowModal()
-#     results = dlg.getSettings()
-    results = DIALOG_TO_SHOW.getExport(root=FakeViewer(), title=title)
+    for dialogClass in DIALOGS_TO_SHOW:
+        title = "Testing %s" % dialogClass.__name__
+        results = dialogClass.getExport(root=FakeViewer())#, title=title)
 
-    pprint(results)
+        print ("*"*5), title, ("*"*5)
+        pprint(results)
     app.MainLoop()
