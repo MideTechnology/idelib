@@ -321,10 +321,24 @@ class ExportDialog(sc.SizedDialog):
         
     
     def getSettings(self):
-        """
+        """ Retrieve the settings specified in the dialog as a dictionary. The
+            dictionary contains the following keys:
+            
+                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * indexRange: The first and last event index in the specified
+                    interval of time.
+                * numRows: The number of samples in the given channel in the
+                    specified interval.
+                * source: The `mide_ebml.dataset.EventList` for the parent
+                    channel in the current session.
+                * timeRange: The specified interval's start and end times.
+
+            @return: A dictionary of settings or `None` if there's a problem
+                (e.g. no channels have been selected).
         """
         channels = self.getSelectedChannels()
         if len(channels) == 0:
+            # This should never happen, but just in case:
             return None
         
         timeRange = self.getExportRange()
@@ -543,6 +557,23 @@ class CSVExportDialog(ExportDialog):
 
 
     def getSettings(self):
+        """ Retrieve the settings specified in the dialog as a dictionary. The
+            dictionary contains the following keys:
+            
+                * addHeaders: `True` if the 'Include Column Headers' option
+                    was checked.
+                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * indexRange: The first and last event index in the specified
+                    interval of time.
+                * numRows: The number of samples in the given channel in the
+                    specified interval.
+                * source: The `mide_ebml.dataset.EventList` for the parent
+                    channel in the current session.
+                * timeRange: The specified interval's start and end times.
+
+            @return: A dictionary of settings or `None` if there's a problem
+                (e.g. no channels have been selected).
+        """
         result = super(CSVExportDialog, self).getSettings()
         if result is None:
             return None
@@ -563,8 +594,8 @@ class FFTExportDialog(ExportDialog):
     INTERLACED = 1
     SAMPLE_ORDER = ['Sequential', 'Interlaced']
 
-    windowsizes = map(str, [2**x for x in xrange(10,21)])
-    defaultWinSize = 2**16
+    WINDOW_SIZES = map(str, [2**x for x in xrange(10,21)])
+    DEFAULT_WINDOW_SIZE = 2**16
     
     # These will be removed later, once memory usage is accurately computed.
     manyEvents = 750000
@@ -586,9 +617,9 @@ class FFTExportDialog(ExportDialog):
                 Not currently implemented.
         """
         self._samplingOrder = kwargs.pop('samplingOrder', self.SEQUENTIAL)
-        self._windowSize = str(kwargs.pop('samplingOrder', ''))
-        if self._windowSize not in self.windowsizes:
-            self._windowSize = str(self.defaultWinSize)
+        self.windowSize = str(kwargs.pop('windowSize', self.DEFAULT_WINDOW_SIZE))
+        if self.windowSize not in self.WINDOW_SIZES:
+            self.windowSize = str(self.DEFAULT_WINDOW_SIZE)
         super(FFTExportDialog, self).__init__(*args, **kwargs)
 
 
@@ -597,7 +628,7 @@ class FFTExportDialog(ExportDialog):
         """
         
         self.sizeList, _subpane = self._addChoice("Sampling Window Size:",
-            choices=self.windowsizes, default=self._windowSize, 
+            choices=self.WINDOW_SIZES, default=self.windowSize, 
             tooltip="The size of the 'window' used in Welch's method")
         
 #         self.orderList, _ = self._addChoice("Sampling Order:",
@@ -652,11 +683,29 @@ class FFTExportDialog(ExportDialog):
 
 
     def getSettings(self):
+        """ Retrieve the settings specified in the dialog as a dictionary. The
+            dictionary contains the following keys:
+            
+                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * indexRange: The first and last event index in the specified
+                    interval of time.
+                * numRows: The number of samples in the given channel in the
+                    specified interval.
+                * source: The `mide_ebml.dataset.EventList` for the parent
+                    channel in the current session.
+                * timeRange: The specified interval's start and end times.
+                * windowSize: The specified window (a/k/a slice) size for use
+                    with Welch's Method.
+
+            @return: A dictionary of settings or `None` if there's a problem
+                (e.g. no channels have been selected).
+        """
         result = super(FFTExportDialog, self).getSettings()
         if result is None:
             return None
         
-        result['windowSize'] = int(self.sizeList.GetString(self.sizeList.GetSelection()))
+        windowSize = int(self.sizeList.GetString(self.sizeList.GetSelection()))
+        result['windowSize'] = windowSize
 #         result['samplingOrder'] = self.orderList.GetSelection()
         return result
 
@@ -664,25 +713,64 @@ class FFTExportDialog(ExportDialog):
 # 
 #===============================================================================
 
-class SpectrogramExportDialog(ExportDialog):
+class SpectrogramExportDialog(FFTExportDialog):
     """
     """
     
     DEFAULT_TITLE = "Render Spectrogram"
     WHAT = "rendering"
     
+    SLICES = map(str, [2**x for x in xrange(9)])
+    DEFAULT_SLICES = "4"
+    
+    def __init__(self, *args, **kwargs):
+        """
+        """
+        self.slicesPerSec = str(kwargs.pop('slices', self.DEFAULT_SLICES))
+        if self.slicesPerSec not in self.SLICES:
+            self.slicesPerSec = self.DEFAULT_SLICES
+        super(SpectrogramExportDialog, self).__init__(*args, **kwargs)
+        
+    
     def buildSpecialUI(self):
         """ Called before the OK/Cancel buttons are added.
         """
-        self.resList, _parent = self._addChoice("Resolution:", choices=[],
-                tooltip="The granularity of the horizontal axis")
+        self.sizeList, subpane = self._addChoice("Sampling Window Size:",
+            choices=self.WINDOW_SIZES, default=self.windowSize, 
+            tooltip="The size of the 'window' used in Welch's method")
+        
+        self.resList, _parent = self._addChoice("Slices per Second:", 
+            choices=self.SLICES, default=self.slicesPerSec,
+            tooltip="The granularity of the horizontal axis", 
+            parent = subpane)
 
 
     def getSettings(self):
+        """ Retrieve the settings specified in the dialog as a dictionary. The
+            dictionary contains the following keys:
+            
+                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * indexRange: The first and last event index in the specified
+                    interval of time.
+                * numRows: The number of samples in the given channel in the
+                    specified interval.
+                * slices: The number of slices per second to plot (i.e. the
+                    X resolution).
+                * source: The `mide_ebml.dataset.EventList` for the parent
+                    channel in the current session.
+                * timeRange: The specified interval's start and end times.
+                * windowSize: The specified window (a/k/a slice) size for use
+                    with Welch's Method.
+
+            @return: A dictionary of settings or `None` if there's a problem
+                (e.g. no channels have been selected).
+        """
         result = super(SpectrogramExportDialog, self).getSettings()
         if result is None:
             return None
-        result['resolution'] = self.resList.GetSelection()
+        
+        slices = int(self.resList.GetString(self.resList.GetSelection()))
+        result['slices'] = slices
         return result
 
 
@@ -696,9 +784,9 @@ if __name__ == '__main__':# or True:
     locale.setlocale(locale.LC_ALL, 'English_United States.1252')
     
     DIALOGS_TO_SHOW = (
-        ExportDialog,
-        CSVExportDialog,
-        FFTExportDialog,
+#         ExportDialog,
+#         CSVExportDialog,
+#         FFTExportDialog,
         SpectrogramExportDialog,
     )
     

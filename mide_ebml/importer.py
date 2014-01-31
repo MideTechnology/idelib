@@ -56,8 +56,9 @@ elementParserTypes = parsers.getElementHandlers()
 # testFile = r"test_full_cdb.DAT"
 # testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\test_full_cdb_huge.dat"
 # testFile = r"P:\WVR_RIF\06_Testing_Calibration\06_Thermal_Tests\02_Test_to_-20C\Slamstick_Data\VIB00015.IDE"
-testFile = "H:\\DATA\\VIB00003.IDE"
-
+# testFile = "H:\\DATA\\VIB00003.IDE"
+# testFile = "P:\\WVR_RIF\\06_Testing_Calibration\\08_Pressure_Tests\\01_Test_to_28000ft\\Slamstick_Data\\VIB00014.IDE"
+testFile= "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140127_SNAKE_Prototype_Test\\20140127_y_sweep.IDE"
 
 # from parsers import AccelerometerParser
 

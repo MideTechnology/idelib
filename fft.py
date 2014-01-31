@@ -10,6 +10,7 @@ Created on Dec 18, 2013
 from collections import Iterable
 import csv
 from itertools import izip
+import sys
 
 import numpy as np
 from numpy.core import hstack
@@ -144,62 +145,6 @@ class FFTView(wx.Frame, MenuMixin):
         self.SetMenuBar(self.menubar)
     
     
-    def OnExportCsv(self, evt):
-        filename = None
-        dlg = wx.FileDialog(self, 
-            message="Export CSV...", 
-#             defaultDir=defaultDir,  defaultFile=defaultFile, 
-            wildcard='|'.join(self.root.app.getPref('exportTypes')), 
-            style=wx.SAVE|wx.OVERWRITE_PROMPT)
-        
-        if dlg.ShowModal() == wx.ID_OK:
-            filename = dlg.GetPath()
-        dlg.Destroy()
-        
-        if filename is None:
-            return False
-        
-        try:
-            out = open(filename, "wb")
-            writer = csv.writer(out)
-            writer.writerows(self.data)
-            out.close()
-            return True
-        except Exception as err:
-            what = "exporting %s as CSV" % self.NAME
-            self.root.handleException(err, what=what)
-            return False
-        
-    
-    def OnExportImage(self, event):
-        filename = None
-        dlg = wx.FileDialog(self, 
-            message="Export Image...", 
-            wildcard=self.IMAGE_FORMATS, 
-            style=wx.SAVE|wx.OVERWRITE_PROMPT)
-        
-        if dlg.ShowModal() == wx.ID_OK:
-            filename = dlg.GetPath()
-        dlg.Destroy()
-        
-        if filename is None:
-            return False
-        
-        try:
-            return self.canvas.SaveFile(filename)
-        except Exception as err:
-            what = "exporting %s as an image" % self.NAME
-            self.root.handleException(err, what=what)
-            return False
-    
-    
-    def OnHelp(self, evt):
-        self.root.ask("FFT Help not implemented!", "TODO:", style=wx.OK, parent=self)
-
-
-    def OnClose(self, evt):
-        self.Close()
-    
     #===========================================================================
     # 
     #===========================================================================
@@ -216,7 +161,8 @@ class FFTView(wx.Frame, MenuMixin):
             points = (hstack((freqs, self.data[:,i+1].reshape(-1,1))))
             name = self.subchannels[i-1].name
 
-            lines.append(P.PolyLine(points, legend=name, colour=self.root.getPlotColor(self.subchannels[i-1])))#colors[i]))
+            lines.append(P.PolyLine(points, legend=name, 
+                        colour=self.root.getPlotColor(self.subchannels[i-1])))
             
         self.lines = P.PlotGraphics(lines, title=self.GetTitle(), 
                                     xLabel="Frequency", yLabel="Amplitude")
@@ -306,6 +252,66 @@ class FFTView(wx.Frame, MenuMixin):
         return fftData
 
 
+    #===========================================================================
+    # Event Handlers
+    #===========================================================================
+
+    def OnExportCsv(self, evt):
+        filename = None
+        dlg = wx.FileDialog(self, 
+            message="Export CSV...", 
+#             defaultDir=defaultDir,  defaultFile=defaultFile, 
+            wildcard='|'.join(self.root.app.getPref('exportTypes')), 
+            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            filename = dlg.GetPath()
+        dlg.Destroy()
+        
+        if filename is None:
+            return False
+        
+        try:
+            out = open(filename, "wb")
+            writer = csv.writer(out)
+            writer.writerows(self.data)
+            out.close()
+            return True
+        except Exception as err:
+            what = "exporting %s as CSV" % self.NAME
+            self.root.handleException(err, what=what)
+            return False
+        
+    
+    def OnExportImage(self, event):
+        filename = None
+        dlg = wx.FileDialog(self, 
+            message="Export Image...", 
+            wildcard=self.IMAGE_FORMATS, 
+            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            filename = dlg.GetPath()
+        dlg.Destroy()
+        
+        if filename is None:
+            return False
+        
+        try:
+            return self.canvas.SaveFile(filename)
+        except Exception as err:
+            what = "exporting %s as an image" % self.NAME
+            self.root.handleException(err, what=what)
+            return False
+    
+    
+    def OnHelp(self, evt):
+        self.root.ask("FFT Help not implemented!", "TODO:", style=wx.OK, parent=self)
+
+
+    def OnClose(self, evt):
+        self.Close()
+    
 
 #===============================================================================
 # 
@@ -319,177 +325,74 @@ class SpectrogramView(FFTView):
     NAME = "Spectrogram"
     FULLNAME = "Spectrogram View"
     
-    @classmethod
-    def getColorFromNorm(self, n):
-        try:
-#             return tuple(map(lambda x: int(x*255), colorsys.hsv_to_rgb(n*.835,1,1)))
-            return tuple(map(lambda x: int(x*255), colorsys.hsv_to_rgb(n,1.0,1.0)))
-        except ValueError:
-            print "problem with color for %s", n
-            return (0,0,0)
-#         b = int(255*n)
-#         return b,b,b
+    
+    def __init__(self, *args, **kwargs):
+        """
+        """
+        self.slicesPerSec = kwargs.pop('slicesPerSec', 4.0)
+        self.images = None
+        super(SpectrogramView, self).__init__(*args, **kwargs)
+        
     
     @classmethod
-    def makeLineList(self, data):
+    def getColorFromNorm(self, n):
         """
         """
-        minAmp = min([np.amin(np.log10(d[0])) for d in data])
-        maxAmp = max([np.amax(np.log10(d[0])) for d in data])
-        
-        # Create a mapped function to normalize a numpy.ndarray
-        norm = np.vectorize(lambda x: (x-minAmp)/(maxAmp-minAmp))
-        
-        images = []
-        # XXX: THIS IS AN UGLY HACK AND IT WANTS TO DIE
-        fooimg = wx.Image('ssx.ico').Copy()
-        b = fooimg.GetDataBuffer()
-        for i in xrange(len(b)):
-            b[i]=chr(0)
-        fooimg.Rescale(data[0][0].shape[1],data[0][0].shape[0])
-        for amps, _freqs, _bins in data:
-            img = fooimg.Copy()#wx.EmptyBitmap(*data[0][0].shape)
-            buf = img.GetDataBuffer()
-            print img.HasAlpha()
-#             abuf = img.GetAlphaBuffer()
-            idx = 0
-            for p in norm(np.log10(amps)).reshape((1,-1)):
-                color = self.getColorFromNorm(p[0])
-                buf[idx]=chr(color[0])
-                buf[idx+1]=chr(color[1])
-                buf[idx+2]=chr(color[2])
-#                 abuf[idx/3]=chr(255)
-                if idx == 0:
-                    print color, map(repr, [buf[0], buf[1], buf[2]])
-                idx += 3
-            images.append(img)
-            
-        return images
-                
+#         return tuple(map(lambda x: int(x*255), colorsys.hsv_to_rgb(n*.835,1,1)))
+        return tuple(map(lambda x: int(x*255), colorsys.hsv_to_rgb(n,1.0,1.0)))
+                    
    
     @classmethod
-    def dumpImg(self, data):
+    def makePlots(self, data):
         """
         """
-        minAmp = min([np.amin(np.log10(d[0])) for d in data])
-        maxAmp = max([np.amax(np.log10(d[0])) for d in data])
-        
-        print "minAmp:",minAmp," maxAmp:",maxAmp
+        minAmp = sys.maxint
+        maxAmp = -sys.maxint
+        meanAmp = []
         for d in data:
-            print "mean:", d[0].mean()
+            dlog = np.log10(d[0])
+            minAmp = min(minAmp, np.amin(dlog))
+            maxAmp = max(maxAmp, np.amax(dlog))
+            meanAmp.append(np.mean(dlog))
+        meanAmp = np.mean(meanAmp)
+
         # Create a mapped function to normalize a numpy.ndarray
         norm = np.vectorize(lambda x: 255*((x-minAmp)/(maxAmp-minAmp)))
         imgsize = data[0][0].shape[1], data[0][0].shape[0]
         images = []
         for amps, _freqs, _bins in data:
+            # TODO: This could use the progress bar (if there is one)
             img = Image.new("L", imgsize, 0)
             img.putdata(norm(np.log10(amps)).reshape((1,-1))[0,:])
             images.append(img.transpose(Image.FLIP_TOP_BOTTOM))
             
         return images
    
-
-    @classmethod
-    def dumpImg2(self, data):
-        """
-        """
-        mins = []
-        maxes = []
-        means = []
-        for d in data:
-            dlog = 10.0*np.log10(np.abs(d[0]))
-#             dlog = dlog - np.mean(dlog)
-            mins.append(np.amin(dlog))
-            maxes.append(np.amax(dlog))
-            means.append(np.mean(dlog))
-        minAmp = min(mins)
-        maxAmp = max(maxes)
-        meanAmp = np.mean(means)
-        
-        print "minAmp:",minAmp," maxAmp:",maxAmp," meanAmp:",meanAmp
-#         minAmp = meanAmp
-        
-        for d in data:
-            print "mean:", d[0].mean()
-        # Create a mapped function to normalize a numpy.ndarray
-#         norm = np.vectorize(lambda x: max(0,255*((x-minAmp)/(maxAmp-minAmp))))
-        norm = np.vectorize(lambda x: 255*((x-minAmp)/(maxAmp-minAmp)))
-        imgsize = data[0][0].shape[1], data[0][0].shape[0]
-        images = []
-        for amps, _freqs, _bins in data:
-            img = Image.new("L", imgsize, 0)
-            img.putdata(norm(10.0*np.log10(np.abs(amps))).reshape((1,-1))[0,:])
-            images.append(img.transpose(Image.FLIP_TOP_BOTTOM))
-            
-        return images
-   
-
-    @classmethod
-    def dumpColorImg(self, data):
-        """
-        """
-#         minAmp = min([np.amin(np.log10(d[0])) for d in data])
-#         maxAmp = max([np.amax(np.log10(d[0])) for d in data])
-        
-        mins = []
-        maxes = []
-        means = []
-        for d in data:
-            dlog = np.log10(d[0])
-            dlog = dlog - np.mean(dlog)
-            mins.append(np.amin(dlog))
-            maxes.append(np.amax(dlog))
-            means.append(np.mean(dlog))
-        minAmp = min(mins)
-        maxAmp = max(maxes)
-        meanAmp = np.mean(means)
-        
-        print "minAmp:",minAmp," maxAmp:",maxAmp, " meanAmp:", meanAmp
-
-        # Create a mapped function to normalize a numpy.ndarray
-        norm = np.vectorize(lambda x: ((x-minAmp)/(maxAmp-minAmp)))
-        imgsize = data[0][0].shape[1], data[0][0].shape[0]
-        images = []
-        for amps, _freqs, _bins in data:
-            buf = []
-            img = Image.new("RGB", imgsize, 0)
-            for val in norm(np.log10(amps).reshape((1,-1)))[0,:]:
-                buf.append(self.getColorFromNorm(val))
-            img.putdata(buf)
-            images.append(img.transpose(Image.FLIP_TOP_BOTTOM))
-            
-        return images
-
     
     def draw(self):
         """
         """
         # self.canvas is the plot canvas
-        self.lines = None
+        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+
         if self.subchannels is not None:
-            subchannelIds = [c.id for c in self.subchannels]
+            subchIds = [c.id for c in self.subchannels]
             start, stop = self.source.getRangeIndices(*self.range)
-            data = self.source.itervalues(start, stop, subchannels=subchannelIds)
-            # BUG: Calculation of actual sample rate is wrong. Investigate.
-#             fs = (channel[stop][-2]-channel[start][-2]) / ((stop-start) + 0.0)
+            recordingTime = self.source[-1][-2] - self.source[0][-2]
+            recordingTime *= getattr(self.root, "timeScalar", 1.0/(6**10))
+            data = self.source.itervalues(start, stop, subchannels=subchIds)
             fs = self.source.getSampleRate()
+            
             self.data = self.generateData(data, rows=stop-start, 
                                           cols=len(self.subchannels), fs=fs, 
                                           sliceSize=self.sliceSize,
-                                          slicesPerSec=4.0)
-        
-        # XXX: THESE LINES NEED TO BE REWRITTEN
-#         if self.data is not None:
-#             self.makeLineList()
-# 
-#         if self.lines is not None:
-#             self.canvas.Draw(self.lines)
+                                          slicesPerSec=self.slicesPerSec, 
+                                          recordingTime=recordingTime)
+
+            self.images = self.makePlots(self.data)
+        # TODO: DO SOMETHING WITH THE DRAWINGS
 
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
-
-    
-    def OnHelp(self, evt):
-        self.root.ask("Spectrogram Help not implemented!", "TODO:", style=wx.OK, parent=self)
 
 
     @classmethod
@@ -513,38 +416,36 @@ class SpectrogramView(FFTView):
             @return: A multidimensional array, with the first column the 
                 frequency.
         """
-#               self.myplot.specgram(theData[:,i], NFFT=self.specgram_nfft, Fs=fs, Fc=0, detrend=mlab.detrend_none,
-#                   window=mlab.window_hanning, noverlap=self.specgram_nfft/2,
-#                   cmap=cm.spectral, xextent=None, pad_to=None, sides='onesided',
-#                   scale_by_freq=None, figure=self.figure)
-    
         points = cls.from2diter(data, rows, cols)
         rows, cols = points.shape
 #         points.resize((max(nextPow2(rows),sliceSize), cols))
-#         recordingTime = (points[-1,0] - points[0,0]) * timeScalar
         
         specgram_nfft = int(rows/(recordingTime*slicesPerSec))
         
-        print "recordingTime:",recordingTime
-        print "specgram_nfft:",specgram_nfft
+#         print "recordingTime:",recordingTime
+#         print "specgram_nfft:",specgram_nfft
         specData = []
                 
         for i in xrange(cols):
             pts = points[:,i]
-            # This is basically what matplotlib.mlab.specgram does
+            # This is basically what matplotlib.mlab.specgram does.
+            # Parameters cribbed from matplotlib and the old viewer
             Pxx, freqs, bins = spec._spectral_helper(pts, pts, 
                 NFFT=specgram_nfft, Fs=fs, detrend=spec.detrend_none, 
                 window=spec.window_hanning, noverlap=specgram_nfft/2, 
                 pad_to=None, sides='onesided', scale_by_freq=None)
             Pxx = Pxx.real
     
-            Z = 10. * np.log10(Pxx)
-            Z = np.flipud(Z)
-
-            xmin, xmax = 0, np.amax(bins)
-        
             specData.append((Pxx, freqs, bins))
             
         return specData
         
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def OnHelp(self, evt):
+        self.root.ask("Spectrogram Help not implemented!", "TODO:", style=wx.OK, parent=self)
+
+
 

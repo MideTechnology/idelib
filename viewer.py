@@ -1097,6 +1097,7 @@ class Viewer(wx.Frame, MenuMixin):
         if settings is None:
             return
         
+        source = settings.get('source', None)
         subchannels = settings['channels']
         startTime, stopTime = settings['timeRange']
         sliceSize = settings['windowSize']
@@ -1108,10 +1109,10 @@ class Viewer(wx.Frame, MenuMixin):
                                     timeFormat % (startTime * self.timeScalar), 
                                     timeFormat % (stopTime * self.timeScalar))
         viewId = wx.NewId()
-        
+
         try:
             view = FFTView(self, viewId, title=title, size=self.GetSize(), 
-                           root=self, sources=subchannels, 
+                           root=self, source=source, subchannels=subchannels, 
                            start=startTime, end=stopTime,
                            sliceSize=sliceSize)
             self.fftViews[viewId] = view
