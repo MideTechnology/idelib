@@ -49,7 +49,7 @@ from timeline import TimelineCtrl, TimeNavigatorCtrl
 import config_dialog
 from device_dialog import selectDevice
 import export_dialog as xd
-from fft import FFTView
+from fft import FFTView, SpectrogramView
 from loader import Loader
 from plots import PlotSet
 
@@ -1118,8 +1118,6 @@ class Viewer(wx.Frame, MenuMixin):
             self.fftViews[viewId] = view
         except Exception as e:
             self.handleException(e, what="generating FFT")
-        
-
 
 
     def renderSpectrogram(self, evt=None):
@@ -1128,9 +1126,30 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword evt: An event (not actually used), making this method
                 compatible with event handlers.
         """
-        # XXX: IMPLEMENT renderSpectrogram!
         settings = xd.SpectrogramExportDialog.getExport(root=self)
-        self.ask("Render Spectrogram not yet implemented!", "TODO:", wx.OK, wx.ICON_INFORMATION)
+        
+        source = settings.get('source', None)
+        subchannels = settings['channels']
+        startTime, stopTime = settings['timeRange']
+        sliceSize = settings['windowSize']
+        slicesPerSec = settings['slices']
+        
+        places = self.app.getPref("precisionX", 4)
+        timeFormat = "%%.%df" % places
+        title = "Spectrogram: %s (%ss to %ss)" % (
+                                    ", ".join([c.name for c in subchannels]), 
+                                    timeFormat % (startTime * self.timeScalar), 
+                                    timeFormat % (stopTime * self.timeScalar))
+        viewId = wx.NewId()
+
+#         try:
+        view = SpectrogramView(self, viewId, title=title, size=self.GetSize(), 
+                       root=self, source=source, subchannels=subchannels, 
+                       start=startTime, end=stopTime,
+                       sliceSize=sliceSize, slicesPerSec=slicesPerSec)
+        self.fftViews[viewId] = view
+#         except Exception as e:
+#             self.handleException(e, what="generating Spectrogram")
         
     #===========================================================================
     # 
