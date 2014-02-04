@@ -10,6 +10,7 @@ Created on Dec 18, 2013
 from collections import Iterable
 import colorsys
 import csv
+import os.path
 import sys
 
 # import Image
@@ -563,7 +564,7 @@ class SpectrogramView(FFTView):
 
     
     @classmethod
-    def getColorFromNorm(self, n):
+    def plotColorSpectrum(self, n):
         """ Generate a 24-bit RGB color from a positive normalized float value 
             (0.0 to 1.0). 
              
@@ -575,7 +576,7 @@ class SpectrogramView(FFTView):
 
                      
     @classmethod
-    def getGrayFromNorm(self, n):
+    def plotGrayscale(self, n):
         """ Generate a 24-bit RGB color from a positive normalized float value 
             (0.0 to 1.0). 
              
@@ -583,80 +584,24 @@ class SpectrogramView(FFTView):
         """
         v = int(n*255)
         return v,v,v
+ 
 
-#    
-#     @classmethod
-#     def makePILPlots(self, data):
-#         """ Create a set of spectrogram images from a set of computed data.
-#         
-#             @todo: Use or remove.
-#         """
-#         minAmp = sys.maxint
-#         maxAmp = -sys.maxint
-#         meanAmp = []
-#         for d in data:
-#             dlog = np.log10(d[0])
-#             minAmp = min(minAmp, np.amin(dlog))
-#             maxAmp = max(maxAmp, np.amax(dlog))
-#             meanAmp.append(np.mean(dlog))
-#         meanAmp = np.mean(meanAmp)
-# 
-#         # Create a mapped function to normalize a numpy.ndarray
-#         norm = np.vectorize(lambda x: 255*((x-minAmp)/(maxAmp-minAmp)))
-#         imgsize = data[0][0].shape[1], data[0][0].shape[0]
-#         images = []
-#         for amps, _freqs, _bins in data:
-#             # TODO: This could use the progress bar (if there is one)
-#             img = Image.new("L", imgsize, 0)
-#             img.putdata(norm(np.log10(amps)).reshape((1,-1))[0,:])
-#             images.append(img.transpose(Image.FLIP_TOP_BOTTOM))
-#             
-#         return images
-   
-    
     @classmethod
-    def getDataRange(cls, data):
-        """
-        """
-        temp = np.hstack
-    
-    @classmethod
-    def makePlots(self, data):
+    def makePlots(self, data, colorizer=None):
         """ Create a set of spectrogram images from a set of computed data.
         
             @param data: A list of (spectrogram data, frequency, bins) for each
                 channel.
             @return: A list of `wx.Image` images.
         """
-#         colorizer = self.getGrayFromNorm
-        colorizer = self.getColorFromNorm
+        colorizer = self.plotColorSpectrum if colorizer is None else colorizer
         
-#         minAmp = sys.maxint
-#         maxAmp = -sys.maxint
-#         meanAmp = []
-#         medAmp = []
-#         for d in data:
-#             dlog = np.log(d[0])
-#             minAmp = min(minAmp, np.amin(dlog))
-#             maxAmp = max(maxAmp, np.amax(dlog))
-#             meanAmp.append(np.mean(dlog))
-#             medAmp.append(np.median(dlog))
-#             print "channel median:",np.median(dlog)
-#         meanAmp = np.mean(meanAmp)
-#         medAmp = np.mean(medAmp)
         temp = [np.log(d[0]) for d in data]
 #         minAmp = np.amin(temp)
+        minAmp = np.median(temp)
         maxAmp = np.amax(temp)
-#         meanAmp = np.mean(temp)
-        medAmp = np.median(temp)
-#         print "old min:", minAmp, " max:",maxAmp, " mean:", meanAmp, " med:", medAmp
-#         minAmp = (minAmp+meanAmp)/2.0
-#         minAmp = meanAmp/2.0
-        minAmp = medAmp
-#         print "new min:",minAmp
 
         # Create a mapped function to normalize a numpy.ndarray
-#         norm = np.vectorize(lambda x: max(0,int(255*((x-minAmp)/(maxAmp-minAmp)))))
         norm = np.vectorize(lambda x: max(0,((x-minAmp)/(maxAmp-minAmp))))
         imgsize = data[0][0].shape[1], data[0][0].shape[0]
         images = []
@@ -666,55 +611,11 @@ class SpectrogramView(FFTView):
             for p in norm(amps).reshape((1,-1))[0,:]:
                 buf.extend(colorizer(p))
             img = wx.EmptyImage(*imgsize)
-#             print buf
             img.SetData(buf)
             images.append(img.Mirror(horizontally=False))
             
         return images
-   
-    @classmethod
-    def makePlots_NoLog(self, data):
-        """ Create a set of spectrogram images from a set of computed data.
-        
-            @param data: A list of (spectrogram data, frequency, bins) for each
-                channel.
-            @return: A list of `wx.Image` images.
-        """
-#         colorizer = self.getGrayFromNorm
-        colorizer = self.getColorFromNorm
-        
-        minAmp = sys.maxint
-        maxAmp = -sys.maxint
-        meanAmp = []
-        for d in data:
-            dlog = d[0]
-            minAmp = min(minAmp, np.amin(dlog))
-            maxAmp = max(maxAmp, np.amax(dlog))
-            meanAmp.append(np.mean(dlog))
-            
-            
-        meanAmp = np.mean(meanAmp)
-        print "old min:", minAmp, " max:",maxAmp, " mean:", meanAmp,
-#         minAmp = (minAmp+meanAmp)/2.0
-        minAmp = 0
-#         minAmp = meanAmp/2.0
-        print " new min:",minAmp
 
-        # Create a mapped function to normalize a numpy.ndarray
-#         norm = np.vectorize(lambda x: max(0,int(255*((x-minAmp)/(maxAmp-minAmp)))))
-        norm = np.vectorize(lambda x: max(0,((x-minAmp)/(maxAmp-minAmp))))
-        imgsize = data[0][0].shape[1], data[0][0].shape[0]
-        images = []
-        for amps, _freqs, _bins in data:
-            # TODO: This could use the progress bar (if there is one)
-            buf = bytearray()
-            for p in norm(amps).reshape((1,-1))[0,:]:
-                buf.extend(colorizer(p))
-            img = wx.EmptyImage(*imgsize)
-            img.SetData(buf)
-            images.append(img.Mirror(horizontally=False))
-            
-        return images
 
     def draw(self):
         """
@@ -797,5 +698,77 @@ class SpectrogramView(FFTView):
     def OnHelp(self, evt):
         self.root.ask("Spectrogram Help not implemented!", "TODO:", style=wx.OK, parent=self)
 
+
+    def OnExportCsv(self, evt):
+        def cleanedName(n):
+            for c in """/\\:"', """:
+                n = n.replace(c, '_')
+            n = n.replace('__','_')
+            return n
+        
+        exportChannels = []
+        if len(self.subchannels) > 1:
+            channelNames = [c.name for c in self.subchannels]
+            dlg = wx.MultiChoiceDialog( self, 
+                "Spectrogram CSV exports can contain only one channel per file."
+                "\n\nThe exported filename(s) will include the channel name.",
+                "Select Channels to Export", channelNames)
+    
+            exportChannels = None
+            if (dlg.ShowModal() == wx.ID_OK):
+                exportChannels = dlg.GetSelections()
+            dlg.Destroy()
+        else:
+            exportChannels = range(len(self.subchannels))
+
+        if not exportChannels:
+            return            
+            
+        baseName = None
+        while baseName is None:
+            dlg = wx.FileDialog(self, 
+                message="Export CSV(s)...", 
+                wildcard='|'.join(self.root.app.getPref('exportTypes')), 
+                style=wx.SAVE)
+            
+            if dlg.ShowModal() == wx.ID_OK:
+                baseName = dlg.GetPath()
+            dlg.Destroy()
+            
+            if baseName is None:
+                return False
+            
+            filenames = []
+    
+            for idx in exportChannels:
+                c = self.subchannels[idx]
+                name, ext = os.path.splitext(baseName)
+                filenames.append('%s_%s%s' % (name, cleanedName(c.name), ext))
+            
+            existing = filter(os.path.exists, filenames)
+            if existing:
+                #warn
+                names = '\n'.join(map(os.path.basename, existing))
+                dlg = wx.MessageDialog(self, 
+                    'Exporting will overwrite the following files:\n\n'
+                    '%s\n\nContinue?' % names, 'Overwrite files?',
+                    wx.OK | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING
+                )
+                
+                if dlg.ShowModal() != wx.ID_OK:
+                    baseName = None
+
+        for num, filename in zip(exportChannels, filenames): 
+            try:
+                out = open(filename, "wb")
+                writer = csv.writer(out)
+                writer.writerows(self.data[num][0])
+                out.close()
+            except Exception as err:
+                what = "exporting %s as CSV %s" % (self.NAME, filename)
+                self.root.handleException(err, what=what)
+                return False
+
+        return True
 
 

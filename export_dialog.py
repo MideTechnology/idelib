@@ -157,6 +157,8 @@ class ExportDialog(sc.SizedDialog):
         wx.StaticText(rangeFieldPane, -1, self.units[1])
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
+        self.buildSpecialUI()
+
         warnPane = sc.SizedPanel(pane,-1)
         warnPane.SetSizerType("horizontal")
         self.warningIcon = wx.StaticBitmap(warnPane, -1, self.noBmp)
@@ -165,9 +167,6 @@ class ExportDialog(sc.SizedDialog):
         self.warningMsg.SetSizerProps(valign="center")
         warnPane.SetSizerProps(expand=True)
         rangePane.SetSizerProps(expand=True)
-        wx.StaticLine(pane, -1).SetSizerProps(expand=True)
-
-        self.buildSpecialUI()
 
 
     def buildSpecialUI(self):
@@ -552,6 +551,7 @@ class CSVExportDialog(ExportDialog):
     def buildSpecialUI(self):
         """ Called before the buttons are added.
         """
+        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
         self.headerCheck, _ = self._addCheck("Include Column Headers",
                                              default=self._addHeaders)
 
@@ -627,6 +627,7 @@ class FFTExportDialog(ExportDialog):
         """ Called before the OK/Cancel buttons are added.
         """
         
+        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
         self.sizeList, _subpane = self._addChoice("Sampling Window Size:",
             choices=self.WINDOW_SIZES, default=self.windowSize, 
             tooltip="The size of the 'window' used in Welch's method")
@@ -735,6 +736,7 @@ class SpectrogramExportDialog(FFTExportDialog):
     def buildSpecialUI(self):
         """ Called before the OK/Cancel buttons are added.
         """
+        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
 #         self.sizeList, subpane = self._addChoice("Sampling Window Size:",
 #             choices=self.WINDOW_SIZES, default=self.windowSize, 
 #             tooltip="The size of the 'window' used in Welch's method")
@@ -786,9 +788,9 @@ if __name__ == '__main__':# or True:
     locale.setlocale(locale.LC_ALL, 'English_United States.1252')
     
     DIALOGS_TO_SHOW = (
-#         ExportDialog,
-#         CSVExportDialog,
-#         FFTExportDialog,
+        ExportDialog,
+        CSVExportDialog,
+        FFTExportDialog,
         SpectrogramExportDialog,
     )
     
