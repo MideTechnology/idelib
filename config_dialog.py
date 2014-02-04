@@ -567,8 +567,14 @@ class OptionsPanel(BaseConfigPanel):
 #             self.OVERSAMPLING, tooltip="Checking this field overrides the "
 #             "device's default.")
 
-        self.aaCheck = self.addCheck("Disable Antialiasing", "OSR", 
-            tooltip="If checked, data recorder will not apply antialiasing.")
+        self.aaCornerCheck = self.addCheckField("Antialiasing Filter Cutoff:",
+            "AAFilterCornerFreq",
+            tooltip="If checked and a value is provided, the antialiasing "
+                "sample rate will be limited.")
+        
+
+        self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
+            tooltip="If checked, data recorder will not apply oversampling.")
         
         self.utcCheck = self.addCheckField("UTC Offset (hours):", "UTCOffset", 
                            str(-time.timezone/60/60))
