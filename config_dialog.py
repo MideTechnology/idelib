@@ -563,10 +563,13 @@ class OptionsPanel(BaseConfigPanel):
             "SampleFreq", tooltip="Checking this field overrides the "
             "device's default.")
         
-        self.osrCheck = self.addChoiceField("Oversampling Ratio:", "OSR", 
-            self.OVERSAMPLING, tooltip="Checking this field overrides the "
-            "device's default.")
+#         self.osrCheck = self.addChoiceField("Oversampling Ratio:", "OSR", 
+#             self.OVERSAMPLING, tooltip="Checking this field overrides the "
+#             "device's default.")
 
+        self.aaCheck = self.addCheck("Disable Antialiasing", "OSR", 
+            tooltip="If checked, data recorder will not apply antialiasing.")
+        
         self.utcCheck = self.addCheckField("UTC Offset (hours):", "UTCOffset", 
                            str(-time.timezone/60/60))
         
@@ -599,6 +602,8 @@ class OptionsPanel(BaseConfigPanel):
         
         ssxConfig = OrderedDict()
         userConfig = OrderedDict()
+        
+        
         
         for name,control in self.fieldMap.iteritems():
             if name in ('RecorderName', 'RecorderDesc'):
