@@ -8,8 +8,11 @@ Created on Dec 18, 2013
 '''
 
 from collections import Iterable
+import colorsys
 import csv
 import sys
+
+# import Image
 
 import numpy as np
 from numpy.core import hstack
@@ -324,8 +327,6 @@ class FFTView(wx.Frame, MenuMixin):
 #===============================================================================
 # 
 #===============================================================================
-# import colorsys
-# import Image
 
 class SpectrogramPlot(P.PlotCanvas):
     """ A subclass of the standard `wx.lib.plot.PlotCanvas` that draws a bitmap
@@ -508,7 +509,7 @@ class SpectrogramView(FFTView):
     def __init__(self, *args, **kwargs):
         """
         """
-        self.slicesPerSec = kwargs.pop('slicesPerSec', 4.0)
+        self.slicesPerSec = float(kwargs.pop('slicesPerSec', 4.0))
         self.images = None
         super(SpectrogramView, self).__init__(*args, **kwargs)
         
@@ -556,21 +557,33 @@ class SpectrogramView(FFTView):
             name = self.subchannels[i-1].name
  
             self.lines.append(P.PlotGraphics([P.PolyLine(points, legend=name)],
-                              title=self.GetTitle(),
+                              title=self.subchannels[i].name, #title=self.GetTitle(),
                               xLabel="Time", yLabel="Frequency"))
              
 
     
-#     @classmethod
-#     def getColorFromNorm(self, n):
-#         """ Generate a 24-bit RGB color from a positive normalized float value 
-#             (0.0 to 1.0). 
-#             
-#             @note: Not currently used.
-#         """
-#         # Because H=0 and H=1.0 have the same RGB value, reduce `n`.
-#         return tuple(map(lambda x: int(x*255), colorsys.hsv_to_rgb(n*.835,1,1)))
-#                     
+    @classmethod
+    def getColorFromNorm(self, n):
+        """ Generate a 24-bit RGB color from a positive normalized float value 
+            (0.0 to 1.0). 
+             
+            @note: Not currently used.
+        """
+        # Because H=0 and H=1.0 have the same RGB value, reduce `n`.
+        return tuple(map(lambda x: int(x*255), 
+                         colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)))
+
+                     
+    @classmethod
+    def getGrayFromNorm(self, n):
+        """ Generate a 24-bit RGB color from a positive normalized float value 
+            (0.0 to 1.0). 
+             
+            @note: Not currently used.
+        """
+        v = int(n*255)
+        return v,v,v
+
 #    
 #     @classmethod
 #     def makePILPlots(self, data):
@@ -602,6 +615,12 @@ class SpectrogramView(FFTView):
    
     
     @classmethod
+    def getDataRange(cls, data):
+        """
+        """
+        temp = np.hstack
+    
+    @classmethod
     def makePlots(self, data):
         """ Create a set of spectrogram images from a set of computed data.
         
@@ -609,32 +628,94 @@ class SpectrogramView(FFTView):
                 channel.
             @return: A list of `wx.Image` images.
         """
-        minAmp = sys.maxint
-        maxAmp = -sys.maxint
-        meanAmp = []
-        for d in data:
-            dlog = np.log10(d[0])
-            minAmp = min(minAmp, np.amin(dlog))
-            maxAmp = max(maxAmp, np.amax(dlog))
-            meanAmp.append(np.mean(dlog))
-        meanAmp = np.mean(meanAmp)
+#         colorizer = self.getGrayFromNorm
+        colorizer = self.getColorFromNorm
+        
+#         minAmp = sys.maxint
+#         maxAmp = -sys.maxint
+#         meanAmp = []
+#         medAmp = []
+#         for d in data:
+#             dlog = np.log(d[0])
+#             minAmp = min(minAmp, np.amin(dlog))
+#             maxAmp = max(maxAmp, np.amax(dlog))
+#             meanAmp.append(np.mean(dlog))
+#             medAmp.append(np.median(dlog))
+#             print "channel median:",np.median(dlog)
+#         meanAmp = np.mean(meanAmp)
+#         medAmp = np.mean(medAmp)
+        temp = [np.log(d[0]) for d in data]
+#         minAmp = np.amin(temp)
+        maxAmp = np.amax(temp)
+#         meanAmp = np.mean(temp)
+        medAmp = np.median(temp)
+#         print "old min:", minAmp, " max:",maxAmp, " mean:", meanAmp, " med:", medAmp
+#         minAmp = (minAmp+meanAmp)/2.0
+#         minAmp = meanAmp/2.0
+        minAmp = medAmp
+#         print "new min:",minAmp
 
         # Create a mapped function to normalize a numpy.ndarray
-        norm = np.vectorize(lambda x: int(255*((x-minAmp)/(maxAmp-minAmp))))
+#         norm = np.vectorize(lambda x: max(0,int(255*((x-minAmp)/(maxAmp-minAmp)))))
+        norm = np.vectorize(lambda x: max(0,((x-minAmp)/(maxAmp-minAmp))))
         imgsize = data[0][0].shape[1], data[0][0].shape[0]
         images = []
-        for amps, _freqs, _bins in data:
+        for amps in temp:
             # TODO: This could use the progress bar (if there is one)
             buf = bytearray()
-            for p in norm(np.log10(amps)).reshape((1,-1))[0,:]:
-                buf.extend((p,p,p))
+            for p in norm(amps).reshape((1,-1))[0,:]:
+                buf.extend(colorizer(p))
             img = wx.EmptyImage(*imgsize)
+#             print buf
             img.SetData(buf)
             images.append(img.Mirror(horizontally=False))
             
         return images
    
-    
+    @classmethod
+    def makePlots_NoLog(self, data):
+        """ Create a set of spectrogram images from a set of computed data.
+        
+            @param data: A list of (spectrogram data, frequency, bins) for each
+                channel.
+            @return: A list of `wx.Image` images.
+        """
+#         colorizer = self.getGrayFromNorm
+        colorizer = self.getColorFromNorm
+        
+        minAmp = sys.maxint
+        maxAmp = -sys.maxint
+        meanAmp = []
+        for d in data:
+            dlog = d[0]
+            minAmp = min(minAmp, np.amin(dlog))
+            maxAmp = max(maxAmp, np.amax(dlog))
+            meanAmp.append(np.mean(dlog))
+            
+            
+        meanAmp = np.mean(meanAmp)
+        print "old min:", minAmp, " max:",maxAmp, " mean:", meanAmp,
+#         minAmp = (minAmp+meanAmp)/2.0
+        minAmp = 0
+#         minAmp = meanAmp/2.0
+        print " new min:",minAmp
+
+        # Create a mapped function to normalize a numpy.ndarray
+#         norm = np.vectorize(lambda x: max(0,int(255*((x-minAmp)/(maxAmp-minAmp)))))
+        norm = np.vectorize(lambda x: max(0,((x-minAmp)/(maxAmp-minAmp))))
+        imgsize = data[0][0].shape[1], data[0][0].shape[0]
+        images = []
+        for amps, _freqs, _bins in data:
+            # TODO: This could use the progress bar (if there is one)
+            buf = bytearray()
+            for p in norm(amps).reshape((1,-1))[0,:]:
+                buf.extend(colorizer(p))
+            img = wx.EmptyImage(*imgsize)
+            img.SetData(buf)
+            images.append(img.Mirror(horizontally=False))
+            
+        return images
+
     def draw(self):
         """
         """
@@ -656,10 +737,11 @@ class SpectrogramView(FFTView):
                                           recordingTime=recordingTime)
 
             self.images = self.makePlots(self.data)
+#             self.images = self.makePlots_NoLog(self.data)
             self.makeLineList()
             # TODO: DO SOMETHING WITH THE DRAWINGS
-            for ch in subchIds:
-                self.addPlot(ch)
+            for i in range(len(self.subchannels)):#ch in subchIds:
+                self.addPlot(i)
 
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
@@ -704,7 +786,7 @@ class SpectrogramView(FFTView):
                 pad_to=None, sides='onesided', scale_by_freq=None)
             Pxx = Pxx.real
     
-            specData.append((Pxx, freqs, bins))
+            specData.append((Pxx[1:,:], freqs[1:], bins))
             
         return specData
         

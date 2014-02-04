@@ -1127,11 +1127,13 @@ class Viewer(wx.Frame, MenuMixin):
                 compatible with event handlers.
         """
         settings = xd.SpectrogramExportDialog.getExport(root=self)
+        if settings is None:
+            return
         
         source = settings.get('source', None)
         subchannels = settings['channels']
         startTime, stopTime = settings['timeRange']
-        sliceSize = settings['windowSize']
+#         sliceSize = settings['windowSize']
         slicesPerSec = settings['slices']
         
         places = self.app.getPref("precisionX", 4)
@@ -1145,8 +1147,8 @@ class Viewer(wx.Frame, MenuMixin):
 #         try:
         view = SpectrogramView(self, viewId, title=title, size=self.GetSize(), 
                        root=self, source=source, subchannels=subchannels, 
-                       start=startTime, end=stopTime,
-                       sliceSize=sliceSize, slicesPerSec=slicesPerSec)
+                       start=startTime, end=stopTime, #sliceSize=sliceSize, 
+                       slicesPerSec=slicesPerSec)
         self.fftViews[viewId] = view
 #         except Exception as e:
 #             self.handleException(e, what="generating Spectrogram")

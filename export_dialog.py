@@ -598,8 +598,8 @@ class FFTExportDialog(ExportDialog):
     DEFAULT_WINDOW_SIZE = 2**16
     
     # These will be removed later, once memory usage is accurately computed.
-    manyEvents = 750000
-    maxEvents = 1000000
+    manyEvents = 10**6
+    maxEvents = manyEvents * 4
     
     DEFAULT_TITLE = "Render FFT"
     WHAT = "rendering"
@@ -735,10 +735,11 @@ class SpectrogramExportDialog(FFTExportDialog):
     def buildSpecialUI(self):
         """ Called before the OK/Cancel buttons are added.
         """
-        self.sizeList, subpane = self._addChoice("Sampling Window Size:",
-            choices=self.WINDOW_SIZES, default=self.windowSize, 
-            tooltip="The size of the 'window' used in Welch's method")
+#         self.sizeList, subpane = self._addChoice("Sampling Window Size:",
+#             choices=self.WINDOW_SIZES, default=self.windowSize, 
+#             tooltip="The size of the 'window' used in Welch's method")
         
+        subpane = None
         self.resList, _parent = self._addChoice("Slices per Second:", 
             choices=self.SLICES, default=self.slicesPerSec,
             tooltip="The granularity of the horizontal axis", 
@@ -765,7 +766,8 @@ class SpectrogramExportDialog(FFTExportDialog):
             @return: A dictionary of settings or `None` if there's a problem
                 (e.g. no channels have been selected).
         """
-        result = super(SpectrogramExportDialog, self).getSettings()
+#         result = super(SpectrogramExportDialog, self).getSettings()
+        result = ExportDialog.getSettings(self)
         if result is None:
             return None
         
