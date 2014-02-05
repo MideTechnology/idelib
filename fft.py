@@ -146,12 +146,13 @@ class FFTView(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", None, False)
         self.menubar.Append(editMenu, "Edit")
 
-        viewMenu = wx.Menu()
-        viewMenu.Append(-1, "None of these work yet.", "")
-        self.menubar.Append(viewMenu, "View")
+#         viewMenu = wx.Menu()
+#         viewMenu.Append(-1, "None of these work yet.", "")
+#         self.menubar.Append(viewMenu, "View")
         
         helpMenu = wx.Menu()
-        self.addMenuItem(helpMenu, wx.ID_HELP_INDEX, helpText, '', self.OnHelp)
+        self.addMenuItem(helpMenu, wx.ID_HELP_INDEX, helpText, '', self.OnHelp,
+                         enabled=False)
         self.menubar.Append(helpMenu, "Help")
         
         self.SetMenuBar(self.menubar)
@@ -694,7 +695,14 @@ class SpectrogramView(FFTView):
     #===========================================================================
     # 
     #===========================================================================
-    
+
+    def initMenus(self):
+        super(SpectrogramView, self).initMenus()
+        self.MenuBar.FindItemById(self.ID_EXPORT_IMG).Enable(False)
+
+    #===========================================================================
+    # 
+    #===========================================================================
     def OnHelp(self, evt):
         self.root.ask("Spectrogram Help not implemented!", "TODO:", style=wx.OK, parent=self)
 

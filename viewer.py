@@ -682,16 +682,14 @@ class Viewer(wx.Frame, MenuMixin):
         deviceMenu = wx.Menu()
         self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
                          "Configure Device...", "", self.OnDeviceConfigMenu)
-#         self.addMenuItem(deviceMenu, self.ID_DEVICE_SET_CLOCK, 
-#                          "Set Device Clock", "", None, enabled=False)
         self.menubar.Append(deviceMenu, 'De&vice')
         
         viewMenu = wx.Menu()
         self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS, 
-                         "Toggle Antialiasing Drawing", "", 
+                         "Antialiased Drawing", "", 
                          self.OnToggleAA, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_JITTER,
-                        "Toggle Noisy Resampling", "", 
+                        "Noisy Resampling", "", 
                         self.OnToggleNoise, kind=wx.ITEM_CHECK)
         self.menubar.Append(viewMenu, 'View')
         
