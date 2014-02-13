@@ -11,7 +11,7 @@ in the About Box.
 @todo: Revamp the zooming and navigation to be event-driven, handled as far up
     the chain as possible. Consider using wx.lib.pubsub if it's thread-safe
     in conjunction with wxPython views.
-
+@todo: Refactor the user preferences, maybe using `wx.Config`
 
 '''
 
@@ -62,7 +62,6 @@ import mide_ebml
 
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
-
 
 # XXX: Debugging. Remove later!
 from mide_ebml.dataset import __DEBUG__
@@ -1554,9 +1553,6 @@ class ViewerApp(wx.App):
                           "GOLD",
                           "BLACK",
                           "BLUE VIOLET"],
-        # TODO: Stop using defaultColors, use plotColors instead (with default
-        #    as a set of colors for unknown devices/channels (there shouldn't be
-        #    any for this release of the software).
         'plotColors': {"00.0": "BLUE",
                        "00.1": "GREEN",
                        "00.2": "RED",
