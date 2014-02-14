@@ -357,7 +357,7 @@ class BaseConfigPanel(sc.SizedPanel):
             checked = control.GetValue() and control.Enabled
         else:
             checked = control.Enabled
-        if checked:
+        if checked or default is not None:
             fields = self.controls[control]
             if isinstance(fields[0], wx.Choice):
                 val = fields[0].GetStrings()[fields[0].GetCurrentSelection()]
@@ -368,9 +368,6 @@ class BaseConfigPanel(sc.SizedPanel):
             else:
                 val = fields[0].GetValue()
                 
-            if val is None:
-                return
-            
             try:
                 val = kind(val)
                 if val is not None:
@@ -495,6 +492,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                         transform=accelTransform, default=0)
             self.addVal(self.accelHiCheck, trig, "TriggerWindowHi", kind=float,
                         transform=accelTransform, default=65535)
+            print trig
             if len(trig) > 2:
                 triggers.append(trig)
                  
