@@ -58,7 +58,8 @@ elementParserTypes = parsers.getElementHandlers()
 # testFile = r"P:\WVR_RIF\06_Testing_Calibration\06_Thermal_Tests\02_Test_to_-20C\Slamstick_Data\VIB00015.IDE"
 # testFile = "H:\\DATA\\VIB00003.IDE"
 # testFile = "P:\\WVR_RIF\\06_Testing_Calibration\\08_Pressure_Tests\\01_Test_to_28000ft\\Slamstick_Data\\VIB00014.IDE"
-testFile= "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140127_SNAKE_Prototype_Test\\20140127_y_sweep.IDE"
+# testFile= "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140127_SNAKE_Prototype_Test\\20140127_y_sweep.IDE"
+testFile= "Cal_20140221.IDE"
 
 # from parsers import AccelerometerParser
 
@@ -76,14 +77,17 @@ default_sensors = {
                        "subchannels":{0: {"name": "Accelerometer Z", 
                                           "units":('g','g'),
                                           "displayRange": (-100.0,100.0),
+                                          "transform": 3,
                                          },
                                       1: {"name": "Accelerometer Y", 
                                           "units":('g','g'),
                                           "displayRange": (-100.0,100.0),
+                                          "transform": 2,
                                           },
                                       2: {"name": "Accelerometer X", 
                                           "units":('g','g'),
                                           "displayRange": (-100.0,100.0),
+                                          "transform": 1,
                                           },
                                     },
                        },
@@ -98,6 +102,7 @@ default_sensors = {
                                            "displayRange": (-40.0,80.0),
                                            }
                                        },
+                       "cache": True,
                        },
                 },
            },
@@ -123,7 +128,8 @@ def createDefaultSensors(doc, sensors=default_sensors):
         for chId, chInfo in sensorInfo['channels'].iteritems():
             channel = sensor.addChannel(chId, chInfo['parser'],
                                         name=chInfo.get('name',None),
-                                        transform=chInfo.get('transform',None))
+                                        transform=chInfo.get('transform',None),
+                                        cache=chInfo.get('cache', False))
             if 'subchannels' not in chInfo:
                 continue
             for subChId, subChInfo in chInfo['subchannels'].iteritems():
@@ -214,10 +220,10 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
         @param doc: The Dataset document into which to import the data.
         @keyword updater: A function (or function-like object) to notify as 
             work is done. It should take four keyword arguments: `count` (the 
-            current line number), `total` (the total number of lines), `error` 
+            current line number), `total` (the total number of samples), `error` 
             (an unexpected exception, if raised during the import), and `done` 
             (will be `True` when the export is complete). If the updater object 
-            has a `cancelled` attribute that is `True`, the CSV export will be 
+            has a `cancelled` attribute that is `True`, the import will be 
             aborted. The default callback is `None` (nothing will be notified).
         @keyword numUpdates: The minimum number of calls to the updater to be
             made. More updates will be made if the updates take longer than

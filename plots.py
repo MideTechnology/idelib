@@ -342,12 +342,18 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     def OnPaint(self, evt):
         """ Event handler for redrawing the plot. Catches common exceptions.
         """
+#         self._OnPaint(evt)
+#         return
+    
         try:
             self._OnPaint(evt)
+        except IndexError:
+            print "index error"
+            return
         except IOError as err:
             msg = "An error occurred while trying to read the recording file."
             self.root.handleException(err, msg, closeFile=True)
-        except Exception:
+        except Exception as err:
             self.root.handleException(err, what="plotting data")
         
 

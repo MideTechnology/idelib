@@ -8,10 +8,13 @@ in the About Box.
 
 @todo: See individual TODO tags in the body of code. The long-term items
     are also listed here.
+@todo: Multi-threaded plot drawing, so the app won't appear to hang and drawing
+    can be interrupted.
 @todo: Revamp the zooming and navigation to be event-driven, handled as far up
     the chain as possible. Consider using wx.lib.pubsub if it's thread-safe
     in conjunction with wxPython views.
-@todo: Refactor the user preferences, maybe using `wx.Config`
+@todo: Refactor the user preferences, maybe using `wx.Config` so the wxWidgets
+    file history system can be used.
 
 '''
 

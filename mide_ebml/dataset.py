@@ -25,6 +25,7 @@ Created on Sep 26, 2013
 from collections import namedtuple, Iterable
 from datetime import datetime
 from itertools import imap, izip
+from numbers import Number
 import os.path
 import random
 import sys
@@ -257,8 +258,7 @@ class Transformable(object):
         if self._raw:
             self._transform, self._mapTransform = self._rawTransforms
         else:
-            self._transform = tuple([Transform.null if t is None \
-                                     else t for t in self.transform])
+            self._transform = self.transform
             self._mapTransform = self.transform
 
 
@@ -507,7 +507,8 @@ class Channel(Cascading, Transformable):
     """
     
     def __init__(self, sensor, channelId, parser, name=None, units=('',''), 
-                 transform=None, displayRange=None, interpolators=None):
+                 transform=None, displayRange=None, interpolators=None,
+                 cache=False):
         """ Constructor.
         
             @param sensor: The parent sensor.
@@ -525,6 +526,7 @@ class Channel(Cascading, Transformable):
         self.units = units
         self.parent = sensor
         self.dataset = sensor.dataset
+        self.cache = cache
         
         if name is None:
             name = "%s:%02d" % (sensor.name, channelId) 
@@ -554,6 +556,8 @@ class Channel(Cascading, Transformable):
 
         if transform is None:
             transform = (None,) * len(self.subchannels)
+        else:
+            transform = [self.dataset.transforms.get(i, None) if isinstance(i, int) else i for i in transform]
             
         self.setTransform(transform)
         
@@ -668,11 +672,12 @@ class SubChannel(Channel):
     """
     
     def __init__(self, parent, subChannelId, name=None, units=('',''), 
-                 transform=None, displayRange=None):
+                 transform=None, displayRange=None, cache=False):
         """ Constructor.
         """
         self.id = subChannelId
         self.parent = parent
+        self.cache = cache
         if name is None:
             self.name = "%s:%02d" % (parent.name, subChannelId)
         else:
@@ -686,6 +691,8 @@ class SubChannel(Channel):
         
         self._sessions = None
         
+        transform = self.dataset.transforms.get(transform, None) \
+            if isinstance(transform, Number) else transform
         self.setTransform(transform)
         
         if displayRange is None:
@@ -821,6 +828,7 @@ class EventList(Cascading):
             
             @attention: Added elements should be in chronological order!
         """
+        block.cache = self.parent.cache
         oldLength = self._length
         if block.numSamples is None:
             block.numSamples = block.getNumSamples(self.parent.parser)
@@ -1326,18 +1334,27 @@ class EventList(Cascading):
         return self._getBlockSampleRate(self._getBlockIndexWithIndex(idx))
     
 
-    def getValueAt(self, at):
+    def getValueAt(self, at, outOfRange=False):
         """ Retrieve the value at a specific time, interpolating between
             existing events.
+            
+            @param at: The time at which to take the sample.
+            @keyword outOfRange: If `False`, times before the first sample
+                or after the last will raise an `IndexError`. If `True`, the
+                first or last time, respectively, is returned.
         """
         startIdx = self.getEventIndexBefore(at)
         if startIdx < 0:
             if self[0][-2] == at:
                 return self[0]
             # TODO: How best to handle times before first event?
+            if outOfRange:
+                return self[0]
             raise IndexError("Specified time occurs before first event (%d)" % self[0][-2])
         elif startIdx >= len(self) - 1:
             if self[-1][-2] == at:
+                return self[-1]
+            if outOfRange:
                 return self[-1]
             # TODO How best to handle times after last event?
             raise IndexError("Specified time occurs after last event (%d)" % self[startIdx][-2])

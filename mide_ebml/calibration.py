@@ -220,6 +220,7 @@ class Bivariate(Univariate):
                 string version of the polynomial. For display purposes; they
                 can be any arbitrary (but hopefully meaningful) strings.
         """
+        self.dataset = dataset
         self._eventlist = None
         self._sessionId = None
         self.channelId, self.subchannelId = channelId, subchannelId
@@ -297,5 +298,5 @@ class Bivariate(Univariate):
             self._sessionId = session.sessionId
             
         x = event[-1]
-        y = self._eventlist.getValueAt(event[-2])
-        return self._function(x,y)
+        y = self._eventlist.getValueAt(event[-2], outOfRange=True)
+        return event[-2],self._function(x,y)

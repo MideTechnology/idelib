@@ -341,6 +341,7 @@ class BaseDataBlock(object):
         self._len = None
         self.body_size = None
         self.minValue = self.maxValue = None
+        self.cache = False
 
 
     def __repr__(self):
@@ -528,6 +529,7 @@ class ChannelDataBlock(BaseDataBlock):
     def __init__(self, element):
         super(ChannelDataBlock, self).__init__(element)
         self._payloadIdx = None
+        self._payload = None
         
         self.element = element
         for num, el in enumerate(element.value):
@@ -559,6 +561,10 @@ class ChannelDataBlock(BaseDataBlock):
     
     @property
     def payload(self):
+        if self.cache:
+            if self._payload is None:
+                self._payload = self.element.value[self._payloadIdx]
+            return self._payload
         # 'value' is actually a property that does the file seek, so it (and
         # not a reference to a child element) has to be used every time.
         # TODO: Optimize value retrieval (fix python-ebml caching)
