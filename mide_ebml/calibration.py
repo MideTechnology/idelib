@@ -6,10 +6,13 @@ being in how they are used.
 Created on Nov 27, 2013
 
 @author: dstokes
+
+@todo: Use regex to optimize built univariate and bivariate functions
 '''
 
 # __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
 #            'Univariate', 'Bivariate']
+
 
 #===============================================================================
 # 
@@ -261,6 +264,7 @@ class Bivariate(Univariate):
         # 1. Remove multiples of 0 and 1, addition of 0 constants.      
         src = self._stremove(src, ('(0*x*y)+', '(0*x)+', '(0*y)+'))
         src = src.replace("(1*", "(")
+        src = src.replace("(x)", "x").replace("(y)", "y")
         if src.endswith('+0'):
             src = src[:-2]
 
@@ -278,7 +282,7 @@ class Bivariate(Univariate):
         self._source = 'lambda x,y: %s' % self._fixSums(src)
         self._function = eval(self._source)
 
-    
+
     def __call__(self, event, session=None):
         """ Apply the polynomial to an event. 
         

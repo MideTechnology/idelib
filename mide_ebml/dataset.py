@@ -35,6 +35,7 @@ from ebml.schema.mide import MideDocument
 from calibration import Transform
 from parsers import getParserTypes, getParserRanges
 
+
 #===============================================================================
 # DEBUGGING: XXX: Remove later!
 #===============================================================================
@@ -672,12 +673,12 @@ class SubChannel(Channel):
     """
     
     def __init__(self, parent, subChannelId, name=None, units=('',''), 
-                 transform=None, displayRange=None, cache=False):
+                 transform=None, displayRange=None):
         """ Constructor.
         """
         self.id = subChannelId
         self.parent = parent
-        self.cache = cache
+        self.cache = self.parent.cache
         if name is None:
             self.name = "%s:%02d" % (parent.name, subChannelId)
         else:
@@ -788,11 +789,22 @@ class EventList(Cascading):
         self.dataset = parent.dataset
         self.hasSubchannels = len(self.parent.types) > 1
         self._firstTime = self._lastTime = None
-        
+
         # Optimization: Keep track of indices in blocks (per 10000)
         # The first is the earliest block with the index,
         # The second is the latest block.
-        self._blockIdxTable = ({},{})
+        if self.hasSubchannels or not isinstance(parent.parent, Channel):
+            self._blockIdxTable = ({},{})
+#             self._blockTimeTable = ({},{})
+            self._blockIdxTableSize = None
+#             self._blockTimeTableSize = None
+        else:
+            s = self.session.sessionId if session is not None else None
+            ps = parent.parent.getSession(s)
+            self._blockIdxTable = ps._blockIdxTable
+#             self._blockTimeTable = ps._blockTimeTable
+            self._blockIdxTableSize = ps._blockIdxTableSize
+#             self._blockTimeTableSize = ps._blockTimeTableSize
         
         self._hasSubsamples = False
         
@@ -847,9 +859,15 @@ class EventList(Cascading):
             self.session.lastTime = max(self.session.lastTime, block.endTime)
             
         # Cache the index range for faster searching
-        tableIdx = block.indexRange[0] / 10000
+        if self._blockIdxTableSize is None:
+            self._blockIdxTableSize = block.numSamples * 10
+#             self._blockTimeTableSize = self._blockIdxTableSize * 10
+        tableIdx = block.indexRange[0] / self._blockIdxTableSize
+#         tableTime = block.startTime / self._blockTimeTableSize
         self._blockIdxTable[0].setdefault(tableIdx, block.blockIndex)
         self._blockIdxTable[1][tableIdx] = block.blockIndex
+#         self._blockTimeTable[0].setdefault(tableTime, block.blockIndex)
+#         self._blockTimeTable[1][tableTime] = block.blockIndex
         
         self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
 
@@ -955,7 +973,7 @@ class EventList(Cascading):
             @keyword stop: The last block index to search
         """
         # Optimization: Set a reasonable start and stop for search
-        tableIdx = idx/10000
+        tableIdx = idx/self._blockIdxTableSize
         if stop == -1:
             stop = self._blockIdxTable[1].get(tableIdx, -2) + 1                
         if start == 0:
@@ -968,6 +986,12 @@ class EventList(Cascading):
     def _getBlockIndexWithTime(self, t, start=0, stop=-1):
         """ Get the index of a raw data block in which the given time occurs.
         """
+#         tableTime = t / self._blockTimeTableSize
+#         if stop == -1:
+#             stop = self._blockTimeTable[1].get(tableTime, -2) + 1                
+#         if start == 0:
+#             start = max(self._blockTimeTable[0].get(tableTime, 0)-1, 0)
+            
         return self._searchBlockRanges(t, self._getBlockTimeRange,
                                        start, stop)
         
@@ -1008,7 +1032,7 @@ class EventList(Cascading):
         value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
         
         if self.hasSubchannels:
-            event=tuple((f((timestamp,v),self.session) for f,v in izip(self.parent._transform, value)))
+            event=tuple(c._transform(f((timestamp,v),self.session)) for f,c,v in izip(self.parent._transform, self.parent.subchannels, value))
             event=(event[0][0], tuple((e[1] for e in event)))
         else:
             event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value),self.session))
@@ -1082,7 +1106,7 @@ class EventList(Cascading):
         
         subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
         endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-        
+
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
             blockIdx = int(startBlockIdx + (i * blockStep))
@@ -1093,8 +1117,9 @@ class EventList(Cascading):
             values = self.parent.parseBlock(block, start=subIdx, end=lastSubIdx, step=step)
             for event in izip(times, values):
                 if self.hasSubchannels:
-                    # TODO: (post Transform fix) Refactor later
-                    event=[f((event[-2],v),self.session) for f,v in izip(self.parent._transform, event[-1])]
+                    # TODO: Refactor this ugliness
+                    # This is some nasty stuff to apply nested transforms
+                    event=[c._transform(f((event[-2],v),self.session), self.session) for f,c,v in izip(self.parent._transform, self.parent.subchannels, event[-1])]
                     event=(event[0][0], tuple((e[1] for e in event)))
                 else:
                     event = self.parent._transform(self.parent.parent._transform[self.parent.id](event, self.session))

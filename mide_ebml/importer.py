@@ -5,10 +5,13 @@ FOR TESTING:
 From outside the mide_ebml directory:
 
 Read entire file:
-from mide_ebml import importer; doc=importer.importFile(updater=importer.SimpleUpdater()); l=doc.channels[0].getSession(0)
+from mide_ebml import importer; doc=importer.importFile(updater=importer.SimpleUpdater()); ax=doc.channels[0][2].getSession(0)
 
 Read 25%
-from mide_ebml import importer; doc=importer.importFile(updater=importer.SimpleUpdater(0.25)); l=doc.channels[0].getSession(0)
+from mide_ebml import importer; doc=importer.importFile(updater=importer.SimpleUpdater(0.25)); ax=doc.channels[0][2].getSession(0)
+
+profiling: 
+import cProfile; cProfile.run('list(ax.iterResampledRange(566293, 2350113, 2250.0, padding=1))', sort='cumtime')
 
 Time to read file:
 From Slam Stick X: 0:06:47.506000
@@ -43,7 +46,7 @@ else:
 #===============================================================================
 
 # Parser importer. These are taken from the module by type. We may want to 
-# create the list of parser types 'manually' in the real app; it's marginally 
+# create the list of parser types 'manually' prior to release; it's marginally 
 # safer.
 elementParserTypes = parsers.getElementHandlers()
 
@@ -71,9 +74,9 @@ default_sensors = {
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
                        "parser": struct.Struct("<HHH"), #AccelerometerParser(),
-                       "transform": (calibration.AccelTransform(),
-                                     calibration.AccelTransform(),
-                                     calibration.AccelTransform()),
+                        "transform": (calibration.AccelTransform(),
+                                      calibration.AccelTransform(),
+                                      calibration.AccelTransform()),
                        "subchannels":{0: {"name": "Accelerometer Z", 
                                           "units":('g','g'),
                                           "displayRange": (-100.0,100.0),

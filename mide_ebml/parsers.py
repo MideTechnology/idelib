@@ -217,13 +217,17 @@ class MPL3115PressureTempParser(object):
     def unpack_from(self, data, offset=0):
         """ Special-case parsing of a temperature data block.
         """
-        # TODO: Make sure if fractional part is correct for negative values
-        rawpressure = self._pressureParser.unpack_from(data, offset)[0] >> 14
-        fracpressure, rawtemp, fractemp = self._parser.unpack_from(data, offset)
-        fracpressure = ((fracpressure >> 4) & 0b11) * 0.25
-        fractemp = (fractemp >> 4) * 0.0625
-
-        return (rawpressure + fracpressure, rawtemp + fractemp)
+        try:
+            # TODO: Make sure if fractional part is correct for negative values
+            rawpressure = self._pressureParser.unpack_from(data, offset)[0] >> 14
+            fracpressure, rawtemp, fractemp = self._parser.unpack_from(data, offset)
+            fracpressure = ((fracpressure >> 4) & 0b11) * 0.25
+            fractemp = (fractemp >> 4) * 0.0625
+    
+            return (rawpressure + fracpressure, rawtemp + fractemp)
+        except:
+            import pdb; pdb.set_trace()
+            
 
 
 class AccelerometerParser(object):
@@ -360,7 +364,7 @@ class BaseDataBlock(object):
             @keyword subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
-        data = self.payload.value
+        data = self.payload
         start = self.headerSize + (start*parser.size)
         if end < 0:
             end += self.payload.body_size
@@ -383,7 +387,7 @@ class BaseDataBlock(object):
             @keyword subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
-        data = self.payload.value
+        data = self.payload
         for i in indices:
             if i >= self.numSamples:
                 continue
@@ -400,7 +404,7 @@ class BaseDataBlock(object):
         """
         if self.numSamples is not None:
             return self.numSamples
-        n = self.payload.body_size - self.headerSize
+        n = len(self.payload) - self.headerSize
         self.numSamples = n / parser.size
         return self.numSamples
 
@@ -415,6 +419,10 @@ class BaseDataBlock(object):
         """
         return self.body_size > 0 and self.body_size % parser.size == 0
 
+    
+    @property
+    def payload(self):
+        return self.element.value
 
 #===============================================================================
 # 
@@ -431,7 +439,6 @@ class SimpleChannelDataBlock(BaseDataBlock):
     def __init__(self, element):
         super(SimpleChannelDataBlock, self).__init__(element)
         self.element = element
-        self.payload = element
         self.startTime, self.channel = self.getHeader()
         self.body_size = element.body_size - self.headerSize
    
@@ -441,7 +448,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
             This returns the length of the payload.
         """
         if self._len is None:
-            self._len = len(self.payload.value) - self.headerSize
+            self._len = len(self.payload) - self.headerSize
         return self._len
     
     
@@ -449,7 +456,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
         """ Extract the block's header info. In SimpleChannelDataBlocks,
             this is part of the payload.
         """
-        return self.headerParser.unpack_from(self.element.value)
+        return self.headerParser.unpack_from(self.payload)
     
 
     @property
@@ -561,21 +568,16 @@ class ChannelDataBlock(BaseDataBlock):
     
     @property
     def payload(self):
+        # Simple caching, intended for use with small blocks
         if self.cache:
             if self._payload is None:
-                self._payload = self.element.value[self._payloadIdx]
+                self._payload = self.element.value[self._payloadIdx].value
             return self._payload
+        
         # 'value' is actually a property that does the file seek, so it (and
         # not a reference to a child element) has to be used every time.
         # TODO: Optimize value retrieval (fix python-ebml caching)
-        try:
-            return self.element.value[self._payloadIdx]
-        except Exception, e:
-            # XXX: TESTING - REMOVE ME
-            print " ".join(map(str,[e, "bad _payloadIdx:", self.element.name, 
-                                    "channel:", self.channel, 
-                                    "fpos:", self.element.stream.offset, 
-                                    "children:",self.element.value])) 
+        return self.element.value[self._payloadIdx].value
     
     
     def getHeader(self):

@@ -552,6 +552,7 @@ class SpectrogramView(FFTView):
         start = self.source[0][-2] * timeScalar
         end = self.source[-1][-2] * timeScalar
         self.lines = []
+
         for i in range(len(self.data)):
             d = self.data[i]
             points = ((start, d[1][0]), 
@@ -640,6 +641,7 @@ class SpectrogramView(FFTView):
 
             self.images = self.makePlots(self.data)
 #             self.images = self.makePlots_NoLog(self.data)
+            # NOTE: I'm not sure why I'm generating lines.
             self.makeLineList()
             # TODO: DO SOMETHING WITH THE DRAWINGS
             for i in range(len(self.subchannels)):#ch in subchIds:
