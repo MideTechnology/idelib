@@ -973,11 +973,12 @@ class EventList(Cascading):
             @keyword stop: The last block index to search
         """
         # Optimization: Set a reasonable start and stop for search
-        tableIdx = idx/self._blockIdxTableSize
-        if stop == -1:
-            stop = self._blockIdxTable[1].get(tableIdx, -2) + 1                
-        if start == 0:
-            start = max(self._blockIdxTable[0].get(tableIdx, 0)-1, 0)
+        if self._blockIdxTableSize is not None:
+            tableIdx = idx/self._blockIdxTableSize
+            if stop == -1:
+                stop = self._blockIdxTable[1].get(tableIdx, -2) + 1                
+            if start == 0:
+                start = max(self._blockIdxTable[0].get(tableIdx, 0)-1, 0)
 
         return self._searchBlockRanges(idx, self._getBlockIndexRange,
                                        start, stop)
