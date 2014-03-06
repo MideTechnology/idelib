@@ -118,8 +118,10 @@ def readXml(filename, schema=DEFAULT_SCHEMA):
 
 def dumpXmlElement(el, indent=0, tabsize=4):
     """ Dump an EBML element as XML. The format is similar to the imported one,
-        with the addition of an `offset` attribute, which is the EBML element's
-        offset in the file.
+        with the addition of two attributes: `offset`, which is the EBML 
+        element's offset in the file, and `size`, the size of the element's
+        payload. These are for reference only, and are ignored in any XML
+        converted back to EBML. 
     """
     tab = " " * tabsize * indent
     if el.children:
@@ -138,9 +140,11 @@ def dumpXmlElement(el, indent=0, tabsize=4):
 
 
 def dumpXml(ebmldoc, indent=0, tabsize=2):
-    """ Dump an EBML element as XML. The format is similar to the imported one,
-        with the addition of an `offset` attribute, which is the EBML element's
-        offset in the file.
+    """ Dump an EBML document as XML. The format is similar to the imported one,
+        with the addition of two attributes: `offset`, which is the EBML 
+        element's offset in the file, and `size`, the size of the element's
+        payload. These are for reference only, and are ignored in any XML
+        converted back to EBML. 
     """
     docname = ebmldoc.__class__.__name__
     result = ['<?xml version="1.0" encoding="utf-8"?>\n<%s>' % docname]
@@ -171,17 +175,30 @@ if __name__ == '__main__':
                         help="Print an XML dump with indices")
     parser.add_argument("--toxml", "-x", action="store_true",
                         help="Create XML from an EBML source file")
+    parser.add_argument("--whitespace", "-w", action="store_true",
+                        help="Keep any leading or trailing whitespace in the "
+                        "paths (trimmed by default). Embedded whitespace is "
+                        "always preserved.")
     
     args = parser.parse_args()
+    
+    # Calling this script from another script (batch file, shell script, etc.)
+    # can add whitespace to the start and/or end of a string argument. Since
+    # it isn't impossible that this is deliberate, the `--whitespace` argument
+    # can force the whitespace to be kept.
+    if args.whitespace:
+        fixpath = lambda x: x
+    else:
+        fixpath = lambda x: x.strip() if isinstance(x, basestring) else x
     
     # Conversion from EBML to XML
     if args.toxml:
         with open(args.source, 'rb') as f:
-            ebmldoc = readEbml(f, schema=args.schema)
+            ebmldoc = readEbml(f, schema=fixpath(args.schema))
             xmldoc = dumpXml(ebmldoc)
         result = '<?xml version="1.0" encoding="utf-8"?>\n' + xmldoc
         if args.output:
-            outfilename = os.path.realpath(args.output)
+            outfilename = os.path.realpath(args.output.strip())
             with open(outfilename, 'wb') as f:
                 f.write(xmldoc)
         else:
@@ -189,17 +206,17 @@ if __name__ == '__main__':
         exit(0)
     
     # Regular XML->EBML
-    data = readXml(os.path.realpath(args.source), args.schema)
+    data = readXml(os.path.realpath(fixpath(args.source)), fixpath(args.schema))
     
     if args.output:
-        outfilename = os.path.realpath(args.output)
+        outfilename = os.path.realpath(fixpath(args.output))
         with open(outfilename, 'wb') as f:
             f.write(data)
     else:
         print data
         
     if args.indices:
-        print dumpXml(readEbml(data, schema=args.schema))
+        print dumpXml(readEbml(data, schema=fixpath(args.schema)))
     
     
     
