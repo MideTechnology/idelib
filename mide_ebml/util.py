@@ -105,6 +105,7 @@ def getSchemaModule(schema=DEFAULT_SCHEMA):
             cannot be found as specified, a path relative to the current
             module is used.
     """
+    schema = str(schema).strip()
     try:
         return importlib.import_module(schema)
     except ImportError as err:
