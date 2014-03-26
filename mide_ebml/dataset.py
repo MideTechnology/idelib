@@ -1444,7 +1444,7 @@ class EventList(Cascading):
 
     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
-                  raiseExceptions=False):
+                  raiseExceptions=False, dataFormat="%.6f"):
         """ Export events as CSV to a stream (e.g. a file).
         
             @param stream: The stream object to which to write CSV data.
@@ -1454,8 +1454,6 @@ class EventList(Cascading):
             @keyword subchannels: A sequence of individual subchannel numbers
                 to export. Only applicable to objects with subchannels.
                 `True` (default) exports them all.
-            @keyword timeScalar: A scaling factor for the even times.
-                The default is 1 (microseconds).
             @keyword callback: A function (or function-like object) to notify
                 as work is done. It should take four keyword arguments:
                 `count` (the current line number), `total` (the total number
@@ -1466,17 +1464,15 @@ class EventList(Cascading):
                 The default callback is `None` (nothing will be notified).
             @keyword callbackInterval: The frequency of update, as a
                 normalized percent of the total lines to export.
+            @keyword timeScalar: A scaling factor for the even times.
+                The default is 1 (microseconds).
+            @keyword raiseExceptions: 
+            @keyword dataFormat: The number of decimal places to use for the
+                data. This is the same format as used when formatting floats.
             @return: The number of rows exported and the elapsed time.
         """
         # Dummy callback to be used if none is supplied
         def dummyCallback(*args, **kwargs): pass
-        
-        # Functions for formatting the data.
-        def singleVal(x): return ", ".join(map(str,x))
-        def multiVal(x): return "%s, %s" % (str(x[-2]*timeScalar), 
-                                            str(x[-1]).strip("[({})]"))
-        def someVal(x): return "%s, %s" % (str(x[-2]*timeScalar),
-                    str([x[-1][v] for v in subchannels]).strip("[({})]"))
         
         if callback is None:
             noCallback = True
@@ -1486,11 +1482,15 @@ class EventList(Cascading):
         
         if self.hasSubchannels:
             if isinstance(subchannels, Iterable):
-                formatter = someVal
+                fstr = '%s, ' + ', '.join([dataFormat] * len(subchannels))
+                formatter = lambda x: fstr % ((x[-2]*timeScalar,) + \
+                                              tuple([x[-1][v] for v in subchannels]))
             else:
-                formatter = multiVal
+                fstr = '%s, ' + ', '.join([dataFormat] * len(self.parent.types))
+                formatter = lambda x: fstr % ((x[-2]*timeScalar,) + x[-1])
         else:
-            formatter = singleVal
+            fstr = "%%s, %s" % dataFormat
+            formatter = lambda x: fstr % x
         
         totalLines = (stop - start) / (step + 0.0)
         updateInt = int(totalLines * callbackInterval)
