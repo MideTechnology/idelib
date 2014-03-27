@@ -576,6 +576,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DEVICE_SET_CLOCK = wx.NewId()
     ID_VIEW_ANTIALIAS = wx.NewId()
     ID_VIEW_JITTER = wx.NewId()
+    ID_VIEW_UTCTIME = wx.NewId()
 
 
     def __init__(self, *args, **kwargs):
@@ -600,6 +601,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.xFormatter = "X: %%.%df %%s" % self.app.getPref('precisionX', 4)
         self.yFormatter = "Y: %%.%df %%s" % self.app.getPref('precisionY', 4)
+        self.showUtcTime = False
         
         self.buildUI()
         self.Centre()
@@ -693,6 +695,10 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(viewMenu, self.ID_VIEW_JITTER,
                         "Noisy Resampling", "", 
                         self.OnToggleNoise, kind=wx.ITEM_CHECK)
+        viewMenu.AppendSeparator()
+        self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
+                         "Show Absolute UTC Time", "",
+                         self.OnToggleUtcTime, kind=wx.ITEM_CHECK)
         self.menubar.Append(viewMenu, 'View')
         
         helpMenu = wx.Menu()
@@ -1079,7 +1085,9 @@ class Viewer(wx.Frame, MenuMixin):
         source.exportCsv(stream, start=start, stop=stop, 
                          subchannels=subchannelIds, timeScalar=self.timeScalar, 
                          callback=dlg, callbackInterval=0.0005, 
-                         raiseExceptions=True)
+                         raiseExceptions=True,
+                         useIsoFormat=settings['useIsoFormat'],
+                         useUtcTime=settings['useUtcTime'])
         
         dlg.Destroy()
         stream.close()
@@ -1300,6 +1308,10 @@ class Viewer(wx.Frame, MenuMixin):
             self.noisyResample = 0
         self.plotarea.redraw()
 
+
+    def OnToggleUtcTime(self, evt):
+        self.showUtcTime = evt.IsChecked()
+        
     #===========================================================================
     # Custom Events
     #===========================================================================
@@ -1417,12 +1429,21 @@ class Viewer(wx.Frame, MenuMixin):
             within the same PlotArea use the same horizontal axis scale/units.
         """
         if pos is None:
-            msg = ""
-        else:
-            units = self.units[1] if units is None else units
-            msg = self.xFormatter % (
-                        self.timeline.getValueAt(pos) * self.timeScalar, units)
+            self.statusBar.SetStatusText("", self.statusBar.xFieldNum)
+            self.statusBar.SetStatusText("", self.statusBar.utcFieldNum)
+            return
+        
+        units = self.units[1] if units is None else units
+        t = self.timeline.getValueAt(pos) * self.timeScalar
+        msg = self.xFormatter % (t, units)
         self.statusBar.SetStatusText(msg, self.statusBar.xFieldNum)
+        
+        if self.showUtcTime:# and t != 0:
+            utc = str(datetime.utcfromtimestamp(self.session.utcStartTime+t))
+            msg = "X (UTC): %s" % utc[:-2]
+        else:
+            msg = ""
+        self.statusBar.SetStatusText(msg, self.statusBar.utcFieldNum)
         
     
     def showMouseVPos(self, pos, units=""):
@@ -1495,7 +1516,8 @@ class Viewer(wx.Frame, MenuMixin):
         # Holding control when okaying alert shows more more info. 
         if ctrlPressed and isinstance(err, Exception):
             # TODO: Use a better error log display than stderr
-            raise err
+            import pdb; pdb.set_trace()
+#             raise err
         
         # The error occurred someplace critical; self-destruct!
         if fatal:
@@ -1738,7 +1760,7 @@ if __name__ == '__main__':# or True:
     desc = "%s v%s \n%s" % (APPNAME, __version__, __copyright__)
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('-f', '--filename',  
-                        help="The name of the MIDE file to import")
+                        help="The name of the MIDE (*.IDE) file to import")
     parser.add_argument("-p", "--prefsFile", 
                         help="An alternate preferences file")
     args = parser.parse_args()

@@ -545,6 +545,8 @@ class CSVExportDialog(ExportDialog):
     
     def __init__(self, *args, **kwargs):
         self._addHeaders = kwargs.pop('addHeaders', True)
+        self._utcTime = kwargs.pop('useUtcTime', False)
+        self._isoTime = kwargs.pop('useIsoFormat', False)
         super(CSVExportDialog, self).__init__(*args, **kwargs)
 
 
@@ -552,8 +554,18 @@ class CSVExportDialog(ExportDialog):
         """ Called before the buttons are added.
         """
         wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
-        self.headerCheck, _ = self._addCheck("Include Column Headers",
-                                             default=self._addHeaders)
+        self.headerCheck, subpane = self._addCheck("Include Column Headers",
+                                                   default=self._addHeaders)
+        self.utcCheck, _ = self._addCheck("Use Absolute UTC Timestamps",
+                                          default=self._utcTime, parent=subpane)
+        self.isoCheck, _ = self._addCheck("Use ISO Time Format",
+                                          default=self._isoTime, parent=subpane)
+        
+        self.isoCheck.Enable(self._utcTime)
+        self.utcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
+
+    def OnUtcCheck(self, evt):
+        self.isoCheck.Enable(evt.IsChecked())
 
 
     def getSettings(self):
@@ -579,6 +591,8 @@ class CSVExportDialog(ExportDialog):
             return None
         
         result['addHeaders'] = self.headerCheck.GetValue()
+        result['useUtcTime'] = self.utcCheck.GetValue()
+        result['useIsoFormat'] = self.isoCheck.GetValue()
         return result
 
 #===============================================================================

@@ -839,12 +839,16 @@ class SessionParser(ElementHandler):
 #===============================================================================
 
 class TimeBaseUTCParser(ElementHandler):
-    """ Stub for Session element handler
-    
-        @todo: Implement TimeBaseUTCParser
+    """ Handle TimeBaseUTC elements, applying it as the UTC start time of the
+        current Session.
     """
     elementName = "TimeBaseUTC"
     
+    def parse(self, element, **kwargs):
+        val = element.value
+        self.doc.lastUtcTime = val
+        self.doc.lastSession.utcStartTime = val
+
 
 #===============================================================================
 # 

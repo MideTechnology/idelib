@@ -208,6 +208,7 @@ class StatusBar(wx.StatusBar):
         self.progressFieldNum = self.numFields-2
         self.messageFieldNum = self.numFields-3
         self.warnFieldNum = self.numFields-4
+        self.utcFieldNum = 3
         self.yFieldNum = 2
         self.xFieldNum = 1
         self.logoFieldNum = 0

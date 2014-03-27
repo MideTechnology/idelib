@@ -293,6 +293,7 @@ class Dataset(Cascading):
     def __init__(self, stream, name=None):
         """
         """
+        self.lastUtcTime = None
         self.sessions = []
         self.sensors = {}
         self.channels = {}
@@ -316,14 +317,16 @@ class Dataset(Cascading):
             self.name = name
 
 
-    def addSession(self, startTime=None, endTime=None):
+    def addSession(self, startTime=None, endTime=None, utcStartTime=None):
         """ Create a new session, add it to the Dataset, and return it.
         """
         self.endSession()
+        utcStartTime = self.lastUtcTime if utcStartTime is None else utcStartTime
         self.currentSession = Session(self, 
                                       sessionId=len(self.sessions), 
                                       startTime=startTime, 
-                                      endTime=endTime)
+                                      endTime=endTime,
+                                      utcStartTime=utcStartTime)
         self.sessions.append(self.currentSession)
 
 
@@ -436,11 +439,13 @@ class Session(object):
         expected to contain one or more Sessions.
     """
     
-    def __init__(self, dataset, sessionId=0, startTime=None, endTime=None):
+    def __init__(self, dataset, sessionId=0, startTime=None, endTime=None,
+                 utcStartTime=None):
         self.dataset = dataset
         self.startTime = startTime
         self.endTime = endTime
         self.sessionId = sessionId
+        self.utcStartTime = utcStartTime or dataset.lastUtcTime
         
         # firstTime and lastTime are the actual last event time. These will
         # typically be the same as startTime and endTime, but not necessarily
@@ -1444,7 +1449,8 @@ class EventList(Cascading):
 
     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
-                  raiseExceptions=False, dataFormat="%.6f"):
+                  raiseExceptions=False, dataFormat="%.6f", useUtcTime=False,
+                  useIsoFormat=False):
         """ Export events as CSV to a stream (e.g. a file).
         
             @param stream: The stream object to which to write CSV data.
@@ -1469,6 +1475,11 @@ class EventList(Cascading):
             @keyword raiseExceptions: 
             @keyword dataFormat: The number of decimal places to use for the
                 data. This is the same format as used when formatting floats.
+            @keyword useUtcTime: If `True`, times are written as the UTC
+                timestamp. If `False`, times are relative to the recording.
+            @keyword useIsoFormat: If `True`, the time column is written as
+                the standard ISO date/time string. Only applies if `useUtcTime`
+                is `True`.
             @return: The number of rows exported and the elapsed time.
         """
         # Dummy callback to be used if none is supplied
@@ -1480,17 +1491,25 @@ class EventList(Cascading):
         else:
             noCallback = False
         
+        if useUtcTime and self.session.utcStartTime:
+            if useIsoFormat:
+                timeFormatter = lambda x: datetime.utcfromtimestamp(x[-2] * timeScalar + self.session.utcStartTime).isoformat()
+            else:
+                timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar + self.session.utcStartTime)
+        else:
+            timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar)
+        
         if self.hasSubchannels:
             if isinstance(subchannels, Iterable):
                 fstr = '%s, ' + ', '.join([dataFormat] * len(subchannels))
-                formatter = lambda x: fstr % ((x[-2]*timeScalar,) + \
+                formatter = lambda x: fstr % ((timeFormatter(x),) + \
                                               tuple([x[-1][v] for v in subchannels]))
             else:
                 fstr = '%s, ' + ', '.join([dataFormat] * len(self.parent.types))
-                formatter = lambda x: fstr % ((x[-2]*timeScalar,) + x[-1])
+                formatter = lambda x: fstr % ((timeFormatter(x),) + x[-1])
         else:
             fstr = "%%s, %s" % dataFormat
-            formatter = lambda x: fstr % x
+            formatter = lambda x: fstr % (timeFormatter(x),x[-1])
         
         totalLines = (stop - start) / (step + 0.0)
         updateInt = int(totalLines * callbackInterval)
@@ -1601,7 +1620,12 @@ class CompositePlot(Plot):
 #===============================================================================
 
 class WarningRange(object):
-    """
+    """ An object for indicating when a set of events goes outside of a given
+        range. Originally created for flagging periods of extreme temperatures
+        that will affect accelerometer readings.
+        
+        For efficiency, the source data should have relatively few samples
+        (e.g. a low sample rate).
     """
     
     def __repr__(self):
@@ -1618,7 +1642,9 @@ class WarningRange(object):
         
         
     def getRange(self, start=None, end=None):
-        """
+        """ Retrieve the invalid periods within a given range of events.
+            
+            @return: A list of invalid periods' [start, end] times.
         """
         if start is None:
             start = self.source[0][-2]
