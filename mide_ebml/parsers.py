@@ -367,7 +367,7 @@ class BaseDataBlock(object):
         data = self.payload
         start = self.headerSize + (start*parser.size)
         if end < 0:
-            end += self.payload.body_size
+            end += self.body_size
         else:
             end = self.headerSize + (end * parser.size)
             
