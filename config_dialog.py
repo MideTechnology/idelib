@@ -42,8 +42,8 @@ class BaseConfigPanel(sc.SizedPanel):
         return val
     
 
-    def addField(self, labelText, name=None, fieldText="", fieldSize=None, 
-                 fieldStyle=None, tooltip=None):
+    def addField(self, labelText, name=None, units="", fieldText="", 
+                 fieldSize=None, fieldStyle=None, tooltip=None):
         """ Helper method to create and configure a labeled text field and
             add it to the set of controls. 
             
@@ -102,7 +102,7 @@ class BaseConfigPanel(sc.SizedPanel):
         return b
     
     
-    def addCheck(self, checkText, name=None, tooltip=None):
+    def addCheck(self, checkText, name=None, units="", tooltip=None):
         """ Helper method to create a single checkbox and add it to the set of
             controls. 
 
@@ -123,8 +123,8 @@ class BaseConfigPanel(sc.SizedPanel):
         return c
 
 
-    def addCheckField(self, checkText, name=None, fieldText="", fieldSize=None, 
-                      fieldStyle=None, tooltip=None):
+    def addCheckField(self, checkText, name=None, units="xxx", fieldText="", 
+                      fieldSize=None, fieldStyle=None, tooltip=None):
         """ Helper method to create and configure checkbox/field pairs, and add
             them to the set of controls.
 
@@ -141,11 +141,19 @@ class BaseConfigPanel(sc.SizedPanel):
 
         c = wx.CheckBox(self, -1, checkText)
         c.SetSizerProps(valign="center")
+
+        subpane = sc.SizedPanel(self, -1)
+        subpane.SetSizerType("horizontal")
+        subpane.SetSizerProps(expand=True)
+        
         if fieldStyle is None:
-            t = wx.TextCtrl(self, -1, txt, size=fieldSize)
+            t = wx.TextCtrl(subpane, -1, txt, size=fieldSize)
         else:
-            t = wx.TextCtrl(self, -1, txt, size=fieldSize, style=fieldStyle)
+            t = wx.TextCtrl(subpane, -1, txt, size=fieldSize, style=fieldStyle)
         self.controls[c] = [t]
+        
+        u = wx.StaticText(subpane, -1, units)
+        u.SetSizerProps(valign="center")
         
         if tooltip is not None:
             c.SetToolTipString(unicode(tooltip))
@@ -160,8 +168,8 @@ class BaseConfigPanel(sc.SizedPanel):
         return c
 
 
-    def addChoiceField(self, checkText, name=None, choices=[], fieldSize=None, 
-                      fieldStyle=None, tooltip=None):
+    def addChoiceField(self, checkText, name=None, units="", choices=[], 
+                       fieldSize=None, fieldStyle=None, tooltip=None):
         """ Helper method to create and configure checkbox/list pairs, and add
             them to the set of controls.
  
@@ -397,23 +405,23 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
 
     def buildUI(self):
         self.delayCheck = self.addCheckField(
-            "Wake After Delay:", "PreRecordDelay")
+            "Wake After Delay:", "PreRecordDelay", "seconds")
 
         self.wakeCheck = self.addDateTimeField(
             "Wake at specific time:", "WakeTimeUTC")
         
         self.timeCheck = self.addCheckField(
-            "Limit recording time to:", "RecordingTime")
+            "Limit recording time to:", "RecordingTime", "seconds")
         
         self.rearmCheck = self.addCheck("Re-triggerable", "AutoRearm")
         self.controls[self.timeCheck].append(self.rearmCheck)
         
-        self.accelLoCheck = self.addCheckField("Accelerometer Trigger (Low):")
-        self.accelHiCheck = self.addCheckField("Accelerometer Trigger (High):")
-        self.pressLoCheck = self.addCheckField("Pressure Trigger (Low):")
-        self.pressHiCheck = self.addCheckField("Pressure Trigger (High):")
-        self.tempLoCheck = self.addCheckField("Temperature Trigger (Low):")
-        self.tempHiCheck = self.addCheckField("Temperature Trigger (High):")
+        self.pressLoCheck = self.addCheckField("Pressure Trigger (Low):", units="Pa")
+        self.pressHiCheck = self.addCheckField("Pressure Trigger (High):", units="Pa")
+        self.tempLoCheck = self.addCheckField("Temperature Trigger (Low):", units=u'\xb0C')
+        self.tempHiCheck = self.addCheckField("Temperature Trigger (High):", units=u'\xb0C')
+        self.accelLoCheck = self.addCheckField("Accelerometer Trigger (Low):", units="G")
+        self.accelHiCheck = self.addCheckField("Accelerometer Trigger (High):", units="G")
 
 
     def OnCheckChanged(self, evt):
@@ -492,7 +500,6 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                         transform=accelTransform, default=0)
             self.addVal(self.accelHiCheck, trig, "TriggerWindowHi", kind=float,
                         transform=accelTransform, default=65535)
-            print trig
             if len(trig) > 2:
                 triggers.append(trig)
                  
@@ -558,7 +565,7 @@ class OptionsPanel(BaseConfigPanel):
         sc.SizedPanel(self, -1) # Spacer
       
         self.samplingCheck = self.addCheckField("Sampling Frequency:",
-            "SampleFreq", tooltip="Checking this field overrides the "
+            "SampleFreq", "Hz", tooltip="Checking this field overrides the "
             "device's default.")
         
 #         self.osrCheck = self.addChoiceField("Oversampling Ratio:", "OSR", 
@@ -566,7 +573,7 @@ class OptionsPanel(BaseConfigPanel):
 #             "device's default.")
 
         self.aaCornerCheck = self.addCheckField("Antialiasing Filter Cutoff:",
-            "AAFilterCornerFreq",
+            "AAFilterCornerFreq", "Hz",
             tooltip="If checked and a value is provided, the antialiasing "
                 "sample rate will be limited.")
         
@@ -574,10 +581,10 @@ class OptionsPanel(BaseConfigPanel):
         self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
             tooltip="If checked, data recorder will not apply oversampling.")
         
-        self.utcCheck = self.addCheckField("UTC Offset (hours):", "UTCOffset", 
-                           str(-time.timezone/60/60))
+        self.utcCheck = self.addCheckField("UTC Offset:", "UTCOffset", "Hours", 
+                                           str(-time.timezone/60/60))
         
-        self.tzBtn = self.addButton("Get Local UTC Offset", -1, self.OnSetTZ,
+        self.tzBtn = self.addButton("Get Local UTC Offset", -1,  self.OnSetTZ,
             "Fill the UTC Offset field with the offset for the local timezone")
         self.timeBtn = self.addButton("Set Device Time", -1, self.OnSetTime, 
             "Set the device's clock. Applied immediately.")
