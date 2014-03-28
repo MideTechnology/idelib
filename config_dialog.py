@@ -11,6 +11,9 @@ Created on Dec 16, 2013
 __all__ = ['configureRecorder']
 
 from collections import OrderedDict
+from datetime import datetime
+import locale
+import os.path
 import string
 import time
 
@@ -241,10 +244,10 @@ class BaseConfigPanel(sc.SizedPanel):
         self.root = kwargs.pop('root', None)
         super(BaseConfigPanel, self).__init__(*args, **kwargs)
         
+        self.data = None
         self.fieldSize = (-1,-1)
         self.SetSizerType("form", {'hgap':10, 'vgap':10})
         
-        self.data = None
         # controls: fields keyed by their corresponding checkbox.
         self.controls = {}
         
@@ -535,7 +538,6 @@ class OptionsPanel(BaseConfigPanel):
     """ A configuration dialog page with miscellaneous editable recorder
         properties.
     """
-    
     OVERSAMPLING = map(str, [2**x for x in range(4,13)])
 
     def getDeviceData(self):
@@ -635,14 +637,17 @@ class OptionsPanel(BaseConfigPanel):
 # 
 #===============================================================================
         
-class SSXInfoPanel(BaseConfigPanel):
-    """ A configuration dialog page showing various read-only properties of
-        a recorder.
+class InfoPanel(BaseConfigPanel):
+    """ A generic configuration dialog page showing various read-only properties
+        of a recorder.
     """
 
+    def __init__(self, *args, **kwargs):
+        self.info = kwargs.pop('info', {})
+        super(InfoPanel, self).__init__(*args, **kwargs)
+        
     def getDeviceData(self):
-        self.data = self.root.deviceInfo
-
+        self.data = self.info
 
     def buildUI(self):
         infoColor = wx.Colour(60,60,60)
@@ -656,13 +661,21 @@ class SSXInfoPanel(BaseConfigPanel):
         self.text = []
         
         for k,v in self.data.iteritems():
+            if k.startswith('_label'):
+                # Treat this like a label
+                sc.SizedPanel(self, -1) # Spacer
+                wx.StaticText(self, -1, v)
+                continue
+            
             if k.startswith('_'):
                 continue
             
-            if isinstance(v, int) or isinstance(v, long):
+            if isinstance(v, (int, long)):
                 v = "0x%08X" % v
-                
-            t = self.addField('%s:' % k, k, v, fieldStyle=wx.TE_READONLY)
+            else:
+                v = unicode(v)
+            
+            t = self.addField('%s:' % k, k, None, v, fieldStyle=wx.TE_READONLY)
             t.SetSizerProps(expand=True)
             t.SetFont(mono)
             t.SetForegroundColour(infoColor)
@@ -686,7 +699,7 @@ class SSXInfoPanel(BaseConfigPanel):
         else:
             wx.MessageBox("Unable to open the clipboard", "Error")
 
-        
+
 #===============================================================================
 # 
 #===============================================================================
@@ -714,8 +727,8 @@ class ConfigDialog(sc.SizedDialog):
         self.notebook = wx.Notebook(pane, -1)
         self.triggers = SSXTriggerConfigPanel(self.notebook, -1, root=self)
         self.options = OptionsPanel(self.notebook, -1, root=self)
-        info = SSXInfoPanel(self.notebook, -1, root=self)
-
+        info = InfoPanel(self.notebook, -1, root=self, info=self.deviceInfo)
+        
         self.notebook.AddPage(self.options, "General")
         self.notebook.AddPage(self.triggers, "Triggers")
         self.notebook.AddPage(info, "Device Info")
@@ -772,3 +785,5 @@ def configureRecorder(path):
 if __name__ == "__main__":
     app = wx.App()
     print configureRecorder("G:\\")
+
+

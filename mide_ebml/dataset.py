@@ -301,7 +301,7 @@ class Dataset(Cascading):
         self.transforms = {}
         self.parent = None
         self.currentSession = None
-        self.recorderInfo = None
+        self.recorderInfo = {}
         
         self.useIndices = False
         

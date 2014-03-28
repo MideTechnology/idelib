@@ -612,6 +612,14 @@ class ChannelDataBlockParser(SimpleChannelDataBlockParser):
 # 
 #===============================================================================
 
+class RecorderPropertyParser(ElementHandler):
+    """ Base class for elements that just add a value to the Dataset's
+        `recorderInfo` but aren't in the `RecorderInfo` element.
+    """
+    def parse(self, element, **kwargs):
+        self.doc.recorderInfo[self.elementName] = element.value
+        
+
 class PolynomialParser(ElementHandler):
     """ The handler for both Univariate and Bivariate calibration polynomials.
         Each are a subclass of this, although this class does all the work.
@@ -679,6 +687,19 @@ class BivariatePolynomialParser(PolynomialParser):
     elementName = "BivariatePolynomial"
 
 
+class CalibrationDateParser(RecorderPropertyParser):
+    """ Simple handler for calibration birthday (optional). """
+    elementName = "CalibrationDate"
+    
+class CalibrationExpiryParser(RecorderPropertyParser):
+    """ Simple handler for calibration 'sell-by' date (optional). """
+    elementName = "CalibrationExpiry"
+
+class CalibrationSerialNumber(RecorderPropertyParser):
+    """ Simple handler for calibration serial number (optional). """
+    elementName = "CalibrationSerialNumber"
+
+
 class CalibrationListParser(ElementHandler):
     """ Root-level parser for calibration data. Handles parsing of the
         individual calibration elements (its children). Unlike (most) other
@@ -687,7 +708,9 @@ class CalibrationListParser(ElementHandler):
         in a `items` attribute (a list). 
     """
     elementName = "CalibrationList"
-    children = (UnivariatePolynomialParser, BivariatePolynomialParser)
+    children = (UnivariatePolynomialParser, BivariatePolynomialParser,
+                CalibrationDateParser, CalibrationExpiryParser,
+                CalibrationSerialNumber)
 
 
 #===============================================================================
@@ -795,7 +818,7 @@ class RecorderInfoParser(ElementHandler):
         """
         """
         # This one is simple; it just sticks the data into the Dataset.
-        self.doc.recorderInfo = parse_ebml(element.value) 
+        self.doc.recorderInfo.update(parse_ebml(element.value)) 
         return self.doc.recorderInfo  
 
 

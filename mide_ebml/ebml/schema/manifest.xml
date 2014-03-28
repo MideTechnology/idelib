@@ -63,8 +63,9 @@ default="123" or a text value that may or may not be the name of another tag
 <!-- 0x0400: Start of Calibration data -->
 
 <!-- Manifest structure -->
-<!-- Consists of a DeviceManifest master tag and its subelements as shown below. The SystemInfo and Battery entries are required and must comply to the payload sizes shown. -->
-<!-- The remaining entries are optional for the first Slam Stick product (defaults will be used); required if different from the defaults. -->
+<!-- Consists of a DeviceManifest master tag and its subelements as shown below. The SystemInfo and Battery entries are required. -->
+<!-- The remaining entries are optional, but strongly recommended, for the first Slam Stick product (defaults will be used); required if different from the defaults. -->
+<!-- Note, the production device implements a proper EBML parser for this stuff, so adhering to the "length" values shown for struct-like access is not needed - these fields should be considered advisory only.-->
 
 <!-- Config structure -->
 <!-- Consists of the ConfigurationList master element and children, exactly as it will appear in the output. -->
@@ -79,10 +80,10 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="ProductName" level="2" id="0x4D03" type="string" mandatory="1" multiple="0" minver="1" length="20">20-byte Displayable text name for this product/variant.</element>
 			<element name="HwRev" level="2" id="0x4D04" type="uinteger" mandatory="1" multiple="0" minver="1" length="2">2-byte hardware revision code for this DeviceTypeUID.</element>
 			<element name="MinFwRev" level="2" id="0x4D05" type="uinteger" mandatory="1" multiple="0" minver="1" length="2">2-byte Minimum FW revision code required to support this hardware.</element>
-			<element name="DateOfManufacture" level="2" id="0x4D06" type="uinteger" mandatory="1" multiple="0" minver="1" length="8">8-byte date/time of manufacture (initial programming) in UTC seconds.</element>
+			<element name="DateOfManufacture" level="2" id="0x4D06" type="uinteger" mandatory="1" multiple="0" minver="1" length="8">8-byte date/time of manufacture (initial programming) in UTC seconds since the Epoch.</element>
 			<element name="Vdd" level="2" id="0x4D07" type="uinteger" mandatory="1" multiple="0" minver="1" length="3">3-byte (1 integer, 2 fractional) Vdd value.</element>
 			<element name="Vref" level="2" id="0x4D08" type="uinteger" mandatory="1" multiple="0" minver="1" length="3">3-byte (1 integer, 2 fractional) ADC Vref value.</element>
-
+			<element name="PartNumber" level="2" id="0x4D09" type="string" mandatory="1" multiple="0" minver="1">Device part .number. (text product identifier e.g. VR002-100-XYZ).</element>
 
 		<!-- Battery Info -->
 		<element name="Battery" level="1" id="0x4D10" type="master" mandatory="0" multiple="0" minver="1">Class B (2 byte + 2 length) Master element for battery info.</element>

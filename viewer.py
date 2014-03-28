@@ -52,6 +52,7 @@ from timeline import TimelineCtrl, TimeNavigatorCtrl
 import config_dialog
 from device_dialog import selectDevice
 import export_dialog as xd
+from fileinfo import RecorderInfoDialog
 from fft import FFTView, SpectrogramView
 from loader import Loader
 from plots import PlotSet
@@ -571,6 +572,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_EXPORT_VISIBLE = wx.NewId()
     ID_RENDER_FFT = wx.NewId()
     ID_RENDER_SPEC = wx.NewId()
+    ID_FILE_PROPERTIES = wx.NewId()
     ID_DEVICE_TIME = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
     ID_DEVICE_SET_CLOCK = wx.NewId()
@@ -603,13 +605,13 @@ class Viewer(wx.Frame, MenuMixin):
         self.yFormatter = "Y: %%.%df %%s" % self.app.getPref('precisionY', 4)
         self.showUtcTime = False
         
-        self.buildUI()
-        self.Centre()
-        self.Show()
-        
         self.dataset = None
         self.session = None
         self.cancelQueue = []
+        
+        self.buildUI()
+        self.Centre()
+        self.Show()
         
         self.plots = []
         self._nextColor = 0
@@ -663,6 +665,11 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, self.ID_RENDER_SPEC, 
                          "Render Spectrogram (2D FFT)...", "", 
                          self.renderSpectrogram)
+        fileMenu.AppendSeparator()
+        #ID_FILE_PROPERTIES
+        self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES, 
+                         "Recording Properties...", "", self.OnFileProperties,
+                         enabled=False)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", enabled=False)
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
@@ -762,6 +769,7 @@ class Viewer(wx.Frame, MenuMixin):
         menus = (wx.ID_CANCEL, wx.ID_REVERT, wx.ID_SAVEAS, self.ID_RECENTFILES, 
                  self.ID_EXPORT, self.ID_RENDER_FFT, wx.ID_PRINT, 
                  wx.ID_PRINT_SETUP, self.ID_VIEW_ANTIALIAS, self.ID_VIEW_JITTER,
+                 self.ID_FILE_PROPERTIES,
 #                  wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE
                  )
         
@@ -770,6 +778,14 @@ class Viewer(wx.Frame, MenuMixin):
             if m is not None:
                 m.Enable(enabled)
     
+#         # the 'show properties' menu is only enabled if there is recorder info
+#         m = self.menubar.FindItemById(self.ID_FILE_PROPERTIES)
+#         if self.dataset is not None:
+#             print self.dataset.recorderInfo
+#         else:
+#             print "dataset is None"
+#         m.Enable(enabled and self.dataset.recorderInfo is not None)
+
     
     def enableChildren(self, enabled=True):
         """ Enable (or disable) all child UI items.
@@ -1264,6 +1280,14 @@ class Viewer(wx.Frame, MenuMixin):
         """
         # XXX: IMPLEMENT OnFileReload!
         self.ask("File:Reload not yet implemented!", "Not Implemented", wx.OK, wx.ICON_INFORMATION)
+
+
+    def OnFileProperties(self, evt):
+        """
+        """
+        if self.dataset:
+            RecorderInfoDialog.showRecorderInfo(self.dataset)
+        
 
 
     def OnDeviceConfigMenu(self, evt):
