@@ -1081,6 +1081,7 @@ class Viewer(wx.Frame, MenuMixin):
         subchannels = settings['channels']
         subchannelIds = [c.id for c in subchannels]
         start, stop = settings['indexRange']
+        addHeaders = settings['addHeaders']
         
         filename = self.getSaveFile("Export CSV...")
         if filename is None:
@@ -1103,7 +1104,8 @@ class Viewer(wx.Frame, MenuMixin):
                          callback=dlg, callbackInterval=0.0005, 
                          raiseExceptions=True,
                          useIsoFormat=settings['useIsoFormat'],
-                         useUtcTime=settings['useUtcTime'])
+                         useUtcTime=settings['useUtcTime'],
+                         headers=addHeaders)
         
         dlg.Destroy()
         stream.close()

@@ -1305,16 +1305,19 @@ class EventList(Cascading):
             return sampleTime
         
         startTime = block.startTime
+        endTime = block.endTime
 
-        if len(self._data) == 1:
-            # Only one block; can't compute from that!
-            raise NotImplementedError("TODO: Implement getting sample rate in case of single block")
-        elif blockIdx == len(self._data) - 1:
-            # Last block; use previous.
-            startTime = self._data[blockIdx-1].startTime
-            endTime = block.startTime
-        else:
-            endTime = self._data[blockIdx+1].startTime
+        if endTime is None:
+            if len(self._data) == 1:
+                # Only one block; can't compute from that!
+                raise NotImplementedError("TODO: Implement getting sample rate in case of single block")
+            elif blockIdx == len(self._data) - 1:
+                # Last block; use previous.
+                startTime = self._data[blockIdx-1].startTime
+                endTime = block.startTime
+            else:
+                endTime = self._data[blockIdx+1].startTime
+            block.endTime = endTime
         
         numSamples = block.getNumSamples(self.parent.parser)
         if numSamples == 0:
@@ -1450,7 +1453,7 @@ class EventList(Cascading):
     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", useUtcTime=False,
-                  useIsoFormat=False):
+                  useIsoFormat=False, headers=False):
         """ Export events as CSV to a stream (e.g. a file).
         
             @param stream: The stream object to which to write CSV data.
@@ -1504,12 +1507,16 @@ class EventList(Cascading):
                 fstr = '%s, ' + ', '.join([dataFormat] * len(subchannels))
                 formatter = lambda x: fstr % ((timeFormatter(x),) + \
                                               tuple([x[-1][v] for v in subchannels]))
+                names = [self.parent.subchannels[x].name for x in subchannels]
             else:
                 fstr = '%s, ' + ', '.join([dataFormat] * len(self.parent.types))
                 formatter = lambda x: fstr % ((timeFormatter(x),) + x[-1])
+                names = [x.name for x in self.parent.subchannels]
         else:
             fstr = "%%s, %s" % dataFormat
             formatter = lambda x: fstr % (timeFormatter(x),x[-1])
+            names = [self.parent.name]
+
         
         totalLines = (stop - start) / (step + 0.0)
         updateInt = int(totalLines * callbackInterval)
@@ -1518,6 +1525,8 @@ class EventList(Cascading):
         stop = stop + len(self) if stop < 0 else stop
         
         t0 = datetime.now()
+        if headers:
+            stream.write('"Time",%s\n' % ','.join(['"%s"' % n for n in names]))
         try:
             for num, evt in enumerate(self.iterSlice(start, stop, step)):
                 if getattr(callback, 'cancelled', False):

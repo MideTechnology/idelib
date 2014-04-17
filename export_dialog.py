@@ -544,7 +544,7 @@ class CSVExportDialog(ExportDialog):
     DEFAULT_TITLE= "Export CSV"
     
     def __init__(self, *args, **kwargs):
-        self._addHeaders = kwargs.pop('addHeaders', True)
+        self._addHeaders = kwargs.pop('addHeaders', False)
         self._utcTime = kwargs.pop('useUtcTime', False)
         self._isoTime = kwargs.pop('useIsoFormat', False)
         super(CSVExportDialog, self).__init__(*args, **kwargs)

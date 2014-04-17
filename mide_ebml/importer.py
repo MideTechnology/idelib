@@ -58,7 +58,8 @@ elementParserTypes = parsers.getElementHandlers()
 # testFile = "P:\\WVR_RIF\\06_Testing_Calibration\\08_Pressure_Tests\\01_Test_to_28000ft\\Slamstick_Data\\VIB00014.IDE"
 # testFile= "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140127_SNAKE_Prototype_Test\\20140127_y_sweep.IDE"
 # testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\20140328_auto_rearm\VIB00001.IDE"
-testFile= "Firmware20140328.IDE"
+#testFile= "Firmware20140328.IDE"
+testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140417_stats_20hz_error_short.IDE"
 
 # from parsers import AccelerometerParser
 
@@ -245,6 +246,7 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
     
     # Progress display stuff
     filesize = doc.ebmldoc.stream.size
+    dataSize = filesize
     
     if numUpdates > 0:
         ticSize = filesize / numUpdates 
@@ -294,11 +296,13 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
                 except parsers.ParsingError as err:
                     # TODO: Error messages
                     logger.error("Parsing error during import: %s" % err)
+                    continue
 
             else:
                 # Unknown block type
                 logger.warning("unknown block %r (ID 0x%02x) @%d" % \
                                (r.name, r.id, r.stream.offset))
+                continue
             
             # More progress display stuff
             # TODO: Possibly do the update check every nth elements; that would

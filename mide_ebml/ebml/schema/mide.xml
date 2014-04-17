@@ -269,7 +269,7 @@ default="123" or a text value that may or may not be the name of another tag
 			<!-- A modulo timecode has rolled over if the current value is LESS THAN the previous value. Given two consecutive datablocks with identical modulo timecode 'n', no time has elapsed between them. Given two blocks with timecodes n and n-1, respectively, the maximum allowable time for the timecode's modulus has elapsed. -->
 
 		<!-- Timecode ordering -->
-			<!-- Timecodes in the datablocks written for a given channel MUST be monotonically increasing. That is, the device MUST NOT write a datablock for a given channel with an earlier timecode than an already written datablock. It can be safely assumed that a decrease in any modulo timecode represents a rollover, and any decrease in a non-modulo absolute timecode is an error condition. (This is a litter stricter than Matroska, which allows out-of-order timecodes as long as elements referencing another element's timecode come after said referenced element. The monotonicity requirement is to allow random-access seeking time ranges within the files.) -->
+			<!-- Timecodes in the datablocks written for a given channel MUST be monotonically increasing. That is, the device MUST NOT write a datablock for a given channel with an earlier timecode than an already written datablock for that channel. It can be safely assumed that a decrease in any modulo timecode represents a rollover, and any decrease in a non-modulo absolute timecode is an error condition. (This is a litter stricter than Matroska, which allows out-of-order timecodes as long as elements referencing another element's timecode come after said referenced element. The monotonicity requirement is to allow random-access seeking time ranges within the files.) -->
 			<!-- However, datablocks are NOT required to be monotonically increasing ACROSS channels. -->
 			<!-- In other words, given an output such as: <datablock1 ch=1> <datablock2 ch=2> <datablock3 ch=1>, datablock2 may have an earlier timecode than datablock1 (because they are different channels), but datablock3 may not (same channel). -->
 
@@ -282,15 +282,14 @@ default="123" or a text value that may or may not be the name of another tag
   <element name="SimpleChannelDataBlock" level="0" id="0xA0" type="binary" multiple="1" minver="1">This element contains potentially-channelized instrumentation data in a minimalist format. Its mandatory, fixed-length header includes a 2-byte modulo timecode (scaled to the channel's TimecodeScale, default of 1/32768 sec) and a 1-byte integer ChannelID.</element>
 
   <element name="ChannelDataBlock" level="0" id="0xA1" type="master" multiple="1" minver="1">This element contains child elements including instrumentation data associated to a channel. This is used for e.g. binding a timestamp(s) and/or metadata to a specific multi-sample block of sensor data, which may be written asynchronously with respect to other channels' data (i.e. multiplexed).</element>
-  <element name="ChannelIDRef" level="1" id="0xB0" type="integer" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</element>
-  <element name="ChannelFlags" level="1" id="0xB1" type="uinteger" multiple="0" minver="1">Child of ChannelDataBlock: optional flags to indicate datablock features such as discontinuity</element>
-  <element name="ChannelDataPayload" level="1" id="0xB2" type="binary" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</element>
-  <element name="StartTimeCodeAbs" level="1" id="0xB8" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from the session TimeBase. If included at the Channel level, it is at the Channel scale.</element>
-  <element name="EndTimeCodeAbs" level="1" id="0xB9" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from the session TimeBase. If included at the Channel level, it is at the Channel scale.</element>
-  <element name="StartTimeCodeAbsMod" level="1" id="0xBA" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from session TimeBase mod (n_octets). Allows for a short, rolling-over (but still absolute) code.</element>
-  <element name="EndTimeCodeAbsMod" level="1" id="0xBB" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from session TimeBase mod (n_octets). Allows for a short, rolling-over (but still absolute) code.</element>
-
-
+	  <element name="ChannelIDRef" level="1" id="0xB0" type="integer" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</element>
+	  <element name="ChannelFlags" level="1" id="0xB1" type="uinteger" multiple="0" minver="1">Child of ChannelDataBlock: optional flags to indicate datablock features such as discontinuity</element>
+	  <element name="ChannelDataPayload" level="1" id="0xB2" type="binary" multiple="0" minver="1">Child of ChannelDataBlock: the actual channel data samples. If there are multiple subchannels, for each sample point, the sample for each subchannel will be written consecutively (i.e. [sc0 sc1 sc2] [sc0 sc1 sc2]).</element>
+	  <element name="StartTimeCodeAbs" level="1" id="0xB8" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from the session TimeBase. If included at the Channel level, it is at the Channel scale.</element>
+	  <element name="EndTimeCodeAbs" level="1" id="0xB9" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from the session TimeBase. If included at the Channel level, it is at the Channel scale.</element>
+	  <element name="StartTimeCodeAbsMod" level="1" id="0xBA" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from session TimeBase mod (n_octets). Allows for a short, rolling-over (but still absolute) code.</element>
+	  <element name="EndTimeCodeAbsMod" level="1" id="0xBB" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from session TimeBase mod (n_octets). Allows for a short, rolling-over (but still absolute) code.</element>
+	  <element name="ChannelDataMinMeanMax" level="1" id="0xBC" type="binary" multiple="0" minver="1">Child of ChannelDataBlock: structure indicating the min, mean (average) and max value, in that order, for each subchannel in this datablock. Values will have the same format and representation as the subchannel payloads themselves.</element>
 
 
 

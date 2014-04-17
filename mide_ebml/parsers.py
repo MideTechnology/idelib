@@ -926,3 +926,13 @@ class EBMLParser(ElementHandler):
         # Don't care about this tag; the library automatically parses it.
         pass
 
+
+class VoidParser(ElementHandler):
+    """ Stub for gracefully handling the standard Void element.
+    """
+    elementName="Void"
+    
+    def parse(self, element, **kwargs):
+        # Don't care about this tag; the library automatically parses it.
+        pass
+
