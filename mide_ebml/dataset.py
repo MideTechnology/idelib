@@ -31,6 +31,7 @@ import random
 import sys
 
 from ebml.schema.mide import MideDocument
+import util
 
 from calibration import Transform
 from parsers import getParserTypes, getParserRanges
@@ -290,8 +291,13 @@ class Dataset(Cascading):
             for adjusting/calibrating sensor data.
     """
         
-    def __init__(self, stream, name=None):
-        """
+    def __init__(self, stream, name=None, quiet=False):
+        """ Constructor. 
+            @param stream: A file-like stream object containing EBML data.
+            @keyword name: An optional name for the Dataset. Defaults to the
+                base name of the file (if applicable).
+            @keyword quiet: If `True`, non-fatal errors (e.g. schema/file
+                version mismatches) are suppressed. 
         """
         self.lastUtcTime = None
         self.sessions = []
@@ -309,12 +315,22 @@ class Dataset(Cascading):
         self.loadCancelled = False
         self.loading = True
         self.ebmldoc = MideDocument(stream)
-        self.filename = self.ebmldoc.stream.file.name
+        self.filename = getattr(stream, "name", None)
 
         if name is None:
-            self.name = os.path.splitext(os.path.basename(self.filename))[0]
+            if self.filename is not None:
+                self.name = os.path.splitext(os.path.basename(self.filename))[0]
+            else:
+                self.name = ""
         else:
             self.name = name
+
+        self.schemaVersion = util.getSchemaDocument().version
+        if not quiet:
+            if self.schemaVersion != self.ebmldoc.version:
+                raise IOError("EBML schema version mismatch: file is %d, "
+                              "library is %d" % (self.schemaVersion, 
+                                                 self.ebmldoc.version))
 
 
     def addSession(self, startTime=None, endTime=None, utcStartTime=None):

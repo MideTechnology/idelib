@@ -198,7 +198,7 @@ class SimpleUpdater(object):
 
 def importFile(filename=testFile, updater=nullUpdater, numUpdates=500, 
                updateInterval=1.0, parserTypes=elementParserTypes, 
-               defaultSensors=default_sensors):
+               defaultSensors=default_sensors, name=None, quiet=False):
     """ Create a new Dataset object and import the data from a MIDE file. 
         Primarily for testing purposes. The GUI does the file creation and 
         data loading in two discrete steps, as it will need a reference to 
@@ -206,7 +206,7 @@ def importFile(filename=testFile, updater=nullUpdater, numUpdates=500,
         @see: `readData`
     """
     stream = open(filename, "rb")
-    doc = Dataset(stream)
+    doc = Dataset(stream, name=name, quiet=quiet)
     readData(doc, updater=updater, numUpdates=numUpdates, 
              updateInterval=updateInterval, parserTypes=parserTypes, 
              defaultSensors=defaultSensors)

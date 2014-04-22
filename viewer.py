@@ -1038,11 +1038,22 @@ class Viewer(wx.Frame, MenuMixin):
         
         try:
             stream = ThreadAwareFile(filename, 'rb')
-            newDoc = mide_ebml.dataset.Dataset(stream)
+            newDoc = mide_ebml.dataset.Dataset(stream, quiet=True)
             self.app.addRecentFile(filename, 'import')
+            if newDoc.schemaVersion < newDoc.ebmldoc.version:
+                q = self.root.ask("The data file was created using a newer "
+                  "version of the MIDE EBML schema (viewer version is %s, "
+                  "file version is %s); this could potentially cause problems. "
+                  "\n\nOpen anyway?" % (newDoc.schemaVersion, 
+                                        newDoc.ebmldoc.version), 
+                  "Schema Version Mismatch")
+                if q:
+                    stream.closeAll()
+                    return
         # More specific exceptions should be caught here, before ultimately:
         except Exception as err:
             # Catch-all for unanticipated errors
+            stream.closeAll()
             self.handleException(err, what="importing the file %s" % filename,
                                  closeFile=True)
             return
