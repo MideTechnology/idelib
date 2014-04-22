@@ -312,6 +312,7 @@ class BaseConfigPanel(sc.SizedPanel):
         if len(t) > 4:
             raise ValueError("Time had too many columns to parse: %r" % timeStr)
         if len(t) == 4:
+            # Four columns: days, hours, minutes, seconds
             total = t.pop() * (24*60*60)
         else:
             total = 0
@@ -335,7 +336,10 @@ class BaseConfigPanel(sc.SizedPanel):
                 return
             field.Enable()
             if isinstance(field, wx.TextCtrl):
-                value = str(value)
+                if isinstance(value, float):
+                    value = "%.3f" % value
+                else:
+                    value = str(value)
             elif isinstance(field, DateTimeCtrl):
                 value = wx.DateTimeFromTimeT(float(value))
             elif isinstance(field, wx.Choice):
@@ -423,8 +427,10 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.pressHiCheck = self.addCheckField("Pressure Trigger (High):", units="Pa")
         self.tempLoCheck = self.addCheckField("Temperature Trigger (Low):", units=u'\xb0C')
         self.tempHiCheck = self.addCheckField("Temperature Trigger (High):", units=u'\xb0C')
-        self.accelLoCheck = self.addCheckField("Accelerometer Trigger (Low):", units="G")
-        self.accelHiCheck = self.addCheckField("Accelerometer Trigger (High):", units="G")
+        self.accelLoCheck = self.addCheckField("Accelerometer Trigger (Low):", 
+           units="G", tooltip="The lower trigger limit. Should be less than 0.")
+        self.accelHiCheck = self.addCheckField("Accelerometer Trigger (High):", 
+           units="G", tooltip="The upper trigger limit. Should be greater than 0.")
 
 
     def OnCheckChanged(self, evt):
@@ -640,7 +646,15 @@ class OptionsPanel(BaseConfigPanel):
 class InfoPanel(BaseConfigPanel):
     """ A generic configuration dialog page showing various read-only properties
         of a recorder.
+        
+        @cvar field_types: A dictionary pairing field names with a function to
+            prepare the value for display.
     """
+    
+    field_types = {'DateOfManufacture': datetime.fromtimestamp,
+                   'HwRev': str,
+                   'FwRev': str,
+                   }
 
     def __init__(self, *args, **kwargs):
         self.info = kwargs.pop('info', {})
@@ -669,8 +683,9 @@ class InfoPanel(BaseConfigPanel):
             
             if k.startswith('_'):
                 continue
-            
-            if isinstance(v, (int, long)):
+            elif k in self.field_types:
+                v = self.field_types[k](v)
+            elif isinstance(v, (int, long)):
                 v = "0x%08X" % v
             else:
                 v = unicode(v)
