@@ -79,6 +79,7 @@ class ExportDialog(sc.SizedDialog):
         kwargs.setdefault('title', self.DEFAULT_TITLE)
         self.units = kwargs.pop("units", self.DEFAULT_UNITS)
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
+        self.removeMean = kwargs.pop("removeMean", True)
 
         super(ExportDialog, self).__init__(*args, **kwargs)
         
@@ -157,6 +158,11 @@ class ExportDialog(sc.SizedDialog):
         wx.StaticText(rangeFieldPane, -1, self.units[1])
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
+        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
+        self.removeMean, _ = self._addCheck("Remove mean from data",
+            tooltip="Subtract a rolling mean from the data. " \
+                    "Not applicable to all channels.", default=self.removeMean,
+                    parent=pane)
         self.buildSpecialUI()
 
         warnPane = sc.SizedPanel(pane,-1)
@@ -553,9 +559,8 @@ class CSVExportDialog(ExportDialog):
     def buildSpecialUI(self):
         """ Called before the buttons are added.
         """
-        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
         self.headerCheck, subpane = self._addCheck("Include Column Headers",
-                                                   default=self._addHeaders)
+                                     default=self._addHeaders)
         self.utcCheck, _ = self._addCheck("Use Absolute UTC Timestamps",
                                           default=self._utcTime, parent=subpane)
         self.isoCheck, _ = self._addCheck("Use ISO Time Format",
@@ -641,7 +646,6 @@ class FFTExportDialog(ExportDialog):
         """ Called before the OK/Cancel buttons are added.
         """
         
-        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
         self.sizeList, _subpane = self._addChoice("Sampling Window Size:",
             choices=self.WINDOW_SIZES, default=self.windowSize, 
             tooltip="The size of the 'window' used in Welch's method")
@@ -750,7 +754,6 @@ class SpectrogramExportDialog(FFTExportDialog):
     def buildSpecialUI(self):
         """ Called before the OK/Cancel buttons are added.
         """
-        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
 #         self.sizeList, subpane = self._addChoice("Sampling Window Size:",
 #             choices=self.WINDOW_SIZES, default=self.windowSize, 
 #             tooltip="The size of the 'window' used in Welch's method")

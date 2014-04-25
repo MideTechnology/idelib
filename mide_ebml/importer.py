@@ -59,7 +59,7 @@ elementParserTypes = parsers.getElementHandlers()
 # testFile= "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140127_SNAKE_Prototype_Test\\20140127_y_sweep.IDE"
 # testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\20140328_auto_rearm\VIB00001.IDE"
 #testFile= "Firmware20140328.IDE"
-testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140417_stats_20hz_error_short.IDE"
+testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140423_stats_newformat.ide"
 
 # from parsers import AccelerometerParser
 
@@ -70,10 +70,10 @@ default_sensors = {
     0x00: {"name": "SlamStick Combined Sensor", 
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
-                       "parser": struct.Struct("<HHH"), #AccelerometerParser(),
-                        "transform": (calibration.AccelTransform(),
-                                      calibration.AccelTransform(),
-                                      calibration.AccelTransform()),
+                       "parser": parsers.AccelerometerParser(),
+                       "transform": (calibration.AccelTransform(),
+                                     calibration.AccelTransform(),
+                                     calibration.AccelTransform()),
                        "subchannels":{0: {"name": "Accelerometer Z", 
                                           "units":('g','g'),
                                           "displayRange": (-100.0,100.0),

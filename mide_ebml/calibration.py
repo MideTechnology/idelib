@@ -45,27 +45,29 @@ class Transform(object):
 #===============================================================================
 
 class AccelTransform(Transform):
-    """ A simple transform to convert accelerometer values (recorded as
-        uint16) to floats in the range -100 to 100 G.
+    """ A simple transform to convert accelerometer values (parsed as
+        int16) to floats in the range -100 to 100 G.
         
-        Do not use if using already `AccelerometerParser` to parse the 
-        channel.
+        This assumes that the data was parsed by `AccelerometerParser`, which
+        puts the raw values in the range -32768 to 32767.
     """
     modifiesValue = True
     def __call__(self, event, session=None):
-        return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
+#         return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
+        return event[:-1] + ((event[-1] / 32767.0) * 100.0,)
 
 
 class AccelTransform25G(Transform):
-    """ A simple transform to convert accelerometer values (recorded as
-        uint16) to floats in the range -10 to 10 G.
+    """ A simple transform to convert accelerometer values (parsed as
+        int16) to floats in the range -25 to 25 G.
         
-        Do not use if using already `AccelerometerParser` to parse the 
-        channel.
+        This assumes that the data was parsed by `AccelerometerParser`, which
+        puts the raw values in the range -32768 to 32767.
     """
     modifiesValue = True
     def __call__(self, event, session=None):
-        return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
+#         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
+        return event[:-1] + ((event[-1] / 32767) * 25.0,)
 
 
 

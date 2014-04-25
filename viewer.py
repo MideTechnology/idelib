@@ -579,6 +579,9 @@ class Viewer(wx.Frame, MenuMixin):
     ID_VIEW_ANTIALIAS = wx.NewId()
     ID_VIEW_JITTER = wx.NewId()
     ID_VIEW_UTCTIME = wx.NewId()
+    ID_DATA_TOGGLEMEAN = wx.NewId()
+    ID_DATA_NOMEAN_ALL = wx.NewId()
+    ID_DATA_NOMEAN_NONE = wx.NewId()
 
 
     def __init__(self, *args, **kwargs):
@@ -690,11 +693,6 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", enabled=False)
         self.menubar.Append(editMenu, '&Edit')
 
-        deviceMenu = wx.Menu()
-        self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
-                         "Configure Device...", "", self.OnDeviceConfigMenu)
-        self.menubar.Append(deviceMenu, 'De&vice')
-        
         viewMenu = wx.Menu()
         self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS, 
                          "Antialiased Drawing", "", 
@@ -706,7 +704,24 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
                          "Show Absolute UTC Time", "",
                          self.OnToggleUtcTime, kind=wx.ITEM_CHECK)
-        self.menubar.Append(viewMenu, 'View')
+        self.menubar.Append(viewMenu, 'V&iew')
+
+        deviceMenu = wx.Menu()
+        self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
+                         "Configure Device...", "", self.OnDeviceConfigMenu)
+        self.menubar.Append(deviceMenu, 'De&vice')
+        
+        dataMenu = wx.Menu()
+        self.addMenuItem(dataMenu, self.ID_DATA_TOGGLEMEAN, 
+                         "Remove Mean from Data", "",
+                         self.OnRemoveMeanToggle, kind=wx.ITEM_CHECK)
+        self.addMenuItem(dataMenu, self.ID_DATA_NOMEAN_ALL,
+                         "Check Remove Mean for All Plots", "",
+                         self.OnRemoveMeanAll)
+        self.addMenuItem(dataMenu, self.ID_DATA_NOMEAN_NONE,
+                         "Uncheck Remove Mean for All Plots", "",
+                         self.OnRemoveMeanAll)
+        self.menubar.Append(dataMenu, "&Data")
         
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
@@ -769,6 +784,7 @@ class Viewer(wx.Frame, MenuMixin):
         menus = (wx.ID_CANCEL, wx.ID_REVERT, wx.ID_SAVEAS, self.ID_RECENTFILES, 
                  self.ID_EXPORT, self.ID_RENDER_FFT, wx.ID_PRINT, 
                  wx.ID_PRINT_SETUP, self.ID_VIEW_ANTIALIAS, self.ID_VIEW_JITTER,
+                 self.ID_DATA_TOGGLEMEAN,
                  self.ID_FILE_PROPERTIES,
 #                  wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE
                  )
@@ -1332,13 +1348,74 @@ class Viewer(wx.Frame, MenuMixin):
         wx.AboutBox(info)
     
 
+    def OnRemoveMeanToggle(self, evt):
+        """ Handler for ID_DATA_TOGGLEMEAN menu item selection. The method can
+            also be used to explicitly set the item checked or unchecked.
+            
+            @param evt: The menu event. Can also be `True` or `False` to force
+                the check to be set (kind of a hack).
+        """ 
+        if isinstance(evt, bool):
+            checked = evt
+            self.menubar.FindItemById(self.ID_DATA_TOGGLEMEAN).Check(evt)
+        else:
+            checked = evt.IsChecked() 
+            
+        p = self.plotarea.getActivePage()
+        if p is not None and p.source is not None:
+            p.source.removeMean = checked
+            self.plotarea.redraw()
+
+
+    def OnRemoveMeanAll(self, evt):
+        """ Sets all plots to remove the rolling mean from their values.
+        """
+        for p in self.plotarea:
+            if p.source is not None:
+                p.source.removeMean = True
+        self.plotarea.redraw()
+
+
+    def OnRemoveMeanNone(self, evt):
+        """ Sets all plots to not remove the rolling mean from their values.
+        """
+        for p in self.plotarea:
+            if p.source is not None:
+                p.source.removeMean = False
+        self.plotarea.redraw()
+
+
     def OnToggleAA(self, evt):
-        self.antialias = evt.IsChecked()
+        """ Handler for ID_VIEW_ANTIALIAS menu item selection. The method can
+            also be used to explicitly set the item checked or unchecked.
+            
+            @param evt: The menu event. Can also be `True` or `False` to force
+                the check to be set (kind of a hack).
+        """ 
+        if isinstance(evt, bool):
+            checked = evt
+            self.menubar.FindItemById(self.ID_VIEW_ANTIALIAS).Check(evt)
+        else:
+            checked = evt.IsChecked()
+             
+        self.antialias = checked
         self.plotarea.redraw()
         
 
     def OnToggleNoise(self, evt):
-        if evt.IsChecked():
+        """ Handler for ID_VIEW_JITTER menu item selection. The method can
+            also be used to explicitly set the item checked or unchecked.
+            
+            @param evt: The menu event. Can also be `True` or `False` to force
+                the check to be set (kind of a hack).
+        """ 
+        if isinstance(evt, bool):
+            checked = evt
+            self.menubar.FindItemById(self.ID_VIEW_JITTER).Check(evt)
+        else:
+            checked = evt.IsChecked()
+            
+        if checked:
             self.noisyResample = self.app.getPref('resamplingJitter', 
                                                   RESAMPLING_JITTER)
         else:
@@ -1347,7 +1424,18 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnToggleUtcTime(self, evt):
-        self.showUtcTime = evt.IsChecked()
+        """ Handler for ID_VIEW_UTCTIME menu item selection. The method can
+            also be used to explicitly set the item checked or unchecked.
+            
+            @param evt: The menu event. Can also be `True` or `False` to force
+                the check to be set (kind of a hack).
+        """ 
+        if isinstance(evt, bool):
+            checked = evt
+            self.menubar.FindItemById(self.ID_VIEW_UTCTIME).Check(evt)
+        else:
+            checked = evt.IsChecked() 
+        self.showUtcTime = checked
         
     #===========================================================================
     # Custom Events

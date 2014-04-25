@@ -4,17 +4,18 @@ Created on Sep 26, 2013
 @author: dstokes
 
 
+@todo: See where NumPy can be leveraged. The original plan was to make this
+    module free of all dependencies (save python_ebml), but NumPy greatly 
+    improved the new min/mean/max stuff. Might as well take advantage of it
+    elsewhere!  
 @todo: Discontinuity handing. This will probably be conveyed as events with
     null values. An attribute/keyword may be needed to suppress this when 
     getting data for processing (FFT, etc.)
 @todo: Look at places where lists are returned, consider using `yield` 
     instead (e.g. parseElement(), etc.)
 @todo: Have Sensor.addChannel() possibly check the parser to see if the 
-    blocks are single-sample, instantiate simpler Channel subclass
-@todo: Further optimize EventList._searchBlockRanges() so that the binary
-    search only occurs when absolutely necessary, or improve the
-    start/end search range limiting hints. Possibly base a reasonable
-    guess from the sample rate.
+    blocks are single-sample, instantiate simpler Channel subclass (possibly
+    also a specialized, simpler class of EventList, too)
 @todo: Decide if dataset.useIndices is worth it, remove it if it isn't.
     Removing it may save a trivial amount of time/memory (one fewer 
     conditional in event-getting methods).
@@ -29,6 +30,8 @@ from numbers import Number
 import os.path
 import random
 import sys
+
+import numpy
 
 from ebml.schema.mide import MideDocument
 import util
@@ -59,11 +62,7 @@ Event = namedtuple("Event", ('index','time','value'))
 
 
 #===============================================================================
-# Calibration
-#===============================================================================
-
-#===============================================================================
-# 
+# Interpolation objects, for getting value at a specific time
 #===============================================================================
 
 class Interpolation(object):
@@ -105,7 +104,7 @@ class MultiLerp(Lerp):
 
 
 #===============================================================================
-# 
+# Mix-In Classes
 #===============================================================================
 
 class Cascading(object):
@@ -189,31 +188,10 @@ class Cascading(object):
         return _tlist
 
 
-    def setAllAttributes(self, attname, val, last=None):
-        """ Set the value of the specified attribute for the object and its
-            parents. Objects that don't specifically have the attribute are
-            unchanged.
-            
-            @param attname: The name of the attribute.
-            @param val: The attribute's new value.
-            @keyword last: The final object in the chain, to keep searches
-                from crawling too far back.
-        """
-        if hasattr(self, attname):
-            setattr(self, attname, val)
-        if self == last or self.parent is None:
-            return
-        self.parent.setAllAttributes(attname, val, last)
-        
-
     def __repr__(self):
         return "<%s %r>" % (self.__class__.__name__, self.path())
     
     
-#===============================================================================
-# 
-#===============================================================================
-
 class Transformable(object):
     """ A mix-in class for objects that transform data (apply calibration,
         etc.), making it easy to turn the transformation on or off.
@@ -657,33 +635,58 @@ class Channel(Cascading, Transformable):
         return self.sessions.setdefault(sessionId, EventList(self, session))
     
     
-    def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None):
-        """ Convert raw data into a set of subchannel values.
-            
-            @param block: The data block element to parse.
-            @keyword start: 
-            @keyword end: 
-            @keyword step: 
-            @keyword subchannel: 
+    def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None,
+                   offset=None):
+        """ Parse subsamples out of a data block. Used internally.
+        
+            @param block: The data block from which to parse subsamples.
+            @keyword start: The first block index to retrieve.
+            @keyword end: The last block index to retrieve.
+            @keyword step: The number of steps between samples.
+            @keyword subchannel: If supplied, return only the values for a 
+                specific subchannel (i.e. the method is being called by a
+                SubChannel).
+            @keyword offset: An array of values to subtract from the data or
+                `None`. Intended for use with mean removal.
             @return: A list of tuples, one for each subsample.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
 
-        p = (block, start, end, step, subchannel)
+        p = (block, start, end, step, subchannel, str(offset))
         if self._lastParsed[0] == p:
             return self._lastParsed[1]
         result = list(block.parseWith(self.parser, start=start, end=end, 
                                     step=step, subchannel=subchannel))
+        
+        if offset is not None:
+            if subchannel is not None:
+                offset = offset[subchannel]
+            result = [x-offset for x in result]
+                
         self._lastParsed = (p, result)
         return result
 
 
-    def parseBlockByIndex(self, block, indices, subchannel=None):
+    def parseBlockByIndex(self, block, indices, subchannel=None, offset=None):
+        """ Convert raw data into a set of subchannel values, returning only
+             specific items from the result by index.
+            
+            @param block: The data block element to parse.
+            @param indices: A list of sample index numbers to retrieve.
+            @keyword subchannel: If supplied, return only the values for a 
+                specific subchannel
+            @keyword offset: An array of values to subtract from the data or
+                `None`. Intended for use with mean removal.
+            @return: A list of tuples, one for each subsample.
         """
-        """
-        return list(block.parseByIndexWith(self.parser, indices, 
-                                           subchannel=subchannel))
-        
+        if offset is not None:
+            if subchannel is not None:
+                offset = offset[subchannel]
+            return [x-offset for x in block.parseByIndexWith(self.parser, 
+                                      indices, subchannel=subchannel)]
+        else:
+            return list(block.parseByIndexWith(self.parser, indices, 
+                                               subchannel=subchannel))
 
 #===============================================================================
 
@@ -724,6 +727,8 @@ class SubChannel(Channel):
             self.hasDisplayRange = True
             self.displayRange = displayRange
             
+        self.removeMean = False
+            
 
     @property
     def children(self):
@@ -749,23 +754,35 @@ class SubChannel(Channel):
         return self._sessions
     
 
-    def parseBlock(self, block, start=0, end=-1, step=1):
+    def parseBlock(self, block, start=0, end=-1, step=1, offset=None):
         """ Parse subsamples out of a data block. Used internally.
+        
             @param block: The data block from which to parse subsamples.
             @keyword start: The first block index to retrieve.
             @keyword end: The last block index to retrieve.
             @keyword step: The number of steps between samples.
+            @keyword offset: An array of values to subtract from the data or
+                `None`. Intended for use with mean removal. Note: this is
+                always an array of values, not just the offset for a 
+                specific subchannel.
         """
         return self.parent.parseBlock(block, start, end, step=step, 
-                                      subchannel=self.id)
+                                      subchannel=self.id, offset=offset)
 
 
-    def parseBlockByIndex(self, block, indices):
-        """ Parse specific subsamples out of a data block. 
+    def parseBlockByIndex(self, block, indices, offset=None):
+        """ Parse specific subsamples out of a data block. Used internally.
+        
             @param block: The data block from which to parse subsamples.
             @param indices: A list of individual index numbers to get.
+            @keyword offset: An array of values to subtract from the data or
+                `None`. Intended for use with mean removal. Note: this is
+                always an array of values, not just the offset for a 
+                specific subchannel.
         """
-        return self.parent.parseBlockByIndex(block, indices, subchannel=self.id)
+        return self.parent.parseBlockByIndex(block, indices, subchannel=self.id,
+                                             offset=offset)
+
     
         
     def getSession(self, sessionId=None):
@@ -832,6 +849,8 @@ class EventList(Cascading):
         self.hasDisplayRange = self.parent.hasDisplayRange
         self.displayRange = self.parent.displayRange
 
+        self.removeMean = False
+        
 
     @property
     def units(self):
@@ -891,6 +910,9 @@ class EventList(Cascading):
 #         self._blockTimeTable[1][tableTime] = block.blockIndex
         
         self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
+        
+        if block.minMeanMax is not None:
+            block.parseMinMeanMax(self.parent.parser)
 
 
     def getInterval(self):
@@ -928,8 +950,8 @@ class EventList(Cascading):
             Note that this takes an index, not a reference to the actual
             element itself!
 
-            @param idx: 
-            @return: 
+            @param blockIdx: The index of the block to check.
+            @return: A tuple with the blocks start and end times.
         """
         if blockIdx < 0:
             blockIdx += len(self._data)
@@ -1007,6 +1029,10 @@ class EventList(Cascading):
 
     def _getBlockIndexWithTime(self, t, start=0, stop=-1):
         """ Get the index of a raw data block in which the given time occurs.
+        
+            @param t: The time to find
+            @keyword start: The first block index to search
+            @keyword stop: The last block index to search
         """
 #         tableTime = t / self._blockTimeTableSize
 #         if stop == -1:
@@ -1017,6 +1043,38 @@ class EventList(Cascading):
         return self._searchBlockRanges(t, self._getBlockTimeRange,
                                        start, stop)
         
+
+    def _getBlockRollingMean(self, blockIdx, span=5000000):
+        """ Get the mean of a block and its neighbors within a given time span.
+            Note: Values are taken pre-calibration, and all subchannels are
+            returned.
+            
+            @param blockIdx: The index of the block to check.
+            @keyword span: The time span over which to take the mean. This is
+                the entire span, so the earliest will be (time-(span/2)) and
+                the latest will be (time+(span/2)).
+            @return: An array containing the mean values of each subchannel. 
+        """
+        block = self._data[blockIdx]
+        
+        if self.removeMean is False:
+            return None
+        
+        if block.minMeanMax is None:
+            return None
+        
+        if block._rollingMean is not None and block._rollingMeanSpan == span:
+            return block._rollingMean
+        
+        firstBlock = self._getBlockIndexWithTime(block.startTime - (span/2), 
+                                                 stop=blockIdx)
+        lastBlock = self._getBlockIndexWithTime(block.startTime + (span/2), 
+                                                start=blockIdx)
+        block._rollingMean = numpy.mean(
+                        [b.mean for b in self._data[firstBlock:lastBlock]], 0)
+        block._rollingMeanSpan = span
+        return block._rollingMean
+    
 
     def __getitem__(self, idx):
         """ Get a specific data point by index.
@@ -1051,7 +1109,17 @@ class EventList(Cascading):
         block = self._data[blockIdx]
         
         timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
-        value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
+        value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1,
+                                       offset=self._getBlockRollingMean(blockIdx))[0]
+        
+#         if self.removeMean:
+#             m = self._getBlockRollingMean(blockIdx)
+#             if m is not None:
+#                 if self.hasSubchannels:
+#                     value = value - m
+#                 else:
+#                     value -= m[self.parent.id]
+
         
         if self.hasSubchannels:
             event=tuple(c._transform(f((timestamp,v),self.session)) for f,c,v in izip(self.parent._transform, self.parent.subchannels, value))
@@ -1136,8 +1204,18 @@ class EventList(Cascading):
             sampleTime = self._getBlockSampleTime(i)
             lastSubIdx = endSubIdx if blockIdx == endBlockIdx else block.numSamples
             times = (block.startTime + sampleTime * t for t in xrange(subIdx, lastSubIdx, step))
-            values = self.parent.parseBlock(block, start=subIdx, end=lastSubIdx, step=step)
+            values = self.parent.parseBlock(block, start=subIdx, end=lastSubIdx, 
+                                            step=step, offset=self._getBlockRollingMean(blockIdx))
+
             for event in izip(times, values):
+#                 if self.removeMean:
+#                     m = self._getBlockRollingMean(blockIdx)
+#                     if m is not None:
+#                         if self.hasSubchannels:
+#                             event = (event[0], numpy.array(event[-1]) - m)
+#                         else:
+#                             event = (event[0], event[-1] - m[self.parent.id])
+        
                 if self.hasSubchannels:
                     # TODO: Refactor this ugliness
                     # This is some nasty stuff to apply nested transforms
@@ -1190,7 +1268,9 @@ class EventList(Cascading):
                     indices[x] = int(indices[x] + (((random.random()*2)-1) * jitter * step))
                 
             times = (block.startTime + sampleTime * t for t in indices)
-            values = self.parent.parseBlockByIndex(block, indices)
+            values = self.parent.parseBlockByIndex(block, indices, 
+                                                   self._getBlockRollingMean(blockIdx))
+            
             for event in izip(times, values):
                 if self.hasSubchannels:
                     # TODO: (post Transform fix) Refactor later
@@ -1212,8 +1292,10 @@ class EventList(Cascading):
         """
         if t <= self._data[0].startTime:
             return -1
-        block = self._data[self._getBlockIndexWithTime(t)]
-        return int(block.indexRange[0] + ((t - block.startTime) / self._getBlockSampleTime(block.blockIndex)))
+        blockIdx = self._getBlockIndexWithTime(t)
+        block = self._data[blockIdx]
+        return int(block.indexRange[0] + \
+                   ((t - block.startTime) / self._getBlockSampleTime(blockIdx)))
         
  
     def getEventIndexNear(self, t):
@@ -1292,6 +1374,63 @@ class EventList(Cascading):
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
         return self.iterSlice(startIdx,endIdx,step)        
 
+
+    def iterMinMeanMax(self, startTime=None, endTime=None):
+        """ Get the minimum, mean, and maximum values for blocks within a
+            specified interval.
+            
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @return: An iterator producing sets of three events (min, mean, 
+                and max, respectively).
+        """
+        if startTime is None:
+            startBlockIdx = 0
+        else:
+            startBlockIdx = self._getBlockIndexWithTime(startTime)
+        if endTime is None:
+            endBlockIdx = len(self._data)
+        else:
+            if endTime < 0:
+                endTime += self._data[-1].endTime
+            endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx)
+        
+        for block in self._data[startBlockIdx:endBlockIdx]:
+            if block.minMeanMax is None:
+                continue
+            t = block.startTime
+            if block.endTime is not None:
+                t = (t + block.endTime)/2
+            result = []
+            for val in (block.min, block.mean, block.max):
+                m = self._getBlockRollingMean(block.blockIndex)
+                if m is not None:
+                    val -= m
+                if self.hasSubchannels:
+                    event=[f((t,v), self.session) for f,v in izip(self.parent._transform, val)]
+                    event=(event[0][0], tuple((e[1] for e in event)))
+                else:
+                    val = val[self.parent.id]
+                    event = self.parent._transform(self.parent.parent._transform[self.parent.id]((t,val), self.session), self.session)
+                result.append(event)
+            yield result
+    
+    
+    def getMinMeanMax(self, startTime=None, endTime=None):
+        """ Get the minimum, mean, and maximum values for blocks within a
+            specified interval.
+            
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @return: A list of sets of three events (min, mean, and max, 
+                respectively).
+        """
+        return list(self.iterMinMeanMax(startTime, endTime))
+    
 
     def _getBlockSampleTime(self, blockIdx=0):
         """ Get the time between samples within a given data block.
@@ -1469,7 +1608,7 @@ class EventList(Cascading):
     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", useUtcTime=False,
-                  useIsoFormat=False, headers=False):
+                  useIsoFormat=False, headers=False, removeMean=None):
         """ Export events as CSV to a stream (e.g. a file).
         
             @param stream: The stream object to which to write CSV data.
@@ -1533,6 +1672,9 @@ class EventList(Cascading):
             formatter = lambda x: fstr % (timeFormatter(x),x[-1])
             names = [self.parent.name]
 
+        oldRemoveMean = self.removeMean
+        if removeMean is not None:
+            self.removeMean = removeMean
         
         totalLines = (stop - start) / (step + 0.0)
         updateInt = int(totalLines * callbackInterval)
@@ -1557,9 +1699,10 @@ class EventList(Cascading):
                 raise e
             else:
                 callback(error=e)
-        t1 = datetime.now()
-        
-        return num+1, t1 - t0
+
+        # Restore old removeMean        
+        self.removeMean = oldRemoveMean
+        return num+1, datetime.now() - t0
 
         
 #===============================================================================

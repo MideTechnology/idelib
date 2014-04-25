@@ -8,7 +8,8 @@ post-processing than simply grabbing values with a `struct.Struct`, such as a
 sensor that produces data in a non-power-of-two length (e.g. 24 bits). 
 Special-case parsers must (to a limited degree) quack like `struct.Struct` 
 objects; they must provide `size` and `format` attributes (the latter should be 
-`None`), and they must implement the method `unpack_from()`.
+`None`), and they must implement the method `unpack_from()`. They may also 
+include optional `types` and `ranges` attributes, which are used to 
 
 Element handlers are called by the importer as it iterates through the 'root'
 elements of an EBML file. Generally, handlers are instantiated only once, just
@@ -198,6 +199,11 @@ class MPL3115PressureTempParser(object):
         
         @todo: Make sure the unsigned fraction part is correct for negative 
             whole values. This currently assumes -1 and .5 is -0.5, not -1.5
+            
+        @cvar size: The size (in bytes) of one parsed sample. Always `5`.
+        @cvar format: For compatibility with `struct.Struct`. Always `None`
+        @cvar ranges: A tuple containing the absolute min and max values.
+        @cvar types: A tuple containing the types of data parsed.
     """
 
     # Custom parsers need to provide a subset of a struct.Struct's methods
@@ -205,9 +211,14 @@ class MPL3115PressureTempParser(object):
     size = 5
     format = None
 
-    # The absolute min and max values. Normal struct.Struct objects get this
-    # computed from their formatting string.
+    # The absolute min and max values, returned via `getParserRanges()`. This
+    # must be implemented. Normal `struct.Struct` objects get this computed
+    # from their formatting string.
     ranges = ((0.0,120000.0), (-40.0,80.0))
+    
+    # The types of data parsed from each channel, returned via 
+    # `getParserTypes()`. If this doesn't exist, the types are computed. 
+    types = (float, float)
     
     # This is weirdly formed data. Using two parsers over the same data is
     # cheaper than using one plus extra bit manipulation.
@@ -237,6 +248,10 @@ class AccelerometerParser(object):
         
         If using this parser, do not perform this adjustment at the Channel 
         or Subchannel level via a Transform!
+        
+        @cvar size: The size (in bytes) of one parsed sample.
+        @cvar format: The `struct.Struct` parsing format string used to parse.
+        @cvar ranges: A tuple containing the absolute min and max values.
     """
 
     def __init__(self, inMin=0, inMax=65535, outMin=-100.0, outMax=100.0, 
@@ -244,11 +259,13 @@ class AccelerometerParser(object):
         self.parser = struct.Struct(formatting)
         self.format = self.parser.format
         self.size = self.parser.size
-        self.ranges = ((outMin, outMax),) * 3
+        self.ranges = ((-32768, 32767),) * 3
         
-        self.adjustment = lambda v: \
-            (v - inMin + 0.0) * (outMax - outMin) / (inMax - inMin) + outMin
-
+#         self.adjustment = lambda v: \
+#             (v - inMin + 0.0) * (outMax - outMin) / (inMax - inMin) + outMin
+    @classmethod
+    def adjustment(cls, v):
+        return v-32767
 
     def unpack_from(self, data, offset=0):
         return tuple(map(self.adjustment, 
@@ -256,7 +273,7 @@ class AccelerometerParser(object):
     
 
 #===============================================================================
-# 
+# Base element parsing and data storing classes
 #===============================================================================
 
 class ElementHandler(object):
@@ -344,9 +361,15 @@ class BaseDataBlock(object):
         self.indexRange = None
         self._len = None
         self.body_size = None
-        self.minValue = self.maxValue = None
         self.cache = False
-
+        
+        self.minMeanMax = None
+        self.min = None
+        self.mean = None
+        self.max = None
+        self._rollingMean = None
+        self._rollingMeanSpan = 5000000
+        
 
     def __repr__(self):
         return "<%s Channel: 0x%02x>" % (self.__class__.__name__, self.getHeader()[1])
@@ -396,6 +419,15 @@ class BaseDataBlock(object):
                 yield parser.unpack_from(data, idx)[subchannel]
             else:
                 yield parser.unpack_from(data, idx)
+
+
+    def parseMinMeanMax(self, parser):
+        if self.minMeanMax is None:
+            return None
+        self.min = parser.unpack_from(self.minMeanMax)
+        self.mean = parser.unpack_from(self.minMeanMax, parser.size)
+        self.max = parser.unpack_from(self.minMeanMax, parser.size*2)
+        return self.min, self.mean, self.max
 
 
     def getNumSamples(self, parser):
@@ -529,7 +561,10 @@ class SimpleChannelDataBlockParser(ElementHandler):
 #===============================================================================
 
 class ChannelDataBlock(BaseDataBlock):
-    """
+    """ Wrapper for ChannelDataBlock elements, which features additional data
+        excluded from the simple version. ChannelDataBlock elements are 'master'
+        elements with several child elements, such as full timestamps and
+        and sample minimum/mean/maximum.
     """
     maxTimestamp = 2**24 #2**32
 
@@ -544,20 +579,26 @@ class ChannelDataBlock(BaseDataBlock):
                 continue
             elif el.name == "ChannelIDRef":
                 self.channel = el.value
-            elif el.name == "StartTimeCodeAbsMod":
-                self.startTime = el.value
-                # TODO: Correct start time for modulus
-                self._timestamp = el.value
-            elif el.name == "EndTimeCodeAbsMod":
-                self.endTime = el.value
-            elif el.name == "ChannelFlags":
-                self.flags = el.value
-            elif el.name == "ChannelDataPayload":
-                self._payloadIdx = num
-                self.body_size = el.body_size
             elif el.name == "ChannelFlags":
                 # TODO: Handle channel flag bits
                 continue
+            elif el.name == "ChannelDataPayload":
+                self._payloadIdx = num
+                self.body_size = el.body_size
+            elif el.name == "StartTimeCodeAbs":
+                # TODO: Support this. Not currently generated (2014.04.23)
+                continue
+            elif el.name == "EndTimeCodeAbs":
+                # TODO: Support this. Not currently generated (2014.04.23)
+                continue
+            elif el.name == "StartTimeCodeAbsMod":
+                self.startTime = el.value
+                # TODO: Correct start time for modulus (?)
+                self._timestamp = el.value
+            elif el.name == "EndTimeCodeAbsMod":
+                self.endTime = el.value
+            elif el.name == "ChannelDataMinMeanMax":
+                self.minMeanMax = el.value
             # Add other child element handlers here.
         
         # Single-sample blocks have a total time of 0.
