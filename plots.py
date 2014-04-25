@@ -213,6 +213,8 @@ class LegendArea(ViewerPanel):
 
 class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     """ The actual plot-drawing area.
+    
+        @todo: Make drawing asynchronous and interruptible.
     """
     
     def __init__(self, *args, **kwargs):
@@ -318,7 +320,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
     def makeHGridlines(self, pts, width, scale):
         """ Create the coordinates for the horizontal grid lines from a list of
-            ruler indicator marks. Used internally.
+            ruler indicator marks (i.e. 1D coordinates to 2D). Used internally.
         """
         return [(0, p.pos * scale, width * scale, p.pos * scale) for p in pts]
 
@@ -341,6 +343,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
     def OnPaint(self, evt):
         """ Event handler for redrawing the plot. Catches common exceptions.
+            Wraps the 'real' painting event handler.
         """
 #         self._OnPaint(evt)
 #         return
@@ -362,6 +365,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         
             @todo: Apply offset and scaling transforms to the DC itself, 
                 eliminating all the per-point math.
+            @todo: Refactor and modularize this monster. Separate the line-list
+                generation so multiple plots on the same canvas will be easy.
         """
         if self.Parent.source is None:
             return
@@ -390,6 +395,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
         legend = self.Parent.legend
         
+        # The size of a chunk of data to draw, so the rendering seems more
+        # interactive. Not really a tenth anymore.
         tenth = int(size[0]/2 * oversampling)
 
         # BUG: This does not work for vertically split plots; they all start

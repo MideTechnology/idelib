@@ -1375,7 +1375,7 @@ class EventList(Cascading):
         return self.iterSlice(startIdx,endIdx,step)        
 
 
-    def iterMinMeanMax(self, startTime=None, endTime=None):
+    def iterMinMeanMax(self, startTime=None, endTime=None, times=True):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
             
@@ -1414,11 +1414,14 @@ class EventList(Cascading):
                 else:
                     val = val[self.parent.id]
                     event = self.parent._transform(self.parent.parent._transform[self.parent.id]((t,val), self.session), self.session)
+                if not times:
+                    event = event[-1]
                 result.append(event)
+            
             yield result
     
     
-    def getMinMeanMax(self, startTime=None, endTime=None):
+    def getMinMeanMax(self, startTime=None, endTime=None, times=True):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
             
@@ -1429,8 +1432,29 @@ class EventList(Cascading):
             @return: A list of sets of three events (min, mean, and max, 
                 respectively).
         """
-        return list(self.iterMinMeanMax(startTime, endTime))
+        return list(self.iterMinMeanMax(startTime, endTime, times))
     
+    
+    def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None):
+        """ Get the single minimum, mean, and maximum value for blocks within a
+            specified interval. Note: Using this with a parent channel without
+            specifying a subchannel number can produce meaningless data if the
+            channels use different units or are on different scales.
+            
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @return: A set of three events (min, mean, and max, respectively).
+        """
+        mmm = numpy.array(self.getMinMeanMax(startTime, endTime, times=False))
+        if self.hasSubchannels and subchannel is not None:
+            return (mmm[:,0,subchannel].min(), 
+                    mmm[:,1,subchannel].mean(), 
+                    mmm[:,2,subchannel].max())
+        return (mmm[:,0].min(), mmm[:,1].mean(), mmm[:,2].max())
+        
+        
 
     def _getBlockSampleTime(self, blockIdx=0):
         """ Get the time between samples within a given data block.
