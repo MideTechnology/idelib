@@ -850,6 +850,7 @@ class EventList(Cascading):
         self.displayRange = self.parent.displayRange
 
         self.removeMean = False
+        self.hasMinMeanMax = False
         
 
     @property
@@ -869,6 +870,8 @@ class EventList(Cascading):
         newList._data = self._data
         newList._length = self._length
         newList.dataset = self.dataset
+        newList.hasMinMeanMax = self.hasMinMeanMax
+        newList.removeMean = self.removeMean
         return newList
     
 
@@ -913,8 +916,12 @@ class EventList(Cascading):
         
         if block.minMeanMax is not None:
             block.parseMinMeanMax(self.parent.parser)
+            self.hasMinMeanMax = True
+        else:
+            print self.parent.name
+            self.hasMinMeanMax = False
 
-
+    
     def getInterval(self):
         """ Get the first and last event times in the set.
         """
@@ -1445,6 +1452,8 @@ class EventList(Cascading):
                 `None` to start at the beginning of the session.
             @keyword endTime: The second time, or `None` to use the end of
                 the session.
+            @keyword subchannel: The subchannel ID to retrieve, if the
+                EventList's parent has subchannels.
             @return: A set of three events (min, mean, and max, respectively).
         """
         mmm = numpy.array(self.getMinMeanMax(startTime, endTime, times=False))

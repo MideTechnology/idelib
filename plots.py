@@ -221,6 +221,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
             @keyword root: The viewer's 'root' window.
+            @keyword color: The plot's pen color.
+            @keyword weight: The weight (thickness) of the plot's pen. 
         """
         self.root = kwargs.pop('root',None)
         self.color = kwargs.pop('color', "BLUE")
@@ -254,12 +256,20 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
        
     def loadPen(self, name, defaultColor="GRAY", width=1, style=wx.SOLID):
         """ Create a pen using a color in the preferences.
+            @param name: The name of the parameter to read from the preferences.
+            @keyword defaultColor: The color to use if the preference name is
+                not found.
+            @keyword width: The width of the pen's line.
+            @keyword style: The pen's wxWidget line style.
         """
         return wx.Pen(self.root.app.getPref(name, defaultColor), width, style)
 
 
     def setPlotPen(self, color=None, weight=None, style=wx.SOLID):
         """ Set the color, weight, and/or style of the plotting pens.
+            @keyword color: The color to use.
+            @keyword width: The width of the pen's line.
+            @keyword style: The pen's wxWidget line style.
         """
         self.color = color if color is not None else self.color
         self.weight = weight if weight is not None else self.weight
@@ -723,6 +733,21 @@ class Plot(ViewerPanel):
                            False)
 
 
+    def removeMean(self, val=True):
+        """
+        """
+        if not self.source:
+            return
+        self.source.removeMean = True
+
+
+    def enableRootMenus(self):
+        mi = self.root.menubar.FindItemById(self.root.ID_DATA_TOGGLEMEAN)
+        if mi:
+            mi.Enable(self.source.hasMinMeanMax)
+            mi.Check(self.source.removeMean and self.source.hasMinMeanMax)
+            
+
     #===========================================================================
     # 
     #===========================================================================
@@ -850,6 +875,8 @@ class PlotSet(aui.AuiNotebook):
         
         if self.root is None:
             self.root = self.GetParent().root
+            
+        self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnPageChange)
         
 
     def __len__(self):
@@ -985,4 +1012,7 @@ class PlotSet(aui.AuiNotebook):
             p.plot.lines = None
         self.Refresh()
         
-        
+    
+    def OnPageChange(self, evt):
+        ""
+        self.getActivePage().enableRootMenus()
