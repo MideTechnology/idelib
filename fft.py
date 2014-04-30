@@ -49,7 +49,8 @@ class FFTView(wx.Frame, MenuMixin):
         """ FFT view main panel. Takes standard wx.Window arguments plus:
         
             @keyword root: The parent viewer window
-            @keyword sources: A list of subchannels
+            @keyword source: 
+            @keyword subchannels: A list of subchannels
             @keyword start: The start of the time interval to render
             @keyword end: The end of the time interval to render
         """
@@ -67,6 +68,7 @@ class FFTView(wx.Frame, MenuMixin):
                 
         super(FFTView, self).__init__(*args, **kwargs)
         
+        self.timeScalar = getattr(self.root, "timeScalar", 1.0/(6**10))
         self.statusBar = StatusBar(self)
         self.statusBar.stopProgress()
         self.SetStatusBar(self.statusBar)
@@ -548,9 +550,8 @@ class SpectrogramView(FFTView):
         # The "line list" is really sort of a hack, just containing a single
         # line from min/min to max/max in order to make the plot's scale
         # draw correctly.
-        timeScalar = getattr(self.root, "timeScalar", 1.0/(6**10))
-        start = self.source[0][-2] * timeScalar
-        end = self.source[-1][-2] * timeScalar
+        start = self.source[0][-2] * self.timeScalar
+        end = self.source[-1][-2] * self.timeScalar
         self.lines = []
 
         for i in range(len(self.data)):
@@ -629,7 +630,7 @@ class SpectrogramView(FFTView):
             subchIds = [c.id for c in self.subchannels]
             start, stop = self.source.getRangeIndices(*self.range)
             recordingTime = self.source[-1][-2] - self.source[0][-2]
-            recordingTime *= getattr(self.root, "timeScalar", 1.0/(6**10))
+            recordingTime *= self.timeScalar
             data = self.source.itervalues(start, stop, subchannels=subchIds)
             fs = self.source.getSampleRate()
             

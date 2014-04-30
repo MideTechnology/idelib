@@ -200,6 +200,21 @@ class MenuMixin(object):
             self.Bind(wx.EVT_MENU, handler, item)
         return item
 
+    
+    def setMenuItem(self, menu, itemId, checked=None, enabled=None, label=None):
+        """ Helper method to set various properties of a MenuItem. 
+        """
+        if not isinstance(menu, (wx.Menu, wx.MenuBar)):
+            return
+        mi = menu.FindItemById(itemId)
+        if mi:
+            if checked is not None:
+                mi.Check(checked)
+            if enabled is not None:
+                mi.Enable(enabled)
+            if label is not None:
+                mi.SetItemLabel(label)
+
 
     def setContextMenu(self, menu):
         """ Set a menu as the the context (e.g. 'right click') popup menu,

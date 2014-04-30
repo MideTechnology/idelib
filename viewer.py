@@ -579,6 +579,9 @@ class Viewer(wx.Frame, MenuMixin):
     ID_VIEW_ANTIALIAS = wx.NewId()
     ID_VIEW_JITTER = wx.NewId()
     ID_VIEW_UTCTIME = wx.NewId()
+    ID_VIEW_MINMAX = wx.NewId()
+    ID_VIEW_LINES_MAJOR = wx.NewId()
+    ID_VIEW_LINES_MINOR = wx.NewId()
     ID_DATA_TOGGLEMEAN = wx.NewId()
     ID_DATA_NOMEAN_ALL = wx.NewId()
     ID_DATA_NOMEAN_NONE = wx.NewId()
@@ -619,10 +622,14 @@ class Viewer(wx.Frame, MenuMixin):
         self.plots = []
         self._nextColor = 0
         self.setVisibleRange(self.timerange[0], self.timerange[1])
-        self.antialias = False
+        self.antialias = self.app.getPref('antialasing', False)
         self.aaMultiplier = self.app.getPref('antialiasingMultiplier', 
                                              ANTIALIASING_MULTIPLIER)
-        self.noisyResample = False
+        self.noisyResample = self.app.getPref('resamplingJitter', False)
+        self.showUtcTime = self.app.getPref('showUtcTime', False)
+        self.drawMinMax = self.app.getPref('drawMinMax', False)
+        self.drawMajorHLines = self.app.getPref('drawMajorHLines', True)
+        self.drawMinorHLines = self.app.getPref('drawMinorHLines', False)
         
         # TODO: FFT views as separate windows will eventually be refactored.
         self.fftViews = {}
@@ -700,6 +707,17 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(viewMenu, self.ID_VIEW_JITTER,
                         "Noisy Resampling", "", 
                         self.OnToggleNoise, kind=wx.ITEM_CHECK)
+        viewMenu.AppendSeparator()
+        self.addMenuItem(viewMenu, self.ID_VIEW_MINMAX,
+                         "Show Buffer Minimum/Maximum", "",
+                         self.OnToggleMinMax, kind=wx.ITEM_CHECK)
+        viewMenu.AppendSeparator()
+        self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MAJOR,
+                         "Show Major Horizontal Gridlines", "",
+                         self.OnToggleLinesMajor, kind=wx.ITEM_CHECK)
+        self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MINOR,
+                         "Show Minor Horizontal Gridlines", "",
+                         self.OnToggleLinesMinor, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
                          "Show Absolute UTC Time", "",
@@ -790,9 +808,7 @@ class Viewer(wx.Frame, MenuMixin):
                  )
         
         for menuId in menus:
-            m = self.menubar.FindItemById(menuId)
-            if m is not None:
-                m.Enable(enabled)
+            self.setMenuItem(self.menubar, menuId, enabled=enabled)
     
 #         # the 'show properties' menu is only enabled if there is recorder info
 #         m = self.menubar.FindItemById(self.ID_FILE_PROPERTIES)
@@ -876,6 +892,9 @@ class Viewer(wx.Frame, MenuMixin):
                                   title=d.name)
         
         self.enableChildren(True)
+        # enabling plot-specific menu items happens on page select; do manually
+#         if len(self.plotarea):
+        self.plotarea.getActivePage().enableMenus()
 
     #===========================================================================
     # 
@@ -1109,6 +1128,7 @@ class Viewer(wx.Frame, MenuMixin):
         subchannelIds = [c.id for c in subchannels]
         start, stop = settings['indexRange']
         addHeaders = settings['addHeaders']
+        removeMean = None #settings.get('removeMean', False)
         
         filename = self.getSaveFile("Export CSV...")
         if filename is None:
@@ -1132,7 +1152,8 @@ class Viewer(wx.Frame, MenuMixin):
                          raiseExceptions=True,
                          useIsoFormat=settings['useIsoFormat'],
                          useUtcTime=settings['useUtcTime'],
-                         headers=addHeaders)
+                         headers=addHeaders,
+                         removeMean=removeMean)
         
         dlg.Destroy()
         stream.close()
@@ -1235,6 +1256,7 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
     # 
     #===========================================================================
+    
     def OnClose(self, evt):
         """ Close the viewer.
         """
@@ -1356,32 +1378,31 @@ class Viewer(wx.Frame, MenuMixin):
                 the check to be set (kind of a hack).
         """ 
         if isinstance(evt, bool):
+            self.setMenuItem(self.menubar, self.ID_DATA_TOGGLEMEAN, checked=evt)
             checked = evt
-            self.menubar.FindItemById(self.ID_DATA_TOGGLEMEAN).Check(evt)
         else:
             checked = evt.IsChecked() 
             
         p = self.plotarea.getActivePage()
-        if p is not None and p.source is not None:
-            p.source.removeMean = checked
-            self.plotarea.redraw()
+        if p is not None:
+            p.removeMean(checked)
 
 
     def OnRemoveMeanAll(self, evt):
-        """ Sets all plots to remove the rolling mean from their values.
+        """ Handler for ID_DATA_NOMEAN_ALL menu item selection. Sets all plots 
+            to remove the rolling mean from their values.
         """
         for p in self.plotarea:
-            if p.source is not None:
-                p.source.removeMean = True
+            p.removeMean(True)
         self.plotarea.redraw()
 
 
     def OnRemoveMeanNone(self, evt):
-        """ Sets all plots to not remove the rolling mean from their values.
+        """ Handler for ID_DATA_NOMEAN_NONE Sets all plots to not remove the 
+            rolling mean from their values.
         """
         for p in self.plotarea:
-            if p.source is not None:
-                p.source.removeMean = False
+            p.removeMean(False)
         self.plotarea.redraw()
 
 
@@ -1394,7 +1415,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ 
         if isinstance(evt, bool):
             checked = evt
-            self.menubar.FindItemById(self.ID_VIEW_ANTIALIAS).Check(evt)
+            self.setMenuItem(self.ID_VIEW_ANTIALIAS, checked=evt)
         else:
             checked = evt.IsChecked()
              
@@ -1411,15 +1432,17 @@ class Viewer(wx.Frame, MenuMixin):
         """ 
         if isinstance(evt, bool):
             checked = evt
-            self.menubar.FindItemById(self.ID_VIEW_JITTER).Check(evt)
+            self.setMenuItem(self.ID_VIEW_JITTER, checked=evt)
         else:
             checked = evt.IsChecked()
             
+        # 'noisy resampling' is turned on or off by changing its amount.
         if checked:
             self.noisyResample = self.app.getPref('resamplingJitter', 
                                                   RESAMPLING_JITTER)
         else:
             self.noisyResample = 0
+            
         self.plotarea.redraw()
 
 
@@ -1436,7 +1459,28 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             checked = evt.IsChecked() 
         self.showUtcTime = checked
+
+
+    def OnToggleMinMax(self, evt):
+        """ Handler for ID_VIEW_MINMAX menu item selection.
+        """
+        self.drawMinMax = evt.IsChecked()
+        self.plotarea.redraw()
         
+    
+    def OnToggleLinesMajor(self, evt):
+        """ Handler for ID_VIEW_LINES_MAJOR menu item selection.
+        """
+        self.drawMajorHLines = evt.IsChecked()
+        self.plotarea.redraw()
+    
+    
+    def OnToggleLinesMinor(self, evt):
+        """ Handler for ID_VIEW_LINES_MAJOR menu item selection.
+        """
+        self.drawMinorHLines = evt.IsChecked()
+        self.plotarea.redraw()
+    
     #===========================================================================
     # Custom Events
     #===========================================================================
@@ -1678,14 +1722,22 @@ class ViewerApp(wx.App):
         'precisionX': 4,
         'precisionY': 4,
         
+        # Data modifications
+        'removeMean': False,
+        
         # Rendering
         'antialiasing': False,
         'antialiasingMultiplier': ANTIALIASING_MULTIPLIER,
         'resamplingJitter': False,
         'resamplingJitterAmount': RESAMPLING_JITTER,
+        'drawMajorHLines': True,
+        'drawMinorHLines': False,
+        'drawMinMax': False,
         'originHLineColor': wx.Colour(200,200,200),
         'majorHLineColor': wx.Colour(220,220,220),
         'minorHLineColor': wx.Colour(240,240,240),
+        'minRangeColor': wx.Colour(200,200,255),
+        'maxRangeColor': wx.Colour(255,200,200),
         'defaultColors': [#"RED",
                           #"GREEN",
                           #"BLUE",
@@ -1717,6 +1769,7 @@ class ViewerApp(wx.App):
         'openOnStart': True,
         'showDebugChannels': __DEBUG__,
         'showFullPath': False,
+        'showUtcTime': False,
 
         # WVR/SSX-specific parameters: the hard-coded warning range.        
         'wvr_tempMin': -20.0,

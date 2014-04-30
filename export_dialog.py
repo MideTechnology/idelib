@@ -79,7 +79,7 @@ class ExportDialog(sc.SizedDialog):
         kwargs.setdefault('title', self.DEFAULT_TITLE)
         self.units = kwargs.pop("units", self.DEFAULT_UNITS)
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
-        self.removeMean = kwargs.pop("removeMean", True)
+        self.removeMean = kwargs.pop("removeMean", False)
 
         super(ExportDialog, self).__init__(*args, **kwargs)
         
@@ -159,10 +159,12 @@ class ExportDialog(sc.SizedDialog):
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
         wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
-        self.removeMean, _ = self._addCheck("Remove mean from data",
+        self.removeMeanCheck, _ = self._addCheck("Remove mean from data",
             tooltip="Subtract a rolling mean from the data. " \
                     "Not applicable to all channels.", default=self.removeMean,
                     parent=pane)
+        # TODO: Make 'remove mean' work at export time.
+        self.removeMeanCheck.Hide()
         self.buildSpecialUI()
 
         warnPane = sc.SizedPanel(pane,-1)
@@ -354,6 +356,7 @@ class ExportDialog(sc.SizedDialog):
                 'indexRange': indexRange,
                 'channels': channels,
                 'numRows': indexRange[1]-indexRange[0],
+                'removeMean': self.removeMeanCheck.GetValue(),
                 'source': source}
     
 

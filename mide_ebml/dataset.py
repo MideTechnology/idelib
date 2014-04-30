@@ -918,7 +918,6 @@ class EventList(Cascading):
             block.parseMinMeanMax(self.parent.parser)
             self.hasMinMeanMax = True
         else:
-            print self.parent.name
             self.hasMinMeanMax = False
 
     
@@ -1382,7 +1381,8 @@ class EventList(Cascading):
         return self.iterSlice(startIdx,endIdx,step)        
 
 
-    def iterMinMeanMax(self, startTime=None, endTime=None, times=True):
+    def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
+                       times=True):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
             
@@ -1397,19 +1397,21 @@ class EventList(Cascading):
             startBlockIdx = 0
         else:
             startBlockIdx = self._getBlockIndexWithTime(startTime)
+            startBlockIdx = max(startBlockIdx-1, 0)
         if endTime is None:
             endBlockIdx = len(self._data)
         else:
             if endTime < 0:
                 endTime += self._data[-1].endTime
             endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx)
+            endBlockIdx = min(len(self._data), endBlockIdx+1)
         
         for block in self._data[startBlockIdx:endBlockIdx]:
             if block.minMeanMax is None:
                 continue
             t = block.startTime
-            if block.endTime is not None:
-                t = (t + block.endTime)/2
+#             if block.endTime is not None:
+#                 t = (t + block.endTime)/2
             result = []
             for val in (block.min, block.mean, block.max):
                 m = self._getBlockRollingMean(block.blockIndex)
@@ -1428,7 +1430,8 @@ class EventList(Cascading):
             yield result
     
     
-    def getMinMeanMax(self, startTime=None, endTime=None, times=True):
+    def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
+                      times=True):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
             
@@ -1439,7 +1442,7 @@ class EventList(Cascading):
             @return: A list of sets of three events (min, mean, and max, 
                 respectively).
         """
-        return list(self.iterMinMeanMax(startTime, endTime, times))
+        return list(self.iterMinMeanMax(startTime, endTime, padding, times))
     
     
     def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None):
