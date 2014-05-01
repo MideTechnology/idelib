@@ -12,8 +12,6 @@ __all__ = ['configureRecorder']
 
 from collections import OrderedDict
 from datetime import datetime
-import locale
-import os.path
 import string
 import time
 
@@ -580,8 +578,8 @@ class OptionsPanel(BaseConfigPanel):
 #             self.OVERSAMPLING, tooltip="Checking this field overrides the "
 #             "device's default.")
 
-        self.aaCornerCheck = self.addCheckField("Antialiasing Filter Cutoff:",
-            "AAFilterCornerFreq", "Hz",
+        self.aaCornerCheck = self.addCheckField(
+            "Override Antialiasing Filter Cutoff:", "AAFilterCornerFreq", "Hz",
             tooltip="If checked and a value is provided, the antialiasing "
                 "sample rate will be limited.")
         

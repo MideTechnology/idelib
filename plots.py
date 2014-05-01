@@ -217,7 +217,12 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     
         @todo: Make drawing asynchronous and interruptible.
     """
-        
+    GRID_ORIGIN_STYLE = ("originHLineColor", "GRAY", 1, wx.SOLID, None)
+    GRID_MAJOR_STYLE = ("majorHLineColor", "LIGHT GRAY", 1, wx.SOLID, None)
+    GRID_MINOR_STYLE = ("minorHLineColor", "LIGHT GRAY", 1, wx.USER_DASH, [2,2])
+    RANGE_MIN_STYLE = ("minRangeColor", "LIGHT BLUE", 1, wx.USER_DASH, [8,4,4,4])    
+    RANGE_MAX_STYLE = ("maxRangeColor", "PINK", 1, wx.USER_DASH, [8,4,4,4])
+    
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
@@ -228,6 +233,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self.root = kwargs.pop('root',None)
         self.color = kwargs.pop('color', "BLUE")
         self.weight = kwargs.pop('weight',1)
+        self.pointSize = kwargs.pop('pointSize', 2)
         kwargs.setdefault('style',wx.VSCROLL|wx.BORDER_SUNKEN)
         
         super(PlotCanvas, self).__init__(*args, **kwargs)
@@ -236,11 +242,11 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         if self.root is None:
             self.root = self.GetParent().root
         
-        self.originHLinePen = self.loadPen("originHLineColor", "GRAY")
-        self.majorHLinePen = self.loadPen("majorHLineColor", style=wx.DOT)
-        self.minorHLinePen = self.loadPen("minorHLineColor", style=wx.DOT)
-        self.minRangePen = self.loadPen("minRangeColor", style=wx.DOT_DASH)
-        self.maxRangePen = self.loadPen("maxRangeColor", style=wx.DOT_DASH)
+        self.originHLinePen = self.loadPen(*self.GRID_ORIGIN_STYLE)
+        self.majorHLinePen = self.loadPen(*self.GRID_MAJOR_STYLE)
+        self.minorHLinePen = self.loadPen(*self.GRID_MINOR_STYLE)
+        self.minRangePen = self.loadPen(*self.RANGE_MIN_STYLE)
+        self.maxRangePen = self.loadPen(*self.RANGE_MAX_STYLE)
         
         self.lines = None
         self.points = None
@@ -248,14 +254,22 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self.lastRange = None
 
         self.setPlotPen()
+        self.setAntialias(False)
         
         self.setContextMenu(wx.Menu())
         self.addMenuItem(self.contextMenu, wx.ID_SELECT_COLOR, 
                          "Select Color...", "", 
                          self.OnMenuColor)
-        self.addMenuItem(self.contextMenu, self.root.ID_DATA_TOGGLEMEAN,
-                         "Remove Mean", "",
-                         self.OnMenuNoMean, kind=wx.ITEM_CHECK)
+        self.contextMenu.AppendSeparator()
+        self.addMenuItem(self.contextMenu, self.root.ID_DATA_NOMEAN, 
+                         "Do Not Remove Mean", "",
+                         self.root.OnDontRemoveMeanCheck, kind=wx.ITEM_RADIO)
+        self.addMenuItem(self.contextMenu, self.root.ID_DATA_MEAN, 
+                         "Remove Rolling Mean from Data", "",
+                         self.root.OnRemoveRollingMeanCheck, kind=wx.ITEM_RADIO)
+        self.addMenuItem(self.contextMenu, self.root.ID_DATA_MEAN_TOTAL, 
+                         "Remove Total Mean from Data", "",
+                         self.root.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
 #         self.contextMenu.AppendSeparator()
 #         self.addMenuItem(self.contextMenu, self.root.ID_VIEW_ANTIALIAS, 
 #                          "Antialiased Drawing", "", 
@@ -274,18 +288,22 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self.minMaxBg = wx.Colour(240,240,240)
         
        
-    def loadPen(self, name, defaultColor="GRAY", width=1, style=wx.SOLID):
+    def loadPen(self, name, defaultColor, width, style, dashes):
         """ Create a pen using a color in the preferences.
             @param name: The name of the parameter to read from the preferences.
-            @keyword defaultColor: The color to use if the preference name is
+            @param defaultColor: The color to use if the preference name is
                 not found.
-            @keyword width: The width of the pen's line.
-            @keyword style: The pen's wxWidget line style.
+            @param width: The width of the pen's line.
+            @param style: The pen's wxWidget line style.
+            @param dashes: The dash pattern as an array of integers or `None`
         """
-        return wx.Pen(self.root.app.getPref(name, defaultColor), width, style)
+        p = wx.Pen(self.root.app.getPref(name, defaultColor), width, style)
+        if style == wx.USER_DASH:
+            p.SetDashes(dashes)
+        return p
 
 
-    def setPlotPen(self, color=None, weight=None, style=wx.SOLID):
+    def setPlotPen(self, color=None, weight=None, style=wx.SOLID, dashes=None):
         """ Set the color, weight, and/or style of the plotting pens.
             @keyword color: The color to use.
             @keyword width: The width of the pen's line.
@@ -298,21 +316,6 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self._pen = wx.Pen(self.color, self.weight, self.style)
         self._pointPen = wx.Pen(wx.Colour(255,255,255,.5), 1, self.style)
         self._pointBrush = wx.Brush(self.color, wx.SOLID)
-        
-#         minColor = list(colorsys.rgb_to_hls(*self._pen.GetColour()))
-#         print minColor
-#         maxColor = minColor[:]
-#         minColor[1] = min(1.0, minColor[1] * 1.1)
-#         maxColor[1] = min(1,0, maxColor[1] * 0.9)
-#         minColor = colorsys.hls_to_rgb(*minColor) + (0,)
-#         maxColor = colorsys.hls_to_rgb(*maxColor) + (0,)
-#         minColor = wx.Colour(*minColor)
-#         maxColor = wx.Colour(*maxColor)
-#         print minColor, maxColor
-#         minColor = "BLUE"
-#         maxColor = "YELLOW"
-#         self._minPen = wx.Pen(minColor, 1, wx.PENSTYLE_SHORT_DASH)
-#         self._maxPen = wx.Pen(maxColor, 1, wx.PENSTYLE_LONG_DASH)
         
     
     def setTimeRange(self, start=None, end=None, instigator=None,
@@ -354,16 +357,10 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         if instigator != self and not tracking:
             self.Refresh()
     
+    #===========================================================================
+    # Drawing
+    #===========================================================================
     
-    def OnMouseMotion(self, evt):
-        """ Event handler for mouse movement events.
-        """
-        self.root.showMouseHPos(evt.GetX())
-        self.root.showMouseVPos(self.Parent.legend.getValueAt(evt.GetY()),
-                                units=self.Parent.yUnits[1])
-        evt.Skip()
-
-
     def makeHGridlines(self, pts, width, scale):
         """ Create the coordinates for the horizontal grid lines from a list of
             ruler indicator marks (i.e. 1D coordinates to 2D). Used internally.
@@ -388,11 +385,11 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
 
     def makeMinMeanMaxLines(self, hRange, vRange, hScale, vScale):
-        """ 
+        """ Generate the points for the minimum and maximum envelopes.
+            Used internally.
         """
         if not self.Parent.source.hasMinMeanMax:
             return (tuple(),tuple(),tuple())
-        vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1)
         
         def _startline(lines, pt):
             thisT = (pt[0] - hRange[0]) * hScale
@@ -412,6 +409,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             v = lines[-1][3]
             lines.append((t, v, hRange[1]*hScale, v))
 
+        vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1)
         minPts = []
         meanPts = []
         maxPts = []
@@ -427,11 +425,16 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         _finishline(minPts)
         _finishline(meanPts)
         _finishline(maxPts)
-#         
+         
         return (minPts, meanPts, maxPts)
     
 
     def makeMinMaxBoxes(self, hRange, vRange, hScale, vScale):
+        """ Generate the rectangles forming the minimum and maximum range
+            envelope. Used internally.
+            DOES NOT WORK WITH ANTIALIASING; CURRENTLY UNUSED.
+        """
+        # TODO: Make this work or remove it.
         buff = hScale #0.1 * hScale
         boxes = []
         vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1)
@@ -442,12 +445,14 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         
         for pMin, _, pMax in vals:
             t = (pMin[0] - hRange[0]) * hScale
-            boxes.append((lastT, lastMin-buff, (t-lastT)*1.005, lastMax-lastMin+buff)) 
+            boxes.append((lastT, lastMin-buff, (t-lastT)*1.005, 
+                          lastMax-lastMin+buff)) 
             lastT = t
             lastMin = (pMin[-1] - vRange[0]) * vScale
             lastMax = (pMax[-1] - vRange[0]) * vScale
         
-        boxes.append((lastT, lastMin-buff, hRange[1]*hScale-lastT, lastMax-lastMin+buff))
+        boxes.append((lastT, lastMin-buff, hRange[1]*hScale-lastT, 
+                      lastMax-lastMin+buff))
 #         return [map(lambda x: int(x+0.5), v) for v in boxes]
         return boxes
 
@@ -496,13 +501,9 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         size = dc.GetSize()
         
         # Antialiasing
-        viewScale = 1.0
-        oversampling = 2.0 #3.33 # XXX: Clean this up!
-        if self.root.antialias:
+        if self.antialias:
             dc = wx.GCDC(dc)
-            viewScale = self.root.aaMultiplier
-            oversampling = viewScale * 1.33
-            dc.SetUserScale(1.0/viewScale, 1.0/viewScale)
+            dc.SetUserScale(self.userScale, self.userScale)
         
         dc.BeginDrawing()
 
@@ -510,7 +511,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         
         # The size of a chunk of data to draw, so the rendering seems more
         # interactive. Not really a tenth anymore.
-        tenth = int(size[0]/2 * oversampling)
+        tenth = int(size[0]/2 * self.oversampling)
 
         # BUG: This does not work for vertically split plots; they all start
         # at the start of the visible range instead of relative position on
@@ -535,45 +536,48 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             self.Parent.firstPlot = False
 
 
-        hScale = (size.x + 0.0) / (hRange[1]-hRange[0]) * viewScale
+        hScale = (size.x + 0.0) / (hRange[1]-hRange[0]) * self.viewScale
         if vRange[0] != vRange[1]:
-            vScale = (size.y + 0.0) / (vRange[1]-vRange[0]) * viewScale
+            vScale = (size.y + 0.0) / (vRange[1]-vRange[0]) * self.viewScale
         else:
-            vScale = -(size.y + 0.0) * viewScale
+            vScale = -(size.y + 0.0) * self.viewScale
         thisRange = (hScale, vScale, hRange, vRange)
         
         for r in self.Parent.warningRange:
-            r.draw(dc, hRange, hScale, viewScale, size)
+            r.draw(dc, hRange, hScale, self.viewScale, size)
                 
         # Get the horizontal grid lines. 
         # NOTE: This might not work in the future. Consider modifying
         #    VerticalScaleCtrl to ensure we've got access to the labels!
         majorHLines = []
         minorHLines = []
+        
+        # XXX: REMOVE
+#         self.minorHLinePen.SetDashes([int(self.viewScale*10), int(self.viewScale*10)])
+#         self.minorHLinePen.SetStyle(wx.USER_DASH)
+        
         if self.root.drawMinorHLines:
-            self.minorHLinePen.SetWidth(viewScale)
+#             self.minorHLinePen.SetWidth(self.viewScale)
             minorHLines = self.makeHGridlines(legend.scale._minorlabels, 
-                                              size[0], viewScale)
+                                              size[0], self.viewScale)
         if self.root.drawMajorHLines:
-            self.majorHLinePen.SetWidth(viewScale)
+#             self.majorHLinePen.SetWidth(self.viewScale)
             majorHLines = self.makeHGridlines(legend.scale._majorlabels, 
-                                              size[0], viewScale)
+                                              size[0], self.viewScale)
 
         # If the plot source does not have min/max data, the first drawing only
         # sets up the scale; don't draw.
         if not self.Parent.firstPlot:
-            dc.DrawLineList(minorHLines, self.minorHLinePen)
+            # Minor lines are automatically removed.
+            if len(minorHLines) < size[1] / 24:
+                dc.DrawLineList(minorHLines, self.minorHLinePen)
             dc.DrawLineList(majorHLines, self.majorHLinePen)
         
         if self.root.drawMinMax and self.Parent.source.hasMinMeanMax:
 #             mmmBoxes = self.makeMinMaxBoxes(hRange, vRange, hScale, vScale)
-#             print mmmBoxes
 #             self.SetBackgroundColour(self.minMaxBg)
-#             dc.DrawRectangleList(mmmBoxes, self.NO_PEN, wx.Brush("GRAY", wx.SOLID))
 #             dc.DrawRectangleList(mmmBoxes, self._minPen, wx.Brush(self.normalBg, wx.SOLID))
 #             dc.DrawRectangleList(mmmBoxes, self.NO_PEN, wx.Brush(self.normalBg, wx.SOLID))
-#             dc.DrawLineList([[x[0],x[1],x[2]+x[0],x[1]+x[3]] for x in mmmBoxes], self._minPen)
-#             self.SetBackgroundColour(self.normalBg)
             mmmLines = self.makeMinMeanMaxLines(hRange, vRange, hScale, vScale)
             dc.DrawLineList(mmmLines[0], self.minRangePen)
             dc.DrawLineList(mmmLines[2], self.maxRangePen)
@@ -589,7 +593,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             lineSubset = []
             
             events = self.Parent.source.iterResampledRange(hRange[0], hRange[1],
-                size[0]*oversampling, padding=1, jitter=self.root.noisyResample)
+                size[0]*self.oversampling, padding=1, jitter=self.root.noisyResample)
 
             try:
                 self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
@@ -641,10 +645,56 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             dc.SetPen(self._pointPen)
             dc.SetBrush(self._pointBrush)
             for p in self.points:
-                dc.DrawCirclePoint(p,self.weight*3)
+                dc.DrawCirclePoint(p,self.weight*self.viewScale*self.pointSize)
         
         dc.EndDrawing()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def setAntialias(self, aa=True):
+        """
+        """
+        self.antialias = aa
+        if aa:
+            self.viewScale = self.root.aaMultiplier
+            self.oversampling = self.viewScale * 1.33
+            gridScale = self.viewScale
+            rangeScale = self.viewScale
+        else:
+            self.viewScale = 1.0
+            self.oversampling = 2.0 #3.33 # XXX: Clean this up!
+            gridScale = self.viewScale
+            rangeScale = self.viewScale
+            
+        self.userScale = 1.0/self.viewScale
+        self.minorHLinePen.SetWidth(self.GRID_MINOR_STYLE[2]*gridScale)
+        self.majorHLinePen.SetWidth(self.GRID_MAJOR_STYLE[2]*gridScale)
+#         self.minorHLinePen.SetDashes(self.GRID_MINOR_STYLE[-1])
+#         self.majorHLinePen.SetDashes(self.GRID_MAJOR_STYLE[-1])
+        
+        self.minRangePen.SetWidth(self.RANGE_MAX_STYLE[2]*rangeScale)
+        self.maxRangePen.SetWidth(self.RANGE_MIN_STYLE[2]*rangeScale)
+#         self.maxRangePen.SetDashes(self.RANGE_MAX_STYLE[-1])
+#         self.minRangePen.SetDashes(self.RANGE_MIN_STYLE[-1])
+        
+        self._pointPen.SetWidth(rangeScale)
+
+
+    #===========================================================================
+    # Event handlers (except painting)
+    #===========================================================================
+    
+    def OnMouseMotion(self, evt):
+        """ Event handler for mouse movement events.
+        """
+        self.root.showMouseHPos(evt.GetX())
+        self.root.showMouseVPos(self.Parent.legend.getValueAt(evt.GetY()),
+                                units=self.Parent.yUnits[1])
+        evt.Skip()
 
 
     def OnMenuColor(self, evt):
@@ -670,6 +720,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
     def OnMenuNoMean(self, evt):
         self.Parent.removeMean(evt.IsChecked())
+
 
 #===============================================================================
 # 
@@ -872,12 +923,13 @@ class Plot(ViewerPanel):
         self.Refresh()
 
 
-    def removeMean(self, val=True):
+    def removeMean(self, val=True, span=5000000):
         """ Turn 'remove mean' on or off.
         """
         if not self.source:
             return
-        if self.source.removeMean != val:
+        if self.source.removeMean != val or self.source.rollingMeanSpan != span:
+            self.source.rollingMeanSpan = span
             self.source.removeMean = val
             self.redraw()
         self.enableMenus()
@@ -888,14 +940,23 @@ class Plot(ViewerPanel):
             contextual menu.
         """
         enabled = self.source.hasMinMeanMax
-        checked = self.source.removeMean and self.source.hasMinMeanMax
+        rt = self.root
+        pt = self.plot
         
-        self.root.setMenuItem(self.root.menubar, 
-                              self.root.ID_DATA_TOGGLEMEAN,
-                              enabled=enabled, checked=checked)
-        self.plot.setMenuItem(self.plot.contextMenu, 
-                              self.root.ID_DATA_TOGGLEMEAN,
-                              enabled=enabled, checked=checked)
+        if not enabled or self.source.removeMean is False:
+            rt.setMenuItem(rt.menubar, rt.ID_DATA_NOMEAN, checked=True)
+            pt.setMenuItem(pt.contextMenu, rt.ID_DATA_NOMEAN, checked=True)
+        elif self.source.rollingMeanSpan == -1:
+            rt.setMenuItem(rt.menubar, rt.ID_DATA_MEAN_TOTAL, checked=True)
+            pt.setMenuItem(pt.contextMenu, rt.ID_DATA_MEAN_TOTAL, checked=True)
+        else:
+            rt.setMenuItem(rt.menubar, rt.ID_DATA_MEAN, checked=True)
+            pt.setMenuItem(pt.contextMenu, rt.ID_DATA_MEAN, checked=True)
+            
+        for m in [rt.ID_DATA_NOMEAN, rt.ID_DATA_MEAN, rt.ID_DATA_MEAN_TOTAL]:
+            rt.setMenuItem(rt.menubar, m, enabled=enabled)
+            pt.setMenuItem(pt.contextMenu, m, enabled=enabled)
+        
 
         self.root.setMenuItem(self.root.menubar, 
                               self.root.ID_VIEW_MINMAX,
@@ -1190,3 +1251,9 @@ class PlotSet(aui.AuiNotebook):
     def OnPageChange(self, evt):
         ""
         self.getActivePage().enableMenus()
+
+
+    def setAntialias(self, aa=True):
+        for p in self:
+            p.plot.setAntialias(aa)
+        self.redraw()

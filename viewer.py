@@ -582,7 +582,10 @@ class Viewer(wx.Frame, MenuMixin):
     ID_VIEW_MINMAX = wx.NewId()
     ID_VIEW_LINES_MAJOR = wx.NewId()
     ID_VIEW_LINES_MINOR = wx.NewId()
-    ID_DATA_TOGGLEMEAN = wx.NewId()
+    ID_DATA_MEAN_SUBMENU = wx.NewId()
+    ID_DATA_NOMEAN = wx.NewId()
+    ID_DATA_MEAN = wx.NewId()
+    ID_DATA_MEAN_TOTAL = wx.NewId()
     ID_DATA_NOMEAN_ALL = wx.NewId()
     ID_DATA_NOMEAN_NONE = wx.NewId()
 
@@ -622,7 +625,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.plots = []
         self._nextColor = 0
         self.setVisibleRange(self.timerange[0], self.timerange[1])
-        self.antialias = self.app.getPref('antialasing', False)
+        self.antialias = self.app.getPref('antialiasing', False)
         self.aaMultiplier = self.app.getPref('antialiasingMultiplier', 
                                              ANTIALIASING_MULTIPLIER)
         self.noisyResample = self.app.getPref('resamplingJitter', False)
@@ -730,9 +733,18 @@ class Viewer(wx.Frame, MenuMixin):
         self.menubar.Append(deviceMenu, 'De&vice')
         
         dataMenu = wx.Menu()
-        self.addMenuItem(dataMenu, self.ID_DATA_TOGGLEMEAN, 
-                         "Remove Mean from Data", "",
-                         self.OnRemoveMeanToggle, kind=wx.ITEM_CHECK)
+        meanMenu = wx.Menu()
+        self.addMenuItem(meanMenu, self.ID_DATA_NOMEAN, 
+                         "Do Not Remove Mean", "",
+                         self.OnDontRemoveMeanCheck, kind=wx.ITEM_RADIO)
+        self.addMenuItem(meanMenu, self.ID_DATA_MEAN, 
+                         "Remove Rolling Mean from Data", "",
+                         self.OnRemoveRollingMeanCheck, kind=wx.ITEM_RADIO)
+        self.addMenuItem(meanMenu, self.ID_DATA_MEAN_TOTAL, 
+                         "Remove Total Mean from Data", "",
+                         self.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
+        dataMenu.AppendMenu(self.ID_DATA_MEAN_SUBMENU, "Remove Mean", meanMenu)
+        dataMenu.AppendSeparator()
         self.addMenuItem(dataMenu, self.ID_DATA_NOMEAN_ALL,
                          "Check Remove Mean for All Plots", "",
                          self.OnRemoveMeanAll)
@@ -798,25 +810,25 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword enabled: `True` (default) to enable the menus, `False`
                 to disable.
         """
-        # These are the menus enabled only when a file is open.
-        menus = (wx.ID_CANCEL, wx.ID_REVERT, wx.ID_SAVEAS, self.ID_RECENTFILES, 
-                 self.ID_EXPORT, self.ID_RENDER_FFT, wx.ID_PRINT, 
-                 wx.ID_PRINT_SETUP, self.ID_VIEW_ANTIALIAS, self.ID_VIEW_JITTER,
-                 self.ID_DATA_TOGGLEMEAN,
-                 self.ID_FILE_PROPERTIES,
-#                  wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE
-                 )
+        # These are the menus that are enabled even when there's no file open.
+        # There are fewer of them than menus that are disabled.
+        menus = (wx.ID_NEW, wx.ID_OPEN, wx.ID_EXIT, self.ID_DEVICE_CONFIG,
+                 wx.ID_ABOUT)
         
-        for menuId in menus:
-            self.setMenuItem(self.menubar, menuId, enabled=enabled)
+        if not enabled:
+            self.enableMenuItems(self.menubar, menus, True, False)
+        else:
+            self.enableMenuItems(self.menubar, enable=True)
     
-#         # the 'show properties' menu is only enabled if there is recorder info
-#         m = self.menubar.FindItemById(self.ID_FILE_PROPERTIES)
-#         if self.dataset is not None:
-#             print self.dataset.recorderInfo
-#         else:
-#             print "dataset is None"
-#         m.Enable(enabled and self.dataset.recorderInfo is not None)
+        # the 'show properties' menu is only enabled if there is recorder info
+        m = self.menubar.FindItemById(self.ID_FILE_PROPERTIES)
+        m.Enable(enabled and self.dataset.recorderInfo is not None)
+
+        # Some items should always be disabled unless explicitly enabled
+        alwaysDisabled = (wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE, 
+                          wx.ID_PRINT, wx.ID_PRINT_SETUP)
+
+        self.enableMenuItems(self.menubar, alwaysDisabled, False)
 
     
     def enableChildren(self, enabled=True):
@@ -1370,30 +1382,63 @@ class Viewer(wx.Frame, MenuMixin):
         wx.AboutBox(info)
     
 
-    def OnRemoveMeanToggle(self, evt):
-        """ Handler for ID_DATA_TOGGLEMEAN menu item selection. The method can
+    def OnDontRemoveMeanCheck(self, evt):
+        """
+        """ 
+        if isinstance(evt, bool):
+            self.setMenuItem(self.menubar, self.ID_DATA_NOMEAN, checked=evt)
+            
+        p = self.plotarea.getActivePage()
+        if p is not None:
+            p.removeMean(False)
+        
+
+    def OnRemoveRollingMeanCheck(self, evt):
+        """ Handler for ID_DATA_MEAN menu item selection. The method can
             also be used to explicitly set the item checked or unchecked.
             
             @param evt: The menu event. Can also be `True` or `False` to force
                 the check to be set (kind of a hack).
         """ 
         if isinstance(evt, bool):
-            self.setMenuItem(self.menubar, self.ID_DATA_TOGGLEMEAN, checked=evt)
+            self.setMenuItem(self.menubar, self.ID_DATA_MEAN, checked=evt)
             checked = evt
         else:
             checked = evt.IsChecked() 
             
         p = self.plotarea.getActivePage()
         if p is not None:
-            p.removeMean(checked)
+            span = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+            p.removeMean(checked, span=span)
+
+
+    def OnRemoveTotalMeanCheck(self, evt):
+        """ Handler for ID_DATA_MEAN menu item selection. The method can
+            also be used to explicitly set the item checked or unchecked.
+            
+            @param evt: The menu event. Can also be `True` or `False` to force
+                the check to be set (kind of a hack).
+        """ 
+        if isinstance(evt, bool):
+            self.setMenuItem(self.menubar, self.ID_DATA_MEAN_TOTAL, 
+                             checked=evt)
+            checked = evt
+        else:
+            checked = evt.IsChecked() 
+            
+        p = self.plotarea.getActivePage()
+        print "totalmean checked: %r" % checked
+        if p is not None:
+            p.removeMean(checked, span=-1)
 
 
     def OnRemoveMeanAll(self, evt):
         """ Handler for ID_DATA_NOMEAN_ALL menu item selection. Sets all plots 
             to remove the rolling mean from their values.
         """
+        span = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
         for p in self.plotarea:
-            p.removeMean(True)
+            p.removeMean(True, span=span)
         self.plotarea.redraw()
 
 
@@ -1420,7 +1465,8 @@ class Viewer(wx.Frame, MenuMixin):
             checked = evt.IsChecked()
              
         self.antialias = checked
-        self.plotarea.redraw()
+        self.app.setPref('antialiasing', checked)
+        self.plotarea.setAntialias(checked)
         
 
     def OnToggleNoise(self, evt):
@@ -1438,11 +1484,12 @@ class Viewer(wx.Frame, MenuMixin):
             
         # 'noisy resampling' is turned on or off by changing its amount.
         if checked:
-            self.noisyResample = self.app.getPref('resamplingJitter', 
+            self.noisyResample = self.app.getPref('resamplingJitterAmount', 
                                                   RESAMPLING_JITTER)
         else:
             self.noisyResample = 0
-            
+        
+        self.app.setPref('resamplingJitter', checked)
         self.plotarea.redraw()
 
 
@@ -1457,14 +1504,16 @@ class Viewer(wx.Frame, MenuMixin):
             checked = evt
             self.menubar.FindItemById(self.ID_VIEW_UTCTIME).Check(evt)
         else:
-            checked = evt.IsChecked() 
+            checked = evt.IsChecked()
         self.showUtcTime = checked
+        self.app.setPref('showUtcTime', self.showUtcTime)
 
 
     def OnToggleMinMax(self, evt):
         """ Handler for ID_VIEW_MINMAX menu item selection.
         """
         self.drawMinMax = evt.IsChecked()
+        self.app.setPref('drawMinMax', self.drawMinMax)
         self.plotarea.redraw()
         
     
@@ -1472,6 +1521,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handler for ID_VIEW_LINES_MAJOR menu item selection.
         """
         self.drawMajorHLines = evt.IsChecked()
+        self.app.setPref('drawMajorHLines', self.drawMajorHLines)
         self.plotarea.redraw()
     
     
@@ -1479,6 +1529,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handler for ID_VIEW_LINES_MAJOR menu item selection.
         """
         self.drawMinorHLines = evt.IsChecked()
+        self.app.setPref('drawMinorHLines', self.drawMinorHLines)
         self.plotarea.redraw()
     
     #===========================================================================
@@ -1710,6 +1761,7 @@ class ViewerApp(wx.App):
     prefsFile = os.path.realpath(os.path.join(os.path.dirname(__file__), 
                                               'ssx_viewer.cfg'))
     
+    # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
         'importTypes': ["MIDE Data File (*.ide)|*.ide", 
                         "Slam Stick X Data File (*.dat)|*.dat",
@@ -1724,6 +1776,7 @@ class ViewerApp(wx.App):
         
         # Data modifications
         'removeMean': False,
+        'rollingMeanSpan': 5.0, # In seconds
         
         # Rendering
         'antialiasing': False,
@@ -1731,17 +1784,21 @@ class ViewerApp(wx.App):
         'resamplingJitter': False,
         'resamplingJitterAmount': RESAMPLING_JITTER,
         'drawMajorHLines': True,
-        'drawMinorHLines': False,
+        'drawMinorHLines': True, #False,
         'drawMinMax': False,
         'originHLineColor': wx.Colour(200,200,200),
-        'majorHLineColor': wx.Colour(220,220,220),
+        'majorHLineColor': wx.Colour(240,240,240),
         'minorHLineColor': wx.Colour(240,240,240),
-        'minRangeColor': wx.Colour(200,200,255),
-        'maxRangeColor': wx.Colour(255,200,200),
-        'defaultColors': [#"RED",
-                          #"GREEN",
-                          #"BLUE",
-                          "DARK GREEN",
+        'minRangeColor': wx.Colour(190,190,255),
+        'maxRangeColor': wx.Colour(255,190,190),
+        'plotColors': {"00.0": "BLUE",
+                       "00.1": "GREEN",
+                       "00.2": "RED",
+                       "01.0": "DARK GREEN",
+                       "01.1": "VIOLET"
+        },
+        # default colors: used for subchannel plots not in plotColors
+        'defaultColors': ["DARK GREEN",
                           "VIOLET",
                           "GREY",
                           "YELLOW",
@@ -1755,12 +1812,6 @@ class ViewerApp(wx.App):
                           "GOLD",
                           "BLACK",
                           "BLUE VIOLET"],
-        'plotColors': {"00.0": "BLUE",
-                       "00.1": "GREEN",
-                       "00.2": "RED",
-                       "01.0": "DARK GREEN",
-                       "01.1": "VIOLET"
-        },
 
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
 #         'locale': 'English_United States.1252', # Python's locale name string

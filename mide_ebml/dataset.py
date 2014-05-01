@@ -851,6 +851,7 @@ class EventList(Cascading):
 
         self.removeMean = False
         self.hasMinMeanMax = False
+        self.rollingMeanSpan = 5000000
         
 
     @property
@@ -919,7 +920,7 @@ class EventList(Cascading):
             self.hasMinMeanMax = True
         else:
             self.hasMinMeanMax = False
-
+        
     
     def getInterval(self):
         """ Get the first and last event times in the set.
@@ -1050,15 +1051,12 @@ class EventList(Cascading):
                                        start, stop)
         
 
-    def _getBlockRollingMean(self, blockIdx, span=5000000):
+    def _getBlockRollingMean(self, blockIdx):
         """ Get the mean of a block and its neighbors within a given time span.
             Note: Values are taken pre-calibration, and all subchannels are
             returned.
             
             @param blockIdx: The index of the block to check.
-            @keyword span: The time span over which to take the mean. This is
-                the entire span, so the earliest will be (time-(span/2)) and
-                the latest will be (time+(span/2)).
             @return: An array containing the mean values of each subchannel. 
         """
         block = self._data[blockIdx]
@@ -1069,13 +1067,19 @@ class EventList(Cascading):
         if block.minMeanMax is None:
             return None
         
+        span = self.rollingMeanSpan
+        
         if block._rollingMean is not None and block._rollingMeanSpan == span:
             return block._rollingMean
         
-        firstBlock = self._getBlockIndexWithTime(block.startTime - (span/2), 
-                                                 stop=blockIdx)
-        lastBlock = self._getBlockIndexWithTime(block.startTime + (span/2), 
-                                                start=blockIdx)
+        if span != -1:
+            firstBlock = self._getBlockIndexWithTime(block.startTime - (span/2), 
+                                                     stop=blockIdx)
+            lastBlock = self._getBlockIndexWithTime(block.startTime + (span/2), 
+                                                    start=blockIdx)
+        else:
+            firstBlock = lastBlock = None
+            
         block._rollingMean = numpy.mean(
                         [b.mean for b in self._data[firstBlock:lastBlock]], 0)
         block._rollingMeanSpan = span
@@ -1117,15 +1121,6 @@ class EventList(Cascading):
         timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
         value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1,
                                        offset=self._getBlockRollingMean(blockIdx))[0]
-        
-#         if self.removeMean:
-#             m = self._getBlockRollingMean(blockIdx)
-#             if m is not None:
-#                 if self.hasSubchannels:
-#                     value = value - m
-#                 else:
-#                     value -= m[self.parent.id]
-
         
         if self.hasSubchannels:
             event=tuple(c._transform(f((timestamp,v),self.session)) for f,c,v in izip(self.parent._transform, self.parent.subchannels, value))
@@ -1214,14 +1209,6 @@ class EventList(Cascading):
                                             step=step, offset=self._getBlockRollingMean(blockIdx))
 
             for event in izip(times, values):
-#                 if self.removeMean:
-#                     m = self._getBlockRollingMean(blockIdx)
-#                     if m is not None:
-#                         if self.hasSubchannels:
-#                             event = (event[0], numpy.array(event[-1]) - m)
-#                         else:
-#                             event = (event[0], event[-1] - m[self.parent.id])
-        
                 if self.hasSubchannels:
                     # TODO: Refactor this ugliness
                     # This is some nasty stuff to apply nested transforms

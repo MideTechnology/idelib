@@ -214,7 +214,52 @@ class MenuMixin(object):
                 mi.Enable(enabled)
             if label is not None:
                 mi.SetItemLabel(label)
+                
+                
+    def getAllMenuItems(self, menu, _items=None):
+        """ Recursively collect all menu items.
+        """
+        _items = list() if _items is None else _items
+        if isinstance(menu, wx.MenuItem):
+            _items.append(menu)
+        if isinstance(menu,wx.MenuBar):
+            children = [x[0] for x in menu.GetMenus()]
+        elif isinstance(menu, wx.Menu):
+            children = menu.GetMenuItems()
+        elif isinstance(menu, wx.MenuItemList):
+            children = menu
+        else:
+            c = menu.GetSubMenu()
+            if c is None:
+                return _items
+            children = c.GetMenuItems()
+        
+        for c in children:
+            self.getAllMenuItems(c, _items)
+        return _items
+        
 
+    def enableMenuItems(self, menu, items=None, enable=True, enableExcluded=None):
+        """ Recursively crawl a set of nested menus and enable or disable them.
+        
+            @param menu: 
+            @keyword items: A list of menu item IDs, or `None` for all items.
+            @keyword enable: `True` to enable, `False` to disable items.
+            @keyword enableExcluded: If `True` or `False` and `items` is not
+                `None`, enable or disable all items not in the `items` list.
+                Items not in the list are left as-is if `None`.
+        """
+        allItems = self.getAllMenuItems(menu)
+        if items is None:
+            for mi in allItems:
+                mi.Enable(enable)
+        else:
+            for mi in self.getAllMenuItems(menu):
+                if mi.GetId() in items:
+                    mi.Enable(enable)
+                elif enableExcluded is not None:
+                    mi.Enable(enableExcluded)
+    
 
     def setContextMenu(self, menu):
         """ Set a menu as the the context (e.g. 'right click') popup menu,
