@@ -1080,7 +1080,10 @@ class EventList(Cascading):
         else:
             firstBlock = lastBlock = None
             
-        block._rollingMean = numpy.mean(
+#         block._rollingMean = numpy.mean(
+#                         [b.mean for b in self._data[firstBlock:lastBlock]], 0)
+        # NOTE: TESTING; CHANGE BACK MAYBE
+        block._rollingMean = numpy.median(
                         [b.mean for b in self._data[firstBlock:lastBlock]], 0)
         block._rollingMeanSpan = span
         return block._rollingMean
@@ -1450,8 +1453,11 @@ class EventList(Cascading):
         if self.hasSubchannels and subchannel is not None:
             return (mmm[:,0,subchannel].min(), 
                     mmm[:,1,subchannel].mean(), 
+                    mmm[:,1,subchannel].mean(), 
                     mmm[:,2,subchannel].max())
-        return (mmm[:,0].min(), mmm[:,1].mean(), mmm[:,2].max())
+#         return (mmm[:,0].min(), mmm[:,1].mean(), mmm[:,2].max())
+        # NOTE: TESTING
+        return (mmm[:,0].min(), numpy.median(mmm[:,1]), mmm[:,2].max())
         
         
 
