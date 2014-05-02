@@ -1,4 +1,5 @@
-import colorsys
+# import colorsys
+from itertools import izip
 import sys
 
 from wx import aui
@@ -252,6 +253,9 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self.points = None
         self.lastEvents = None
         self.lastRange = None
+        self.minorHLines = None
+        self.majorHLines = None
+        self.minMeanMaxLines = None
 
         self.setPlotPen()
         self.setAntialias(False)
@@ -391,23 +395,26 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         if not self.Parent.source.hasMinMeanMax:
             return (tuple(),tuple(),tuple())
         
+        width = int((hRange[1] - hRange[0]) * hScale)
+        
         def _startline(lines, pt):
-            thisT = (pt[0] - hRange[0]) * hScale
-            thisV = (pt[-1] - vRange[0]) * vScale 
+            thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
+            thisV = int((pt[-1] - vRange[0]) * vScale) 
             lines.append((0, thisV, thisT, thisV))
         
         def _makeline(lines, pt):
             lastT = lines[-1][2]
             lastV = lines[-1][3]
-            thisT = (pt[0] - hRange[0]) * hScale
-            thisV = (pt[-1] - vRange[0]) * vScale 
-            lines.append((lastT, lastV, thisT, lastV))
-            lines.append((thisT, lastV, thisT, thisV))
+            thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
+            thisV = int((pt[-1] - vRange[0]) * vScale)
+            if thisT != lastT:
+                lines.append((lastT, lastV, thisT, lastV))
+                lines.append((thisT, lastV, thisT, thisV))
         
         def _finishline(lines):
             t = lines[-1][2]
             v = lines[-1][3]
-            lines.append((t, v, hRange[1]*hScale, v))
+            lines.append((t, v, width, v))
 
         vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1)
         minPts = []
@@ -416,17 +423,17 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
         pMin, pMean, pMax = vals.next()
         _startline(minPts, pMin)
-        _startline(meanPts, pMean)
+#         _startline(meanPts, pMean)
         _startline(maxPts, pMax)
         for pMin, pMean, pMax in vals:
             _makeline(minPts, pMin)
-            _makeline(meanPts, pMean)
+#             _makeline(meanPts, pMean)
             _makeline(maxPts, pMax)
         _finishline(minPts)
-        _finishline(meanPts)
+#         _finishline(meanPts)
         _finishline(maxPts)
-         
-        return (minPts, meanPts, maxPts)
+        
+        return (minPts[1:], meanPts, maxPts[1:])
     
 
     def makeMinMaxBoxes(self, hRange, vRange, hScale, vScale):
@@ -543,51 +550,70 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             vScale = (size.y + 0.0) / (vRange[1]-vRange[0]) * self.viewScale
         else:
             vScale = -(size.y + 0.0) * self.viewScale
+            
         thisRange = (hScale, vScale, hRange, vRange)
-        
+        newRange = self.lastRange != thisRange
+        if newRange:
+            self.lines = None
+            self.minMeanMaxLines = None
+            self.minorHLines = None
+            self.majorHLines = None
+            self.lastRange = thisRange
+        drawCondensed = False
+                
         for r in self.Parent.warningRange:
             r.draw(dc, hRange, hScale, self.viewScale, size)
                 
         # Get the horizontal grid lines. 
         # NOTE: This might not work in the future. Consider modifying
         #    VerticalScaleCtrl to ensure we've got access to the labels!
-        majorHLines = []
-        minorHLines = []
-        
         if self.root.drawMinorHLines:
+            if self.minorHLines is None:
 #             self.minorHLinePen.SetWidth(self.viewScale)
-            minorHLines = self.makeHGridlines(legend.scale._minorlabels, 
-                                              size[0], self.viewScale)
+                self.minorHLines = self.makeHGridlines(legend.scale._minorlabels, 
+                                                       size[0], self.viewScale)
+            
         if self.root.drawMajorHLines:
+            if self.majorHLines is None:
 #             self.majorHLinePen.SetWidth(self.viewScale)
-            majorHLines = self.makeHGridlines(legend.scale._majorlabels, 
-                                              size[0], self.viewScale)
+                self.majorHLines = self.makeHGridlines(legend.scale._majorlabels, 
+                                                       size[0], self.viewScale)
 
         # If the plot source does not have min/max data, the first drawing only
         # sets up the scale; don't draw.
         if not self.Parent.firstPlot:
             # Minor lines are automatically removed.
-            if len(minorHLines) < size[1] / 24:
-                dc.DrawLineList(minorHLines, self.minorHLinePen)
-            dc.DrawLineList(majorHLines, self.majorHLinePen)
+            if self.root.drawMinorHLines and len(self.minorHLines) < size[1] / 24:
+                dc.DrawLineList(self.minorHLines, self.minorHLinePen)
+            if self.root.drawMajorHLines:
+                dc.DrawLineList(self.majorHLines, self.majorHLinePen)
         
-        if self.root.drawMinMax and self.Parent.source.hasMinMeanMax:
-#             mmmBoxes = self.makeMinMaxBoxes(hRange, vRange, hScale, vScale)
-#             self.SetBackgroundColour(self.minMaxBg)
-#             dc.DrawRectangleList(mmmBoxes, self._minPen, wx.Brush(self.normalBg, wx.SOLID))
-#             dc.DrawRectangleList(mmmBoxes, self.NO_PEN, wx.Brush(self.normalBg, wx.SOLID))
-            mmmLines = self.makeMinMeanMaxLines(hRange, vRange, hScale, vScale)
-            # TEST: This uses more memory, but may be more efficient
-#             dc.DrawLineList(mmmLines[0]+mmmLines[2], ([self.minRangePen]*len(mmmLines[0]))+([self.maxRangePen]*len(mmmLines[0])))
-            dc.DrawLineList(mmmLines[0], self.minRangePen)
-            dc.DrawLineList(mmmLines[2], self.maxRangePen)
+        if self.Parent.source.hasMinMeanMax:
+            if self.minMeanMaxLines is None:
+                self.minMeanMaxLines = self.makeMinMeanMaxLines(hRange, vRange, hScale, vScale)
+            drawCondensed = len(self.minMeanMaxLines[0]) >= size[0] * 1.75#* self.viewScale
+            if drawCondensed:
+                if self.lines is None:
+                # More buffers than (virtual) pixels; draw vertical lines
+                # from min to max instead of the literal plot.
+                    self.lines = []
+                    lastPt = self.minMeanMaxLines[2][0][:2]
+                    for i in range(0,len(self.minMeanMaxLines[0]),2):
+                        a = self.minMeanMaxLines[0][i]
+                        b = self.minMeanMaxLines[2][i]
+                        self.lines.append((lastPt[0],lastPt[1],a[0],a[1]))
+                        self.lines.append((a[0],a[1],b[0],b[1]))
+                        lastPt = b[:2]
+            elif self.root.drawMinMax:
+                dc.DrawLineList(self.minMeanMaxLines[0], self.minRangePen)
+                dc.DrawLineList(self.minMeanMaxLines[2], self.maxRangePen)
+
         
         dc.SetPen(self._pen)
-        if self.lastRange != thisRange or self.lines is None:
+        if self.lines is None:
             i=1
             self.lines=[]
             self.points=[]
-            self.lastRange = thisRange
             
             # Lines are drawn in sets to provide more immediate results
             lineSubset = []
@@ -628,7 +654,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                 pass
 
             # Draw the remaining lines (if any)
-            dc.DrawLineList(lineSubset)
+            if not self.Parent.firstPlot:
+                dc.DrawLineList(lineSubset) 
 
         else:
             # No change in displayed range; Use cached lines.
