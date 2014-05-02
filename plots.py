@@ -529,11 +529,13 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
         # Auto-zoom the first drawing of the plot, using the source's 
         # minimum and maximum data if available. 
-        if self.Parent.firstPlot and self.Parent.source.hasMinMeanMax:
+        if self.Parent.source.hasMinMeanMax:
             mmm = self.Parent.source.getRangeMinMeanMax(hRange[0], hRange[1])
             self.Parent.visibleValueRange = [mmm[0], mmm[2]]
-            self.Parent.zoomToFit(self)
-            self.Parent.firstPlot = False
+            if self.Parent.firstPlot: 
+                self.Parent.firstPlot = False
+                self.Parent.zoomToFit(self)
+                return
 
 
         hScale = (size.x + 0.0) / (hRange[1]-hRange[0]) * self.viewScale
@@ -551,10 +553,6 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         #    VerticalScaleCtrl to ensure we've got access to the labels!
         majorHLines = []
         minorHLines = []
-        
-        # XXX: REMOVE
-#         self.minorHLinePen.SetDashes([int(self.viewScale*10), int(self.viewScale*10)])
-#         self.minorHLinePen.SetStyle(wx.USER_DASH)
         
         if self.root.drawMinorHLines:
 #             self.minorHLinePen.SetWidth(self.viewScale)
@@ -579,6 +577,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 #             dc.DrawRectangleList(mmmBoxes, self._minPen, wx.Brush(self.normalBg, wx.SOLID))
 #             dc.DrawRectangleList(mmmBoxes, self.NO_PEN, wx.Brush(self.normalBg, wx.SOLID))
             mmmLines = self.makeMinMeanMaxLines(hRange, vRange, hScale, vScale)
+            # TEST: This uses more memory, but may be more efficient
+#             dc.DrawLineList(mmmLines[0]+mmmLines[2], ([self.minRangePen]*len(mmmLines[0]))+([self.maxRangePen]*len(mmmLines[0])))
             dc.DrawLineList(mmmLines[0], self.minRangePen)
             dc.DrawLineList(mmmLines[2], self.maxRangePen)
         
@@ -596,9 +596,10 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                 size[0]*self.oversampling, padding=1, jitter=self.root.noisyResample)
 
             try:
-                self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
                 event = events.next()
-                expandRange(self.Parent.visibleValueRange, event[-1])
+                if not self.Parent.source.hasMinMeanMax:
+                    self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
+                    expandRange(self.Parent.visibleValueRange, event[-1])
                 lastPt = ((event[-2] - hRange[0]) * hScale, 
                           (event[-1] - vRange[0]) * vScale)
                 
@@ -613,7 +614,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                         line = lastPt + pt
                         lineSubset.append(line)
                         self.lines.append(line)
-                        expandRange(self.Parent.visibleValueRange, event[-1])
+                        if not self.Parent.source.hasMinMeanMax:
+                            expandRange(self.Parent.visibleValueRange, event[-1])
                     
                     if i % tenth == 0:
                         dc.DrawLineList(lineSubset)
@@ -897,7 +899,7 @@ class Plot(ViewerPanel):
             self.plot.Refresh()
 
 
-    def zoomToFit(self, instigator=None, padding=0.05):
+    def zoomToFit(self, instigator=None, padding=0.05, tracking=False):
         """ Adjust the visible vertical range to fit the values in the
             currently displayed interval.
             
@@ -909,11 +911,12 @@ class Plot(ViewerPanel):
         # TODO: Make all zooming event-based and handled by plot parents
         if self.visibleValueRange is None:
             return
+
         d = (self.visibleValueRange[1] - self.visibleValueRange[0]) * padding
         self.setValueRange(self.visibleValueRange[0] - d,
                            self.visibleValueRange[1] + d, 
                            instigator, 
-                           False)
+                           tracking)
 
 
     def redraw(self):
@@ -928,6 +931,7 @@ class Plot(ViewerPanel):
         """
         if not self.source:
             return
+        val = val and self.source.hasMinMeanMax
         if self.source.removeMean != val or self.source.rollingMeanSpan != span:
             self.source.rollingMeanSpan = span
             self.source.removeMean = val

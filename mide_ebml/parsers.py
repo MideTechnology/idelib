@@ -369,6 +369,7 @@ class BaseDataBlock(object):
         self.max = None
         self._rollingMean = None
         self._rollingMeanSpan = 5000000
+        self._rollingMeanLen = None  # length of set at last rolling mean
         
 
     def __repr__(self):

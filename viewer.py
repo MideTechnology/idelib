@@ -744,13 +744,6 @@ class Viewer(wx.Frame, MenuMixin):
                          "Remove Total Mean from Data", "",
                          self.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
         dataMenu.AppendMenu(self.ID_DATA_MEAN_SUBMENU, "Remove Mean", meanMenu)
-        dataMenu.AppendSeparator()
-        self.addMenuItem(dataMenu, self.ID_DATA_NOMEAN_ALL,
-                         "Check Remove Mean for All Plots", "",
-                         self.OnRemoveMeanAll)
-        self.addMenuItem(dataMenu, self.ID_DATA_NOMEAN_NONE,
-                         "Uncheck Remove Mean for All Plots", "",
-                         self.OnRemoveMeanAll)
         self.menubar.Append(dataMenu, "&Data")
         
         helpMenu = wx.Menu()
@@ -1130,7 +1123,10 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword evt: An event (not actually used), making this method
                 compatible with event handlers.
         """
-        settings = xd.CSVExportDialog.getExport(root=self)
+        removeMeanType = 0
+        if self.plotarea[0].source.removeMean:
+            removeMeanType = 2 if self.plotarea[0].source.rollingMeanSpan == -1 else 1
+        settings = xd.CSVExportDialog.getExport(root=self, removeMean=removeMeanType)
         
         if settings is None:
             return
@@ -1140,7 +1136,13 @@ class Viewer(wx.Frame, MenuMixin):
         subchannelIds = [c.id for c in subchannels]
         start, stop = settings['indexRange']
         addHeaders = settings['addHeaders']
-        removeMean = None #settings.get('removeMean', False)
+        removeMeanType = settings.get('removeMean', 0)
+        
+        removeMean = removeMeanType > 0
+        if removeMeanType == 1:
+            meanSpan = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+        else:
+            meanSpan = -1
         
         filename = self.getSaveFile("Export CSV...")
         if filename is None:
@@ -1165,7 +1167,8 @@ class Viewer(wx.Frame, MenuMixin):
                          useIsoFormat=settings['useIsoFormat'],
                          useUtcTime=settings['useUtcTime'],
                          headers=addHeaders,
-                         removeMean=removeMean)
+                         removeMean=removeMean,
+                         meanSpan=meanSpan)
         
         dlg.Destroy()
         stream.close()
@@ -1317,15 +1320,7 @@ class Viewer(wx.Frame, MenuMixin):
                             style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
-            filename = dlg.GetPath()
-            if self.dataset is None or self.dataset.filename == filename:
-                self.openFile(filename)
-            else:
-                openNew = self.ask("Are you sure you want to close the "
-                                   "current file and open another?", 
-                                   "Open File", style=wx.YES_NO|wx.CANCEL)
-                if openNew == wx.ID_YES:
-                    self.openFile(filename)
+            self.openFile(dlg.GetPath())
             
         # Note to self: do this last!
         dlg.Destroy()
@@ -1388,8 +1383,7 @@ class Viewer(wx.Frame, MenuMixin):
         if isinstance(evt, bool):
             self.setMenuItem(self.menubar, self.ID_DATA_NOMEAN, checked=evt)
             
-        p = self.plotarea.getActivePage()
-        if p is not None:
+        for p in self.plotarea:
             p.removeMean(False)
         
 
@@ -1406,9 +1400,8 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             checked = evt.IsChecked() 
             
-        p = self.plotarea.getActivePage()
-        if p is not None:
-            span = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+        span = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+        for p in self.plotarea:
             p.removeMean(checked, span=span)
 
 
@@ -1426,9 +1419,7 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             checked = evt.IsChecked() 
             
-        p = self.plotarea.getActivePage()
-        print "totalmean checked: %r" % checked
-        if p is not None:
+        for p in self.plotarea:
             p.removeMean(checked, span=-1)
 
 

@@ -217,7 +217,7 @@ class MenuMixin(object):
                 
                 
     def getAllMenuItems(self, menu, _items=None):
-        """ Recursively collect all menu items.
+        """ Recursively collect all menu items from a menu or submenu.
         """
         _items = list() if _items is None else _items
         if isinstance(menu, wx.MenuItem):
@@ -239,13 +239,13 @@ class MenuMixin(object):
         return _items
         
 
-    def enableMenuItems(self, menu, items=None, enable=True, enableExcluded=None):
+    def enableMenuItems(self, menu, items=None, enable=True, excluded=None):
         """ Recursively crawl a set of nested menus and enable or disable them.
         
             @param menu: 
             @keyword items: A list of menu item IDs, or `None` for all items.
             @keyword enable: `True` to enable, `False` to disable items.
-            @keyword enableExcluded: If `True` or `False` and `items` is not
+            @keyword excluded: If `True` or `False` and `items` is not
                 `None`, enable or disable all items not in the `items` list.
                 Items not in the list are left as-is if `None`.
         """
@@ -257,8 +257,8 @@ class MenuMixin(object):
             for mi in self.getAllMenuItems(menu):
                 if mi.GetId() in items:
                     mi.Enable(enable)
-                elif enableExcluded is not None:
-                    mi.Enable(enableExcluded)
+                elif excluded is not None:
+                    mi.Enable(excluded)
     
 
     def setContextMenu(self, menu):

@@ -60,6 +60,7 @@ elementParserTypes = parsers.getElementHandlers()
 # testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\20140328_auto_rearm\VIB00001.IDE"
 #testFile= "Firmware20140328.IDE"
 testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140423_stats_newformat.ide"
+# testFile= "C:\\Users\\dstokes\\workspace\\SSXViewer\\20140501_Mean_Removal\\VIB00000.IDE"
 
 # from parsers import AccelerometerParser
 

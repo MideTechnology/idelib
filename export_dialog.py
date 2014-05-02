@@ -64,6 +64,8 @@ class ExportDialog(sc.SizedDialog):
     DEFAULT_UNITS = ("seconds", "s")
     WHAT = "exporting"
     
+    MEANS = ['None', 'Rolling Mean', 'Total Mean']
+    
     def __init__(self, *args, **kwargs):
         """
         """
@@ -79,7 +81,7 @@ class ExportDialog(sc.SizedDialog):
         kwargs.setdefault('title', self.DEFAULT_TITLE)
         self.units = kwargs.pop("units", self.DEFAULT_UNITS)
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
-        self.removeMean = kwargs.pop("removeMean", False)
+        self.removeMean = kwargs.pop("removeMean", 0)
 
         super(ExportDialog, self).__init__(*args, **kwargs)
         
@@ -159,7 +161,9 @@ class ExportDialog(sc.SizedDialog):
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
         wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
-#         self.removeMeanList, _ = self._addChoice("Mean Removal:", ["Use per plot setting","-","None","Rolling Mean","Total Mean"], 0, tooltip="Subtract a the mean from the data. Not applicable to all channels.")
+        self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
+             self.removeMean, tooltip="Subtract a the mean from the data. "
+                                      "Not applicable to all channels.")
 
         # TODO: Make 'remove mean' work at export time.
 #         self.removeMeanList.Hide()
@@ -354,7 +358,7 @@ class ExportDialog(sc.SizedDialog):
                 'indexRange': indexRange,
                 'channels': channels,
                 'numRows': indexRange[1]-indexRange[0],
-#                 'removeMean': self.removeMeanList.GetValue(),
+                'removeMean': self.removeMeanList.GetSelection(),
                 'source': source}
     
 

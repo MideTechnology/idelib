@@ -819,6 +819,8 @@ class EventList(Cascading):
             one sample per data block).
     """
 
+    DEFAULT_MEAN_SPAN = 5000000
+
     def __init__(self, parent, session=None):
         self.parent = parent
         self.session = session
@@ -851,7 +853,7 @@ class EventList(Cascading):
 
         self.removeMean = False
         self.hasMinMeanMax = False
-        self.rollingMeanSpan = 5000000
+        self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
         
 
     @property
@@ -1059,17 +1061,17 @@ class EventList(Cascading):
             @param blockIdx: The index of the block to check.
             @return: An array containing the mean values of each subchannel. 
         """
-        block = self._data[blockIdx]
-        
         if self.removeMean is False:
             return None
+        
+        block = self._data[blockIdx]
         
         if block.minMeanMax is None:
             return None
         
         span = self.rollingMeanSpan
         
-        if block._rollingMean is not None and block._rollingMeanSpan == span:
+        if block._rollingMean is not None and block._rollingMeanSpan == span and block._rollingMeanLen == len(self._data):
             return block._rollingMean
         
         if span != -1:
@@ -1077,15 +1079,17 @@ class EventList(Cascading):
                                                      stop=blockIdx)
             lastBlock = self._getBlockIndexWithTime(block.startTime + (span/2), 
                                                     start=blockIdx)
+            lastBlock = max(lastBlock+1, firstBlock+1)
         else:
             firstBlock = lastBlock = None
-            
+        
 #         block._rollingMean = numpy.mean(
 #                         [b.mean for b in self._data[firstBlock:lastBlock]], 0)
         # NOTE: TESTING; CHANGE BACK MAYBE
         block._rollingMean = numpy.median(
                         [b.mean for b in self._data[firstBlock:lastBlock]], 0)
         block._rollingMeanSpan = span
+        block._rollingMeanLen = len(self._data)
         return block._rollingMean
     
 
@@ -1394,7 +1398,7 @@ class EventList(Cascading):
             if endTime < 0:
                 endTime += self._data[-1].endTime
             endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx)
-            endBlockIdx = min(len(self._data), endBlockIdx+1)
+            endBlockIdx = min(len(self._data), max(startBlockIdx+1, endBlockIdx+1))
         
         for block in self._data[startBlockIdx:endBlockIdx]:
             if block.minMeanMax is None:
@@ -1637,7 +1641,8 @@ class EventList(Cascading):
     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", useUtcTime=False,
-                  useIsoFormat=False, headers=False, removeMean=None):
+                  useIsoFormat=False, headers=False, removeMean=None,
+                  meanSpan=None):
         """ Export events as CSV to a stream (e.g. a file).
         
             @param stream: The stream object to which to write CSV data.
@@ -1702,8 +1707,11 @@ class EventList(Cascading):
             names = [self.parent.name]
 
         oldRemoveMean = self.removeMean
+        oldMeanSpan = self.rollingMeanSpan
         if removeMean is not None:
             self.removeMean = removeMean
+        if meanSpan is not None:
+            self.rollingMeanSpan = meanSpan
         
         totalLines = (stop - start) / (step + 0.0)
         updateInt = int(totalLines * callbackInterval)
@@ -1731,6 +1739,7 @@ class EventList(Cascading):
 
         # Restore old removeMean        
         self.removeMean = oldRemoveMean
+        self.rollingMeanSpan = oldMeanSpan
         return num+1, datetime.now() - t0
 
         
