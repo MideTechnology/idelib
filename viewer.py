@@ -576,10 +576,14 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DEVICE_TIME = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
     ID_DEVICE_SET_CLOCK = wx.NewId()
+    ID_VIEW_ZOOM_OUT_Y = wx.NewId()
+    ID_VIEW_ZOOM_IN_Y = wx.NewId()
+    ID_VIEW_ZOOM_FIT_Y = wx.NewId()
     ID_VIEW_ANTIALIAS = wx.NewId()
     ID_VIEW_JITTER = wx.NewId()
     ID_VIEW_UTCTIME = wx.NewId()
     ID_VIEW_MINMAX = wx.NewId()
+    ID_VIEW_MEAN = wx.NewId()
     ID_VIEW_LINES_MAJOR = wx.NewId()
     ID_VIEW_LINES_MINOR = wx.NewId()
     ID_DATA_MEAN_SUBMENU = wx.NewId()
@@ -631,6 +635,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.noisyResample = self.app.getPref('resamplingJitter', False)
         self.showUtcTime = self.app.getPref('showUtcTime', False)
         self.drawMinMax = self.app.getPref('drawMinMax', False)
+        self.drawMean = self.app.getPref('drawMean', False)
         self.drawMajorHLines = self.app.getPref('drawMajorHLines', True)
         self.drawMinorHLines = self.app.getPref('drawMinorHLines', False)
         
@@ -660,12 +665,12 @@ class Viewer(wx.Frame, MenuMixin):
         self.menubar = wx.MenuBar()
         
         fileMenu = wx.Menu()
-        self.addMenuItem(fileMenu, wx.ID_NEW, "&New Viewer Window", "",
+        self.addMenuItem(fileMenu, wx.ID_NEW, "&New Viewer Window\tCtrl+N", "",
                          self.OnFileNewMenu)
 #         self.addMenuItem(fileMenu, wx.ID_CLOSE, "Close Viewer Window", "",
 #                          None)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...", "", 
+        self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...\tCtrl+O", "", 
                          self.OnFileOpenMenu)
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCrtl-.", "", 
                          self.cancelOperation, enabled=False)
@@ -679,10 +684,9 @@ class Viewer(wx.Frame, MenuMixin):
                          "Render Spectrogram (2D FFT)...", "", 
                          self.renderSpectrogram)
         fileMenu.AppendSeparator()
-        #ID_FILE_PROPERTIES
         self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES, 
-                         "Recording Properties...", "", self.OnFileProperties,
-                         enabled=False)
+                         "Recording Properties...\tCtrl+I", "", 
+                         self.OnFileProperties)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", enabled=False)
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
@@ -692,8 +696,8 @@ class Viewer(wx.Frame, MenuMixin):
 #         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", 
 #                             self.recentFilesMenu)
 #         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit', '', 
-                self.OnFileExitMenu, True)
+        self.addMenuItem(fileMenu, wx.ID_EXIT, 'Exit\tCtrl+Q', '', 
+                self.OnFileExitMenu)
         wx.App.SetMacExitMenuItemId(wx.ID_EXIT)
         self.menubar.Append(fileMenu, '&File')
         
@@ -704,6 +708,22 @@ class Viewer(wx.Frame, MenuMixin):
         self.menubar.Append(editMenu, '&Edit')
 
         viewMenu = wx.Menu()
+        self.addMenuItem(viewMenu, wx.ID_REFRESH, "&Redraw Plots\tCtrl+R", "",
+                         self.plotarea.redraw)
+        viewMenu.AppendSeparator()
+        self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom Out X\tCtrl+-", "",
+                         self.navigator.OnZoomOut)
+        self.addMenuItem(viewMenu, wx.ID_ZOOM_IN, "Zoom In X\tCtrl+=", "",
+                         self.navigator.OnZoomIn)
+        self.addMenuItem(viewMenu, wx.ID_ZOOM_FIT, "Zoom to Fit X\tCtrl+0", "",
+                         self.navigator.OnZoomFit)
+        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_OUT_Y, 
+                         "Zoom Out Y\tAlt+-", '', self.OnZoomOutY)
+        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_IN_Y, 
+                         "Zoom In Y\tAlt+=", '', self.OnZoomInY)
+        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y, 
+                        "Zoom to Fit Y\tAlt+0", '', self.OnZoomFitY)
+        viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS, 
                          "Antialiased Drawing", "", 
                          self.OnToggleAA, kind=wx.ITEM_CHECK)
@@ -714,12 +734,15 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(viewMenu, self.ID_VIEW_MINMAX,
                          "Show Buffer Minimum/Maximum", "",
                          self.OnToggleMinMax, kind=wx.ITEM_CHECK)
+        self.addMenuItem(viewMenu, self.ID_VIEW_MEAN,
+                         "Show Buffer Mean", "",
+                         self.OnToggleViewMean, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MAJOR,
-                         "Show Major Horizontal Gridlines", "",
+                         "Show Major Horizontal Gridlines\tCtrl+'", "",
                          self.OnToggleLinesMajor, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MINOR,
-                         "Show Minor Horizontal Gridlines", "",
+                         "Show Minor Horizontal Gridlines\tCtrl+SHIFT+'", "",
                          self.OnToggleLinesMinor, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
@@ -729,7 +752,8 @@ class Viewer(wx.Frame, MenuMixin):
 
         deviceMenu = wx.Menu()
         self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
-                         "Configure Device...", "", self.OnDeviceConfigMenu)
+                         "Configure Device...\tCtrl+D", "", 
+                         self.OnDeviceConfigMenu)
         self.menubar.Append(deviceMenu, 'De&vice')
         
         dataMenu = wx.Menu()
@@ -849,7 +873,6 @@ class Viewer(wx.Frame, MenuMixin):
         result = dlg.ShowModal()
         dlg.Destroy()
         return result
-
 
 
     def getSaveFile(self, message, defaults=None, types=None, 
@@ -1423,24 +1446,21 @@ class Viewer(wx.Frame, MenuMixin):
             p.removeMean(checked, span=-1)
 
 
-    def OnRemoveMeanAll(self, evt):
-        """ Handler for ID_DATA_NOMEAN_ALL menu item selection. Sets all plots 
-            to remove the rolling mean from their values.
-        """
-        span = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
-        for p in self.plotarea:
-            p.removeMean(True, span=span)
-        self.plotarea.redraw()
+    def OnZoomInY(self, evt):
+        p = self.plotarea.getActivePage()
+        if p is not None:
+            p.legend.OnZoomIn(None)
 
 
-    def OnRemoveMeanNone(self, evt):
-        """ Handler for ID_DATA_NOMEAN_NONE Sets all plots to not remove the 
-            rolling mean from their values.
-        """
-        for p in self.plotarea:
-            p.removeMean(False)
-        self.plotarea.redraw()
+    def OnZoomOutY(self, evt):
+        p = self.plotarea.getActivePage()
+        if p is not None:
+            p.legend.OnZoomOut(None)
 
+    def OnZoomFitY(self, evt):
+        p = self.plotarea.getActivePage()
+        if p is not None:
+            p.legend.OnZoomFit(evt)
 
     def OnToggleAA(self, evt):
         """ Handler for ID_VIEW_ANTIALIAS menu item selection. The method can
@@ -1455,8 +1475,7 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             checked = evt.IsChecked()
              
-        self.antialias = checked
-        self.app.setPref('antialiasing', checked)
+        self.antialias = self.app.setPref('antialiasing', checked)
         self.plotarea.setAntialias(checked)
         
 
@@ -1496,32 +1515,36 @@ class Viewer(wx.Frame, MenuMixin):
             self.menubar.FindItemById(self.ID_VIEW_UTCTIME).Check(evt)
         else:
             checked = evt.IsChecked()
-        self.showUtcTime = checked
-        self.app.setPref('showUtcTime', self.showUtcTime)
+        self.showUtcTime = self.app.setPref('showUtcTime', checked)
 
 
     def OnToggleMinMax(self, evt):
         """ Handler for ID_VIEW_MINMAX menu item selection.
         """
-        self.drawMinMax = evt.IsChecked()
-        self.app.setPref('drawMinMax', self.drawMinMax)
+        self.drawMinMax = self.app.setPref('drawMinMax', evt.IsChecked())
         self.plotarea.redraw()
-        
+    
+    def OnToggleViewMean(self, evt):
+        """
+        """
+        self.drawMean = self.app.setPref('drawMean', evt.IsChecked())
+        self.plotarea.redraw()
     
     def OnToggleLinesMajor(self, evt):
         """ Handler for ID_VIEW_LINES_MAJOR menu item selection.
         """
-        self.drawMajorHLines = evt.IsChecked()
-        self.app.setPref('drawMajorHLines', self.drawMajorHLines)
+        checked = evt.IsChecked()
+        self.drawMajorHLines = self.app.setPref('drawMajorHLines', checked)
         self.plotarea.redraw()
     
     
     def OnToggleLinesMinor(self, evt):
         """ Handler for ID_VIEW_LINES_MAJOR menu item selection.
         """
-        self.drawMinorHLines = evt.IsChecked()
-        self.app.setPref('drawMinorHLines', self.drawMinorHLines)
+        checked = evt.IsChecked()
+        self.drawMinorHLines = self.app.setPref('drawMinorHLines', checked)
         self.plotarea.redraw()
+    
     
     #===========================================================================
     # Custom Events
@@ -1777,11 +1800,13 @@ class ViewerApp(wx.App):
         'drawMajorHLines': True,
         'drawMinorHLines': True, #False,
         'drawMinMax': False,
+        'drawMean': True,
         'originHLineColor': wx.Colour(200,200,200),
         'majorHLineColor': wx.Colour(240,240,240),
         'minorHLineColor': wx.Colour(240,240,240),
         'minRangeColor': wx.Colour(190,190,255),
         'maxRangeColor': wx.Colour(255,190,190),
+        'meanRangeColor': wx.Colour(255,255,150),
         'plotColors': {"00.0": "BLUE",
                        "00.1": "GREEN",
                        "00.2": "RED",
@@ -1896,14 +1921,19 @@ class ViewerApp(wx.App):
 
     def getPref(self, *args):
         """ Retrieve a value from the preferences.
+            @param prefName: The name of the preference to retrieve.
+            @keyword default: An optional default value to return if the
+                preference is not found.
         """
         return self.prefs.get(args[0], self.defaultPrefs.get(*args))
 
 
     def setPref(self, name, val):
-        """ Set the value of a preference.
+        """ Set the value of a preference. Returns the value set as a
+            convenience.
         """
         self.prefs[name] = val
+        return val
 
     #===========================================================================
     # 

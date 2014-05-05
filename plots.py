@@ -223,6 +223,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     GRID_MINOR_STYLE = ("minorHLineColor", "LIGHT GRAY", 1, wx.USER_DASH, [2,2])
     RANGE_MIN_STYLE = ("minRangeColor", "LIGHT BLUE", 1, wx.USER_DASH, [8,4,4,4])    
     RANGE_MAX_STYLE = ("maxRangeColor", "PINK", 1, wx.USER_DASH, [8,4,4,4])
+    RANGE_MEAN_STYLE = ("meanRangeColor", "YELLOW", 1, wx.USER_DASH, [8,4,4,4])
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
@@ -248,6 +249,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self.minorHLinePen = self.loadPen(*self.GRID_MINOR_STYLE)
         self.minRangePen = self.loadPen(*self.RANGE_MIN_STYLE)
         self.maxRangePen = self.loadPen(*self.RANGE_MAX_STYLE)
+        self.meanRangePen = self.loadPen(*self.RANGE_MEAN_STYLE)
         
         self.lines = None
         self.points = None
@@ -423,14 +425,14 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
         pMin, pMean, pMax = vals.next()
         _startline(minPts, pMin)
-#         _startline(meanPts, pMean)
+        _startline(meanPts, pMean)
         _startline(maxPts, pMax)
         for pMin, pMean, pMax in vals:
             _makeline(minPts, pMin)
-#             _makeline(meanPts, pMean)
+            _makeline(meanPts, pMean)
             _makeline(maxPts, pMax)
         _finishline(minPts)
-#         _finishline(meanPts)
+        _finishline(meanPts)
         _finishline(maxPts)
         
         return (minPts[1:], meanPts, maxPts[1:])
@@ -591,7 +593,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         if self.Parent.source.hasMinMeanMax:
             if self.minMeanMaxLines is None:
                 self.minMeanMaxLines = self.makeMinMeanMaxLines(hRange, vRange, hScale, vScale)
-            drawCondensed = len(self.minMeanMaxLines[0]) >= size[0] * 1.75#* self.viewScale
+            drawCondensed = len(self.minMeanMaxLines[0]) >= size[0] * 1.75
             if drawCondensed:
                 if self.lines is None:
                 # More buffers than (virtual) pixels; draw vertical lines
@@ -604,9 +606,12 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                         self.lines.append((lastPt[0],lastPt[1],a[0],a[1]))
                         self.lines.append((a[0],a[1],b[0],b[1]))
                         lastPt = b[:2]
-            elif self.root.drawMinMax:
-                dc.DrawLineList(self.minMeanMaxLines[0], self.minRangePen)
-                dc.DrawLineList(self.minMeanMaxLines[2], self.maxRangePen)
+            else:
+                if self.root.drawMinMax:
+                    dc.DrawLineList(self.minMeanMaxLines[0], self.minRangePen)
+                    dc.DrawLineList(self.minMeanMaxLines[2], self.maxRangePen)
+                if self.root.drawMean:
+                    dc.DrawLineList(self.minMeanMaxLines[1], self.meanRangePen)
 
         
         dc.SetPen(self._pen)
@@ -702,14 +707,9 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self.userScale = 1.0/self.viewScale
         self.minorHLinePen.SetWidth(self.GRID_MINOR_STYLE[2]*gridScale)
         self.majorHLinePen.SetWidth(self.GRID_MAJOR_STYLE[2]*gridScale)
-#         self.minorHLinePen.SetDashes(self.GRID_MINOR_STYLE[-1])
-#         self.majorHLinePen.SetDashes(self.GRID_MAJOR_STYLE[-1])
-        
         self.minRangePen.SetWidth(self.RANGE_MAX_STYLE[2]*rangeScale)
         self.maxRangePen.SetWidth(self.RANGE_MIN_STYLE[2]*rangeScale)
-#         self.maxRangePen.SetDashes(self.RANGE_MAX_STYLE[-1])
-#         self.minRangePen.SetDashes(self.RANGE_MIN_STYLE[-1])
-        
+        self.meanRangePen.SetWidth(self.RANGE_MEAN_STYLE[2]*rangeScale)
         self._pointPen.SetWidth(rangeScale)
 
 
@@ -813,7 +813,7 @@ class Plot(ViewerPanel):
         self._bindScrollEvents(self.scrollbar, self.OnScroll, 
                               self.OnScrollTrack, self.OnScrollEnd)
         
-        self.plot.Bind(wx.EVT_KEY_UP, self.OnKeypress)
+#         self.plot.Bind(wx.EVT_KEY_UP, self.OnKeypress)
         
         self.enableMenus()
         
@@ -998,6 +998,9 @@ class Plot(ViewerPanel):
         self.root.setMenuItem(self.root.menubar,
                               self.root.ID_VIEW_LINES_MINOR,
                               enabled=True, checked=self.root.drawMinorHLines)
+        self.root.setMenuItem(self.root.menubar,
+                              self.root.ID_VIEW_MEAN,
+                              enabled=True, checked=self.root.drawMean)
                               
 #         # Non-plot-specific menu items
 #         self.plot.setMenuItem(self.plot.contextMenu, 
@@ -1270,7 +1273,7 @@ class PlotSet(aui.AuiNotebook):
             self.removePlot(0)
     
     
-    def redraw(self):
+    def redraw(self, evt=None):
         """ Force a redraw.
         """
         # Clear the cached lines from all plots
