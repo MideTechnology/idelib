@@ -21,6 +21,7 @@ import wx; wx = wx
 from common import datetime2int, DateTimeCtrl
 import devices
 from mide_ebml import util
+from mide_ebml.parsers import PolynomialParser
 
 
 #===============================================================================
@@ -661,11 +662,11 @@ class InfoPanel(BaseConfigPanel):
     def getDeviceData(self):
         self.data = self.info
 
+
     def buildUI(self):
         infoColor = wx.Colour(60,60,60)
-        mono = wx.Font(self.GetFont().GetPointSize()+1, wx.MODERN, wx.NORMAL, 
-                       wx.BOLD, False, u'monospace')
-        
+        mono = wx.Font(self.GetFont().GetPointSize()+1, wx.MODERN, 
+                            wx.NORMAL, wx.BOLD, False, u'monospace')
         sc.SizedPanel(self, -1) # Spacer
         wx.StaticText(self, -1, "All values are read-only"
                       ).SetForegroundColour("RED")
@@ -712,6 +713,61 @@ class InfoPanel(BaseConfigPanel):
         else:
             wx.MessageBox("Unable to open the clipboard", "Error")
 
+
+#===============================================================================
+# 
+#===============================================================================
+
+class CalibrationPanel(InfoPanel):
+    """
+    """
+    
+    def getDeviceData(self):
+        PP = PolynomialParser(None)
+        self.info = [PP.parse(c) for c in self.data.value]
+        
+        
+    def buildUI(self):
+        """
+        """
+        self.text = []
+        bold = wx.Font(self.GetFont().GetPointSize(), wx.FONTFAMILY_DEFAULT, 
+                            wx.NORMAL, wx.BOLD, False)
+        infoColor = wx.Colour(60,60,60)
+        mono = wx.Font(self.GetFont().GetPointSize()+1, wx.MODERN, 
+                            wx.NORMAL, wx.BOLD, False, u'monospace')
+        
+        sc.SizedPanel(self, -1) # Spacer
+        wx.StaticText(self, -1, "All values are read-only"
+                      ).SetForegroundColour("RED")
+                      
+        for cal in self.info:
+            calId = cal.id
+            calType = cal.__class__.__name__
+            if hasattr(cal, 'channelId'):
+                s = "Channel %x" % cal.channelId
+                if hasattr(cal, 'subchannelId'):
+                    s += ", Subchannel %x" % cal.subchannelId
+                calType = "%s; references %s" % (calType, s)
+            wx.StaticText(self, -1, "Calibration ID %x:" % calId).SetFont(bold)
+            wx.StaticText(self, -1, calType).SetFont(bold)
+            
+            t = self.addField("Polynomial:", None, '', str(cal), 
+                              fieldStyle=wx.TE_READONLY)
+            t.SetForegroundColour(infoColor)
+            t.SetSizerProps(expand=True)
+            t.SetFont(mono)
+            
+            self.text.append("Calibration ID %x: %s" % (calId, calType))
+            self.text.append("Polynomial: %s" % str(cal))
+
+        sc.SizedPanel(self, -1) # Spacer
+        copyBtn = wx.Button(self, -1, "Copy to Clipboard")
+        copyBtn.Bind(wx.EVT_BUTTON, self.OnCopy)
+        
+        self.Fit()
+
+                
 
 #===============================================================================
 # 

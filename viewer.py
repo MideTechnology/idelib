@@ -56,6 +56,7 @@ from fileinfo import RecorderInfoDialog
 from fft import FFTView, SpectrogramView
 from loader import Loader
 from plots import PlotSet
+from range_dialog import RangeDialog
 
 # Special helper objects and functions
 import devices
@@ -573,7 +574,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_RENDER_FFT = wx.NewId()
     ID_RENDER_SPEC = wx.NewId()
     ID_FILE_PROPERTIES = wx.NewId()
-    ID_DEVICE_TIME = wx.NewId()
+    ID_EDIT_RANGES = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
     ID_DEVICE_SET_CLOCK = wx.NewId()
     ID_VIEW_ZOOM_OUT_Y = wx.NewId()
@@ -675,13 +676,14 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCrtl-.", "", 
                          self.cancelOperation, enabled=False)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, self.ID_EXPORT, "Export Data (CSV)...", "", 
-                         self.exportCsv)
+        self.addMenuItem(fileMenu, self.ID_EXPORT, 
+                         "&Export Data (CSV)...\tCtrl+S", "", self.exportCsv)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, self.ID_RENDER_FFT, "Render FFT...", "", 
+        self.addMenuItem(fileMenu, self.ID_RENDER_FFT, 
+                         "Render &FFT...\tCtrl+F", "", 
                          self.renderFFT)
         self.addMenuItem(fileMenu, self.ID_RENDER_SPEC, 
-                         "Render Spectrogram (2D FFT)...", "", 
+                         "Render Spectro&gram (2D FFT)...\tCtrl+G", "", 
                          self.renderSpectrogram)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES, 
@@ -696,7 +698,7 @@ class Viewer(wx.Frame, MenuMixin):
 #         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", 
 #                             self.recentFilesMenu)
 #         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_EXIT, 'Exit\tCtrl+Q', '', 
+        self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit\tCtrl+Q', '', 
                 self.OnFileExitMenu)
         wx.App.SetMacExitMenuItemId(wx.ID_EXIT)
         self.menubar.Append(fileMenu, '&File')
@@ -705,6 +707,10 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_CUT, "Cut", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", enabled=False)
+        editMenu.AppendSeparator()
+        self.addMenuItem(editMenu, self.ID_EDIT_RANGES, 
+                         "Edit Visible Ranges...\tCtrl+E", "", 
+                         self.OnEditRanges)
         self.menubar.Append(editMenu, '&Edit')
 
         viewMenu = wx.Menu()
@@ -752,7 +758,7 @@ class Viewer(wx.Frame, MenuMixin):
 
         deviceMenu = wx.Menu()
         self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
-                         "Configure Device...\tCtrl+D", "", 
+                        "Configure &Device...\tCtrl+D", "", 
                          self.OnDeviceConfigMenu)
         self.menubar.Append(deviceMenu, 'De&vice')
         
@@ -1370,6 +1376,16 @@ class Viewer(wx.Frame, MenuMixin):
             RecorderInfoDialog.showRecorderInfo(self.dataset)
         
 
+    def OnEditRanges(self, evt):
+        """
+        """
+        newRanges = RangeDialog.display(self)
+        if newRanges is not None:
+            self.setVisibleRange(*newRanges[0])
+            p = self.plotarea.getActivePage()
+            if p is not None:
+                p.setValueRange(*newRanges[1])
+                
 
     def OnDeviceConfigMenu(self, evt):
         """ Handle Device->Configure Device menu events.

@@ -11,9 +11,19 @@ import sys
 import wx.lib.sized_controls as sc
 import wx; wx = wx
 
-from config_dialog import InfoPanel
+from config_dialog import InfoPanel, CalibrationPanel
 from mide_ebml import util
 from mide_ebml.parsers import renameKeys
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class RecordingCalibrationPanel(CalibrationPanel):
+    def getDeviceData(self):
+        self.info = self.root.transforms.values()
+        
 
 #===============================================================================
 # Recorder Info: device data stored in a recording, similar to device info. 
@@ -101,14 +111,17 @@ class RecorderInfoDialog(sc.SizedDialog):
         if recorderInfo:
             recPanel = InfoPanel(notebook, -1, root=self, info=recorderInfo)
             notebook.AddPage(recPanel, "Device Info")
-            
+        
+        calPanel = RecordingCalibrationPanel(notebook, -1, root=self.root)
+        notebook.AddPage(calPanel, "Calibration")
+        
         ebmlPanel = InfoPanel(notebook, -1, root=self, info=ebmlInfo)
         notebook.AddPage(ebmlPanel, "EBML Headers")
 
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK))
         
         notebook.SetSizerProps(expand=True, proportion=-1)
-        self.SetMinSize((436, 400))
+        self.SetMinSize((640, 480))
         self.Fit()
 
     @classmethod
@@ -139,11 +152,12 @@ if __name__ == "__main__":
 
     from mide_ebml import importer
     doc=importer.importFile(updater=importer.SimpleUpdater(0.01))
+    print "filename: %r" % doc.filename
 
     class Foo(object):
         def __init__(self, data):
             self.recorderInfo = data
-            self.filename="foo.ide"
+            self.filename=data.filename
 
     RecorderInfoDialog.showRecorderInfo(doc)
 #     RecorderInfoDialog.showRecorderInfo(Foo(None))

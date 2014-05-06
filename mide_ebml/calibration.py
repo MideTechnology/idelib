@@ -305,4 +305,4 @@ class Bivariate(Univariate):
             
         x = event[-1]
         y = self._eventlist.getValueAt(event[-2], outOfRange=True)
-        return event[-2],self._function(x,y)
+        return event[-2],self._function(x,y[-1])

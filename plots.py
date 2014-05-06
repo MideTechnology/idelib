@@ -926,6 +926,11 @@ class Plot(ViewerPanel):
             self.plot.Refresh()
 
 
+    def getValueRange(self):
+        """
+        """
+        return self.legend.getValueRange()
+
     def zoomToFit(self, instigator=None, padding=0.05, tracking=False):
         """ Adjust the visible vertical range to fit the values in the
             currently displayed interval.
