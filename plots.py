@@ -27,6 +27,7 @@ class LegendArea(ViewerPanel):
     """ The vertical axis of the plot. Contains the scale and the vertical
         zoom buttons.
     """
+    zoomAmount = 0.25
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
@@ -133,18 +134,26 @@ class LegendArea(ViewerPanel):
         return self.visibleRange[1] - (vpos * self.unitsPerPixel)
         
 
-    def zoom(self, percent, tracking=True):
+    def zoom(self, percent, tracking=True, useKeyboard=False):
         """ Increase or decrease the size of the visible range.
         
             @param percent: A zoom factor. Use a normalized value, positive
                 to zoom in, negative to zoom out.
             @param tracking:
         """
+        if useKeyboard:
+            if wx.GetKeyState(wx.WXK_CONTROL):
+                percent *= 2
+            if wx.GetKeyState(wx.WXK_SHIFT):
+                percent /= 2
+            if wx.GetKeyState(wx.WXK_ALT):
+                percent *= 10
+
         v1, v2 = self.visibleRange
         d = (v1 - v2) * percent / 2.0
         self.setValueRange(v1-d,v2+d,None,False)
 
-
+    
     #===========================================================================
     # Event Handlers
     #===========================================================================
@@ -176,11 +185,11 @@ class LegendArea(ViewerPanel):
     
     
     def OnZoomIn(self, evt):
-        self.zoom(.25)
+        self.zoom(self.zoomAmount, useKeyboard=True)
     
     
     def OnZoomOut(self, evt):
-        self.zoom(-.25)
+        self.zoom(-self.zoomAmount, useKeyboard=True)
 
 
     def OnZoomFit(self, evt):
@@ -739,6 +748,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     
     
     def OnMenuAntialiasing(self, evt):
+        """ Handle the antialiasing toggle on the context menu. """
         evt.IsChecked()
         pass
     
@@ -927,9 +937,19 @@ class Plot(ViewerPanel):
 
 
     def getValueRange(self):
-        """
+        """ Get the vertical range of values.
         """
         return self.legend.getValueRange()
+
+
+    def zoomOut(self, tracking=True):
+        """ Zoom in or out on the Y axis. """
+        self.legend.zoom(-self.legend.zoomAmount, tracking)
+
+    def zoomIn(self, tracking=True):
+        """ Zoom in or out on the Y axis. """
+        self.legend.zoom(self.legend.zoomAmount, tracking)
+
 
     def zoomToFit(self, instigator=None, padding=0.05, tracking=False):
         """ Adjust the visible vertical range to fit the values in the
@@ -1021,27 +1041,27 @@ class Plot(ViewerPanel):
     # 
     #===========================================================================
 
-    def OnKeypress(self, evt):
-        """ Handle a keypress event in a plot. """
-        keycode = evt.GetUnicodeKey()
-        keychar = unichr(keycode)
-        
-        if keychar == u'R':
-            self.plot.Refresh()
-        elif evt.CmdDown() and not evt.ShiftDown():
-            # TODO: These won't necessarily work on international keyboards
-            # (e.g. '=' is a shift combination on German keyboards)
-            if keychar == u'-':
-                self.legend.OnZoomOut(None)
-            elif keychar == u'=':
-                self.legend.OnZoomIn(None)
-            elif keychar == u'0':
-                self.zoomToFit()
-            else:
-                evt.Skip()
-        else:
-            evt.Skip()
-        
+#     def OnKeypress(self, evt):
+#         """ Handle a keypress event in a plot. """
+#         keycode = evt.GetUnicodeKey()
+#         keychar = unichr(keycode)
+#         
+#         if keychar == u'R':
+#             self.plot.Refresh()
+#         elif evt.CmdDown() and not evt.ShiftDown():
+#             # TODO: These won't necessarily work on international keyboards
+#             # (e.g. '=' is a shift combination on German keyboards)
+#             if keychar == u'-':
+#                 self.legend.OnZoomOut(None)
+#             elif keychar == u'=':
+#                 self.legend.OnZoomIn(None)
+#             elif keychar == u'0':
+#                 self.zoomToFit()
+#             else:
+#                 evt.Skip()
+#         else:
+#             evt.Skip()
+#         
     
     def OnMouseLeave(self, evt):
         self.root.showMouseHPos(None)

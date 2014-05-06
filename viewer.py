@@ -368,13 +368,21 @@ class TimeNavigator(ViewerPanel):
                                           end * self.root.timeScalar)
 
 
-    def zoom(self, percent, tracking=True):
+    def zoom(self, percent, tracking=True, useKeyboard=False):
         """ Increase or decrease the size of the visible range.
         
             @param percent: A zoom factor. Use a normalized value, positive
                 to zoom in, negative to zoom out.
             @param tracking:
         """
+        if useKeyboard:
+            if wx.GetKeyState(wx.WXK_CONTROL):
+                percent *= 2
+            if wx.GetKeyState(wx.WXK_SHIFT):
+                percent /= 2
+            if wx.GetKeyState(wx.WXK_ALT):
+                percent *= 10
+
         v1, v2 = self.timeline.getVisibleRange()
         d = min(5000, (v2 - v1) * percent / 2)
         newStart = (v1 + d)/ self.root.timeScalar
@@ -425,13 +433,13 @@ class TimeNavigator(ViewerPanel):
     def OnZoomIn(self, evt):
         """ Handle 'zoom in' events, i.e. the zoom in button was pressed. 
         """
-        self.zoom(.25, False)
+        self.zoom(.25, False, useKeyboard=True)
 
     
     def OnZoomOut(self, evt):
         """ Handle 'zoom out' events, i.e. the zoom in button was pressed. 
         """
-        self.zoom(-.25, False)
+        self.zoom(-.25, False, useKeyboard=True)
 
 
     def OnZoomFit(self, evt):
@@ -668,8 +676,8 @@ class Viewer(wx.Frame, MenuMixin):
         fileMenu = wx.Menu()
         self.addMenuItem(fileMenu, wx.ID_NEW, "&New Viewer Window\tCtrl+N", "",
                          self.OnFileNewMenu)
-#         self.addMenuItem(fileMenu, wx.ID_CLOSE, "Close Viewer Window", "",
-#                          None)
+        self.addMenuItem(fileMenu, wx.ID_CLOSE, 
+                         "Close Viewer Window\tCtrl+W", "", self.OnClose)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...\tCtrl+O", "", 
                          self.OnFileOpenMenu)
@@ -690,7 +698,8 @@ class Viewer(wx.Frame, MenuMixin):
                          "Recording Properties...\tCtrl+I", "", 
                          self.OnFileProperties)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", enabled=False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...\tCtrl+P", "", 
+                         enabled=False)
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
                          enabled=False)
         fileMenu.AppendSeparator()
@@ -1152,10 +1161,11 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword evt: An event (not actually used), making this method
                 compatible with event handlers.
         """
-        removeMeanType = 0
+        removeMean = 0
         if self.plotarea[0].source.removeMean:
-            removeMeanType = 2 if self.plotarea[0].source.rollingMeanSpan == -1 else 1
-        settings = xd.CSVExportDialog.getExport(root=self, removeMean=removeMeanType)
+            removeMean = 2 if self.plotarea[0].source.rollingMeanSpan == -1 else 1
+        settings = xd.CSVExportDialog.getExport(root=self, 
+                                                removeMean=removeMean)
         
         if settings is None:
             return
@@ -1465,18 +1475,18 @@ class Viewer(wx.Frame, MenuMixin):
     def OnZoomInY(self, evt):
         p = self.plotarea.getActivePage()
         if p is not None:
-            p.legend.OnZoomIn(None)
+            p.zoomIn()
 
 
     def OnZoomOutY(self, evt):
         p = self.plotarea.getActivePage()
         if p is not None:
-            p.legend.OnZoomOut(None)
+            p.zoomOut()
 
     def OnZoomFitY(self, evt):
         p = self.plotarea.getActivePage()
         if p is not None:
-            p.legend.OnZoomFit(evt)
+            p.zoomToFit()
 
     def OnToggleAA(self, evt):
         """ Handler for ID_VIEW_ANTIALIAS menu item selection. The method can

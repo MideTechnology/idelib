@@ -8,7 +8,9 @@ import wx.lib.agw.floatspin as FS
 
 
 class RangeDialog(wx.Dialog):
-    """
+    """ A modal dialog for manually entering X and Y ranges for the active
+        plot. This class also implements a method for creating and displaying
+        the dialog, making it self-contained.
     """
     
     fieldAtts = {'size': (56,-1),
@@ -20,27 +22,26 @@ class RangeDialog(wx.Dialog):
         
     def addRangeBox(self, sizer, title, units, val=[-100.0,100.0], 
                     minmax=[-100.0,100.0], digits=4):
+        """ Helper method for adding a Start/End box. Used internally.
         """
-        """
+        
+        def _addField(label, v):
+            ll = wx.StaticText(self,-1,label, **self.labelAtts)
+            lf = FS.FloatSpin(self, -1, value=v, increment=precision,
+                              min_val=minmax[0], max_val=minmax[1])
+            lf.SetDigits(digits)
+            lu = wx.StaticText(self, -1, units[1], **self.unitAtts)
+            lf.Bind(wx.EVT_TEXT_ENTER, self.OnEnter)
+            return ll, lf, lu 
+            
         precision = 1.0/(10**digits)
 
         box = wx.StaticBox(self, -1, "%s (%s)" % (title, units[0]))
         bsizer = wx.StaticBoxSizer(box, wx.VERTICAL)
         gsizer = wx.FlexGridSizer(2,3, hgap=4, vgap=4)
         
-        startLabel = wx.StaticText(self,-1,"Start:", **self.labelAtts)
-        startField = FS.FloatSpin(self, -1, min_val=minmax[0], max_val=minmax[1],
-                                  increment=precision, value=val[0])
-        startField.SetDigits(digits)
-        startUnits = wx.StaticText(self, -1, units[1], **self.unitAtts)
-        startField.Bind(wx.EVT_TEXT_ENTER, self.OnEnter)
-
-        endLabel = wx.StaticText(self,-1,"End:", **self.labelAtts)
-        endField = FS.FloatSpin(self, -1, min_val=minmax[0], max_val=minmax[1],
-                                  increment=precision, value=val[1])
-        endField.SetDigits(digits)
-        endUnits = wx.StaticText(self, -1, units[1], **self.unitAtts)
-        endField.Bind(wx.EVT_TEXT_ENTER, self.OnEnter)
+        startLabel, startField, startUnits = _addField("Start:", val[0])
+        endLabel, endField, endUnits = _addField("End:", val[1])
 
         gsizer.AddGrowableCol(0,-2)
         gsizer.AddGrowableCol(1,-4)
@@ -61,6 +62,9 @@ class RangeDialog(wx.Dialog):
 
 
     def __init__(self, *args, **kwargs):
+        """ Constructor. Takes the standard `wx.Window` parameters, plus:
+            @keyword root: The parent `View` window.
+        """
         self.root = kwargs.pop("root", None)
         super(RangeDialog, self).__init__(*args, **kwargs)
 
@@ -98,32 +102,25 @@ class RangeDialog(wx.Dialog):
         outersizer.Add(mainsizer, 1, wx.EXPAND|wx.ALL, 2,4)
         
         btnsizer = wx.StdDialogButtonSizer()
-        
-        if wx.Platform != "__WXMSW__":
-            btn = wx.ContextHelpButton(self)
-            btnsizer.AddButton(btn)
-        
         btn = wx.Button(self, wx.ID_OK)
         btn.SetDefault()
         btnsizer.AddButton(btn)
-
         btn = wx.Button(self, wx.ID_CANCEL)
         btnsizer.AddButton(btn)
         btnsizer.Realize()
-
+        
         outersizer.Add(btnsizer, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_RIGHT|wx.ALL, 5)
-
         self.SetSizerAndFit(outersizer)
-        print dir(self)
 
 
     def OnEnter(self, evt):
-        # TODO: Validation? 
+        """ Handler for 'enter' being typed; equivalent to OK.
+        """ 
         self.EndModal(wx.ID_OK)
 
 
     def getValues(self):
-        """
+        """ Get the entered start and end values for the X and Y axes.
         """
         return ((self.xStartField.GetValue()/self.root.timeScalar, 
                  self.xEndField.GetValue()/self.root.timeScalar),
@@ -133,7 +130,13 @@ class RangeDialog(wx.Dialog):
 
     @classmethod
     def display(cls, parent, root=None):
-        """
+        """ Display the Enter Range dialog modally and return the values
+            entered. This function is the preferred way to create the dialog.
+            
+            @param parent: The parent window.
+            @keyword root: The creator `Viewer` window. Defaults to `parent`.
+            @return: A tuple of tuples: the start and end values, X and Y.
+                `None` is returned if the dialog is cancelled.
         """
         root = parent if root is None else root
         dlg = cls(parent, -1, "Select Ranges", root=root)
@@ -144,7 +147,8 @@ class RangeDialog(wx.Dialog):
             result = None
         dlg.Destroy()
         return result
-        
+
+
 #===============================================================================
 # 
 #===============================================================================
