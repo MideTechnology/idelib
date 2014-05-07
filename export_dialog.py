@@ -532,8 +532,7 @@ class ExportDialog(sc.SizedDialog):
 
         if warnSlow and root.dataset.loading:
             x = root.ask("A dataset is currently being loaded. This will "
-                           "make %s slow. Export anyway?" % cls.WHAT, 
-                           title=title)
+                         "make %s slow. Export anyway?" % cls.WHAT, title)
             if x != wx.ID_OK:
                 return None
         

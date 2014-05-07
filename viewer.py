@@ -58,6 +58,9 @@ from loader import Loader
 from plots import PlotSet
 from range_dialog import RangeDialog
 
+# XXX: EXPERIMENTAL
+from memorydialog import MemoryDialog
+
 # Special helper objects and functions
 import devices
 from threaded_file import ThreadAwareFile
@@ -373,7 +376,12 @@ class TimeNavigator(ViewerPanel):
         
             @param percent: A zoom factor. Use a normalized value, positive
                 to zoom in, negative to zoom out.
-            @param tracking:
+            @keyword tracking: `True` if the widget doing the update is 
+                tracking (a/k/a scrubbing), `False` if the update is final.
+                Elements that take a long time to draw shouldn't respond if 
+                `tracking` is `True`.
+            @keyword useKeyboard: If `True`, the state of the modifier keys
+                is checked, multiplying the amount of zoom.
         """
         if useKeyboard:
             if wx.GetKeyState(wx.WXK_CONTROL):
@@ -582,6 +590,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_RENDER_FFT = wx.NewId()
     ID_RENDER_SPEC = wx.NewId()
     ID_FILE_PROPERTIES = wx.NewId()
+    ID_EDIT_CLEARPREFS = wx.NewId()
     ID_EDIT_RANGES = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
     ID_DEVICE_SET_CLOCK = wx.NewId()
@@ -601,6 +610,14 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_MEAN_TOTAL = wx.NewId()
     ID_DATA_NOMEAN_ALL = wx.NewId()
     ID_DATA_NOMEAN_NONE = wx.NewId()
+
+    ID_DEBUG_SUBMENU = wx.NewId()
+    ID_DEBUG_SAVEPREFS = wx.NewId()
+    ID_DEBUG0 = wx.NewId()
+    ID_DEBUG1 = wx.NewId()
+    ID_DEBUG2 = wx.NewId()
+    ID_DEBUG3 = wx.NewId()
+    ID_DEBUG4 = wx.NewId()
 
 
     def __init__(self, *args, **kwargs):
@@ -666,13 +683,21 @@ class Viewer(wx.Frame, MenuMixin):
         elif self.app.getPref('openOnStart', True):
             self.OnFileOpenMenu(None)
 
+        # XXX: REMOVE ME
+#         try:
+#             print self.doesnotexist
+#         except Exception as err:
+#             self.handleException(err, closeFile=True)
+
 
     def buildMenus(self):
         """ Construct and configure the view's menu bar. Called once by
-            `buildUI()`.
+            `buildUI()`. Used internally.
         """        
         self.menubar = wx.MenuBar()
         
+        # "File" menu
+        #=======================================================================
         fileMenu = wx.Menu()
         self.addMenuItem(fileMenu, wx.ID_NEW, "&New Viewer Window\tCtrl+N", "",
                          self.OnFileNewMenu)
@@ -712,19 +737,27 @@ class Viewer(wx.Frame, MenuMixin):
         wx.App.SetMacExitMenuItemId(wx.ID_EXIT)
         self.menubar.Append(fileMenu, '&File')
         
+        # "Edit" menu
+        #=======================================================================
         editMenu = wx.Menu()
         self.addMenuItem(editMenu, wx.ID_CUT, "Cut", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", enabled=False)
         editMenu.AppendSeparator()
-        self.addMenuItem(editMenu, self.ID_EDIT_RANGES, 
-                         "Edit Visible Ranges...\tCtrl+E", "", 
-                         self.OnEditRanges)
+        self.addMenuItem(editMenu, self.ID_EDIT_CLEARPREFS, 
+                         "Reset Hidden Dialogs and Warnings", "", 
+                         self.OnClearPrefs)
         self.menubar.Append(editMenu, '&Edit')
 
+        # "View" menu
+        #=======================================================================
         viewMenu = wx.Menu()
         self.addMenuItem(viewMenu, wx.ID_REFRESH, "&Redraw Plots\tCtrl+R", "",
                          self.plotarea.redraw)
+        viewMenu.AppendSeparator()
+        self.addMenuItem(viewMenu, self.ID_EDIT_RANGES, 
+                         "Edit Visible Ranges...\tCtrl+E", "", 
+                         self.OnEditRanges)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom Out X\tCtrl+-", "",
                          self.navigator.OnZoomOut)
@@ -771,6 +804,8 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnDeviceConfigMenu)
         self.menubar.Append(deviceMenu, 'De&vice')
         
+        # "Data" menu
+        #=======================================================================
         dataMenu = wx.Menu()
         meanMenu = wx.Menu()
         self.addMenuItem(meanMenu, self.ID_DATA_NOMEAN, 
@@ -785,18 +820,33 @@ class Viewer(wx.Frame, MenuMixin):
         dataMenu.AppendMenu(self.ID_DATA_MEAN_SUBMENU, "Remove Mean", meanMenu)
         self.menubar.Append(dataMenu, "&Data")
         
+        # "Help" menu
+        #=======================================================================
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
                          "About %s %s..." % (APPNAME, __version__), "", 
                          self.OnHelpAboutMenu)
+        debugMenu = wx.Menu()
+        helpMenu.AppendSeparator()
+        self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
+                         "Save All Preferences", "",
+                         lambda(evt): self.app.saveAllPrefs())
+#         self.addMenuItem(debugMenu, self.ID_DEBUG0, "Ask test","",
+#                          self.DEBUG_OnTestAsk)
+        
         self.menubar.Append(helpMenu, '&Help')
+        helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
 
+        # Finishing touches.
+        #=======================================================================
         self.SetMenuBar(self.menubar)
         self.enableMenus(False)
 
+
     
     def buildUI(self):
-        """
+        """ Construct and configure all the viewer window's panels. Called once
+            by the constructor. Used internally.
         """
         self.root = self
         self.timeDisplays = []
@@ -845,7 +895,9 @@ class Viewer(wx.Frame, MenuMixin):
         # These are the menus that are enabled even when there's no file open.
         # There are fewer of them than menus that are disabled.
         menus = (wx.ID_NEW, wx.ID_OPEN, wx.ID_EXIT, self.ID_DEVICE_CONFIG,
-                 wx.ID_ABOUT)
+                 wx.ID_ABOUT, self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS,
+                 self.ID_DEBUG0, self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3,
+                 self.ID_DEBUG4)
         
         if not enabled:
             self.enableMenuItems(self.menubar, menus, True, False)
@@ -877,15 +929,55 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
 
-    def ask(self, message, title="Confirm", 
-              style=wx.YES_NO | wx.NO_DEFAULT, icon=wx.ICON_QUESTION,
-              parent=None):
+    def _ask(self, message, title="Confirm", style=wx.YES_NO | wx.NO_DEFAULT, 
+             icon=wx.ICON_QUESTION, parent=None):
         """ Generate a simple modal dialog box and get the button clicked.
         """
         style |= icon
         parent = parent or self
         dlg = wx.MessageDialog(parent, message, title, style)
         result = dlg.ShowModal()
+        dlg.Destroy()
+        return result
+
+
+    def ask(self, message, title="Confirm", style=wx.YES_NO | wx.NO_DEFAULT, 
+            icon=wx.ICON_QUESTION, parent = None, pref=None, saveNo=True,
+            extendedMessage=None, rememberMsg=None, persistent=True):
+        """ Generate a message box to notify or prompt the user, allowing for
+            a simple means of turning off such warnings and prompts. If a
+            preference name is supplied and that preference exists, the user
+            will not be prompted and the remembered value will be returned.If 
+            the preference doesn't exist, the dialog will contain a 'remember' 
+            checkbox that, if checked, will save the user's response as the 
+            preference. "Cancel" (if the dialog has the button) will never be 
+            saved.
+            
+            @param message: The main message/prompt to display
+            @keyword title: The dialog's title
+            @keyword style: Standard wxWindows style flags
+            @keyword icon: The wxWindows style flag for the icon to display.
+                Separated from `style` because `MemoryDialog` always needs an 
+                icon, making it behave differently than normal dialogs.
+            @keyword pref: The name of the preference to load and/or save
+            @keyword extendedMessage: A longer, more detailed message.
+            @keyword rememberMessage: The prompt next to the 'remember'
+                checkbox (if shown).
+            @keyword persistent: If `False` and 'remember' is checked, the
+                result is saved in memory but not written to disk.
+        """
+        style |= icon
+        if pref is not None and self.app.hasPref(pref, section="ask"):
+            return self.app.getPref(pref, section="ask")
+        remember = pref is not None
+        dlg = MemoryDialog(self, message, title, style, remember=remember)
+        if extendedMessage:
+            dlg.SetExtendedMessage(extendedMessage)
+        result = dlg.ShowModal()
+        savePref = result != wx.ID_CANCEL or (result == wx.ID_NO and saveNo)
+        if pref is not None and savePref:
+            if dlg.getRememberCheck():
+                self.app.setPref(pref, result, "ask", persistent)
         dlg.Destroy()
         return result
 
@@ -1081,9 +1173,9 @@ class Viewer(wx.Frame, MenuMixin):
         """ Returns `True` if the app is in a state to immediately quit.
         """
         # TODO: Prompt to veto quitting only if an export is underway.
-        if self.app.getPref('warnBeforeQuit', True):
-            return self.ask("Really quit?") == wx.ID_YES
-        return True
+        q = self.ask("Really quit?", "Quit", wx.OK|wx.CANCEL,
+                     pref="promptBeforeQuit")
+        return q == wx.ID_OK
 
     #===========================================================================
     # 
@@ -1105,7 +1197,9 @@ class Viewer(wx.Frame, MenuMixin):
             else:
                 q = self.ask("Do you want to close the current file?\n"
                              "'No' will open the file in another window.",
-                             "Open File",style=wx.YES_NO|wx.CANCEL)
+                             "Open File",style=wx.YES_NO|wx.CANCEL,
+                             pref="openInSameWindow")
+                print "q=%r" % q
                 if q == wx.ID_NO:
                     self.app.createNewView(filename=filename)
                     return
@@ -1124,7 +1218,8 @@ class Viewer(wx.Frame, MenuMixin):
                   "file version is %s); this could potentially cause problems. "
                   "\n\nOpen anyway?" % (newDoc.schemaVersion, 
                                         newDoc.ebmldoc.version), 
-                  "Schema Version Mismatch")
+                  "Schema Version Mismatch", wx.YES|wx.CANCEL, wx.ICON_WARNING,
+                  pref="schemaVersionMismatch")
                 if q:
                     stream.closeAll()
                     return
@@ -1385,6 +1480,11 @@ class Viewer(wx.Frame, MenuMixin):
         if self.dataset:
             RecorderInfoDialog.showRecorderInfo(self.dataset)
         
+
+    def OnClearPrefs(self, evt):
+        """
+        """
+        self.app.deletePref(section="ask")
 
     def OnEditRanges(self, evt):
         """
@@ -1753,25 +1853,26 @@ class Viewer(wx.Frame, MenuMixin):
         if what:
             what = " while %s" % what
         
+        xmsg = None
+        
         if not isinstance(msg, basestring):
             # Slightly more specific error messages go here.
             if isinstance(err, MemoryError):
                 msg = "The system ran out of memory%s" % what
             else:
-                msg = u"An unexpected %s occurred%s:\n\n%s" % \
-                        (err.__class__.__name__, what, unicode(err))
+                msg = u"An unexpected %s occurred%s" % \
+                        (err.__class__.__name__, what)
+                xmsg = unicode(err)
 
         # If exceptions are explicitly raised, raise it.
         if raiseException and isinstance(err, Exception):
             raise err
 
         if fatal:
-            msg += "\n\nThe application will now shut down."
+            xmsg += "\n\nThe application will now shut down."
 
-        dlg = wx.MessageDialog(self, msg, APPNAME, wx.OK | icon)
-        dlg.ShowModal()
+        self.ask(msg, APPNAME, wx.OK, icon=icon, extendedMessage=xmsg)
         ctrlPressed = wx.GetKeyState(wx.WXK_CONTROL)
-        dlg.Destroy()
         
         # Holding control when okaying alert shows more more info. 
         if ctrlPressed and isinstance(err, Exception):
@@ -1912,16 +2013,29 @@ class ViewerApp(wx.App):
             hideFile = os.path.basename(filename).startswith(".")
         
         filename = os.path.realpath(os.path.expanduser(filename))
-            
+        
         prefs = self.prefs.copy()
+        
+        def _fix(d):
+            if isinstance(d, (list,tuple)):
+                d = [_fix(x) for x in d]
+            elif isinstance(d, dict):
+                for k,v in d.iteritems():
+                    d[k] = _fix(v)
+            elif isinstance(d, wx.Colour):
+                d = tuple(d)
+            return d
+        
+        prefs = _fix(prefs)
+        
         # Convert wx.Colour objects and RGB sequences to tuples:
-        for k in fnmatch.filter(prefs.keys(), "*Color"):
-            if not isinstance(prefs[k], basestring):
-                prefs[k] = tuple(prefs[k])
-        for k in fnmatch.filter(prefs.keys(), "*Colors"):
-            for i in xrange(len(prefs[k])):
-                if not isinstance(prefs[k][i], basestring):
-                    prefs[k][i] = tuple(prefs[k][i])
+#         for k in fnmatch.filter(prefs.keys(), "*Color"):
+#             if not isinstance(prefs[k], basestring):
+#                 prefs[k] = tuple(prefs[k])
+#         for k in fnmatch.filter(prefs.keys(), "*Colors"):
+#             for i in xrange(len(prefs[k])):
+#                 if not isinstance(prefs[k][i], basestring):
+#                     prefs[k][i] = tuple(prefs[k][i])
         try:
             with open(filename, 'w') as f:
                 json.dump(prefs, f, indent=2, sort_keys=True)
@@ -1930,6 +2044,16 @@ class ViewerApp(wx.App):
         except IOError:# as err:
             # TODO: Report a problem, or just ignore?
             pass
+        
+    
+    def saveAllPrefs(self, filename=None, hideFile=None):
+        """ Save all preferences, including defaults, to the config file.
+            Primarily for debugging.
+        """
+        prefs = self.defaultPrefs.copy()
+        prefs.update(self.prefs)
+        self.prefs = prefs
+        self.savePrefs(filename, hideFile)
     
     
     def addRecentFile(self, filename, category="import"):
@@ -1945,22 +2069,59 @@ class ViewerApp(wx.App):
         allFiles[category] = files[:(self.getPref('fileHistorySize'))]
 
 
-    def getPref(self, *args):
+    def getPref(self, name, default=None, section=None):
         """ Retrieve a value from the preferences.
             @param prefName: The name of the preference to retrieve.
             @keyword default: An optional default value to return if the
                 preference is not found.
+            @keyword section: An optional "section" name from which to
+                delete. Currently a prefix in this implementation.
         """
-        return self.prefs.get(args[0], self.defaultPrefs.get(*args))
+        if section is not None:
+            name = "%s.%s" % (section, name)
+        return self.prefs.get(name, self.defaultPrefs.get(name, default))
 
 
-    def setPref(self, name, val):
+    def setPref(self, name, val, section=None, persistent=True):
         """ Set the value of a preference. Returns the value set as a
             convenience.
         """
-        self.prefs[name] = val
+        if section is not None:
+            name = "%s.%s" % (section, name)
+        prefs = self.prefs if persistent else self.defaultPrefs
+        prefs[name] = val
         return val
 
+
+    def hasPref(self, name, section=None, defaults=False):
+        """ Check to see if a preference exists, in either the user-defined
+            preferences or the defaults.
+        """
+        if section is not None:
+            name = "%s.%s" % (section, name)
+        if defaults:
+            return (name in self.prefs) or (name in self.defaultPrefs)
+        return name in self.prefs
+    
+    
+    def deletePref(self, name=None, section=None):
+        """ Delete one or more preferences. Glob-style wildcards are allowed.
+        
+            @keyword name: The name of the preference to delete. Optional if
+                `section` is supplied
+            @keyword section: An optional section name, limiting the scope.
+            @return: The number of deleted preferences.
+        """
+        if section is not None:
+            name = name if name is not None else "*"
+            name = "%s.%s" % (section, name)
+        if name is None:
+            return
+        keys = fnmatch.filter(self.prefs.keys(), name)
+        for k in keys:
+            self.prefs.pop(k, None)
+        return len(keys)
+    
     #===========================================================================
     # 
     #===========================================================================
