@@ -1199,7 +1199,6 @@ class Viewer(wx.Frame, MenuMixin):
                              "'No' will open the file in another window.",
                              "Open File",style=wx.YES_NO|wx.CANCEL,
                              pref="openInSameWindow")
-                print "q=%r" % q
                 if q == wx.ID_NO:
                     self.app.createNewView(filename=filename)
                     return

@@ -48,7 +48,7 @@ class MemoryDialog(GMD.GenericMessageDialog):
         """
         sizer = self.CreateButtonSizer(flags)
         topsizer = wx.BoxSizer(wx.VERTICAL)
-        print "remember is %r" % self.remember
+        
         if self.remember:
             margin = self.Children[0].GetSize()
             checkSizer = wx.BoxSizer(wx.HORIZONTAL)
