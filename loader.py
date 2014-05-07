@@ -4,22 +4,27 @@ The MIDE EBML recording file importer.
 
 from datetime import datetime
 import locale
-from threading import Thread
 
 import wx; wx = wx # Workaround for Eclipse code comprehension
 
+from common import Job
 from events import EvtProgressStart, EvtProgressEnd, EvtProgressUpdate
 from events import EvtInitPlots, EvtSetTimeRange, EvtSetVisibleRange
 from events import EvtImportError
 
 import mide_ebml
 
-class Loader(Thread):
+class Loader(Job):
     """ The object that does the work of spawning an asynchronous file-loading
         thread and updating the viewer as data is loaded.
+        
     """
 
-    cancelMsg = "Import cancelled"
+    cancelPrompt = True
+    cancelMessage = "Are you sure you want to cancel the file import?"
+    cancelResponse = "Import cancelled."
+    cancelTitle = "Cancel Import"
+    cancelPromptPref = "cancelImportPrompt"
     
     def __init__(self, root, dataset, numUpdates=100, updateInterval=1.0):
         """ Create the Loader and start the loading process.
@@ -33,16 +38,10 @@ class Loader(Thread):
             @keyword updateInterval: The maximum number of seconds between
                 calls to the updater
         """
-        self.root = root
-        self.dataset = dataset
-        self.numUpdates = numUpdates
-        self.updateInterval = updateInterval
-        self.cancelled = False
-        self.startTime = self.lastTime = None
         self.readingData = False
         self.lastCount = 0
 
-        super(Loader, self).__init__()
+        super(Loader, self).__init__(root, dataset, numUpdates, updateInterval)
 
 
     def run(self):
@@ -55,7 +54,8 @@ class Loader(Thread):
                                     numUpdates=self.numUpdates,
                                     updateInterval=self.updateInterval)
 
-        evt = EvtProgressEnd(label=self.formatMessage(self.lastCount))
+        evt = EvtProgressEnd(label=self.formatMessage(self.lastCount),
+                             job=self)
         wx.PostEvent(self.root, evt)
 
 
@@ -142,15 +142,5 @@ class Loader(Thread):
         
         self.lastTime = thisTime
         self.lastCount = count
-
-
-    def cancel(self, blocking=True):
-        """
-        """
-        self.cancelled = True
-        if not blocking:
-            return
-        while self.isAlive():
-            pass
 
 

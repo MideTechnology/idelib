@@ -1232,7 +1232,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.dataset = newDoc
         loader = Loader(self, newDoc, **self.app.getPref('loader'))
-        self.pushOperation(loader, modal=False)
+        self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(filename))
         loader.start()
         self.enableMenus(True)
@@ -1715,26 +1715,68 @@ class Viewer(wx.Frame, MenuMixin):
             Used primarily by the import thread.
         """
         self.statusBar.stopProgress(evt.label)
+        self.removeOperation(evt.job)
         self.menubar.FindItemById(wx.ID_CANCEL).Enable(False)
 
 
     #===========================================================================
-    # 
+    # Background operation stuff
     #===========================================================================
 
-    def pushOperation(self, job, modal=False):
-        """ 
+    def pushOperation(self, job, modal=None, prompt=None, message=None, 
+                      title=None, pref=None):
+        """ Adds a task thread to the stack of operations. All keyword arguments
+            override attributes of the job object itself if not `None`.
+            
+            @param job: A `Job` process.
+            @keyword modal: Can this operation not run in the background?
+                Not currently implemented.
+            @keyword prompt: Should the user be prompted prior to canceling?
+            @keyword title: The title of the cancel dialog (if applicable).
+            @keyword pref: The name of the preference to be used to suppress
+                the cancel dialog, or `None` if the dialog isn't 'memorable.'
         """
-        self.cancelQueue.append(job)
-        
+        self.cancelQueue.append((job, prompt, message, title, pref))
+    
+    
+    def removeOperation(self, job):
+        """ Given an instance of `Job`, remove its corresponding entry in the
+            queue. Note that this does not cancel a job, only removes it from
+            the queue. 
+            
+            @param job: A `Job` object.
+            @return: `True` if the operation was removed, `False` if not.
+        """
+        if job is None:
+            return False
+        jobcount = len(self.cancelQueue)
+        self.cancelQueue = [j for j in self.cancelQueue if j[0] != job]
+        return len(self.cancelQueue) < jobcount
+    
 
-    def cancelOperation(self, evt=None, prompt=None, title="Cancel"):
+    def getOperation(self, job):
+        """ Given an instance of a `Job`, find its entry in the queue, which
+            will contain any overriding parameters (alternate messages, etc.).
+            
+            @param job: A `Job` object.
+            @return: A tuple containing the job, plus overrides for its 
+                `cancelPrompt`, `cancelMessage`, `cancelTitle`, and 
+                `cancelPromptPref` attributes. If the job can't be found, 
+                `None` is returned.
+        """
+        if job is None:
+            return None
+        for j in self.cancelQueue:
+            if j[0] == job:
+                return j
+        return None
+
+
+    def cancelOperation(self, evt=None, prompt=True):
         """ Cancel the current background operation. 
             
-            @keyword evt: The event that initiated the cancel.
-            @keyword prompt: A message to display before actually committing
-                to the cancel. If `None` (default), the cancel is immediately
-                processed.
+            @keyword evt: The event that initiated the cancel, if any.
+            @keyword prompt: 
             @return: `False` if the operation could not be cancelled,
                 or a message string to display upon cancellation.
                 Anything but `False` is considered a successful shutdown.
@@ -1747,19 +1789,24 @@ class Viewer(wx.Frame, MenuMixin):
             # Nothing to cancel. Shouldn't happen.
             self.stopBusy()
             return ""
+        jobIdx = len(self.cancelQueue) - 1
         
-        if prompt is not None:
-            if prompt is True:
-                prompt = "Are you sure you want to cancel?"
-            if self.ask(unicode(prompt), title) != wx.ID_YES:
+        job, prompt, message, title, pref = self.cancelQueue[jobIdx]
+        prompt = job.cancelPrompt or prompt
+        message = job.cancelMessage or message
+        title = job.cancelTitle or title
+        pref = job.cancelPromptPref or pref
+        
+        if prompt:
+            if self.ask(message, title, pref=pref) != wx.ID_YES:
                 return False
         
-        job = self.cancelQueue[-1]
         cancelled = job.cancel()
         if cancelled:
-            msg = job.cancelledMsg
-            self.cancelQueue.remove(job)
-            self.stopBusy()
+            msg = job.cancelResponse
+            del self.cancelQueue[jobIdx]
+            if len(self.cancelQueue) == 0:
+                self.stopBusy()
             return msg
 
 

@@ -10,6 +10,7 @@ Created on Dec 31, 2013
 import calendar as _calendar
 from datetime import datetime as _datetime
 import sys as _sys
+from threading import Thread as _Thread
 
 import wx; wx = wx;
 import wx.lib.masked as wx_mc
@@ -239,7 +240,7 @@ class StatusBar(wx.StatusBar):
         """ Process a click to the 'Cancel' button, checking with the parent
             to make sure it's okay.
         """
-        cancelled = self.GetParent().cancelOperation(evt, prompt=True)
+        cancelled = self.GetParent().cancelOperation(evt)
         if cancelled is not False:
             if isinstance(cancelled, basestring):
                 self.stopProgress(cancelled)
@@ -338,6 +339,71 @@ class StatusBar(wx.StatusBar):
         self.cancelButton.Show(False)
 
 
+#===============================================================================
+# 
+#===============================================================================
+
+class Job(_Thread):
+    """ A base class for background task threads. Adds a few viewer-specific
+        features to the standard `threading.Thread` class.
+        
+        @cvar modal: Does this job take full control until it completes?
+        @cvar cancelPrompt: Does canceling this job prompt the user first?
+        @cvar cancelMessage: The text in the cancel dialog, if any.
+        @cvar cancelTitle: The title of the cancel dialog, if any.
+        @cvar cancelPromptPref: The name of the preference that suppresses the
+            appearance of the cancel dialog (if applicable).
+        @cvar cancelResponse: The message displayed in the status bar if the
+            job is cancelled.
+    """
+    
+    modal = False
+    cancelPrompt = True
+    cancelMessage = "Are you sure you want to cancel?"
+    cancelTitle = "Cancel Operation"
+    cancelPromptPref = None
+    cancelResponse = "Cancelled."
+
+    def __init__(self, root=None, dataset=None, numUpdates=100, 
+                 updateInterval=1.0):
+        """ Create the Loader and start the loading process.
+            
+            @param root: The Viewer.
+            @param dataset: The Dataset being loaded. It should be fresh,
+                referencing a file stream but not yet loaded.
+            @keyword numUpdates: The minimum number of calls to the updater to
+                be made. There will be more than this number of updates if
+                any takes longer than the specified `updateInterval` (below).
+            @keyword updateInterval: The maximum number of seconds between
+                calls to the updater
+        """
+        self.root = root
+        self.dataset = dataset
+        self.numUpdates = numUpdates
+        self.updateInterval = updateInterval
+        self.cancelled = False
+        self.startTime = self.lastTime = None
+
+        super(Job, self).__init__()
+
+
+    def cancel(self, blocking=True):
+        """ Attempt to abort the job. Note that subclasses must implement their
+            `run()` methods to honor the `canceled` variable; this is more a
+            suggestion to cancel than a command.
+            
+            @keyword blocking: If `True`, this method will not return until it
+                is sure its thread has been stopped.
+        """
+        self.cancelled = True
+        if blocking:
+            while self.isAlive():
+                pass
+        return self.cancelled
+
+
+
+    
 
 
 #===============================================================================
