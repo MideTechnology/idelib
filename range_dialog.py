@@ -109,7 +109,8 @@ class RangeDialog(wx.Dialog):
         btnsizer.AddButton(btn)
         btnsizer.Realize()
         
-        outersizer.Add(btnsizer, 0, wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_RIGHT|wx.ALL, 5)
+        outersizer.Add(btnsizer, 0, 
+                       wx.ALIGN_CENTER_VERTICAL|wx.ALIGN_RIGHT|wx.ALL, 5)
         self.SetSizerAndFit(outersizer)
 
 
@@ -122,10 +123,10 @@ class RangeDialog(wx.Dialog):
     def getValues(self):
         """ Get the entered start and end values for the X and Y axes.
         """
-        return ((self.xStartField.GetValue()/self.root.timeScalar, 
-                 self.xEndField.GetValue()/self.root.timeScalar),
-                (self.yStartField.GetValue(), 
-                 self.yEndField.GetValue())) 
+        return (sorted((self.xStartField.GetValue()/self.root.timeScalar, 
+                        self.xEndField.GetValue()/self.root.timeScalar)),
+                sorted((self.yStartField.GetValue(), 
+                        self.yEndField.GetValue()))) 
 
 
     @classmethod
@@ -139,7 +140,12 @@ class RangeDialog(wx.Dialog):
                 `None` is returned if the dialog is cancelled.
         """
         root = parent if root is None else root
-        dlg = cls(parent, -1, "Select Ranges", root=root)
+        try:
+            p = root.plotarea.getActivePage()
+            title = "Select Ranges for %s" % p.source.parent.name
+        except AttributeError:
+            title = "Select Ranges"
+        dlg = cls(parent, -1, title, root=root)
         d = dlg.ShowModal()
         if d != wx.ID_CANCEL:
             result = dlg.getValues()
@@ -154,14 +160,32 @@ class RangeDialog(wx.Dialog):
 #===============================================================================
 
 if __name__ == "__main__":
-    class Fake(object):
+    # An ugly test fixture
+    class FakePlot:
+        class source:
+            displayRange = [-100,100]
+            units = ("g", "g")
+            class parent:
+                name = "Fake Channel"
+        @classmethod
+        def getValueRange(cls):
+            return [-10,10]
+    class FakeViewer(object):
         timeScalar = 0.00001
         units = ("Things", "t")
         def getTimeRange(self):
             return [0.0, 9999.09]
         def getVisibleRange(self):
             return [0.0, 9999.09]
+        class plotarea:
+            @staticmethod
+            def getActivePage():
+                return FakePlot()
+        class app:
+            @classmethod
+            def getPref(cls, k, d):
+                return d
 
     app = wx.App()
-    val = RangeDialog.display(None, root=Fake())
+    val = RangeDialog.display(None, root=FakeViewer())
     print "ranges: %r" % (val,)

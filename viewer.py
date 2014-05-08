@@ -929,20 +929,8 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
 
-    def _ask(self, message, title="Confirm", style=wx.YES_NO | wx.NO_DEFAULT, 
-             icon=wx.ICON_QUESTION, parent=None):
-        """ Generate a simple modal dialog box and get the button clicked.
-        """
-        style |= icon
-        parent = parent or self
-        dlg = wx.MessageDialog(parent, message, title, style)
-        result = dlg.ShowModal()
-        dlg.Destroy()
-        return result
-
-
     def ask(self, message, title="Confirm", style=wx.YES_NO | wx.NO_DEFAULT, 
-            icon=wx.ICON_QUESTION, parent = None, pref=None, saveNo=True,
+            icon=wx.ICON_QUESTION, parent=None, pref=None, saveNo=True,
             extendedMessage=None, rememberMsg=None, persistent=True):
         """ Generate a message box to notify or prompt the user, allowing for
             a simple means of turning off such warnings and prompts. If a
@@ -959,6 +947,7 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword icon: The wxWindows style flag for the icon to display.
                 Separated from `style` because `MemoryDialog` always needs an 
                 icon, making it behave differently than normal dialogs.
+            @keyword parent: The dialog's parent; defaults to `self`.
             @keyword pref: The name of the preference to load and/or save
             @keyword extendedMessage: A longer, more detailed message.
             @keyword rememberMessage: The prompt next to the 'remember'
@@ -967,10 +956,11 @@ class Viewer(wx.Frame, MenuMixin):
                 result is saved in memory but not written to disk.
         """
         style |= icon
+        parent = self or parent
         if pref is not None and self.app.hasPref(pref, section="ask"):
             return self.app.getPref(pref, section="ask")
         remember = pref is not None
-        dlg = MemoryDialog(self, message, title, style, remember=remember)
+        dlg = MemoryDialog(parent, message, title, style, remember=remember)
         if extendedMessage:
             dlg.SetExtendedMessage(extendedMessage)
         result = dlg.ShowModal()
@@ -1219,7 +1209,7 @@ class Viewer(wx.Frame, MenuMixin):
                                         newDoc.ebmldoc.version), 
                   "Schema Version Mismatch", wx.YES|wx.CANCEL, wx.ICON_WARNING,
                   pref="schemaVersionMismatch")
-                if q:
+                if q == wx.ID_NO:
                     stream.closeAll()
                     return
         # More specific exceptions should be caught here, before ultimately:
@@ -1308,6 +1298,11 @@ class Viewer(wx.Frame, MenuMixin):
         self.drawingSuspended = False
 
 
+    def _formatTime(self, t):
+        places = self.app.getPref("precisionX", 4)
+        return ("%%.%df" % places) % (t * self.timeScalar)
+
+
     def renderFFT(self, evt=None):
         """ Create a 1D FFT plot after getting input from the user (range,
             window size, etc.).
@@ -1324,19 +1319,16 @@ class Viewer(wx.Frame, MenuMixin):
         startTime, stopTime = settings['timeRange']
         sliceSize = settings['windowSize']
         
-        places = self.app.getPref("precisionX", 4)
-        timeFormat = "%%.%df" % places
         title = "FFT: %s (%ss to %ss)" % (
-                                    ", ".join([c.name for c in subchannels]), 
-                                    timeFormat % (startTime * self.timeScalar), 
-                                    timeFormat % (stopTime * self.timeScalar))
+                      ", ".join([c.name for c in subchannels]), 
+                      self._formatTime(startTime), self._formatTime(stopTime)) 
         viewId = wx.NewId()
-
+        size = self.GetSize()
+        
         try:
-            view = FFTView(self, viewId, title=title, size=self.GetSize(), 
-                           root=self, source=source, subchannels=subchannels, 
-                           start=startTime, end=stopTime,
-                           sliceSize=sliceSize)
+            view = FFTView(self, viewId, title=title, size=size, root=self, 
+                   source=source, subchannels=subchannels, start=startTime, 
+                   end=stopTime, sliceSize=sliceSize)
             self.fftViews[viewId] = view
         except Exception as e:
             self.handleException(e, what="generating FFT")
@@ -1348,6 +1340,7 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword evt: An event (not actually used), making this method
                 compatible with event handlers.
         """
+        # TODO: Much of this is identical to FFT rendering; refactor to share.
         settings = xd.SpectrogramExportDialog.getExport(root=self)
         if settings is None:
             return
@@ -1358,22 +1351,20 @@ class Viewer(wx.Frame, MenuMixin):
 #         sliceSize = settings['windowSize']
         slicesPerSec = settings['slices']
         
-        places = self.app.getPref("precisionX", 4)
-        timeFormat = "%%.%df" % places
         title = "Spectrogram: %s (%ss to %ss)" % (
-                                    ", ".join([c.name for c in subchannels]), 
-                                    timeFormat % (startTime * self.timeScalar), 
-                                    timeFormat % (stopTime * self.timeScalar))
+                      ", ".join([c.name for c in subchannels]), 
+                      self._formatTime(startTime), self._formatTime(stopTime)) 
         viewId = wx.NewId()
+        size = self.GetSize()
 
-#         try:
-        view = SpectrogramView(self, viewId, title=title, size=self.GetSize(), 
-                       root=self, source=source, subchannels=subchannels, 
-                       start=startTime, end=stopTime, #sliceSize=sliceSize, 
-                       slicesPerSec=slicesPerSec)
-        self.fftViews[viewId] = view
-#         except Exception as e:
-#             self.handleException(e, what="generating Spectrogram")
+        try:
+            view = SpectrogramView(self, viewId, title=title, size=size, 
+                   root=self, source=source, subchannels=subchannels, 
+                   start=startTime, end=stopTime, slicesPerSec=slicesPerSec,)
+                    #sliceSize=sliceSize)
+            self.fftViews[viewId] = view
+        except Exception as e:
+            self.handleException(e, what="generating Spectrogram")
         
     #===========================================================================
     # 
@@ -1416,8 +1407,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.app.savePrefs()
 
         # Kill all background processes
-        for _ in self.cancelQueue:
-            self.cancelOperation()
+        self.cancelAllOperations()
         
         # Close related windows
         for fft in self.fftViews.itervalues():
@@ -1723,8 +1713,7 @@ class Viewer(wx.Frame, MenuMixin):
     # Background operation stuff
     #===========================================================================
 
-    def pushOperation(self, job, modal=None, prompt=None, message=None, 
-                      title=None, pref=None):
+    def pushOperation(self, job):
         """ Adds a task thread to the stack of operations. All keyword arguments
             override attributes of the job object itself if not `None`.
             
@@ -1736,7 +1725,8 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword pref: The name of the preference to be used to suppress
                 the cancel dialog, or `None` if the dialog isn't 'memorable.'
         """
-        self.cancelQueue.append((job, prompt, message, title, pref))
+        # The initial implementation is simply a list, wrapped for future dev.
+        self.cancelQueue.append(job)
     
     
     def removeOperation(self, job):
@@ -1747,36 +1737,33 @@ class Viewer(wx.Frame, MenuMixin):
             @param job: A `Job` object.
             @return: `True` if the operation was removed, `False` if not.
         """
+        # The initial implementation is simply a list, wrapped for future dev.
         if job is None:
             return False
-        jobcount = len(self.cancelQueue)
-        self.cancelQueue = [j for j in self.cancelQueue if j[0] != job]
-        return len(self.cancelQueue) < jobcount
-    
+        try:
+            self.cancelQueue.remove(job)
+            return True
+        except ValueError:
+            return False
 
-    def getOperation(self, job):
-        """ Given an instance of a `Job`, find its entry in the queue, which
-            will contain any overriding parameters (alternate messages, etc.).
-            
-            @param job: A `Job` object.
-            @return: A tuple containing the job, plus overrides for its 
-                `cancelPrompt`, `cancelMessage`, `cancelTitle`, and 
-                `cancelPromptPref` attributes. If the job can't be found, 
-                `None` is returned.
+    def getCurrentOperation(self):
+        """ Retrieve the currently-running background task.
         """
-        if job is None:
+        # The initial implementation is simply a list, wrapped for future dev.
+        if len(self.cancelQueue) == 0:
             return None
-        for j in self.cancelQueue:
-            if j[0] == job:
-                return j
-        return None
+        return self.cancelQueue[-1]
+        
 
-
-    def cancelOperation(self, evt=None, prompt=True):
+    def cancelOperation(self, evt=None, job=None, prompt=True):
         """ Cancel the current background operation. 
             
             @keyword evt: The event that initiated the cancel, if any.
-            @keyword prompt: 
+            @keyword job: A specific `Job` to cancel. Defaults to the last
+                job started.
+            @keyword prompt: `True` to prompt the user before canceling (job
+                must also have its `cancelPrompt` attribute `True`), `False`
+                to suppress the prompt.
             @return: `False` if the operation could not be cancelled,
                 or a message string to display upon cancellation.
                 Anything but `False` is considered a successful shutdown.
@@ -1789,26 +1776,29 @@ class Viewer(wx.Frame, MenuMixin):
             # Nothing to cancel. Shouldn't happen.
             self.stopBusy()
             return ""
-        jobIdx = len(self.cancelQueue) - 1
         
-        job, prompt, message, title, pref = self.cancelQueue[jobIdx]
-        prompt = job.cancelPrompt or prompt
-        message = job.cancelMessage or message
-        title = job.cancelTitle or title
-        pref = job.cancelPromptPref or pref
+        if job is None:
+            job = self.getCurrentOperation()
         
-        if prompt:
-            if self.ask(message, title, pref=pref) != wx.ID_YES:
+        if job.cancelPrompt and prompt:
+            if self.ask(job.cancelMessage, job.cancelTitle, 
+                        pref=job.cancelPromptPref) != wx.ID_YES:
                 return False
         
         cancelled = job.cancel()
         if cancelled:
             msg = job.cancelResponse
-            del self.cancelQueue[jobIdx]
+            self.removeOperation(job)
             if len(self.cancelQueue) == 0:
                 self.stopBusy()
             return msg
 
+    
+    def cancelAllOperations(self, evt=None, prompt=False):
+        """
+        """
+        while len(self.cancelQueue) > 0:
+            self.cancelOperation(prompt=prompt)
 
     #===========================================================================
     # 
@@ -1819,6 +1809,7 @@ class Viewer(wx.Frame, MenuMixin):
         if cancellable:
             self.menubar.FindItemById(wx.ID_CANCEL).Enable(True)
         self.busy = True
+
 
     def stopBusy(self):
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
