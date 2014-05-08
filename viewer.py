@@ -56,6 +56,7 @@ from fileinfo import RecorderInfoDialog
 from fft import FFTView, SpectrogramView
 from loader import Loader
 from plots import PlotSet
+from preference_dialog import PrefsDialog
 from range_dialog import RangeDialog
 
 # XXX: EXPERIMENTAL
@@ -630,7 +631,6 @@ class Viewer(wx.Frame, MenuMixin):
         self.drawingSuspended = False
         
         filename = kwargs.pop('filename', None)
-        self.showDebugChannels = self.app.getPref('showDebugChannels', True)
         
         displaySize = wx.DisplaySize()
         windowSize = int(displaySize[0]*.66), int(displaySize[1]*.66)
@@ -638,10 +638,8 @@ class Viewer(wx.Frame, MenuMixin):
         
         super(Viewer, self).__init__(*args, **kwargs)
         
-        self.uiBgColor = wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DFACE)
+        self.loadPrefs()
         
-        self.xFormatter = "X: %%.%df %%s" % self.app.getPref('precisionX', 4)
-        self.yFormatter = "Y: %%.%df %%s" % self.app.getPref('precisionY', 4)
         self.showUtcTime = False
         
         self.dataset = None
@@ -655,15 +653,6 @@ class Viewer(wx.Frame, MenuMixin):
         self.plots = []
         self._nextColor = 0
         self.setVisibleRange(self.timerange[0], self.timerange[1])
-        self.antialias = self.app.getPref('antialiasing', False)
-        self.aaMultiplier = self.app.getPref('antialiasingMultiplier', 
-                                             ANTIALIASING_MULTIPLIER)
-        self.noisyResample = self.app.getPref('resamplingJitter', False)
-        self.showUtcTime = self.app.getPref('showUtcTime', False)
-        self.drawMinMax = self.app.getPref('drawMinMax', False)
-        self.drawMean = self.app.getPref('drawMean', False)
-        self.drawMajorHLines = self.app.getPref('drawMajorHLines', True)
-        self.drawMinorHLines = self.app.getPref('drawMinorHLines', False)
         
         # TODO: FFT views as separate windows will eventually be refactored.
         self.fftViews = {}
@@ -683,11 +672,26 @@ class Viewer(wx.Frame, MenuMixin):
         elif self.app.getPref('openOnStart', True):
             self.OnFileOpenMenu(None)
 
-        # XXX: REMOVE ME
-#         try:
-#             print self.doesnotexist
-#         except Exception as err:
-#             self.handleException(err, closeFile=True)
+
+    def loadPrefs(self):
+        """ Get all the attributes that are read from the preferences.
+            Separated from `__init__` to allow reloading after editing in the
+            preferences dialog.
+        """
+        self.uiBgColor = wx.SystemSettings.GetColour(wx.SYS_COLOUR_3DFACE)
+        self.xFormatter = "X: %%.%df %%s" % self.app.getPref('precisionX', 4)
+        self.yFormatter = "Y: %%.%df %%s" % self.app.getPref('precisionY', 4)
+        self.antialias = self.app.getPref('antialiasing', False)
+        self.aaMultiplier = self.app.getPref('antialiasingMultiplier', 
+                                             ANTIALIASING_MULTIPLIER)
+        self.noisyResample = self.app.getPref('resamplingJitter', False)
+        self.showUtcTime = self.app.getPref('showUtcTime', False)
+        self.drawMinMax = self.app.getPref('drawMinMax', False)
+        self.drawMean = self.app.getPref('drawMean', False)
+        self.drawMajorHLines = self.app.getPref('drawMajorHLines', True)
+        self.drawMinorHLines = self.app.getPref('drawMinorHLines', False)
+        
+        self.showDebugChannels = self.app.getPref('showDebugChannels', True)
 
 
     def buildMenus(self):
@@ -747,6 +751,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, self.ID_EDIT_CLEARPREFS, 
                          "Reset Hidden Dialogs and Warnings", "", 
                          self.OnClearPrefs)
+        self.addMenuItem(editMenu, wx.ID_PREFERENCES, "Preferences...", "",
+                         self.app.editPrefs)
         self.menubar.Append(editMenu, '&Edit')
 
         # "View" menu
@@ -2158,6 +2164,17 @@ class ViewerApp(wx.App):
         for k in keys:
             self.prefs.pop(k, None)
         return len(keys)
+    
+    def editPrefs(self, evt=None):
+        """
+        """
+        newPrefs = PrefsDialog.editPrefs(None, self.prefs, self.defaultPrefs)
+        if newPrefs is not None:
+            self.prefs = newPrefs
+            self.savePrefs()
+            
+            for v in self.viewers:
+                v.loadPrefs()
     
     #===========================================================================
     # 

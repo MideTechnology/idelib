@@ -1227,7 +1227,7 @@ class PlotSet(aui.AuiNotebook):
         if color is None:
             color = self.root.getPlotColor(source)
         
-        plot = Plot(self, source=source, root=self.root, 
+        plot = Plot(self, source=source, root=self.root, name=name,
                     color=color, units=units, warningRange=warnings)
         plot.SetToolTipString(name)
         self.AddPage(plot, title)

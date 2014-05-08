@@ -4,7 +4,7 @@ Created on May 6, 2014
 @author: dstokes
 '''
 import wx; wx = wx;
-import wx.lib.agw.floatspin as FS
+from wx.lib.agw.floatspin import FloatSpin
 
 
 class RangeDialog(wx.Dialog):
@@ -13,8 +13,6 @@ class RangeDialog(wx.Dialog):
         the dialog, making it self-contained.
     """
     
-    fieldAtts = {'size': (56,-1),
-                 'style': wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB}
     labelAtts = {'size': (30,-1),
                  'style': wx.ALIGN_RIGHT | wx.ALIGN_BOTTOM}
     unitAtts = {'style': wx.ALIGN_LEFT}
@@ -27,7 +25,7 @@ class RangeDialog(wx.Dialog):
         
         def _addField(label, v):
             ll = wx.StaticText(self,-1,label, **self.labelAtts)
-            lf = FS.FloatSpin(self, -1, value=v, increment=precision,
+            lf = FloatSpin(self, -1, value=v, increment=precision,
                               min_val=minmax[0], max_val=minmax[1])
             lf.SetDigits(digits)
             lu = wx.StaticText(self, -1, units[1], **self.unitAtts)
@@ -142,7 +140,7 @@ class RangeDialog(wx.Dialog):
         root = parent if root is None else root
         try:
             p = root.plotarea.getActivePage()
-            title = "Select Ranges for %s" % p.source.parent.name
+            title = "Select Ranges for %s" % p.GetName()
         except AttributeError:
             title = "Select Ranges"
         dlg = cls(parent, -1, title, root=root)
@@ -167,9 +165,12 @@ if __name__ == "__main__":
             units = ("g", "g")
             class parent:
                 name = "Fake Channel"
-        @classmethod
-        def getValueRange(cls):
+        @staticmethod
+        def getValueRange():
             return [-10,10]
+        @staticmethod
+        def GetName():
+            return "Fake Channel"
     class FakeViewer(object):
         timeScalar = 0.00001
         units = ("Things", "t")
@@ -182,8 +183,8 @@ if __name__ == "__main__":
             def getActivePage():
                 return FakePlot()
         class app:
-            @classmethod
-            def getPref(cls, k, d):
+            @staticmethod
+            def getPref(k, d):
                 return d
 
     app = wx.App()
