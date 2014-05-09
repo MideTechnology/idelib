@@ -748,9 +748,9 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", enabled=False)
         editMenu.AppendSeparator()
-        self.addMenuItem(editMenu, self.ID_EDIT_CLEARPREFS, 
-                         "Reset Hidden Dialogs and Warnings", "", 
-                         self.OnClearPrefs)
+#         self.addMenuItem(editMenu, self.ID_EDIT_CLEARPREFS, 
+#                          "Reset Hidden Dialogs and Warnings", "", 
+#                          self.OnClearPrefs)
         self.addMenuItem(editMenu, wx.ID_PREFERENCES, "Preferences...", "",
                          self.app.editPrefs)
         self.menubar.Append(editMenu, '&Edit')
@@ -2240,7 +2240,8 @@ class ViewerApp(wx.App):
             evt.Veto()
             return
         self.savePrefs(self.prefsFile)
-        
+
+
 #===============================================================================
 # 
 #===============================================================================

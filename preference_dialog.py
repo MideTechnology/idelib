@@ -5,16 +5,16 @@ Created on May 8, 2014
 '''
 
 import wx; wx=wx
-import wx.propgrid as wxpg
-import wx.lib.dialogs as wxd
-import wx.lib.sized_controls as sc
+import wx.propgrid as PG
+# import wx.lib.dialogs as wxd
+import wx.lib.sized_controls as SC
 
 
 #===============================================================================
 # 
 #===============================================================================
 
-class PrefsDialog(sc.SizedDialog):
+class PrefsDialog(SC.SizedDialog):
     """
     """
 
@@ -46,17 +46,21 @@ class PrefsDialog(sc.SizedDialog):
         super(PrefsDialog, self).__init__(*args, **kwargs)
         pane = self.GetContentsPane()
 
-        self.pg = pg = wxpg.PropertyGrid(pane, 
-                                         style=(wxpg.PG_SPLITTER_AUTO_CENTER |
-                                                wxpg.PG_AUTO_SORT |
-                                                wxpg.PG_TOOLBAR))
-        pg.SetExtraStyle(wxpg.PG_EX_HELP_AS_TOOLTIPS)
+        self.pg = pg = PG.PropertyGrid(pane, 
+                                         style=(PG.PG_SPLITTER_AUTO_CENTER |
+                                                PG.PG_AUTO_SORT |
+                                                PG.PG_TOOLBAR))
+        pg.SetExtraStyle(PG.PG_EX_HELP_AS_TOOLTIPS)
         pg.SetSizerProps(expand=True, proportion=1)
         
-        self.resetHiddenCheck = wx.CheckBox(pane, -1, "Reset Hidden Dialogs and Warnings")
+        wx.StaticText(pane, -1, "Restarting the app may be required for "
+            "some changes to take effect.").SetSizerProps(halign='centre')
+        
+        self.resetHiddenCheck = wx.CheckBox(pane, -1, 
+                                            "Reset Hidden Dialogs and Warnings")
         self.resetHiddenCheck.SetSizerProps(proportion=0)
         
-        buttons = sc.SizedPanel(pane,-1)
+        buttons = SC.SizedPanel(pane,-1)
         buttons.SetSizerType("horizontal")
         self.defaultsBtn = wx.Button(buttons, -1, "Reset to Defaults")
         self.defaultsBtn.SetSizerProps(halign='left')
@@ -79,25 +83,36 @@ class PrefsDialog(sc.SizedDialog):
     def buildGrid(self):
         """
         """
-        pg = self.pg
-        pg.Append(wxpg.PropertyCategory("UI Colors") )
-        pg.Append(wxpg.ColourProperty("Major Gridline", "majorHLineColor"))
-        pg.Append(wxpg.ColourProperty("Minor Gridlines", "minorHLineColor"))
-        pg.Append(wxpg.ColourProperty("Buffer Maximum", "maxRangeColor"))
-        pg.Append(wxpg.ColourProperty("Buffer Mean", "meanRangeColor"))
-        pg.Append(wxpg.ColourProperty("Buffer Minimum", "minRangeColor"))
+        def _add(prop, tooltip=None, **atts):
+            self.pg.Append(prop)
+            if tooltip:
+                self.pg.SetPropertyHelpString(prop, tooltip)
+            for att, val in atts.iteritems():
+                self.pg.SetPropertyAttribute(prop, att, val)
+            return prop
         
-        pg.Append(wxpg.PropertyCategory("Drawing"))
-        pg.Append(wxpg.FloatProperty("Antialiasing Scaling Factor","antialiasingMultiplier",value=3.33) )
-        pg.Append(wxpg.FloatProperty("Noisy Resampling Jitter", "resamplingJitterAmount", value=0.125))
-        pg.SetPropertyHelpString("resamplingJitterAmount", "XXX: THIS IS HOW HELP TEXT IS DONE?")
+        self.pg.Append(PG.PropertyCategory("UI Colors"))
+        _add(PG.ColourProperty("Major Gridline", "majorHLineColor"))
+        _add(PG.ColourProperty("Minor Gridlines", "minorHLineColor"))
+        _add(PG.ColourProperty("Buffer Maximum", "maxRangeColor"))
+        _add(PG.ColourProperty("Buffer Mean", "meanRangeColor"))
+        _add(PG.ColourProperty("Buffer Minimum", "minRangeColor"))
         
-        pg.Append(wxpg.PropertyCategory("Miscellaneous"))
-        pg.Append(wxpg.BoolProperty("Display 'Open' Dialog on Startup", "openOnStart",value=True) )
-        pg.SetPropertyAttribute("openOnStart", "UseCheckbox", True)
-        pg.Append(wxpg.IntProperty("X Axis Value Precision", "precisionX", value=4) )
-        pg.Append(wxpg.IntProperty("Y Axis Value Precision", "precisionY", value=4) )
-        pg.Append(wxpg.EnumProperty("Locale", "locale", self.LANG_LABELS))
+        _add(PG.PropertyCategory("Drawing"))
+        _add(PG.FloatProperty("Antialiasing Scaling", "antialiasingMultiplier"),
+             "A multiplier of screen resolution used when drawing antialiased"
+             "graphics.")
+        _add(PG.FloatProperty("Noisy Resampling Jitter", 
+                              "resamplingJitterAmount"), 
+             "The size of X axis variation when 'Noise Resampling' is on, "
+             "as a normalized percent.")
+        
+        _add(PG.PropertyCategory("Miscellaneous"))
+        _add(PG.BoolProperty("Display 'Open' Dialog on Startup", "openOnStart"), 
+             UseCheckbox=True )
+        _add(PG.IntProperty("X Axis Value Precision", "precisionX", value=4))
+        _add(PG.IntProperty("Y Axis Value Precision", "precisionY", value=4))
+        _add(PG.EnumProperty("Locale", "locale", self.LANG_LABELS))
         
         self.populateGrid(self.prefs)
 
@@ -107,7 +122,6 @@ class PrefsDialog(sc.SizedDialog):
             any data modifications for display.
         """
         locale = prefs.get('locale', 'LANGUAGE_ENGLISH_US')
-        print "locale: %r" % locale
         if isinstance(locale, basestring):
             if locale not in self.LANGUAGES:
                 locale = 'LANGUAGE_ENGLISH_US'
@@ -115,7 +129,7 @@ class PrefsDialog(sc.SizedDialog):
         else:
             localeIdx = locale
             
-        self.prefs['locale'] = localeIdx
+        prefs['locale'] = localeIdx
         self.pg.SetPropertyValues(prefs)
 
     #===========================================================================
@@ -131,11 +145,11 @@ class PrefsDialog(sc.SizedDialog):
         resetHidden = self.resetHiddenCheck.GetValue()
         self.prefs.update(self.pg.GetPropertyValues(as_strings=False))
         self.prefs['locale'] = self.LANGUAGES[self.prefs['locale']]
-        for k in self.prefs:
+        for k,v in self.prefs.iteritems():
             if resetHidden and k.startswith("ask."):
                 continue
-            if k not in self.defaultPrefs or self.prefs[k] != self.defaultPrefs[k]:
-                result[k] = self.prefs[k]
+            if k not in self.defaultPrefs or v != self.defaultPrefs[k]:
+                result[k] = v
         return result
 
 
