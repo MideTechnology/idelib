@@ -3,13 +3,20 @@ Created on Mar 5, 2014
 
 @author: dstokes
 
-classic header struct: "<IBxIxxxxxxxx"
+classic header struct: "<IBxIxxBBHH"
     * (uint32-LE) Recording size in bytes, including header
     * (uint8) Sample rate code (contents of ADXL345 BW_RATE register)
-    * 1 byte padding/unused
+    * 1 byte padding/unused (reserved)
     * (uint32-LE) Number of ticks elapsed (32.768KHz)
     * 2 bytes padding/unused
-    * 6 bytes reserved for future use
+    * (uint8) flags
+    * (uint8)1 byte time zone offset
+    * (uint16-LE) Date in FAT encoded format (v2+ only)
+    * (uint16-LE) Time in FAT encoded format (v2+ only)
+    
+    
+Flags:
+    0: Time is set (v2+ only)
     
 classic data struct: "<hhh"
     * X/Y/Z, three LSB should be masked (val & 0xFFF8).
@@ -23,7 +30,8 @@ import os
 import random
 import struct
 
-import dataset as DS
+from .. import dataset as DS
+# import mide_ebml.dataset as DS
 
 #===============================================================================
 # 
@@ -37,7 +45,7 @@ class Classic(object):
 # 
 #===============================================================================
 
-headerParser = struct.Struct("<IBxIxxxxxxxx")
+headerParser = struct.Struct("<IBxIxxBBHH")
 
 class DataParser(struct.Struct):
     ranges = (((-0xFFF8/2), (0xFFF8/2)-1),) * 3
@@ -47,6 +55,15 @@ class DataParser(struct.Struct):
         return (data[0] & 0xFFF8, data[1] & 0xFFF8, data[2] & 0xFFF8)
 
 
+class HeaderParser(struct.Struct):
+    def unpack_from(self, data, offset=0):
+        data = super(HeaderParser, self).unpack_from(data, offset)
+        
+
+class FileHeaderParser(struct.Struct):
+    """
+    """
+    
 #===============================================================================
 # 
 #===============================================================================
