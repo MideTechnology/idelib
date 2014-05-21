@@ -3,23 +3,7 @@ Created on Mar 5, 2014
 
 @author: dstokes
 
-classic header struct: "<IBxIxxBBHH"
-    * (uint32-LE) Recording size in bytes, including header
-    * (uint8) Sample rate code (contents of ADXL345 BW_RATE register)
-    * 1 byte padding/unused (reserved)
-    * (uint32-LE) Number of ticks elapsed (32.768KHz)
-    * 2 bytes padding/unused
-    * (uint8) flags
-    * (uint8)1 byte time zone offset
-    * (uint16-LE) Date in FAT encoded format (v2+ only)
-    * (uint16-LE) Time in FAT encoded format (v2+ only)
-    
-    
-Flags:
-    0: Time is set (v2+ only)
-    
-classic data struct: "<hhh"
-    * X/Y/Z, three LSB should be masked (val & 0xFFF8).
+
 '''
 
 import abc
@@ -41,28 +25,6 @@ class Classic(object):
     """ Marker abstract base class for all Slam Stick Classic data objects. """
     __metaclass__ = abc.ABCMeta
     
-#===============================================================================
-# 
-#===============================================================================
-
-headerParser = struct.Struct("<IBxIxxBBHH")
-
-class DataParser(struct.Struct):
-    ranges = (((-0xFFF8/2), (0xFFF8/2)-1),) * 3
-    
-    def unpack_from(self, data, offset=0):
-        data = super(DataParser, self).unpack_from(data, offset)
-        return (data[0] & 0xFFF8, data[1] & 0xFFF8, data[2] & 0xFFF8)
-
-
-class HeaderParser(struct.Struct):
-    def unpack_from(self, data, offset=0):
-        data = super(HeaderParser, self).unpack_from(data, offset)
-        
-
-class FileHeaderParser(struct.Struct):
-    """
-    """
     
 #===============================================================================
 # 
@@ -87,12 +49,22 @@ class Dataset(DS.Dataset):
         self.fileDamaged = False
         self.loadCancelled = False
         self.loading = True
+        self.file = stream
         self.filename = stream.name
 
         if name is None:
             self.name = os.path.splitext(os.path.basename(self.filename))[0]
         else:
             self.name = name
+
+    def addSession(self, *args, **kwargs):
+        """ Create a new session, add it to the Dataset, and return it.
+        """
+        self.endSession()
+        kwargs['sessionId'] = len(self.sessions)
+        self.currentSession = Session(self, *args, **kwargs)
+        self.sessions.append(self.currentSession)
+        return self.currentSession
 
 
     def addSensor(self, sensorId=None, name=None, sensorClass=None, 
@@ -115,11 +87,12 @@ class Session(DS.Session):
     """
     """
     def __init__(self, dataset, sessionId=0, startTime=None, endTime=None,
-                 utcStartTime=None, offset=None, endPos=None):
+                 utcStartTime=None, offset=None, endPos=None, sampleRate=3200):
         """
         """
-        self._offset = headerParser.size if offset is None else offset
-        self._endPos = os.path.getsize(self.dataset.filename) or offset
+        self._offset = offset
+        self._endPos = os.path.getsize(self.dataset.filename) or endPos
+        self._sampleRate = sampleRate
         
         super(Session, self).__init__(dataset, sessionId, startTime, endTime,
                                       utcStartTime)
