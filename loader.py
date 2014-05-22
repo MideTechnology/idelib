@@ -26,7 +26,7 @@ class Loader(Job):
     cancelTitle = "Cancel Import"
     cancelPromptPref = "cancelImportPrompt"
     
-    def __init__(self, root, dataset, numUpdates=100, updateInterval=1.0):
+    def __init__(self, root, dataset, reader, numUpdates=100, updateInterval=1.0):
         """ Create the Loader and start the loading process.
             
             @param root: The Viewer.
@@ -40,6 +40,7 @@ class Loader(Job):
         """
         self.readingData = False
         self.lastCount = 0
+        self.reader = reader
 
         super(Loader, self).__init__(root, dataset, numUpdates, updateInterval)
 
@@ -50,7 +51,7 @@ class Loader(Job):
         wx.PostEvent(self.root, evt)
         
         self.totalUpdates = 0
-        mide_ebml.importer.readData(self.dataset, self, 
+        self.reader(self.dataset, self, 
                                     numUpdates=self.numUpdates,
                                     updateInterval=self.updateInterval)
 

@@ -67,7 +67,9 @@ import devices
 from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
-import mide_ebml
+import mide_ebml; mide_ebml = mide_ebml # Workaround for Eclipse code comp.
+import mide_ebml.classic
+import mide_ebml.classic.parsers
 
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
@@ -668,7 +670,10 @@ class Viewer(wx.Frame, MenuMixin):
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
         if filename:
-            self.openFile(filename)
+            if filename.lower().endswith('.ide'):
+                self.openFile(filename)
+            else:
+                self.openClassicFile(filename)
         elif self.app.getPref('openOnStart', True):
             self.OnFileOpenMenu(None)
 
@@ -1015,8 +1020,13 @@ class Viewer(wx.Frame, MenuMixin):
         if self.dataset is None:
             return
         
+        print "self.session: %r" % self.session
         if self.session is None:
-            self.session = self.dataset.lastSession
+            if len(self.dataset.sessions) > 1:
+                if not self.selectSession():
+                    return
+            else:
+                self.session = self.dataset.lastSession
         
         for d in self.dataset.getPlots(debug=self.showDebugChannels):
             self.plotarea.addPlot(d.getSession(self.session.sessionId), 
@@ -1177,6 +1187,34 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
     
+    def selectSession(self):
+        """
+        """
+        sessions = []
+        for session in self.dataset.sessions:
+            s = "%d" % session.sessionId
+            if session.utcStartTime is not None:
+                s = "%s: %s" % (s, session.utcStartTime)
+            if session.startTime is not None and session.endTime is not None:
+                length = session.endTime - session.startTime
+                s = "%s (%0.4f seconds)" % (s, length * self.timeScalar)
+            sessions.append(s)
+                
+        result = False
+        dlg = wx.SingleChoiceDialog(
+                self, ('This file contains multiple recording sessions. '
+                       'Please select the session to view:'), 
+                'Select Recording Session', sessions, wx.CHOICEDLG_STYLE)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.session = self.dataset.sessions(dlg.GetSelection())
+            result = True
+        else:
+            self.closeFile()
+        
+        dlg.Destroy()
+        return result
+        
+    
     def openFile(self, filename, prompt=True):
         """ Open a recording file. This also handles prompting the user when
             a file is loading or has already been loaded.
@@ -1227,12 +1265,36 @@ class Viewer(wx.Frame, MenuMixin):
             return
         
         self.dataset = newDoc
-        loader = Loader(self, newDoc, **self.app.getPref('loader'))
+        loader = Loader(self, newDoc, mide_ebml.importer.readData, **self.app.getPref('loader'))
         self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(filename))
         loader.start()
         self.enableMenus(True)
     
+    
+    def openClassicFile(self, filename, prompt=True):
+        """
+        """
+        # TODO: Abstract and share more with SSX file importing.
+        try:
+            stream = ThreadAwareFile(filename, 'rb')
+            newDoc = mide_ebml.classic.dataset.Dataset(stream)
+#             newDoc = mide_ebml.classic.parsers.importFile(stream)
+            self.app.addRecentFile(filename, 'import')
+        except Exception as err:
+            # Catch-all for unanticipated errors
+            stream.closeAll()
+            self.handleException(err, what="importing the file %s" % filename,
+                                 closeFile=True)
+            return
+
+        self.dataset = newDoc
+        loader = Loader(self, newDoc, mide_ebml.classic.parsers.readData, **self.app.getPref('loader'))
+        self.pushOperation(loader)
+        self.SetTitle(self.app.getWindowTitle(filename))
+        loader.start()
+        self.enableMenus(True)
+        
     
     def closeFile(self):
         """ Close a file. Does not close the viewer window itself.
@@ -1449,7 +1511,12 @@ class Viewer(wx.Frame, MenuMixin):
                             style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
-            self.openFile(dlg.GetPath())
+            filename = dlg.GetPath()
+            if filename.lower().endswith('.dat'):
+                self.openClassicFile(filename)
+            else:
+                self.openFile(filename)
+                
             
         # Note to self: do this last!
         dlg.Destroy()
@@ -1841,7 +1908,7 @@ class Viewer(wx.Frame, MenuMixin):
         msg = self.xFormatter % (t, units)
         self.statusBar.SetStatusText(msg, self.statusBar.xFieldNum)
         
-        if self.showUtcTime:# and t != 0:
+        if self.showUtcTime and self.session.utcStartTime is not None:# and t != 0:
             utc = str(datetime.utcfromtimestamp(self.session.utcStartTime+t))
             msg = "X (UTC): %s" % utc[:-2]
         else:
@@ -1947,8 +2014,9 @@ class ViewerApp(wx.App):
     
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
-        'importTypes': ["MIDE Data File (*.ide)|*.ide", 
-                        "Slam Stick X Data File (*.dat)|*.dat",
+        'importTypes': [
+                        "Slam Stick Classic Data File (*.dat)|*.dat",
+                        "MIDE Data File (*.ide)|*.ide", 
                         "All files (*.*)|*.*"],
         'exportTypes': ["Comma Separated Values (*.csv)|*.csv"],
         'fileHistory': {},
@@ -1971,6 +2039,7 @@ class ViewerApp(wx.App):
         'drawMinorHLines': True, #False,
         'drawMinMax': False,
         'drawMean': True,
+        'drawPoints': True,
         'originHLineColor': wx.Colour(200,200,200),
         'majorHLineColor': wx.Colour(240,240,240),
         'minorHLineColor': wx.Colour(240,240,240),

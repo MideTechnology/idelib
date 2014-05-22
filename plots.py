@@ -234,6 +234,21 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     RANGE_MAX_STYLE = ("maxRangeColor", "PINK", 1, wx.USER_DASH, [8,4,4,4])
     RANGE_MEAN_STYLE = ("meanRangeColor", "YELLOW", 1, wx.USER_DASH, [8,4,4,4])
     
+    
+    def loadPrefs(self):
+        """
+        """
+        self.drawPoints = self.root.app.getPref("drawPoints", True)
+        self.pointSize = self.root.app.getPref('pointSize', 2)
+
+        self.originHLinePen = self.loadPen(*self.GRID_ORIGIN_STYLE)
+        self.majorHLinePen = self.loadPen(*self.GRID_MAJOR_STYLE)
+        self.minorHLinePen = self.loadPen(*self.GRID_MINOR_STYLE)
+        self.minRangePen = self.loadPen(*self.RANGE_MIN_STYLE)
+        self.maxRangePen = self.loadPen(*self.RANGE_MAX_STYLE)
+        self.meanRangePen = self.loadPen(*self.RANGE_MEAN_STYLE)
+
+
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
@@ -242,23 +257,18 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             @keyword weight: The weight (thickness) of the plot's pen. 
         """
         self.root = kwargs.pop('root',None)
-        self.color = kwargs.pop('color', "BLUE")
-        self.weight = kwargs.pop('weight',1)
-        self.pointSize = kwargs.pop('pointSize', 2)
-        kwargs.setdefault('style',wx.VSCROLL|wx.BORDER_SUNKEN)
+
+        self.color = kwargs.pop('color', 'BLUE')
+        self.weight = kwargs.pop('weight', 1)
         
+        kwargs.setdefault('style',wx.VSCROLL|wx.BORDER_SUNKEN)
         super(PlotCanvas, self).__init__(*args, **kwargs)
         self.SetBackgroundColour("white")
         
         if self.root is None:
             self.root = self.GetParent().root
         
-        self.originHLinePen = self.loadPen(*self.GRID_ORIGIN_STYLE)
-        self.majorHLinePen = self.loadPen(*self.GRID_MAJOR_STYLE)
-        self.minorHLinePen = self.loadPen(*self.GRID_MINOR_STYLE)
-        self.minRangePen = self.loadPen(*self.RANGE_MIN_STYLE)
-        self.maxRangePen = self.loadPen(*self.RANGE_MAX_STYLE)
-        self.meanRangePen = self.loadPen(*self.RANGE_MEAN_STYLE)
+        self.loadPrefs()
         
         self.lines = None
         self.points = None
@@ -537,7 +547,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 #         hRange = map(int,self.root.getVisibleRange())
         hRange = self.getRelRange()
         vRange = legend.scale.GetRange()
-        
+                
         # TODO: Implement regional redrawing.
 #         updateBox = self.GetUpdateRegion().GetBox()
 #         updateHRange = (self.root.timeline.getValueAt(updateBox[0]),
@@ -683,7 +693,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             dc.EndDrawing()
             return
         
-        if len(self.lines) < size[0] / 4:
+        if self.drawPoints and len(self.lines) < size[0] / 4:
             # More pixels than points: draw actual points as circles.
             dc.SetPen(self._pointPen)
             dc.SetBrush(self._pointBrush)
@@ -826,7 +836,12 @@ class Plot(ViewerPanel):
 #         self.plot.Bind(wx.EVT_KEY_UP, self.OnKeypress)
         
         self.enableMenus()
-        
+
+
+    def loadPrefs(self):
+        # The plot canvas does most of the work.
+        self.plot.loadPrefs()
+
 
     def val2scrollbar(self, x):
         """ Convert a plot value to a scrollbar position. 
@@ -1026,7 +1041,8 @@ class Plot(ViewerPanel):
         self.root.setMenuItem(self.root.menubar,
                               self.root.ID_VIEW_MEAN,
                               enabled=True, checked=self.root.drawMean)
-                              
+        
+        rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME, enabled=rt.session.utcStartTime is not None)                      
 #         # Non-plot-specific menu items
 #         self.plot.setMenuItem(self.plot.contextMenu, 
 #                               self.root.ID_VIEW_ANTIALIAS,
@@ -1169,9 +1185,20 @@ class PlotSet(aui.AuiNotebook):
         
         if self.root is None:
             self.root = self.GetParent().root
-            
+        
+        self.loadPrefs()
+        
         self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnPageChange)
         
+
+    def loadPrefs(self):
+        """
+        """
+        self.warnLow = self.root.app.getPref("wvr_tempMin", -20.0)
+        self.warnHigh = self.root.app.getPref("wvr_tempMax", 60.0)
+        for p in self:
+            p.loadPrefs()
+
 
     def __len__(self):
         return self.GetPageCount()
@@ -1207,10 +1234,9 @@ class PlotSet(aui.AuiNotebook):
         
         # NOTE: Hard-coded warning range is for WVR hardware! Modify later.
         try:
-            warnLow = self.root.app.getPref("wvr_tempMin", -20.0)
-            warnHigh = self.root.app.getPref("wvr_tempMax", 60.0)
             warningRange = mide_ebml.dataset.WarningRange(
-                source.dataset.channels[1][1].getSession(), warnLow, warnHigh)
+                source.dataset.channels[1][1].getSession(), 
+                self.warnLow, self.warnHigh)
             warnings = [WarningRangeIndicator(warningRange)]
         except (IndexError, KeyError):
             # Dataset had no data for channel and/or subchannel.

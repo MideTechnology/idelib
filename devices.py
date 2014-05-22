@@ -18,39 +18,31 @@ import time
 
 # from mide_ebml import devices
 from mide_ebml import util
+from mide_ebml.classic import config as classic_config
 
 SYSTEM_PATH = "SYSTEM"
 INFO_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVINFO")
 CLOCK_FILE = os.path.join(SYSTEM_PATH, "DEV", "CLOCK")
 CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
 
+CLASSIC_CONFIG_FILE = "config.dat"
+CLASSIC_DATA_FILE = "data.dat"
+
 timeParser = struct.Struct("<L")
-
-#===============================================================================
-# 
-#===============================================================================
-
-class Recorder(object):
-    """ XXX: Complete and use, or remove.
-    """
-    @classmethod
-    def fromPath(cls, path):
-        """ 
-        """
-        return Recorder(path)
-
-
-    def __init__(self, path=None):
-        self.path = path
-        
-        
-    
 
 #===============================================================================
 # Cross-platform functions
 #===============================================================================
 
-def isRecorder(dev):
+def isClassicRecorder(dev):
+    try:
+        return (os.path.exists(os.path.join(dev, CLASSIC_CONFIG_FILE)) and \
+                os.path.exists(os.path.join(dev, CLASSIC_DATA_FILE)))
+    except (IOError, TypeError):
+        return False
+
+
+def isRecorder(dev, classic=True):
     """ Simple test whether a given path/drive letter refers to a recorder,
         based on the presence (or absence) of its /SYSTEM/DEV/DEVINFO file.
         Invalid paths return `False` (i.e. not a recorder); if you need to
@@ -62,7 +54,10 @@ def isRecorder(dev):
             is bad).
     """
     try:
-        return os.path.exists(os.path.join(dev, INFO_FILE))
+        result = os.path.exists(os.path.join(dev, INFO_FILE))
+        if classic:
+            result = result or isClassicRecorder(dev)
+        return result
     except (IOError, TypeError):
         return False
     
@@ -98,7 +93,9 @@ def getRecorderInfo(dev, default=None):
             `"_PATH"`, is added with the path to the device (e.g. the drive
             letter under Windows).
     """
-    if isRecorder(dev):
+    if isClassicRecorder(dev):
+        return {'_IS_CLASSIC': True, '_PATH': dev}
+    elif isRecorder(dev, classic=False):
         try:
             devinfo = util.read_ebml(os.path.join(dev, INFO_FILE))
             props = devinfo.get('RecordingProperties', '')
@@ -118,7 +115,9 @@ def getRecorderConfig(dev, default=None):
         @param dev: The path to the recording device.
         @return: A set of nested dictionaries containing the device data.
     """
-    if isRecorder(dev):
+    if isClassicRecorder(dev):
+        return classic_config.readConfig(os.path.join(dev, CLASSIC_CONFIG_FILE))
+    elif isRecorder(dev, classic=False):
         try:
             devinfo = util.read_ebml(os.path.join(dev, CONFIG_FILE))
             return devinfo.get('RecorderConfiguration', '')
@@ -181,6 +180,7 @@ def setDeviceTime(dev, t=None):
     with open(os.path.join(dev,CLOCK_FILE),'wb') as f:
         f.write(timeParser.pack(t))
     return t
+    
     
 #===============================================================================
 # Windows-specific versions of the functions
@@ -287,3 +287,105 @@ if "win" in sys.platform:
 #===============================================================================
 # 
 #===============================================================================
+
+#===============================================================================
+# 
+#===============================================================================
+
+class Recorder(object):
+    """ Base class for all data recorders.
+    
+        XXX: Complete and use, or remove.
+    """
+    @classmethod
+    def fromPath(cls, path):
+        """ 
+        """
+        return cls(path)
+
+
+    def __init__(self, path):
+        if not self.isRecorder(path):
+            raise IOError("Specified path isn't a %s: %r" % \
+                          (self.__class__.__name__, path))
+        self.path = path
+
+#===============================================================================
+
+class SlamStickX(Recorder):
+    """
+    """
+    @classmethod
+    def isRecorder(cls, dev):
+        """
+        """
+        try:
+            result = os.path.exists(os.path.join(dev, INFO_FILE))
+            return result
+        except (IOError, TypeError):
+            return False
+
+    def readConfig(self):
+        """
+        """
+    
+    @property
+    def name(self):
+        pass
+    
+    @property
+    def uid(self):
+        pass
+
+    def getDeviceTime(self):
+        """ Read the date/time from the device. 
+        
+            @note: This is currently unreliable under Windows due to its caching
+                mechanism.
+    
+            @param dev: The path to the recording device.
+            @return: The time, as integer seconds since the epoch ('Unix time').
+        """
+        f = open(os.path.join(self.path, CLOCK_FILE), 'rb', 0)
+        t = f.read(8)
+        f.close()
+        return timeParser.unpack_from(t)
+    
+    
+    def setDeviceTime(self, t=None):
+        """ Set a recorder's date/time. A variety of standard time types are
+            accepted.
+        
+            @param dev: The path to the recording device.
+            @keyword t: The time to write, as either seconds since the epoch (i.e.
+                'Unix time'), `datetime.datetime` or a UTC `time.struct_time`. The 
+                current time  (from the host) is used if `None` (default).
+            @return: The time that was set, as integer seconds since the epoch.
+        """
+        if t is None:
+            t = int(time.time())
+        elif isinstance(t, datetime):
+            t = calendar.timegm(t.timetuple())
+        elif isinstance(t, (time.struct_time, tuple)):
+            t = calendar.timegm(t)
+        else:
+            t = int(t)
+            
+        with open(os.path.join(self.path, CLOCK_FILE), 'wb') as f:
+            f.write(timeParser.pack(t))
+        return t
+
+
+#===============================================================================
+
+class SlamStickClassic(Recorder):
+    """
+    """
+    @classmethod
+    def isRecorder(cls, dev):
+        try:
+            return (os.path.exists(os.path.join(dev, CLASSIC_CONFIG_FILE)) and \
+                    os.path.exists(os.path.join(dev, CLASSIC_DATA_FILE)))
+        except (IOError, TypeError):
+            return False
+

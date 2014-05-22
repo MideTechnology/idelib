@@ -35,7 +35,12 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         if info:
             # Add in the user-defined name
             config = getRecorderConfig(dev, {})
-            info.update(config.get('RecorderUserData', {}))
+            if '_IS_CLASSIC' in info:
+                info['RecorderName'] = "Slam Stick"
+                info['ProductName'] = "Slam Stick Classic"
+                info.update(config)
+            else:
+                info.update(config.get('RecorderUserData', {}))
         return info
 
 

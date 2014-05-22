@@ -48,7 +48,7 @@ class PrefsDialog(SC.SizedDialog):
 
         self.pg = pg = PG.PropertyGrid(pane, 
                                          style=(PG.PG_SPLITTER_AUTO_CENTER |
-                                                PG.PG_AUTO_SORT |
+#                                                 PG.PG_AUTO_SORT |
                                                 PG.PG_TOOLBAR))
         pg.SetExtraStyle(PG.PG_EX_HELP_AS_TOOLTIPS)
         pg.SetSizerProps(expand=True, proportion=1)
@@ -99,6 +99,10 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.ColourProperty("Buffer Minimum", "minRangeColor"))
         
         _add(PG.PropertyCategory("Drawing"))
+        _add(PG.BoolProperty("Draw Points", "drawPoints"), 
+             "If the number of samples shown is fewer than the number "
+             "of pixels, draw individual samples as larger points.",
+             UseCheckbox=True)
         _add(PG.FloatProperty("Antialiasing Scaling", "antialiasingMultiplier"),
              "A multiplier of screen resolution used when drawing antialiased"
              "graphics.")

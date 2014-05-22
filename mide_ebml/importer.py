@@ -55,12 +55,9 @@ elementParserTypes = parsers.getElementHandlers()
 #===============================================================================
 
 # XXX: Remove me before production.
-# testFile = "P:\\WVR_RIF\\06_Testing_Calibration\\08_Pressure_Tests\\01_Test_to_28000ft\\Slamstick_Data\\VIB00014.IDE"
-# testFile= "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140127_SNAKE_Prototype_Test\\20140127_y_sweep.IDE"
-# testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\20140328_auto_rearm\VIB00001.IDE"
-#testFile= "Firmware20140328.IDE"
-testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140423_stats_newformat.ide"
+# testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140423_stats_newformat.ide"
 # testFile= "C:\\Users\\dstokes\\workspace\\SSXViewer\\20140501_Mean_Removal\\VIB00000.IDE"
+testFile = "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140505_Temp_Tests\\20140505_Temp\\VIB00000.IDE"
 
 # from parsers import AccelerometerParser
 

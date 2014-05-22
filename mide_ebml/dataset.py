@@ -84,6 +84,7 @@ class Lerp(Interpolation):
     """ A simple linear interpolation between two values.
     """
     def __call__(self, events, idx1, idx2, percent):
+        print events, idx1, idx2, percent
         percent += 0.0
         v1 = events[idx1][-1]
         v2 = events[idx2][-1]
@@ -476,9 +477,11 @@ class Sensor(Cascading):
         if parser is None:
             raise TypeError("addChannel() requires a parser")
         
+        channelClass = kwargs.pop('channelClass', Channel)
+        
         if channelId in self.channels:
             return self.channels[channelId]
-        channel = Channel(self, channelId, parser, **kwargs)
+        channel = channelClass(self, channelId, parser, **kwargs)
         self.channels[channelId] = channel
         self.dataset.channels[channelId] = channel
         return channel
@@ -599,10 +602,11 @@ class Channel(Cascading, Transformable):
                 "Channel's parser only generates %d subchannels" % \
                  len(self.subchannels))
         else:
+            channelClass = kwargs.pop('channelClass', SubChannel)
             sc = self.subchannels[subchannelId]
             if sc is not None:
                 return self.subchannels[subchannelId]
-            sc = SubChannel(self, subchannelId, **kwargs)
+            sc = channelClass(self, subchannelId, **kwargs)
             self.subchannels[subchannelId] = sc
             return sc
         
