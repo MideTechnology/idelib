@@ -56,8 +56,8 @@ elementParserTypes = parsers.getElementHandlers()
 
 # XXX: Remove me before production.
 # testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140423_stats_newformat.ide"
-# testFile= "C:\\Users\\dstokes\\workspace\\SSXViewer\\20140501_Mean_Removal\\VIB00000.IDE"
-testFile = "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140505_Temp_Tests\\20140505_Temp\\VIB00000.IDE"
+testFile= "C:\\Users\\dstokes\\workspace\\SSXViewer\\20140501_Mean_Removal\\VIB00000.IDE"
+# testFile = "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140505_Temp_Tests\\20140505_Temp\\VIB00000.IDE"
 
 # from parsers import AccelerometerParser
 
@@ -201,7 +201,7 @@ def importFile(filename=testFile, updater=nullUpdater, numUpdates=500,
         Primarily for testing purposes. The GUI does the file creation and 
         data loading in two discrete steps, as it will need a reference to 
         the new document before the loading starts.
-        @see: `readData`
+        @see: `readData()`
     """
     stream = open(filename, "rb")
     doc = Dataset(stream, name=name, quiet=quiet)
@@ -211,9 +211,40 @@ def importFile(filename=testFile, updater=nullUpdater, numUpdates=500,
     return doc
 
 
+def openFile(stream, parserTypes=elementParserTypes, 
+             defaultSensors=default_sensors, name=None, quiet=False):
+    """ Create a `Dataset` instance and read the header data (i.e. non-sample-
+        data). When called by a GUI, this function should be considered 'modal,' 
+        in that it shouldn't run in a background thread, unlike `readData()`. 
+        
+        @note: This is (currently) just a stub; all the importing is done by
+            the `readData()` function alone.
+        @todo: Split everything that's not reading sensor data (loading
+            calibration, building the sensor list, creating the session catalog)
+            out of `readData()`.
+
+        @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
+        @keyword defaultSensors: A nested dictionary containing a default set 
+            of sensors, channels, and subchannels. These will only be used if
+            the dataset contains no sensor/channel/subchannel definitions. 
+        @keyword name: An optional name for the Dataset. Defaults to the
+            base name of the file (if applicable).
+        @keyword quiet: If `True`, non-fatal errors (e.g. schema/file
+            version mismatches) are suppressed. 
+    """
+    # Just a stub (for the moment). In the future, this function will read the
+    # 'header' information (i.e. non-sample-data) and catalog the sessions.
+    doc = Dataset(stream, name=name, quiet=quiet)
+    return doc
+
+
 def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
-             parserTypes=elementParserTypes, defaultSensors=default_sensors):
+             parserTypes=elementParserTypes, defaultSensors=default_sensors,
+             sessionId=-1):
     """ Import the data from a file into a Dataset.
+    
+        @todo: Remove the metadata-reading parts and put them in `openFile()`.
+            Also move the defaultSensors there as well.
     
         @param doc: The Dataset document into which to import the data.
         @keyword updater: A function (or function-like object) to notify as 

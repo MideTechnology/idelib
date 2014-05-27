@@ -104,7 +104,6 @@ class RecordingParser(object):
             timestamp = None
         
         if ticks == 0xffffffff or size == 0xffffffff:
-#             print "truncated session"
             # Abnormally terminated file; seek the end and calculate size, etc.
             rawData = self.findEnd(self.doc.file.read(), sampLen)
             size = len(rawData)
@@ -119,9 +118,7 @@ class RecordingParser(object):
             length = ticks * self.timeScalar # converted to microseconds
             numSamples = size/sampLen
             sampleRate = (numSamples / length) * self.secondScalar
-#             print "whole session, size=%r length=%r numSamples=%r" % (size, length, numSamples)
 
-#         print "len(rawData)=%r" % len(rawData)
         data = []
         for i in xrange(0,size,channel.parser.size):
             try:
@@ -129,8 +126,6 @@ class RecordingParser(object):
             except struct.error:
                 print "failed to parse w/ offset %r" % i
                 raise parsers.ParsingError()
-#         data = [channel.parser.unpack_from(rawData, i) \
-#                 for i in xrange(0,size,channel.parser.size)] 
         
         print "self.doc.addSession(%r, %r, %r, %r, %r, %r)" % (0, length,
                                   timestamp, dataStart, 
@@ -234,23 +229,59 @@ def importFile(f, defaultSensors=default_sensors):
     parser = RecordingParser(doc)
     parser.parse()
     return doc
-    
-    
-def readData(doc, updater=importer.nullUpdater, numUpdates=500, 
-             updateInterval=1.0, parserTypes=None, 
-             defaultSensors=default_sensors):
-    """ 
-    """
-    
-    updater(0)
 
+
+def openFile(stream, parserTypes=None, 
+             defaultSensors=default_sensors, name=None, quiet=False):
+    """ Create a `Dataset` instance and read the header data (i.e. non-sample-
+        data). When called by a GUI, this function should be considered 'modal,' 
+        in that it shouldn't run in a background thread, unlike `readData()`. 
+        
+        For Slam Stick Classic files (which are small), this function actually 
+        does the entirety of the import, instead of splitting the work between
+        this function and `readData()`.
+    """
+    # Classic files are small, so the entirety of the file-parsing is done
+    # here, instead of splitting it between this and `readData()`. 
+    doc = dataset.Dataset(stream)
     if defaultSensors is not None:
         createDefaultSensors(doc, defaultSensors)
     parser = RecordingParser(doc)
     parser.parse()
+    return doc
+    
+    
+def readData(doc, updater=importer.nullUpdater, numUpdates=500, 
+             updateInterval=1.0, parserTypes=None, 
+             defaultSensors=default_sensors, sessionId=-1):
+    """ Import the data from a file into a Dataset.
+    
+        For Slam Stick Classic files, this function is a stub; they are small,
+        and all the importing is actually performed by the `openFile()` 
+        function.
+    
+        @param doc: The Dataset document into which to import the data.
+        @keyword updater: A function (or function-like object) to notify as 
+            work is done. It should take four keyword arguments: `count` (the 
+            current line number), `total` (the total number of samples), `error` 
+            (an unexpected exception, if raised during the import), and `done` 
+            (will be `True` when the export is complete). If the updater object 
+            has a `cancelled` attribute that is `True`, the import will be 
+            aborted. The default callback is `None` (nothing will be notified).
+        @keyword numUpdates: The minimum number of calls to the updater to be
+            made. More updates will be made if the updates take longer than
+            than the specified `updateInterval`. 
+        @keyword updateInterval: The maximum number of seconds between calls to 
+            the updater. More updates will be made if indicated by the specified
+            `numUpdates`.
+        @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
+        @keyword defaultSensors: A nested dictionary containing a default set 
+            of sensors, channels, and subchannels. These will only be used if
+            the dataset contains no sensor/channel/subchannel definitions. 
+    """
 
+    updater(0)
     updater(count=1, percent=1.0)
     updater(done=True)#, total=eventsRead)
-
     doc.loading = False
     return doc

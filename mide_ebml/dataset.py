@@ -84,7 +84,7 @@ class Lerp(Interpolation):
     """ A simple linear interpolation between two values.
     """
     def __call__(self, events, idx1, idx2, percent):
-        print events, idx1, idx2, percent
+#         print events, idx1, idx2, percent
         percent += 0.0
         v1 = events[idx1][-1]
         v2 = events[idx2][-1]
@@ -447,6 +447,10 @@ class Session(object):
         # so.
         self.firstTime = self.lastTime = None
 
+
+    def __repr__(self):
+        return "<%s (id=%s) at 0x%08X>" % (self.__class__.__name__, 
+                                           self.sessionId, id(self))
 
 #===============================================================================
 # 

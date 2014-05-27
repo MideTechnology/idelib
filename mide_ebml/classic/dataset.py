@@ -33,8 +33,14 @@ class Classic(object):
 class Dataset(DS.Dataset):
     """ A Classic dataset.
     """
-    def __init__(self, stream, name=None):
-        """
+    def __init__(self, stream, name=None, quiet=False):
+        """ Constructor.
+            @param stream: A file-like stream object containing Slam Stick
+                Classic data.
+            @keyword name: An optional name for the Dataset. Defaults to the
+                base name of the file (if applicable).
+            @keyword quiet: If `True`, non-fatal errors (e.g. schema/file
+                version mismatches) are suppressed. 
         """
         self.sessions = []
         self.sensors = {}

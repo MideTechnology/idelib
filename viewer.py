@@ -1020,7 +1020,7 @@ class Viewer(wx.Frame, MenuMixin):
         if self.dataset is None:
             return
         
-        print "self.session: %r" % self.session
+#         print "self.session: %r" % self.session
         if self.session is None:
             if len(self.dataset.sessions) > 1:
                 if not self.selectSession():
@@ -1202,11 +1202,13 @@ class Viewer(wx.Frame, MenuMixin):
                 
         result = False
         dlg = wx.SingleChoiceDialog(
-                self, ('This file contains multiple recording sessions. '
+                self, ('This file contains multiple recording sessions.\n'
                        'Please select the session to view:'), 
                 'Select Recording Session', sessions, wx.CHOICEDLG_STYLE)
         if dlg.ShowModal() == wx.ID_OK:
-            self.session = self.dataset.sessions(dlg.GetSelection())
+            self.session = self.dataset.sessions[dlg.GetSelection()]
+            print "dlg.GetSelection() = %r" % dlg.GetSelection()
+            print "selectSession: self.session = %r" % self.session
             result = True
         else:
             self.closeFile()
@@ -1243,7 +1245,8 @@ class Viewer(wx.Frame, MenuMixin):
         
         try:
             stream = ThreadAwareFile(filename, 'rb')
-            newDoc = mide_ebml.dataset.Dataset(stream, quiet=True)
+#             newDoc = mide_ebml.dataset.Dataset(stream, quiet=True)
+            newDoc = mide_ebml.importer.openFile(stream, quiet=True)
             self.app.addRecentFile(filename, 'import')
             if newDoc.schemaVersion < newDoc.ebmldoc.version:
                 q = self.root.ask("The data file was created using a newer "
@@ -1278,8 +1281,8 @@ class Viewer(wx.Frame, MenuMixin):
         # TODO: Abstract and share more with SSX file importing.
         try:
             stream = ThreadAwareFile(filename, 'rb')
-            newDoc = mide_ebml.classic.dataset.Dataset(stream)
-#             newDoc = mide_ebml.classic.parsers.importFile(stream)
+#             newDoc = mide_ebml.classic.dataset.Dataset(stream)
+            newDoc = mide_ebml.classic.parsers.openFile(stream, quiet=True)
             self.app.addRecentFile(filename, 'import')
         except Exception as err:
             # Catch-all for unanticipated errors
@@ -1289,6 +1292,10 @@ class Viewer(wx.Frame, MenuMixin):
             return
 
         self.dataset = newDoc
+        if len(newDoc.sessions) > 1:
+            if not self.selectSession():
+                stream.closeAll()
+                return
         loader = Loader(self, newDoc, mide_ebml.classic.parsers.readData, **self.app.getPref('loader'))
         self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(filename))

@@ -12,7 +12,7 @@ from events import EvtProgressStart, EvtProgressEnd, EvtProgressUpdate
 from events import EvtInitPlots, EvtSetTimeRange, EvtSetVisibleRange
 from events import EvtImportError
 
-import mide_ebml
+# import mide_ebml
 
 class Loader(Job):
     """ The object that does the work of spawning an asynchronous file-loading
@@ -52,8 +52,8 @@ class Loader(Job):
         
         self.totalUpdates = 0
         self.reader(self.dataset, self, 
-                                    numUpdates=self.numUpdates,
-                                    updateInterval=self.updateInterval)
+                    numUpdates=self.numUpdates,
+                    updateInterval=self.updateInterval)
 
         evt = EvtProgressEnd(label=self.formatMessage(self.lastCount),
                              job=self)
@@ -104,7 +104,8 @@ class Loader(Job):
             if count > 0:
                 # The start of data.
                 self.readingData = True
-                self.root.session = self.dataset.lastSession
+                if self.root.session is None:
+                    self.root.session = self.dataset.lastSession
                 wx.PostEvent(self.root, EvtInitPlots())
                 endTime = self.root.session.endTime
                 if endTime is None:
