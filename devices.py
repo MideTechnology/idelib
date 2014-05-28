@@ -183,6 +183,272 @@ def setDeviceTime(dev, t=None):
     
     
 #===============================================================================
+# 
+#===============================================================================
+
+class Recorder(object):
+    """ Base class for all data recorders.
+    
+        XXX: Complete and use, or remove.
+    """
+    INFO_FILE = ''
+    CONFIG_FILE = ''
+    
+    @classmethod
+    def fromPath(cls, path):
+        """ 
+        """
+        return cls(path)
+
+
+    def __init__(self, path):
+        path = os.path.realpath(os.path.expandvars(path))
+        if not self.isRecorder(path):
+            raise IOError("Specified path isn't a %s: %r" % \
+                          (self.__class__.__name__, path))
+        self.path = path
+        self.configFile = os.path.join(self.path, self.CONFIG_FILE)
+        self.infoFile = os.path.join(self.path, self.INFO_FILE)
+        self._info = None
+        self._config = None
+        self._name = None
+        self._sn = None
+        
+
+
+    def onDevice(self, filename):
+        """ Determines if a file is on the recording device. 
+        
+            The test is only whether the path refers to a recorder, not whether 
+            or not the path or file actually exists; if you need to know if the 
+            path is valid, perform your own checks first.
+        """
+        filename = os.path.realpath(os.path.expandvars(filename))
+        return os.path.commonprefix((self.path, filename)) == self.path
+
+
+
+#===============================================================================
+
+class SlamStickX(Recorder):
+    """
+    """
+    SYSTEM_PATH = "SYSTEM"
+    INFO_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVINFO")
+    CLOCK_FILE = os.path.join(SYSTEM_PATH, "DEV", "CLOCK")
+    CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
+    TIME_PARSER = struct.Struct("<L")
+
+
+    def __init__(self, path):
+        super(SlamStickX, self).__init__(path)
+        self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
+
+
+    @classmethod
+    def isRecorder(cls, dev):
+        """
+        """
+        try:
+            result = os.path.exists(os.path.join(dev, cls.INFO_FILE))
+            return result
+        except (IOError, TypeError):
+            return False
+
+
+    def getInfo(self, default=None, refresh=False):
+        """ Retrieve a recorder's device information.
+        
+            @return: A dictionary containing the device data. An additional key,
+                `"_PATH"`, is added with the path to the device (e.g. the drive
+                letter under Windows).
+        """
+        if self._info is not None and not refresh:
+            return self._info
+        try:
+            devinfo = util.read_ebml(self.infoFile)
+            props = devinfo.get('RecordingProperties', '')
+            if 'RecorderInfo' in props:
+                self._info = props['RecorderInfo']
+                self._info['_PATH'] = self.path
+                
+                return self._info
+        except IOError:
+            pass
+        return default
+
+    
+    def getConfig(self, default=None, refresh=False):
+        """
+        """
+        if self._config is not None and not refresh:
+            return self._config
+        try:
+            devinfo = util.read_ebml(self.configFile)
+            self._config = devinfo.get('RecorderConfiguration', '')
+            return self._config
+        except IOError:
+            pass
+        return default
+
+
+    def saveConfig(self, data, verify=True):
+        """ Write a dictionary of configuration data to a device. 
+        
+            @param dev: The path to the recording device.
+            @param data: The configuration data to write, as a set of nested
+                dictionaries.
+            @keyword verify: If `True`, the validity of the EBML is checked 
+                before the data is written.
+        """
+        ebml = util.build_ebml("RecorderConfiguration", data)
+        if verify and not util.verify(ebml):
+            raise ValueError("Generated config EBML could not be verified")
+        with open(self.configFile, 'wb') as f:
+            f.write(ebml)
+        self._config = self._info = None
+        return len(ebml)
+    
+
+    @property
+    def name(self):
+        if self._name is not None:
+            return self._name
+        userdata = self.getConfig().get('RecorderUserData', {})
+        self._name = userdata.get('RecorderName', '')
+        return self._name
+
+    @property
+    def productName(self):
+        return self.getInfo().get('ProductName', '')
+    
+    @property
+    def serial(self):
+        if self._sn is None:
+            self._sn = self.getInfo().get('RecorderSerial', '')
+        return self._sn
+
+
+    def getTime(self):
+        """ Read the date/time from the device. 
+        
+            @note: This is currently unreliable under Windows due to its caching
+                mechanism.
+    
+            @param dev: The path to the recording device.
+            @return: The time, as integer seconds since the epoch ('Unix time').
+        """
+        f = open(self.clockFile, 'rb', 0)
+        t = f.read(8)
+        f.close()
+        return self.TIME_PARSER.unpack_from(t)
+    
+    
+    def setTime(self, t=None):
+        """ Set a recorder's date/time. A variety of standard time types are
+            accepted.
+        
+            @param dev: The path to the recording device.
+            @keyword t: The time to write, as either seconds since the epoch 
+                (i.e. 'Unix time'), `datetime.datetime` or a UTC 
+                `time.struct_time`. The current time  (from the host) is used 
+                if `None` (default).
+            @return: The time that was set, as integer seconds since the epoch.
+        """
+        if t is None:
+            t = int(time.time())
+        elif isinstance(t, datetime):
+            t = calendar.timegm(t.timetuple())
+        elif isinstance(t, (time.struct_time, tuple)):
+            t = calendar.timegm(t)
+        else:
+            t = int(t)
+            
+        with open(self.clockFile, 'wb') as f:
+            f.write(self.TIME_PARSER.pack(t))
+        return t
+
+
+#===============================================================================
+
+class SlamStickClassic(Recorder):
+    """
+    """
+    CONFIG_FILE = "config.dat"
+    INFO_FILE = "config.dat"
+    DATA_FILE = "data.dat"
+
+
+    @classmethod
+    def isRecorder(cls, dev):
+        dev = os.path.realpath(dev)
+        try:
+            return (os.path.exists(os.path.join(dev, cls.CONFIG_FILE)) and \
+                    os.path.exists(os.path.join(dev, cls.DATA_FILE)))
+        except (IOError, TypeError):
+            return False
+
+
+    def getConfig(self, default=None, refresh=False):
+        """
+        """
+        if self._config is not None and not refresh:
+            return self._config
+        try:
+            self._config = classic_config.readConfig(self.configFile)
+            return self._config
+        except IOError:
+            pass
+        return default
+
+
+    def saveConfig(self, data, verify=True):
+        """ Write a dictionary of configuration data to a device. 
+        
+            @param dev: The path to the recording device.
+            @param data: The configuration data to write, as a set of nested
+                dictionaries.
+            @keyword verify: If `True`, the validity of the EBML is checked 
+                before the data is written.
+        """
+        return classic_config.writeConfig(self.configFile, data, verify)
+
+
+    def getInfo(self, default=None, refresh=False):
+        """ Get information on the recorder. For Classic, this is in the
+            configuration file, so this method is the same as `getConfig()`.
+        """
+        return self.getConfig(default, refresh)
+
+
+    @property
+    def name(self):
+        if self._name is None:
+            n = self.getConfig().get('USERUID_RESERVE', '').strip()
+            self._name = n or "Slam Stick"
+        return self._name
+
+
+    @property
+    def productName(self):
+        return "Slam Stick Classic"
+
+
+    @property
+    def serial(self):
+        if self._sn is None:
+            self._sn = self.getConfig().get('SYSUID_RESERVE', '').strip()
+        return self._sn
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+RECORDER_TYPES = (SlamStickClassic, SlamStickX)
+
+
+#===============================================================================
 # Windows-specific versions of the functions
 #===============================================================================
 
@@ -197,7 +463,7 @@ else:
     kernel32 = None
 
 
-def win_getDevices():
+def win_getDeviceList(types=RECORDER_TYPES):
     """ Get a list of data recorders, as their respective drive letter.
     """
     drivebits = kernel32.GetLogicalDrives()
@@ -207,8 +473,11 @@ def win_getDevices():
             driveLetter = '%s:\\' % letter
             devtype = kernel32.GetDriveTypeA(driveLetter)
             # First cut: only consider devices of type 2 (removable
-            if devtype == 2 and isRecorder(driveLetter):
-                result.append(driveLetter)
+            if devtype == 2:
+                for t in types:
+                    if t.isRecorder(driveLetter):
+                        result.append(driveLetter)
+                        continue
         drivebits >>= 1
     return result
 
@@ -237,7 +506,7 @@ def win_getDriveInfo(dev):
 win_last_devices = 0
 win_last_recorders = None
 
-def win_deviceChanged(recordersOnly=True):
+def win_deviceChanged(recordersOnly=True, types=RECORDER_TYPES):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
         
@@ -255,7 +524,7 @@ def win_deviceChanged(recordersOnly=True):
     if not recordersOnly:
         return changed
     
-    newRecorders = tuple(win_getDevices())
+    newRecorders = tuple(win_getDeviceList(types=types))
     changed = newRecorders != win_last_recorders
     win_last_recorders = newRecorders
     return changed
@@ -265,14 +534,14 @@ def win_deviceChanged(recordersOnly=True):
 # 
 #===============================================================================
 
-def getDevices():
+def getDeviceList(types=RECORDER_TYPES):
     """ Get a list of data recorder, as the paths to their root directory (or
         drive letter under Windows).
     """
     raise NotImplementedError("Only windows version currently implemented!")
 
 
-def deviceChanged(recordersOnly=True):
+def deviceChanged(recordersOnly=True, types=RECORDER_TYPES):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
     """
@@ -280,112 +549,32 @@ def deviceChanged(recordersOnly=True):
 
 
 if "win" in sys.platform:
-    getDevices = win_getDevices
+    getDeviceList = win_getDeviceList
     deviceChanged = win_deviceChanged
 
 
+def getDevices(types=RECORDER_TYPES):
+    """ Get a list of data recorder objects.
+    """
+    result = []
+    for dev in getDeviceList(types=types):
+        for t in types:
+            if t.isRecorder(dev):
+                result.append(t(dev))
+                continue
+    return result
+
+
+def getRecorder(dev, types=RECORDER_TYPES):
+    for t in types:
+        if t.isRecorder(dev):
+            return t(dev)
+    return None
+
 #===============================================================================
 # 
 #===============================================================================
 
-#===============================================================================
-# 
-#===============================================================================
-
-class Recorder(object):
-    """ Base class for all data recorders.
-    
-        XXX: Complete and use, or remove.
-    """
-    @classmethod
-    def fromPath(cls, path):
-        """ 
-        """
-        return cls(path)
-
-
-    def __init__(self, path):
-        if not self.isRecorder(path):
-            raise IOError("Specified path isn't a %s: %r" % \
-                          (self.__class__.__name__, path))
-        self.path = path
-
-#===============================================================================
-
-class SlamStickX(Recorder):
-    """
-    """
-    @classmethod
-    def isRecorder(cls, dev):
-        """
-        """
-        try:
-            result = os.path.exists(os.path.join(dev, INFO_FILE))
-            return result
-        except (IOError, TypeError):
-            return False
-
-    def readConfig(self):
-        """
-        """
-    
-    @property
-    def name(self):
-        pass
-    
-    @property
-    def uid(self):
-        pass
-
-    def getDeviceTime(self):
-        """ Read the date/time from the device. 
-        
-            @note: This is currently unreliable under Windows due to its caching
-                mechanism.
-    
-            @param dev: The path to the recording device.
-            @return: The time, as integer seconds since the epoch ('Unix time').
-        """
-        f = open(os.path.join(self.path, CLOCK_FILE), 'rb', 0)
-        t = f.read(8)
-        f.close()
-        return timeParser.unpack_from(t)
-    
-    
-    def setDeviceTime(self, t=None):
-        """ Set a recorder's date/time. A variety of standard time types are
-            accepted.
-        
-            @param dev: The path to the recording device.
-            @keyword t: The time to write, as either seconds since the epoch (i.e.
-                'Unix time'), `datetime.datetime` or a UTC `time.struct_time`. The 
-                current time  (from the host) is used if `None` (default).
-            @return: The time that was set, as integer seconds since the epoch.
-        """
-        if t is None:
-            t = int(time.time())
-        elif isinstance(t, datetime):
-            t = calendar.timegm(t.timetuple())
-        elif isinstance(t, (time.struct_time, tuple)):
-            t = calendar.timegm(t)
-        else:
-            t = int(t)
-            
-        with open(os.path.join(self.path, CLOCK_FILE), 'wb') as f:
-            f.write(timeParser.pack(t))
-        return t
-
-
-#===============================================================================
-
-class SlamStickClassic(Recorder):
-    """
-    """
-    @classmethod
-    def isRecorder(cls, dev):
-        try:
-            return (os.path.exists(os.path.join(dev, CLASSIC_CONFIG_FILE)) and \
-                    os.path.exists(os.path.join(dev, CLASSIC_DATA_FILE)))
-        except (IOError, TypeError):
-            return False
-
+if __name__ == '__main__':
+    print "recorders:"
+    print getDevices()

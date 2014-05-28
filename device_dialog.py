@@ -1,3 +1,11 @@
+"""
+
+Dialog for selecting recording devices.
+
+@todo: Use the new `Recorder` classes! 
+
+"""
+
 import sys
 from collections import namedtuple
 

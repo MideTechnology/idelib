@@ -7,12 +7,12 @@ Created on Mar 5, 2014
 '''
 
 import abc
-from collections import Iterable
-from datetime import datetime
-from itertools import izip
+# from collections import Iterable
+# from datetime import datetime
+# from itertools import izip
 import os
-import random
-import struct
+# import random
+# import struct
 
 from mide_ebml import dataset as DS
 # import mide_ebml.dataset as DS

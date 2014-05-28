@@ -1,5 +1,5 @@
 # import colorsys
-from itertools import izip
+# from itertools import izip
 import sys
 
 from wx import aui

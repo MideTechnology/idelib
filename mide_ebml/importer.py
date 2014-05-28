@@ -18,7 +18,7 @@ From Slam Stick X: 0:06:47.506000
 '''
 
 from datetime import datetime
-import struct
+# import struct
 import sys
 import time
 

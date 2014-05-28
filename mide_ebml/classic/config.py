@@ -1,6 +1,10 @@
 '''
 Module for reading and writing 'Slam Stick Classic' configuration files.
 
+@todo: Move everything into SSXViewer/devices.py ? The other recorder-specifc
+    stuff resides there, since it's not really part of the data. Or do the
+    opposite and move more of the recorder-specific stuff into the library.
+
 From the firmware `configs.h` file:
 -----------------------------------
 The config file is read/written through the margarine layer and so contains 
@@ -24,17 +28,11 @@ Items marked with [REV2] indicate features only supported by the Rev2+ firmware
 
 @var CONFIG_FIELDS: An `OrderedDict` of tuples containing field names and the
     `struct` format for parsing them. These are in the expected order.
-@var CONFIG_FIELDS_REV1: The subset of `CONFIG_FIELDS` used by revision 1 of
-    the firmware.
 @var CONFIG_PARSER: A `struct.Struct` to parse (or pack) a config file's
     contents.
-@var CONFIG_PARSER: A `struct.Struct` to parse/pack the subset of configuration
-    data recognized by revision 1 of the firmware.
 @var CONFIG_OFFSETS: A dictionary of config file fields with their corresponding
     offset from the start of the file. Note that this is a regular dictionary,
     so the keys will *not* be in order.
-@var CONFIG_OFFSETS_REV1: A dictionary with the subset of field names/offsets
-    recognized by revision 1 of the firmware.
 '''
 
 from collections import OrderedDict
@@ -170,18 +168,36 @@ def unpackTime(t):
         return 0
 
 
+def packUID(s):
+    if not s:
+        return '\x00' * 8
+    return str(s)[:8].ljust(8,'\x00')
+
+def unpackUID(s):
+    return s.rstrip('\x00')
+
 #===============================================================================
 # 
 #===============================================================================
 
-CONFIG_ENCODERS = {'RECORD_DELAY': lambda x: x/2,
-                   'SECONDS_PER_TRIGGER': lambda x: x/2,
+CONFIG_ENCODERS = {'RECORD_DELAY': lambda x: int(x/2),
+                   'SECONDS_PER_TRIGGER': lambda x: int(x/2),
                    'ALARM_TIME': packTime,
-                   'RTCC_TIME': packTime}
+                   'RTCC_TIME': packTime,
+                   'TRIGGER_FLAGS': str,
+                   'TRIG_RESERVED_TAP_FF': str,
+                   'SYSUID_RESERVE': packUID,
+                   'USERUID_RESERVE': packUID,
+                   }
 CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
                    'SECONDS_PER_TRIGGER': lambda x: x*2,
                    'ALARM_TIME': unpackTime,
-                   'RTCC_TIME': unpackTime}
+                   'RTCC_TIME': unpackTime,
+                   'TRIGGER_FLAGS': bytearray,
+                   'TRIG_RESERVED_TAP_FF': bytearray,
+                   'SYSUID_RESERVE': unpackUID,
+                   'USERUID_RESERVE': unpackUID,
+                   }
 
 #===============================================================================
 # 
