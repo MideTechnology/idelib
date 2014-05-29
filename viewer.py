@@ -1243,6 +1243,7 @@ class Viewer(wx.Frame, MenuMixin):
                 
         self.closeFile()
         
+        name = os.path.basename(filename)
         try:
             stream = ThreadAwareFile(filename, 'rb')
 #             newDoc = mide_ebml.dataset.Dataset(stream, quiet=True)
@@ -1259,7 +1260,12 @@ class Viewer(wx.Frame, MenuMixin):
                 if q == wx.ID_NO:
                     stream.closeAll()
                     return
-        # More specific exceptions should be caught here, before ultimately:
+        except mide_ebml.parsers.ParsingError as err:
+            self.ask("The file '%s' could not be opened" % name, 
+                     "Import Error", wx.OK, icon=wx.ICON_ERROR,
+                     extendedMessage=u"The file may be irretrievably damaged.")
+            stream.closeAll()
+            return
         except Exception as err:
             # Catch-all for unanticipated errors
             stream.closeAll()
@@ -1287,14 +1293,22 @@ class Viewer(wx.Frame, MenuMixin):
                 get clobbered automatically.
         """
         # TODO: Abstract and share more with SSX file importing.
+        name = os.path.basename(filename)
         try:
             stream = ThreadAwareFile(filename, 'rb')
             newDoc = mide_ebml.classic.parsers.openFile(stream, quiet=True)
             self.app.addRecentFile(filename, 'import')
+        except mide_ebml.parsers.ParsingError as err:
+            self.ask("The file '%s' could not be opened" % name, 
+                     "Import Error", wx.OK, icon=wx.ICON_ERROR,
+                     extendedMessage=u"The file may be irretrievably damaged, "
+                     "or it may not a Slam Stick Classic file.")
+            stream.closeAll()
+            return
         except Exception as err:
             # Catch-all for unanticipated errors
             stream.closeAll()
-            self.handleException(err, what="importing the file %s" % filename,
+            self.handleException(err, what="importing the file %s" % name,
                                  closeFile=True)
             return
 

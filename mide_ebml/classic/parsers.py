@@ -58,6 +58,7 @@ class RecordingParser(object):
     
     def __init__(self, doc, **kwargs):
         self.doc = doc
+        self.filesize = os.path.getsize(self.doc.file.name)
         
         
     def decodeFatDateTime(self, raw_date, raw_time, tzoffset):
@@ -87,6 +88,9 @@ class RecordingParser(object):
         """
         startPos = pos[0] * self.sectorSize
         endPos = pos[1] * self.sectorSize
+        
+        if endPos > self.filesize or startPos > self.filesize:
+            raise parsers.ParsingError("Classic data file appears damaged.")
         
         self.doc.file.seek(startPos)
         header = self.doc.file.read(self.headerParser.size)
@@ -118,6 +122,8 @@ class RecordingParser(object):
             length = ticks * self.timeScalar # converted to microseconds
             numSamples = size/sampLen
             sampleRate = (numSamples / length) * self.secondScalar
+
+#         if size + startPos + > self.filesize
 
         data = []
         for i in xrange(0,size,channel.parser.size):
@@ -154,8 +160,17 @@ class RecordingParser(object):
                 self.parseSession(s, channelId)
             pass
         else:
-            self.parseSession((0, os.path.getsize(self.doc.file.name)/512), 
-                              channelId)
+            try:
+                n = self.parseSession((0, os.path.getsize(self.doc.file.name)/512), 
+                                      channelId)
+            except parsers.ParsingError as err:
+                raise err
+            except Exception:
+                raise parsers.ParsingError()
+
+            if n < 1: 
+                raise parsers.ParsingError(
+                               "File does not appear to be a Classic data file")
 
 
 class FileHeaderParser(object):

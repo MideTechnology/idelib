@@ -936,7 +936,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             "Note: This will be rounded to the lowest multiple of 2.")
 
         self.wakeCheck = self.addDateTimeField(
-            "Wake at specific time:", "WakeTimeUTC", 
+            "Wake at specific time:", "ALARM_TIME", 
             tooltip="The date and time at which to start recording. "
             "Note: the year is ignored.")
         
@@ -963,7 +963,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL)
         sc.SizedPanel(self, -1) # Spacer
         self.accelTrigCheck = self.addFloatField("Accelerometer Threshold:", 
-            'TRIG_THRESH_ACT', units="g", minmax=(0,16), precision=0.0001, 
+            'TRIG_THRESH_ACT', units="g", minmax=(0.0,16.0), precision=0.01, 
             tooltip="The minimum acceleration to trigger recording. "
             "Note: due to noise, 0 may cause undesired operation.")
         self.xCheck = self.addCheck("X Axis Acceleration Trigger",
@@ -1027,20 +1027,24 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             self.addVal(control, data, name)
 
         trigAxes = 0
-        for ch, bit in ((self.acCheck, 0b10000000), (self.xCheck, 0b01000000),
-                        (self.yCheck, 0b00100000), (self.yCheck, 0b00100000)):
-            if ch.GetValue(): 
-                trigAxes |= bit
+        if self.acCheck.GetValue(): trigAxes |= 0b10000000
+        if self.xCheck.GetValue(): trigAxes |=  0b01000000
+        if self.yCheck.GetValue(): trigAxes |=  0b00100000
+        if self.zCheck.GetValue(): trigAxes |=  0b00010000
         data['TRIG_ACT_INACT_REG'] = trigAxes
         
-        trigFlags = 0
-        if self.accelTrigCheck.GetValue(): trigFlags |= 0b10000000
-        if self.wakeCheck.GetValue(): trigFlags |= 0b00001000
+        trigFlags = self.info['TRIGGER_FLAGS'][:]
+        if self.accelTrigCheck.GetValue(): trigFlags[1] |= 0b10000000
+        if self.wakeCheck.GetValue(): trigFlags[1] |= 0b00001000
         data['TRIGGER_FLAGS'] = trigFlags
         
-        confFlags = 0
+        confFlags = 0b10000000
         if self.rearmCheck.GetValue(): confFlags |= 0b01000000
         data['CONFIG_FLAGS'] = confFlags
+        
+        if self.chimeCheck.GetValue():
+            data['CHIME_EN'] = 1
+            data['ROLLPERIOD'] = self.CHIME_TIMES.keys()[self.controls[self.chimeCheck][0].GetSelection()]
         
         return data
     
@@ -1082,7 +1086,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
         wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL)
         sc.SizedPanel(self, -1) # Spacer
         
-        self.rtccCheck = self.addCheck("Enable Realtime Clock/Calendar")
+        self.rtccCheck = self.addCheck("Enable Realtime Clock/Cal.")
         self.setRtcCheck = self.addCheck("Set RTCC Time/Date", 
            tooltip="Set the device's realtime clock/calendar to the current "
            "system time on save")
@@ -1092,9 +1096,6 @@ class ClassicOptionsPanel(BaseConfigPanel):
             "Fill the UTC Offset field with the offset for the local timezone")
         self.controls[self.rtccCheck].extend((self.setRtcCheck, self.utcCheck, 
                                               self.tzBtn))
-        
-        wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL)
-        sc.SizedPanel(self, -1) # Spacer
         
         self.Fit()
         
