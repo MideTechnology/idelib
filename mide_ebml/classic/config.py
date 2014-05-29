@@ -244,13 +244,19 @@ def encodeConfig(data):
 
 def verify(data):
     """ Stub for config file verification. 
-        TODO: Implement validation.
     """
+    try:
+        CONFIG_PARSER.pack(*encodeConfig(data).values())
+    except struct.error:
+        return False
     return True
 
 
 def readConfig(filename):
-    """
+    """ Read configuration data from a file, presumably on a Slam Stick Classic
+        device.
+        
+        @param filename: The path and filename to read.
     """
     with open(filename, 'rb') as f:
         data = f.read(CONFIG_PARSER.size)
@@ -259,11 +265,21 @@ def readConfig(filename):
 
 
 def writeConfig(filename, data, validate=True):
+    """ Save the configuration data to a file, presumably on a Slam Stick
+        Classic device. 
+        
+        @param filename: The path and filename to save.
+        @param data: An ordered dictionary with the configuration data
+        @keyword validate: If `True`, the data is validated before being saved.
+            Doesn't do anything here; validation just packs the data, which is
+            being done anyway.
+        @return: `True` if the data was saved, `False` if not.
     """
-    """
-    c = CONFIG_PARSER.pack(*encodeConfig(data).values())
-    if validate and not verify(c):
+    try:
+        c = CONFIG_PARSER.pack(*encodeConfig(data).values())
+        with open(filename, 'wb') as f:
+            f.write(c)
+    except struct.error:
         return False
-    with open(filename, 'wb') as f:
-        f.write(c)
+    
     return True

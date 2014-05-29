@@ -1186,8 +1186,8 @@ class ConfigDialog(sc.SizedDialog):
         
         super(ConfigDialog, self).__init__(*args, **kwargs)
         
-        self.deviceInfo = self.device.getInfo(default={})
-        self.deviceConfig = self.device.getConfig(default={})
+        self.deviceInfo = self.device.getInfo()
+        self.deviceConfig = self.device.getConfig()
         
         pane = self.GetContentsPane()
         self.notebook = wx.Notebook(pane, -1)
@@ -1222,11 +1222,14 @@ class ConfigDialog(sc.SizedDialog):
 # 
 #===============================================================================
 
-def configureRecorder(path):
+def configureRecorder(path, save=True):
     """ Create the configuration dialog for a recording device. 
     
         @param path: The path to the data recorder (e.g. a mount point under
             *NIX or a drive letter under Windows)
+        @keyword save: If `True` (default), the updated configuration data
+            is written to the device when the dialog is closed via the OK
+            button.
         @return: The data written to the recorder as a nested dictionary, or
             `None` if the configuration is cancelled.
     """
@@ -1235,11 +1238,12 @@ def configureRecorder(path):
         raise ValueError("Specified path %r does not appear to be a recorder" %\
                          path)
         
-    dlg = ConfigDialog(None, -1, "Configure Device (%s)" % path, device=dev)
-    
+    dlg = ConfigDialog(None, -1, "Configure %s (%s)" % (dev.baseName, path), 
+                       device=dev)
     if dlg.ShowModal() == wx.ID_OK:
         data = dlg.getData()
-        dev.saveConfig(data)
+        if save:
+            dev.saveConfig(data)
     else:
         data = None
     
@@ -1253,6 +1257,7 @@ def configureRecorder(path):
 
 if __name__ == "__main__":
     app = wx.App()
-    print configureRecorder("H:\\")
+    print "configureRecorder() returned %r" % configureRecorder("H:\\")
+#     print configureRecorder("I:\\")
 
 
