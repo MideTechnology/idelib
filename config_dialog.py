@@ -3,6 +3,9 @@ The UI for configuring a recorder. Ultimately, the set of tabs will be
 determined by the recorder type, and will feature tabs specific to that 
 recorder. Since there's only the two SSX variants, this is not urgent.
 
+@todo: I use `info` and `data` for the recorder info at different times;
+    if there's no specific reason, unify.
+    
 Created on Dec 16, 2013
 
 @author: dstokes
@@ -176,8 +179,8 @@ class BaseConfigPanel(sc.SizedPanel):
 
 
     def addFloatField(self, checkText, name=None, units="", value="",
-                      precision=0.01, minmax=(-100,100), 
-                      fieldSize=None, fieldStyle=None, tooltip=None):
+                      precision=0.01, minmax=(-100,100), fieldSize=None, 
+                      fieldStyle=None, tooltip=None):
         """ Add a numeric field with a 'spinner' control.
 
             @param checkText: The checkbox's label text.
@@ -216,7 +219,7 @@ class BaseConfigPanel(sc.SizedPanel):
         
         if name is not None:
             self.fieldMap[name] = c
-            
+        
         return c
 
     def addIntField(self, checkText, name=None, units="", value="",
@@ -265,7 +268,7 @@ class BaseConfigPanel(sc.SizedPanel):
 
     def addChoiceField(self, checkText, name=None, units="", choices=[], 
                        selected=None, fieldSize=None, fieldStyle=None, 
-                       tooltip=None, nocheck=False):
+                       tooltip=None):
         """ Helper method to create and configure checkbox/list pairs, and add
             them to the set of controls.
  
@@ -310,15 +313,11 @@ class BaseConfigPanel(sc.SizedPanel):
         if name is not None:
             self.fieldMap[name] = c
         
-        if nocheck:
-            c.SetValue(True)
-            c.Enable(False)
-
         return c
 
 
-    def addDateTimeField(self, checkText, name=None, tooltip=None,
-                         nocheck=False):
+    def addDateTimeField(self, checkText, name=None, fieldSize=None, 
+                         fieldStyle=None, tooltip=None):
         """ Helper method to create a checkbox and a time-entry field pair, and
             add them to the set of controls.
  
@@ -341,9 +340,6 @@ class BaseConfigPanel(sc.SizedPanel):
             check.SetToolTipString(unicode(tooltip))
             ctrl.SetToolTipString(unicode(tooltip))
         
-        if nocheck:
-            check.SetValue(True)
-            check.Enable(False)
         return check#, ctrl #ctrl
         
 
@@ -387,6 +383,7 @@ class BaseConfigPanel(sc.SizedPanel):
         """ Do any setup work on the page. Most subclasses should override
             this.
         """
+        self.getDeviceData()
         if self.data:
             for k,v in self.data.iteritems():
                 c = self.fieldMap.get(k, None)
@@ -473,6 +470,8 @@ class BaseConfigPanel(sc.SizedPanel):
     
 
     def hideField(self, checkbox, hidden=True):
+        """ Helper method to hide or show sets of UI fields.
+        """
         if checkbox in self.controls:
             checkbox.Hide(hidden)
             for c in self.controls[checkbox]:
@@ -482,6 +481,8 @@ class BaseConfigPanel(sc.SizedPanel):
     
 
     def OnCheckChanged(self, evt):
+        """ Default check handler to enable/disable associated fields.
+        """
         cb = evt.EventObject
         if cb in self.controls:
             self.enableField(cb)
@@ -521,8 +522,6 @@ class BaseConfigPanel(sc.SizedPanel):
             except ValueError:
                 trig[name] = val or default
                 
-            
-        
 
 #===============================================================================
 # 
@@ -565,6 +564,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         if cb in self.controls:
             self.enableField(cb)
             if cb == self.delayCheck or cb == self.wakeCheck:
+                # Recording delay and wake time are mutually exclusive options
                 if cb == self.wakeCheck:
                     other = self.delayCheck
                 else:
@@ -578,6 +578,8 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         """
         super(SSXTriggerConfigPanel, self).initUI()
 
+        # Change the accelerometer multiplier according to recorder type
+        # TODO: Move this into `devices.SlamStickX`. 
         accelType = self.root.deviceInfo.get('RecorderTypeUID', 0x12) & 0xff
         if accelType == 0x10:
             # 0x10: 25G accelerometer
@@ -613,7 +615,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
 
 
     def getData(self):
-        """
+        """ Retrieve the values entered in the dialog.
         """
         data = OrderedDict()
         triggers = []
@@ -643,7 +645,6 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=0)
             self.addVal(self.pressLoCheck, trig, 'TriggerWindowLo')
             self.addVal(self.pressHiCheck, trig, 'TriggerWindowHi')
-            self.trig.setdefault()
             if len(trig) > 2:
                 triggers.append(trig)
                      
@@ -925,33 +926,45 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
 
     
     def getDeviceData(self):
-        self.info = self.root.deviceInfo
-        print self.info
+        self.data = self.info = self.root.deviceInfo
 
     
     def buildUI(self):
         self.delayCheck = self.addFloatField(
-            "Wake After Delay:", "RECORD_DELAY", "seconds",
-            precision=2, minmax=(0,2**17))
+            "Delay Before Recording:", "RECORD_DELAY", "seconds", precision=2, 
+            minmax=(0,2**17), tooltip="Seconds to delay before recording. "
+            "Note: This will be rounded to the lowest multiple of 2.")
 
         self.wakeCheck = self.addDateTimeField(
-            "Wake at specific time:", "WakeTimeUTC")
+            "Wake at specific time:", "WakeTimeUTC", 
+            tooltip="The date and time at which to start recording. "
+            "Note: the year is ignored.")
         
         self.timeCheck = self.addFloatField(
             "Recording Limit, Time:", "SECONDS_PER_TRIGGER", "seconds", 
-            precision=2, minmax=(0,2**17))
+            precision=2, minmax=(0,2**17), tooltip="Recording length. "
+            "Note: This will be rounded to the lowest multiple of 2.")
         
         self.sampleCountCheck = self.addFloatField(
             "Recording Limit, Samples:", "SAMPLES_PER_TRIGGER", "samples", 
             minmax=(0,2**16))
         
-        self.rearmCheck = self.addCheck("Re-triggerable")
+        self.rearmCheck = self.addCheck("Re-triggerable",
+            tooltip="Recorder will restart when triggering event re-occurs.")
         
+        self.chimeCheck = self.addChoiceField("Trigger at Intervals", 
+            choices=self.CHIME_TIMES.values(), tooltip="The frequency at "
+            "which to take recordings.")
+        self.repeatCheck = self.addIntField("Number of Repeats", 'REPEATS', 
+            minmax=(0,255), tooltip="The number of recordings to make, "
+            "in addition to the first.")
+                
         
         wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL)
         sc.SizedPanel(self, -1) # Spacer
-        self.accelTrigCheck = self.addCheckField("Accelerometer Threshold:", 
-            units="g", tooltip="The minimum acceleration to trigger recording. "
+        self.accelTrigCheck = self.addFloatField("Accelerometer Threshold:", 
+            'TRIG_THRESH_ACT', units="g", minmax=(0,16), precision=0.0001, 
+            tooltip="The minimum acceleration to trigger recording. "
             "Note: due to noise, 0 may cause undesired operation.")
         self.xCheck = self.addCheck("X Axis Acceleration Trigger",
             tooltip="Acceleration on X axis will trigger recording.")
@@ -967,11 +980,6 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
                                                    self.zCheck, self.acCheck, 
                                                    self.napCheck))
 
-        self.chimeCheck = self.addChoiceField("Trigger at Intervals", 
-                                      choices=self.CHIME_TIMES.values())
-        self.repeatCheck = self.addIntField("Number of Repeats", 'REPEATS', '',
-                                              minmax=(0,255))
-        
 
     def OnCheckChanged(self, evt):
         cb = evt.EventObject
@@ -1052,11 +1060,11 @@ class ClassicOptionsPanel(BaseConfigPanel):
                                 (0x0E, '1600'), 
                                 (0x0F, '3200')))
     
+    
     def getDeviceData(self):
         self.info = self.root.deviceInfo
 
 
- 
     def buildUI(self):
         self.nameField = self.addField("Device Name:", "USERUID_RESERVE", 
             tooltip="A custom name for the recorder. Not the same as the "
@@ -1124,7 +1132,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
 #===============================================================================
 
 class ClassicInfoPanel(InfoPanel):
-    """
+    """ Display read-only attributes of a Slam Stick Classic recorder.
     """
     
     def getDeviceData(self):
@@ -1200,6 +1208,8 @@ class ConfigDialog(sc.SizedDialog):
         
         
     def getData(self, schema=util.DEFAULT_SCHEMA):
+        """ Retrieve the values entered in the dialog.
+        """
         data = OrderedDict()
         data.update(self.options.getData())
         data.update(self.triggers.getData())

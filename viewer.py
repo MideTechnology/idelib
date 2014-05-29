@@ -1207,8 +1207,8 @@ class Viewer(wx.Frame, MenuMixin):
                 'Select Recording Session', sessions, wx.CHOICEDLG_STYLE)
         if dlg.ShowModal() == wx.ID_OK:
             self.session = self.dataset.sessions[dlg.GetSelection()]
-            print "dlg.GetSelection() = %r" % dlg.GetSelection()
-            print "selectSession: self.session = %r" % self.session
+#             print "dlg.GetSelection() = %r" % dlg.GetSelection()
+#             print "selectSession: self.session = %r" % self.session
             result = True
         else:
             self.closeFile()
@@ -1268,7 +1268,8 @@ class Viewer(wx.Frame, MenuMixin):
             return
         
         self.dataset = newDoc
-        loader = Loader(self, newDoc, mide_ebml.importer.readData, **self.app.getPref('loader'))
+        loader = Loader(self, newDoc, mide_ebml.importer.readData, 
+                        **self.app.getPref('loader'))
         self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(filename))
         loader.start()
@@ -1276,12 +1277,18 @@ class Viewer(wx.Frame, MenuMixin):
     
     
     def openClassicFile(self, filename, prompt=True):
-        """
+        """ Open a Slam Stick Classic recording file. This also handles 
+            prompting the user when a file is loading or has already been 
+            loaded.
+            
+            @param filename: The full path and name of the file to open. 
+            @keyword prompt: If `True`, the user will be warned before loading
+                a new file over the old one. If `False`, the old file will
+                get clobbered automatically.
         """
         # TODO: Abstract and share more with SSX file importing.
         try:
             stream = ThreadAwareFile(filename, 'rb')
-#             newDoc = mide_ebml.classic.dataset.Dataset(stream)
             newDoc = mide_ebml.classic.parsers.openFile(stream, quiet=True)
             self.app.addRecentFile(filename, 'import')
         except Exception as err:
@@ -1296,7 +1303,8 @@ class Viewer(wx.Frame, MenuMixin):
             if not self.selectSession():
                 stream.closeAll()
                 return
-        loader = Loader(self, newDoc, mide_ebml.classic.parsers.readData, **self.app.getPref('loader'))
+        loader = Loader(self, newDoc, mide_ebml.classic.parsers.readData, 
+                        **self.app.getPref('loader'))
         self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(filename))
         loader.start()
@@ -1309,6 +1317,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.cancelOperation()
         self.plotarea.clearAllPlots()
         self.dataset = None
+        self.session = None
         self.enableChildren(False)
         self.enableMenus(False)
 
@@ -1320,11 +1329,10 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword evt: An event (not actually used), making this method
                 compatible with event handlers.
         """
-        removeMean = 0
+        noMean = 0
         if self.plotarea[0].source.removeMean:
-            removeMean = 2 if self.plotarea[0].source.rollingMeanSpan == -1 else 1
-        settings = xd.CSVExportDialog.getExport(root=self, 
-                                                removeMean=removeMean)
+            noMean = 2 if self.plotarea[0].source.rollingMeanSpan == -1 else 1
+        settings = xd.CSVExportDialog.getExport(root=self, removeMean=noMean)
         
         if settings is None:
             return
@@ -2022,9 +2030,10 @@ class ViewerApp(wx.App):
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
         'importTypes': [
-                        "Slam Stick Classic Data File (*.dat)|*.dat",
                         "MIDE Data File (*.ide)|*.ide", 
+                        "Slam Stick Classic (*.dat)|*.dat",
                         "All files (*.*)|*.*"],
+        'defaultImportType': 1,
         'exportTypes': ["Comma Separated Values (*.csv)|*.csv"],
         'fileHistory': {},
         'fileHistorySize': 10,

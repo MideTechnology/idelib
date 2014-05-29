@@ -188,6 +188,7 @@ CONFIG_ENCODERS = {'RECORD_DELAY': lambda x: int(x/2),
                    'TRIG_RESERVED_TAP_FF': str,
                    'SYSUID_RESERVE': packUID,
                    'USERUID_RESERVE': packUID,
+                   'TRIG_THRESH_ACT': lambda x: max(0, min(255, int(x/0.0625))),
                    }
 CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
                    'SECONDS_PER_TRIGGER': lambda x: x*2,
@@ -197,6 +198,7 @@ CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
                    'TRIG_RESERVED_TAP_FF': bytearray,
                    'SYSUID_RESERVE': unpackUID,
                    'USERUID_RESERVE': unpackUID,
+                   'TRIG_THRESH_ACT': lambda x: x*0.0625,
                    }
 
 #===============================================================================

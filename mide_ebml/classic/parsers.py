@@ -127,9 +127,9 @@ class RecordingParser(object):
                 print "failed to parse w/ offset %r" % i
                 raise parsers.ParsingError()
         
-        print "self.doc.addSession(%r, %r, %r, %r, %r, %r)" % (0, length,
-                                  timestamp, dataStart, 
-                                  dataStart+size, sampleRate)
+#         print "self.doc.addSession(%r, %r, %r, %r, %r, %r)" % (0, length,
+#                                   timestamp, dataStart, 
+#                                   dataStart+size, sampleRate)
         session = self.doc.addSession(startTime=0, endTime=length,
                                   utcStartTime=timestamp, offset=dataStart, 
                                   endPos=dataStart+size, sampleRate=sampleRate)

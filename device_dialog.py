@@ -14,7 +14,7 @@ import wx.lib.sized_controls as sc
 import wx.lib.mixins.listctrl  as  listmix
 
 from common import hex32
-from devices import getDevices, getRecorderConfig, getRecorderInfo
+from devices import getDevices, getDeviceList, getRecorderConfig, getRecorderInfo
 from devices import deviceChanged
 
 
@@ -81,7 +81,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         sc.SizedDialog.__init__(self, *args, **kwargs)
         
         self.recorders = []
-        self.recorderPaths = tuple(getDevices())
+        self.recorderPaths = tuple(getDeviceList())
         self.listWidth = 300
         self.selected = None
         self.selectedIdx = None
@@ -139,7 +139,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     def TimerHandler(self, evt):
         if deviceChanged(recordersOnly=True):
             self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
-            newPaths = tuple(getDevices())
+            newPaths = tuple(getDeviceList())
             if newPaths == self.recorderPaths:
                 self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
                 return
@@ -169,7 +169,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 
         self.recorders = {}
         self.itemDataMap = {} # required by ColumnSorterMixin
-        recorders = [self.getDeviceListing(p) for p in getDevices() if p]
+        recorders = [self.getDeviceListing(p) for p in getDeviceList() if p]
         for info in recorders:
             if info is False:
                 continue
