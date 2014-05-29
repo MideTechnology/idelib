@@ -14,7 +14,7 @@ import wx.lib.sized_controls as sc
 import wx.lib.mixins.listctrl  as  listmix
 
 from common import hex32
-from devices import getDevices, getDeviceList, getRecorderConfig, getRecorderInfo
+from devices import getDevices, getDeviceList
 from devices import deviceChanged
 
 
@@ -29,27 +29,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     ColumnInfo = namedtuple("ColumnInfo", 
                             ['name','propName','formatter','default'])
 
-    COLUMNS = (ColumnInfo("Path", "_PATH", unicode, ''),
-               ColumnInfo("Name", "RecorderName", unicode, ''),
-               ColumnInfo("Type", "ProductName", unicode, ''),
-               ColumnInfo("Serial #", "RecorderSerial", hex32, ''))
-
-
-    def getDeviceListing(self, dev):
-        """ Get the recorder data for its entry in the list.
-        """
-        # Data comes from two sources: the device info file and user config.
-        info = getRecorderInfo(dev) or False
-        if info:
-            # Add in the user-defined name
-            config = getRecorderConfig(dev, {})
-            if '_IS_CLASSIC' in info:
-                info['RecorderName'] = "Slam Stick"
-                info['ProductName'] = "Slam Stick Classic"
-                info.update(config)
-            else:
-                info.update(config.get('RecorderUserData', {}))
-        return info
+    COLUMNS = (ColumnInfo("Path", "path", unicode, ''),
+               ColumnInfo("Name", "name", unicode, ''),
+               ColumnInfo("Type", "productName", unicode, ''),
+               ColumnInfo("Serial #", "serial", hex32, ''))
 
 
     class DeviceListCtrl(wx.ListCtrl, listmix.ListCtrlAutoWidthMixin):
@@ -77,7 +60,6 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.autoUpdate = kwargs.pop('autoUpdate', 500)
         kwargs.setdefault('style', style)
         
-#         super(DeviceSelectionDialog, self).__init__(*args, **kwargs)
         sc.SizedDialog.__init__(self, *args, **kwargs)
         
         self.recorders = []
@@ -91,14 +73,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         pane.SetSizerProps(expand=True)
 
         self.list = self.DeviceListCtrl(pane, -1, 
-                                 style=wx.LC_REPORT 
-                                 | wx.BORDER_SUNKEN
-                                 | wx.LC_SORT_ASCENDING
-                                 | wx.LC_VRULES
-                                 | wx.LC_HRULES
-                                 | wx.LC_SINGLE_SEL
-                                 )
-
+             style=(wx.LC_REPORT | wx.BORDER_SUNKEN | wx.LC_SORT_ASCENDING
+                    | wx.LC_VRULES | wx.LC_HRULES | wx.LC_SINGLE_SEL))
         
         self.list.SetSizerProps(expand=True, proportion=1)
 
@@ -128,7 +104,6 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.list.Bind(wx.EVT_LEFT_DCLICK, self.OnItemDoubleClick)
         self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.list)
                    
-        # XXX: TEST
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.TimerHandler)
         
@@ -159,9 +134,9 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         """ Find recorders and add them to the list.
         """
         
-        def thing2string(info, col):
+        def thing2string(dev, col):
             try:
-                return col.formatter(info.get(col.propName, col.default))
+                return col.formatter(getattr(dev, col.propName, col.default))
             except TypeError:
                 return col.default
         
@@ -169,23 +144,22 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 
         self.recorders = {}
         self.itemDataMap = {} # required by ColumnSorterMixin
-        recorders = [self.getDeviceListing(p) for p in getDeviceList() if p]
-        for info in recorders:
-            if info is False:
-                continue
-            path = info['_PATH']
+
+        # Reuse the list of paths to get the list of Recorder objects
+        for dev in getDevices(self.recorderPaths):
+            path = dev.path
             index = self.list.InsertStringItem(sys.maxint, path)
-            self.recorders[index] = info
+            self.recorders[index] = dev
             self.list.SetColumnWidth(0, max(pathWidth,
                                             self.GetTextExtent(path)[0]))
             for i, col in enumerate(self.COLUMNS[1:], 1):
-                self.list.SetStringItem(index, i, thing2string(info, col))
+                self.list.SetStringItem(index, i, thing2string(dev, col))
                 self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
                 self.listWidth = max(self.listWidth, 
                                      self.list.GetItemRect(index)[2])
                 
             self.list.SetItemData(index, index)
-            self.itemDataMap[index] = [info.get(c.propName, c.default) \
+            self.itemDataMap[index] = [getattr(dev, c.propName, c.default) \
                                        for c in self.COLUMNS]
         
         if self.firstDrawing:

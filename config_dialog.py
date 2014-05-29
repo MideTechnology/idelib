@@ -1233,7 +1233,12 @@ def configureRecorder(path, save=True):
         @return: The data written to the recorder as a nested dictionary, or
             `None` if the configuration is cancelled.
     """
-    dev = devices.getRecorder(path)
+    if isinstance(path, devices.Recorder):
+        dev = path
+        path = dev.path
+    else:
+        dev = devices.getRecorder(path)
+        
     if not dev:
         raise ValueError("Specified path %r does not appear to be a recorder" %\
                          path)

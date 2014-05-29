@@ -1216,6 +1216,36 @@ class Viewer(wx.Frame, MenuMixin):
         dlg.Destroy()
         return result
         
+    def _preOpenFile(self, filename, prompt=True):
+        """ Helper method that does the common work in opening a new file,
+            prompting the user to create a new window or close the previous
+            file (if any).
+            
+            @param filename: The full path and name of the file to open. 
+            @keyword prompt: If `True`, the user will be warned before loading
+                a new file over the old one. If `False`, the old file will
+                get clobbered automatically.
+            @return: `True` if opening the file should continue, `False` if
+                not.
+        """
+        if prompt and self.dataset is not None:
+            if self.dataset.loading is True:
+                if self.ask("Abort loading the current file?") != wx.ID_YES:
+                    return False
+            else:
+                q = self.ask("Do you want to close the current file?\n"
+                             "'No' will open the file in another window.",
+                             "Open File",style=wx.YES_NO|wx.CANCEL,
+                             pref="openInSameWindow")
+                if q == wx.ID_NO:
+                    self.app.createNewView(filename=filename)
+                    return False
+                elif q == wx.ID_CANCEL:
+                    return False
+                
+        self.closeFile()
+        return True
+
     
     def openFile(self, filename, prompt=True):
         """ Open a recording file. This also handles prompting the user when
@@ -1226,27 +1256,12 @@ class Viewer(wx.Frame, MenuMixin):
                 a new file over the old one. If `False`, the old file will
                 get clobbered automatically.
         """
-        if prompt and self.dataset is not None:
-            if self.dataset.loading is True:
-                if self.ask("Abort loading the current file?") != wx.ID_YES:
-                    return
-            else:
-                q = self.ask("Do you want to close the current file?\n"
-                             "'No' will open the file in another window.",
-                             "Open File",style=wx.YES_NO|wx.CANCEL,
-                             pref="openInSameWindow")
-                if q == wx.ID_NO:
-                    self.app.createNewView(filename=filename)
-                    return
-                elif q == wx.ID_CANCEL:
-                    return
-                
-        self.closeFile()
+        if not self._preOpenFile(filename, prompt):
+            return
         
         name = os.path.basename(filename)
         try:
             stream = ThreadAwareFile(filename, 'rb')
-#             newDoc = mide_ebml.dataset.Dataset(stream, quiet=True)
             newDoc = mide_ebml.importer.openFile(stream, quiet=True)
             self.app.addRecentFile(filename, 'import')
             if newDoc.schemaVersion < newDoc.ebmldoc.version:
@@ -1293,6 +1308,9 @@ class Viewer(wx.Frame, MenuMixin):
                 get clobbered automatically.
         """
         # TODO: Abstract and share more with SSX file importing.
+        if not self._preOpenFile(filename, prompt):
+            return
+        
         name = os.path.basename(filename)
         try:
             stream = ThreadAwareFile(filename, 'rb')
