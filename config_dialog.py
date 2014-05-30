@@ -731,7 +731,7 @@ class OptionsPanel(BaseConfigPanel):
 
     def OnSetTime(self, event):
         try:
-            self.root.device.setDeviceTime(self.root.devPath)
+            self.root.device.setTime()
         except IOError:
             wx.MessageBox("An error occurred when trying to access the device.",
                           "Set Device Time", parent=self)
@@ -777,18 +777,42 @@ class InfoPanel(BaseConfigPanel):
         @cvar field_types: A dictionary pairing field names with a function to
             prepare the value for display.
     """
-    
-    field_types = {'DateOfManufacture': datetime.fromtimestamp,
-                   'HwRev': str,
-                   'FwRev': str,
+    # Replacement, human-readable field names
+    field_names = {'HwRev': 'Hardware Revision',
+                   'FwRev': 'Firmware Revision',
+                   }
+
+    # Formatters for specific fields. The keys should be the string as
+    # displayed (de-camel-cased or replaced by field_names)
+    field_types = {'Date Of Manufacture': datetime.fromtimestamp,
+                   'Hardware Revision': str,
+                   'Firmware Revision': str,
+                   'Recorder Serial': lambda x: "SSX%07d" % x
                    }
 
     def __init__(self, *args, **kwargs):
         self.info = kwargs.pop('info', {})
         super(InfoPanel, self).__init__(*args, **kwargs)
-        
+
+
+    def _fromCamelCase(self, s):
+        """ break a 'camelCase' string into space-separated words.
+        """
+        result = []
+        lastChar = ''
+        for i in range(len(s)):
+            c = s[i]
+            if c.isupper() and lastChar.islower():
+                result.append(' ')
+            result.append(c)
+            lastChar = c
+        return ''.join(result)
+
+
     def getDeviceData(self):
-        self.data = self.info
+        self.data = OrderedDict()
+        for k,v in self.info.iteritems():
+            self.data[self.field_names.get(k, self._fromCamelCase(k))] = v
 
 
     def buildUI(self):
@@ -1262,7 +1286,7 @@ def configureRecorder(path, save=True):
 
 if __name__ == "__main__":
     app = wx.App()
-    print "configureRecorder() returned %r" % configureRecorder("H:\\")
+    print "configureRecorder() returned %r" % configureRecorder("I:\\")
 #     print configureRecorder("I:\\")
 
 
