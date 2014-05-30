@@ -8,6 +8,7 @@ __date__ = "Nov 14, 2013"
 
 
 import calendar
+from collections import OrderedDict
 import ctypes
 from datetime import datetime
 import os
@@ -172,8 +173,12 @@ class SlamStickX(Recorder):
         if self._config is not None and not refresh:
             return self._config
         try:
-            devinfo = util.read_ebml(self.configFile)
-            self._config = devinfo.get('RecorderConfiguration', '')
+            if not os.path.exists(self.configFile):
+                self._config = OrderedDict(())
+            else:
+                devinfo = util.read_ebml(self.configFile)
+                self._config = devinfo.get('RecorderConfiguration', 
+                                           OrderedDict())
             if isinstance(default, dict):
                 d = default.copy()
                 d.update(self._config)
