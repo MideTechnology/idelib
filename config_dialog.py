@@ -731,7 +731,7 @@ class OptionsPanel(BaseConfigPanel):
 
     def OnSetTime(self, event):
         try:
-            devices.setDeviceTime(self.root.devPath)
+            self.root.device.setDeviceTime(self.root.devPath)
         except IOError:
             wx.MessageBox("An error occurred when trying to access the device.",
                           "Set Device Time", parent=self)
