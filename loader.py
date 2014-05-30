@@ -50,10 +50,15 @@ class Loader(Job):
                                cancellable=True, cancelEnabled=None)
         wx.PostEvent(self.root, evt)
         
+        sessionId = -1
+        if self.root.session is not None:
+            sessionId = self.root.session.sessionId
+        
         self.totalUpdates = 0
         self.reader(self.dataset, self, 
                     numUpdates=self.numUpdates,
-                    updateInterval=self.updateInterval)
+                    updateInterval=self.updateInterval,
+                    sessionId=sessionId)
 
         evt = EvtProgressEnd(label=self.formatMessage(self.lastCount),
                              job=self)

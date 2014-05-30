@@ -670,10 +670,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
         if filename:
-            if filename.lower().endswith('.ide'):
-                self.openFile(filename)
-            else:
-                self.openClassicFile(filename)
+            self.openFile(filename)
         elif self.app.getPref('openOnStart', True):
             self.OnFileOpenMenu(None)
 
@@ -1215,19 +1212,31 @@ class Viewer(wx.Frame, MenuMixin):
         
         dlg.Destroy()
         return result
-        
-    def _preOpenFile(self, filename, prompt=True):
-        """ Helper method that does the common work in opening a new file,
-            prompting the user to create a new window or close the previous
-            file (if any).
+
+
+    def openFile(self, filename, prompt=True):
+        """ Open a recording file. This also handles prompting the user when
+            a file is loading or has already been loaded.
             
             @param filename: The full path and name of the file to open. 
             @keyword prompt: If `True`, the user will be warned before loading
                 a new file over the old one. If `False`, the old file will
                 get clobbered automatically.
-            @return: `True` if opening the file should continue, `False` if
-                not.
         """
+        name = os.path.basename(filename)
+        ext = os.path.splitext(name)[-1].lower()
+        
+        badMsg = u"The file may be irretrievably damaged."
+        
+        if ext in ('.ide','.mide'):
+            importer = mide_ebml.importer.openFile
+            reader = mide_ebml.importer.readData
+        else:
+            importer = mide_ebml.classic.parsers.openFile
+            reader = mide_ebml.classic.parsers.readData
+            badMsg = (u"The file may be irretrievably damaged, "
+                      "or it may not a Slam Stick Classic file.")
+
         if prompt and self.dataset is not None:
             if self.dataset.loading is True:
                 if self.ask("Abort loading the current file?") != wx.ID_YES:
@@ -1244,29 +1253,14 @@ class Viewer(wx.Frame, MenuMixin):
                     return False
                 
         self.closeFile()
-        return True
-
-    
-    def openFile(self, filename, prompt=True):
-        """ Open a recording file. This also handles prompting the user when
-            a file is loading or has already been loaded.
-            
-            @param filename: The full path and name of the file to open. 
-            @keyword prompt: If `True`, the user will be warned before loading
-                a new file over the old one. If `False`, the old file will
-                get clobbered automatically.
-        """
-        if not self._preOpenFile(filename, prompt):
-            return
         
-        name = os.path.basename(filename)
         try:
             stream = ThreadAwareFile(filename, 'rb')
-            newDoc = mide_ebml.importer.openFile(stream, quiet=True)
+            newDoc = importer(stream, quiet=True)
             self.app.addRecentFile(filename, 'import')
-            if newDoc.schemaVersion < newDoc.ebmldoc.version:
+            if newDoc.schemaVersion is not None and newDoc.schemaVersion < newDoc.ebmldoc.version:
                 q = self.root.ask("The data file was created using a newer "
-                  "version of the MIDE EBML schema (viewer version is %s, "
+                  "version of the MIDE data schema (viewer version is %s, "
                   "file version is %s); this could potentially cause problems. "
                   "\n\nOpen anyway?" % (newDoc.schemaVersion, 
                                         newDoc.ebmldoc.version), 
@@ -1278,70 +1272,30 @@ class Viewer(wx.Frame, MenuMixin):
         except mide_ebml.parsers.ParsingError as err:
             self.ask("The file '%s' could not be opened" % name, 
                      "Import Error", wx.OK, icon=wx.ICON_ERROR,
-                     extendedMessage=u"The file may be irretrievably damaged.")
+                     extendedMessage=badMsg)
             stream.closeAll()
-            return
+            return False
         except Exception as err:
             # Catch-all for unanticipated errors
             stream.closeAll()
             self.handleException(err, what="importing the file %s" % filename,
                                  closeFile=True)
-            return
+            return False
         
         self.dataset = newDoc
-        loader = Loader(self, newDoc, mide_ebml.importer.readData, 
-                        **self.app.getPref('loader'))
-        self.pushOperation(loader)
-        self.SetTitle(self.app.getWindowTitle(filename))
-        loader.start()
-        self.enableMenus(True)
-    
-    
-    def openClassicFile(self, filename, prompt=True):
-        """ Open a Slam Stick Classic recording file. This also handles 
-            prompting the user when a file is loading or has already been 
-            loaded.
-            
-            @param filename: The full path and name of the file to open. 
-            @keyword prompt: If `True`, the user will be warned before loading
-                a new file over the old one. If `False`, the old file will
-                get clobbered automatically.
-        """
-        # TODO: Abstract and share more with SSX file importing.
-        if not self._preOpenFile(filename, prompt):
-            return
-        
-        name = os.path.basename(filename)
-        try:
-            stream = ThreadAwareFile(filename, 'rb')
-            newDoc = mide_ebml.classic.parsers.openFile(stream, quiet=True)
-            self.app.addRecentFile(filename, 'import')
-        except mide_ebml.parsers.ParsingError as err:
-            self.ask("The file '%s' could not be opened" % name, 
-                     "Import Error", wx.OK, icon=wx.ICON_ERROR,
-                     extendedMessage=u"The file may be irretrievably damaged, "
-                     "or it may not a Slam Stick Classic file.")
-            stream.closeAll()
-            return
-        except Exception as err:
-            # Catch-all for unanticipated errors
-            stream.closeAll()
-            self.handleException(err, what="importing the file %s" % name,
-                                 closeFile=True)
-            return
-
-        self.dataset = newDoc
+        title = filename #self.dataset.name
         if len(newDoc.sessions) > 1:
             if not self.selectSession():
                 stream.closeAll()
-                return
-        loader = Loader(self, newDoc, mide_ebml.classic.parsers.readData, 
-                        **self.app.getPref('loader'))
+                return False
+            title = "%s (Session %d)" % (title, self.session.sessionId)
+        loader = Loader(self, newDoc, reader, **self.app.getPref('loader'))
         self.pushOperation(loader)
-        self.SetTitle(self.app.getWindowTitle(filename))
+        self.SetTitle(self.app.getWindowTitle(title))
         loader.start()
         self.enableMenus(True)
-        
+        return True
+    
     
     def closeFile(self):
         """ Close a file. Does not close the viewer window itself.
@@ -1559,11 +1513,7 @@ class Viewer(wx.Frame, MenuMixin):
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
-            if filename.lower().endswith('.dat'):
-                self.openClassicFile(filename)
-            else:
-                self.openFile(filename)
-                
+            self.openFile(filename)
             
         # Note to self: do this last!
         dlg.Destroy()

@@ -1603,26 +1603,6 @@ class EventList(Cascading):
         if self.dataset.useIndices:
             return None, at, result
         return at, result
-        
-
-    def iterStepSlice(self, start, stop, step):
-        """ XXX: EXPERIMENTAL!
-            Not very efficient, particularly not with single-sample blocks.
-            Redo without _getBlockIndexWithIndex
-        """
-        blockIdx = self._getBlockIndexWithIndex(start)
-        lastBlockIdx = self._getBlockIndexWithIndex(stop, blockIdx)+1
-        thisRange = self._getBlockIndexRange(blockIdx)
-        lastIdx = -1
-        for idx in xrange(start, stop, step):
-            if idx > thisRange[1]:
-                blockIdx = self._getBlockIndexWithIndex(idx, blockIdx+1, lastBlockIdx)
-                thisRange = self._getBlockIndexRange(blockIdx)
-            if blockIdx > lastIdx:
-                lastIdx = blockIdx
-                for event in self.iterSlice(idx, min(stop,thisRange[1]+1), step):
-                    yield event
-#         yield stop, self.getValueAt(stop)
     
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,

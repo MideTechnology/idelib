@@ -7,11 +7,11 @@ Created on Mar 5, 2014
 '''
 
 import abc
-# from collections import Iterable
+from collections import Iterable
 # from datetime import datetime
 # from itertools import izip
 import os
-# import random
+import random
 # import struct
 
 from mide_ebml import dataset as DS
@@ -33,6 +33,8 @@ class Classic(object):
 class Dataset(DS.Dataset):
     """ A Classic dataset.
     """
+    schemaVersion = None
+    
     def __init__(self, stream, name=None, quiet=False):
         """ Constructor.
             @param stream: A file-like stream object containing Slam Stick
@@ -213,15 +215,6 @@ class EventList(DS.EventList):
             self._data = [(int(i*sampleTime), d) for i,d in enumerate(data)]
 
 
-    @property
-    def units(self):
-        return self.parent.units
-
-
-    def path(self):
-        return "%s, %s" % (self.parent.path(), self.session.sessionId)
-
-
     def copy(self, newParent=None):
         """ Create a shallow copy of the event list.
         """
@@ -303,16 +296,14 @@ class EventList(DS.EventList):
     
             s = slice(start, end, step)
             
-#         print "iterSlice(%r, %r, %r)" % (start, end, step)
-
         return iter(self._data[s])
-        
 
 
     def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5):
         """ Create an iterator producing events for a range indices.
         """
-        return self.iterSlice(start, end, step)
+        for evt in self.iterSlice(start, end, step):
+            yield (evt[-2] + (((random.random()*2)-1) * jitter * step), evt[-1])
 
       
     def getEventIndexBefore(self, t):
@@ -411,66 +402,14 @@ class EventList(DS.EventList):
         """
         return self.session._sampleRate
     
-    
-#     def getValueAt(self, at, outOfRange=False):
-#         """ Retrieve the value at a specific time, interpolating between
-#             existing events.
-#             
-#             @param at: The time at which to take the sample.
-#             @keyword outOfRange: If `False`, times before the first sample
-#                 or after the last will raise an `IndexError`. If `True`, the
-#                 first or last time, respectively, is returned.
-#         """
-#         startIdx = self.getEventIndexBefore(at)
-#         if startIdx < 0:
-#             if self[0][-2] == at:
-#                 return self[0]
-#             # TODO: How best to handle times before first event?
-#             if outOfRange:
-#                 return self[0]
-#             raise IndexError("Specified time occurs before first event (%d)" % self[0][-2])
-#         elif startIdx >= len(self) - 1:
-#             if self[-1][-2] == at:
-#                 return self[-1]
-#             if outOfRange:
-#                 return self[-1]
-#             # TODO How best to handle times after last event?
-#             raise IndexError("Specified time occurs after last event (%d)" % self[startIdx][-2])
-#         
-#         startEvt, endEvt = self[startIdx:startIdx+2]
-#         relAt = at - startEvt[-2]
-#         endTime = endEvt[-2] - startEvt[-2] + 0.0
-#         percent = relAt/endTime
-#         if self.hasSubchannels:
-#             result = startEvt[-1][:]
-#             for i in xrange(len(self.parent.types)):
-#                 result[i] = self.parent.interpolators[i](self, startIdx, startIdx+1, percent)
-#                 result[i] = self.parent.types[i](result[i])
-#         else:
-#             result = self.parent.types[0](self.parent.interpolators[0](self, startIdx, startIdx+1, percent))
-#         if self.dataset.useIndices:
-#             return None, at, result
-#         return at, result
-#         
 
-    def iterStepSlice(self, start, stop, step):
-        """ XXX: EXPERIMENTAL!
-            Not very efficient, particularly not with single-sample blocks.
-            Redo without _getBlockIndexWithIndex
-        """
-        return self.iterSlice(start, stop, step)
-    
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
                            jitter=0):
         """ Retrieve the events occurring within a given interval,
             undersampled as to not exceed a given length (e.g. the size of
             the data viewer's screen width).
-         
-            XXX: EXPERIMENTAL!
-            Not very efficient, particularly not with single-sample blocks.
         """
-#         print "iterResampledRange(%s, %s, %s, %s, %s)" %(startTime, stopTime, maxPoints, padding, jitter)
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
         numPoints = (stopIdx - startIdx)
         startIdx = max(startIdx-padding, 0)
@@ -478,87 +417,14 @@ class EventList(DS.EventList):
         step = max(int(numPoints / maxPoints),1)
         if jitter != 0:
             return self.iterJitterySlice(startIdx, stopIdx, step, jitter)
-        return self.iterSlice(startIdx, stopIdx, step)
+        else:
+            return self.iterSlice(startIdx, stopIdx, step)
         
 
 
 
-#     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
-#                   callback=None, callbackInterval=0.01, timeScalar=1,
-#                   raiseExceptions=False):
-#         """ Export events as CSV to a stream (e.g. a file).
-#         
-#             @param stream: The stream object to which to write CSV data.
-#             @keyword start: The first event index to export.
-#             @keyword stop: The last event index to export.
-#             @keyword step: The number of events between exported lines.
-#             @keyword subchannels: A sequence of individual subchannel numbers
-#                 to export. Only applicable to objects with subchannels.
-#                 `True` (default) exports them all.
-#             @keyword timeScalar: A scaling factor for the even times.
-#                 The default is 1 (microseconds).
-#             @keyword callback: A function (or function-like object) to notify
-#                 as work is done. It should take four keyword arguments:
-#                 `count` (the current line number), `total` (the total number
-#                 of lines), `error` (an exception, if raised during the
-#                 export), and `done` (will be `True` when the export is
-#                 complete). If the callback object has a `cancelled`
-#                 attribute that is `True`, the CSV export will be aborted.
-#                 The default callback is `None` (nothing will be notified).
-#             @keyword callbackInterval: The frequency of update, as a
-#                 normalized percent of the total lines to export.
-#             @return: The number of rows exported and the elapsed time.
-#         """
-#         # Dummy callback to be used if none is supplied
-#         def dummyCallback(*args, **kwargs): pass
-#         
-#         # Functions for formatting the data.
-#         def singleVal(x): return ", ".join(map(str,x))
-#         def multiVal(x): return "%s, %s" % (str(x[-2]*timeScalar), 
-#                                             str(x[-1]).strip("[({})]"))
-#         def someVal(x): return "%s, %s" % (str(x[-2]*timeScalar),
-#                     str([x[-1][v] for v in subchannels]).strip("[({})]"))
-#         
-#         if callback is None:
-#             noCallback = True
-#             callback = dummyCallback
-#         else:
-#             noCallback = False
-#         
-#         if self.hasSubchannels:
-#             if isinstance(subchannels, Iterable):
-#                 formatter = someVal
-#             else:
-#                 formatter = multiVal
-#         else:
-#             formatter = singleVal
-#         
-#         totalLines = (stop - start) / (step + 0.0)
-#         updateInt = int(totalLines * callbackInterval)
-#         
-#         start = start + len(self) if start < 0 else start
-#         stop = stop + len(self) if stop < 0 else stop
-#         
-#         t0 = datetime.now()
-#         try:
-#             for num, evt in enumerate(self.iterSlice(start, stop, step)):
-#                 if getattr(callback, 'cancelled', False):
-#                     callback(done=True)
-#                     break
-#                 stream.write("%s\n" % formatter(evt))
-#                 if updateInt == 0 or num % updateInt == 0:
-#                     callback(num, total=totalLines)
-#                 callback(done=True)
-#         except Exception as e:
-#             if raiseExceptions or noCallback:
-#                 raise e
-#             else:
-#                 callback(error=e)
-#         t1 = datetime.now()
-#         
-#         return num+1, t1 - t0
-    
-
-
 Classic.register(Dataset)
 Classic.register(Channel)
+Classic.register(SubChannel)
+Classic.register(EventList)
+Iterable.register(EventList)

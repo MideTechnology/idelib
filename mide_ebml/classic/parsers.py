@@ -268,7 +268,7 @@ def openFile(stream, parserTypes=None,
     
 def readData(doc, updater=importer.nullUpdater, numUpdates=500, 
              updateInterval=1.0, parserTypes=None, 
-             defaultSensors=default_sensors, sessionId=-1):
+             defaultSensors=default_sensors, sessionId=0):
     """ Import the data from a file into a Dataset.
     
         For Slam Stick Classic files, this function is a stub; they are small,
@@ -295,8 +295,9 @@ def readData(doc, updater=importer.nullUpdater, numUpdates=500,
             the dataset contains no sensor/channel/subchannel definitions. 
     """
 
+    numSamples = len(doc.channels.values()[0].getSession(sessionId)._data)*3
     updater(0)
-    updater(count=1, percent=1.0)
+    updater(count=numSamples, percent=1.0)
     updater(done=True)#, total=eventsRead)
     doc.loading = False
     return doc
