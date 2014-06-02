@@ -1414,9 +1414,9 @@ class EventList(Cascading):
             t = block.startTime
 #             if block.endTime is not None:
 #                 t = (t + block.endTime)/2
+            m = self._getBlockRollingMean(block.blockIndex)
             result = []
             for val in (block.min, block.mean, block.max):
-                m = self._getBlockRollingMean(block.blockIndex)
                 if m is not None:
                     val -= m
                 if self.hasSubchannels:
@@ -1880,5 +1880,12 @@ class WarningRange(object):
 #             return None
         val = self.source.getValueAt(t)
         return at, self.valid(val[-1])
-    
-    
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+Iterable_register = getattr(Iterable, 'register')
+Iterable_register(EventList)    
+Iterable_register(WarningRange)

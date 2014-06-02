@@ -573,7 +573,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             vScale = -(size.y + 0.0) * self.viewScale
             
         thisRange = (hScale, vScale, hRange, vRange)
-        newRange = self.lastRange != thisRange
+        newRange = self.lastRange != thisRange or self.lines is None
         if newRange:
             self.lines = None
             self.minMeanMaxLines = None
@@ -591,27 +591,28 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         if self.root.drawMinorHLines:
             if self.minorHLines is None:
 #             self.minorHLinePen.SetWidth(self.viewScale)
-                self.minorHLines = self.makeHGridlines(legend.scale._minorlabels, 
-                                                       size[0], self.viewScale)
+                self.minorHLines = self.makeHGridlines(
+                    legend.scale._minorlabels, size[0], self.viewScale)
             
         if self.root.drawMajorHLines:
             if self.majorHLines is None:
 #             self.majorHLinePen.SetWidth(self.viewScale)
-                self.majorHLines = self.makeHGridlines(legend.scale._majorlabels, 
-                                                       size[0], self.viewScale)
+                self.majorHLines = self.makeHGridlines(
+                    legend.scale._majorlabels, size[0], self.viewScale)
 
         # If the plot source does not have min/max data, the first drawing only
         # sets up the scale; don't draw.
         if not self.Parent.firstPlot:
             # Minor lines are automatically removed.
-            if self.root.drawMinorHLines and len(self.minorHLines) < size[1] / 24:
+            if self.root.drawMinorHLines and len(self.minorHLines) < size[1]/24:
                 dc.DrawLineList(self.minorHLines, self.minorHLinePen)
             if self.root.drawMajorHLines:
                 dc.DrawLineList(self.majorHLines, self.majorHLinePen)
         
         if self.Parent.source.hasMinMeanMax:
             if self.minMeanMaxLines is None:
-                self.minMeanMaxLines = self.makeMinMeanMaxLines(hRange, vRange, hScale, vScale)
+                self.minMeanMaxLines = self.makeMinMeanMaxLines(hRange, vRange, 
+                                                                hScale, vScale)
             drawCondensed = len(self.minMeanMaxLines[0]) >= size[0] * 1.75
             if drawCondensed:
                 if self.lines is None:
@@ -643,7 +644,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             lineSubset = []
             
             events = self.Parent.source.iterResampledRange(hRange[0], hRange[1],
-                size[0]*self.oversampling, padding=1, jitter=self.root.noisyResample)
+                size[0]*self.oversampling, padding=1, 
+                jitter=self.root.noisyResample)
 
             try:
                 event = events.next()
@@ -665,7 +667,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                         lineSubset.append(line)
                         self.lines.append(line)
                         if not self.Parent.source.hasMinMeanMax:
-                            expandRange(self.Parent.visibleValueRange, event[-1])
+                            expandRange(self.Parent.visibleValueRange, 
+                                        event[-1])
                     
                     if i % tenth == 0:
                         dc.DrawLineList(lineSubset)
@@ -1010,6 +1013,9 @@ class Plot(ViewerPanel):
         """ Update the plot-specific menus, both on the main menu and the plot's
             contextual menu.
         """
+        if self.Parent.getActivePage() != self:
+            return
+         
         enabled = self.source.hasMinMeanMax
         rt = self.root
         pt = self.plot
@@ -1042,7 +1048,8 @@ class Plot(ViewerPanel):
                               self.root.ID_VIEW_MEAN,
                               enabled=True, checked=self.root.drawMean)
         
-        rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME, enabled=rt.session.utcStartTime is not None)                      
+        rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME, 
+                       enabled=rt.session.utcStartTime is not None)                      
 #         # Non-plot-specific menu items
 #         self.plot.setMenuItem(self.plot.contextMenu, 
 #                               self.root.ID_VIEW_ANTIALIAS,
@@ -1057,28 +1064,6 @@ class Plot(ViewerPanel):
     # 
     #===========================================================================
 
-#     def OnKeypress(self, evt):
-#         """ Handle a keypress event in a plot. """
-#         keycode = evt.GetUnicodeKey()
-#         keychar = unichr(keycode)
-#         
-#         if keychar == u'R':
-#             self.plot.Refresh()
-#         elif evt.CmdDown() and not evt.ShiftDown():
-#             # TODO: These won't necessarily work on international keyboards
-#             # (e.g. '=' is a shift combination on German keyboards)
-#             if keychar == u'-':
-#                 self.legend.OnZoomOut(None)
-#             elif keychar == u'=':
-#                 self.legend.OnZoomIn(None)
-#             elif keychar == u'0':
-#                 self.zoomToFit()
-#             else:
-#                 evt.Skip()
-#         else:
-#             evt.Skip()
-#         
-    
     def OnMouseLeave(self, evt):
         self.root.showMouseHPos(None)
         self.root.showMouseVPos(None)

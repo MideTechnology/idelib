@@ -1025,9 +1025,19 @@ class Viewer(wx.Frame, MenuMixin):
             else:
                 self.session = self.dataset.lastSession
         
+        removeRolling = self.app.getPref('removeRollingMean', False)
+        removeMean = self.app.getPref('removeMean', True)
+        meanSpan = None
+        if removeRolling:
+            meanSpan = self.app.getPref('rollingMeanSpan', 5.0)
+        elif removeMean:
+            meanSpan = -1
+                
         for d in self.dataset.getPlots(debug=self.showDebugChannels):
-            self.plotarea.addPlot(d.getSession(self.session.sessionId), 
-                                  title=d.name)
+            el = d.getSession(self.session.sessionId)
+            p = self.plotarea.addPlot(el, title=d.name)
+            if meanSpan is not None:
+                p.removeMean(True, meanSpan)
         
         self.enableChildren(True)
         # enabling plot-specific menu items happens on page select; do manually
@@ -1611,6 +1621,8 @@ class Viewer(wx.Frame, MenuMixin):
         span = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
         for p in self.plotarea:
             p.removeMean(checked, span=span)
+            
+        self.plotarea.getActivePage().enableMenus()
 
 
     def OnRemoveTotalMeanCheck(self, evt):
@@ -1629,6 +1641,8 @@ class Viewer(wx.Frame, MenuMixin):
             
         for p in self.plotarea:
             p.removeMean(checked, span=-1)
+
+        self.plotarea.getActivePage().enableMenus()
 
 
     def OnZoomInY(self, evt):
@@ -2025,7 +2039,8 @@ class ViewerApp(wx.App):
         'precisionY': 4,
         
         # Data modifications
-        'removeMean': False,
+        'removeMean': True,
+        'removeRollingMean': False,
         'rollingMeanSpan': 5.0, # In seconds
         
         # Rendering

@@ -98,6 +98,16 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.ColourProperty("Buffer Mean", "meanRangeColor"))
         _add(PG.ColourProperty("Buffer Minimum", "minRangeColor"))
         
+        _add(PG.PropertyCategory("Data"))
+        _add(PG.BoolProperty("Remove Total Mean by Default", "removeMean"), 
+             "By default, remove the total median of buffer means from the "
+             "data (if the data contains buffer mean data).",
+             UseCheckbox=True)
+        _add(PG.FloatProperty("Rolling Mean Span (seconds)", "rollingMeanSpan"),
+             "The width of the time span used to compute the 'rolling mean' "
+             "used when \"Remove Rolling Mean from Data\" is enabled.")
+        
+        
         _add(PG.PropertyCategory("Drawing"))
         _add(PG.BoolProperty("Draw Points", "drawPoints"), 
              "If the number of samples shown is fewer than the number "

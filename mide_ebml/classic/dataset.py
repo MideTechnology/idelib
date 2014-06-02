@@ -375,7 +375,7 @@ class EventList(DS.EventList):
             endIdx = None
         else:
             endIdx = min(self._data[-1][0], int(endTime * self.getSampleTime))
-        return self.iterSlice(startIdx,endIdx,step)        
+        return self.iterSlice(startIdx,endIdx,step)
 
 
     def getSampleTime(self, idx=0):
@@ -427,4 +427,9 @@ Classic.register(Dataset)
 Classic.register(Channel)
 Classic.register(SubChannel)
 Classic.register(EventList)
-Iterable.register(EventList)
+
+# HACK to work around the fact that the `register` method doesn't show up
+# in `dir()`, which creates an error display in PyLint/PyDev/etc. 
+# Iterable.register(EventList)
+Iterable_register = getattr(Iterable, "register")
+Iterable_register(EventList)
