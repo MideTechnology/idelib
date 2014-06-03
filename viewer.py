@@ -903,9 +903,9 @@ class Viewer(wx.Frame, MenuMixin):
         # These are the menus that are enabled even when there's no file open.
         # There are fewer of them than menus that are disabled.
         menus = (wx.ID_NEW, wx.ID_OPEN, wx.ID_EXIT, self.ID_DEVICE_CONFIG,
-                 wx.ID_ABOUT, self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS,
-                 self.ID_DEBUG0, self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3,
-                 self.ID_DEBUG4)
+                 wx.ID_ABOUT, wx.ID_PREFERENCES,
+                 self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, self.ID_DEBUG0,
+                 self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4)
         
         if not enabled:
             self.enableMenuItems(self.menubar, menus, True, False)
@@ -1622,7 +1622,7 @@ class Viewer(wx.Frame, MenuMixin):
         for p in self.plotarea:
             p.removeMean(checked, span=span)
             
-        self.plotarea.getActivePage().enableMenus()
+#         self.plotarea.getActivePage().enableMenus()
 
 
     def OnRemoveTotalMeanCheck(self, evt):
@@ -1642,7 +1642,7 @@ class Viewer(wx.Frame, MenuMixin):
         for p in self.plotarea:
             p.removeMean(checked, span=-1)
 
-        self.plotarea.getActivePage().enableMenus()
+#         self.plotarea.getActivePage().enableMenus()
 
 
     def OnZoomInY(self, evt):

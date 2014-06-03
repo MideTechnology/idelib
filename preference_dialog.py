@@ -114,7 +114,7 @@ class PrefsDialog(SC.SizedDialog):
              "of pixels, draw individual samples as larger points.",
              UseCheckbox=True)
         _add(PG.FloatProperty("Antialiasing Scaling", "antialiasingMultiplier"),
-             "A multiplier of screen resolution used when drawing antialiased"
+             "A multiplier of screen resolution used when drawing antialiased "
              "graphics.")
         _add(PG.FloatProperty("Noisy Resampling Jitter", 
                               "resamplingJitterAmount"), 

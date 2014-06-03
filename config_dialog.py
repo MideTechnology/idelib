@@ -834,6 +834,8 @@ class InfoPanel(BaseConfigPanel):
             
             if k.startswith('_'):
                 continue
+#             elif not v:
+#                 continue
             elif k in self.field_types:
                 v = self.field_types[k](v)
             elif isinstance(v, (int, long)):
@@ -1286,7 +1288,7 @@ def configureRecorder(path, save=True):
 
 if __name__ == "__main__":
     app = wx.App()
-    print "configureRecorder() returned %r" % configureRecorder("I:\\")
+    print "configureRecorder() returned %r" % configureRecorder("F:\\")
 #     print configureRecorder("I:\\")
 
 
