@@ -300,9 +300,12 @@ class SlamStickClassic(Recorder):
         """ Helper method to convert a time into the BCD format used in the 
             config file.
             
-            @keyword t: The time to encode, or `None` for the current time.
-            @return: A string of 7 bytes (BCD encoded year, month, day, day of week,
-                hour, minute, second).
+            @keyword t: The time to encode, either seconds since the epoch 
+                (i.e. 'Unix time'), `datetime.datetime` or a UTC 
+                `time.struct_time`. The current UTC time (from the host) is used 
+                if `None` (default).
+            @return: A string of 7 bytes (BCD encoded year, month, day, day of 
+                week, hour, minute, second).
         """
         def bin2bcd(val):
             return chr((int(val/10)<<4) + (val%10))
@@ -311,7 +314,9 @@ class SlamStickClassic(Recorder):
             return '\0' * 7
         
         if t is None:
-            t = datetime.now().timetuple()
+            t = time.gmtime()
+        elif isinstance(t, (int, float)):
+            t = time.gmtime(t)
         elif isinstance(t, datetime):
             t = t.timetuple()
         

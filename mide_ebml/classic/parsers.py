@@ -19,7 +19,7 @@ class AccelerometerParser(object):
     parser = struct.Struct("<hhh")
     format = parser.format
     size = parser.size
-#     ranges = (((-0xFFF8/2) * 0.00048828125, ((0xFFF8/2)-1) * 0.00048828125)) * 3
+#     ranges = (((-0xFFF8/2)*0.00048828125, ((0xFFF8/2)-1)*0.00048828125)) * 3
     ranges = ((-0xFFF8>>4) * 0.00048828125, 
               ((0xFFF8>>4)-1) * 0.00048828125) * 3
         
@@ -123,8 +123,6 @@ class RecordingParser(object):
             numSamples = size/sampLen
             sampleRate = (numSamples / length) * self.secondScalar
 
-#         if size + startPos + > self.filesize
-
         data = []
         for i in xrange(0,size,channel.parser.size):
             try:
@@ -133,9 +131,6 @@ class RecordingParser(object):
                 print "failed to parse w/ offset %r" % i
                 raise parsers.ParsingError()
         
-#         print "self.doc.addSession(%r, %r, %r, %r, %r, %r)" % (0, length,
-#                                   timestamp, dataStart, 
-#                                   dataStart+size, sampleRate)
         session = self.doc.addSession(startTime=0, endTime=length,
                                   utcStartTime=timestamp, offset=dataStart, 
                                   endPos=dataStart+size, sampleRate=sampleRate)

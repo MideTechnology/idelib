@@ -125,11 +125,9 @@ class Channel(DS.Channel):
             @param subchannelId: 
             @return: The SubChannel matching the given ID.
         """
-#         print "getSubChannel %r" % subchannelId
         # If there is no SubChannel explicitly defined for a subchannel, 
         # dynamically generate one.
         if self.subchannels[subchannelId] is None:
-#             print "new subchannel"
             self.subchannels[subchannelId] = SubChannel(self, subchannelId)
         return self.subchannels[subchannelId]
 
@@ -343,7 +341,6 @@ class EventList(DS.EventList):
             @keyword endTime: The second time, or `None` to use the end of
                 the session.
         """
-#         print "getRangeIndices(%r, %r)" % (startTime, endTime)
         return (self.getEventIndexBefore(startTime), 
                 self.getEventIndexNear(endTime)+1)
     

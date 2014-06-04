@@ -53,6 +53,8 @@ class Loader(Job):
         sessionId = -1
         if self.root.session is not None:
             sessionId = self.root.session.sessionId
+        elif self.dataset.lastSession:
+            sessionId = self.dataset.lastSession.sessionId
         
         self.totalUpdates = 0
         self.reader(self.dataset, self, 

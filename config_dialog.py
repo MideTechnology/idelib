@@ -541,7 +541,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             "Wake After Delay:", "PreRecordDelay", "seconds")
 
         self.wakeCheck = self.addDateTimeField(
-            "Wake at specific time:", "WakeTimeUTC")
+            "Wake at specific time (UTC):", "WakeTimeUTC")
         
         self.timeCheck = self.addCheckField(
             "Limit recording time to:", "RecordingTime", "seconds")
@@ -718,10 +718,11 @@ class OptionsPanel(BaseConfigPanel):
             tooltip="If checked, data recorder will not apply oversampling.")
         
         self.utcCheck = self.addCheckField("UTC Offset:", "UTCOffset", "Hours", 
-                                           str(-time.timezone/60/60))
+            str(-time.timezone/60/60), tooltip="The local timezone's offset "
+            "from UTC time. Used only for file timestamps.")
         
         self.tzBtn = self.addButton("Get Local UTC Offset", -1,  self.OnSetTZ,
-            "Fill the UTC Offset field with the offset for the local timezone")
+            "Fill the UTC Offset field with the offset for the local timezone.")
         self.timeBtn = self.addButton("Set Device Time", -1, self.OnSetTime, 
             "Set the device's clock. Applied immediately.")
         
@@ -962,7 +963,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             "Note: This will be rounded to the lowest multiple of 2.")
 
         self.wakeCheck = self.addDateTimeField(
-            "Wake at specific time:", "ALARM_TIME", 
+            "Wake at specific time (UTC):", "ALARM_TIME", 
             tooltip="The date and time at which to start recording. "
             "Note: the year is ignored.")
         
@@ -1117,7 +1118,8 @@ class ClassicOptionsPanel(BaseConfigPanel):
            tooltip="Set the device's realtime clock/calendar to the current "
            "system time on save")
         self.utcCheck = self.addCheckField("UTC Offset:", "TZ_OFFSET", "Hours", 
-                                           str(-time.timezone/60/60))
+            str(-time.timezone/60/60), tooltip="The local timezone's offset "
+            "from UTC time. Used only for file timestamps.")
         self.tzBtn = self.addButton("Get UTC", -1,  self.OnSetTZ,
             "Fill the UTC Offset field with the offset for the local timezone")
         self.controls[self.rtccCheck].extend((self.setRtcCheck, self.utcCheck, 
@@ -1129,7 +1131,9 @@ class ClassicOptionsPanel(BaseConfigPanel):
     def initUI(self):
         self.info['RTCC_ENA'] = self.info['RTCC_ENA']
         self.rtccCheck.SetValue(self.info.get('RTCC_ENA',0) and True)
-        self.setField(self.samplingCheck, self.SAMPLE_RATES.get(self.info['BW_RATE_PWR'] & 0x0f, len(self.SAMPLE_RATES)-1))
+        self.setField(self.samplingCheck, 
+                      self.SAMPLE_RATES.get(self.info['BW_RATE_PWR'] & 0x0f, 
+                                            len(self.SAMPLE_RATES)-1))
         
 
     def OnSetTZ(self, event):
@@ -1288,7 +1292,7 @@ def configureRecorder(path, save=True):
 
 if __name__ == "__main__":
     app = wx.App()
-    print "configureRecorder() returned %r" % configureRecorder("F:\\")
+    print "configureRecorder() returned %r" % configureRecorder("G:\\")
 #     print configureRecorder("I:\\")
 
 
