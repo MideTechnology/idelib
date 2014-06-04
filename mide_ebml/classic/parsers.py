@@ -1,9 +1,10 @@
 """
 """
 
-from datetime import datetime
+# from datetime import datetime
 import os.path
 import struct
+import time
 
 from mide_ebml import importer
 from mide_ebml import parsers
@@ -71,7 +72,8 @@ class RecordingParser(object):
         second = (raw_time & 0x001F) << 1
         
         try:
-            return datetime(year, month, day, hour, minute, second)
+#             return datetime(year, month, day, hour, minute, second)
+            return time.mktime((year, month, day, hour, minute, second,0,0,0))
         except ValueError:
             return None
 
