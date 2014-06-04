@@ -4,7 +4,7 @@ determined by the recorder type, and will feature tabs specific to that
 recorder. Since there's only the two SSX variants, this is not urgent.
 
 @todo: I use `info` and `data` for the recorder info at different times;
-    if there's no specific reason, unify.
+    if there's no specific reason, unify. It may be vestigial.
     
 Created on Dec 16, 2013
 
@@ -1134,6 +1134,12 @@ class ClassicOptionsPanel(BaseConfigPanel):
         self.setField(self.samplingCheck, 
                       self.SAMPLE_RATES.get(self.info['BW_RATE_PWR'] & 0x0f, 
                                             len(self.SAMPLE_RATES)-1))
+        self.getDeviceData()
+        for k,v in self.info.iteritems():
+            c = self.fieldMap.get(k, None)
+            if c is None:
+                continue
+            self.setField(c, v)
         
 
     def OnSetTZ(self, event):
