@@ -2,7 +2,7 @@
 
 Dialog for selecting recording devices.
 
-@todo: Use the new `Recorder` classes! 
+@todo: Use the new `Recorder` classes everywhere! 
 
 """
 
@@ -13,7 +13,7 @@ import wx; wx=wx
 import wx.lib.sized_controls as sc
 import wx.lib.mixins.listctrl  as  listmix
 
-from common import hex32
+# from common import hex32
 from devices import getDevices, getDeviceList
 from devices import deviceChanged
 
@@ -32,7 +32,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     COLUMNS = (ColumnInfo("Path", "path", unicode, ''),
                ColumnInfo("Name", "name", unicode, ''),
                ColumnInfo("Type", "productName", unicode, ''),
-               ColumnInfo("Serial #", "serial", hex32, ''))
+               ColumnInfo("Serial #", "serial", unicode, ''))#lambda x: "SSX%07d" % x, ''))
 
 
     class DeviceListCtrl(wx.ListCtrl, listmix.ListCtrlAutoWidthMixin):

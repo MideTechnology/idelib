@@ -4,7 +4,6 @@ Created on Nov 8, 2013
 @author: dstokes
 '''
 
-from abc import ABCMeta
 import threading
 
 class ThreadAwareFile(object):
@@ -15,7 +14,6 @@ class ThreadAwareFile(object):
         
         ThreadAwareFile is read-only. 
     """
-    __metaclass__ = ABCMeta
     
     def __init__(self, *args, **kwargs):
         if len(args) > 1:
@@ -204,5 +202,3 @@ class ThreadAwareFile(object):
         self.getThreadStream().softspace = val
 
 
-# Register `file` as ThreadAwareFile's abstract base class 
-ThreadAwareFile.register(file)

@@ -179,8 +179,8 @@ class BaseConfigPanel(sc.SizedPanel):
 
 
     def addFloatField(self, checkText, name=None, units="", value="",
-                      precision=0.01, minmax=(-100,100), fieldSize=None, 
-                      fieldStyle=None, tooltip=None):
+                      precision=0.01, digits=2, minmax=(-100,100), 
+                      fieldSize=None, fieldStyle=None, tooltip=None):
         """ Add a numeric field with a 'spinner' control.
 
             @param checkText: The checkbox's label text.
@@ -203,8 +203,8 @@ class BaseConfigPanel(sc.SizedPanel):
         subpane.SetSizerType("horizontal")
         subpane.SetSizerProps(expand=True)
         
-        lf = wx.SpinCtrlDouble(subpane, -1, value=value, inc=precision,
-                          min=minmax[0], max=minmax[1])
+        lf = wx.SpinCtrlDouble(subpane, -1, value=str(value), inc=precision,
+                          min=minmax[0], max=minmax[1], size=fieldSize)
         self.controls[c] = [lf]
         
         u = wx.StaticText(subpane, -1, units)
@@ -220,9 +220,12 @@ class BaseConfigPanel(sc.SizedPanel):
         if name is not None:
             self.fieldMap[name] = c
         
+        if digits is not None:
+            lf.SetDigits(digits)
+        
         return c
 
-    def addIntField(self, checkText, name=None, units="", value="",
+    def addIntField(self, checkText, name=None, units="", value=None,
                       minmax=(-100,100), fieldSize=None, fieldStyle=None, 
                       tooltip=None):
         """ Add a numeric field with a 'spinner' control.
@@ -246,8 +249,9 @@ class BaseConfigPanel(sc.SizedPanel):
         subpane.SetSizerType("horizontal")
         subpane.SetSizerProps(expand=True)
         
+        value = "" if value is None else int(value)
         lf = wx.SpinCtrl(subpane, -1, value=str(value),
-                          min=minmax[0], max=minmax[1])
+                          min=int(minmax[0]), max=int(minmax[1]), size=fieldSize)
         self.controls[c] = [lf]
         
         u = wx.StaticText(subpane, -1, units)
@@ -383,7 +387,6 @@ class BaseConfigPanel(sc.SizedPanel):
         """ Do any setup work on the page. Most subclasses should override
             this.
         """
-        self.getDeviceData()
         if self.data:
             for k,v in self.data.iteritems():
                 c = self.fieldMap.get(k, None)
@@ -492,6 +495,17 @@ class BaseConfigPanel(sc.SizedPanel):
                default=None):
         """ Helper method to add a field's value to a dictionary if its
             corresponding checkbox is checked. For exporting EBML.
+            
+            @param control: The field's controlling checkbox, or the field
+                if not a 'check' field.
+            @param trig: The dictionary to which to add the value.
+            @param name: The associated key in the target dictionary.
+            @keyword kind: The data type, for casting from string (or whatever
+                is the widget's native type). Not applied to the default.
+            @keyword transform: A function to apply to the data before adding
+                it to the dictionary. Not applied to the default.
+            @keyword default: A default value to use if the field is not
+                checked.
          """
         if control not in self.controls:
             return
@@ -510,6 +524,10 @@ class BaseConfigPanel(sc.SizedPanel):
                 val = 1
             else:
                 val = fields[0].GetValue()
+            
+            if not checked and default is not None:
+                trig[name] = default
+                return
                 
             try:
                 val = kind(val)
@@ -537,26 +555,35 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
 
 
     def buildUI(self):
-        self.delayCheck = self.addCheckField(
-            "Wake After Delay:", "PreRecordDelay", "seconds")
+        self.delayCheck = self.addIntField(
+            "Wake After Delay:", "PreRecordDelay", "seconds", 0, (0,86400))
 
         self.wakeCheck = self.addDateTimeField(
             "Wake at specific time (UTC):", "WakeTimeUTC")
         
-        self.timeCheck = self.addCheckField(
-            "Limit recording time to:", "RecordingTime", "seconds")
+        self.timeCheck = self.addIntField(
+            "Limit recording time to:", "RecordingTime", "seconds", 0, 
+            minmax=(0,86400))
         
         self.rearmCheck = self.addCheck("Re-triggerable", "AutoRearm")
         self.controls[self.timeCheck].append(self.rearmCheck)
         
-        self.pressLoCheck = self.addCheckField("Pressure Trigger (Low):", units="Pa")
-        self.pressHiCheck = self.addCheckField("Pressure Trigger (High):", units="Pa")
-        self.tempLoCheck = self.addCheckField("Temperature Trigger (Low):", units=u'\xb0C')
-        self.tempHiCheck = self.addCheckField("Temperature Trigger (High):", units=u'\xb0C')
-        self.accelLoCheck = self.addCheckField("Accelerometer Trigger (Low):", 
-           units="G", tooltip="The lower trigger limit. Should be less than 0.")
-        self.accelHiCheck = self.addCheckField("Accelerometer Trigger (High):", 
-           units="G", tooltip="The upper trigger limit. Should be greater than 0.")
+        self.pressLoCheck = self.addIntField("Pressure Trigger (Low):", 
+                                             units="Pa", minmax=(0,120000),
+                                             value=0)
+        self.pressHiCheck = self.addIntField("Pressure Trigger (High):", 
+                                             units="Pa", minmax=(0,120000),
+                                             value=120000)
+        self.tempLoCheck = self.addFloatField("Temperature Trigger (Low):", 
+                                          units=u'\xb0C', minmax=(-40.0,80.0),
+                                          value=-40.0)
+        self.tempHiCheck = self.addFloatField("Temperature Trigger (High):", 
+                                          units=u'\xb0C', minmax=(-40.0,80.0),
+                                          value=80.0)
+        self.accelLoCheck = self.addFloatField("Accelerometer Trigger (Low):", 
+           units="G", tooltip="The lower trigger limit. Less than 0.")
+        self.accelHiCheck = self.addFloatField("Accelerometer Trigger (High):", 
+           units="G", tooltip="The upper trigger limit. Greater than 0.")
 
 
     def OnCheckChanged(self, evt):
@@ -578,15 +605,10 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         """
         super(SSXTriggerConfigPanel, self).initUI()
 
-        # Change the accelerometer multiplier according to recorder type
-        # TODO: Move this into `devices.SlamStickX`. 
-        accelType = self.root.deviceInfo.get('RecorderTypeUID', 0x12) & 0xff
-        if accelType == 0x10:
-            # 0x10: 25G accelerometer
-            accelTransform = lambda x: (x * 50.0) / 65535 - 25
-        else:
-            # 0x12: 100G accelerometer
-            accelTransform = lambda x: (x * 200.0) / 65535 - 100
+        accelTransform = self.root.device._unpackAccel
+        
+        self.controls[self.accelLoCheck][0].SetRange(accelTransform(0), 0)
+        self.controls[self.accelHiCheck][0].SetRange(0,accelTransform(65535))
 
         # Special case for the list of Triggers         
         for trigger in self.data.get("Trigger", []):
@@ -595,10 +617,9 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             low = trigger.get('TriggerWindowLo', None)
             high = trigger.get('TriggerWindowHi', None)
             if channel == 0:
-                if low is not None:
-                    low = accelTransform(low)
-                if high is not None:
-                    high = accelTransform(high)
+                # Accelerometer. Both or neither must be set.
+                low = accelTransform(0 if low is None else low)
+                high = accelTransform(65535 if high is None else high)
                 self.setField(self.accelLoCheck, low)
                 self.setField(self.accelHiCheck, high)
             elif channel == 1:
@@ -610,7 +631,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                     # Temperature
                     self.setField(self.tempLoCheck, low)
                     self.setField(self.tempHiCheck, high)
-                         
+        
         self.enableAll()
 
 
@@ -623,21 +644,12 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         for name,control in self.fieldMap.iteritems():
             self.addVal(control, data, name)
         
-        accelType = self.root.deviceInfo.get('RecorderTypeUID', 0x12) & 0xff
-        if accelType == 0x10:
-            # 0x10: 25G accelerometer
-            accelTransform = lambda x: int(((x + 25)/50.0) * 65535)
-        else:
-            # 0x12: 100G accelerometer
-            accelTransform = lambda x: int(((x + 100)/200.0) * 65535)
-
-        
         if self.accelLoCheck.GetValue() or self.accelHiCheck.GetValue():
             trig = OrderedDict(TriggerChannel=0)
             self.addVal(self.accelLoCheck, trig, "TriggerWindowLo", kind=float,
-                        transform=accelTransform, default=0)
+                        transform=self.root.device._packAccel, default=0)
             self.addVal(self.accelHiCheck, trig, "TriggerWindowHi", kind=float,
-                        transform=accelTransform, default=65535)
+                        transform=self.root.device._packAccel, default=65535)
             if len(trig) > 2:
                 triggers.append(trig)
                  
@@ -676,7 +688,7 @@ class OptionsPanel(BaseConfigPanel):
 
     def getDeviceData(self):
         self.data = self.root.deviceConfig.get('SSXBasicRecorderConfiguration', 
-                                               {})
+                                               {}).copy()
         # Hack: flatten RecorderUserData into the rest of the configuration,
         # making things simpler to handle
         self.data.update(self.root.deviceConfig.get('RecorderUserData', {}))
@@ -700,16 +712,17 @@ class OptionsPanel(BaseConfigPanel):
         wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL)
         sc.SizedPanel(self, -1) # Spacer
       
-        self.samplingCheck = self.addCheckField("Sampling Frequency:",
-            "SampleFreq", "Hz", tooltip="Checking this field overrides the "
-            "device's default.")
+        self.samplingCheck = self.addIntField("Sampling Frequency:",
+            "SampleFreq", "Hz", minmax=(100,20000), value=5000,
+            tooltip="Checking this field overrides the device's default.")
         
 #         self.osrCheck = self.addChoiceField("Oversampling Ratio:", "OSR", 
 #             self.OVERSAMPLING, tooltip="Checking this field overrides the "
 #             "device's default.")
 
-        self.aaCornerCheck = self.addCheckField(
+        self.aaCornerCheck = self.addIntField(
             "Override Antialiasing Filter Cutoff:", "AAFilterCornerFreq", "Hz",
+            minmax=(100,20000), value=1000, 
             tooltip="If checked and a value is provided, the antialiasing "
                 "sample rate will be limited.")
         
@@ -717,9 +730,10 @@ class OptionsPanel(BaseConfigPanel):
         self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
             tooltip="If checked, data recorder will not apply oversampling.")
         
-        self.utcCheck = self.addCheckField("UTC Offset:", "UTCOffset", "Hours", 
-            str(-time.timezone/60/60), tooltip="The local timezone's offset "
-            "from UTC time. Used only for file timestamps.")
+        self.utcCheck = self.addIntField("UTC Offset:", "UTCOffset", "Hours", 
+            str(-time.timezone/60/60), minmax=(-24,24), 
+            tooltip="The local timezone's offset from UTC time. "
+            "Used only for file timestamps.")
         
         self.tzBtn = self.addButton("Get Local UTC Offset", -1,  self.OnSetTZ,
             "Fill the UTC Offset field with the offset for the local timezone.")
@@ -739,7 +753,7 @@ class OptionsPanel(BaseConfigPanel):
     
     
     def OnSetTZ(self, event):
-        val = str(-time.timezone / 60 / 60)
+        val = int(-time.timezone / 60 / 60)
         self.setField(self.utcCheck, val)
 
 
@@ -1298,7 +1312,7 @@ def configureRecorder(path, save=True):
 
 if __name__ == "__main__":
     app = wx.App()
-    print "configureRecorder() returned %r" % configureRecorder("G:\\")
+    print "configureRecorder() returned %r" % configureRecorder("I:\\")
 #     print configureRecorder("I:\\")
 
 

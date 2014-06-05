@@ -53,25 +53,25 @@ def nextPow2(x):
 # Formatting and parsing helpers
 #===============================================================================
 
-def hex32(val):
-    """ Format an integer as an 8 digit hex number. """
-    return "0x%08x" % val
+# def hex32(val):
+#     """ Format an integer as an 8 digit hex number. """
+#     return "0x%08x" % val
 
-def hex16(val):
-    """ Format an integer as an 4 digit hex number. """
-    return "0x%04x" % val
+# def hex16(val):
+#     """ Format an integer as an 4 digit hex number. """
+#     return "0x%04x" % val
 
-def hex8(val):
-    """ Format an integer as a 2 digit hex number. """
-    return "0x%02x" % val
+# def hex8(val):
+#     """ Format an integer as a 2 digit hex number. """
+#     return "0x%02x" % val
 
-def str2int(val):
-    """ Semi-smart conversion of string to integer; works for decimal and hex.
-    """
-    try:
-        return int(val)
-    except ValueError:
-        return int(val, 16)
+# def str2int(val):
+#     """ Semi-smart conversion of string to integer; works for decimal and hex.
+#     """
+#     try:
+#         return int(val)
+#     except ValueError:
+#         return int(val, 16)
 
 def datetime2int(val, tzOffset=0):
     """ Convert a date/time object (either a standard Python datetime.datetime

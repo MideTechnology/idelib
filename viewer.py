@@ -13,15 +13,12 @@ in the About Box.
 @todo: Revamp the zooming and navigation to be event-driven, handled as far up
     the chain as possible. Consider using wx.lib.pubsub if it's thread-safe
     in conjunction with wxPython views.
-@todo: Refactor the user preferences, maybe using `wx.Config` so the wxWidgets
-    file history system can be used.
-
 '''
 
 APPNAME = u"Slam Stick X Data Viewer"
 __version__="0.1"
 __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
-__url__ = ("http://mide.com", "")
+__url__ = ("http://mide.com", u"")
 __credits__=["David R. Stokes", "Tim Gipson"]
 
 # XXX: REMOVE THIS BEFORE RELEASE!
@@ -58,8 +55,6 @@ from loader import Loader
 from plots import PlotSet
 from preference_dialog import PrefsDialog
 from range_dialog import RangeDialog
-
-# XXX: EXPERIMENTAL
 from memorydialog import MemoryDialog
 
 # Special helper objects and functions
@@ -68,7 +63,7 @@ from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
 import mide_ebml; mide_ebml = mide_ebml # Workaround for Eclipse code comp.
-import mide_ebml.classic
+# import mide_ebml.classic
 import mide_ebml.classic.parsers
 
 ANTIALIASING_MULTIPLIER = 3.33
@@ -399,7 +394,7 @@ class TimeNavigator(ViewerPanel):
         newStart = (v1 + d)/ self.root.timeScalar
         newEnd = (v2 - d)/ self.root.timeScalar
         
-        # If one end butts the limit, more the other one more.
+        # If one end butts the limit, move the other one more.
         if newStart < self.timerange[0]:
             newEnd += self.timerange[0] - newStart
         elif newEnd > self.timerange[1]:
@@ -409,7 +404,6 @@ class TimeNavigator(ViewerPanel):
         v2 = min(self.timerange[1], newEnd)#max(v1+10000, newEnd)) # Buffer
         self.setVisibleRange(v1,v2)
         self.postSetVisibleRangeEvent(v1, v2, tracking)
-#         self.root.setVisibleRange(v1, v2, self)#, not tracking)
 
 
     #===========================================================================
@@ -464,7 +458,7 @@ class TimeNavigator(ViewerPanel):
 #===============================================================================
 
 class Corner(ViewerPanel):
-    """ A 'bug' to fit into the empty space in the lower left corner.
+    """ A set of widgets to fit into the empty space in the lower left corner.
         Provides a space for 'manually' entering an interval of time to
         display.
     """
@@ -474,10 +468,11 @@ class Corner(ViewerPanel):
         
         self.updating = False
         self.formatting = "%.4f"
+        labelSize = self.GetTextExtent(" Start:")
         
         fieldAtts = {'size': (56,-1),
                      'style': wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB}
-        labelAtts = {'size': (30,-1),
+        labelAtts = {'size': labelSize,#(30,-1),
                      'style': wx.ALIGN_RIGHT | wx.ALIGN_BOTTOM}
         unitAtts = {'style': wx.ALIGN_LEFT}
         
@@ -489,18 +484,18 @@ class Corner(ViewerPanel):
         endLabel = wx.StaticText(self,-1,"End:", **labelAtts)
         self.endUnits = wx.StaticText(self, -1, " ", **unitAtts)
 
-        sizer = wx.FlexGridSizer(2,3, hgap=4, vgap=4)
-        sizer.AddGrowableCol(0,-2)
-        sizer.AddGrowableCol(1,-4)
+        sizer = wx.FlexGridSizer(2,3, hgap=0, vgap=2)
+        sizer.AddGrowableCol(0,-1)
+        sizer.AddGrowableCol(1,-1)
         sizer.AddGrowableCol(2,-1)
         
         sizer.Add(startLabel,0,0,wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.ALL)
-        sizer.Add(self.startField,1,0)
-        sizer.Add(self.startUnits, 2,0)
+        sizer.Add(self.startField)#,1,0)
+        sizer.Add(self.startUnits)#, 2,0)
         
-        sizer.Add(endLabel,1,0)
-        sizer.Add(self.endField,1,1)
-        sizer.Add(self.endUnits, 2,1)
+        sizer.Add(endLabel)#,0,1)
+        sizer.Add(self.endField)#,1,1)
+        sizer.Add(self.endUnits)#, 2,1)
         
         self.SetSizer(sizer)
         startLabel.SetSizerProps(valign="center")
@@ -642,8 +637,6 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.loadPrefs()
         
-        self.showUtcTime = False
-        
         self.dataset = None
         self.session = None
         self.cancelQueue = []
@@ -687,7 +680,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.aaMultiplier = self.app.getPref('antialiasingMultiplier', 
                                              ANTIALIASING_MULTIPLIER)
         self.noisyResample = self.app.getPref('resamplingJitter', False)
-        self.showUtcTime = self.app.getPref('showUtcTime', False)
+        self.showUtcTime = self.app.getPref('showUtcTime', True)
         self.drawMinMax = self.app.getPref('drawMinMax', False)
         self.drawMean = self.app.getPref('drawMean', False)
         self.drawMajorHLines = self.app.getPref('drawMajorHLines', True)
@@ -1582,7 +1575,7 @@ class Viewer(wx.Frame, MenuMixin):
         desc = desc.replace('\n\n','\0').replace('\n',' ').replace('\0','\n\n')
         desc = wordwrap(desc, 350, wx.ClientDC(self))
         vers = "Version %s (build %d), %s" % (__version__, BUILD_NUMBER, 
-                                    datetime.fromtimestamp(BUILD_TIME).date())
+                                    datetime.fromtimestamp(BUILD_TIME))
         
         info = wx.AboutDialogInfo()
         info.Name = APPNAME
@@ -2084,11 +2077,10 @@ class ViewerApp(wx.App):
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
 #         'locale': 'English_United States.1252', # Python's locale name string
         'loader': dict(numUpdates=100, updateInterval=1.0),
-        'warnBeforeQuit': False, #True,
         'openOnStart': True,
         'showDebugChannels': __DEBUG__,
         'showFullPath': False,
-        'showUtcTime': False,
+        'showUtcTime': True,
 
         # WVR/SSX-specific parameters: the hard-coded warning range.        
         'wvr_tempMin': -20.0,
@@ -2323,13 +2315,14 @@ class ViewerApp(wx.App):
             return
         self.savePrefs(self.prefsFile)
 
+    
+
 
 #===============================================================================
 # 
 #===============================================================================
 
-# XXX: Change this back for 'real' version
-if __name__ == '__main__':# or True:
+if __name__ == '__main__':
     import argparse
     desc = "%s v%s \n%s" % (APPNAME, __version__, __copyright__)
     parser = argparse.ArgumentParser(description=desc)

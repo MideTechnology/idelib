@@ -97,11 +97,13 @@ class Recorder(object):
         self.volumeName = getDriveInfo(self.path)[1]
         self.configFile = os.path.join(self.path, self.CONFIG_FILE)
         self.infoFile = os.path.join(self.path, self.INFO_FILE)
+        self.clearCache()
+    
+    def clearCache(self):
         self._info = None
         self._config = None
         self._name = None
         self._sn = None
-        
 
 
     def onDevice(self, filename):
@@ -127,12 +129,21 @@ class SlamStickX(Recorder):
     CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
     TIME_PARSER = struct.Struct("<L")
 
+    TYPE_RANGES = {
+       0x10: (-25,25),
+       0x12: (-100,100)
+    }
+
     baseName = "Slam Stick X"
 
     def __init__(self, path):
         super(SlamStickX, self).__init__(path)
         self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
+        self._accelRange = None
 
+    def clearCache(self):
+        super(SlamStickX, self).clearCache()
+        self._accelRange = None
 
     @classmethod
     def isRecorder(cls, dev):
@@ -225,9 +236,39 @@ class SlamStickX(Recorder):
     def serial(self):
         """ The recorder's manufacturer-issued serial number. """
         if self._sn is None:
-            self._sn = self.getInfo().get('RecorderSerial', '')
+            sn = self.getInfo().get('RecorderSerial', None)
+            if sn is None:
+                self._sn = ""
+            else:
+                self._sn = "SSX%08d" % self.getInfo().get('RecorderSerial', '')
         return self._sn
 
+
+    def getAccelRange(self):
+        """ Get the 
+        """
+        if self._accelRange is None:
+            t = self.getInfo().get('RecorderTypeUID', 0x12) & 0xff
+            self._accelRange = self.TYPE_RANGES.get(t, (-100,100))
+        return self._accelRange
+    
+    def _packAccel(self, v):
+        """ Convert an acceleration from G to native units.
+        
+            Note: Currently not used to save data, unlike the classic '_pack' 
+            methods.
+        """
+        x = self.getAccelRange()[1]
+        return min(65535, max(0, int(((v + x)/(2.0*x)) * 65535)))
+
+    def _unpackAccel(self, v):
+        """ Convert an acceleration from native units to G.
+        
+            Note: Currently not used to save data, unlike the classic '_unpack' 
+            methods.
+        """
+        x = self.getAccelRange()[1]
+        return min(x, max(-x, (v * x * 2.0) / 65535 - x))
 
     def getTime(self):
         """ Read the date/time from the device. 
@@ -558,12 +599,16 @@ def getDevices(paths=None, types=RECORDER_TYPES):
     return result
 
 
-def getRecorder(dev, types=RECORDER_TYPES):
+def getRecorder(path, types=RECORDER_TYPES):
     """ Get a specific recorder by its path.
+    
+        @param path: The filesystem path to the recorder's root directory.
+        @keyword types: A list of `Recorder` subclasses to find.
+        @return: An instance of a `Recorder` subclass.
     """
     for t in types:
-        if t.isRecorder(dev):
-            return t(dev)
+        if t.isRecorder(path):
+            return t(path)
     return None
 
 

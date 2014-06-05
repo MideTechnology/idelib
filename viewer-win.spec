@@ -4,7 +4,7 @@ import os
 # HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
 HOME_DIR = os.getcwd()
 
-# This is a kludgey auto-incrementing build number. Remove later!
+# This is a moderately kludgey auto-incrementing build number.
 try:
 	import socket, sys, time
 	sys.path.append(HOME_DIR)
@@ -12,7 +12,7 @@ try:
 	BUILD_NUMBER += 1
 	logging.logger.info("*** Build number %d" % BUILD_NUMBER)
 	with open('dev_build_number.py', 'wb') as f:
-		f.write('# AUTOMDO NOT CHANGE THIS FILE MANUALLY!\n')
+		f.write('# AUTOMATICALLY-GENERATED FILE; DO NOT CHANGE THIS FILE MANUALLY!\n')
 		f.write('BUILD_NUMBER = %d\n' % BUILD_NUMBER)
 		f.write('BUILD_TIME = %d\n' % time.time())
 		f.write('BUILD_MACHINE = %r\n' % socket.gethostname())
