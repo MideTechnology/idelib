@@ -1,7 +1,7 @@
 '''
 Module for reading and writing 'Slam Stick Classic' configuration files.
 
-@todo: Move everything into SSXViewer/devices.py ? The other recorder-specifc
+@todo: Move everything into SSXViewer/devices.py ? The other recorder-specific
     stuff resides there, since it's not really part of the data. Or do the
     opposite and move more of the recorder-specific stuff into the library.
 
@@ -30,14 +30,10 @@ Items marked with [REV2] indicate features only supported by the Rev2+ firmware
     `struct` format for parsing them. These are in the expected order.
 @var CONFIG_PARSER: A `struct.Struct` to parse (or pack) a config file's
     contents.
-@var CONFIG_OFFSETS: A dictionary of config file fields with their corresponding
-    offset from the start of the file. Note that this is a regular dictionary,
-    so the keys will *not* be in order.
 '''
 
 from collections import OrderedDict
 from datetime import datetime
-import os.path
 import struct
 
 # Comments are (mostly) verbatim from the C code.
@@ -74,7 +70,7 @@ CONFIG_FIELDS = OrderedDict((
     ('PRESERVE_DATA', 'B'),       # Unimplemented. Initial intention was a mechanism to prevent accidental erase operations to preserve important data (for rental "mail back for processing" business model). Not relevant now that the user buys it and can download on their own...
     ('CONFIG_FLAGS', 'B'),        # [x x x x x x x x]
                                   # 7: CONFIG_FLAGS_DEFAULT_CFG: allow to determine default (wiped?) vs. customized cfgs. 1=default; 0=customized. NOTE: The remaining bits are only valid if DEFAULT_CFG = 0.
-                                  # 6: CONFIG_FLAGS_AUTO_REARM: If 'customized', 1=enable auto-ream, 0=disable auto-rearm. [REV2]
+                                  # 6: CONFIG_FLAGS_AUTO_REARM: If 'customized', 1=enable auto-ream, 0=disable auto re-arm. [REV2]
                                   # ^^^ Bit 6 added 20140508 . Confirmed as of this date the Python, Matlab and C configurators have all been initializing the remaining bits to 0, so "0"=disabled is a safe default.
     # offset: 60
     ('RTCC_TIME', '7s'),          # (R) Get time (W) Set time to this value if indicated by WR_RTCC byte (see below) [REV2]
@@ -87,7 +83,7 @@ CONFIG_FIELDS = OrderedDict((
 
     # offset: 74
     ('TRIGGER_FLAGS', '2s'),      # Four nibbles, MSB..LSB, provide trigger rules for each of 4 possible trigger sources (extA, extB, shock, RTCC).
-                                  # UNIMPLEMENTED - for extA,B: [xxxx] = [enabled, edge/level FUTURE, rising/falling (edge), terminateBy]  *terminateByX indicates this signal can both start and stop the recording.
+                                  # UNIMPLEMENTED - for extA,B: [XXXX] = [enabled, edge/level FUTURE, rising/falling (edge), terminateBy]  *terminateByX indicates this signal can both start and stop the recording.
                                   # for shock: [enabled, x, x, x]
                                   # for RTCC Alarm: [enabled, x, x, x] [REV2]
     ('TRIG_THRESH_ACT', 'B'),     # G-level magnitude (unsigned) of g-level trigger; 62.5 mg/LSB. WARNING: Due to noise, settings at/near 0 may cause undesired operation.
@@ -107,23 +103,23 @@ CONFIG_FIELDS = OrderedDict((
     ('WR_RTCC', 'B'),             # (W) if byte value = 0x5A, the RTCC_TIME[7] in this file (above) is written to the hardware RTCC, and the peripheral enabled. [REV2]
     ('TZ_OFFSET', 'B'),           # Timezone offset from UTC in integer hours. If 0, RTCC/alarm are in local time (and/or local time == UTC)
     ('ALARM_TIME', '7s'),         # Same format as RTCC_TIME[7], except the 1st byte is reserved/unimplemented: alarm does not use year. MUST be set to a valid alarm time if triggering on RTCC enabled in TRIGGER_FLAGS.
-    ('REPEATS', 'B'),             # Number of times to repeat. 0 = single-shot, 255 = 255 repeats (256 total alarms). NOTE: Ignored if CHIME_EN is set.
+    ('REPEATS', 'B'),             # Number of times to repeat. 0 = single-shot, 255 = 255 repeats (256 total alarms). Ignored if CHIME_EN is set.
     ('ROLLPERIOD', 'B'),          # Alarm rollover period (every minute, etc.). Bit patterns defined in rtcc.h.
     ('CHIME_EN', 'B'),            # Bit 0 = "chime mode" (alarm repeats indefinitely; REPEATS setting ignored).
 ))
 
 CONFIG_PARSER = struct.Struct('<' + "".join(CONFIG_FIELDS.values()))
 
-def _calcOffsets(d):
+def getFieldOffsets(fields=CONFIG_FIELDS):
+    """ Get the offsets from the start of the file for each configuration
+        field. For testing/debugging/verification.
+    """
     offset = 0
-    result = {}
-    for k,v in d.iteritems():
+    result = OrderedDict()
+    for k,v in fields.iteritems():
         result[k] = offset
         offset += struct.calcsize(v)
     return result
-
-CONFIG_OFFSETS = _calcOffsets(CONFIG_FIELDS)
-del _calcOffsets
 
 #===============================================================================
 # 
@@ -173,6 +169,7 @@ def packUID(s):
         return '\x00' * 8
     return str(s)[:8].ljust(8,'\x00')
 
+
 def unpackUID(s):
     return s.rstrip('\x00')
 
@@ -200,16 +197,6 @@ CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
                    'USERUID_RESERVE': unpackUID,
                    'TRIG_THRESH_ACT': lambda x: x*0.0625,
                    }
-
-#===============================================================================
-# 
-#===============================================================================
-
-def isRecorder(path):
-    """
-    """
-    return (os.path.exists(os.path.join(path, 'config.dat')) and
-            os.path.exists(os.path.join(path, 'data.dat')))
 
 
 #===============================================================================

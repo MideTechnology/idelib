@@ -1221,6 +1221,10 @@ class Viewer(wx.Frame, MenuMixin):
         """ Open a recording file. This also handles prompting the user when
             a file is loading or has already been loaded.
             
+            @todo: Encapsulate the file type identification, so a file without
+                an extension (or a different one) can still be identified and
+                imported. Low priority.
+            
             @param filename: The full path and name of the file to open. 
             @keyword prompt: If `True`, the user will be warned before loading
                 a new file over the old one. If `False`, the old file will

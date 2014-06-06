@@ -310,6 +310,44 @@ class SlamStickX(Recorder):
         return t
 
 
+    def exportConfig(self, filename, data=None, verify=True):
+        """
+        """
+        if data is None:
+            data = self.getConfig()
+        ebml = util.build_ebml("RecorderConfiguration", data)
+        if verify and not util.verify(ebml):
+            raise ValueError("Generated config EBML could not be verified")
+        with open(self.configFile, 'wb') as f:
+            f.write("%s\n" % self.productName)
+            f.write(ebml)
+        return len(ebml)
+        
+        
+        
+    def importConfig(self, filename, update=False):
+        """
+        """
+        try:
+            with open(filename,'rb') as f:
+                pname = f.readline().strip()
+                if pname != self.productName:
+                    raise TypeError("Device mismatch: "
+                                    "this is %r, file is %r" % \
+                                    (pname, self.productName))
+            
+                devinfo = util.read_ebml(f)
+                if devinfo:
+                    config = devinfo.get('RecorderConfiguration', 
+                                               OrderedDict())
+            if update:
+                return self.getConfig().update(config)
+            else:
+                self._config = config
+                return self._config
+        except IOError:
+            pass
+
 #===============================================================================
 
 class SlamStickClassic(Recorder):
@@ -496,7 +534,20 @@ class SlamStickClassic(Recorder):
         self.saveConfig(conf)
         
         return t
-
+    
+    
+    def exportConfig(self, filename, data=None):
+        """
+        """
+        if data is None:
+            data = self.getConfig()
+        
+        
+        
+    def importConfig(self, filename):
+        pass
+    
+    
 #===============================================================================
 # 
 #===============================================================================

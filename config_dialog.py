@@ -52,7 +52,7 @@ class BaseConfigPanel(sc.SizedPanel):
         return val
     
 
-    def addField(self, labelText, name=None, units="", fieldText="", 
+    def addField(self, labelText, name=None, units="", value="", 
                  fieldSize=None, fieldStyle=None, tooltip=None):
         """ Helper method to create and configure a labeled text field and
             add it to the set of controls. 
@@ -60,13 +60,13 @@ class BaseConfigPanel(sc.SizedPanel):
             @param labelText: The text proceeding the field.
             @keyword name: The name of the key in the config data, if the
                 field maps directly to a value.
-            @keyword fieldText: The default field text.
+            @keyword value: The default field text.
             @keyword fieldSize: The size of the text field
             @keyword fieldStyle: The text field's wxWindows style flags.
             @keyword tooltip: A tooltip string for the field.
         """
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
-        txt = unicode(fieldText)
+        txt = unicode(value)
         c = wx.StaticText(self, -1, labelText)
         c.SetSizerProps(valign="center")
         if fieldStyle is None:
@@ -133,7 +133,7 @@ class BaseConfigPanel(sc.SizedPanel):
         return c
 
 
-    def addCheckField(self, checkText, name=None, units="", fieldText="", 
+    def addCheckField(self, checkText, name=None, units="", value="", 
                       fieldSize=None, fieldStyle=None, tooltip=None):
         """ Helper method to create and configure checkbox/field pairs, and add
             them to the set of controls.
@@ -141,13 +141,13 @@ class BaseConfigPanel(sc.SizedPanel):
             @param checkText: The checkbox's label text.
             @keyword name: The name of the key in the config data, if the
                 field maps directly to a value.
-            @keyword fieldText: The default field text.
+            @keyword value: The default field text.
             @keyword fieldSize: The size of the text field
             @keyword fieldStyle: The text field's wxWindows style flags.
             @keyword tooltip: A tooltip string for the field.
         """
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
-        txt = unicode(fieldText)
+        txt = unicode(value)
 
         c = wx.CheckBox(self, -1, checkText)
         c.SetSizerProps(valign="center")

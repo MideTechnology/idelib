@@ -44,10 +44,10 @@ from parsers import getParserTypes, getParserRanges
 # DEBUGGING: XXX: Remove later!
 #===============================================================================
 
-# __DEBUG__ = True
+__DEBUG__ = True
 
-import socket
-__DEBUG__ = socket.gethostname() in ('DEDHAM',)
+# import socket
+# __DEBUG__ = socket.gethostname() in ('DEDHAM',)
     
 if __DEBUG__:
     import ebml
