@@ -104,6 +104,7 @@ class Recorder(object):
         self._config = None
         self._name = None
         self._sn = None
+        self._accelRange = None
 
 
     def onDevice(self, filename):
@@ -116,6 +117,99 @@ class Recorder(object):
         filename = os.path.realpath(os.path.expandvars(filename))
         return os.path.commonprefix((self.path, filename)) == self.path
 
+
+    def _loadConfig(self, source, default=None):
+        """ Stub for the method that does device-specific config loading. 
+            Must be implemented for each `Recorder` subclass!
+        """
+        raise NotImplementedError
+    
+    def _saveConfig(self, dest, data=None, verify=True):
+        """ Stub for the method that does device-specific config saving. 
+            Must be implemented for each `Recorder` subclass!
+        """
+        raise NotImplementedError
+    
+
+    def exportConfig(self, filename, data=None, verify=True):
+        """ Write device configuration data to a file. The file contains the
+            device product name, a newline, and then the data in the device's
+            native format.
+            
+            @param filename: The name of the file to which to export.
+            @keyword data: A dictionary of configuration data to export. If
+                `None`, the device's own configuration data is exported.
+            @keyword verify: If `True`, the configuration data will be
+                validated prior to export.
+        """
+        if data is None:
+            data = self.getConfig()
+        if not data:
+            raise ValueError("No configuration data!")
+        with open(filename, 'wb') as f:
+            f.write("%s\n" % self.productName)
+            self._saveConfig(f, data, verify)
+            return True
+        
+        
+    def importConfig(self, filename, update=True):
+        """ Read device configuration data from a file. The file must contain
+            the device's product name, a newline, and then the data in the
+            device's native format. If the product name doesn't match the
+            device's product name an `TypeError` is raised.
+            
+            @param filename: The name of the exported config file to import.
+            @keyword update: If `True`, the config data is applied to the
+                device. If `False`, it is just imported.
+            @return: A dictionary of configuration attributes.
+        """
+        with open(filename,'rb') as f:
+            pname = f.readline().strip()
+            if pname != self.productName:
+                raise TypeError("Device mismatch: this is %r, file is %r" % \
+                                (pname, self.productName))
+        
+            config = self._loadConfig(f)
+        if update:
+            self.getConfig().update(config)
+        else:
+            self._config = config
+        return self._config
+
+
+    def getConfig(self, default=None, refresh=False):
+        """ Get the recorder's configuration data.
+        """
+        if self._config is not None and not refresh:
+            return self._config
+        default = OrderedDict() if default is None else default
+        try:
+            self._config = self._loadConfig(self.configFile)
+            if isinstance(default, dict):
+                d = default.copy()
+                d.update(self._config)
+                self._config = d
+            return self._config
+        except IOError:
+            pass
+        return default
+
+
+    def saveConfig(self, data=None, verify=True):
+        """ Write a dictionary of configuration data to a device. 
+        
+            @keyword data: The configuration data to write, as a set of nested
+                dictionaries. Defaults to the device's loaded config data.
+            @keyword verify: If `True`, the validity of the configuration data
+                is checked before the data is written.
+        """
+        if data is None:
+            data = self.getConfig()
+            if not data:
+                raise ValueError("Device configuration data has not been loaded")
+        with open(self.configFile, 'wb') as f:
+            return self._saveConfig(f, data, verify)
+    
 
 
 #===============================================================================
@@ -139,11 +233,6 @@ class SlamStickX(Recorder):
     def __init__(self, path):
         super(SlamStickX, self).__init__(path)
         self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
-        self._accelRange = None
-
-    def clearCache(self):
-        super(SlamStickX, self).clearCache()
-        self._accelRange = None
 
     @classmethod
     def isRecorder(cls, dev):
@@ -178,45 +267,23 @@ class SlamStickX(Recorder):
         return default
 
     
-    def getConfig(self, default=None, refresh=False):
+    def _loadConfig(self, source):
+        """ Helper method to read configuration info from a file. Used
+            internally.
         """
-        """
-        if self._config is not None and not refresh:
-            return self._config
-        try:
-            if not os.path.exists(self.configFile):
-                self._config = OrderedDict(())
-            else:
-                devinfo = util.read_ebml(self.configFile)
-                self._config = devinfo.get('RecorderConfiguration', 
-                                           OrderedDict())
-            if isinstance(default, dict):
-                d = default.copy()
-                d.update(self._config)
-                self._config = d
-            return self._config
-        except IOError:
-            pass
-        return default
+        devinfo = util.read_ebml(source)
+        return devinfo.get('RecorderConfiguration', None)
 
 
-    def saveConfig(self, data, verify=True):
-        """ Write a dictionary of configuration data to a device. 
-        
-            @param dev: The path to the recording device.
-            @param data: The configuration data to write, as a set of nested
-                dictionaries.
-            @keyword verify: If `True`, the validity of the EBML is checked 
-                before the data is written.
+    def _saveConfig(self, dest, data, verify=True):
+        """
         """
         ebml = util.build_ebml("RecorderConfiguration", data)
         if verify and not util.verify(ebml):
             raise ValueError("Generated config EBML could not be verified")
-        with open(self.configFile, 'wb') as f:
-            f.write(ebml)
-        self._config = self._info = None
+        dest.write(ebml)
         return len(ebml)
-    
+
 
     @property
     def name(self):
@@ -245,7 +312,7 @@ class SlamStickX(Recorder):
 
 
     def getAccelRange(self):
-        """ Get the 
+        """ Get the range of the device's acceleration measurement.
         """
         if self._accelRange is None:
             t = self.getInfo().get('RecorderTypeUID', 0x12) & 0xff
@@ -309,44 +376,6 @@ class SlamStickX(Recorder):
             f.write(self.TIME_PARSER.pack(t))
         return t
 
-
-    def exportConfig(self, filename, data=None, verify=True):
-        """
-        """
-        if data is None:
-            data = self.getConfig()
-        ebml = util.build_ebml("RecorderConfiguration", data)
-        if verify and not util.verify(ebml):
-            raise ValueError("Generated config EBML could not be verified")
-        with open(self.configFile, 'wb') as f:
-            f.write("%s\n" % self.productName)
-            f.write(ebml)
-        return len(ebml)
-        
-        
-        
-    def importConfig(self, filename, update=False):
-        """
-        """
-        try:
-            with open(filename,'rb') as f:
-                pname = f.readline().strip()
-                if pname != self.productName:
-                    raise TypeError("Device mismatch: "
-                                    "this is %r, file is %r" % \
-                                    (pname, self.productName))
-            
-                devinfo = util.read_ebml(f)
-                if devinfo:
-                    config = devinfo.get('RecorderConfiguration', 
-                                               OrderedDict())
-            if update:
-                return self.getConfig().update(config)
-            else:
-                self._config = config
-                return self._config
-        except IOError:
-            pass
 
 #===============================================================================
 
@@ -434,47 +463,23 @@ class SlamStickClassic(Recorder):
         return s.rstrip('\x00')
 
 
-    def getConfig(self, default=None, refresh=False):
-        """ Get the device's configuration data. 
-        
-            @param default: A dictionary of default values, if no configuration
-                data was read or any fields are missing.
-            @keyword refresh: If `True`, the configuration data will be read
-                fresh from the devices. If `False`, cached data will be
-                returned (if available).
+    def _loadConfig(self, source):
         """
-        if self._config is not None and not refresh:
-            return self._config
-        try:
-            self._config = classic_config.readConfig(self.configFile)
-            if isinstance(default, dict):
-                d = default.copy()
-                d.update(self._config)
-                self._config = d
-            return self._config
-        except IOError:
-            pass
-        return default
-
-
-    def saveConfig(self, data, verify=True):
-        """ Write a dictionary of configuration data to a device. 
-        
-            @param dev: The path to the recording device.
-            @param data: The configuration data to write, as a set of nested
-                dictionaries.
-            @keyword verify: If `True`, the validity of the EBML is checked 
-                before the data is written.
         """
-        self._config = self._info = data
-        return classic_config.writeConfig(self.configFile, data, verify)
+        return classic_config.readConfig(source)
+    
 
+    def _saveConfig(self, dest, data, verify=True):
+        return classic_config.writeConfig(dest, data, verify)
+    
 
     def getInfo(self, default=None, refresh=False):
         """ Get information on the recorder. For Classic, this is in the
             configuration file, so this method is the same as `getConfig()`.
         """
-        return self.getConfig(default, refresh)
+        if self._info is None:
+            self._info = self.getConfig(default, refresh)
+        return self._info
 
 
     @property
@@ -534,20 +539,11 @@ class SlamStickClassic(Recorder):
         self.saveConfig(conf)
         
         return t
-    
-    
-    def exportConfig(self, filename, data=None):
-        """
-        """
-        if data is None:
-            data = self.getConfig()
-        
-        
-        
-    def importConfig(self, filename):
-        pass
-    
-    
+
+
+    def getAccelRange(self):
+        return (-16,16) 
+ 
 #===============================================================================
 # 
 #===============================================================================
@@ -603,7 +599,8 @@ def win_deviceChanged(recordersOnly=True, types=RECORDER_TYPES):
     changed = newRecorders != win_last_recorders
     win_last_recorders = newRecorders
     return changed
- 
+
+
 
 #===============================================================================
 # 
@@ -693,7 +690,7 @@ def onRecorder(path):
         oldp = path
         path = os.path.dirname(path)
     return False
-    
+
 
 #===============================================================================
 # 

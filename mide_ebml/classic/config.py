@@ -239,33 +239,41 @@ def verify(data):
     return True
 
 
-def readConfig(filename):
+def readConfig(source):
     """ Read configuration data from a file, presumably on a Slam Stick Classic
         device.
         
-        @param filename: The path and filename to read.
+        @param source: Either a (file-)stream from which to read, or the 
+            path/name of a file to read.
     """
-    with open(filename, 'rb') as f:
-        data = f.read(CONFIG_PARSER.size)
+    if isinstance(source, basestring):
+        with open(source, 'rb') as f:
+            return readConfig(f)
+        
+    data = f.read(CONFIG_PARSER.size)
     return decodeConfig(OrderedDict(zip(CONFIG_FIELDS.keys(), 
                                         CONFIG_PARSER.unpack_from(data))))
 
 
-def writeConfig(filename, data, validate=True):
+def writeConfig(dest, data, validate=True):
     """ Save the configuration data to a file, presumably on a Slam Stick
         Classic device. 
         
-        @param filename: The path and filename to save.
+        @param dest: Either a (file-)stream to which to write, or the path/name
+            of a file to which to save.
         @param data: An ordered dictionary with the configuration data
         @keyword validate: If `True`, the data is validated before being saved.
             Doesn't do anything here; validation just packs the data, which is
             being done anyway.
         @return: `True` if the data was saved, `False` if not.
     """
+    if isinstance(dest, basestring):
+        with open(dest, 'wb') as f:
+            return writeConfig(f, data, validate)
+        
     try:
         c = CONFIG_PARSER.pack(*encodeConfig(data).values())
-        with open(filename, 'wb') as f:
-            f.write(c)
+        dest.write(c)
     except struct.error:
         return False
     

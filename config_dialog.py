@@ -1264,8 +1264,6 @@ class ConfigDialog(sc.SizedDialog):
         data = OrderedDict()
         data.update(self.options.getData())
         data.update(self.triggers.getData())
-        
-#         return util.encode_container(data, schema=schema)
         return data
 
 #===============================================================================
@@ -1312,7 +1310,7 @@ def configureRecorder(path, save=True):
 
 if __name__ == "__main__":
     app = wx.App()
-    print "configureRecorder() returned %r" % configureRecorder("I:\\")
+    print "configureRecorder() returned %r" % configureRecorder("G:\\")
 #     print configureRecorder("I:\\")
 
 
