@@ -250,7 +250,7 @@ def readConfig(source):
         with open(source, 'rb') as f:
             return readConfig(f)
         
-    data = f.read(CONFIG_PARSER.size)
+    data = source.read(CONFIG_PARSER.size)
     return decodeConfig(OrderedDict(zip(CONFIG_FIELDS.keys(), 
                                         CONFIG_PARSER.unpack_from(data))))
 

@@ -1172,6 +1172,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
         if self.rtccCheck.GetValue():
             data['RTCC_ENA'] = 1
             if self.setRtcCheck.GetValue():
+                # Set the 'RTCC write' flag and the time.
                 data['WR_RTCC'] = 0x5A
                 data['RTCC_TIME'] = datetime.now()
         else:
@@ -1208,6 +1209,9 @@ class ConfigDialog(sc.SizedDialog):
         @todo: Choose the tabs dynamically based on the recorder type, once
             there are multiple types of recorders using the MIDE format.
     """
+    
+    ID_IMPORT = wx.NewId()
+    ID_EXPORT = wx.NewId()
     
     def buildUI_SSX(self):
         self.triggers = SSXTriggerConfigPanel(self.notebook, -1, root=self)
@@ -1251,6 +1255,14 @@ class ConfigDialog(sc.SizedDialog):
         
         self.notebook.SetSizerProps(expand=True, proportion=-1)
 
+        buttonpane = sc.SizedPanel(pane, -1)
+        buttonpane.SetSizerType("horizontal")
+        buttonpane.SetSizerProps(expand=True)
+        wx.Button(buttonpane, self.ID_IMPORT, "Import...")
+        wx.Button(buttonpane, self.ID_EXPORT, "Export...")
+        self.Bind(wx.EVT_BUTTON, self.importConfig, id=self.ID_IMPORT)
+        self.Bind(wx.EVT_BUTTON, self.exportConfig, id=self.ID_EXPORT)
+        
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
         self.okButton = self.FindWindowById(wx.ID_OK)
         
@@ -1265,6 +1277,56 @@ class ConfigDialog(sc.SizedDialog):
         data.update(self.options.getData())
         data.update(self.triggers.getData())
         return data
+
+
+    def importConfig(self, evt=None):
+        done = False
+        dlg = wx.FileDialog(self, 
+                            message="Choose an exported configuration file",
+                            wildcard=("Exported config file (*.cfx)|*.cfx|"
+                                      "All files (*.*)|*.*"),
+                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+        while not done:
+            d = dlg.ShowModal()
+            if d != wx.ID_OK:
+                done = True
+            else:
+                try:
+                    filename = dlg.GetPath()
+                    self.device.importConfig(filename)
+                    for i in range(self.notebook.GetPageCount()):
+                        self.notebook.GetPage(i).initUI()
+                    done = True
+                except devices.ConfigError:
+                    # TODO: More specific error message (wrong device type
+                    # vs. not a config file
+                    md = wx.MessageDialog(self, 
+                        "The selected file does not appear to be a valid "
+                        "configuration file for this device.", 
+                        "Invalid Configuration", 
+                        wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION)
+                    done = md.ShowModal() == wx.ID_CANCEL
+                    md.Destroy()
+        dlg.Destroy()
+
+    
+    def exportConfig(self, evt=None):
+        dlg = wx.FileDialog(self, message="Export Device Configuration", 
+                            wildcard=("Exported config file (*.cfx)|*.cfx|"
+                                      "All files (*.*)|*.*"),
+                            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+        if dlg.ShowModal() == wx.ID_OK:
+            try:
+                self.device.exportConfig(dlg.GetPath())
+            except:
+                # TODO: More specific error message
+                md = wx.MessageDialog(self, 
+                    "The configuration data could not be exported to the "
+                    "specified file.", "Config Export Failed",
+                    wx.OK | wx.ICON_EXCLAMATION)
+                md.ShowModal()
+                md.Destroy()
+        dlg.Destroy()
 
 #===============================================================================
 # 
