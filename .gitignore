@@ -11,6 +11,8 @@
 *.ebml
 *.csv
 *.ide
+*.cfx
+*.dat
 *~
 
 test*.xml

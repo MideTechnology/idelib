@@ -1240,8 +1240,16 @@ class ConfigDialog(sc.SizedDialog):
         
         super(ConfigDialog, self).__init__(*args, **kwargs)
         
-        self.deviceInfo = self.device.getInfo()
-        self.deviceConfig = self.device.getConfig()
+        try:
+            self.deviceInfo = self.device.getInfo()
+            self.deviceConfig = self.device.getConfig()
+            self._doNotShow = False
+        except:
+            wx.MessageBox( 
+                "The device configuration data could not be read.", 
+                "Configuration Error", parent=self, style=wx.OK|wx.ICON_ERROR)
+            self._doNotShow = True
+            return
         
         pane = self.GetContentsPane()
         self.notebook = wx.Notebook(pane, -1)
@@ -1300,13 +1308,12 @@ class ConfigDialog(sc.SizedDialog):
                 except devices.ConfigError:
                     # TODO: More specific error message (wrong device type
                     # vs. not a config file
-                    md = wx.MessageDialog(self, 
+                    md = wx.MessageBox( 
                         "The selected file does not appear to be a valid "
                         "configuration file for this device.", 
-                        "Invalid Configuration", 
-                        wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION)
-                    done = md.ShowModal() == wx.ID_CANCEL
-                    md.Destroy()
+                        "Invalid Configuration", parent=self,
+                        style=wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION) 
+                    done = md == wx.CANCEL
         dlg.Destroy()
 
     
@@ -1320,12 +1327,10 @@ class ConfigDialog(sc.SizedDialog):
                 self.device.exportConfig(dlg.GetPath())
             except:
                 # TODO: More specific error message
-                md = wx.MessageDialog(self, 
+                wx.MessageBox( 
                     "The configuration data could not be exported to the "
-                    "specified file.", "Config Export Failed",
-                    wx.OK | wx.ICON_EXCLAMATION)
-                md.ShowModal()
-                md.Destroy()
+                    "specified file.", "Config Export Failed", parent=self,
+                    style=wx.OK | wx.ICON_EXCLAMATION)
         dlg.Destroy()
 
 #===============================================================================
@@ -1355,13 +1360,15 @@ def configureRecorder(path, save=True):
         
     dlg = ConfigDialog(None, -1, "Configure %s (%s)" % (dev.baseName, path), 
                        device=dev)
+    if dlg._doNotShow:
+        return
     if dlg.ShowModal() == wx.ID_OK:
         data = dlg.getData()
         if save:
             dev.saveConfig(data)
     else:
         data = None
-    
+
     dlg.Destroy()
     return data
 
@@ -1372,7 +1379,7 @@ def configureRecorder(path, save=True):
 
 if __name__ == "__main__":
     app = wx.App()
-    print "configureRecorder() returned %r" % configureRecorder("G:\\")
+    print "configureRecorder() returned %r" % configureRecorder("I:\\")
 #     print configureRecorder("I:\\")
 
 
