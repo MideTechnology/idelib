@@ -7,18 +7,17 @@ Created on Dec 31, 2013
 @author: dstokes
 '''
 
-import calendar as _calendar
-from datetime import datetime as _datetime
-import sys as _sys
-from threading import Thread as _Thread
+import calendar as calendar
+from datetime import datetime
+from threading import Thread as Thread
 
 import wx; wx = wx;
 import wx.lib.masked as wx_mc
 
-import images as _images
+import images as images
 
 #===============================================================================
-# 
+# Numeric and math-related helper functions
 #===============================================================================
 
 def expandRange(l, v):
@@ -79,21 +78,21 @@ def datetime2int(val, tzOffset=0):
     """
     if isinstance(val, wx.DateTime):
         return val.Ticks
-        val = _datetime.strptime(str(val), '%m/%d/%y %H:%M:%S')
-    return int(_calendar.timegm(val.timetuple()) + tzOffset)
+        val = datetime.strptime(str(val), '%m/%d/%y %H:%M:%S')
+    return int(calendar.timegm(val.timetuple()) + tzOffset)
         
 
 def time2int(val, tzOffset=0):
     """ Parse a time string (as returned from `TimeCtrl.GetValue()`) into
         seconds since midnight.
     """
-    t = _datetime.strptime(str(val), '%H:%M:%S')
+    t = datetime.strptime(str(val), '%H:%M:%S')
     return int((t.hour * 60 * 60) + (t.minute * 60) + t.second + tzOffset)
 
 
 
 #===============================================================================
-# 
+# Field validators
 #===============================================================================
 
 # class TimeValidator(wx.PyValidator):
@@ -126,7 +125,7 @@ def time2int(val, tzOffset=0):
 #         return        
 
 #===============================================================================
-# 
+# Custom widgets
 #===============================================================================
 
 class DateTimeCtrl(wx.Panel):
@@ -161,7 +160,7 @@ class DateTimeCtrl(wx.Panel):
     def GetValue(self):
         """ Get the value as a `wx.DateTime` object.
         """
-        t = _datetime.strptime(self.timeCtrl.GetValue(), '%H:%M:%S')
+        t = datetime.strptime(self.timeCtrl.GetValue(), '%H:%M:%S')
         dt = self.dateCtrl.GetValue()
         dt.SetHour(t.hour)
         dt.SetMinute(t.minute)
@@ -194,31 +193,28 @@ class StatusBar(wx.StatusBar):
         if self.root is None:
             self.root = self.GetParent().root
         
-        logo = _images.MideLogo.GetBitmap()
-        self.logo = wx.StaticBitmap(self, -1, logo)
-
+        logo = wx.StaticBitmap(self, -1, images.MideLogo.GetBitmap())
         self.progressBar = wx.Gauge(self, -1, 1000)
         self.cancelButton = wx.Button(self, wx.ID_CANCEL, style=wx.BU_EXACTFIT)
         bwidth, bheight = self.cancelButton.GetBestSize()
-        self.buttonWidth = bwidth + 2
         self.cancelButton.SetSize((bwidth, bheight-4))
 
         fieldWidths = [-1] * self.numFields
 
-        self.buttonFieldNum = self.numFields-1
-        self.progressFieldNum = self.numFields-2
+        buttonFieldNum = self.numFields-1
+        progressFieldNum = self.numFields-2
         self.messageFieldNum = self.numFields-3
-        self.warnFieldNum = self.numFields-4
+        warnFieldNum = self.numFields-4
         self.utcFieldNum = 3
         self.yFieldNum = 2
         self.xFieldNum = 1
-        self.logoFieldNum = 0
+        logoFieldNum = 0
 
-        fieldWidths[self.logoFieldNum] = logo.GetSize()[0]
+        fieldWidths[logoFieldNum] = logo.GetSize()[0]
         fieldWidths[self.messageFieldNum] = -4
-        fieldWidths[self.warnFieldNum] = -4
-        fieldWidths[self.progressFieldNum] = -2
-        fieldWidths[self.buttonFieldNum] = bwidth
+        fieldWidths[warnFieldNum] = -4
+        fieldWidths[progressFieldNum] = -2
+        fieldWidths[buttonFieldNum] = bwidth
 
         self.SetFieldsCount(self.numFields)
         self.SetStatusWidths(fieldWidths)
@@ -343,7 +339,7 @@ class StatusBar(wx.StatusBar):
 # 
 #===============================================================================
 
-class Job(_Thread):
+class Job(Thread):
     """ A base class for background task threads. Adds a few viewer-specific
         features to the standard `threading.Thread` class.
         
@@ -366,11 +362,10 @@ class Job(_Thread):
 
     def __init__(self, root=None, dataset=None, numUpdates=100, 
                  updateInterval=1.0):
-        """ Create the Loader and start the loading process.
+        """ Constructor.
             
             @param root: The Viewer.
-            @param dataset: The Dataset being loaded. It should be fresh,
-                referencing a file stream but not yet loaded.
+            @param dataset: The Dataset being loaded, if applicable.
             @keyword numUpdates: The minimum number of calls to the updater to
                 be made. There will be more than this number of updates if
                 any takes longer than the specified `updateInterval` (below).
@@ -401,21 +396,3 @@ class Job(_Thread):
                 pass
         return self.cancelled
 
-
-
-    
-
-
-#===============================================================================
-# Automatically build list of things for 'from base import *'
-#===============================================================================
-
-if __name__ in _sys.modules:
-    _moduleDict = _sys.modules[__name__].__dict__
-else:
-    _moduleDict = globals()
-
-__all__ = filter(lambda x: not(x.startswith("_") or x.startswith('wx')),
-                 _moduleDict.keys())
-
-del _moduleDict
