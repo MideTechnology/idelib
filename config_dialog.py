@@ -799,7 +799,7 @@ class InfoPanel(BaseConfigPanel):
 
     # Formatters for specific fields. The keys should be the string as
     # displayed (de-camel-cased or replaced by field_names)
-    field_types = {'Date Of Manufacture': datetime.fromtimestamp,
+    field_types = {'Date of Manufacture': datetime.fromtimestamp,
                    'Hardware Revision': str,
                    'Firmware Revision': str,
                    'Recorder Serial': lambda x: "SSX%07d" % x
@@ -847,17 +847,18 @@ class InfoPanel(BaseConfigPanel):
                 wx.StaticText(self, -1, v)
                 continue
             
-            if k.startswith('_'):
-                continue
-#             elif not v:
-#                 continue
-            elif k in self.field_types:
-                v = self.field_types[k](v)
-            elif isinstance(v, (int, long)):
-                v = "0x%08X" % v
-            else:
+            try:
+                if k.startswith('_'):
+                    continue
+                elif k in self.field_types:
+                    v = self.field_types[k](v)
+                elif isinstance(v, (int, long)):
+                    v = "0x%08X" % v
+                else:
+                    v = unicode(v)
+            except TypeError:
                 v = unicode(v)
-            
+                
             t = self.addField('%s:' % k, k, None, v, fieldStyle=wx.TE_READONLY)
             t.SetSizerProps(expand=True)
             t.SetFont(mono)

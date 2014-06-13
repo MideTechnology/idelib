@@ -71,19 +71,21 @@ class RecorderInfoDialog(sc.SizedDialog):
     def getRecorderInfo(self):
         names = {'ProductName': "Product Name",
                  'PartNumber': "Part Number",
-                 "RecorderSerial": "Recorder Serial #",
+                 "RecorderSerial": "Recorder Serial",
                  "RecorderTypeUID": "Recorder Type ID",
-                 "HwRev": "Hardware Version",
-                 "FwRev": "Firmware Version",
+                 "HwRev": "Hardware Revision",
+                 "FwRev": "Firmware Revision",
                  "DateOfManufacture": "Date of Manufacture",
                  "CalibrationDate": "Calibration Date",
                  "CalibrationSerialNumber": "Calibration Serial #",
                  "CalibrationExpiry": "Calibration Expiry Date",
         }
         result = self.root.recorderInfo
-        for d in ('DateOfManufacture', 'CalibrationDate', 'CalibrationExpiry'):
+        for d in ('CalibrationDate', 'CalibrationExpiry'):
             if d in result:
                 result[d] = datetime.fromtimestamp(result[d])
+#         if 'RecorderSerial' in result:
+#             result['RecorderSerial'] = "SSX%08d" % result['RecorderSerial']
         return renameKeys(result, names, exclude=False, recurse=False)
 
 

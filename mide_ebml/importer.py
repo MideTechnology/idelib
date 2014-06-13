@@ -58,6 +58,7 @@ elementParserTypes = parsers.getElementHandlers()
 # testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140423_stats_newformat.ide"
 testFile= "C:\\Users\\dstokes\\workspace\\SSXViewer\\20140501_Mean_Removal\\VIB00000.IDE"
 # testFile = "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140505_Temp_Tests\\20140505_Temp\\VIB00000.IDE"
+# testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\buffer_drop.IDE"
 
 # from parsers import AccelerometerParser
 
@@ -65,7 +66,7 @@ testFile= "C:\\Users\\dstokes\\workspace\\SSXViewer\\20140501_Mean_Removal\\VIB0
 # but these should be default for the standard Slam Stick X.
 # TODO: Base default sensors on the device type UID.
 default_sensors = {
-    0x00: {"name": "SlamStick Combined Sensor", 
+    0x00: {"name": "SlamStick X Combined Sensor", 
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
                        "parser": parsers.AccelerometerParser(),
