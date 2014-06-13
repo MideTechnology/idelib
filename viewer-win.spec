@@ -52,7 +52,7 @@ pyz = PYZ(a.pure)
 exe = EXE(pyz,
           a.scripts,
           exclude_binaries=True,
-          name='viewer.exe',
+          name='Slam Stick Lab.exe',
 		  icon='ssx.ico',
           debug=False,
           strip=None,

@@ -1,5 +1,5 @@
 '''
-Slam Stick eXtreme Data Viewer
+Slam Stick Lab Data Viewer
 
 Description should go here. At the moment, this is also the text that appears
 in the About Box.
@@ -15,7 +15,7 @@ in the About Box.
     in conjunction with wxPython views.
 '''
 
-APPNAME = u"Slam Stick X Data Viewer"
+APPNAME = u"Slam\u2022Stick Lab"
 __version__="0.1"
 __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 __url__ = ("http://mide.com", u"")
@@ -2018,7 +2018,7 @@ class ViewerApp(wx.App):
     
 #     prefsFile = os.path.realpath(os.path.expanduser("~/.ssx_viewer.cfg"))
     prefsFile = os.path.realpath(os.path.join(os.path.dirname(__file__), 
-                                              'ssx_viewer.cfg'))
+                                              'ss_lab.cfg'))
     
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
