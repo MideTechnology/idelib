@@ -821,7 +821,7 @@ class InfoPanel(BaseConfigPanel):
                 result.append(' ')
             result.append(c)
             lastChar = c
-        return ''.join(result)
+        return ''.join(result).replace(" Of ", " of ")
 
 
     def getDeviceData(self):
@@ -1380,7 +1380,7 @@ def configureRecorder(path, save=True):
 
 if __name__ == "__main__":
     app = wx.App()
-    print "configureRecorder() returned %r" % configureRecorder("I:\\")
+    print "configureRecorder() returned %r" % configureRecorder("F:\\")
 #     print configureRecorder("I:\\")
 
 
