@@ -49,9 +49,9 @@ __DEBUG__ = True
 # import socket
 # __DEBUG__ = socket.gethostname() in ('DEDHAM',)
     
-if __DEBUG__:
-    import ebml
-    print "*** Loaded python-ebml from", os.path.abspath(ebml.__file__)
+# if __DEBUG__:
+#     import ebml
+#     print "*** Loaded python-ebml from", os.path.abspath(ebml.__file__)
     
 #===============================================================================
 # 
@@ -1098,6 +1098,14 @@ class EventList(Cascading):
                         [b.mean for b in self._data[firstBlock:lastBlock]], 0)
         block._rollingMeanSpan = span
         block._rollingMeanLen = len(self._data)
+        
+        if span == -1:
+            # Set-wide median/mean removal; same across all blocks.
+            for b in self._data:
+                b._rollingMean = block._rollingMean
+                b._rollingMeanSpan = block._rollingMeanSpan
+                b._rollingMeanLen = block._rollingMeanLen
+        
         return block._rollingMean
     
 

@@ -359,7 +359,7 @@ class BaseDataBlock(object):
         self.sampleRate = None
         self.sampleTime = None
         self.indexRange = None
-        self._len = None
+#         self._len = None
         self.body_size = None
         self.cache = False
         
@@ -480,9 +480,10 @@ class SimpleChannelDataBlock(BaseDataBlock):
         """ x.__len__() <==> len(x)
             This returns the length of the payload.
         """
-        if self._len is None:
-            self._len = len(self.payload) - self.headerSize
-        return self._len
+        return self.numSamples
+#         if self._len is None:
+#             self._len = len(self.payload) - self.headerSize
+#         return self._len
     
     
     def getHeader(self):
