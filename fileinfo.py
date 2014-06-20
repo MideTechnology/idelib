@@ -13,7 +13,6 @@ import wx; wx = wx
 
 from config_dialog import InfoPanel, CalibrationPanel
 from mide_ebml import util
-from mide_ebml.parsers import renameKeys
 
 
 #===============================================================================
@@ -69,24 +68,11 @@ class RecorderInfoDialog(sc.SizedDialog):
 
 
     def getRecorderInfo(self):
-        names = {'ProductName': "Product Name",
-                 'PartNumber': "Part Number",
-                 "RecorderSerial": "Recorder Serial",
-                 "RecorderTypeUID": "Recorder Type ID",
-                 "HwRev": "Hardware Revision",
-                 "FwRev": "Firmware Revision",
-                 "DateOfManufacture": "Date of Manufacture",
-                 "CalibrationDate": "Calibration Date",
-                 "CalibrationSerialNumber": "Calibration Serial #",
-                 "CalibrationExpiry": "Calibration Expiry Date",
-        }
-        result = self.root.recorderInfo
+        result = self.root.recorderInfo.copy()
         for d in ('CalibrationDate', 'CalibrationExpiry'):
-            if d in result:
+            if d in result:# and not isinstance(result[d], datetime):
                 result[d] = datetime.fromtimestamp(result[d])
-#         if 'RecorderSerial' in result:
-#             result['RecorderSerial'] = "SSX%08d" % result['RecorderSerial']
-        return renameKeys(result, names, exclude=False, recurse=False)
+        return result
 
 
     def __init__(self, *args, **kwargs):
@@ -132,11 +118,6 @@ class RecorderInfoDialog(sc.SizedDialog):
             @param root: The `mide_ebml.dataset.Dataset` with info to show
         """
         
-#         if not ebmldoc.recorderInfo:
-#             dlg = wx.MessageDialog(None, 
-#                'The recording file contains no recorder device info',
-#                'Recorder Properties', wx.OK | wx.ICON_INFORMATION)
-#         else:
         dlg = cls(None, -1, "%s Recording Properties" % ebmldoc.filename, 
                   root=ebmldoc)
         dlg.ShowModal()

@@ -297,16 +297,6 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self.addMenuItem(self.contextMenu, self.root.ID_DATA_MEAN_TOTAL, 
                          "Remove Total Mean from Data", "",
                          self.root.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
-#         self.contextMenu.AppendSeparator()
-#         self.addMenuItem(self.contextMenu, self.root.ID_VIEW_ANTIALIAS, 
-#                          "Antialiased Drawing", "", 
-#                          self.root.OnToggleAA, kind=wx.ITEM_CHECK)
-#         self.addMenuItem(self.contextMenu, self.root.ID_VIEW_JITTER,
-#                         "Noisy Resampling", "", 
-#                         self.root.OnToggleNoise, kind=wx.ITEM_CHECK)
-#         self.addMenuItem(self.contextMenu, self.root.ID_VIEW_UTCTIME, 
-#                          "Show Absolute UTC Time", "",
-#                          self.root.OnToggleUtcTime, kind=wx.ITEM_CHECK)
         
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
@@ -708,6 +698,37 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         dc.EndDrawing()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
+
+    #===========================================================================
+    # "Rubber Band" Zooming
+    #===========================================================================
+    
+#     def _drawRubberBand(self, corner1, corner2):
+#         """Draws/erases rect box from corner1 to corner2"""
+#         ptx,pty,rectWidth,rectHeight= self._point2ClientCoord(corner1, corner2)
+#         # draw rectangle
+#         dc = wx.ClientDC( self.canvas )
+#         dc.BeginDrawing()                 
+#         dc.SetPen(wx.Pen(wx.BLACK))
+#         dc.SetBrush(wx.Brush( wx.WHITE, wx.TRANSPARENT ) )
+#         dc.SetLogicalFunction(wx.INVERT)
+#         dc.DrawRectangle( ptx,pty, rectWidth,rectHeight)
+#         dc.SetLogicalFunction(wx.COPY)
+#         dc.EndDrawing()
+# 
+#     def _point2ClientCoord(self, corner1, corner2):
+#         """Converts user point coords to client screen int coords x,y,width,height"""
+#         c1= _Numeric.array(corner1)
+#         c2= _Numeric.array(corner2)
+#         # convert to screen coords
+#         pt1= c1*self._pointScale+self._pointShift
+#         pt2= c2*self._pointScale+self._pointShift
+#         # make height and width positive
+#         pul= _Numeric.minimum(pt1,pt2) # Upper left corner
+#         plr= _Numeric.maximum(pt1,pt2) # Lower right corner
+#         rectWidth, rectHeight= plr-pul
+#         ptx,pty= pul
+#         return ptx, pty, rectWidth, rectHeight 
 
     #===========================================================================
     # 
