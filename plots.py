@@ -298,8 +298,12 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                          "Remove Total Mean from Data", "",
                          self.root.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
         
+        self.dragging = False
+        self.zoomCorners = None
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
+        self.Bind(wx.EVT_LEFT_DOWN, self.OnMouseLeftDown)
+        self.Bind(wx.EVT_LEFT_UP, self.OnMouseLeftUp)
 
         self.normalBg = wx.Colour(255,255,255)
         self.minMaxBg = wx.Colour(240,240,240)
@@ -406,7 +410,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             Used internally.
         """
         if not self.Parent.source.hasMinMeanMax:
-            return (tuple(),tuple(),tuple())
+            self.minMeanMaxLines = (tuple(),tuple(),tuple())
         
         width = int((hRange[1] - hRange[0]) * hScale)
         
@@ -446,7 +450,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         _finishline(meanPts)
         _finishline(maxPts)
         
-        return (minPts[1:], meanPts, maxPts[1:])
+        self.minMeanMaxLines = (minPts[1:], meanPts, maxPts[1:])
     
 
     def makeMinMaxBoxes(self, hRange, vRange, hScale, vScale):
@@ -582,13 +586,11 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         #    VerticalScaleCtrl to ensure we've got access to the labels!
         if self.root.drawMinorHLines:
             if self.minorHLines is None:
-#             self.minorHLinePen.SetWidth(self.viewScale)
                 self.minorHLines = self.makeHGridlines(
                     legend.scale._minorlabels, size[0], self.viewScale)
             
         if self.root.drawMajorHLines:
             if self.majorHLines is None:
-#             self.majorHLinePen.SetWidth(self.viewScale)
                 self.majorHLines = self.makeHGridlines(
                     legend.scale._majorlabels, size[0], self.viewScale)
 
@@ -603,8 +605,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         
         if self.Parent.source.hasMinMeanMax:
             if self.minMeanMaxLines is None:
-                self.minMeanMaxLines = self.makeMinMeanMaxLines(hRange, vRange, 
-                                                                hScale, vScale)
+                self.makeMinMeanMaxLines(hRange, vRange, hScale, vScale)
             drawCondensed = len(self.minMeanMaxLines[0]) >= size[0] * 1.75
             if drawCondensed:
                 if self.lines is None:
@@ -703,32 +704,24 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     # "Rubber Band" Zooming
     #===========================================================================
     
-#     def _drawRubberBand(self, corner1, corner2):
-#         """Draws/erases rect box from corner1 to corner2"""
-#         ptx,pty,rectWidth,rectHeight= self._point2ClientCoord(corner1, corner2)
-#         # draw rectangle
-#         dc = wx.ClientDC( self.canvas )
-#         dc.BeginDrawing()                 
-#         dc.SetPen(wx.Pen(wx.BLACK))
-#         dc.SetBrush(wx.Brush( wx.WHITE, wx.TRANSPARENT ) )
-#         dc.SetLogicalFunction(wx.INVERT)
-#         dc.DrawRectangle( ptx,pty, rectWidth,rectHeight)
-#         dc.SetLogicalFunction(wx.COPY)
-#         dc.EndDrawing()
-# 
-#     def _point2ClientCoord(self, corner1, corner2):
-#         """Converts user point coords to client screen int coords x,y,width,height"""
-#         c1= _Numeric.array(corner1)
-#         c2= _Numeric.array(corner2)
-#         # convert to screen coords
-#         pt1= c1*self._pointScale+self._pointShift
-#         pt2= c2*self._pointScale+self._pointShift
-#         # make height and width positive
-#         pul= _Numeric.minimum(pt1,pt2) # Upper left corner
-#         plr= _Numeric.maximum(pt1,pt2) # Lower right corner
-#         rectWidth, rectHeight= plr-pul
-#         ptx,pty= pul
-#         return ptx, pty, rectWidth, rectHeight 
+    def _drawRubberBand(self, corner1, corner2):
+        """ Draw (or erase) the 'rubber band' zoom rectangle. 
+        """
+        ptx = min(corner1[0], corner2[0])
+        pty = min(corner1[1], corner2[1])
+        rectWidth = max(corner1[0], corner2[0]) - ptx
+        rectHeight = max(corner1[1], corner2[1]) - pty
+        
+        # draw rectangle
+        dc = wx.ClientDC( self )
+        dc.BeginDrawing()
+        dc.SetPen(wx.Pen(wx.BLACK))
+        dc.SetBrush(wx.Brush( wx.WHITE, wx.TRANSPARENT ) )
+        dc.SetLogicalFunction(wx.INVERT)
+        dc.DrawRectangle( ptx,pty, rectWidth,rectHeight)
+        dc.SetLogicalFunction(wx.COPY)
+        dc.EndDrawing()
+ 
 
     #===========================================================================
     # 
@@ -765,10 +758,55 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     def OnMouseMotion(self, evt):
         """ Event handler for mouse movement events.
         """
-        self.root.showMouseHPos(evt.GetX())
-        self.root.showMouseVPos(self.Parent.legend.getValueAt(evt.GetY()),
+        pos = (evt.GetX(), evt.GetY())
+        self.root.showMouseHPos(pos[0])
+        self.root.showMouseVPos(self.Parent.legend.getValueAt(pos[1]),
                                 units=self.Parent.yUnits[1])
+        
+        if self.dragging:
+            if not evt.LeftIsDown():
+                # Mouse probably left window, left button released, moved back
+                self._drawRubberBand(*self.zoomCorners)
+                self.dragging = False
+            else:
+                if pos != self.zoomCorners[1]:
+                    # Moved; erase old rectangle
+                    self._drawRubberBand(*self.zoomCorners)
+                # Draw new rectangle
+                self.zoomCorners[1] = pos
+                self._drawRubberBand(*self.zoomCorners)
+        
         evt.Skip()
+
+
+    def OnMouseLeftDown(self, evt):
+        """
+        """
+        self.dragging = True
+        self.zoomCorners = [(evt.GetX(), evt.GetY())]*2
+        pass
+    
+    
+    def OnMouseLeftUp(self, evt):
+        """
+        """
+        if self.dragging:
+            self._drawRubberBand(*self.zoomCorners)
+            xStart = self.root.timeline.getValueAt(self.zoomCorners[0][0])
+            xEnd = self.root.timeline.getValueAt(self.zoomCorners[1][0])
+            yStart = self.Parent.legend.getValueAt(self.zoomCorners[0][1])
+            yEnd = self.Parent.legend.getValueAt(self.zoomCorners[1][1])
+            
+            # XXX: THIS DOES NOT WORK! MAKE IT WORK!
+            # XXX: SERIOUSLY
+            # XXX: MORE EXES FOR GREAT VALUE!
+#             self.Parent.setValueRange(sorted((yStart, yEnd)), tracking=True)
+#             self.Parent.setVisibleRange(sorted((xStart, xEnd)))
+            # TODO: Do the zoom here!
+#             print "Zoom time=(%s, %s) val=(%s, %s)" % (xStart, xEnd, yStart, yEnd)
+            
+        self.dragging = False
+        self.zoomCorners = None
 
 
     def OnMenuColor(self, evt):
@@ -781,20 +819,6 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             color = dlg.GetColourData().GetColour().Get()
             self.setPlotPen(color=color)
             self.Refresh()
-    
-    
-    def OnMenuAntialiasing(self, evt):
-        """ Handle the antialiasing toggle on the context menu. """
-        evt.IsChecked()
-        pass
-    
-    
-    def OnMenuJitter(self, evt):
-        pass
-
-
-    def OnMenuNoMean(self, evt):
-        self.Parent.removeMean(evt.IsChecked())
 
 
 #===============================================================================
