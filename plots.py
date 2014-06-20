@@ -240,6 +240,8 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         """
         self.drawPoints = self.root.app.getPref("drawPoints", True)
         self.pointSize = self.root.app.getPref('pointSize', 2)
+        self.weight = self.root.app.getPref('plotLineWidth', 1)
+        self.setPlotPen()
 
         self.originHLinePen = self.loadPen(*self.GRID_ORIGIN_STYLE)
         self.majorHLinePen = self.loadPen(*self.GRID_MAJOR_STYLE)

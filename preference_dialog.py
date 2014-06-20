@@ -109,6 +109,9 @@ class PrefsDialog(SC.SizedDialog):
         
         
         _add(PG.PropertyCategory("Drawing"))
+        _add(PG.IntProperty("Plot Line Width", "plotLineWidth"),
+             "The base width of the plot lines. This width will scale with "
+             "the antialiasing settings.")
         _add(PG.BoolProperty("Draw Points", "drawPoints"), 
              "If the number of samples shown is fewer than the number "
              "of pixels, draw individual samples as larger points.",

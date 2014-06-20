@@ -635,11 +635,12 @@ class Viewer(wx.Frame, MenuMixin):
         
         super(Viewer, self).__init__(*args, **kwargs)
         
-        self.loadPrefs()
-        
         self.dataset = None
         self.session = None
         self.cancelQueue = []
+        self.plotarea = None
+        
+        self.loadPrefs()
         
         self.buildUI()
         self.Centre()
@@ -687,6 +688,12 @@ class Viewer(wx.Frame, MenuMixin):
         self.drawMinorHLines = self.app.getPref('drawMinorHLines', False)
         
         self.showDebugChannels = self.app.getPref('showDebugChannels', True)
+        
+        if self.plotarea is not None:
+            # reload, probably
+            for p in self.plotarea:
+                p.loadPrefs()
+            self.plotarea.redraw()
 
 
     def buildMenus(self):
@@ -743,9 +750,6 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", enabled=False)
         editMenu.AppendSeparator()
-#         self.addMenuItem(editMenu, self.ID_EDIT_CLEARPREFS, 
-#                          "Reset Hidden Dialogs and Warnings", "", 
-#                          self.OnClearPrefs)
         self.addMenuItem(editMenu, wx.ID_PREFERENCES, "Preferences...", "",
                          self.app.editPrefs)
         self.menubar.Append(editMenu, '&Edit')
@@ -849,13 +853,10 @@ class Viewer(wx.Frame, MenuMixin):
         """ Construct and configure all the viewer window's panels. Called once
             by the constructor. Used internally.
         """
-        self.root = self
-        self.timeDisplays = []
-        
         self.SetIcon(images.icon.GetIcon())
-        
         self.SetMinSize((320,240))
         
+        self.root = self
         self.navigator = TimeNavigator(self, root=self)
         self.corner = Corner(self, root=self)
         self.plotarea = PlotSet(self, -1, root=self)
@@ -1010,7 +1011,6 @@ class Viewer(wx.Frame, MenuMixin):
         if self.dataset is None:
             return
         
-#         print "self.session: %r" % self.session
         if self.session is None:
             if len(self.dataset.sessions) > 1:
                 if not self.selectSession():
@@ -1034,7 +1034,6 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.enableChildren(True)
         # enabling plot-specific menu items happens on page select; do manually
-#         if len(self.plotarea):
         self.plotarea.getActivePage().enableMenus()
 
     #===========================================================================
@@ -1207,8 +1206,6 @@ class Viewer(wx.Frame, MenuMixin):
                 'Select Recording Session', sessions, wx.CHOICEDLG_STYLE)
         if dlg.ShowModal() == wx.ID_OK:
             self.session = self.dataset.sessions[dlg.GetSelection()]
-#             print "dlg.GetSelection() = %r" % dlg.GetSelection()
-#             print "selectSession: self.session = %r" % self.session
             result = True
         else:
             self.closeFile()
@@ -2050,6 +2047,7 @@ class ViewerApp(wx.App):
         'drawMinMax': False,
         'drawMean': True,
         'drawPoints': True,
+        'plotLineWidth': 1,
         'originHLineColor': wx.Colour(200,200,200),
         'majorHLineColor': wx.Colour(240,240,240),
         'minorHLineColor': wx.Colour(240,240,240),
