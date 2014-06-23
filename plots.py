@@ -1,5 +1,6 @@
 # import colorsys
 # from itertools import izip
+import math
 import sys
 
 from wx import aui
@@ -300,6 +301,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         
         self.dragging = False
         self.zoomCorners = None
+        self.zoomCenter = None
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
         self.Bind(wx.EVT_LEFT_DOWN, self.OnMouseLeftDown)
@@ -769,6 +771,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                 self._drawRubberBand(*self.zoomCorners)
                 self.dragging = False
             else:
+                # TODO: Modifier key to drag centered rectangle
                 if pos != self.zoomCorners[1]:
                     # Moved; erase old rectangle
                     self._drawRubberBand(*self.zoomCorners)
@@ -780,30 +783,26 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
 
 
     def OnMouseLeftDown(self, evt):
-        """
-        """
         self.dragging = True
-        self.zoomCorners = [(evt.GetX(), evt.GetY())]*2
-        pass
+        self.zoomCenter = (evt.GetX(), evt.GetY())
+        self.zoomCorners = [self.zoomCenter]*2
     
     
     def OnMouseLeftUp(self, evt):
-        """
-        """
         if self.dragging:
             self._drawRubberBand(*self.zoomCorners)
-            xStart = self.root.timeline.getValueAt(self.zoomCorners[0][0])
-            xEnd = self.root.timeline.getValueAt(self.zoomCorners[1][0])
-            yStart = self.Parent.legend.getValueAt(self.zoomCorners[0][1])
-            yEnd = self.Parent.legend.getValueAt(self.zoomCorners[1][1])
-            
-            # XXX: THIS DOES NOT WORK! MAKE IT WORK!
-            # XXX: SERIOUSLY
-            # XXX: MORE EXES FOR GREAT VALUE!
-#             self.Parent.setValueRange(sorted((yStart, yEnd)), tracking=True)
-#             self.Parent.setVisibleRange(sorted((xStart, xEnd)))
-            # TODO: Do the zoom here!
-#             print "Zoom time=(%s, %s) val=(%s, %s)" % (xStart, xEnd, yStart, yEnd)
+            c0, c1 = self.zoomCorners
+            if min(abs(c1[0]-c0[0]), abs(c1[1]-c0[1])) > 5:
+                xStart = self.root.timeline.getValueAt(c0[0])
+                xEnd = self.root.timeline.getValueAt(c1[0])
+                yStart = self.Parent.legend.getValueAt(c0[1])
+                yEnd = self.Parent.legend.getValueAt(c1[1])
+                
+                # TODO: Don't call root directly, use events 
+                #    (for future threading)!
+                self.root.setVisibleRange(*sorted((xStart, xEnd)))
+                self.Parent.setValueRange(*sorted((yStart, yEnd)), 
+                                          tracking=True)
             
         self.dragging = False
         self.zoomCorners = None
@@ -814,7 +813,11 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         data.SetChooseFull(True)
         data.SetColour(self.color)
         dlg = wx.ColourDialog(self, data)
-        
+        if self.Parent.Name:
+            dlg.SetTitle("%s Color" % self.Parent.Name)
+        else:
+            dlg.SetTitle("Plot Color")
+
         if dlg.ShowModal() == wx.ID_OK:
             color = dlg.GetColourData().GetColour().Get()
             self.setPlotPen(color=color)
@@ -882,8 +885,6 @@ class Plot(ViewerPanel):
 
         self._bindScrollEvents(self.scrollbar, self.OnScroll, 
                               self.OnScrollTrack, self.OnScrollEnd)
-        
-#         self.plot.Bind(wx.EVT_KEY_UP, self.OnKeypress)
         
         self.enableMenus()
 
@@ -1035,6 +1036,8 @@ class Plot(ViewerPanel):
                            instigator, 
                            tracking)
 
+    def setPlotColor(self, evt=None):
+        self.plot.OnMenuColor(evt)
 
     def redraw(self):
         """ Force the plot to redraw.
@@ -1212,7 +1215,9 @@ class PlotSet(aui.AuiNotebook):
         kwargs.setdefault('style', aui.AUI_NB_TOP | 
                                    aui.AUI_NB_TAB_SPLIT |
                                    aui.AUI_NB_TAB_MOVE | 
-                                   aui.AUI_NB_SCROLL_BUTTONS)
+                                   aui.AUI_NB_SCROLL_BUTTONS |
+                                   aui.AUI_NB_WINDOWLIST_BUTTON
+                                   )
         super(PlotSet, self).__init__(*args, **kwargs)
         
         if self.root is None:

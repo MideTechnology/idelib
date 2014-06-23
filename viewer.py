@@ -777,6 +777,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y, 
                         "Zoom to Fit Y\tAlt+0", '', self.OnZoomFitY)
         viewMenu.AppendSeparator()
+        self.addMenuItem(viewMenu, wx.ID_SELECT_COLOR, "Set Plot Color...", "",
+                         self.OnSetPlotColor)
         self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS, 
                          "Antialiased Drawing", "", 
                          self.OnToggleAA, kind=wx.ITEM_CHECK)
@@ -1738,6 +1740,13 @@ class Viewer(wx.Frame, MenuMixin):
         self.drawMinorHLines = self.app.setPref('drawMinorHLines', checked)
         self.plotarea.redraw()
     
+    
+    def OnSetPlotColor(self, evt):
+        """
+        """
+        p = self.plotarea.getActivePage()
+        if p:
+            p.setPlotColor(evt)
     
     #===========================================================================
     # Custom Events
