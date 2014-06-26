@@ -984,22 +984,34 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def getSaveFile(self, message, defaults=None, types=None, 
-                    style=wx.SAVE|wx.OVERWRITE_PROMPT):
+                    style=wx.SAVE|wx.OVERWRITE_PROMPT, deviceWarning=True):
         """ Wrapper for showing getting the name of an output file.
         """
         defaults = self.getDefaultExport() if defaults is None else defaults
         types = self.app.getPref('exportTypes') if types is None else types
         
         defaultDir, defaultFile = defaults
-        filename = None
+        done = False
         
         dlg = wx.FileDialog(self, message=message, 
                             defaultDir=defaultDir,  defaultFile=defaultFile, 
                             wildcard='|'.join(types), 
                             style=wx.SAVE|wx.OVERWRITE_PROMPT)
         
-        if dlg.ShowModal() == wx.ID_OK:
-            filename = dlg.GetPath()
+        while not done:
+            filename = None
+            if dlg.ShowModal() == wx.ID_OK:
+                filename = dlg.GetPath()
+                if deviceWarning and devices.onRecorder(filename):
+                    a = self.ask(
+                        "You appear to be trying to export to a recording "
+                        "device.\nFor best performance, you should save to a "
+                        "local hard drive.\n\nContinue anyway?", 
+                        "Performance Warning", icon=wx.ICON_INFORMATION, 
+                        pref="saveOnRecorderWarning", saveNo=False)
+                    done = a == wx.ID_YES
+            else:
+                done = True
         dlg.Destroy()
         
         return filename
@@ -1903,10 +1915,19 @@ class Viewer(wx.Frame, MenuMixin):
 
     
     def cancelAllOperations(self, evt=None, prompt=False):
+        """ Cancel any and all background operations.
+        
+            @keyword evt: The event that initiated the cancel, if any.
+            @keyword prompt: `True` to prompt the user before canceling (job
+                must also have its `cancelPrompt` attribute `True`), `False`
+                to suppress the prompt.
+            @return: `False` if any operation couldn't be cancelled, `True`
+                if all operations were successfully shut down.
         """
-        """
+        result = True
         while len(self.cancelQueue) > 0:
-            self.cancelOperation(prompt=prompt)
+            result = result and self.cancelOperation(evt, prompt) is not False
+        return result
 
     #===========================================================================
     # 
@@ -1943,7 +1964,7 @@ class Viewer(wx.Frame, MenuMixin):
         msg = self.xFormatter % (t, units)
         self.statusBar.SetStatusText(msg, self.statusBar.xFieldNum)
         
-        if self.showUtcTime and self.session.utcStartTime is not None:# and t != 0:
+        if self.showUtcTime and self.session.utcStartTime is not None:
             utc = str(datetime.utcfromtimestamp(self.session.utcStartTime+t))
             msg = "X (UTC): %s" % utc[:-2]
         else:
@@ -2021,9 +2042,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         # Holding control when okaying alert shows more more info. 
         if ctrlPressed and isinstance(err, Exception):
-            # TODO: Use a better error log display than stderr
             import pdb; pdb.set_trace()
-#             raise err
         
         # The error occurred someplace critical; self-destruct!
         if fatal:
@@ -2042,10 +2061,9 @@ class ViewerApp(wx.App):
         Viewer; the app mainly handles global settings like preferences 
         (and the primary functionality inherited from `wx.App`, of course).
     """
-    
-#     prefsFile = os.path.realpath(os.path.expanduser("~/.ssx_viewer.cfg"))
-    prefsFile = os.path.realpath(os.path.join(os.path.dirname(__file__), 
-                                              'ss_lab.cfg'))
+    # Preferences format version: change if a change renders old ones unusable.
+    PREFS_VERSION = 0
+    defaultPrefsFile = 'ss_lab.cfg'
     
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
@@ -2075,7 +2093,7 @@ class ViewerApp(wx.App):
         'drawMajorHLines': True,
         'drawMinorHLines': True, #False,
         'drawMinMax': False,
-        'drawMean': True,
+        'drawMean': False,
         'drawPoints': True,
         'plotLineWidth': 1,
         'originHLineColor': wx.Colour(200,200,200),
@@ -2085,6 +2103,7 @@ class ViewerApp(wx.App):
         'maxRangeColor': wx.Colour(255,190,190),
         'meanRangeColor': wx.Colour(255,255,150),
         'plotBgColor': wx.Colour(255,255,255),
+        # Plot colors, stored by channel:subchannel IDs.
         'plotColors': {"00.0": "BLUE",
                        "00.1": "GREEN",
                        "00.2": "RED",
@@ -2139,6 +2158,12 @@ class ViewerApp(wx.App):
             with open(filename) as f:
                 prefs = json.load(f)
                 if isinstance(prefs, dict):
+                    vers = prefs.get('prefsVersion', self.PREFS_VERSION)
+                    if vers != self.PREFS_VERSION:
+                        # Mismatched preferences version!
+                        # TODO: Possibly warn user, and/or translate
+                        print "XXX: bad prefs version"
+                        return {}
                     # De-serialize *Color attributes (single colors)
                     for k in fnmatch.filter(prefs.keys(), "*Color"):
                         prefs[k] = tuple2color(prefs[k])
@@ -2148,24 +2173,24 @@ class ViewerApp(wx.App):
                             for i in xrange(len(prefs[k])):
                                 prefs[k][i] = tuple2color(prefs[k][i])
                     return prefs
-        except Exception:#IOError as err:
+        except IOError:# as err:
             # TODO: Report a problem, or just ignore?
             pass
         return {}
 
 
-    def savePrefs(self, filename=None, hideFile=None):
+    def savePrefs(self, filename=None):
         """ Write custom preferences to a file.
         """
         filename = filename or self.prefsFile
-        
-        if hideFile is None:
-            hideFile = os.path.basename(filename).startswith(".")
-        
-        filename = os.path.realpath(os.path.expanduser(filename))
-        
-        prefs = self.prefs.copy()
-        
+        try:
+            path = os.path.split(filename)[0]
+            if not os.path.exists(path):
+                os.makedirs(path)
+        except IOError:
+            # TODO: use a fall-back directory? Might not be fatal?
+            pass
+
         def _fix(d):
             if isinstance(d, (list,tuple)):
                 d = [_fix(x) for x in d]
@@ -2176,21 +2201,12 @@ class ViewerApp(wx.App):
                 d = tuple(d)
             return d
         
-        prefs = _fix(prefs)
+        prefs = self.prefs.copy()
+        prefs['prefsVersion'] = self.PREFS_VERSION
         
-        # Convert wx.Colour objects and RGB sequences to tuples:
-#         for k in fnmatch.filter(prefs.keys(), "*Color"):
-#             if not isinstance(prefs[k], basestring):
-#                 prefs[k] = tuple(prefs[k])
-#         for k in fnmatch.filter(prefs.keys(), "*Colors"):
-#             for i in xrange(len(prefs[k])):
-#                 if not isinstance(prefs[k][i], basestring):
-#                     prefs[k][i] = tuple(prefs[k][i])
         try:
             with open(filename, 'w') as f:
-                json.dump(prefs, f, indent=2, sort_keys=True)
-            if hideFile and "win" in sys.platform:
-                os.system('attrib +h "%s"' % filename)
+                json.dump(_fix(prefs), f, indent=2, sort_keys=True)
         except IOError:# as err:
             # TODO: Report a problem, or just ignore?
             pass
@@ -2288,20 +2304,23 @@ class ViewerApp(wx.App):
     #===========================================================================
 
     def __init__(self, *args, **kwargs):
-        prefsFile = kwargs.pop('prefsFile', self.prefsFile)
-        if prefsFile is not None:
-            self.prefsFile = prefsFile
-        self.initialFilename = kwargs.pop('filename')
-        
-        self.prefs = self.loadPrefs(self.prefsFile)
-#         locale.setlocale(locale.LC_ALL, str(self.getPref('locale')))
+        self.prefsFile = kwargs.pop('prefsFile', None)
+        self.initialFilename = kwargs.pop('filename', None)
         
         self.viewers = []
         
         super(ViewerApp, self).__init__(*args, **kwargs)
+        
+        self.stdPaths = wx.StandardPaths.Get()
+        if self.prefsFile is None:
+            self.prefsFile = os.path.join(self.stdPaths.GetUserDataDir(),
+                                         self.defaultPrefsFile)
+        self.prefs = self.loadPrefs(self.prefsFile)
+#         locale.setlocale(locale.LC_ALL, str(self.getPref('locale')))
         localeName = self.getPref('locale', 'LANGUAGE_ENGLISH_US')
         self.locale = wx.Locale(getattr(wx, localeName, wx.LANGUAGE_ENGLISH_US))
-
+        self.createNewView(filename=self.initialFilename)
+        
         
     def createNewView(self, title=None, filename=None):
         """ Create a new viewer window.
@@ -2335,12 +2354,6 @@ class ViewerApp(wx.App):
 
     def OnInit(self):
         self.SetAppName(APPNAME)
-#         self._antiAliasingEnabled = True
-        self.createNewView(filename=self.initialFilename)
-        
-        self.stdPaths = wx.StandardPaths.Get()
-#         print "user data dir: %r" % self.stdPaths.GetUserDataDir()
-        
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         return True
 
@@ -2351,8 +2364,6 @@ class ViewerApp(wx.App):
             evt.Veto()
             return
         self.savePrefs(self.prefsFile)
-
-    
 
 
 #===============================================================================

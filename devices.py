@@ -687,7 +687,7 @@ def isRecorder(dev, types=RECORDER_TYPES):
     """
     for t in types:
         if t.isRecorder(dev):
-            True
+            return True
     return False
 
 
