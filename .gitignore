@@ -13,6 +13,8 @@
 *.ide
 *.cfx
 *.dat
+*.xls
+*.xlsx
 *~
 
 test*.xml
