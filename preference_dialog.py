@@ -6,7 +6,6 @@ Created on May 8, 2014
 
 import wx; wx=wx
 import wx.propgrid as PG
-# import wx.lib.dialogs as wxd
 import wx.lib.sized_controls as SC
 
 
@@ -75,9 +74,9 @@ class PrefsDialog(SC.SizedDialog):
         self.SetAffirmativeId(wx.ID_SAVE)
         self.SetEscapeId(wx.ID_CANCEL)
         
-        self.SetSize((500,400))
+        self.SetSize((500,550))
         self.SetMinSize((300,200))
-        self.SetMaxSize((600,1000))
+        self.SetMaxSize((1000,1000))
 
 
     def buildGrid(self):
@@ -92,6 +91,7 @@ class PrefsDialog(SC.SizedDialog):
             return prop
         
         self.pg.Append(PG.PropertyCategory("UI Colors"))
+        _add(PG.ColourProperty("Plot Background", "plotBgColor"))
         _add(PG.ColourProperty("Major Gridline", "majorHLineColor"))
         _add(PG.ColourProperty("Minor Gridlines", "minorHLineColor"))
         _add(PG.ColourProperty("Buffer Maximum", "maxRangeColor"))

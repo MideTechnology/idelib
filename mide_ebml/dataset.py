@@ -11,11 +11,12 @@ Created on Sep 26, 2013
 @todo: Discontinuity handing. This will probably be conveyed as events with
     null values. An attribute/keyword may be needed to suppress this when 
     getting data for processing (FFT, etc.)
-@todo: Look at places where lists are returned, consider using `yield` 
+@todo: Look at remaining places where lists are returned, consider using `yield` 
     instead (e.g. parseElement(), etc.)
 @todo: Have Sensor.addChannel() possibly check the parser to see if the 
     blocks are single-sample, instantiate simpler Channel subclass (possibly
-    also a specialized, simpler class of EventList, too)
+    also a specialized, simpler class of EventList, too). This will improve
+    temperature calibrated SSX data.
 @todo: Decide if dataset.useIndices is worth it, remove it if it isn't.
     Removing it may save a trivial amount of time/memory (one fewer 
     conditional in event-getting methods).
@@ -1201,6 +1202,8 @@ class EventList(Cascading):
             start = 0
         elif start < 0:
             start += len(self)
+        elif start >= len(self):
+            start = len(self)-1
             
         if end is None:
             end = len(self)
@@ -1209,9 +1212,11 @@ class EventList(Cascading):
         else:
             end = min(end, len(self))
         
-        if step is None:
-            step = 1
-        
+        if start >= end:
+            end = start+1
+                
+        step = 1 if step is None else step
+
         startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
         endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
 
@@ -1473,13 +1478,98 @@ class EventList(Cascading):
         if self.hasSubchannels and subchannel is not None:
             return (mmm[:,0,subchannel].min(), 
                     mmm[:,1,subchannel].mean(), 
-                    mmm[:,1,subchannel].mean(), 
                     mmm[:,2,subchannel].max())
 #         return (mmm[:,0].min(), mmm[:,1].mean(), mmm[:,2].max())
         # NOTE: TESTING
         return (mmm[:,0].min(), numpy.median(mmm[:,1]), mmm[:,2].max())
         
+    
+    def _getBlockRange(self, startTime=None, endTime=None):
+        if startTime is None:
+            startBlockIdx = 0
+        else:
+            startBlockIdx = self._getBlockIndexWithTime(startTime)
+            startBlockIdx = max(startBlockIdx-1, 0)
+        if endTime is None:
+            endBlockIdx = len(self._data)
+        else:
+            if endTime < 0:
+                endTime += self._data[-1].endTime
+            endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx)
+            endBlockIdx = min(len(self._data), max(startBlockIdx+1, endBlockIdx+1))
+            
+        return startBlockIdx, endBlockIdx
+    
+    
+    def getMax(self, startTime=None, endTime=None, subchannel=None):
+        """
+        """
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
+        blocks = self._data[startBlockIdx:endBlockIdx]
+        if self.hasSubchannels:
+            block = max(blocks, key=lambda x: max(x.max))
+            return max(self.iterSlice(*block.indexRange), key=lambda x: max(x[-1]))
+        else:
+            block = max(blocks, key=lambda x: x.max[self.parent.id])
+            return max(self.iterSlice(*block.indexRange), key=lambda x: x[-1])
         
+
+    def getMin(self, startTime=None, endTime=None, subchannel=None):
+        """
+        """
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
+        blocks = self._data[startBlockIdx:endBlockIdx]
+        if self.hasSubchannels:
+            block = min(blocks, key=lambda x: min(x.min))
+            return min(self.iterSlice(*block.indexRange), key=lambda x: min(x[-1]))
+        else:
+            block = min(blocks, key=lambda x: x.min[self.parent.id])
+            return min(self.iterSlice(*block.indexRange), key=lambda x: x[-1])
+
+
+    def _computeMinMeanMax(self):
+        """ Calculate the minimum, mean, and max for files without that data
+            recorded. This will almost definitely be painfully slow!
+        """
+        if self.hasMinMeanMax:
+            return
+        
+        if self.hasSubchannels:
+            parseBlock = self.parent.parseBlock
+        else:
+            parseBlock = self.parent.parent.parseBlock
+        
+        for block in self._data:
+            if not (block.min is None or block.mean is None or block.max is None):
+                continue
+            block.min = []
+            block.mean = []
+            block.max = []
+            vals = numpy.array(parseBlock(block))
+            for i in range(vals.shape[1]):
+                block.min.append(vals[:,i].min())
+                block.mean.append(vals[:,i].mean())
+                block.max.append(vals[:,i].max())
+            block.min = tuple(block.min)
+            block.mean = tuple(block.mean)
+            block.max = tuple(block.max)
+        
+            self.hasMinMeanMax = True
+            
+            # Channels and subchannels use same blocks; mark them as having
+            # min/mean/max data
+            sessionId = getattr(self.session, 'sessionId', None)
+            if sessionId is not None:
+                if self.hasSubchannels:
+                    for c in self.parent.parent.children:
+                        c.getSession(sessionId).hasMinMeanMax=True
+                else:
+                    self.parent.parent.getSession(sessionId).hasMinMeanMax=True
+            
 
     def _getBlockSampleTime(self, blockIdx=0):
         """ Get the time between samples within a given data block.

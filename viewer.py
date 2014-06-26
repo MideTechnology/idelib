@@ -194,7 +194,7 @@ class Timeline(ViewerPanel):
             return
         
         if start is not None:
-            self.currentTime = start
+            self.currentTime = max(self.timerange[0], start)
         
         if end is None:
             end = self.currentTime + self.displayLength
@@ -310,11 +310,12 @@ class TimeNavigator(ViewerPanel):
         sizer.Add(self.timeline, -1, wx.EXPAND)
         
         self._addButton(sizer, images.zoomOutH, self.OnZoomOut, 
-                        tooltip="Zoom Out (X axis)")
+                        Id=wx.ID_ZOOM_OUT, tooltip="Zoom Out (X axis)")
         self._addButton(sizer, images.zoomInH, self.OnZoomIn, 
-                        tooltip="Zoom In (X axis)")
+                        Id=wx.ID_ZOOM_IN, tooltip="Zoom In (X axis)")
         self._addButton(sizer, images.zoomFitH, self.OnZoomFit, 
-                        tooltip="Zoom to fit entire loaded time range (X axis)")
+                        Id=wx.ID_ZOOM_FIT, tooltip="Zoom to fit entire "
+                        "loaded time range (X axis)")
         
         self.SetSizer(sizer)
         
@@ -438,13 +439,15 @@ class TimeNavigator(ViewerPanel):
     def OnZoomIn(self, evt):
         """ Handle 'zoom in' events, i.e. the zoom in button was pressed. 
         """
-        self.zoom(.25, False, useKeyboard=True)
+        self.zoom(.25, False, useKeyboard=evt.EventObject!=self.root)
+        evt.Skip(False)
 
     
     def OnZoomOut(self, evt):
         """ Handle 'zoom out' events, i.e. the zoom in button was pressed. 
         """
-        self.zoom(-.25, False, useKeyboard=True)
+        self.zoom(-.25, False, useKeyboard=evt.EventObject!=self.root)
+        evt.Skip(False)
 
 
     def OnZoomFit(self, evt):
@@ -452,6 +455,7 @@ class TimeNavigator(ViewerPanel):
         """
         self.setVisibleRange(*self.timerange)
         self.postSetVisibleRangeEvent(*self.timerange, tracking=False)
+        evt.Skip(False)
 
 #===============================================================================
 # 
@@ -765,11 +769,14 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnEditRanges)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom Out X\tCtrl+-", "",
-                         self.navigator.OnZoomOut)
+                         self.OnZoomOutX)
+#                          self.navigator.OnZoomOut)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_IN, "Zoom In X\tCtrl+=", "",
-                         self.navigator.OnZoomIn)
+                         self.OnZoomInX)
+#                          self.navigator.OnZoomIn)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_FIT, "Zoom to Fit X\tCtrl+0", "",
-                         self.navigator.OnZoomFit)
+                         self.OnZoomFitX)
+#                          self.navigator.OnZoomFit)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_OUT_Y, 
                          "Zoom Out Y\tAlt+-", '', self.OnZoomOutY)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_IN_Y, 
@@ -1657,6 +1664,20 @@ class Viewer(wx.Frame, MenuMixin):
         if p is not None:
             p.zoomToFit()
 
+    def _postCommandEvent(self, target, evtType, Id):
+        newEvt = wx.CommandEvent(evtType.typeId, Id)
+        newEvt.SetEventObject(self)
+        wx.PostEvent(target, newEvt)
+        
+    def OnZoomInX(self, evt):
+        self._postCommandEvent(self.navigator, wx.EVT_BUTTON, wx.ID_ZOOM_IN)
+    
+    def OnZoomOutX(self, evt):
+        self._postCommandEvent(self.navigator, wx.EVT_BUTTON, wx.ID_ZOOM_OUT)
+    
+    def OnZoomFitX(self, evt):
+        self._postCommandEvent(self.navigator, wx.EVT_BUTTON, wx.ID_ZOOM_FIT)
+
     def OnToggleAA(self, evt):
         """ Handler for ID_VIEW_ANTIALIAS menu item selection. The method can
             also be used to explicitly set the item checked or unchecked.
@@ -2063,6 +2084,7 @@ class ViewerApp(wx.App):
         'minRangeColor': wx.Colour(190,190,255),
         'maxRangeColor': wx.Colour(255,190,190),
         'meanRangeColor': wx.Colour(255,255,150),
+        'plotBgColor': wx.Colour(255,255,255),
         'plotColors': {"00.0": "BLUE",
                        "00.1": "GREEN",
                        "00.2": "RED",
@@ -2312,8 +2334,12 @@ class ViewerApp(wx.App):
             
 
     def OnInit(self):
-        self._antiAliasingEnabled = True
+        self.SetAppName(APPNAME)
+#         self._antiAliasingEnabled = True
         self.createNewView(filename=self.initialFilename)
+        
+        self.stdPaths = wx.StandardPaths.Get()
+#         print "user data dir: %r" % self.stdPaths.GetUserDataDir()
         
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         return True

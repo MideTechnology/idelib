@@ -54,7 +54,8 @@ class ViewerPanel(wx.Panel):
             @param bitmaps: A 1 or more element tuple/list with the normal
                 and (optionally) the disabled button images.
             @param evtHandler: The event handler called by the button.
-            @keyword Id: The button's ID.
+            @keyword Id: The button's ID. If an ID is provided, the button
+                event handler is bound to the ID rather than the button widget.
             @keyword tooltip: The button's hover text.
             @keyword buttonStyle: The style for the button. Defaults to
                 `self.defaultButtonStyle`.
@@ -79,7 +80,12 @@ class ViewerPanel(wx.Panel):
             btn.SetToolTipString(tooltip)
      
         sizer.Add(btn, 0, sizerFlags)
-        self.Bind(wx.EVT_BUTTON, evtHandler, btn)
+        if Id == -1:
+            # Bind specifically to the button widget
+            self.Bind(wx.EVT_BUTTON, evtHandler, btn)
+        else:
+            # Bind to the given ID
+            self.Bind(wx.EVT_BUTTON, evtHandler, id=Id)
         
         return btn
         
@@ -116,7 +122,19 @@ class ViewerPanel(wx.Panel):
     #===========================================================================
     # Event-posting methods
     #===========================================================================
-    
+
+    def postCommandEvent(self, target, evtType, Id=-1):
+        """ Post a Command Event to a specific target.
+            @param target: The target for the event posting.
+            @param evtType: The type of the event, e.g. `wx.EVT_BUTTON`. *Not*
+                an event `typeId`!
+            @keyword Id: The event ID (e.g. the button ID for a `wx.EVT_BUTTON`) 
+        """
+        newEvt = wx.CommandEvent(evtType.typeId, Id)
+        newEvt.SetEventObject(self)
+        wx.PostEvent(target, newEvt)
+        
+
     def postSetVisibleRangeEvent(self, start, end, tracking=False, 
                                  instigator=False):
         """ Send a change in visible range event to the root window.
@@ -292,13 +310,13 @@ class MenuMixin(object):
 #===============================================================================
 # Automatically build list of things for 'from base import *'
 #===============================================================================
-
-if __name__ in _sys.modules:
-    _moduleDict = _sys.modules[__name__].__dict__
-else:
-    _moduleDict = globals()
-
-__all__ = filter(lambda x: not(x.startswith("_") or x.startswith('wx')),
-                 _moduleDict.keys())
-
-del _moduleDict
+# 
+# if __name__ in _sys.modules:
+#     _moduleDict = _sys.modules[__name__].__dict__
+# else:
+#     _moduleDict = globals()
+# 
+# __all__ = filter(lambda x: not(x.startswith("_") or x.startswith('wx')),
+#                  _moduleDict.keys())
+# 
+# del _moduleDict

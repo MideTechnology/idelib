@@ -1272,8 +1272,8 @@ class ConfigDialog(sc.SizedDialog):
         self.Bind(wx.EVT_BUTTON, self.importConfig, id=self.ID_IMPORT)
         self.Bind(wx.EVT_BUTTON, self.exportConfig, id=self.ID_EXPORT)
         
-        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
-        self.okButton = self.FindWindowById(wx.ID_OK)
+        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.APPLY | wx.CANCEL))
+        self.okButton = self.FindWindowById(wx.ID_APPLY)
         
         self.SetMinSize((436, 475))
         self.Fit()

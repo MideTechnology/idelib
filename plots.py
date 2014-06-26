@@ -50,12 +50,15 @@ class LegendArea(ViewerPanel):
         
         self.zoomInButton = self._addButton(subsizer, images.zoomInV, 
                                             self.OnZoomIn, 
+                                            Id=wx.ID_ZOOM_IN,
                                             tooltip="Zoom In (Y axis)")
         self.zoomOutButton = self._addButton(subsizer, images.zoomOutV, 
                                              self.OnZoomOut, 
+                                            Id=wx.ID_ZOOM_OUT,
                                              tooltip="Zoom Out (Y axis)")
         self.zoomFitButton = self._addButton(subsizer, images.zoomFitV, 
                                             self.OnZoomFit, 
+                                            Id=wx.ID_ZOOM_FIT,
                                             tooltip="Zoom to fit min and max "
                                             "values in displayed interval")
         
@@ -135,7 +138,7 @@ class LegendArea(ViewerPanel):
         return self.visibleRange[1] - (vpos * self.unitsPerPixel)
         
 
-    def zoom(self, percent, tracking=True, useKeyboard=False):
+    def zoom(self, percent=zoomAmount, tracking=True, useKeyboard=False):
         """ Increase or decrease the size of the visible range.
         
             @param percent: A zoom factor. Use a normalized value, positive
@@ -223,7 +226,7 @@ class LegendArea(ViewerPanel):
 # 
 #===============================================================================
 
-class PlotCanvas(wx.ScrolledWindow, MenuMixin):
+class PlotCanvas(wx.ScrolledWindow):
     """ The actual plot-drawing area.
     
         @todo: Make drawing asynchronous and interruptible.
@@ -239,6 +242,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     def loadPrefs(self):
         """
         """
+        self.SetBackgroundColour(self.root.app.getPref('plotBgColor', 'white'))
         self.drawPoints = self.root.app.getPref("drawPoints", True)
         self.pointSize = self.root.app.getPref('pointSize', 2)
         self.weight = self.root.app.getPref('plotLineWidth', 1)
@@ -260,18 +264,17 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
             @keyword weight: The weight (thickness) of the plot's pen. 
         """
         self.root = kwargs.pop('root',None)
-
         self.color = kwargs.pop('color', 'BLUE')
         self.weight = kwargs.pop('weight', 1)
         
-        kwargs.setdefault('style',wx.VSCROLL|wx.BORDER_SUNKEN)
+        kwargs.setdefault('style',wx.VSCROLL|wx.BORDER_SUNKEN|wx.WANTS_CHARS)
         super(PlotCanvas, self).__init__(*args, **kwargs)
-        self.SetBackgroundColour("white")
         
         if self.root is None:
             self.root = self.GetParent().root
         
         self.loadPrefs()
+        self.setAntialias(False)
         
         self.lines = None
         self.points = None
@@ -280,36 +283,16 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self.minorHLines = None
         self.majorHLines = None
         self.minMeanMaxLines = None
-
-        self.setPlotPen()
-        self.setAntialias(False)
-        
-        self.setContextMenu(wx.Menu())
-        self.addMenuItem(self.contextMenu, wx.ID_SELECT_COLOR, 
-                         "Select Color...", "", 
-                         self.OnMenuColor)
-        self.contextMenu.AppendSeparator()
-        self.addMenuItem(self.contextMenu, self.root.ID_DATA_NOMEAN, 
-                         "Do Not Remove Mean", "",
-                         self.root.OnDontRemoveMeanCheck, kind=wx.ITEM_RADIO)
-        self.addMenuItem(self.contextMenu, self.root.ID_DATA_MEAN, 
-                         "Remove Rolling Mean from Data", "",
-                         self.root.OnRemoveRollingMeanCheck, kind=wx.ITEM_RADIO)
-        self.addMenuItem(self.contextMenu, self.root.ID_DATA_MEAN_TOTAL, 
-                         "Remove Total Mean from Data", "",
-                         self.root.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
-        
-        self.dragging = False
+        self.zooming = False
         self.zoomCorners = None
         self.zoomCenter = None
+
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
         self.Bind(wx.EVT_LEFT_DOWN, self.OnMouseLeftDown)
         self.Bind(wx.EVT_LEFT_UP, self.OnMouseLeftUp)
+        self.Bind(wx.EVT_RIGHT_DOWN, self.OnMouseRightDown)
 
-        self.normalBg = wx.Colour(255,255,255)
-        self.minMaxBg = wx.Colour(240,240,240)
-        
        
     def loadPen(self, name, defaultColor, width, style, dashes):
         """ Create a pen using a color in the preferences.
@@ -454,34 +437,6 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         
         self.minMeanMaxLines = (minPts[1:], meanPts, maxPts[1:])
     
-
-    def makeMinMaxBoxes(self, hRange, vRange, hScale, vScale):
-        """ Generate the rectangles forming the minimum and maximum range
-            envelope. Used internally.
-            DOES NOT WORK WITH ANTIALIASING; CURRENTLY UNUSED.
-        """
-        # TODO: Make this work or remove it.
-        buff = hScale #0.1 * hScale
-        boxes = []
-        vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1)
-        lastMin, _, lastMax = vals.next()
-        lastT = (lastMin[-2] - hRange[0]) * hScale
-        lastMin = (lastMin[-1] - vRange[0]) * vScale
-        lastMax = (lastMax[-1] - vRange[0]) * vScale
-        
-        for pMin, _, pMax in vals:
-            t = (pMin[0] - hRange[0]) * hScale
-            boxes.append((lastT, lastMin-buff, (t-lastT)*1.005, 
-                          lastMax-lastMin+buff)) 
-            lastT = t
-            lastMin = (pMin[-1] - vRange[0]) * vScale
-            lastMax = (pMax[-1] - vRange[0]) * vScale
-        
-        boxes.append((lastT, lastMin-buff, hRange[1]*hScale-lastT, 
-                      lastMax-lastMin+buff))
-#         return [map(lambda x: int(x+0.5), v) for v in boxes]
-        return boxes
-
 
     def OnPaint(self, evt):
         """ Event handler for redrawing the plot. Catches common exceptions.
@@ -730,7 +685,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
     #===========================================================================
     
     def setAntialias(self, aa=True):
-        """
+        """ Turn antialiasing on or off.
         """
         self.antialias = aa
         if aa:
@@ -765,11 +720,11 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
         self.root.showMouseVPos(self.Parent.legend.getValueAt(pos[1]),
                                 units=self.Parent.yUnits[1])
         
-        if self.dragging:
+        if self.zooming:
             if not evt.LeftIsDown():
                 # Mouse probably left window, left button released, moved back
                 self._drawRubberBand(*self.zoomCorners)
-                self.dragging = False
+                self.zooming = False
             else:
                 # TODO: Modifier key to drag centered rectangle
                 if pos != self.zoomCorners[1]:
@@ -777,19 +732,49 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                     self._drawRubberBand(*self.zoomCorners)
                 # Draw new rectangle
                 self.zoomCorners[1] = pos
+                if wx.GetKeyState(wx.WXK_SHIFT):
+                    dx = pos[0] - self.zoomCenter[0]
+                    dy = pos[1] - self.zoomCenter[1]
+                    self.zoomCorners[0] = (self.zoomCenter[0]-dx,
+                                           self.zoomCenter[1]-dy)
+                else:
+                    self.zoomCorners[0] = self.zoomCenter
                 self._drawRubberBand(*self.zoomCorners)
         
         evt.Skip()
 
 
     def OnMouseLeftDown(self, evt):
-        self.dragging = True
+        self.zooming = True
         self.zoomCenter = (evt.GetX(), evt.GetY())
         self.zoomCorners = [self.zoomCenter]*2
-    
+
+
+    def OnMouseRightDown(self, evt):
+        if self.zooming:
+            # Cancel zoom rectangle
+            self._drawRubberBand(*self.zoomCorners)
+            self.zooming = False
+            evt.Skip(False)
+        else:
+            if wx.GetKeyState(wx.WXK_ALT):
+                # Zoom to fit both axes
+                self.root.navigator.OnZoomFit(evt)
+                return
+            # Zoom out on both axes
+            percent = 1.25
+            x = self.root.timeline.getValueAt(evt.GetX())
+            y = self.Parent.legend.getValueAt(evt.GetY())
+            t1, t2 = self.root.getVisibleRange()
+            dx = (t1 - t2) * percent
+            v1, v2 = self.Parent.getValueRange()
+            dy = (v1 - v2) * percent
+            self.root.setVisibleRange(*sorted((x-dx, x+dx)), tracking=False)
+            self.Parent.setValueRange(*sorted((y-dy, y+dy)), tracking=True)
+
     
     def OnMouseLeftUp(self, evt):
-        if self.dragging:
+        if self.zooming:
             self._drawRubberBand(*self.zoomCorners)
             c0, c1 = self.zoomCorners
             if min(abs(c1[0]-c0[0]), abs(c1[1]-c0[1])) > 5:
@@ -804,7 +789,7 @@ class PlotCanvas(wx.ScrolledWindow, MenuMixin):
                 self.Parent.setValueRange(*sorted((yStart, yEnd)), 
                                           tracking=True)
             
-        self.dragging = False
+        self.zooming = False
         self.zoomCorners = None
 
 
@@ -1068,37 +1053,32 @@ class Plot(ViewerPanel):
          
         enabled = self.source.hasMinMeanMax
         rt = self.root
-        pt = self.plot
+#         pt = self.plot
         
         if not enabled or self.source.removeMean is False:
             rt.setMenuItem(rt.menubar, rt.ID_DATA_NOMEAN, checked=True)
-            pt.setMenuItem(pt.contextMenu, rt.ID_DATA_NOMEAN, checked=True)
+#             pt.setMenuItem(pt.contextMenu, rt.ID_DATA_NOMEAN, checked=True)
         elif self.source.rollingMeanSpan == -1:
             rt.setMenuItem(rt.menubar, rt.ID_DATA_MEAN_TOTAL, checked=True)
-            pt.setMenuItem(pt.contextMenu, rt.ID_DATA_MEAN_TOTAL, checked=True)
+#             pt.setMenuItem(pt.contextMenu, rt.ID_DATA_MEAN_TOTAL, checked=True)
         else:
             rt.setMenuItem(rt.menubar, rt.ID_DATA_MEAN, checked=True)
-            pt.setMenuItem(pt.contextMenu, rt.ID_DATA_MEAN, checked=True)
+#             pt.setMenuItem(pt.contextMenu, rt.ID_DATA_MEAN, checked=True)
             
         for m in [rt.ID_DATA_NOMEAN, rt.ID_DATA_MEAN, rt.ID_DATA_MEAN_TOTAL]:
             rt.setMenuItem(rt.menubar, m, enabled=enabled)
-            pt.setMenuItem(pt.contextMenu, m, enabled=enabled)
-        
+#             pt.setMenuItem(pt.contextMenu, m, enabled=enabled)
 
-        self.root.setMenuItem(self.root.menubar, 
-                              self.root.ID_VIEW_MINMAX,
-                              enabled=enabled, checked=self.root.drawMinMax)
-        self.root.setMenuItem(self.root.menubar,
-                              self.root.ID_VIEW_LINES_MAJOR, 
-                              enabled=True, checked=self.root.drawMajorHLines)
-        self.root.setMenuItem(self.root.menubar,
-                              self.root.ID_VIEW_LINES_MINOR,
-                              enabled=True, checked=self.root.drawMinorHLines)
-        self.root.setMenuItem(self.root.menubar,
-                              self.root.ID_VIEW_MEAN,
-                              enabled=True, checked=self.root.drawMean)
+        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_MINMAX, enabled=enabled, 
+                       checked=self.root.drawMinMax)
+        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_LINES_MAJOR, enabled=True, 
+                       checked=self.root.drawMajorHLines)
+        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_LINES_MINOR, enabled=True, 
+                       checked=self.root.drawMinorHLines)
+        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_MEAN, enabled=True, 
+                       checked=self.root.drawMean)
         
-        rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME, 
+        rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME,
                        enabled=rt.session.utcStartTime is not None)                      
 #         # Non-plot-specific menu items
 #         self.plot.setMenuItem(self.plot.contextMenu, 
