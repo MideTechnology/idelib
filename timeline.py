@@ -30,7 +30,6 @@ class TimelineCtrl(RC.RulerCtrl):
         super(TimelineCtrl, self).__init__(*args, **kwargs)
         self._format = RC.RealFormat
         self._flip = True
-#         self._labeledges = True
 
 
     def OnMouseEvents(self, event):
@@ -41,16 +40,13 @@ class TimelineCtrl(RC.RulerCtrl):
         if event.LeftDown():
             self.CaptureMouse()
             self._mousePosition = mousePos
-            # TODO: This
         elif event.Dragging():
             self._mousePosition = mousePos
-            # TODO: This
         elif event.LeftUp():
             if self.HasCapture():
                 self.ReleaseMouse()
             if self._drawingparent:
                 self._drawingparent.Refresh()
-            # TODO: This
 
         event.Skip()
         

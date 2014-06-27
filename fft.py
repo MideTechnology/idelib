@@ -294,7 +294,7 @@ class FFTView(wx.Frame, MenuMixin):
             return True
         except Exception as err:
             what = "exporting %s as CSV" % self.NAME
-            self.root.handleException(err, what=what)
+            self.root.handleError(err, what=what)
             return False
         
     
@@ -316,7 +316,7 @@ class FFTView(wx.Frame, MenuMixin):
             return self.canvas.SaveFile(filename)
         except Exception as err:
             what = "exporting %s as an image" % self.NAME
-            self.root.handleException(err, what=what)
+            self.root.handleError(err, what=what)
             return False
     
     
@@ -642,7 +642,6 @@ class SpectrogramView(FFTView):
 
             self.images = self.makePlots(self.data)
 #             self.images = self.makePlots_NoLog(self.data)
-            # NOTE: I'm not sure why I'm generating lines.
             self.makeLineList()
             # TODO: DO SOMETHING WITH THE DRAWINGS
             for i in range(len(self.subchannels)):#ch in subchIds:
@@ -712,9 +711,11 @@ class SpectrogramView(FFTView):
 
     def OnExportCsv(self, evt):
         def cleanedName(n):
+            # TODO: This looks like a job for regex!
             for c in """/\\:"', """:
                 n = n.replace(c, '_')
-            n = n.replace('__','_')
+            while '__' in n:
+                n = n.replace('__','_')
             return n
         
         exportChannels = []
@@ -760,14 +761,12 @@ class SpectrogramView(FFTView):
             if existing:
                 #warn
                 names = '\n'.join(map(os.path.basename, existing))
-                dlg = wx.MessageDialog(self, 
-                    'Exporting will overwrite the following files:\n\n'
-                    '%s\n\nContinue?' % names, 'Overwrite files?',
-                    wx.OK | wx.CANCEL | wx.CANCEL_DEFAULT | wx.ICON_WARNING
-                )
-                
-                if dlg.ShowModal() != wx.ID_OK:
-                    baseName = None
+                mb = wx.MessageBox('Exporting will overwrite the following '
+                                   'files:\n\n%s\n\nContinue?' % names, 
+                                   'Overwrite files?', parent=self,
+                        style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_WARNING) 
+                if mb != wx.YES:
+                    baseName=None
 
         for num, filename in zip(exportChannels, filenames): 
             try:
@@ -777,7 +776,7 @@ class SpectrogramView(FFTView):
                 out.close()
             except Exception as err:
                 what = "exporting %s as CSV %s" % (self.NAME, filename)
-                self.root.handleException(err, what=what)
+                self.root.handleError(err, what=what)
                 return False
 
         return True

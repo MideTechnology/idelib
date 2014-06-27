@@ -1,5 +1,4 @@
 """
-
 Dialog for selecting recording devices.
 
 @todo: Use the new `Recorder` classes everywhere! 
@@ -32,8 +31,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     COLUMNS = (ColumnInfo("Path", "path", unicode, ''),
                ColumnInfo("Name", "name", unicode, ''),
                ColumnInfo("Type", "productName", unicode, ''),
-               ColumnInfo("Serial #", "serial", unicode, ''))#lambda x: "SSX%07d" % x, ''))
-
+               ColumnInfo("Serial #", "serial", unicode, ''))
 
     class DeviceListCtrl(wx.ListCtrl, listmix.ListCtrlAutoWidthMixin):
         def __init__(self, parent, ID, pos=wx.DefaultPosition,
@@ -224,7 +222,7 @@ def selectDevice(title="Select Recorder", autoUpdate=1000, parent=None):
 # 
 #===============================================================================
 
-if __name__ == '__main__':# or True:
+if __name__ == '__main__':
     app = wx.App()
     
     result = selectDevice()

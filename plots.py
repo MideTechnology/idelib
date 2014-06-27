@@ -452,20 +452,19 @@ class PlotCanvas(wx.ScrolledWindow):
             return
         except IOError as err:
             msg = "An error occurred while trying to read the recording file."
-            self.root.handleException(err, msg, closeFile=True)
+            self.root.handleError(err, msg, closeFile=True)
         except Exception as err:
-            self.root.handleException(err, what="plotting data")
+            self.root.handleError(err, what="plotting data")
         
 
     def _OnPaint(self, evt):
         """ Redraws the plot. Called by `PlotCanvas.OnPaint()`.
         
             @todo: Apply offset and scaling transforms to the DC itself, 
-                eliminating all the per-point math.
+                eliminating all the per-point math. May complicate rubber band
+                zoom.
             @todo: Refactor and modularize this monster. Separate the line-list
                 generation so multiple plots on the same canvas will be easy.
-            @todo: Remove the vertical scaling pass at first and use min/max
-                from the data. 
         """
         if self.Parent.source is None:
             return
@@ -726,7 +725,6 @@ class PlotCanvas(wx.ScrolledWindow):
                 self._drawRubberBand(*self.zoomCorners)
                 self.zooming = False
             else:
-                # TODO: Modifier key to drag centered rectangle
                 if pos != self.zoomCorners[1]:
                     # Moved; erase old rectangle
                     self._drawRubberBand(*self.zoomCorners)
@@ -1192,11 +1190,11 @@ class PlotSet(aui.AuiNotebook):
             @keyword root: The viewer's 'root' window.
         """
         self.root = kwargs.pop('root', None)
-        kwargs.setdefault('style', aui.AUI_NB_TOP | 
-                                   aui.AUI_NB_TAB_SPLIT |
-                                   aui.AUI_NB_TAB_MOVE | 
-                                   aui.AUI_NB_SCROLL_BUTTONS |
-                                   aui.AUI_NB_WINDOWLIST_BUTTON
+        kwargs.setdefault('style',   aui.AUI_NB_TOP  
+                                   | aui.AUI_NB_TAB_SPLIT 
+                                   | aui.AUI_NB_TAB_MOVE  
+                                   | aui.AUI_NB_SCROLL_BUTTONS 
+#                                    | aui.AUI_NB_WINDOWLIST_BUTTON
                                    )
         super(PlotSet, self).__init__(*args, **kwargs)
         
@@ -1260,7 +1258,7 @@ class PlotSet(aui.AuiNotebook):
             # Should not normally occur, but not fatal.
             warnings = []
         except Exception as err:
-            self.handleException(err, 
+            self.handleError(err, 
                                  what="creating a plot view warning indicator")
 
         title = source.name or title

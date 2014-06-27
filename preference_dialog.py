@@ -1,4 +1,6 @@
 '''
+Viewer Preferences editor.
+
 Created on May 8, 2014
 
 @author: dstokes
@@ -8,13 +10,14 @@ import wx; wx=wx
 import wx.propgrid as PG
 import wx.lib.sized_controls as SC
 
-
 #===============================================================================
 # 
 #===============================================================================
 
 class PrefsDialog(SC.SizedDialog):
-    """
+    """ The viewer preferences editor. This is a self-contained unit; instead
+        of instantiating it, use the `editPrefs` method directly from the
+        class. That handles all the setup and teardown.
     """
 
     LANGUAGES = [s for s in dir(wx) if s.startswith("LANGUAGE")]
@@ -26,19 +29,22 @@ class PrefsDialog(SC.SizedDialog):
                                                ) for s in LANGUAGES]
     
     def __init__(self, *args, **kwargs):
-        """
+        """ Constructor. Standard dialog arguments plus:
+            @keyword prefs: A dictionary of preferences.
+            @keyword defaultPrefs: A dictionary of default preference settings.
         """
         userPrefs = kwargs.pop("prefs", {})
         self.defaultPrefs = kwargs.pop("defaultPrefs", {})
         self.prefs = self.defaultPrefs.copy()
         self.prefs.update(userPrefs)
 
-        style = wx.DEFAULT_DIALOG_STYLE \
-            | wx.RESIZE_BORDER \
-            | wx.MAXIMIZE_BOX \
-            | wx.MINIMIZE_BOX \
-            | wx.DIALOG_EX_CONTEXTHELP \
-            | wx.SYSTEM_MENU
+        style = ( wx.DEFAULT_DIALOG_STYLE
+                | wx.RESIZE_BORDER 
+                | wx.MAXIMIZE_BOX 
+                | wx.MINIMIZE_BOX 
+                | wx.DIALOG_EX_CONTEXTHELP 
+                | wx.SYSTEM_MENU
+                )
 
         kwargs.setdefault('style',style)
 
@@ -66,7 +72,6 @@ class PrefsDialog(SC.SizedDialog):
         wx.Button(buttons, wx.ID_SAVE)
         wx.Button(buttons, wx.ID_CANCEL)
         buttons.SetSizerProps(halign='right')
-#         self.SetButtonSizer(buttons)
 
         self.buildGrid()
 
@@ -80,9 +85,10 @@ class PrefsDialog(SC.SizedDialog):
 
 
     def buildGrid(self):
-        """
+        """ Build the display.
         """
         def _add(prop, tooltip=None, **atts):
+            # Helper to add properties to the list.
             self.pg.Append(prop)
             if tooltip:
                 self.pg.SetPropertyHelpString(prop, tooltip)
@@ -154,10 +160,15 @@ class PrefsDialog(SC.SizedDialog):
     #===========================================================================
 
     def OnDefaultsButton(self, evt):
+        """ Restore the default settings. """
         self.populateGrid(self.defaultPrefs)
 
 
     def getChangedPrefs(self):
+        """ Get all of the preferences that differ from the default. Also does
+            any conversion from the display version to usable data (e.g.
+            the 'locale').
+        """
         result = {}
         resetHidden = self.resetHiddenCheck.GetValue()
         self.prefs.update(self.pg.GetPropertyValues(as_strings=False))
@@ -176,7 +187,16 @@ class PrefsDialog(SC.SizedDialog):
     
     @classmethod
     def editPrefs(cls, parent, prefs, defaultPrefs):
-        """
+        """ Display the Preferences Editor. Use this method directly from the
+            class rather than instantiating and displaying the dialog manually.
+            
+            @param parent: The dialog parent.
+            @param prefs: A dictionary of preferences to edit. This does not
+                get modified.
+            @param defaultPrefs: A dictionary of default values, for applying
+                when the user clicks 'restore defaults.'
+            @return: A new dictionary of preferences that differ from the
+                defaults.
         """
         dlg = cls(parent, -1, "Preferences", prefs=prefs, 
                   defaultPrefs=defaultPrefs)

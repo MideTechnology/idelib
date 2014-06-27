@@ -8,14 +8,10 @@ Created on Mar 5, 2014
 
 import abc
 from collections import Iterable
-# from datetime import datetime
-# from itertools import izip
 import os
 import random
-# import struct
 
 from mide_ebml import dataset as DS
-# import mide_ebml.dataset as DS
 
 #===============================================================================
 # 
@@ -398,7 +394,6 @@ class EventList(DS.EventList):
             @return: The sample rate, as samples per second (float)
         """
         return self.session._sampleRate
-    
 
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
@@ -418,7 +413,38 @@ class EventList(DS.EventList):
             return self.iterSlice(startIdx, stopIdx, step)
         
 
+    def getMax(self, startTime=None, endTime=None):
+        """ Get the event with the maximum value, optionally within a specified
+            time range. For Channels, the maximum of all Subchannels is
+            returned.
+            
+            @keyword startTime: The starting time. Defaults to the start.
+            @keyword endTime: The ending time. Defaults to the end.
+            @return: The event with the maximum value.
+        """
+        vals = self.iterRange(startTime, endTime)
+        if self.hasSubchannels:
+            return max(vals, key=lambda x: max(x[-1]))
+        return max(vals, key=lambda x: x[-1])
 
+    
+    def getMin(self, startTime=None, endTime=None):
+        """ Get the event with the minimum value, optionally within a specified
+            time range. For Channels, the minimum of all Subchannels is
+            returned.
+            
+            @keyword startTime: The starting time. Defaults to the start.
+            @keyword endTime: The ending time. Defaults to the end.
+            @return: The event with the minimum value.
+        """
+        vals = self.iterRange(startTime, endTime)
+        if self.hasSubchannels:
+            return min(vals, key=lambda x: min(x[-1]))
+        return min(vals, key=lambda x: x[-1])
+
+#===============================================================================
+# 
+#===============================================================================
 
 Classic.register(Dataset)
 Classic.register(Channel)
@@ -427,6 +453,5 @@ Classic.register(EventList)
 
 # HACK to work around the fact that the `register` method doesn't show up
 # in `dir()`, which creates an error display in PyLint/PyDev/etc. 
-# Iterable.register(EventList)
-Iterable_register = getattr(Iterable, "register")
-Iterable_register(EventList)
+_Iterable_register = getattr(Iterable, "register")
+_Iterable_register(EventList)

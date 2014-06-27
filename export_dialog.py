@@ -165,8 +165,6 @@ class ExportDialog(sc.SizedDialog):
              self.removeMean, tooltip="Subtract a the mean from the data. "
                                       "Not applicable to all channels.")
 
-        # TODO: Make 'remove mean' work at export time.
-#         self.removeMeanList.Hide()
         self.buildSpecialUI()
 
         warnPane = sc.SizedPanel(pane,-1)

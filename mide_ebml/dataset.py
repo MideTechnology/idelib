@@ -10,7 +10,7 @@ Created on Sep 26, 2013
     elsewhere!  
 @todo: Discontinuity handing. This will probably be conveyed as events with
     null values. An attribute/keyword may be needed to suppress this when 
-    getting data for processing (FFT, etc.)
+    getting data for processing (FFT, etc.). Low priority.
 @todo: Look at remaining places where lists are returned, consider using `yield` 
     instead (e.g. parseElement(), etc.)
 @todo: Have Sensor.addChannel() possibly check the parser to see if the 
@@ -19,7 +19,7 @@ Created on Sep 26, 2013
     temperature calibrated SSX data.
 @todo: Decide if dataset.useIndices is worth it, remove it if it isn't.
     Removing it may save a trivial amount of time/memory (one fewer 
-    conditional in event-getting methods).
+    conditional in event-getting methods). Lowest priority.
 
 '''
 
@@ -92,19 +92,6 @@ class Lerp(Interpolation):
         return v1 + (percent * (v2 - v1))
 
     
-class MultiLerp(Lerp):
-    """ Simple linear interpolation for compound values (e.g. the
-        combined axes from an accelerometer).
-    """
-    def __call__(self, events, idx1, idx2, percent):
-        v1 = events[idx1][-1]
-        v2 = events[idx2][-1]
-        result = v1[:]
-        for i in xrange(len(v1)):
-            result[i] += percent * (v2[i] - v1[i])
-        return result
-
-
 #===============================================================================
 # Mix-In Classes
 #===============================================================================
@@ -1092,9 +1079,6 @@ class EventList(Cascading):
         else:
             firstBlock = lastBlock = None
         
-#         block._rollingMean = numpy.mean(
-#                         [b.mean for b in self._data[firstBlock:lastBlock]], 0)
-        # NOTE: TESTING; CHANGE BACK MAYBE
         block._rollingMean = numpy.median(
                         [b.mean for b in self._data[firstBlock:lastBlock]], 0)
         block._rollingMeanSpan = span
@@ -1361,15 +1345,6 @@ class EventList(Cascading):
             endIdx = 0
         else:
             endIdx = self.getEventIndexBefore(endTime)
-#             endBlockIdx = self._getBlockIndexWithTime(endTime)#, start=startBlockIdx) 
-#             if endBlockIdx > 0:
-#                 endBlock = self._data[endBlockIdx]
-#                 if endBlockIdx < len(self._data) - 1:
-#                     endIdx = self._data[endBlockIdx+1].indexRange[0] - 1
-#                 else:
-#                     endIdx = int(endBlock.indexRange[0] + ((endTime - endBlock.startTime) / self._getBlockSampleTime(endBlockIdx) + 0.0) - 1)
-#             else:
-#                 endIdx = 0
         return startIdx, endIdx
     
 
@@ -1501,8 +1476,14 @@ class EventList(Cascading):
         return startBlockIdx, endBlockIdx
     
     
-    def getMax(self, startTime=None, endTime=None, subchannel=None):
-        """
+    def getMax(self, startTime=None, endTime=None):
+        """ Get the event with the maximum value, optionally within a specified
+            time range. For Channels, the maximum of all Subchannels is
+            returned.
+            
+            @keyword startTime: The starting time. Defaults to the start.
+            @keyword endTime: The ending time. Defaults to the end.
+            @return: The event with the maximum value.
         """
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
@@ -1514,10 +1495,16 @@ class EventList(Cascading):
         else:
             block = max(blocks, key=lambda x: x.max[self.parent.id])
             return max(self.iterSlice(*block.indexRange), key=lambda x: x[-1])
-        
 
-    def getMin(self, startTime=None, endTime=None, subchannel=None):
-        """
+
+    def getMin(self, startTime=None, endTime=None):
+        """ Get the event with the minimum value, optionally within a specified
+            time range. For Channels, the minimum of all Subchannels is
+            returned.
+            
+            @keyword startTime: The starting time. Defaults to the start.
+            @keyword endTime: The ending time. Defaults to the end.
+            @return: The event with the minimum value.
         """
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
@@ -1533,7 +1520,7 @@ class EventList(Cascading):
 
     def _computeMinMeanMax(self):
         """ Calculate the minimum, mean, and max for files without that data
-            recorded. This will almost definitely be painfully slow!
+            recorded. Not recommended for large data sets.
         """
         if self.hasMinMeanMax:
             return
@@ -1984,6 +1971,8 @@ class WarningRange(object):
 # 
 #===============================================================================
 
-Iterable_register = getattr(Iterable, 'register')
-Iterable_register(EventList)    
-Iterable_register(WarningRange)
+# HACK to work around the fact that the `register` method doesn't show up
+# in `dir()`, which creates an error display in PyLint/PyDev/etc. 
+_Iterable_register = getattr(Iterable, 'register')
+_Iterable_register(EventList)    
+_Iterable_register(WarningRange)

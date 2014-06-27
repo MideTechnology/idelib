@@ -663,7 +663,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.Bind(EVT_PROGRESS_UPDATE, self.OnProgressUpdate)
         self.Bind(EVT_PROGRESS_END, self.OnProgressEnd)
         self.Bind(EVT_INIT_PLOTS, self.initPlots)
-        self.Bind(EVT_IMPORT_ERROR, self.handleException)
+        self.Bind(EVT_IMPORT_ERROR, self.handleError)
         
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
@@ -1303,7 +1303,7 @@ class Viewer(wx.Frame, MenuMixin):
         except Exception as err:
             # Catch-all for unanticipated errors
             stream.closeAll()
-            self.handleException(err, what="importing the file %s" % filename,
+            self.handleError(err, what="importing the file %s" % filename,
                                  closeFile=True)
             return False
         
@@ -1368,7 +1368,7 @@ class Viewer(wx.Frame, MenuMixin):
         try:
             stream = open(filename, 'w')
         except Exception as err:
-            self.handleException(err, what="exporting CSV")
+            self.handleError(err, what="exporting CSV")
             return
         
         self.drawingSuspended = True
@@ -1425,7 +1425,7 @@ class Viewer(wx.Frame, MenuMixin):
                    end=stopTime, sliceSize=sliceSize)
             self.fftViews[viewId] = view
         except Exception as e:
-            self.handleException(e, what="generating FFT")
+            self.handleError(e, what="generating FFT")
 
 
     def renderSpectrogram(self, evt=None):
@@ -1458,7 +1458,7 @@ class Viewer(wx.Frame, MenuMixin):
                     #sliceSize=sliceSize)
             self.fftViews[viewId] = view
         except Exception as e:
-            self.handleException(e, what="generating Spectrogram")
+            self.handleError(e, what="generating Spectrogram")
         
     #===========================================================================
     # 
@@ -1990,7 +1990,7 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
     
-    def handleException(self, err, msg=None, icon=wx.ICON_ERROR, 
+    def handleError(self, err, msg=None, icon=wx.ICON_ERROR, 
                         raiseException=False, what='', where=None,
                         fatal=False, closeFile=False):
         """ General-purpose exception handler that attempts to provide a 
