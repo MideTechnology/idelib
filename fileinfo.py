@@ -8,8 +8,9 @@ import locale
 import os.path
 import sys
 
-import wx.lib.sized_controls as sc
 import wx; wx = wx
+import wx.lib.sized_controls as sc
+import wx.html
 
 from config_dialog import InfoPanel, CalibrationPanel
 from mide_ebml import util
@@ -23,6 +24,55 @@ class RecordingCalibrationPanel(CalibrationPanel):
     def getDeviceData(self):
         self.info = self.root.transforms.values()
         
+#===============================================================================
+# 
+#===============================================================================
+
+class ChannelInfoPanel(wx.html.HtmlWindow):
+    """
+    """
+    timeScalar = 1.0/(10**6)
+    
+    def generateContents(self):
+        """
+        """
+        html = ["<html><body>"]
+        for cid, c in self.info.channels.iteritems():
+            html.append("<p><b>Channel %02x: %s</b><font size='-1'><ul>" % \
+                        (cid, c.name))
+            for subcid, subc in enumerate(c.subchannels):
+                events = subc.getSession()
+                srate = ("%.3f" % events.getSampleRate()).rstrip('0')
+                html.append("<li><b>Subchannel %02x.%d: %s</b></li>" % \
+                            (cid, subcid, subc.name))
+                html.append("<ul><li>")
+                h = []
+                h.append("Range: <b>%s to %s %s</b>" % \
+                   (subc.displayRange[0], subc.displayRange[1], subc.units[0]))
+                h.append("Nominal Sample Rate: <b>%s Hz</b>" % srate)
+                cmax = events.getMax()
+                cmin= events.getMin()
+                h.append("Minimum Value: <b>%.4f %s @ %.4f</b>" % \
+                         (cmin[-1], subc.units[0], cmin[-2]*self.timeScalar))
+                h.append("Maximum Value: <b>%.4f %s @ %.4f</b>" % \
+                         (cmax[-1], subc.units[0], cmax[-2]*self.timeScalar))
+                html.append("</li><li>".join(h))
+                html.append("</li></ul>")
+            html.append("</ul></font></p>")
+        html.append("</body></html>")
+        return ''.join(html)
+
+    
+    def __init__(self, *args, **kwargs):
+        """
+        """
+        self.root = kwargs.pop('root', None)
+        self.info = kwargs.pop('info', None)
+        self.sessionId = kwargs.pop('sessionId', 0)
+        super(ChannelInfoPanel, self).__init__(*args, **kwargs)
+        if self.info is not None:
+            self.SetPage(self.generateContents())
+    
 
 #===============================================================================
 # Recorder Info: device data stored in a recording, similar to device info. 
@@ -93,8 +143,10 @@ class RecorderInfoDialog(sc.SizedDialog):
         notebook = wx.Notebook(pane, -1)
         filePanel = InfoPanel(notebook, -1, root=self, info=fileInfo)
         recordingPanel = InfoPanel(notebook, -1, root=self, info=recordingInfo)
+        infoPanel = ChannelInfoPanel(notebook, -1, root=self, info=self.root)
         notebook.AddPage(filePanel, "File Properties")
         notebook.AddPage(recordingPanel, "Recording Properties")
+        notebook.AddPage(infoPanel, "Channel Info")
         
         if recorderInfo:
             recPanel = InfoPanel(notebook, -1, root=self, info=recorderInfo)
