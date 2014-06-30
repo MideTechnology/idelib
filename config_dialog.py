@@ -18,8 +18,9 @@ from datetime import datetime
 import string
 import time
 
-import wx.lib.sized_controls as sc
 import wx; wx = wx
+import wx.lib.sized_controls as sc
+import wx.html
 
 from common import datetime2int, DateTimeCtrl
 import devices
@@ -725,7 +726,6 @@ class OptionsPanel(BaseConfigPanel):
             minmax=(100,20000), value=1000, 
             tooltip="If checked and a value is provided, the antialiasing "
                 "sample rate will be limited.")
-        
 
         self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
             tooltip="If checked, data recorder will not apply oversampling.")
@@ -785,7 +785,7 @@ class OptionsPanel(BaseConfigPanel):
 # 
 #===============================================================================
         
-class InfoPanel(BaseConfigPanel):
+class InfoPanel(wx.html.HtmlWindow):
     """ A generic configuration dialog page showing various read-only properties
         of a recorder.
         
@@ -807,7 +807,151 @@ class InfoPanel(BaseConfigPanel):
 
     def __init__(self, *args, **kwargs):
         self.info = kwargs.pop('info', {})
+        self.root = kwargs.pop('root', None)
         super(InfoPanel, self).__init__(*args, **kwargs)
+        self.html = []
+        self._inTable = False
+        self.buildUI()
+        self.initUI()
+
+
+    def addItem(self, k, v):
+        """ Append a labeled info item.
+        """
+        # Automatically create new table if not already in one.
+        if not self._inTable:
+            self.html.append("<table width='100%'>")
+            self._inTable = True
+        self.html.append("<tr><td width='50%%'>%s</td>" % k)
+        self.html.append("<td width='50%%'><b>%s</b></td></tr>" % v)
+
+
+    def closeTable(self):
+        """ Wrap up any open table, if any.
+        """
+        if self._inTable:
+            self.html.append("</table>")
+            self._inTable = False
+
+
+    def addLabel(self, v, warning=False):
+        """ Append a label.
+        """
+        if self._inTable:
+            self.html.append("</table>")
+            self._inTable = False
+        if warning:
+            v = "<font color='#FF0000'>%s</font>" % v
+        self.html.append("<p>%s</p>" % v)
+
+
+    def _fromCamelCase(self, s):
+        """ break a 'camelCase' string into space-separated words.
+        """
+        result = []
+        lastChar = ''
+        for i in range(len(s)):
+            c = s[i]
+            if c.isupper() and lastChar.islower():
+                result.append(' ')
+            result.append(c)
+            lastChar = c
+        # Hack to fix certain acronyms. Should really be done by checking text.
+        result = ''.join(result).replace("ID", "ID ").replace("EBML", "EBML ")
+        return result.replace(" Of ", " of ")
+
+
+    def getDeviceData(self):
+        self.data = OrderedDict()
+        for k,v in self.info.iteritems():
+            self.data[self.field_names.get(k, self._fromCamelCase(k))] = v
+
+
+    def buildUI(self):
+        self.getDeviceData()
+        self.html = ["<html><body>"]
+        for k,v in self.data.iteritems():
+            if k.startswith('_label'):
+                # Treat this like a label
+                self.addLabel(v)
+                continue
+            
+            try:
+                if k.startswith('_'):
+                    continue
+                elif k in self.field_types:
+                    v = self.field_types[k](v)
+                elif isinstance(v, (int, long)):
+                    v = "0x%08X" % v
+                else:
+                    v = unicode(v)
+            except TypeError:
+                v = unicode(v)
+
+            self.addItem(k,v)
+            
+        if self._inTable:
+            self.html.append("</table>")
+        self.html.append('</body></html>')
+        self.SetPage(''.join(self.html))
+
+
+    def initUI(self):
+        pass
+
+
+    def OnLinkClicked(self, linkinfo):
+        """ Handle a link click. Ones starting with "viewer:" link to a
+            channel, subchannel and time; ones starting with "http:" link to
+            an external web page.
+            
+            @todo: Implement linking to a viewer position.
+        """
+        href = linkinfo.GetHref()
+        if href.startswith("viewer:"):
+            # Link to a channel at a specific time.
+            href = href.replace('viewer', '')
+            base, t = href.split("@")
+            chid, subchid = base.split('.')
+            print "Viewer link: %r %s %s" % (chid, subchid, t)
+        elif href.startswith("http"):
+            # Launch external web browser
+            wx.LaunchDefaultBrowser(href)
+        else:
+            # Show in same window (file, etc.)
+            super(InfoPanel, self).OnLinkClicked(linkinfo)
+            
+    
+
+#===============================================================================
+# 
+#===============================================================================
+
+class old_InfoPanel(BaseConfigPanel):
+    """ A generic configuration dialog page showing various read-only properties
+        of a recorder.
+        
+        @cvar field_types: A dictionary pairing field names with a function to
+            prepare the value for display.
+            
+        @todo: Get rid of this after refactoring CalibrationPanel
+    """
+    # Replacement, human-readable field names
+    field_names = {'HwRev': 'Hardware Revision',
+                   'FwRev': 'Firmware Revision',
+                   }
+
+    # Formatters for specific fields. The keys should be the string as
+    # displayed (de-camel-cased or replaced by field_names)
+    field_types = {'Date of Manufacture': datetime.fromtimestamp,
+                   'Hardware Revision': str,
+                   'Firmware Revision': str,
+                   'Recorder Serial': lambda x: "SSX%07d" % x
+                   }
+
+    def __init__(self, *args, **kwargs):
+        self.info = kwargs.pop('info', {})
+        super(old_InfoPanel, self).__init__(*args, **kwargs)
 
 
     def _fromCamelCase(self, s):
@@ -884,12 +1028,10 @@ class InfoPanel(BaseConfigPanel):
             wx.MessageBox("Unable to open the clipboard", "Error")
 
 
-#===============================================================================
-# 
-#===============================================================================
-
-class CalibrationPanel(InfoPanel):
+class CalibrationPanel(old_InfoPanel):
     """ Panel for displaying SSX calibration polynomials. Read-only.
+    
+        @todo: Refactor this to use the new InfoPanel.
     """
     
     def getDeviceData(self):
@@ -936,6 +1078,8 @@ class CalibrationPanel(InfoPanel):
         copyBtn.Bind(wx.EVT_BUTTON, self.OnCopy)
         
         self.Fit()
+
+
 
 
 #===============================================================================
@@ -1380,7 +1524,5 @@ def configureRecorder(path, save=True):
 
 if __name__ == "__main__":
     app = wx.App()
-    print "configureRecorder() returned %r" % configureRecorder("F:\\")
-#     print configureRecorder("I:\\")
-
-
+    recorderPath = devices.getDeviceList()[0]
+    print "configureRecorder() returned %r" % configureRecorder(recorderPath)

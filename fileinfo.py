@@ -10,7 +10,6 @@ import sys
 
 import wx; wx = wx
 import wx.lib.sized_controls as sc
-import wx.html
 
 from config_dialog import InfoPanel, CalibrationPanel
 from mide_ebml import util
@@ -28,51 +27,61 @@ class RecordingCalibrationPanel(CalibrationPanel):
 # 
 #===============================================================================
 
-class ChannelInfoPanel(wx.html.HtmlWindow):
-    """
+class ChannelInfoPanel(InfoPanel):
+    """ Display channel information, e.g. sample rate, minimum and maximum,
+        et cetera.
     """
     timeScalar = 1.0/(10**6)
     
-    def generateContents(self):
+    
+    def plotLink(self, channelId, subchannelId, time, val, msg=None):
+        """ Create a link to a channel and a time. 
+            Just makes text until linking to viewer channel/time implemented.
         """
+        if msg is None:
+            if val is None:
+                msg = "%.4f" % time
+            else:
+                msg = "%.4f @ %.4f" % (val, time*self.timeScalar)
+#         return '<b><a href="viewer:%s.%s@%s">%s</a></b>' % \
+#             (channelId, subchannelId, time, msg)
+        return '<b>%s</b>' % msg
+    
+
+    def buildUI(self):
+        """ Build and display the contents. This dialog's layout differs from
+            other InfoPanels, so it does more work here.
         """
-        html = ["<html><body>"]
+        self.html = ["<html><body>"]
+        if self.info.loading:
+            self.addLabel("<b>Note:</b> This dialog was opened while the "
+                          "recording was still importing; minimum and maximum "
+                          "values will not reflect the entire data set. ",
+                          warning=True)
         for cid, c in self.info.channels.iteritems():
-            html.append("<p><b>Channel %02x: %s</b><font size='-1'><ul>" % \
-                        (cid, c.name))
+            self.html.append("<p><b>Channel %02x: %s</b><ul>" % (cid, c.name))
             for subcid, subc in enumerate(c.subchannels):
                 events = subc.getSession()
                 srate = ("%.3f" % events.getSampleRate()).rstrip('0')
-                html.append("<li><b>Subchannel %02x.%d: %s</b></li>" % \
-                            (cid, subcid, subc.name))
-                html.append("<ul><li>")
-                h = []
-                h.append("Range: <b>%s to %s %s</b>" % \
+                srate = srate + '0' if srate.endswith('.') else srate
+                self.html.append("<li><b>Subchannel %02x.%d: %s</b></li>" % \
+                                 (cid, subcid, subc.name))
+                
+                self.addItem("Range:", "%s to %s %s" % 
                    (subc.displayRange[0], subc.displayRange[1], subc.units[0]))
-                h.append("Nominal Sample Rate: <b>%s Hz</b>" % srate)
-                cmax = events.getMax()
-                cmin= events.getMin()
-                h.append("Minimum Value: <b>%.4f %s @ %.4f</b>" % \
-                         (cmin[-1], subc.units[0], cmin[-2]*self.timeScalar))
-                h.append("Maximum Value: <b>%.4f %s @ %.4f</b>" % \
-                         (cmax[-1], subc.units[0], cmax[-2]*self.timeScalar))
-                html.append("</li><li>".join(h))
-                html.append("</li></ul>")
-            html.append("</ul></font></p>")
-        html.append("</body></html>")
-        return ''.join(html)
+                self.addItem("Nominal Sample Rate:", "%s Hz" % srate)
+                self.addItem("Minimum Value:", 
+                             self.plotLink(cid, subcid, *events.getMin()))
+                self.addItem("Maximum Value:", 
+                             self.plotLink(cid, subcid, *events.getMax()))
+                
+                # addItem will open a new table, close it.
+                self.closeTable() 
+                
+            self.html.append("</ul></p>")
+        self.html.append("</body></html>")
+        self.SetPage(''.join(self.html))
 
-    
-    def __init__(self, *args, **kwargs):
-        """
-        """
-        self.root = kwargs.pop('root', None)
-        self.info = kwargs.pop('info', None)
-        self.sessionId = kwargs.pop('sessionId', 0)
-        super(ChannelInfoPanel, self).__init__(*args, **kwargs)
-        if self.info is not None:
-            self.SetPage(self.generateContents())
-    
 
 #===============================================================================
 # Recorder Info: device data stored in a recording, similar to device info. 
@@ -82,22 +91,27 @@ class RecorderInfoDialog(sc.SizedDialog):
     """ Dialog showing the recorder info from a recording file. Self-contained;
         show the dialog via the `showRecorderInfo()` method.
     """
+    def _strInt(self, val):
+        try:
+            return locale.format("%d", val, grouping=True)
+        except TypeError:
+            return str(val)
     
     def getFileInfo(self):
         """ Get basic file stats from the filesystem. """
         result = OrderedDict()
         fn = self.root.filename
-        filesize = locale.format("%d", os.path.getsize(fn), grouping=True)
         result['Path'] = os.path.abspath(fn)
-        result['File Size'] = "%s bytes" % filesize
+        result['File Size'] = "%s bytes" % self._strInt(os.path.getsize(fn))
         ctime = datetime.fromtimestamp(os.path.getctime(fn))
         if 'win' in sys.platform:
             result['Creation Time'] = ctime
         else:
             result['Last Metadata Change'] = ctime
         result['Last Modified'] = datetime.fromtimestamp(os.path.getmtime(fn))
-        result['_label0'] = "Dates shown here are according to the file system."
-        result['_label1'] = "Dates in the Recording Properties may be more accurate."
+        result['_label0'] = ("Dates shown here are according to the "
+                             "file system. Dates in the Recording Properties "
+                             "may be more accurate.")
         return result
         
     
@@ -106,9 +120,7 @@ class RecorderInfoDialog(sc.SizedDialog):
         """
         result = OrderedDict()
         result['File Damaged'] = str(self.root.fileDamaged)
-        result['Number of Sessions'] = locale.format("%d", 
-                                                     len(self.root.sessions), 
-                                                     grouping=True)
+        result['Number of Sessions'] = str(len(self.root.sessions))
         for s in self.root.sessions:
             t = s.utcStartTime
             if t:
@@ -120,7 +132,7 @@ class RecorderInfoDialog(sc.SizedDialog):
     def getRecorderInfo(self):
         result = self.root.recorderInfo.copy()
         for d in ('CalibrationDate', 'CalibrationExpiry'):
-            if d in result:# and not isinstance(result[d], datetime):
+            if d in result:
                 result[d] = datetime.fromtimestamp(result[d])
         return result
 
@@ -134,10 +146,13 @@ class RecorderInfoDialog(sc.SizedDialog):
         
         fileInfo = self.getFileInfo()
         recordingInfo = self.getRecordingInfo()
-        recorderInfo = self.getRecorderInfo() #self.root.recorderInfo
-        ebmlInfo = util.parse_ebml(self.root.ebmldoc.roots[0]).get('EBML', None)
-        if ebmlInfo is not None:
-            ebmlInfo = ebmlInfo[0]
+        recorderInfo = self.getRecorderInfo()
+        if hasattr(self.root, "ebmldoc"):
+            ebmlInfo = util.parse_ebml(self.root.ebmldoc.roots[0]).get('EBML', None)
+            if ebmlInfo is not None:
+                ebmlInfo = ebmlInfo[0]
+        else:
+            ebmlInfo = None
         
         pane = self.GetContentsPane()
         notebook = wx.Notebook(pane, -1)
@@ -152,17 +167,20 @@ class RecorderInfoDialog(sc.SizedDialog):
             recPanel = InfoPanel(notebook, -1, root=self, info=recorderInfo)
             notebook.AddPage(recPanel, "Device Info")
         
-        calPanel = RecordingCalibrationPanel(notebook, -1, root=self.root)
-        notebook.AddPage(calPanel, "Calibration")
+        if self.root.transforms:
+            calPanel = RecordingCalibrationPanel(notebook, -1, root=self.root)
+            notebook.AddPage(calPanel, "Calibration")
         
-        ebmlPanel = InfoPanel(notebook, -1, root=self, info=ebmlInfo)
-        notebook.AddPage(ebmlPanel, "EBML Headers")
+        if ebmlInfo is not None:
+            ebmlPanel = InfoPanel(notebook, -1, root=self, info=ebmlInfo)
+            notebook.AddPage(ebmlPanel, "EBML Headers")
 
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK))
         
         notebook.SetSizerProps(expand=True, proportion=-1)
         self.SetMinSize((640, 480))
         self.Fit()
+
 
     @classmethod
     def showRecorderInfo(cls, ebmldoc):
@@ -182,17 +200,15 @@ class RecorderInfoDialog(sc.SizedDialog):
 
 if __name__ == "__main__":
     app = wx.App()
-#     print configureRecorder("G:\\")
-
 
     from mide_ebml import importer
     doc=importer.importFile(updater=importer.SimpleUpdater(0.01))
     print "filename: %r" % doc.filename
-
+    
     class Foo(object):
         def __init__(self, data):
             self.recorderInfo = data
             self.filename=data.filename
-
+            
+    doc.loading = True
     RecorderInfoDialog.showRecorderInfo(doc)
-#     RecorderInfoDialog.showRecorderInfo(Foo(None))
