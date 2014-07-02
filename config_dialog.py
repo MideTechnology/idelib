@@ -553,6 +553,9 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
 
     def getDeviceData(self):
         self.data = self.root.deviceConfig.get('SSXTriggerConfiguration', {})
+        if not self.root.useUtc and 'WakeTimeUTC' in self.data:
+            self.data['WakeTimeUTC'] -= time.timezone
+            
 
 
     def buildUI(self):
@@ -676,10 +679,12 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         if len(triggers) > 0:
             data['Trigger'] = triggers
         
+        self.root.useUtc = self.useUtcCheck.GetValue()
+        if not self.root.useUtc and 'WakeTimeUTC' in data:
+            data['WakeTimeUTC'] += time.timezone
+            
         if data:
             return OrderedDict(SSXTriggerConfiguration=data)
-        
-        self.root.useUtc = self.useUtcCheck.GetValue()
         
         return data
         
@@ -731,13 +736,13 @@ class OptionsPanel(BaseConfigPanel):
         self.aaCornerCheck = self.addIntField(
             "Override Antialiasing Filter Cutoff:", "AAFilterCornerFreq", "Hz",
             minmax=(100,20000), value=1000, 
-            tooltip="If checked and a value is provided, the antialiasing "
-                "sample rate will be limited.")
+            tooltip="If checked and a value is provided, the input low-pass "
+            "filter cutoff will be set to this value.")
 
         self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
             tooltip="If checked, data recorder will not apply oversampling.")
         
-        self.utcCheck = self.addIntField("UTC Offset:", "UTCOffset", "Hours", 
+        self.utcCheck = self.addIntField("Local UTC Offset:", "UTCOffset", "Hours", 
             str(-time.timezone/60/60), minmax=(-24,24), 
             tooltip="The local timezone's offset from UTC time. "
             "Used only for file timestamps.")
@@ -751,15 +756,6 @@ class OptionsPanel(BaseConfigPanel):
         
         self.Fit()
         
-
-
-    def OnSetTime(self, event):
-        try:
-            self.root.device.setTime()
-        except IOError:
-            wx.MessageBox("An error occurred when trying to access the device.",
-                          "Set Device Time", parent=self)
-    
     
     def OnSetTZ(self, event):
         val = int(-time.timezone / 60 / 60)
@@ -1574,4 +1570,4 @@ if __name__ == "__main__":
     app = wx.App()
     recorderPath = devices.getDeviceList()[0]
     print "configureRecorder() returned %r" % (configureRecorder(recorderPath, 
-                                                                 useUtc=True),)
+                                                                 useUtc=False),)

@@ -14,19 +14,24 @@ from wx.lib.wordwrap import wordwrap
 
 
 ABOUT = u"""<html><body><a name="top"/><center>
-<b><font size=15> %(appName)s </font></b><br/>
+<img src="%(rootDir)s/ssl.jpg"/><br/>
 Version %(version)s (build %(buildNumber)s), %(buildTime)s<br/>
 <p>Copyright (c) 2014 <a href="http://www.mide.com/">Mid\xe9 Technology</a></p>
 </center>
 <p>
-This is the about box. It is here that the software should be described in 
+This is the <i>new and improved</i> about box. It is here that the software should be described in 
 detail. There's a lot of room for whatever. Even images and <a href="#below">relative links</a>: this is a basic HTML
-renderer (nothing fancy). Party like it's 1997!
+renderer (nothing fancy). Party like it's 1997!</p>
+<p>
 </p><hr/>
-<center><img src="%(rootDir)s/ssx.jpg"/><br/><a href="http://www.mide.com/products/slamstick/slam-stick-lab-software.php">Slam Stick Lab Home</a></center>
-<a name="below">Kind of cool, yeah?</a><br/><a href="#top">Go to Top</a>
-</html></body>""" 
- 
+<p>Another example image:</p><center><img src="%(rootDir)s/ssx.jpg"/><br/><a href="http://www.mide.com/products/slamstick/slam-stick-lab-software.php">Slam Stick Lab Home</a></center>
+<a name="below">Relative link target.</a><br/><a href="#top">Go to Top</a>
+</body></html>""" 
+
+LICENSES = u"""<html><body>
+<a name='top'><h1>Third-Party Licenses</h1></a>
+%s
+</body></html>"""
 
 class HtmlWindow(wx.html.HtmlWindow):
     """
@@ -56,18 +61,26 @@ class AboutBox(SC.SizedDialog):
 #         return text
     
     def getLicenses(self):
+        """ Retrieve and collate all license documents.
+            @todo: Be smarter about word wrap, maybe test line lengths?
         """
-        """
-        result = []
+        result = [None]
+        links = ["<ul>"]
         files = glob(os.path.join(self.rootDir, 'LICENSES/*.txt'))
         for filename in files:
-            lic = u"<h2>%s</h2>" % os.path.splitext(os.path.basename(filename))[0]
+            name = os.path.splitext(os.path.basename(filename))[0]
+            links.append('<li><a href="#%s">%s</a></li>' % (name, name))
+            lic = u"<a name='%s'><h2>%s</h2></a>" % (name, name)
             with open(filename, 'rb') as f:
                 text = f.read()
-                text = wordwrap(text, 450, wx.ClientDC(self))
+                longest = len(sorted(text.split('\n'), key=lambda x: len(x))[-1])
+                if longest > 80:
+                    text = wordwrap(text, 400, wx.ClientDC(self))
                 lic = u"%s<pre>%s</pre>" % (lic, text)
             result.append(lic)
-        return u"<html><font size=-1>%s</font></html>" % '<hr/>'.join(result)
+        links.append("</ul>")
+        result[0] = ''.join(links)
+        return LICENSES %  '<hr/>'.join(result)
 
 
     def __init__(self, *args, **kwargs):
@@ -85,7 +98,7 @@ class AboutBox(SC.SizedDialog):
         notebook.SetSizerProps(expand=True, proportion=-1)
         
         about = HtmlWindow(notebook, -1)
-        notebook.AddPage(about, "Slam Stick Lab")
+        notebook.AddPage(about, self.strings.get('appName',"Slam Stick Lab"))
         about.SetPage(self.getAboutText())
         
         licenses = HtmlWindow(notebook, -1)
@@ -95,7 +108,9 @@ class AboutBox(SC.SizedDialog):
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK))
         self.SetMinSize((640, 480))
         self.Fit()
+        self.SetSize((700,500))
         self.Center()
+        print self.GetSize()
         print self.strings
 
     @classmethod
@@ -111,9 +126,10 @@ class AboutBox(SC.SizedDialog):
 #===============================================================================
 
 if __name__ == '__main__':
+    from viewer import APPNAME
     app = wx.App()
     AboutBox.showDialog(None, strings={
-           'appName': "App Name",
+           'appName': APPNAME, #"Slam Stick About Box",
            'version': 1.0, 
            'buildNumber': 999, 
            'buildTime': datetime.now(),

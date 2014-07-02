@@ -1489,10 +1489,15 @@ class Viewer(wx.Frame, MenuMixin):
     def OnClose(self, evt):
         """ Close the viewer.
         """
-        if evt.CanVeto():
-            if not self.okayToExit():
+        # CommandEvents don't have veto functionality
+        canVeto = True
+        if hasattr(evt, 'CanVeto'):
+            canVeto = evt.CanVeto()
+            
+        if canVeto and not self.okayToExit():
+            if hasattr(evt, 'Veto'):
                 evt.Veto()
-                return False
+            return False
             
         self.app.savePrefs()
 
