@@ -12,28 +12,32 @@ in the About Box.
     can be interrupted.
 @todo: Revamp the zooming and navigation to be event-driven, handled as far up
     the chain as possible. Consider using wx.lib.pubsub if it's thread-safe
-    in conjunction with wxPython views.
+    in conjunction with wxPython views. X axis partially converted; Y axis not.
 '''
 
-APPNAME = u"Slam\u2022Stick Lab"
-__version__="0.1"
-__copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
-__url__ = ("http://mide.com", u"")
-__credits__=["David R. Stokes", "Tim Gipson"]
-
-# XXX: REMOVE THIS BEFORE RELEASE!
+# Debugging. Remove later (set to False)!
+from mide_ebml.dataset import __DEBUG__
 from dev_build_number import BUILD_NUMBER, BUILD_TIME
-__version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
+
+APPNAME = u"Slam\u2022Stick Lab"
+VERSION = (0, 1)
+
+__version__= '.'.join(map(str, VERSION)) #"0.1"
+__copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
+
+if __DEBUG__:
+    __version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
+
+#===============================================================================
+# 
+#===============================================================================
 
 from datetime import datetime
 import fnmatch
 import json
 import os
-import sys
-from textwrap import dedent
 
 from wx.lib.rcsizer import RowColSizer
-from wx.lib.wordwrap import wordwrap
 import wx; wx = wx # Workaround for Eclipse code comprehension
 
 # Graphics (icons, etc.)
@@ -68,9 +72,6 @@ import mide_ebml.classic.importer
 
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
-
-# XXX: Debugging. Remove later!
-from mide_ebml.dataset import __DEBUG__
 
 #===============================================================================
 # 
@@ -639,6 +640,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         super(Viewer, self).__init__(*args, **kwargs)
         
+        self.root = self # for consistency with other objects
         self.dataset = None
         self.session = None
         self.cancelQueue = []
@@ -738,7 +740,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
                          enabled=False)
         fileMenu.AppendSeparator()
-#         self.recentFilesMenu = wx.Menu()
+#         self.recentFilesMenu = self.app.recentFilesMenu #wx.Menu()
 #         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", 
 #                             self.recentFilesMenu)
 #         fileMenu.AppendSeparator()
@@ -834,8 +836,9 @@ class Viewer(wx.Frame, MenuMixin):
         dataMenu.AppendMenu(self.ID_DATA_MEAN_SUBMENU, "Remove Mean", meanMenu)
         self.menubar.Append(dataMenu, "&Data")
         
-        # "Help" menu
         #=======================================================================
+        # "Help" menu
+        
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
                          "About %s %s..." % (APPNAME, __version__), "", 
@@ -851,8 +854,16 @@ class Viewer(wx.Frame, MenuMixin):
         self.menubar.Append(helpMenu, '&Help')
         helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
 
-        # Finishing touches.
         #=======================================================================
+        # "Recent Files" submenu
+
+#         self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentFile, id=wx.ID_FILE1, id2=wx.ID_FILE9)
+#         self.app.fileHistory.UseMenu(self.recentFilesMenu)
+#         self.app.fileHistory.AddFilesToMenu()
+        
+        #=======================================================================
+        # Finishing touches.
+        
         self.SetMenuBar(self.menubar)
         self.enableMenus(False)
 
@@ -1565,11 +1576,23 @@ class Viewer(wx.Frame, MenuMixin):
         if self.dataset:
             RecorderInfoDialog.showRecorderInfo(self.dataset)
         
+        
+#     def OnPickRecentFile(self, evt):
+#         idx = evt.GetId() - wx.ID_FILE1
+#         if idx > 0:
+#             files = self.app.getRecentFiles()
+#             if idx <= len(files):
+#                 filename = files[idx]
+#                 if self.dataset and filename != self.dataset.filename:
+#                     print "Open %s" % files[idx]
+# #                 self.openFile(files[idx])
+
 
     def OnClearPrefs(self, evt):
         """
         """
         self.app.deletePref(section="ask")
+
 
     def OnEditRanges(self, evt):
         """
@@ -1591,12 +1614,9 @@ class Viewer(wx.Frame, MenuMixin):
         if dev is not None:
             result = config_dialog.configureRecorder(dev, setTime=setTime, 
                                                      useUtc=useUtc)
-            print result
             if result is not None:
                 self.app.setPref('configure.setTime', result[1])
                 self.app.setPref('configure.useUtc', result[2])
-        print self.app.getPref('configure.useUtc')
-        print self.app.getPref('configure.setTime')
     
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.
@@ -1607,22 +1627,6 @@ class Viewer(wx.Frame, MenuMixin):
            'buildNumber': BUILD_NUMBER, 
            'buildTime': datetime.fromtimestamp(BUILD_TIME),
         })
-#         # Goofy trick to reformat the __doc__ for the dialog:
-#         desc = dedent(__doc__[:__doc__.index("###")])
-#         desc = desc.replace('\n\n','\0').replace('\n',' ').replace('\0','\n\n')
-#         desc = wordwrap(desc, 350, wx.ClientDC(self))
-#         vers = "Version %s (build %d), %s" % (__version__, BUILD_NUMBER, 
-#                                     datetime.fromtimestamp(BUILD_TIME))
-#         
-#         info = wx.AboutDialogInfo()
-#         info.Name = APPNAME
-#         info.Version = __version__
-#         info.Copyright = __copyright__
-#         info.Description = "%s\n%s" % (desc, vers)
-#         info.WebSite = __url__
-# #         info.Developers = __credits__
-# #         info.License = wordwrap(__license__, 500, wx.ClientDC(self))
-#         wx.AboutBox(info)
     
 
     def OnDontRemoveMeanCheck(self, evt):
@@ -1672,8 +1676,6 @@ class Viewer(wx.Frame, MenuMixin):
         for p in self.plotarea:
             p.removeMean(checked, span=-1)
 
-#         self.plotarea.getActivePage().enableMenus()
-
 
     def OnZoomInY(self, evt):
         p = self.plotarea.getActivePage()
@@ -1686,10 +1688,12 @@ class Viewer(wx.Frame, MenuMixin):
         if p is not None:
             p.zoomOut()
 
+
     def OnZoomFitY(self, evt):
         p = self.plotarea.getActivePage()
         if p is not None:
             p.zoomToFit()
+
 
     def _postCommandEvent(self, target, evtType, Id):
         newEvt = wx.CommandEvent(evtType.typeId, Id)
@@ -2163,12 +2167,16 @@ class ViewerApp(wx.App):
                 return wx.Colour(*c)
             return c
         
+#         self.fileHistory = wx.FileHistory()
         filename = filename or self.prefsFile
         if not filename:
             return {}
         
         filename = os.path.realpath(os.path.expanduser(filename))
+        if __DEBUG__:
+            print u"Loading preferences from %r" % filename
 
+        prefs = {}
         try:
             with open(filename) as f:
                 prefs = json.load(f)
@@ -2187,11 +2195,17 @@ class ViewerApp(wx.App):
                         if isinstance(prefs[k], list):
                             for i in xrange(len(prefs[k])):
                                 prefs[k][i] = tuple2color(prefs[k][i])
-                    return prefs
         except IOError:# as err:
             # TODO: Report a problem, or just ignore?
             pass
-        return {}
+        
+        # Load recent file history
+#         hist = prefs.setdefault('fileHistory', {}).setdefault('import', [])
+#         map(self.fileHistory.AddFileToHistory, hist)
+#         self.fileHistory.UseMenu(self.recentFilesMenu)
+#         self.fileHistory.AddFilesToMenu()
+            
+        return prefs
 
 
     def savePrefs(self, filename=None):
@@ -2235,12 +2249,13 @@ class ViewerApp(wx.App):
         prefs.update(self.prefs)
         self.prefs = prefs
         self.savePrefs(filename, hideFile)
-    
+
     
     def addRecentFile(self, filename, category="import"):
         """ Add a file to a history list. If the list is at capacity, the
             oldest file is removed.
         """
+        self.changedFiles = True
         allFiles = self.prefs.setdefault('fileHistory', {})
         files = allFiles.setdefault(category, [])
         if filename:
@@ -2249,6 +2264,12 @@ class ViewerApp(wx.App):
             files.insert(0,filename)
         allFiles[category] = files[:(self.getPref('fileHistorySize'))]
 
+
+    def getRecentFiles(self, category="import"):
+        """
+        """
+        hist = self.prefs.setdefault('fileHistory', {})
+        return hist.setdefault(category, [])
 
     def getPref(self, name, default=None, section=None):
         """ Retrieve a value from the preferences.
@@ -2302,9 +2323,13 @@ class ViewerApp(wx.App):
         for k in keys:
             self.prefs.pop(k, None)
         return len(keys)
-    
+
+
     def editPrefs(self, evt=None):
-        """
+        """ Launch the Preferences editor.
+            
+            @param evt: Unused; a placeholder to allow this method to be used
+                as an event handler.
         """
         newPrefs = PrefsDialog.editPrefs(None, self.prefs, self.defaultPrefs)
         if newPrefs is not None:
@@ -2318,13 +2343,32 @@ class ViewerApp(wx.App):
     # 
     #===========================================================================
 
+    def showBetaWarning(self):
+        # TODO: REMOVE THIS BEFORE RELEASE.
+        pref = 'hideBetaWarning_%s' % '.'.join(map(str, VERSION))
+        if self.getPref(pref, False, section='ask'):
+            return
+        dlg = MemoryDialog(None, "This pre-release beta software!", 
+                           "Beta Warning", wx.OK|wx.ICON_INFORMATION, 
+                           remember=True)
+        dlg.SetExtendedMessage(
+            u"This preview version of %s is an early release, and is expected "
+            "to contain bugs,\nperformance limitations, and an incomplete user "
+            "experience.\n\nDo not use for any mission-critical work!" % APPNAME)
+        dlg.ShowModal()
+        self.setPref(pref, dlg.getRememberCheck(), section='ask')
+        dlg.Destroy()
+
+
     def __init__(self, *args, **kwargs):
         self.prefsFile = kwargs.pop('prefsFile', None)
         self.initialFilename = kwargs.pop('filename', None)
         
         self.viewers = []
+        self.changedFiles = True
         
         super(ViewerApp, self).__init__(*args, **kwargs)
+        self.recentFilesMenu = wx.Menu()
         
         self.stdPaths = wx.StandardPaths.Get()
         if self.prefsFile is None:
@@ -2336,6 +2380,8 @@ class ViewerApp(wx.App):
         self.locale = wx.Locale(getattr(wx, localeName, wx.LANGUAGE_ENGLISH_US))
         self.createNewView(filename=self.initialFilename)
         
+        if __DEBUG__:
+            self.showBetaWarning()
         
     def createNewView(self, title=None, filename=None):
         """ Create a new viewer window.

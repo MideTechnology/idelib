@@ -12,7 +12,11 @@ import wx.lib.sized_controls as SC
 import wx.html
 from wx.lib.wordwrap import wordwrap
 
+#===============================================================================
+# 
+#===============================================================================
 
+# NOTE: This text is now in the file ABOUT/about.html
 ABOUT = u"""<html><body><a name="top"/><center>
 <img src="%(rootDir)s/ssl.jpg"/><br/>
 Version %(version)s (build %(buildNumber)s), %(buildTime)s<br/>
@@ -33,6 +37,10 @@ LICENSES = u"""<html><body>
 %s
 </body></html>"""
 
+#===============================================================================
+# 
+#===============================================================================
+
 class HtmlWindow(wx.html.HtmlWindow):
     """
     """
@@ -48,18 +56,26 @@ class HtmlWindow(wx.html.HtmlWindow):
             # Launch external web browser
             wx.LaunchDefaultBrowser(href)
 
+#===============================================================================
+# 
+#===============================================================================
 
 class AboutBox(SC.SizedDialog):
     """ Dialog showing the recorder info from a recording file. Self-contained;
         show the dialog via the `showRecorderInfo()` method.
     """
+    TEMPLATE = os.path.join('ABOUT', 'about.html')
+    TEMPFILE = os.path.join('ABOUT', 'about_tmp.html')
 
-    def getAboutText(self):
-        return ABOUT % self.strings
-#         with open(os.path.join(self.rootDir, 'ABOUT/about.html'), 'rb') as f:
-#             text = f.read() % self.strings
-#         return text
-    
+    def makeAboutFile(self):
+        filename = os.path.join(self.rootDir, self.TEMPFILE)
+        if True:#not os.path.exists(filename):
+            with open(os.path.join(self.rootDir, self.TEMPLATE), 'rb') as f:
+                with open(filename, 'wb') as out:
+                    out.write(f.read() % self.strings)
+        return filename
+            
+
     def getLicenses(self):
         """ Retrieve and collate all license documents.
             @todo: Be smarter about word wrap, maybe test line lengths?
@@ -98,8 +114,9 @@ class AboutBox(SC.SizedDialog):
         notebook.SetSizerProps(expand=True, proportion=-1)
         
         about = HtmlWindow(notebook, -1)
-        notebook.AddPage(about, self.strings.get('appName',"Slam Stick Lab"))
-        about.SetPage(self.getAboutText())
+        notebook.AddPage(about, self.strings.get('appName'))
+#         about.SetPage(ABOUT % self.strings)
+        about.LoadFile(self.makeAboutFile())
         
         licenses = HtmlWindow(notebook, -1)
         notebook.AddPage(licenses, "Licenses")
@@ -110,12 +127,10 @@ class AboutBox(SC.SizedDialog):
         self.Fit()
         self.SetSize((700,500))
         self.Center()
-        print self.GetSize()
-        print self.strings
 
     @classmethod
     def showDialog(cls, *args, **kwargs):
-        appname = kwargs.get('strings', {}).get('appName', 'Slam Stick Lab')
+        appname = kwargs.setdefault('strings', {}).setdefault('appName', u"Slam\u2022Stick Lab")
         dlg = cls(*args, **kwargs)
         dlg.SetTitle(u"About %s" % appname)
         dlg.ShowModal()
