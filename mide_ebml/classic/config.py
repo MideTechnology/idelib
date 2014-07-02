@@ -35,6 +35,7 @@ Items marked with [REV2] indicate features only supported by the Rev2+ firmware
 from collections import OrderedDict
 from datetime import datetime
 import struct
+import time
 
 # Comments are (mostly) verbatim from the C code.
 CONFIG_FIELDS = OrderedDict((
@@ -142,6 +143,8 @@ def packTime(t=None):
         t = datetime.now().timetuple()
     elif isinstance(t, datetime):
         t = t.timetuple()
+    else:
+        t = time.gmtime(t)
     
     result = (t[0]-2000, t[1], t[2], t[6], t[3], t[4], t[5])
     return ''.join(map(bin2bcd, result))

@@ -62,6 +62,7 @@ class ChannelInfoPanel(InfoPanel):
             self.html.append("<p><b>Channel %02x: %s</b><ul>" % (cid, c.name))
             for subcid, subc in enumerate(c.subchannels):
                 events = subc.getSession()
+#                 mmm = events.getRangeMinMeanMax()
                 srate = ("%.3f" % events.getSampleRate()).rstrip('0')
                 srate = srate + '0' if srate.endswith('.') else srate
                 self.html.append("<li><b>Subchannel %02x.%d: %s</b></li>" % \
@@ -74,6 +75,8 @@ class ChannelInfoPanel(InfoPanel):
                              self.plotLink(cid, subcid, *events.getMin()))
                 self.addItem("Maximum Value:", 
                              self.plotLink(cid, subcid, *events.getMax()))
+#                 if mmm:
+#                     self.addItem("Median:", "%.4f" % mmm[1])
                 
                 # addItem will open a new table, close it.
                 self.closeTable() 
@@ -130,6 +133,8 @@ class RecorderInfoDialog(sc.SizedDialog):
 
 
     def getRecorderInfo(self):
+        if self.root.recorderInfo is None:
+            return None
         result = self.root.recorderInfo.copy()
         for d in ('CalibrationDate', 'CalibrationExpiry'):
             if d in result:
@@ -200,15 +205,24 @@ class RecorderInfoDialog(sc.SizedDialog):
 
 if __name__ == "__main__":
     app = wx.App()
-
-    from mide_ebml import importer
-    doc=importer.importFile(updater=importer.SimpleUpdater(0.01))
+    CLASSIC_TEST = not True
+    
+    if CLASSIC_TEST:
+        from mide_ebml.classic import importer
+        f = open('data.dat','rb')
+        doc = importer.openFile(f)
+        importer.readData(doc)
+    else:
+        from mide_ebml import importer
+        doc=importer.importFile(updater=importer.SimpleUpdater(0.01))
+        
     print "filename: %r" % doc.filename
+    print "type: %r" % doc.__class__
     
     class Foo(object):
         def __init__(self, data):
             self.recorderInfo = data
             self.filename=data.filename
             
-    doc.loading = True
+#     doc.loading = True
     RecorderInfoDialog.showRecorderInfo(doc)

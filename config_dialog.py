@@ -22,7 +22,7 @@ import wx; wx = wx
 import wx.lib.sized_controls as sc
 import wx.html
 
-from common import datetime2int, DateTimeCtrl
+from common import datetime2int, makeWxDateTime, DateTimeCtrl
 import devices
 from mide_ebml import util
 from mide_ebml.parsers import PolynomialParser
@@ -460,7 +460,7 @@ class BaseConfigPanel(sc.SizedPanel):
                 else:
                     value = str(value)
             elif isinstance(field, DateTimeCtrl):
-                value = wx.DateTimeFromTimeT(float(value))
+                value = makeWxDateTime(value)
             elif isinstance(field, wx.Choice):
                 strv = unicode(value)
                 choices = field.GetItems()
@@ -560,7 +560,12 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             "Wake After Delay:", "PreRecordDelay", "seconds", 0, (0,86400))
 
         self.wakeCheck = self.addDateTimeField(
-            "Wake at specific time (UTC):", "WakeTimeUTC")
+            "Wake at specific time:", "WakeTimeUTC")
+        
+        self.useUtcCheck = self.addCheck("UTC Time", 
+            tooltip="If unchecked, the wake time is relative to the current time zone.")
+        self.useUtcCheck.SetValue(self.root.useUtc)
+        self.controls[self.wakeCheck].append(self.useUtcCheck)
         
         self.timeCheck = self.addIntField(
             "Limit recording time to:", "RecordingTime", "seconds", 0, 
@@ -674,6 +679,8 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         if data:
             return OrderedDict(SSXTriggerConfiguration=data)
         
+        self.root.useUtc = self.useUtcCheck.GetValue()
+        
         return data
         
 
@@ -737,8 +744,10 @@ class OptionsPanel(BaseConfigPanel):
         
         self.tzBtn = self.addButton("Get Local UTC Offset", -1,  self.OnSetTZ,
             "Fill the UTC Offset field with the offset for the local timezone.")
-        self.timeBtn = self.addButton("Set Device Time", -1, self.OnSetTime, 
-            "Set the device's clock. Applied immediately.")
+        self.setTimeCheck = self.addCheck("Set Device Time on Save", 
+            tooltip="With this checked, the recorder's clock will be set to "
+            "the system time when the configuration is applied.")
+        self.setTimeCheck.SetValue(self.root.setTime)
         
         self.Fit()
         
@@ -777,7 +786,17 @@ class OptionsPanel(BaseConfigPanel):
             data["SSXBasicRecorderConfiguration"] = ssxConfig
         if userConfig:
             data["RecorderUserData"] = userConfig
-            
+        
+        if self.setTimeCheck.GetValue():
+            try:
+                self.root.device.setTime()
+            except IOError:
+                wx.MessageBox(
+                    "An error occurred when trying to access the device.",
+                    "Set Device Time", parent=self)
+                
+        self.root.setTime = self.setTimeCheck.GetValue()
+        
         return data
 
 
@@ -1113,6 +1132,11 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
     
     def getDeviceData(self):
         self.data = self.info = self.root.deviceInfo
+        if self.data['ALARM_TIME'] == 0:
+            self.data['ALARM_TIME'] = datetime.now()
+            
+        if not self.root.useUtc:
+            self.data['ALARM_TIME'] = datetime2int(self.data['ALARM_TIME'], -time.timezone)
 
     
     def buildUI(self):
@@ -1122,9 +1146,12 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             "Note: This will be rounded to the lowest multiple of 2.")
 
         self.wakeCheck = self.addDateTimeField(
-            "Wake at specific time (UTC):", "ALARM_TIME", 
+            "Wake at specific time:", "ALARM_TIME", 
             tooltip="The date and time at which to start recording. "
             "Note: the year is ignored.")
+        self.useUtcCheck = self.addCheck("Use UTC Time")
+        self.useUtcCheck.SetValue(self.root.useUtc)
+        self.controls[self.wakeCheck].append(self.useUtcCheck)
         
         self.timeCheck = self.addFloatField(
             "Recording Limit, Time:", "SECONDS_PER_TRIGGER", "seconds", 
@@ -1232,6 +1259,10 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             data['CHIME_EN'] = 1
             data['ROLLPERIOD'] = self.CHIME_TIMES.keys()[self.controls[self.chimeCheck][0].GetSelection()]
         
+        self.root.useUtc = self.useUtcCheck.GetValue()
+        if self.wakeCheck.GetValue() and not self.root.useUtc:
+            data['ALARM_TIME'] += time.timezone
+
         return data
     
 #===============================================================================
@@ -1273,15 +1304,16 @@ class ClassicOptionsPanel(BaseConfigPanel):
         sc.SizedPanel(self, -1) # Spacer
         
         self.rtccCheck = self.addCheck("Enable Realtime Clock/Cal.")
-        self.setRtcCheck = self.addCheck("Set RTCC Time/Date", 
+        self.setTimeCheck = self.addCheck("Set RTCC Time/Date", 
            tooltip="Set the device's realtime clock/calendar to the current "
            "system time on save")
+        self.setTimeCheck.SetValue(self.root.setTime)
         self.utcCheck = self.addCheckField("UTC Offset:", "TZ_OFFSET", "Hours", 
             str(-time.timezone/60/60), tooltip="The local timezone's offset "
             "from UTC time. Used only for file timestamps.")
         self.tzBtn = self.addButton("Get UTC", -1,  self.OnSetTZ,
             "Fill the UTC Offset field with the offset for the local timezone")
-        self.controls[self.rtccCheck].extend((self.setRtcCheck, self.utcCheck, 
+        self.controls[self.rtccCheck].extend((self.setTimeCheck, self.utcCheck, 
                                               self.tzBtn))
         
         self.Fit()
@@ -1316,14 +1348,14 @@ class ClassicOptionsPanel(BaseConfigPanel):
 
         if self.rtccCheck.GetValue():
             data['RTCC_ENA'] = 1
-            if self.setRtcCheck.GetValue():
+            if self.setTimeCheck.GetValue():
                 # Set the 'RTCC write' flag and the time.
                 data['WR_RTCC'] = 0x5A
                 data['RTCC_TIME'] = datetime.now()
         else:
             data['RTCC_ENA'] = 0
 
-
+        self.root.setTime = self.setTimeCheck.GetValue()
         return data
 
 #===============================================================================
@@ -1379,6 +1411,8 @@ class ConfigDialog(sc.SizedDialog):
     def __init__(self, *args, **kwargs):
         self.device = kwargs.pop('device', None)
         self.root = kwargs.pop('root', None)
+        self.setTime = kwargs.pop('setTime', True)
+        self.useUtc = kwargs.pop('useUtc', True)
         kwargs.setdefault("style", 
             wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | \
             wx.MINIMIZE_BOX | wx.DIALOG_EX_CONTEXTHELP | wx.SYSTEM_MENU)
@@ -1389,7 +1423,7 @@ class ConfigDialog(sc.SizedDialog):
             self.deviceInfo = self.device.getInfo()
             self.deviceConfig = self.device.getConfig()
             self._doNotShow = False
-        except:
+        except:# NotImplementedError:
             wx.MessageBox( 
                 "The device configuration data could not be read.", 
                 "Configuration Error", parent=self, style=wx.OK|wx.ICON_ERROR)
@@ -1417,6 +1451,7 @@ class ConfigDialog(sc.SizedDialog):
         self.Bind(wx.EVT_BUTTON, self.exportConfig, id=self.ID_EXPORT)
         
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.APPLY | wx.CANCEL))
+        self.SetAffirmativeId(wx.ID_APPLY)
         self.okButton = self.FindWindowById(wx.ID_APPLY)
         
         self.SetMinSize((436, 475))
@@ -1482,7 +1517,7 @@ class ConfigDialog(sc.SizedDialog):
 # 
 #===============================================================================
 
-def configureRecorder(path, save=True):
+def configureRecorder(path, save=True, setTime=True, useUtc=True):
     """ Create the configuration dialog for a recording device. 
     
         @param path: The path to the data recorder (e.g. a mount point under
@@ -1490,9 +1525,17 @@ def configureRecorder(path, save=True):
         @keyword save: If `True` (default), the updated configuration data
             is written to the device when the dialog is closed via the OK
             button.
-        @return: The data written to the recorder as a nested dictionary, or
-            `None` if the configuration is cancelled.
+        @keyword setTime: If `True`, the checkbox to set the device's clock
+            on save will be checked by default.
+        @keyword useUtc: If `True`, the 'in UTC' checkbox for wake times will
+            be checked by default.
+        @return: A tuple containing the data written to the recorder (a nested 
+            dictionary), whether `setTime` was checked before save, and whether
+            `useUTC` was checked before save. `None` is returned if the 
+            configuration was cancelled.
     """
+    result = None
+    
     if isinstance(path, devices.Recorder):
         dev = path
         path = dev.path
@@ -1504,18 +1547,23 @@ def configureRecorder(path, save=True):
                          path)
         
     dlg = ConfigDialog(None, -1, "Configure %s (%s)" % (dev.baseName, path), 
-                       device=dev)
+                       device=dev, setTime=setTime, useUtc=useUtc)
+    
+    # Sort of a hack to abort the configuration if data couldn't be read
+    # (the dialog itself does it)
+    
     if dlg._doNotShow:
         return
-    if dlg.ShowModal() == wx.ID_OK:
+    if dlg.ShowModal() != wx.ID_CANCEL:
+        useUtc = dlg.useUtc
+        setTime = dlg.setTime
         data = dlg.getData()
         if save:
             dev.saveConfig(data)
-    else:
-        data = None
+        result = data, dlg.setTime, dlg.useUtc
 
     dlg.Destroy()
-    return data
+    return result
 
 
 #===============================================================================
@@ -1525,4 +1573,5 @@ def configureRecorder(path, save=True):
 if __name__ == "__main__":
     app = wx.App()
     recorderPath = devices.getDeviceList()[0]
-    print "configureRecorder() returned %r" % configureRecorder(recorderPath)
+    print "configureRecorder() returned %r" % (configureRecorder(recorderPath, 
+                                                                 useUtc=True),)

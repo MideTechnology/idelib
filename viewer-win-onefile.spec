@@ -1,29 +1,35 @@
 # -*- mode: python -*-
 
+import glob
 import os
 # HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
 HOME_DIR = os.getcwd()
 
 # This is a moderately kludgey auto-incrementing build number.
 try:
-	import socket, sys, time
-	sys.path.append(HOME_DIR)
-	from dev_build_number import BUILD_NUMBER
-	BUILD_NUMBER += 1
-	logging.logger.info("*** Build number %d" % BUILD_NUMBER)
-	with open('dev_build_number.py', 'wb') as f:
-		f.write('# AUTOMATICALLY-GENERATED FILE; DO NOT CHANGE THIS FILE MANUALLY!\n')
-		f.write('BUILD_NUMBER = %d\n' % BUILD_NUMBER)
-		f.write('BUILD_TIME = %d\n' % time.time())
-		f.write('BUILD_MACHINE = %r\n' % socket.gethostname())
+    import socket, sys, time
+    sys.path.append(HOME_DIR)
+    from dev_build_number import BUILD_NUMBER
+    BUILD_NUMBER += 1
+    logging.logger.info("*** Build number %d" % BUILD_NUMBER)
+    with open('dev_build_number.py', 'wb') as f:
+        f.write('# AUTOMATICALLY-GENERATED FILE; DO NOT CHANGE THIS FILE MANUALLY!\n')
+        f.write('BUILD_NUMBER = %d\n' % BUILD_NUMBER)
+        f.write('BUILD_TIME = %d\n' % time.time())
+        f.write('BUILD_MACHINE = %r\n' % socket.gethostname())
 except Exception:
-	logging.logger.warning("*** Couldn't read and/or change build number!")
+    logging.logger.warning("*** Couldn't read and/or change build number!")
 
 
 # Collect data files (needed for getting schema XML)
 # http://www.pyinstaller.org/wiki/Recipe/CollectDatafiles
 def Datafiles(*filenames, **kw):
     import os
+    
+    allnames = []
+    for f in filenames:
+        allnames.extend(glob.glob(f))
+    filenames = list(set(allnames))
     
     def datafile(path, strip_path=True):
         parts = path.split('/')
@@ -39,10 +45,12 @@ def Datafiles(*filenames, **kw):
         if os.path.isfile(filename))
 
 schemas = Datafiles('mide_ebml/ebml/schema/mide.xml', 
-					'mide_ebml/ebml/schema/manifest.xml', 
-					'mide_ebml/ebml/schema/matroska.xml', 
-					strip_path=False)
-		
+                    'mide_ebml/ebml/schema/manifest.xml', 
+                    'mide_ebml/ebml/schema/matroska.xml',
+                    'LICENSES/*.txt',
+                    'ABOUT/*',
+                    strip_path=False)
+        
 a = Analysis(['viewer.py'],
              pathex=[HOME_DIR],
              hiddenimports=[],

@@ -23,7 +23,7 @@ test*.png
 build
 dist
 *_python
-images
+images_work
 backups
 slam_stick_viewer_*
 

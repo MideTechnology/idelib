@@ -4,12 +4,15 @@ used by multiple files.
 
 Created on Dec 31, 2013
 
+@todo: Consolidate the date/time conversion; make sure it's consistent.
+
 @author: dstokes
 '''
 
 import calendar as calendar
 from datetime import datetime
 from threading import Thread as Thread
+import time
 
 import wx; wx = wx;
 import wx.lib.masked as wx_mc
@@ -77,9 +80,9 @@ def datetime2int(val, tzOffset=0):
         or wx.DateTime) into the UTC epoch time (i.e. UNIX time stamp).
     """
     if isinstance(val, wx.DateTime):
-        return val.Ticks
-        val = datetime.strptime(str(val), '%m/%d/%y %H:%M:%S')
-    return int(calendar.timegm(val.timetuple()) + tzOffset)
+        return val.Ticks + tzOffset
+#         val = datetime.strptime(str(val), '%m/%d/%y %H:%M:%S')
+    return int(calendar.timegm(val.utctimetuple()) + tzOffset)
         
 
 def time2int(val, tzOffset=0):
@@ -89,7 +92,15 @@ def time2int(val, tzOffset=0):
     t = datetime.strptime(str(val), '%H:%M:%S')
     return int((t.hour * 60 * 60) + (t.minute * 60) + t.second + tzOffset)
 
-
+def makeWxDateTime(val):
+    """
+    """
+    if isinstance(val, datetime):
+        val = datetime2int(val)
+    if isinstance(val, (int, float)):
+        return wx.DateTimeFromTimeT(float(val))
+    return wx.DateTimeFromDMY(val[2], val[1]-1, val[0], val[3], val[4], val[5])
+        
 
 #===============================================================================
 # Field validators

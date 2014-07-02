@@ -46,6 +46,7 @@ from events import *
 from timeline import TimelineCtrl, TimeNavigatorCtrl
 
 # Views, dialogs and such
+from aboutbox import AboutBox
 import config_dialog
 from device_dialog import selectDevice
 import export_dialog as xd
@@ -63,8 +64,7 @@ from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
 import mide_ebml; mide_ebml = mide_ebml # Workaround for Eclipse code comp.
-# import mide_ebml.classic
-import mide_ebml.classic.parsers
+import mide_ebml.classic.importer
 
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
@@ -915,10 +915,6 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             self.enableMenuItems(self.menubar, enable=True)
     
-        # the 'show properties' menu is only enabled if there is recorder info
-        m = self.menubar.FindItemById(self.ID_FILE_PROPERTIES)
-        m.Enable(enabled and self.dataset.recorderInfo is not None)
-
         # Some items should always be disabled unless explicitly enabled
         alwaysDisabled = (wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE, 
                           wx.ID_PRINT, wx.ID_PRINT_SETUP)
@@ -1257,8 +1253,8 @@ class Viewer(wx.Frame, MenuMixin):
             importer = mide_ebml.importer.openFile
             reader = mide_ebml.importer.readData
         else:
-            importer = mide_ebml.classic.parsers.openFile
-            reader = mide_ebml.classic.parsers.readData
+            importer = mide_ebml.classic.importer.openFile
+            reader = mide_ebml.classic.importer.readData
             badMsg = (u"The file may be irretrievably damaged, "
                       "or it may not a Slam Stick Classic file.")
 
@@ -1584,30 +1580,44 @@ class Viewer(wx.Frame, MenuMixin):
     def OnDeviceConfigMenu(self, evt):
         """ Handle Device->Configure Device menu events.
         """
+        useUtc = self.app.getPref('configure.useUtc', True)
+        setTime = self.app.getPref('configure.setTime', True)
         dev = selectDevice()
         if dev is not None:
-            config_dialog.configureRecorder(dev)
-    
+            result = config_dialog.configureRecorder(dev, setTime=setTime, 
+                                                     useUtc=useUtc)
+            print result
+            if result is not None:
+                self.app.setPref('configure.setTime', result[1])
+                self.app.setPref('configure.useUtc', result[2])
+        print self.app.getPref('configure.useUtc')
+        print self.app.getPref('configure.setTime')
     
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.
         """
-        # Goofy trick to reformat the __doc__ for the dialog:
-        desc = dedent(__doc__[:__doc__.index("###")])
-        desc = desc.replace('\n\n','\0').replace('\n',' ').replace('\0','\n\n')
-        desc = wordwrap(desc, 350, wx.ClientDC(self))
-        vers = "Version %s (build %d), %s" % (__version__, BUILD_NUMBER, 
-                                    datetime.fromtimestamp(BUILD_TIME))
-        
-        info = wx.AboutDialogInfo()
-        info.Name = APPNAME
-        info.Version = __version__
-        info.Copyright = __copyright__
-        info.Description = "%s\n%s" % (desc, vers)
-        info.WebSite = __url__
-#         info.Developers = __credits__
-#         info.License = wordwrap(__license__, 500, wx.ClientDC(self))
-        wx.AboutBox(info)
+        AboutBox.showDialog(self, -1, strings={
+           'appName': APPNAME,
+           'version': __version__, 
+           'buildNumber': BUILD_NUMBER, 
+           'buildTime': datetime.fromtimestamp(BUILD_TIME),
+        })
+#         # Goofy trick to reformat the __doc__ for the dialog:
+#         desc = dedent(__doc__[:__doc__.index("###")])
+#         desc = desc.replace('\n\n','\0').replace('\n',' ').replace('\0','\n\n')
+#         desc = wordwrap(desc, 350, wx.ClientDC(self))
+#         vers = "Version %s (build %d), %s" % (__version__, BUILD_NUMBER, 
+#                                     datetime.fromtimestamp(BUILD_TIME))
+#         
+#         info = wx.AboutDialogInfo()
+#         info.Name = APPNAME
+#         info.Version = __version__
+#         info.Copyright = __copyright__
+#         info.Description = "%s\n%s" % (desc, vers)
+#         info.WebSite = __url__
+# #         info.Developers = __credits__
+# #         info.License = wordwrap(__license__, 500, wx.ClientDC(self))
+#         wx.AboutBox(info)
     
 
     def OnDontRemoveMeanCheck(self, evt):
