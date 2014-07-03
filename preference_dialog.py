@@ -137,6 +137,15 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.IntProperty("Y Axis Value Precision", "precisionY", value=4))
         _add(PG.EnumProperty("Locale", "locale", self.LANG_LABELS))
         
+        _add(PG.PropertyCategory("Slam Stick X/WVR Special Preferences"))
+        temphelp = ("Accelerometer readings when the temperature (Channel "
+                    "01.1) is %s this value may not be accurate; used for "
+                    "accelerometer display.") 
+        _add(PG.FloatProperty("Temperature Warning, Low", 
+                              "wvr.tempMin"), tooltop=temphelp % "below")
+        _add(PG.FloatProperty("Temperature Warning, High", 
+                              "wvr.tempMax"), tooltip=temphelp % "above")
+        
         self.populateGrid(self.prefs)
 
 

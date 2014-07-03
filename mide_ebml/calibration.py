@@ -295,14 +295,17 @@ class Bivariate(Univariate):
         session = self.dataset.lastSession if session is None else session
         sessionId = None if session is None else session.sessionId
         
-        if self.channelId is None:
-            raise ValueError("Bivariate had no source channel/subchannel")
-        
-        if self._eventlist is None or self._sessionId != sessionId:
-            channel = self.dataset.channels[self.channelId][self.subchannelId]
-            self._eventlist = channel.getSession(session.sessionId)
-            self._sessionId = session.sessionId
-            
-        x = event[-1]
-        y = self._eventlist.getValueAt(event[-2], outOfRange=True)
-        return event[-2],self._function(x,y[-1])
+        try:
+            if self._eventlist is None or self._sessionId != sessionId:
+                channel = self.dataset.channels[self.channelId][self.subchannelId]
+                self._eventlist = channel.getSession(session.sessionId)
+                self._sessionId = session.sessionId
+                
+            x = event[-1]
+            y = self._eventlist.getValueAt(event[-2], outOfRange=True)
+            return event[-2],self._function(x,y[-1])
+        except IndexError:
+            # In multithreaded environments, there's a rare race condition
+            # in which the main channel can be accessed before the calibration
+            # channel has loaded. This should fix it.
+            return event

@@ -242,6 +242,8 @@ class PlotCanvas(wx.ScrolledWindow):
     def loadPrefs(self):
         """
         """
+        self.showWarningRange = self.root.app.getPref('showWarningRange', True,
+                                                      section="wvr")
         self.SetBackgroundColour(self.root.app.getPref('plotBgColor', 'white'))
         self.drawPoints = self.root.app.getPref("drawPoints", True)
         self.pointSize = self.root.app.getPref('pointSize', 2)
@@ -533,9 +535,10 @@ class PlotCanvas(wx.ScrolledWindow):
             self.majorHLines = None
             self.lastRange = thisRange
         drawCondensed = False
-                
-        for r in self.Parent.warningRange:
-            r.draw(dc, hRange, hScale, self.viewScale, size)
+        
+        if self.showWarningRange:
+            for r in self.Parent.warningRange:
+                r.draw(dc, hRange, hScale, self.viewScale, size)
                 
         # Get the horizontal grid lines. 
         # NOTE: This might not work in the future. Consider modifying
@@ -1040,7 +1043,15 @@ class Plot(ViewerPanel):
             self.source.removeMean = val
             self.redraw()
         self.enableMenus()
+
         
+    def showWarningRange(self, val=True):
+        if not self.source:
+            return 
+        self.plot.showWarningRange = val
+        self.redraw()
+        self.enableMenus()
+
 
     def enableMenus(self):
         """ Update the plot-specific menus, both on the main menu and the plot's
@@ -1051,21 +1062,20 @@ class Plot(ViewerPanel):
          
         enabled = self.source.hasMinMeanMax
         rt = self.root
-#         pt = self.plot
         
         if not enabled or self.source.removeMean is False:
             rt.setMenuItem(rt.menubar, rt.ID_DATA_NOMEAN, checked=True)
-#             pt.setMenuItem(pt.contextMenu, rt.ID_DATA_NOMEAN, checked=True)
         elif self.source.rollingMeanSpan == -1:
             rt.setMenuItem(rt.menubar, rt.ID_DATA_MEAN_TOTAL, checked=True)
-#             pt.setMenuItem(pt.contextMenu, rt.ID_DATA_MEAN_TOTAL, checked=True)
         else:
             rt.setMenuItem(rt.menubar, rt.ID_DATA_MEAN, checked=True)
-#             pt.setMenuItem(pt.contextMenu, rt.ID_DATA_MEAN, checked=True)
             
         for m in [rt.ID_DATA_NOMEAN, rt.ID_DATA_MEAN, rt.ID_DATA_MEAN_TOTAL]:
             rt.setMenuItem(rt.menubar, m, enabled=enabled)
-#             pt.setMenuItem(pt.contextMenu, m, enabled=enabled)
+
+        rt.setMenuItem(rt.menubar, rt.ID_DATA_WARNINGS, 
+                       checked=self.plot.showWarningRange,
+                       enabled=(len(self.warningRange)>0))
 
         rt.setMenuItem(rt.menubar, self.root.ID_VIEW_MINMAX, enabled=enabled, 
                        checked=self.root.drawMinMax)
@@ -1078,14 +1088,6 @@ class Plot(ViewerPanel):
         
         rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME,
                        enabled=rt.session.utcStartTime is not None)                      
-#         # Non-plot-specific menu items
-#         self.plot.setMenuItem(self.plot.contextMenu, 
-#                               self.root.ID_VIEW_ANTIALIAS,
-#                               checked=self.root.antialias)
-#         self.plot.setMenuItem(self.plot.contextMenu, self.root.ID_VIEW_JITTER,
-#                               checked=self.root.noisyResample != 0)
-#         self.plot.setMenuItem(self.plot.contextMenu, self.root.ID_VIEW_UTCTIME,
-#                               checked=self.root.showUtcTime)
             
 
     #===========================================================================
@@ -1209,8 +1211,8 @@ class PlotSet(aui.AuiNotebook):
     def loadPrefs(self):
         """
         """
-        self.warnLow = self.root.app.getPref("wvr_tempMin", -20.0)
-        self.warnHigh = self.root.app.getPref("wvr_tempMax", 60.0)
+        self.warnLow = self.root.app.getPref("tempMin", -20.0, section="wvr")
+        self.warnHigh = self.root.app.getPref("tempMax", 60.0, section="wvr")
         for p in self:
             p.loadPrefs()
 

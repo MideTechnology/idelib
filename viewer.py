@@ -28,6 +28,10 @@ __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 if __DEBUG__:
     __version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
 
+import logging
+logger = logging.getLogger('SlamStickLab')
+logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+
 #===============================================================================
 # 
 #===============================================================================
@@ -613,6 +617,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_MEAN_TOTAL = wx.NewId()
     ID_DATA_NOMEAN_ALL = wx.NewId()
     ID_DATA_NOMEAN_NONE = wx.NewId()
+    ID_DATA_WARNINGS = wx.NewId()
 
     ID_DEBUG_SUBMENU = wx.NewId()
     ID_DEBUG_SAVEPREFS = wx.NewId()
@@ -834,6 +839,11 @@ class Viewer(wx.Frame, MenuMixin):
                          "Remove Total Mean from Data", "",
                          self.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
         dataMenu.AppendMenu(self.ID_DATA_MEAN_SUBMENU, "Remove Mean", meanMenu)
+        
+        self.addMenuItem(dataMenu, self.ID_DATA_WARNINGS,
+                          "Show Temperature Range Warnings", "", 
+                          self.OnDataWarningsCheck, False, wx.ITEM_CHECK)
+        
         self.menubar.Append(dataMenu, "&Data")
         
         #=======================================================================
@@ -1677,6 +1687,19 @@ class Viewer(wx.Frame, MenuMixin):
             p.removeMean(checked, span=-1)
 
 
+    def OnDataWarningsCheck(self, evt):
+        """
+        """
+        if isinstance(evt, bool):
+            self.setMenuItem(self.menubar, self.ID_DATA_WARNINGS, checked=evt)
+            checked = evt
+        else:
+            checked = evt.IsChecked()
+        self.app.setPref('showWarningRange', checked, section="wvr")
+        for p in self.plotarea:
+            p.showWarningRange(checked)
+        
+
     def OnZoomInY(self, evt):
         p = self.plotarea.getActivePage()
         if p is not None:
@@ -2154,8 +2177,8 @@ class ViewerApp(wx.App):
         'showUtcTime': True,
 
         # WVR/SSX-specific parameters: the hard-coded warning range.        
-        'wvr_tempMin': -20.0,
-        'wvr_tempMax': 60.0,
+        'wvr.tempMin': -20.0,
+        'wvr.tempMax': 60.0,
     }
 
 
@@ -2173,8 +2196,9 @@ class ViewerApp(wx.App):
             return {}
         
         filename = os.path.realpath(os.path.expanduser(filename))
-        if __DEBUG__:
-            print u"Loading preferences from %r" % filename
+        logger.debug(u"Loading preferences from %r" % filename)
+#         if __DEBUG__:
+#             print u"Loading preferences from %r" % filename
 
         prefs = {}
         try:
@@ -2184,8 +2208,11 @@ class ViewerApp(wx.App):
                     vers = prefs.get('prefsVersion', self.PREFS_VERSION)
                     if vers != self.PREFS_VERSION:
                         # Mismatched preferences version!
-                        # TODO: Possibly warn user, and/or translate
-                        print "XXX: bad prefs version"
+                        # TODO: Possibly translate old prefs to new format
+                        n = "n older" if vers < self.PREFS_VERSION else " newer"
+                        wx.MessageBox("The preferences file appears to use a%s "
+                            "format than expected;\ndefaults will be used." % n,
+                            "Preferences Version Mismatch")
                         return {}
                     # De-serialize *Color attributes (single colors)
                     for k in fnmatch.filter(prefs.keys(), "*Color"):
