@@ -12,7 +12,7 @@ Created on Dec 31, 2013
 import calendar as calendar
 from datetime import datetime
 from threading import Thread as Thread
-import time
+# import time
 
 import wx; wx = wx;
 import wx.lib.masked as wx_mc

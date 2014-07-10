@@ -7,10 +7,11 @@ from datetime import datetime
 from glob import glob
 import os.path
 
-import wx; wx = wx
+import wx
 import wx.lib.sized_controls as SC
 import wx.html
 from wx.lib.wordwrap import wordwrap
+wx = wx
 
 #===============================================================================
 # 
@@ -50,7 +51,7 @@ class HtmlWindow(wx.html.HtmlWindow):
             etc.)
         """
         href = linkinfo.GetHref()
-        if href.startswith('file:') or href.startswith('#'):
+        if href.startswith(('file:', '#')):
             super(HtmlWindow, self).OnLinkClicked(linkinfo)
         else:
             # Launch external web browser

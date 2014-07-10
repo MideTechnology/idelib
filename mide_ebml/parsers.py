@@ -9,7 +9,9 @@ sensor that produces data in a non-power-of-two length (e.g. 24 bits).
 Special-case parsers must (to a limited degree) quack like `struct.Struct` 
 objects; they must provide `size` and `format` attributes (the latter should be 
 `None`), and they must implement the method `unpack_from()`. They may also 
-include optional `types` and `ranges` attributes, which are used to 
+include optional `types` and `ranges` attributes, which are used to provide
+'hints' about the data. These are automatically computed if not defined
+explicitly.
 
 Element handlers are called by the importer as it iterates through the 'root'
 elements of an EBML file. Generally, handlers are instantiated only once, just
@@ -59,7 +61,7 @@ def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False):
             keys.
     """
     if isinstance(d, Sequence):
-        return [renameKeys(i, renamed, exclude) for i in d]
+        return [renameKeys(i, renamed, exclude, recurse) for i in d]
     if not isinstance(d, dict):
         return d
     
@@ -229,7 +231,6 @@ class MPL3115PressureTempParser(object):
         """ Special-case parsing of a temperature data block.
         """
         try:
-            # TODO: Make sure if fractional part is correct for negative values
             rawpressure = self._pressureParser.unpack_from(data, offset)[0] >> 14
             fracpressure, rawtemp, fractemp = self._parser.unpack_from(data, offset)
             fracpressure = ((fracpressure >> 4) & 0b11) * 0.25
@@ -243,19 +244,16 @@ class MPL3115PressureTempParser(object):
 
 class AccelerometerParser(object):
     """ Parser for the accelerometer data. Accelerometer values are recorded
-        as uint16 but represent values -100 to 100 G. This parser performs
-        the conversion on the fly.
-        
-        If using this parser, do not perform this adjustment at the Channel 
-        or Subchannel level via a Transform!
+        as uint16 but represent values -(max) to (max) G, with 'max' being
+        a property of the specific accelerometer part number. This parser 
+        performs the conversion on the fly.
         
         @cvar size: The size (in bytes) of one parsed sample.
         @cvar format: The `struct.Struct` parsing format string used to parse.
         @cvar ranges: A tuple containing the absolute min and max values.
     """
 
-    def __init__(self, inMin=0, inMax=65535, outMin=-100.0, outMax=100.0, 
-                 formatting="<HHH"):
+    def __init__(self, formatting="<HHH"):
         self.parser = struct.Struct(formatting)
         self.format = self.parser.format
         self.size = self.parser.size
@@ -542,16 +540,16 @@ class SimpleChannelDataBlockParser(ElementHandler):
             block = self.product(element)
             timestamp, channel = block.getHeader()
         except struct.error, e:
-            # TODO: Log error
-            print "Element would not parse: %s (ID 0x%02x) @%d (%s)" % (element.name, element.id, element.stream.offset, e)
-            return 0
+            raise ParsingError("Element would not parse: %s (ID %02x) @%d (%s)" % 
+                               (element.name, element.id, element.stream.offset, e))
         
         block.startTime = int(self.fixOverflow(block, timestamp))
         if block.endTime is not None:
             block.endTime = int(self.fixOverflow(block, block.endTime))
 
         if channel not in self.doc.channels:
-            # TODO: Log error
+            # Unknown channel; could be debugging info, so that might be okay.
+            # FUTURE: Better handling of unknown channel types. Low priority.
             return 0
 
         self.doc.channels[channel].getSession(sessionId).append(block)
@@ -582,16 +580,16 @@ class ChannelDataBlock(BaseDataBlock):
             elif el.name == "ChannelIDRef":
                 self.channel = el.value
             elif el.name == "ChannelFlags":
-                # TODO: Handle channel flag bits
+                # FUTURE: Handle channel flag bits
                 continue
             elif el.name == "ChannelDataPayload":
                 self._payloadIdx = num
                 self.body_size = el.body_size
             elif el.name == "StartTimeCodeAbs":
-                # TODO: Support this. Not currently generated (2014.04.23)
+                # FUTURE: Support this. Not currently generated (2014.04.23)
                 continue
             elif el.name == "EndTimeCodeAbs":
-                # TODO: Support this. Not currently generated (2014.04.23)
+                # FUTURE: Support this. Not currently generated (2014.04.23)
                 continue
             elif el.name == "StartTimeCodeAbsMod":
                 self.startTime = el.value
@@ -839,7 +837,7 @@ class PlotParser(ElementHandler):
     def parse(self, element, **kwargs):
         """
         """
-        # TODO: IMPLEMENT, but later. Not required for immediate goals.
+        # FUTURE: IMPLEMENT, but later. Not required for immediate goals.
         pass
 
 
@@ -870,7 +868,6 @@ class RecordingPropertiesParser(ElementHandler):
         its child elements.
     
         @cvar elementName: The name of the element handled by this parser
-        @todo: Implement RecordingPropertiesParser
     """
     elementName = "RecordingProperties"
     isSubElement = False

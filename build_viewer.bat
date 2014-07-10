@@ -1,2 +1,2 @@
-pyinstaller --noconfirm --onefile -i .\ssx.ico viewer-win-onefile.spec
+pyinstaller --noconfirm --onefile -i .\ssl.ico viewer-win-onefile.spec
 

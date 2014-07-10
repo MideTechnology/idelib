@@ -328,7 +328,7 @@ class TimeNavigator(ViewerPanel):
         
         self.Bind(TimeNavigatorCtrl.EVT_INDICATOR_CHANGED, self.OnMarkChanged)
         self.timeline.Bind(wx.EVT_LEFT_UP, self.OnMouseLeftUp)
-        
+
 
     #===========================================================================
     # 
@@ -661,7 +661,7 @@ class Viewer(wx.Frame, MenuMixin):
         self._nextColor = 0
         self.setVisibleRange(self.timerange[0], self.timerange[1])
         
-        # TODO: FFT views as separate windows will eventually be refactored.
+        # FUTURE: FFT views as separate windows will eventually be refactored.
         self.fftViews = {}
         
         self.Bind(EVT_SET_VISIBLE_RANGE, self.OnSetVisibleRange)
@@ -926,8 +926,8 @@ class Viewer(wx.Frame, MenuMixin):
         """
         # These are the menus that are enabled even when there's no file open.
         # There are fewer of them than menus that are disabled.
-        menus = (wx.ID_NEW, wx.ID_OPEN, wx.ID_EXIT, self.ID_DEVICE_CONFIG,
-                 wx.ID_ABOUT, wx.ID_PREFERENCES,
+        menus = (wx.ID_NEW, wx.ID_OPEN, wx.ID_CLOSE, wx.ID_EXIT, 
+                 self.ID_DEVICE_CONFIG, wx.ID_ABOUT, wx.ID_PREFERENCES,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, self.ID_DEBUG0,
                  self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4)
         
@@ -1190,14 +1190,13 @@ class Viewer(wx.Frame, MenuMixin):
             if os.path.exists(datadir):
                 return (datadir, '')
             return (recorder, '')
-        # TODO: Use a path from the file history, maybe?
+        # FUTURE: Use a path from the file history, maybe?
         return (curdir, '')
 
 
     def getDefaultExport(self):
         """ Get the path and name of the default export file.
         """
-        # TODO: This should be based on the current path.
         if not self.dataset or not self.dataset.filename:
             return (os.path.realpath(os.path.curdir), "export.csv")
         filename = os.path.splitext(os.path.basename(self.dataset.filename))[0]
@@ -1573,13 +1572,6 @@ class Viewer(wx.Frame, MenuMixin):
             self.Close()
 
 
-    def OnFileReloadMenu(self, evt):
-        """ Handle File->Reload menu events.
-        """
-        # XXX: IMPLEMENT OnFileReload!
-        self.ask("File:Reload not yet implemented!", "Not Implemented", wx.OK, wx.ICON_INFORMATION)
-
-
     def OnFileProperties(self, evt):
         """
         """
@@ -1941,7 +1933,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         if job is None:
             job = self.getCurrentOperation()
-        
+
         if job.cancelPrompt and prompt:
             if self.ask(job.cancelMessage, job.cancelTitle, 
                         pref=job.cancelPromptPref) != wx.ID_YES:
@@ -1968,7 +1960,7 @@ class Viewer(wx.Frame, MenuMixin):
         """
         result = True
         while len(self.cancelQueue) > 0:
-            result = result and self.cancelOperation(evt, prompt) is not False
+            result = result and self.cancelOperation(evt, prompt=prompt) is not False
         return result
 
     #===========================================================================
@@ -2173,8 +2165,9 @@ class ViewerApp(wx.App):
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'openOnStart': True,
         'showDebugChannels': __DEBUG__,
-        'showFullPath': False,
+        'showFullPath': True,#False,
         'showUtcTime': True,
+        'titleLength': 80,
 
         # WVR/SSX-specific parameters: the hard-coded warning range.        
         'wvr.tempMin': -20.0,
@@ -2208,7 +2201,7 @@ class ViewerApp(wx.App):
                     vers = prefs.get('prefsVersion', self.PREFS_VERSION)
                     if vers != self.PREFS_VERSION:
                         # Mismatched preferences version!
-                        # TODO: Possibly translate old prefs to new format
+                        # FUTURE: Possibly translate old prefs to new format
                         n = "n older" if vers < self.PREFS_VERSION else " newer"
                         wx.MessageBox("The preferences file appears to use a%s "
                             "format than expected;\ndefaults will be used." % n,
@@ -2419,6 +2412,21 @@ class ViewerApp(wx.App):
         self.viewers.append(viewer)
         viewer.Show()
     
+    def abbreviateName(self, filename, length=None):
+        length = length or self.getPref('titleLength', None)
+        if length is None:
+            return filename
+        if len(filename) <= length:
+            return filename
+        
+        dirname = os.path.dirname(filename)
+        n1 = dirname.rfind(os.path.sep, 0, length/2-2)
+        n2 = dirname.find(os.path.sep, len(dirname)-(length/2+2))
+        if n1 == n2:
+            return filename
+        return os.path.join(dirname[:n1], u"\u2026", dirname[n2+1:], 
+                            os.path.basename(filename))
+        
     
     def getWindowTitle(self, filename=None):
         """ Generate a unique viewer window title.
@@ -2426,7 +2434,8 @@ class ViewerApp(wx.App):
         basetitle = u'%s v%s' % (APPNAME, __version__)
         if filename:
             if self.getPref('showFullPath', False):
-                # TODO: Abbreviate path if it's really long (ellipsis in center)
+                # Abbreviate path if it's really long (ellipsis in center)
+                filename = self.abbreviateName(filename)
                 basetitle = u'%s - %s' % (basetitle, filename)
             else:
                 basetitle = u'%s - %s' % (basetitle, os.path.basename(filename))

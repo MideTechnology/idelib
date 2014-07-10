@@ -1054,8 +1054,7 @@ class Plot(ViewerPanel):
 
 
     def enableMenus(self):
-        """ Update the plot-specific menus, both on the main menu and the plot's
-            contextual menu.
+        """ Update the plot-specific menus items in the main view's menu bar.
         """
         if self.Parent.getActivePage() != self:
             return

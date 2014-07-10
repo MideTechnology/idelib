@@ -56,9 +56,9 @@ elementParserTypes = parsers.getElementHandlers()
 
 # XXX: Remove me before production.
 # testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140423_stats_newformat.ide"
-testFile= "C:\\Users\\dstokes\\workspace\\SSXViewer\\20140501_Mean_Removal\\VIB00000.IDE"
-# testFile = "\\\\MIDE2007\\projects\\WVR_RIF\\06_Testing_Calibration\\20140505_Temp_Tests\\20140505_Temp\\VIB00000.IDE"
-# testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\buffer_drop.IDE"
+# testFile= "C:\\Users\\dstokes\\workspace\\SSXViewer\\20140501_Mean_Removal\\VIB00000.IDE"
+# testFile = "SpecOffBy10x.IDE"
+testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\Battery_Life_Tests\\100_Hz.IDE"
 
 # from parsers import AccelerometerParser
 
@@ -149,9 +149,6 @@ nullUpdater.cancelled = False
 
 class SimpleUpdater(object):
     """ A simple text-based progress updater.
-    
-        @todo: Make cross-platform? Character 0x0D won't necessarily work
-            outside of Windows.
     """
     
     def __init__(self, cancelAt=1.0):
@@ -335,8 +332,8 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
                 continue
             
             # More progress display stuff
-            # TODO: Possibly do the update check every nth elements; that would
-            #    have slightly less work per cycle.
+            # FUTURE: Possibly do the update check every nth elements; that
+            # would have slightly less work per cycle.
             thisOffset = r.stream.offset
             thisTime = time.time()
             if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:
@@ -355,7 +352,6 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
             doc.fileDamaged = True
         else:
             updater(error=e)
-        
         
     # finish progress bar
     updater(done=True, total=eventsRead)

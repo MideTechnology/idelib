@@ -79,7 +79,7 @@ class PrefsDialog(SC.SizedDialog):
         self.SetAffirmativeId(wx.ID_SAVE)
         self.SetEscapeId(wx.ID_CANCEL)
         
-        self.SetSize((500,550))
+        self.SetSize((500,566))
         self.SetMinSize((300,200))
         self.SetMaxSize((1000,1000))
 
@@ -131,6 +131,8 @@ class PrefsDialog(SC.SizedDialog):
              "as a normalized percent.")
         
         _add(PG.PropertyCategory("Miscellaneous"))
+        _add(PG.BoolProperty("Show Full Path in Title Bar", "showFullPath"),
+             UseCheckbox=True)
         _add(PG.BoolProperty("Display 'Open' Dialog on Startup", "openOnStart"), 
              UseCheckbox=True )
         _add(PG.IntProperty("X Axis Value Precision", "precisionX", value=4))

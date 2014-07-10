@@ -7,8 +7,6 @@ Created on Dec 4, 2013
 @author: dstokes
 '''
 
-import sys as _sys
-
 import wx; wx = wx # Workaround for PyDev code comprehension
 
 from events import EvtSetTimeRange, EvtSetVisibleRange
@@ -306,17 +304,3 @@ class MenuMixin(object):
             self.PopupMenu(self.contextMenu)
     
 
-
-#===============================================================================
-# Automatically build list of things for 'from base import *'
-#===============================================================================
-# 
-# if __name__ in _sys.modules:
-#     _moduleDict = _sys.modules[__name__].__dict__
-# else:
-#     _moduleDict = globals()
-# 
-# __all__ = filter(lambda x: not(x.startswith("_") or x.startswith('wx')),
-#                  _moduleDict.keys())
-# 
-# del _moduleDict
