@@ -26,7 +26,6 @@ import spectrum as spec
 
 from base import MenuMixin
 from common import StatusBar, nextPow2
-
 #===============================================================================
 # 
 #===============================================================================
@@ -149,8 +148,9 @@ class FFTView(wx.Frame, MenuMixin):
         self.menubar.Append(editMenu, "Edit")
 
         helpMenu = wx.Menu()
-        self.addMenuItem(helpMenu, wx.ID_HELP_INDEX, helpText, '', self.OnHelp,
-                         enabled=False)
+        self.addMenuItem(helpMenu, wx.ID_ABOUT, 
+            "About %s %s..." % (self.root._appname, self.root._version), "", 
+             self.root.OnHelpAboutMenu)
         self.menubar.Append(helpMenu, "Help")
         
         self.SetMenuBar(self.menubar)

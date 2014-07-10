@@ -644,6 +644,8 @@ class Viewer(wx.Frame, MenuMixin):
         kwargs['size'] = kwargs.get('size', windowSize)
         
         super(Viewer, self).__init__(*args, **kwargs)
+        self._appname = APPNAME
+        self._version = __version__
         
         self.root = self # for consistency with other objects
         self.dataset = None

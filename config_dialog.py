@@ -355,6 +355,7 @@ class BaseConfigPanel(sc.SizedPanel):
             @keyword data: A dictionary of values read from the device.
         """
         self.root = kwargs.pop('root', None)
+        self.device = kwargs.pop('device', None)
         super(BaseConfigPanel, self).__init__(*args, **kwargs)
         
         self.data = None
@@ -367,7 +368,6 @@ class BaseConfigPanel(sc.SizedPanel):
         # fieldMap: All fields keyed by their corresponding key in the data.
         self.fieldMap = OrderedDict()
         
-        self.getDeviceData()
         self.buildUI()
         self.initUI()
         self.Bind(wx.EVT_CHECKBOX, self.OnCheckChanged)
@@ -388,6 +388,7 @@ class BaseConfigPanel(sc.SizedPanel):
         """ Do any setup work on the page. Most subclasses should override
             this.
         """
+        self.getDeviceData()
         if self.data:
             for k,v in self.data.iteritems():
                 c = self.fieldMap.get(k, None)
@@ -552,7 +553,8 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
     """
 
     def getDeviceData(self):
-        self.data = self.root.deviceConfig.get('SSXTriggerConfiguration', {})
+        cfg= self.root.device.getConfig()
+        self.data = cfg.get('SSXTriggerConfiguration', {})
         if not self.root.useUtc and 'WakeTimeUTC' in self.data:
             self.data['WakeTimeUTC'] -= time.timezone
             
@@ -700,11 +702,11 @@ class OptionsPanel(BaseConfigPanel):
     OVERSAMPLING = map(str, [2**x for x in range(4,13)])
 
     def getDeviceData(self):
-        self.data = self.root.deviceConfig.get('SSXBasicRecorderConfiguration', 
-                                               {}).copy()
+        cfg = self.root.device.getConfig()
+        self.data = cfg.get('SSXBasicRecorderConfiguration', {}).copy()
         # Hack: flatten RecorderUserData into the rest of the configuration,
         # making things simpler to handle
-        self.data.update(self.root.deviceConfig.get('RecorderUserData', {}))
+        self.data.update(cfg.get('RecorderUserData', {}))
         
         if 'UTCOffset' in self.data:
             self.data['UTCOffset'] /= 3600
@@ -1500,7 +1502,7 @@ class ConfigDialog(sc.SizedDialog):
                             style=wx.SAVE|wx.OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             try:
-                self.device.exportConfig(dlg.GetPath())
+                self.device.exportConfig(dlg.GetPath(), data=self.getData())
             except:
                 # TODO: More specific error message
                 wx.MessageBox( 
