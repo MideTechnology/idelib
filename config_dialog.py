@@ -1129,10 +1129,10 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
 
     
     def getDeviceData(self):
-        self.data = self.info = self.root.deviceInfo
+        self.data = self.info = self.root.device.getConfig().copy()
         if self.data['ALARM_TIME'] == 0:
             self.data['ALARM_TIME'] = datetime.now()
-            
+        
         if not self.root.useUtc:
             self.data['ALARM_TIME'] = datetime2int(self.data['ALARM_TIME'], -time.timezone)
 
@@ -1208,6 +1208,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
     def initUI(self):
         """ Fill out the UI.
         """ 
+        self.getDeviceData()
         super(ClassicTriggerConfigPanel, self).initUI()
         trigs = self.info.get('TRIG_ACT_INACT_REG', 0)
         self.acCheck.SetValue((trigs & 0b10000000) and True)
@@ -1281,7 +1282,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
     
     
     def getDeviceData(self):
-        self.info = self.root.deviceInfo
+        self.info = self.root.device.getConfig().copy()
 
 
     def buildUI(self):
@@ -1294,6 +1295,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
         sc.SizedPanel(self, -1) # Spacer
         
         self.samplingCheck = self.addChoiceField("Sampling Frequency:",
+                                                 'BW_RATE_PWR',
             units="Hz", choices=self.SAMPLE_RATES.values(), 
             selected=len(self.SAMPLE_RATES)-1,
             tooltip="Checking this field overrides the device's default.")
@@ -1318,11 +1320,6 @@ class ClassicOptionsPanel(BaseConfigPanel):
         
 
     def initUI(self):
-        self.info['RTCC_ENA'] = self.info['RTCC_ENA']
-        self.rtccCheck.SetValue(self.info.get('RTCC_ENA',0) and True)
-        self.setField(self.samplingCheck, 
-                      self.SAMPLE_RATES.get(self.info['BW_RATE_PWR'] & 0x0f, 
-                                            len(self.SAMPLE_RATES)-1))
         self.getDeviceData()
         for k,v in self.info.iteritems():
             c = self.fieldMap.get(k, None)
@@ -1330,6 +1327,16 @@ class ClassicOptionsPanel(BaseConfigPanel):
                 continue
             self.setField(c, v)
         
+#         self.info['RTCC_ENA'] = self.info['RTCC_ENA']
+        self.rtccCheck.SetValue(self.info.get('RTCC_ENA',0) and True)
+        
+        r = self.info.setdefault('BW_RATE_PWR', 0x0f) & 0xf
+        if r in self.SAMPLE_RATES:
+            ridx = self.SAMPLE_RATES[r]
+        else:
+            ridx = self.SAMPLE_RATES.values()[-1]
+        self.setField(self.samplingCheck, ridx)
+
 
     def OnSetTZ(self, event):
         val = str(-time.timezone / 60 / 60)
@@ -1343,6 +1350,8 @@ class ClassicOptionsPanel(BaseConfigPanel):
         
         for name,control in self.fieldMap.iteritems():
             self.addVal(control, data, name)
+        
+        data['BW_RATE_PWR'] = self.SAMPLE_RATES.keys()[self.controls[self.samplingCheck][0].GetSelection()] | 0b1000
 
         if self.rtccCheck.GetValue():
             data['RTCC_ENA'] = 1
@@ -1452,7 +1461,7 @@ class ConfigDialog(sc.SizedDialog):
         self.SetAffirmativeId(wx.ID_APPLY)
         self.okButton = self.FindWindowById(wx.ID_APPLY)
         
-        self.SetMinSize((436, 475))
+        self.SetMinSize((436, 520))
         self.Fit()
         
         
@@ -1515,7 +1524,8 @@ class ConfigDialog(sc.SizedDialog):
 # 
 #===============================================================================
 
-def configureRecorder(path, save=True, setTime=True, useUtc=True):
+def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
+                      showMsg=True):
     """ Create the configuration dialog for a recording device. 
     
         @param path: The path to the data recorder (e.g. a mount point under
@@ -1544,7 +1554,7 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True):
         raise ValueError("Specified path %r does not appear to be a recorder" %\
                          path)
         
-    dlg = ConfigDialog(None, -1, "Configure %s (%s)" % (dev.baseName, path), 
+    dlg = ConfigDialog(parent, -1, "Configure %s (%s)" % (dev.baseName, path), 
                        device=dev, setTime=setTime, useUtc=useUtc)
     
     # Sort of a hack to abort the configuration if data couldn't be read
@@ -1559,7 +1569,20 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True):
         if save:
             dev.saveConfig(data)
         result = data, dlg.setTime, dlg.useUtc
-
+        
+        if parent is not None and showMsg:
+            pref = "showConfigMsg_%s" % dev.__class__.__name__
+            msg = None
+            if isinstance(dev, devices.SlamStickX):
+                msg = ("""When ready...\n"""
+                       """    1. Disconnect Slam Stick X\n"""
+                       """    2. Mount to surface\n"""
+                       """    3. Press the "X" button """)
+            
+            parent.ask("Successfully Configured!", "Device Configuration", 
+                       wx.OK, icon=wx.ICON_INFORMATION, parent=parent, 
+                       pref=pref, extendedMessage=msg)
+            
     dlg.Destroy()
     return result
 
@@ -1570,6 +1593,6 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True):
 
 if __name__ == "__main__":
     app = wx.App()
-    recorderPath = devices.getDeviceList()[0]
+    recorderPath = devices.getDeviceList()[-1]
     print "configureRecorder() returned %r" % (configureRecorder(recorderPath, 
                                                                  useUtc=False),)

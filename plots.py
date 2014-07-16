@@ -1,6 +1,6 @@
 # import colorsys
 # from itertools import izip
-import math
+# import math
 import sys
 
 from wx import aui
@@ -10,7 +10,7 @@ import wx; wx = wx # Workaround for Eclipse code comprehension
 import images
 
 # Custom controls
-from base import ViewerPanel, MenuMixin
+from base import ViewerPanel
 from common import expandRange, mapRange
 from timeline import VerticalScaleCtrl
 

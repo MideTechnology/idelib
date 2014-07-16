@@ -852,19 +852,19 @@ class Viewer(wx.Frame, MenuMixin):
         # "Help" menu
         
         helpMenu = wx.Menu()
+        # TODO: (cross-platform) Move 'about' to right place for MacOS X.
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
                          "About %s %s..." % (APPNAME, __version__), "", 
                          self.OnHelpAboutMenu)
-        debugMenu = wx.Menu()
-        helpMenu.AppendSeparator()
-        self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
-                         "Save All Preferences", "",
-                         lambda(evt): self.app.saveAllPrefs())
-#         self.addMenuItem(debugMenu, self.ID_DEBUG0, "Ask test","",
-#                          self.DEBUG_OnTestAsk)
-        
+        if __DEBUG__:
+            helpMenu.AppendSeparator()
+            debugMenu = wx.Menu()
+            self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
+                             "Save All Preferences", "",
+                             lambda(evt): self.app.saveAllPrefs())
+            helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
+            
         self.menubar.Append(helpMenu, '&Help')
-        helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
 
         #=======================================================================
         # "Recent Files" submenu
@@ -985,7 +985,7 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword persistent: If `False` and 'remember' is checked, the
                 result is saved in memory but not written to disk.
         """
-        style |= icon
+        style = (style | icon) if icon else style
         parent = self or parent
         if pref is not None and self.app.hasPref(pref, section="ask"):
             return self.app.getPref(pref, section="ask")
@@ -1014,8 +1014,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         dlg = wx.FileDialog(self, message=message, 
                             defaultDir=defaultDir,  defaultFile=defaultFile, 
-                            wildcard='|'.join(types), 
-                            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+                            wildcard='|'.join(types), style=style)
         
         while not done:
             filename = None
@@ -1186,14 +1185,15 @@ class Viewer(wx.Frame, MenuMixin):
             is returned.
         """
         curdir = os.path.realpath(os.path.curdir)
+        name = self.app.getPref('defaultFilename', '')
         recorder = devices.onRecorder(curdir)
         if recorder:
             datadir = os.path.join(recorder, "DATA")
             if os.path.exists(datadir):
-                return (datadir, '')
-            return (recorder, '')
+                return (datadir, name)
+            return (recorder, name)
         # FUTURE: Use a path from the file history, maybe?
-        return (curdir, '')
+        return (curdir, name)
 
 
     def getDefaultExport(self):
@@ -1617,7 +1617,7 @@ class Viewer(wx.Frame, MenuMixin):
         dev = selectDevice()
         if dev is not None:
             result = config_dialog.configureRecorder(dev, setTime=setTime, 
-                                                     useUtc=useUtc)
+                                                     useUtc=useUtc, parent=self)
             if result is not None:
                 self.app.setPref('configure.setTime', result[1])
                 self.app.setPref('configure.useUtc', result[2])
@@ -2103,10 +2103,11 @@ class ViewerApp(wx.App):
     
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
-        'importTypes': [
+        'importTypes': ["All Recording Types (*.ide, *.dat)|*.ide;*.dat",
                         "MIDE Data File (*.ide)|*.ide", 
                         "Slam Stick Classic (*.dat)|*.dat",
                         "All files (*.*)|*.*"],
+        'defaultFilename': '', #'data.dat',
         'defaultImportType': 1,
         'exportTypes': ["Comma Separated Values (*.csv)|*.csv"],
         'fileHistory': {},
@@ -2192,8 +2193,6 @@ class ViewerApp(wx.App):
         
         filename = os.path.realpath(os.path.expanduser(filename))
         logger.debug(u"Loading preferences from %r" % filename)
-#         if __DEBUG__:
-#             print u"Loading preferences from %r" % filename
 
         prefs = {}
         try:

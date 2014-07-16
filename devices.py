@@ -104,6 +104,19 @@ class Recorder(object):
         self._accelRange = None
 
 
+    def _getInfoAttr(self, name, default=None):
+        info = self.getInfo()
+        if info is None:
+            return default
+        return info.get(name, default)
+
+    
+    def getInfo(self, default=None, refresh=False):
+        """ Retrieve a recorder's device information. Subclasses need to
+            implement this.
+        """
+        raise NotImplementedError
+
     def onDevice(self, filename):
         """ Determines if a file is on the recording device. 
         
@@ -233,10 +246,13 @@ class SlamStickX(Recorder):
 
     @classmethod
     def isRecorder(cls, dev):
-        """
+        """ Test whether a given filesystem path refers to the root directory
+            of a Slam Stick X recorder.
         """
         try:
             result = os.path.exists(os.path.join(dev, cls.INFO_FILE))
+            if result:
+                return getDriveInfo(dev)[3] in (u'FAT',)
             return result
         except (IOError, TypeError):
             return False
@@ -294,7 +310,7 @@ class SlamStickX(Recorder):
     @property
     def productName(self):
         """ The recording device's manufacturer-issued name. """
-        return self.getInfo().get('ProductName', '')
+        return self._getInfoAttr('ProductName', '')
     
     @property
     def serial(self):
@@ -307,6 +323,13 @@ class SlamStickX(Recorder):
                 self._sn = "SSX%08d" % self.getInfo().get('RecorderSerial', '')
         return self._sn
 
+    @property
+    def hardwareVersion(self):
+        return self._getInfoAttr('HwRev', '')
+    
+    @property
+    def firmwareVersion(self):
+        return self._getInfoAttr('SwRev', '')
 
     def getAccelRange(self):
         """ Get the range of the device's acceleration measurement.
@@ -419,8 +442,9 @@ class SlamStickClassic(Recorder):
         """
         dev = os.path.realpath(dev)
         try:
-            return (os.path.exists(os.path.join(dev, cls.CONFIG_FILE)) and \
-                    os.path.exists(os.path.join(dev, cls.DATA_FILE)))
+            return (os.path.exists(os.path.join(dev, cls.CONFIG_FILE)) and
+                    os.path.exists(os.path.join(dev, cls.DATA_FILE)) and
+                    getDriveInfo(dev)[3] in (u'FAT',))
         except (IOError, TypeError):
             return False
 
@@ -523,9 +547,16 @@ class SlamStickClassic(Recorder):
     def serial(self):
         """ The recording device's manufacturer-issued serial number. """
         if self._sn is None:
-            self._sn = self.getConfig().get('SYSUID_RESERVE', '').strip()
+            self._sn = self._getInfoAttr('SYSUID_RESERVE', '').strip()
         return self._sn
 
+    @property
+    def hardwareVersion(self):
+        return self._getInfoAttr('HWREV', None)
+    
+    @property
+    def firmwareVersion(self):
+        return self._getInfoAttr('SWREV', None)
 
     def getTime(self):
         """ Read the date/time from the device. 
@@ -533,7 +564,7 @@ class SlamStickClassic(Recorder):
             @param dev: The path to the recording device.
             @return: The time, as integer seconds since the epoch ('Unix time').
         """
-        return self.getConfig(refresh=True)['RTCC_TIME']
+        return self.getConfig(refresh=True).get('RTCC_TIME', None)
    
     
     def setTime(self, t=None):
