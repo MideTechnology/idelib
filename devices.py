@@ -75,6 +75,7 @@ class Recorder(object):
     INFO_FILE = ''
     CONFIG_FILE = ''
     
+    POST_CONFIG_MSG = None
     productName = "Generic Recorder"
     baseName = productName
     
@@ -237,6 +238,11 @@ class SlamStickX(Recorder):
        0x10: (-25,25),
        0x12: (-100,100)
     }
+
+    POST_CONFIG_MSG  = ("""When ready...\n"""
+                        """    1. Disconnect Slam Stick X\n"""
+                        """    2. Mount to surface\n"""
+                        """    3. Press the "X" button """)
 
     baseName = "Slam Stick X"
 

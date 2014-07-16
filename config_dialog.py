@@ -1568,21 +1568,8 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
         data = dlg.getData()
         if save:
             dev.saveConfig(data)
-        result = data, dlg.setTime, dlg.useUtc
+        result = data, dlg.setTime, dlg.useUtc, dev
         
-        if parent is not None and showMsg:
-            pref = "showConfigMsg_%s" % dev.__class__.__name__
-            msg = None
-            if isinstance(dev, devices.SlamStickX):
-                msg = ("""When ready...\n"""
-                       """    1. Disconnect Slam Stick X\n"""
-                       """    2. Mount to surface\n"""
-                       """    3. Press the "X" button """)
-            
-            parent.ask("Successfully Configured!", "Device Configuration", 
-                       wx.OK, icon=wx.ICON_INFORMATION, parent=parent, 
-                       pref=pref, extendedMessage=msg)
-            
     dlg.Destroy()
     return result
 

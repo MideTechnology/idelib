@@ -1592,12 +1592,6 @@ class Viewer(wx.Frame, MenuMixin):
 # #                 self.openFile(files[idx])
 
 
-    def OnClearPrefs(self, evt):
-        """
-        """
-        self.app.deletePref(section="ask")
-
-
     def OnEditRanges(self, evt):
         """
         """
@@ -1621,6 +1615,13 @@ class Viewer(wx.Frame, MenuMixin):
             if result is not None:
                 self.app.setPref('configure.setTime', result[1])
                 self.app.setPref('configure.useUtc', result[2])
+                dev = result[3]
+                pref = "showConfigMsg_%s" % dev.__class__.__name__
+                msg = getattr(dev, "POST_CONFIG_MSG", None)
+                self.ask("Successfully Configured!", "Device Configuration", 
+                           wx.OK, icon=wx.ICON_INFORMATION, pref=pref, 
+                           extendedMessage=msg)
+    
     
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.
@@ -2193,6 +2194,7 @@ class ViewerApp(wx.App):
         
         filename = os.path.realpath(os.path.expanduser(filename))
         logger.debug(u"Loading preferences from %r" % filename)
+        if __DEBUG__: print "loaded prefs from %s" % filename
 
         prefs = {}
         try:
@@ -2291,6 +2293,7 @@ class ViewerApp(wx.App):
         """
         hist = self.prefs.setdefault('fileHistory', {})
         return hist.setdefault(category, [])
+
 
     def getPref(self, name, default=None, section=None):
         """ Retrieve a value from the preferences.
