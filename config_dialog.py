@@ -596,6 +596,17 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.accelHiCheck = self.addFloatField("Accelerometer Trigger (High):", 
            units="G", tooltip="The upper trigger limit. Greater than 0.")
 
+        sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
+        sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
+        self.addButton("Reset to Defaults", wx.ID_DEFAULT, self.OnDefaultsBtn, 
+                       "Reset the trigger configuration to the default values. "
+                       "Does not change other tabs.")
+
+        self.Fit()
+        
+    def OnDefaultsBtn(self, evt):
+        wx.MessageBox("TODO: Implement SSX trigger defaults", "Not Implemented (Yet)")
+
 
     def OnCheckChanged(self, evt):
         cb = evt.EventObject
@@ -756,8 +767,18 @@ class OptionsPanel(BaseConfigPanel):
             "the system time when the configuration is applied.")
         self.setTimeCheck.SetValue(self.root.setTime)
         
+        sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
+        sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
+        self.addButton("Reset to Defaults", wx.ID_DEFAULT, self.OnDefaultsBtn, 
+                       "Reset the general configuration to the default values. "
+                       "Does not change other tabs.")
+
         self.Fit()
+
         
+    def OnDefaultsBtn(self, evt):
+        wx.MessageBox("TODO: Implement SSX general defaults", "Not Implemented (Yet)")
+
     
     def OnSetTZ(self, event):
         val = int(-time.timezone / 60 / 60)
@@ -1191,6 +1212,18 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
                                                    self.zCheck, self.acCheck, 
                                                    self.napCheck))
 
+        sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
+        sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
+        self.addButton("Reset to Defaults", wx.ID_DEFAULT, self.OnDefaultsBtn, 
+                       "Reset the trigger configuration to the default values. "
+                       "Does not change other tabs.")
+
+        self.Fit()
+
+        
+    def OnDefaultsBtn(self, evt):
+        wx.MessageBox("TODO: Implement Classic trigger defaults", "Not Implemented (Yet)")
+
 
     def OnCheckChanged(self, evt):
         cb = evt.EventObject
@@ -1316,8 +1349,18 @@ class ClassicOptionsPanel(BaseConfigPanel):
         self.controls[self.rtccCheck].extend((self.setTimeCheck, self.utcCheck, 
                                               self.tzBtn))
         
+        sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
+        sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
+        self.addButton("Reset to Defaults", wx.ID_DEFAULT, self.OnDefaultsBtn, 
+                       "Reset the general configuration to the default values. "
+                       "Does not change other tabs.", size=(-1,-1))
+
         self.Fit()
+
         
+    def OnDefaultsBtn(self, evt):
+        wx.MessageBox("TODO: Implement Classic defaults", "Not Implemented (Yet)")
+
 
     def initUI(self):
         self.getDeviceData()
@@ -1452,12 +1495,22 @@ class ConfigDialog(sc.SizedDialog):
         buttonpane = sc.SizedPanel(pane, -1)
         buttonpane.SetSizerType("horizontal")
         buttonpane.SetSizerProps(expand=True)
-        wx.Button(buttonpane, self.ID_IMPORT, "Import...")
-        wx.Button(buttonpane, self.ID_EXPORT, "Export...")
+        wx.Button(buttonpane, self.ID_IMPORT, "Import...").SetSizerProps(halign="left")
+        wx.Button(buttonpane, self.ID_EXPORT, "Export...").SetSizerProps(halign="left")
+        sc.SizedPanel(buttonpane, -1).SetSizerProps(proportion=1) # Spacer
         self.Bind(wx.EVT_BUTTON, self.importConfig, id=self.ID_IMPORT)
         self.Bind(wx.EVT_BUTTON, self.exportConfig, id=self.ID_EXPORT)
+        wx.Button(buttonpane, wx.ID_APPLY).SetSizerProps(halign="right")
+        wx.Button(buttonpane, wx.ID_CANCEL).SetSizerProps(halign="right")
         
-        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.APPLY | wx.CANCEL))
+#         bottompane = sc.SizedPanel(pane, -1)
+#         bottompane.SetSizerType("horizontal")
+#         bottompane.SetSizerProps(expand=True)
+#         wx.Button(bottompane, wx.ID_DEFAULT, "Reset to Defaults").SetSizerProp("halign", "left")
+#         sc.SizedPanel(bottompane, -1).SetSizerProps(proportion=1) # Spacer
+#         wx.Button(bottompane, wx.ID_APPLY).SetSizerProps(halign="right")
+#         wx.Button(bottompane, wx.ID_CANCEL).SetSizerProps(halign="right")
+
         self.SetAffirmativeId(wx.ID_APPLY)
         self.okButton = self.FindWindowById(wx.ID_APPLY)
         

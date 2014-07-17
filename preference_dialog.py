@@ -68,7 +68,6 @@ class PrefsDialog(SC.SizedDialog):
         buttons = SC.SizedPanel(pane,-1)
         buttons.SetSizerType("horizontal")
         self.defaultsBtn = wx.Button(buttons, -1, "Reset to Defaults")
-        self.defaultsBtn.SetSizerProps(halign='left')
         wx.Button(buttons, wx.ID_SAVE)
         wx.Button(buttons, wx.ID_CANCEL)
         buttons.SetSizerProps(halign='right')

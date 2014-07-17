@@ -105,6 +105,15 @@ class Recorder(object):
         self._accelRange = None
 
 
+    @classmethod
+    def _isRecorder(cls, dev):
+        """ Basic test whether a path points to a recorder. """
+        try:
+            return getDriveInfo(dev)[3] in (u'FAT', u'vfat')
+        except (TypeError, IndexError):
+            return False
+    
+
     def _getInfoAttr(self, name, default=None):
         info = self.getInfo()
         if info is None:
@@ -236,7 +245,9 @@ class SlamStickX(Recorder):
 
     TYPE_RANGES = {
        0x10: (-25,25),
-       0x12: (-100,100)
+       0x12: (-100,100),
+       0x13: (-200,200),
+       0x14: (-500, 500),
     }
 
     POST_CONFIG_MSG  = ("""When ready...\n"""
@@ -256,10 +267,8 @@ class SlamStickX(Recorder):
             of a Slam Stick X recorder.
         """
         try:
-            result = os.path.exists(os.path.join(dev, cls.INFO_FILE))
-            if result:
-                return getDriveInfo(dev)[3] in (u'FAT',)
-            return result
+            return (cls._isRecorder(dev) and
+                    os.path.exists(os.path.join(dev, cls.INFO_FILE)))
         except (IOError, TypeError):
             return False
 
@@ -448,9 +457,9 @@ class SlamStickClassic(Recorder):
         """
         dev = os.path.realpath(dev)
         try:
-            return (os.path.exists(os.path.join(dev, cls.CONFIG_FILE)) and
-                    os.path.exists(os.path.join(dev, cls.DATA_FILE)) and
-                    getDriveInfo(dev)[3] in (u'FAT',))
+            return (cls._isRecorder(dev) and
+                    os.path.exists(os.path.join(dev, cls.CONFIG_FILE)) and
+                    os.path.exists(os.path.join(dev, cls.DATA_FILE)))
         except (IOError, TypeError):
             return False
 

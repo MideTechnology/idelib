@@ -13,9 +13,9 @@ import wx.lib.sized_controls as sc
 import wx.lib.mixins.listctrl  as  listmix
 
 # from common import hex32
+from common import cleanUnicode
 from devices import getDevices, getDeviceList
 from devices import deviceChanged
-
 
 #===============================================================================
 # 
@@ -28,10 +28,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     ColumnInfo = namedtuple("ColumnInfo", 
                             ['name','propName','formatter','default'])
 
-    COLUMNS = (ColumnInfo("Path", "path", unicode, ''),
-               ColumnInfo("Name", "name", unicode, ''),
-               ColumnInfo("Type", "productName", unicode, ''),
-               ColumnInfo("Serial #", "serial", unicode, ''))
+    COLUMNS = (ColumnInfo("Path", "path", cleanUnicode, ''),
+               ColumnInfo("Name", "name", cleanUnicode, ''),
+               ColumnInfo("Type", "productName", cleanUnicode, ''),
+               ColumnInfo("Serial #", "serial", cleanUnicode, ''))
 
     class DeviceListCtrl(wx.ListCtrl, listmix.ListCtrlAutoWidthMixin):
         def __init__(self, parent, ID, pos=wx.DefaultPosition,

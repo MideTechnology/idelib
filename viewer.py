@@ -2194,7 +2194,7 @@ class ViewerApp(wx.App):
         
         filename = os.path.realpath(os.path.expanduser(filename))
         logger.debug(u"Loading preferences from %r" % filename)
-        if __DEBUG__: print "loaded prefs from %s" % filename
+#         if __DEBUG__: print "loaded prefs from %r" % filename
 
         prefs = {}
         try:

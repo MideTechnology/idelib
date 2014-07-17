@@ -55,6 +55,13 @@ def nextPow2(x):
 # Formatting and parsing helpers
 #===============================================================================
 
+def cleanUnicode(obj, encoding='utf8', errors='replace'):
+    """ Helper function to produce valid unicode text. Apps built with
+        PyInstaller under Windows can choke on unicode conversions.
+    """
+    return unicode(obj, encoding, errors)
+
+
 # def hex32(val):
 #     """ Format an integer as an 8 digit hex number. """
 #     return "0x%08x" % val
