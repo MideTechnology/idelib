@@ -69,8 +69,6 @@ def getDriveInfo(dev):
 
 class Recorder(object):
     """ Base class for all data recorders.
-    
-        XXX: Complete and use, or remove.
     """
     INFO_FILE = ''
     CONFIG_FILE = ''
@@ -548,7 +546,7 @@ class SlamStickClassic(Recorder):
         """ The recording device's (user-assigned) name. """
         if self._name is None:
             n = self.getConfig().get('USERUID_RESERVE', '').strip()
-            self._name = str(n or self.volumeName or "Slam Stick")
+            self._name = str(n or self.volumeName)
         return self._name
 
 

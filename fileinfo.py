@@ -68,7 +68,7 @@ class ChannelInfoPanel(InfoPanel):
                 self.html.append("<li><b>Subchannel %02x.%d: %s</b></li>" % \
                                  (cid, subcid, subc.name))
                 
-                self.addItem("Range:", "%s to %s %s" % 
+                self.addItem("Sensor Range:", "%s to %s %s" % 
                    (subc.displayRange[0], subc.displayRange[1], subc.units[0]))
                 self.addItem("Nominal Sample Rate:", "%s Hz" % srate)
                 self.addItem("Minimum Value:", 

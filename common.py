@@ -57,9 +57,16 @@ def nextPow2(x):
 
 def cleanUnicode(obj, encoding='utf8', errors='replace'):
     """ Helper function to produce valid unicode text. Apps built with
-        PyInstaller under Windows can choke on unicode conversions.
+        PyInstaller (under Windows) can choke on unicode conversions.
     """
-    return unicode(obj, encoding, errors)
+    if isinstance(obj, unicode):
+        return obj
+    try:
+        if isinstance(obj, str):
+            return unicode(obj, encoding, errors)
+        return unicode(obj)
+    except (UnicodeDecodeError, TypeError):
+        return repr(obj)
 
 
 # def hex32(val):

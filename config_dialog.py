@@ -22,7 +22,7 @@ import wx; wx = wx
 import wx.lib.sized_controls as sc
 import wx.html
 
-from common import datetime2int, makeWxDateTime, DateTimeCtrl
+from common import datetime2int, makeWxDateTime, DateTimeCtrl, cleanUnicode
 import devices
 from mide_ebml import util
 from mide_ebml.parsers import PolynomialParser
@@ -45,7 +45,7 @@ class BaseConfigPanel(sc.SizedPanel):
 
     def strOrNone(self, val):
         try:
-            val = unicode(val).strip()
+            val = cleanUnicode(val).strip()
             if val == u'':
                 return None
         except ValueError:
@@ -67,7 +67,7 @@ class BaseConfigPanel(sc.SizedPanel):
             @keyword tooltip: A tooltip string for the field.
         """
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
-        txt = unicode(value)
+        txt = cleanUnicode(value)
         c = wx.StaticText(self, -1, labelText)
         c.SetSizerProps(valign="center")
         if fieldStyle is None:
@@ -76,8 +76,8 @@ class BaseConfigPanel(sc.SizedPanel):
             t = wx.TextCtrl(self, -1, txt, size=fieldSize, style=fieldStyle)
 
         if tooltip is not None:
-            c.SetToolTipString(unicode(tooltip))
-            t.SetToolTipString(unicode(tooltip))
+            c.SetToolTipString(cleanUnicode(tooltip))
+            t.SetToolTipString(cleanUnicode(tooltip))
             
         if self.fieldSize is None:
             self.fieldSize = t.GetSize()
@@ -107,7 +107,7 @@ class BaseConfigPanel(sc.SizedPanel):
         sc.SizedPanel(self, -1) # Spacer
         
         if tooltip is not None:
-            b.SetToolTipString(unicode(tooltip))
+            b.SetToolTipString(cleanUnicode(tooltip))
         if handler is not None:
             b.Bind(wx.EVT_BUTTON, handler)
         return b
@@ -125,7 +125,7 @@ class BaseConfigPanel(sc.SizedPanel):
         c = wx.CheckBox(self, -1, checkText)
         sc.SizedPanel(self, -1) # Spacer
         if tooltip is not None:
-            c.SetToolTipString(unicode(tooltip))
+            c.SetToolTipString(cleanUnicode(tooltip))
             
         self.controls[c] = [None]
         if name is not None:
@@ -148,7 +148,7 @@ class BaseConfigPanel(sc.SizedPanel):
             @keyword tooltip: A tooltip string for the field.
         """
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
-        txt = unicode(value)
+        txt = cleanUnicode(value)
 
         c = wx.CheckBox(self, -1, checkText)
         c.SetSizerProps(valign="center")
@@ -167,8 +167,8 @@ class BaseConfigPanel(sc.SizedPanel):
         u.SetSizerProps(valign="center")
         
         if tooltip is not None:
-            c.SetToolTipString(unicode(tooltip))
-            t.SetToolTipString(unicode(tooltip))
+            c.SetToolTipString(cleanUnicode(tooltip))
+            t.SetToolTipString(cleanUnicode(tooltip))
         
         if fieldSize == (-1,-1):
             self.fieldSize = t.GetSize()
@@ -212,8 +212,8 @@ class BaseConfigPanel(sc.SizedPanel):
         u.SetSizerProps(valign="center")
         
         if tooltip is not None:
-            c.SetToolTipString(unicode(tooltip))
-            lf.SetToolTipString(unicode(tooltip))
+            c.SetToolTipString(cleanUnicode(tooltip))
+            lf.SetToolTipString(cleanUnicode(tooltip))
         
         if fieldSize == (-1,-1):
             self.fieldSize = lf.GetSize()
@@ -259,8 +259,8 @@ class BaseConfigPanel(sc.SizedPanel):
         u.SetSizerProps(valign="center")
         
         if tooltip is not None:
-            c.SetToolTipString(unicode(tooltip))
-            lf.SetToolTipString(unicode(tooltip))
+            c.SetToolTipString(cleanUnicode(tooltip))
+            lf.SetToolTipString(cleanUnicode(tooltip))
         
         if fieldSize == (-1,-1):
             self.fieldSize = lf.GetSize()
@@ -309,8 +309,8 @@ class BaseConfigPanel(sc.SizedPanel):
             field.SetSelection(int(selected))
         
         if tooltip is not None:
-            c.SetToolTipString(unicode(tooltip))
-            field.SetToolTipString(unicode(tooltip))
+            c.SetToolTipString(cleanUnicode(tooltip))
+            field.SetToolTipString(cleanUnicode(tooltip))
         
         if fieldSize == (-1,-1):
             self.fieldSize = field.GetSize()
@@ -342,8 +342,8 @@ class BaseConfigPanel(sc.SizedPanel):
             self.fieldMap[name] = check
 
         if tooltip is not None:
-            check.SetToolTipString(unicode(tooltip))
-            ctrl.SetToolTipString(unicode(tooltip))
+            check.SetToolTipString(cleanUnicode(tooltip))
+            ctrl.SetToolTipString(cleanUnicode(tooltip))
         
         return check#, ctrl #ctrl
         
@@ -463,7 +463,7 @@ class BaseConfigPanel(sc.SizedPanel):
             elif isinstance(field, DateTimeCtrl):
                 value = makeWxDateTime(value)
             elif isinstance(field, wx.Choice):
-                strv = unicode(value)
+                strv = cleanUnicode(value)
                 choices = field.GetItems()
                 if strv in choices:
                     field.Select(choices.index(strv))
@@ -858,17 +858,17 @@ class InfoPanel(wx.html.HtmlWindow):
         """
         # Automatically create new table if not already in one.
         if not self._inTable:
-            self.html.append("<table width='100%'>")
+            self.html.append(u"<table width='100%'>")
             self._inTable = True
-        self.html.append("<tr><td width='50%%'>%s</td>" % k)
-        self.html.append("<td width='50%%'><b>%s</b></td></tr>" % v)
+        self.html.append(u"<tr><td width='50%%'>%s</td>" % cleanUnicode(k))
+        self.html.append(u"<td width='50%%'><b>%s</b></td></tr>" % cleanUnicode(v))
 
 
     def closeTable(self):
         """ Wrap up any open table, if any.
         """
         if self._inTable:
-            self.html.append("</table>")
+            self.html.append(u"</table>")
             self._inTable = False
 
 
@@ -876,11 +876,11 @@ class InfoPanel(wx.html.HtmlWindow):
         """ Append a label.
         """
         if self._inTable:
-            self.html.append("</table>")
+            self.html.append(u"</table>")
             self._inTable = False
         if warning:
-            v = "<font color='#FF0000'>%s</font>" % v
-        self.html.append("<p>%s</p>" % v)
+            v = u"<font color='#FF0000'>%s</font>" % v
+        self.html.append(u"<p>%s</p>" % v)
 
 
     def _fromCamelCase(self, s):
@@ -907,7 +907,7 @@ class InfoPanel(wx.html.HtmlWindow):
 
     def buildUI(self):
         self.getDeviceData()
-        self.html = ["<html><body>"]
+        self.html = [u"<html><body>"]
         for k,v in self.data.iteritems():
             if k.startswith('_label'):
                 # Treat this like a label
@@ -920,18 +920,18 @@ class InfoPanel(wx.html.HtmlWindow):
                 elif k in self.field_types:
                     v = self.field_types[k](v)
                 elif isinstance(v, (int, long)):
-                    v = "0x%08X" % v
+                    v = u"0x%08X" % v
                 else:
-                    v = unicode(v)
+                    v = cleanUnicode(v)
             except TypeError:
-                v = unicode(v)
+                v = cleanUnicode(v)
 
             self.addItem(k,v)
             
         if self._inTable:
-            self.html.append("</table>")
-        self.html.append('</body></html>')
-        self.SetPage(''.join(self.html))
+            self.html.append(u"</table>")
+        self.html.append(u'</body></html>')
+        self.SetPage(u''.join(self.html))
 
 
     def initUI(self):
@@ -1037,9 +1037,9 @@ class old_InfoPanel(BaseConfigPanel):
                 elif isinstance(v, (int, long)):
                     v = "0x%08X" % v
                 else:
-                    v = unicode(v)
+                    v = cleanUnicode(v)
             except TypeError:
-                v = unicode(v)
+                v = cleanUnicode(v)
                 
             t = self.addField('%s:' % k, k, None, v, fieldStyle=wx.TE_READONLY)
             t.SetSizerProps(expand=True)
