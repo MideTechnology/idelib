@@ -47,17 +47,53 @@ class Transform(object):
 class AccelTransform(Transform):
     """ A simple transform to convert accelerometer values (parsed as
         int16) to floats in the range -100 to 100 G.
+         
+        This assumes that the data was parsed by `AccelerometerParser`, which
+        puts the raw values in the range -32768 to 32767.
+    """
+    modifiesValue = True
+     
+    def __init__(self, amin=-100, amax=100):
+        self.range = (amin, amax)
+        self._fun = lambda x: (x / 32767.0) * amax
+     
+    def __repr__(self):
+        return "<%s%r at 0x%08x>" % (self.__class__.__name__, self.range, 
+                                     id(self))
+     
+    def __call__(self, event, session=None):
+        return event[:-1] + (self._fun(event[-1]),)
+     
+     
+    
+class AccelTransform100(Transform):
+    """ A simple transform to convert accelerometer values (parsed as
+        int16) to floats in the range -100 to 100 G.
         
         This assumes that the data was parsed by `AccelerometerParser`, which
         puts the raw values in the range -32768 to 32767.
     """
     modifiesValue = True
+    
     def __call__(self, event, session=None):
 #         return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
         return event[:-1] + ((event[-1] / 32767.0) * 100.0,)
 
 
 class AccelTransform25G(Transform):
+    """ A simple transform to convert accelerometer values (parsed as
+        int16) to floats in the range -25 to 25 G.
+        
+        This assumes that the data was parsed by `AccelerometerParser`, which
+        puts the raw values in the range -32768 to 32767.
+    """
+    modifiesValue = True
+    def __call__(self, event, session=None):
+#         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
+        return event[:-1] + ((event[-1] / 32767) * 25.0,)
+
+
+class AccelTransform200G(Transform):
     """ A simple transform to convert accelerometer values (parsed as
         int16) to floats in the range -25 to 25 G.
         

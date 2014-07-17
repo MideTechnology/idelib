@@ -55,10 +55,8 @@ elementParserTypes = parsers.getElementHandlers()
 #===============================================================================
 
 # XXX: Remove me before production.
-# testFile = r"P:\WVR_RIF\04_Design\Electronic\Software\testing\test_ebml_files\20140423_stats_newformat.ide"
-# testFile= "C:\\Users\\dstokes\\workspace\\SSXViewer\\20140501_Mean_Removal\\VIB00000.IDE"
-# testFile = "SpecOffBy10x.IDE"
-testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\Battery_Life_Tests\\100_Hz.IDE"
+#testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\Battery_Life_Tests\\100_Hz.IDE"
+testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\500g Recording\\SSX68679.IDE"
 
 # from parsers import AccelerometerParser
 
@@ -117,11 +115,31 @@ default_sensors = {
 #     })
 
 
+
 def createDefaultSensors(doc, sensors=default_sensors):
     """ Given a nested set of dictionaries containing the definition of one or
         more sensors, instantiate those sensors and add them to the dataset
         document.
     """
+    if doc.recorderInfo:
+        # TODO: Move device-specific stuff out of the main importer
+        rtype = doc.recorderInfo.get('RecorderTypeUID', 0x10)
+        if rtype | 0xff == 0xff:
+            # SSX recorders have UIDs that are zero except the least byte.
+            SSX_ACCEL_RANGES = {
+               0x10: (-25,25),
+               0x12: (-100,100),
+               0x13: (-200,200),
+               0x14: (-500, 500),
+            }
+            rrange = SSX_ACCEL_RANGES.get(rtype & 0xff, 0x10)
+            transform = calibration.AccelTransform(*rrange)
+            sensors = sensors.copy()
+            ch0 = sensors[0x00]['channels'][0x00]
+            ch0['transform'] = (transform,)*3
+            for i in range(3):
+                ch0['subchannels'][i]['displayRange'] = rrange
+
     for sensorId, sensorInfo in sensors.iteritems():
         sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
         for chId, chInfo in sensorInfo['channels'].iteritems():
@@ -134,7 +152,6 @@ def createDefaultSensors(doc, sensors=default_sensors):
             for subChId, subChInfo in chInfo['subchannels'].iteritems():
                 channel.addSubChannel(subChId, **subChInfo)
     
-
 
 #===============================================================================
 # Updater callbacks
@@ -301,13 +318,14 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
 
             if r.name in elementParsers:
                 try:
-                    readRecordingProperties = r.name == "RecordingProperties" 
+                    readRecordingProperties = (readRecordingProperties or 
+                                               r.name == "RecordingProperties") 
                     parser = elementParsers[r.name]
-                        
+                    
                     if not readingData and parser.makesData():
                         # The first data has been read. Notify the updater!
                         updater(0)
-                        if not readRecordingProperties:
+                        if not doc.sensors:
                             # Got data before the recording props; use defaults.
                             if defaultSensors is not None:
                                 createDefaultSensors(doc, defaultSensors)
