@@ -11,6 +11,8 @@ from collections import Iterable
 import os
 import random
 
+import numpy
+
 from mide_ebml import dataset as DS
 
 #===============================================================================
@@ -197,6 +199,7 @@ class EventList(DS.EventList):
         self.removeMean = False
         self.hasMinMeanMax = False
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
+        self._mmm = (None, None)
 
 
     def setData(self, data, stamped=False):
@@ -411,6 +414,24 @@ class EventList(DS.EventList):
             return self.iterJitterySlice(startIdx, stopIdx, step, jitter)
         else:
             return self.iterSlice(startIdx, stopIdx, step)
+
+
+    def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None):
+        """
+        """
+        t = (startTime, endTime)
+        if t == self._mmm[0]:
+            return self._mmm[1]
+        
+        mmm = numpy.array(list(self.itervalues(startTime, endTime)))
+        if self.hasSubchannels and subchannel is not None:
+            self._mmm = (t, (mmm[subchannel].min(), 
+                    numpy.median(mmm[subchannel]).mean(), 
+                    mmm[subchannel].max()))
+        else:
+            self._mmm = (t, (mmm.min(), numpy.median(mmm), mmm.max()))
+        
+        return self._mmm[1]
         
 
     def getMax(self, startTime=None, endTime=None):

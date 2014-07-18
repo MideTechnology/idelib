@@ -20,6 +20,11 @@ try:
 except Exception:
     logging.logger.warning("*** Couldn't read and/or change build number!")
 
+try:
+    from mide_ebml.dataset import __DEBUG__
+except ImportError:
+    logging.logger.warning("*** Could not get __DEBUG__ from mide_ebml.dataset!")
+    __DEBUG__ = False
 
 # Collect data files (needed for getting schema XML)
 # http://www.pyinstaller.org/wiki/Recipe/CollectDatafiles
@@ -76,5 +81,5 @@ exe = EXE(pyz,
           debug=False,
           strip=None,
           upx=True,
-          console=False 
+          console=__DEBUG__
           )

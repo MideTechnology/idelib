@@ -1156,7 +1156,7 @@ class EventList(Cascading):
             return 0
         # For some reason, the cached self._length wasn't thread-safe.
 #         return self._length
-        return self._data[-1].indexRange[-1]-1
+        return max(0, self._data[-1].indexRange[-1]-1)
 
 
     def itervalues(self, start=0, end=-1, step=1, subchannels=True):
@@ -1383,18 +1383,7 @@ class EventList(Cascading):
             @return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
         """
-        if startTime is None:
-            startBlockIdx = 0
-        else:
-            startBlockIdx = self._getBlockIndexWithTime(startTime)
-            startBlockIdx = max(startBlockIdx-1, 0)
-        if endTime is None:
-            endBlockIdx = len(self._data)
-        else:
-            if endTime < 0:
-                endTime += self._data[-1].endTime
-            endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx)
-            endBlockIdx = min(len(self._data), max(startBlockIdx+1, endBlockIdx+1))
+        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
         
         for block in self._data[startBlockIdx:endBlockIdx]:
             if block.minMeanMax is None:
@@ -1449,13 +1438,15 @@ class EventList(Cascading):
                 EventList's parent has subchannels.
             @return: A set of three events (min, mean, and max, respectively).
         """
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
         mmm = numpy.array(self.getMinMeanMax(startTime, endTime, times=False))
+        if mmm.size == 0:
+            return None
         if self.hasSubchannels and subchannel is not None:
             return (mmm[:,0,subchannel].min(), 
-                    mmm[:,1,subchannel].mean(), 
+                    numpy.median(mmm[:,1,subchannel]).mean(), 
                     mmm[:,2,subchannel].max())
-#         return (mmm[:,0].min(), mmm[:,1].mean(), mmm[:,2].max())
-        # NOTE: TESTING
         return (mmm[:,0].min(), numpy.median(mmm[:,1]), mmm[:,2].max())
         
     
@@ -1516,6 +1507,20 @@ class EventList(Cascading):
         else:
             block = min(blocks, key=lambda x: x.min[self.parent.id])
             return min(self.iterSlice(*block.indexRange), key=lambda x: x[-1])
+
+
+#     def getMean(self, startTime=None, endTime=None):
+#         if not self.hasMinMeanMax:
+#             self._computeMinMeanMax()
+#         startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
+#         blocks = self._data[startBlockIdx:endBlockIdx]
+#         if self.hasSubchannels:
+#             self.iter
+#             block = min(blocks, key=lambda x: min(x.min))
+#             return min(self.iterSlice(*block.indexRange), key=lambda x: min(x[-1]))
+#         else:
+#             block = min(blocks, key=lambda x: x.min[self.parent.id])
+#             return min(self.iterSlice(*block.indexRange), key=lambda x: x[-1])
 
 
     def _computeMinMeanMax(self):

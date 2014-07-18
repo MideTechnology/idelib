@@ -55,8 +55,8 @@ elementParserTypes = parsers.getElementHandlers()
 #===============================================================================
 
 # XXX: Remove me before production.
-#testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\Battery_Life_Tests\\100_Hz.IDE"
-testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\500g Recording\\SSX68679.IDE"
+# testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\500g Recording\\SSX68679.IDE"
+testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\500g Recording\\SSX14632.IDE"
 
 # from parsers import AccelerometerParser
 

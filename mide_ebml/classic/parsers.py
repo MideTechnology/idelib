@@ -1,14 +1,11 @@
 """
 """
 
-# from datetime import datetime
 import os.path
 import struct
 import time
 
-from mide_ebml import importer
 from mide_ebml import parsers
-import dataset
 
 #===============================================================================
 # Data parsers
@@ -20,7 +17,6 @@ class AccelerometerParser(object):
     parser = struct.Struct("<hhh")
     format = parser.format
     size = parser.size
-#     ranges = (((-0xFFF8/2)*0.00048828125, ((0xFFF8/2)-1)*0.00048828125)) * 3
     ranges = ((-0xFFF8>>4) * 0.00048828125, 
               ((0xFFF8>>4)-1) * 0.00048828125) * 3
         

@@ -52,7 +52,11 @@ def createDefaultSensors(doc, sensors=default_sensors):
                                       **subChInfo)
 
 def importFile(f, defaultSensors=default_sensors):
-    """
+    """ Create a new Dataset object and import the data from a Classic file. 
+        Primarily for testing purposes. The GUI does the file creation and 
+        data loading in two discrete steps, as it will need a reference to 
+        the new document before the loading starts.
+        @see: `openFile()` and `readData()`
     """
     if isinstance(f, basestring):
         f = open(f, 'rb')

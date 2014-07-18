@@ -10,6 +10,7 @@ in the About Box.
     are also listed here.
 @todo: Multi-threaded plot drawing, so the app won't appear to hang and drawing
     can be interrupted.
+@todo: Scroll wheel support (vertical), maybe middle-click drag as well.
 @todo: Revamp the zooming and navigation to be event-driven, handled as far up
     the chain as possible. Consider using wx.lib.pubsub if it's thread-safe
     in conjunction with wxPython views. X axis partially converted; Y axis not.
