@@ -1302,8 +1302,10 @@ class Viewer(wx.Frame, MenuMixin):
             stream = ThreadAwareFile(filename, 'rb')
             newDoc = importer(stream, quiet=True)
             self.app.addRecentFile(filename, 'import')
+            
+            # SSX: Check EBML schema version
             if newDoc.schemaVersion is not None and newDoc.schemaVersion < newDoc.ebmldoc.version:
-                q = self.root.ask("The data file was created using a newer "
+                q = self.ask("The data file was created using a newer "
                   "version of the MIDE data schema (viewer version is %s, "
                   "file version is %s); this could potentially cause problems. "
                   "\n\nOpen anyway?" % (newDoc.schemaVersion, 
@@ -1313,6 +1315,18 @@ class Viewer(wx.Frame, MenuMixin):
                 if q == wx.ID_NO:
                     stream.closeAll()
                     return
+                
+            # Classic: Blank file
+            if isinstance(newDoc, mide_ebml.classic.dataset.Dataset):
+                if not newDoc.sessions:
+                    self.ask("This Classic file contains no data.", 
+                        "Import Error", wx.OK, wx.ICON_ERROR, extendedMessage=\
+                        "Slam Stick Classic recorders always contain "
+                        "a 'data.dat' file,\nregardless whether a recording "
+                        "has been made.")
+                    stream.closeAll()
+                    return
+            
         except mide_ebml.parsers.ParsingError as err:
             self.ask("The file '%s' could not be opened" % name, 
                      "Import Error", wx.OK, icon=wx.ICON_ERROR,

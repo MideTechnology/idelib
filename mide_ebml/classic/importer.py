@@ -3,10 +3,10 @@ Created on Jul 1, 2014
 
 @author: dstokes
 '''
+
 from mide_ebml import importer
 import dataset
 import parsers
-
 
 # Hard-coded sensor/channel mapping for the Slam Stick Classic.
 # TODO: Base default sensors on the device type UID.
@@ -17,15 +17,15 @@ default_sensors = {
                        "parser": parsers.AccelerometerParser(),
                        "subchannels":{0: {"name": "Accelerometer X", 
                                           "units":('g','g'),
-                                          "displayRange": (-100.0,100.0),
+                                          "displayRange": (-16.0,16.0),
                                          },
                                       1: {"name": "Accelerometer Y", 
                                           "units":('g','g'),
-                                          "displayRange": (-100.0,100.0),
+                                          "displayRange": (-16.0,16.0),
                                           },
                                       2: {"name": "Accelerometer Z", 
                                           "units":('g','g'),
-                                          "displayRange": (-100.0,100.0),
+                                          "displayRange": (-16.0,16.0),
                                           },
                                     },
                        },
@@ -50,6 +50,7 @@ def createDefaultSensors(doc, sensors=default_sensors):
             for subChId, subChInfo in chInfo['subchannels'].iteritems():
                 channel.addSubChannel(subChId, channelClass=dataset.SubChannel,
                                       **subChInfo)
+
 
 def importFile(f, defaultSensors=default_sensors):
     """ Create a new Dataset object and import the data from a Classic file. 
@@ -77,6 +78,10 @@ def openFile(stream, parserTypes=None,
         For Slam Stick Classic files (which are small), this function actually 
         does the entirety of the import, instead of splitting the work between
         this function and `readData()`.
+        
+        @todo: Actually split the header reading from the data reading.
+            Reading directly from a Slam Stick is slow enough to make a
+            difference, even though the files are only 16MB. Low priority.
     """
     # Classic files are small, so the entirety of the file-parsing is done
     # here, instead of splitting it between this and `readData()`. 
@@ -96,6 +101,10 @@ def readData(doc, updater=importer.nullUpdater, numUpdates=500,
         For Slam Stick Classic files, this function is a stub; they are small,
         and all the importing is actually performed by the `openFile()` 
         function.
+
+        @todo: Actually split the header reading from the data reading.
+            Reading directly from a Slam Stick is slow enough to make a
+            difference, even though the files are only 16MB. Low priority.
     
         @param doc: The Dataset document into which to import the data.
         @keyword updater: A function (or function-like object) to notify as 

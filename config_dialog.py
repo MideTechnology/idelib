@@ -5,7 +5,10 @@ recorder. Since there's only the two SSX variants, this is not urgent.
 
 @todo: I use `info` and `data` for the recorder info at different times;
     if there's no specific reason, unify. It may be vestigial.
-    
+@todo: Move device-specific components to different modules;
+    This could be the start of a sort of extensible architecture.
+@todo: `BaseConfigPanel` is a bit over-engineered; clean it up.
+
 Created on Dec 16, 2013
 
 @author: dstokes
@@ -161,10 +164,10 @@ class BaseConfigPanel(sc.SizedPanel):
             t = wx.TextCtrl(subpane, -1, txt, size=fieldSize)
         else:
             t = wx.TextCtrl(subpane, -1, txt, size=fieldSize, style=fieldStyle)
-        self.controls[c] = [t]
-        
         u = wx.StaticText(subpane, -1, units)
         u.SetSizerProps(valign="center")
+        
+        self.controls[c] = [t, u]
         
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
@@ -206,10 +209,10 @@ class BaseConfigPanel(sc.SizedPanel):
         
         lf = wx.SpinCtrlDouble(subpane, -1, value=str(value), inc=precision,
                           min=minmax[0], max=minmax[1], size=fieldSize)
-        self.controls[c] = [lf]
-        
         u = wx.StaticText(subpane, -1, units)
         u.SetSizerProps(valign="center")
+        
+        self.controls[c] = [lf, u]
         
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
@@ -253,10 +256,10 @@ class BaseConfigPanel(sc.SizedPanel):
         value = "" if value is None else int(value)
         lf = wx.SpinCtrl(subpane, -1, value=str(value),
                           min=int(minmax[0]), max=int(minmax[1]), size=fieldSize)
-        self.controls[c] = [lf]
-        
         u = wx.StaticText(subpane, -1, units)
         u.SetSizerProps(valign="center")
+        
+        self.controls[c] = [lf, u]
         
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
@@ -300,10 +303,10 @@ class BaseConfigPanel(sc.SizedPanel):
         else:
             field = wx.Choice(subpane, -1, size=fieldSize, choices=choices,
                                style=fieldStyle)
-        self.controls[c] = [field]
-        
         u = wx.StaticText(subpane, -1, units)
         u.SetSizerProps(valign="center")
+        
+        self.controls[c] = [field, u]
         
         if selected is not None:
             field.SetSelection(int(selected))
@@ -346,7 +349,18 @@ class BaseConfigPanel(sc.SizedPanel):
             ctrl.SetToolTipString(cleanUnicode(tooltip))
         
         return check#, ctrl #ctrl
-        
+
+
+    def makeChild(self, parent, *children):
+        """ Set one or more fields as the children of another, related field
+            (e.g. individual trigger parameters that should be disabled when
+            a main 'use triggers' checkbox is unchecked).
+        """
+        for child in children:
+            if child in self.controls:
+                self.controls[parent].extend(self.controls[child])
+            self.controls[parent].append(child)
+
 
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard dialog arguments, plus:
@@ -478,9 +492,10 @@ class BaseConfigPanel(sc.SizedPanel):
         """ Helper method to hide or show sets of UI fields.
         """
         if checkbox in self.controls:
-            checkbox.Hide(hidden)
+            checkbox.Show(not hidden)
             for c in self.controls[checkbox]:
-                c.Hide(hidden)
+                if c is not None:
+                    c.Show(not hidden)
             return True
         return False
     
@@ -570,14 +585,14 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.useUtcCheck = self.addCheck("UTC Time", 
             tooltip="If unchecked, the wake time is relative to the current time zone.")
         self.useUtcCheck.SetValue(self.root.useUtc)
-        self.controls[self.wakeCheck].append(self.useUtcCheck)
+        self.makeChild(self.wakeCheck, self.useUtcCheck)
         
         self.timeCheck = self.addIntField(
             "Limit recording time to:", "RecordingTime", "seconds", 0, 
             minmax=(0,86400))
         
         self.rearmCheck = self.addCheck("Re-triggerable", "AutoRearm")
-        self.controls[self.timeCheck].append(self.rearmCheck)
+        self.makeChild(self.timeCheck, self.rearmCheck)
         
         self.pressLoCheck = self.addIntField("Pressure Trigger (Low):", 
                                              units="Pa", minmax=(0,120000),
@@ -1170,7 +1185,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             "Note: the year is ignored.")
         self.useUtcCheck = self.addCheck("Use UTC Time")
         self.useUtcCheck.SetValue(self.root.useUtc)
-        self.controls[self.wakeCheck].append(self.useUtcCheck)
+        self.makeChild(self.wakeCheck, self.useUtcCheck)
         
         self.timeCheck = self.addFloatField(
             "Recording Limit, Time:", "SECONDS_PER_TRIGGER", "seconds", 
@@ -1191,7 +1206,6 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             minmax=(0,255), tooltip="The number of recordings to make, "
             "in addition to the first.")
                 
-        
         wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL)
         sc.SizedPanel(self, -1) # Spacer
         self.accelTrigCheck = self.addFloatField("Accelerometer Threshold:", 
@@ -1208,9 +1222,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         self.napCheck = self.addChoiceField("Accel. Check Interval",
               choices=self.NAP_TIMES.values())
 
-        self.controls[self.accelTrigCheck].extend((self.xCheck, self.yCheck, 
-                                                   self.zCheck, self.acCheck, 
-                                                   self.napCheck))
+        self.makeChild(self.accelTrigCheck, self.xCheck, self.yCheck, self.zCheck, self.acCheck, self.napCheck)
 
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
@@ -1243,6 +1255,13 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         """ 
         self.getDeviceData()
         super(ClassicTriggerConfigPanel, self).initUI()
+        
+        # Hide fields not supported by earlier versions of the firmware
+        if self.info.get('SWREV', 0) < 2:
+            self.hideField(self.wakeCheck)
+            self.hideField(self.chimeCheck)
+            self.hideField(self.repeatCheck)
+        
         trigs = self.info.get('TRIG_ACT_INACT_REG', 0)
         self.acCheck.SetValue((trigs & 0b10000000) and True)
         self.xCheck.SetValue((trigs & 0b01000000) and True)
@@ -1346,8 +1365,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
             "from UTC time. Used only for file timestamps.")
         self.tzBtn = self.addButton("Get UTC", -1,  self.OnSetTZ,
             "Fill the UTC Offset field with the offset for the local timezone")
-        self.controls[self.rtccCheck].extend((self.setTimeCheck, self.utcCheck, 
-                                              self.tzBtn))
+        self.makeChild(self.rtccCheck, self.setTimeCheck, self.utcCheck, self.tzBtn)
         
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
@@ -1364,6 +1382,10 @@ class ClassicOptionsPanel(BaseConfigPanel):
 
     def initUI(self):
         self.getDeviceData()
+        
+        if self.info.get('SWREV', 0) < 2:
+            self.hideField(self.rtccCheck)
+        
         for k,v in self.info.iteritems():
             c = self.fieldMap.get(k, None)
             if c is None:
@@ -1394,7 +1416,8 @@ class ClassicOptionsPanel(BaseConfigPanel):
         for name,control in self.fieldMap.iteritems():
             self.addVal(control, data, name)
         
-        data['BW_RATE_PWR'] = self.SAMPLE_RATES.keys()[self.controls[self.samplingCheck][0].GetSelection()] | 0b1000
+        samplingIdx = self.controls[self.samplingCheck][0].GetSelection()
+        data['BW_RATE_PWR'] = self.SAMPLE_RATES.keys()[samplingIdx] | 0b1000
 
         if self.rtccCheck.GetValue():
             data['RTCC_ENA'] = 1
@@ -1416,15 +1439,20 @@ class ClassicInfoPanel(InfoPanel):
     
     def getDeviceData(self):
         info = self.root.deviceInfo
+        vers = info['VERSION_STR']
+        uid = info['SYSUID_RESERVE'] or "None"
         self.data = OrderedDict((
             ('Device Type', 'Slam Stick Classic'),
-            ('System UID', info['SYSUID_RESERVE']),
+            ('System UID', uid),
             ('Config. Format Version', info['CONFIGFILE_VER']), 
             ('Hardware Revision', info['HWREV']), 
             ('Firmware Revision', info['SWREV']), 
-            ('Version String', info['VERSION_STR']), 
+            ('Version String', vers),
+            ('Capacity', info) 
          ))
-
+        if 'U' in vers:
+            # Unlikely to ever be missing, but just in case...
+            self.data['Capacity'] = "%s MB" % vers[vers.index('U')+1:]
 
 #===============================================================================
 # 
@@ -1503,14 +1531,6 @@ class ConfigDialog(sc.SizedDialog):
         wx.Button(buttonpane, wx.ID_APPLY).SetSizerProps(halign="right")
         wx.Button(buttonpane, wx.ID_CANCEL).SetSizerProps(halign="right")
         
-#         bottompane = sc.SizedPanel(pane, -1)
-#         bottompane.SetSizerType("horizontal")
-#         bottompane.SetSizerProps(expand=True)
-#         wx.Button(bottompane, wx.ID_DEFAULT, "Reset to Defaults").SetSizerProp("halign", "left")
-#         sc.SizedPanel(bottompane, -1).SetSizerProps(proportion=1) # Spacer
-#         wx.Button(bottompane, wx.ID_APPLY).SetSizerProps(halign="right")
-#         wx.Button(bottompane, wx.ID_CANCEL).SetSizerProps(halign="right")
-
         self.SetAffirmativeId(wx.ID_APPLY)
         self.okButton = self.FindWindowById(wx.ID_APPLY)
         
@@ -1606,7 +1626,7 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
     if not dev:
         raise ValueError("Specified path %r does not appear to be a recorder" %\
                          path)
-        
+#     print dev.getInfo()
     dlg = ConfigDialog(parent, -1, "Configure %s (%s)" % (dev.baseName, path), 
                        device=dev, setTime=setTime, useUtc=useUtc)
     
