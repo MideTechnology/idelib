@@ -207,14 +207,13 @@ if __name__ == "__main__":
     app = wx.App()
     CLASSIC_TEST = not True
     
+    print "Starting test..."
     if CLASSIC_TEST:
-        from mide_ebml.classic import importer
-        f = open('data.dat','rb')
-        doc = importer.openFile(f)
-        importer.readData(doc)
+        from mide_ebml.classic import importer as classic_importer
+        doc = classic_importer.importFile('test_recordings/data.dat')
     else:
         from mide_ebml import importer
-        doc=importer.importFile(updater=importer.SimpleUpdater(0.01))
+        doc=importer.importFile()
         
     print "filename: %r" % doc.filename
     print "type: %r" % doc.__class__

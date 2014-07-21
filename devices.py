@@ -6,7 +6,6 @@ data-logging devices.
 __author__ = "David Stokes"
 __date__ = "Nov 14, 2013"
 
-
 import calendar
 from collections import OrderedDict
 import ctypes

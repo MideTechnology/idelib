@@ -31,7 +31,6 @@ Items marked with [REV2] indicate features only supported by the Rev2+ firmware
 @var CONFIG_PARSER: A `struct.Struct` to parse (or pack) a config file's
     contents.
 '''
-
 from collections import OrderedDict
 from datetime import datetime
 import struct
@@ -174,7 +173,9 @@ def packUID(s):
 
 
 def unpackUID(s):
-    return s.rstrip('\x00')
+    if '\x00' in s:
+        s = s.split('\x00')[0]
+    return s.rstrip(u'\x00\xff')
 
 #===============================================================================
 # 

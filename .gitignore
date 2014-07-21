@@ -17,8 +17,11 @@
 *.xlsx
 *~
 
+*.cfx
+
 test*.xml
 test*.png
+test_recordings
 
 build
 dist
