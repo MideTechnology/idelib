@@ -97,7 +97,7 @@ CONFIG_FIELDS = OrderedDict((
     
     # REV2 fields. A fresh config file should always be 512b, so these will
     # just be zero if a REV1 file is read.
-    # offset: 76
+    # offset: 88
     ('RTCC_ENA', 'B'),            # (W)Enables the RTCC module on the device (R)Module is enabled. [REV2]
     ('RTCC_IS_SET', 'B'),         # (R) RTCC value is set / considered valid [REV2]
     ('WR_RTCC', 'B'),             # (W) if byte value = 0x5A, the RTCC_TIME[7] in this file (above) is written to the hardware RTCC, and the peripheral enabled. [REV2]
@@ -106,6 +106,15 @@ CONFIG_FIELDS = OrderedDict((
     ('REPEATS', 'B'),             # Number of times to repeat. 0 = single-shot, 255 = 255 repeats (256 total alarms). Ignored if CHIME_EN is set.
     ('ROLLPERIOD', 'B'),          # Alarm rollover period (every minute, etc.). Bit patterns defined in rtcc.h.
     ('CHIME_EN', 'B'),            # Bit 0 = "chime mode" (alarm repeats indefinitely; REPEATS setting ignored).
+    
+    # The firmware REV2 only supports fields up to CHIME_EN.
+    # offset: 102
+    ('_padding', '26s'),
+    
+    # User-defined fields, not used by the recorder itself
+    # offset 128
+    ('USER_NAME', '64s'),
+    ('USER_NOTES', '256s'),
 ))
 
 CONFIG_PARSER = struct.Struct('<' + "".join(CONFIG_FIELDS.values()))
@@ -165,17 +174,11 @@ def unpackTime(t):
     except ValueError:
         return 0
 
-
-def packUID(s):
-    if not s:
-        return '\x00' * 8
-    return str(s)[:8].ljust(8,'\x00')
-
-
-def unpackUID(s):
+def unpackStr(s):
     if '\x00' in s:
         s = s.split('\x00')[0]
     return s.rstrip(u'\x00\xff')
+
 
 #===============================================================================
 # 
@@ -187,9 +190,12 @@ CONFIG_ENCODERS = {'RECORD_DELAY': lambda x: int(x/2),
                    'RTCC_TIME': packTime,
                    'TRIGGER_FLAGS': str,
                    'TRIG_RESERVED_TAP_FF': str,
-                   'SYSUID_RESERVE': packUID,
-                   'USERUID_RESERVE': packUID,
+                   'SYSUID_RESERVE': str,
+                   'USERUID_RESERVE': str,
                    'TRIG_THRESH_ACT': lambda x: max(0, min(255, int(x/0.0625))),
+                   'USER_NAME': str,
+                   'USER_NOTES': str,
+                   '_padding': str,
                    }
 CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
                    'SECONDS_PER_TRIGGER': lambda x: x*2,
@@ -197,9 +203,12 @@ CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
                    'RTCC_TIME': unpackTime,
                    'TRIGGER_FLAGS': bytearray,
                    'TRIG_RESERVED_TAP_FF': bytearray,
-                   'SYSUID_RESERVE': unpackUID,
-                   'USERUID_RESERVE': unpackUID,
+                   'SYSUID_RESERVE': unpackStr,
+                   'USERUID_RESERVE': unpackStr,
                    'TRIG_THRESH_ACT': lambda x: x*0.0625,
+                   'USER_NAME': unpackStr,
+                   'USER_NOTES': unpackStr,
+                   '_padding': unpackStr,
                    }
 
 
@@ -211,6 +220,7 @@ def decodeConfig(data):
     """ Apply the `CONFIG_DECODERS` to the configuration data. Used internally
         after reading a config file.
     """ 
+    print data
     result = data.copy()
     for name, decoder in CONFIG_DECODERS.iteritems():
         if name in result:
@@ -222,6 +232,7 @@ def encodeConfig(data):
     """ Apply the `CONFIG_ENCODERS` to the configuration data. Used internally
         before writing a config file.
     """ 
+    print data
     result = data.copy()
     for name, encoder in CONFIG_ENCODERS.iteritems():
         if name in result:
@@ -282,3 +293,5 @@ def writeConfig(dest, data, validate=True):
         return False
     
     return True
+
+

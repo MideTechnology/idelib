@@ -35,7 +35,7 @@ import devices
 # 
 #===============================================================================
 
-class BaseConfigPanel(sc.SizedPanel):
+class BaseConfigPanel(sc.SizedScrolledPanel):
     """ The base class for the various configuration pages. Defines some
         common methods for adding controls, setting defaults, and reading
         values.
@@ -57,7 +57,7 @@ class BaseConfigPanel(sc.SizedPanel):
     
 
     def addField(self, labelText, name=None, units="", value="", 
-                 fieldSize=None, fieldStyle=None, tooltip=None):
+                 fieldSize=None, fieldStyle=None, tooltip=None, indent=0):
         """ Helper method to create and configure a labeled text field and
             add it to the set of controls. 
             
@@ -69,9 +69,16 @@ class BaseConfigPanel(sc.SizedPanel):
             @keyword fieldStyle: The text field's wxWindows style flags.
             @keyword tooltip: A tooltip string for the field.
         """
+        indent += self.indent
+        if indent > 0:
+            col1 = sc.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            wx.StaticText(col1, -1, ' '*indent)
+        else:
+            col1 = self
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
         txt = cleanUnicode(value)
-        c = wx.StaticText(self, -1, labelText)
+        c = wx.StaticText(col1, -1, labelText)
         c.SetSizerProps(valign="center")
         if fieldStyle is None:
             t = wx.TextCtrl(self, -1, txt, size=fieldSize)
@@ -86,6 +93,8 @@ class BaseConfigPanel(sc.SizedPanel):
             self.fieldSize = t.GetSize()
         
         self.controls[t] = [t]
+        if col1 != self:
+            self.controls[t].append(col1)
         if name is not None:
             self.fieldMap[name] = t
             
@@ -93,7 +102,7 @@ class BaseConfigPanel(sc.SizedPanel):
     
     
     def addButton(self, label, id_=-1, handler=None, tooltip=None, 
-                  size=None, style=None):
+                  size=None, style=None, indent=0):
         """ Helper method to create a button in the first column.
             
             @param label: The button's label text
@@ -101,14 +110,25 @@ class BaseConfigPanel(sc.SizedPanel):
             @keyword handler: The `wx.EVT_BUTTON` event handling method
             @keyword tooltip: A tooltip string for the field.
         """
+        indent += self.indent
+        if indent > 0:
+            col1 = sc.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            wx.StaticText(col1, -1, ' '*indent)
+        else:
+            col1 = self
         size = size or (self.fieldSize[0]+20, self.fieldSize[1])
         if style is None:
-            b = wx.Button(self, id_, label, size=size)
+            b = wx.Button(col1, id_, label, size=size)
         else:
-            b = wx.Button(self, id_, label, size=size, style=style)
+            b = wx.Button(col1, id_, label, size=size, style=style)
         b.SetSizerProps()
         sc.SizedPanel(self, -1) # Spacer
         
+        self.controls[b] = []
+        if col1 != self:
+            self.controls[b].append(col1)
+
         if tooltip is not None:
             b.SetToolTipString(cleanUnicode(tooltip))
         if handler is not None:
@@ -116,7 +136,7 @@ class BaseConfigPanel(sc.SizedPanel):
         return b
     
     
-    def addCheck(self, checkText, name=None, units="", tooltip=None):
+    def addCheck(self, checkText, name=None, units="", tooltip=None, indent=0):
         """ Helper method to create a single checkbox and add it to the set of
             controls. 
 
@@ -125,10 +145,11 @@ class BaseConfigPanel(sc.SizedPanel):
                 field maps directly to a value.
             @keyword tooltip: A tooltip string for the field.
         """
-        if self.indent > 0:
+        indent += self.indent
+        if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*self.indent)
+            wx.StaticText(col1, -1, ' '*indent)
         else:
             col1 = self
         c = wx.CheckBox(col1, -1, checkText)
@@ -138,6 +159,8 @@ class BaseConfigPanel(sc.SizedPanel):
             c.SetToolTipString(cleanUnicode(tooltip))
             
         self.controls[c] = [None]
+        if col1 != self:
+            self.controls[c].append(col1)
         if name is not None:
             self.fieldMap[name] = c
             
@@ -145,7 +168,7 @@ class BaseConfigPanel(sc.SizedPanel):
 
 
     def addCheckField(self, checkText, name=None, units="", value="", 
-                      fieldSize=None, fieldStyle=None, tooltip=None):
+                      fieldSize=None, fieldStyle=None, tooltip=None, indent=0):
         """ Helper method to create and configure checkbox/field pairs, and add
             them to the set of controls.
 
@@ -160,10 +183,11 @@ class BaseConfigPanel(sc.SizedPanel):
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
         txt = cleanUnicode(value)
 
-        if self.indent > 0:
+        indent += self.indent
+        if indent > 0:
             subpane = sc.SizedPanel(self, -1)
             subpane.SetSizerType("horizontal")
-            wx.StaticText(subpane, -1, ' '*self.indent)
+            wx.StaticText(subpane, -1, ' '*indent)
             c = wx.CheckBox(subpane, -1, checkText)
         else:
             c = wx.CheckBox(self, -1, checkText)
@@ -181,6 +205,8 @@ class BaseConfigPanel(sc.SizedPanel):
         u.SetSizerProps(valign="center")
         
         self.controls[c] = [t, u]
+        if subpane != self:
+            self.controls[c].append(subpane)
         
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
@@ -198,7 +224,7 @@ class BaseConfigPanel(sc.SizedPanel):
     def addFloatField(self, checkText, name=None, units="", value="",
                       precision=0.01, digits=2, minmax=(-100,100), 
                       fieldSize=None, fieldStyle=None, tooltip=None,
-                      check=True):
+                      check=True, indent=0):
         """ Add a numeric field with a 'spinner' control.
 
             @param checkText: The checkbox's label text.
@@ -213,11 +239,12 @@ class BaseConfigPanel(sc.SizedPanel):
             @keyword tooltip: A tooltip string for the field.
         """
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
-
-        if self.indent > 0:
+        
+        indent += self.indent
+        if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*self.indent)
+            wx.StaticText(col1, -1, ' '*indent)
         else:
             col1 = self
         if check:
@@ -254,7 +281,7 @@ class BaseConfigPanel(sc.SizedPanel):
 
     def addIntField(self, checkText, name=None, units="", value=None,
                       minmax=(-100,100), fieldSize=None, fieldStyle=None, 
-                      tooltip=None, check=True):
+                      tooltip=None, check=True, indent=0):
         """ Add a numeric field with a 'spinner' control.
 
             @param checkText: The checkbox's label text.
@@ -269,10 +296,11 @@ class BaseConfigPanel(sc.SizedPanel):
         """
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
 
-        if self.indent > 0:
+        indent += self.indent
+        if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*self.indent)
+            wx.StaticText(col1, -1, ' '*indent)
         else:
             col1 = self
         if check:
@@ -308,7 +336,7 @@ class BaseConfigPanel(sc.SizedPanel):
 
     def addChoiceField(self, checkText, name=None, units="", choices=[], 
                        selected=None, fieldSize=None, fieldStyle=None, 
-                       tooltip=None, check=True):
+                       tooltip=None, check=True, indent=0):
         """ Helper method to create and configure checkbox/list pairs, and add
             them to the set of controls.
  
@@ -323,10 +351,11 @@ class BaseConfigPanel(sc.SizedPanel):
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
         choices = map(str, choices)
 
-        if self.indent > 0:
+        indent += self.indent
+        if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*self.indent)
+            wx.StaticText(col1, -1, ' '*indent)
         else:
             col1 = self
         if check:
@@ -348,6 +377,8 @@ class BaseConfigPanel(sc.SizedPanel):
         u.SetSizerProps(valign="center")
         
         self.controls[c] = [field, u]
+        if col1 != self:
+            self.controls[c].append(col1)
         
         if selected is not None:
             field.SetSelection(int(selected))
@@ -366,7 +397,7 @@ class BaseConfigPanel(sc.SizedPanel):
 
 
     def addDateTimeField(self, checkText, name=None, fieldSize=None, 
-                         fieldStyle=None, tooltip=None, check=True):
+                         fieldStyle=None, tooltip=None, check=True, indent=0):
         """ Helper method to create a checkbox and a time-entry field pair, and
             add them to the set of controls.
  
@@ -375,10 +406,11 @@ class BaseConfigPanel(sc.SizedPanel):
                 field maps directly to a value.
             @keyword tooltip: A tooltip string for the field.
         """ 
-        if self.indent > 0:
+        indent += self.indent
+        if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*self.indent)
+            wx.StaticText(col1, -1, ' '*indent)
         else:
             col1 = self
         if check:
@@ -388,9 +420,12 @@ class BaseConfigPanel(sc.SizedPanel):
         c.SetSizerProps(valign='center')
         ctrl =  DateTimeCtrl(self, -1, size=self.fieldSize)
         ctrl.SetSize(self.fieldSize)
-        self.controls[c] = [ctrl]
         ctrl.SetSizerProps(expand=True)
         
+        self.controls[c] = [ctrl]
+        if col1 != self:
+            self.controls[c].append(col1)
+            
         if name is not None:
             self.fieldMap[name] = c
 
@@ -408,20 +443,32 @@ class BaseConfigPanel(sc.SizedPanel):
         sc.SizedPanel(self, -1) # Spacer
 
 
-    def addSectionName(self, label):
+    def startGroup(self, label, indent=0):
         """
         """
-        if self.indent > 0:
+        indent += self.indent
+        if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*self.indent)
+            wx.StaticText(col1, -1, ' '*indent)
         else:
             col1 = self
             
-        wx.StaticText(col1, -1, label).SetFont(self.boldFont)
+        t = wx.StaticText(col1, -1, label)
+        t.SetFont(self.boldFont)
         sc.SizedPanel(self, -1) # Spacer
-
-
+        
+        self.controls[t] = []
+        if col1 != self:
+            self.controls[t].append(col1)
+            
+        self.indent += 1
+        return t
+     
+    def endGroup(self):
+        self.indent -= 1
+    
+    
     def makeChild(self, parent, *children):
         """ Set one or more fields as the children of another, related field
             (e.g. individual trigger parameters that should be disabled when
@@ -630,7 +677,6 @@ class BaseConfigPanel(sc.SizedPanel):
                     trig[name] = default
             except ValueError:
                 trig[name] = val or default
-                
 
 #===============================================================================
 # 
@@ -1281,9 +1327,8 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             minmax=(0,255), tooltip="The number of recordings to make, "
             "in addition to the first.")
         
-#         self.addSpacer()
-        self.addSectionName('Accelerometer Triggers')
-        self.indent = 1
+        self.startGroup('Accelerometer Triggers')
+#         self.indent = 1
         self.accelTrigCheck = self.addFloatField("Accelerometer Threshold:", 
             'TRIG_THRESH_ACT', units="g", minmax=(0.0,16.0), precision=0.01, 
             tooltip="The minimum acceleration to trigger recording. "
@@ -1299,7 +1344,8 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
               choices=self.NAP_TIMES.values(), selected=0, check=False)
 
         self.makeChild(self.accelTrigCheck, self.xCheck, self.yCheck, self.zCheck, self.acCheck, self.napCheck)
-        self.indent = 0
+        self.endGroup()
+#         self.indent = 0
 
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
@@ -1425,7 +1471,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
         self.samplingCheck = self.addChoiceField("Sampling Frequency:",
                                                  'BW_RATE_PWR',
             units="Hz", choices=self.SAMPLE_RATES.values(), 
-            selected=len(self.SAMPLE_RATES)-1,
+            selected=len(self.SAMPLE_RATES)-1, check=False,
             tooltip="Checking this field overrides the device's default.")
         
         self.addSpacer()
@@ -1519,11 +1565,10 @@ class ClassicInfoPanel(InfoPanel):
         self.data = OrderedDict((
             ('Device Type', 'Slam Stick Classic'),
             ('System UID', uid),
-            ('Config. Format Version', info['CONFIGFILE_VER']), 
+            ('Version String', vers),
             ('Hardware Revision', info['HWREV']), 
             ('Firmware Revision', info['SWREV']), 
-            ('Version String', vers),
-            ('Capacity', info) 
+            ('Config. Format Version', info['CONFIGFILE_VER']), 
          ))
         if 'U' in vers:
             # Unlikely to ever be missing, but just in case...
