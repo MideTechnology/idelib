@@ -444,19 +444,20 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Event handler for redrawing the plot. Catches common exceptions.
             Wraps the 'real' painting event handler.
         """
-        self._OnPaint(evt)
-        return
+#         self._OnPaint(evt)
+#         return
     
         try:
             self._OnPaint(evt)
         except IndexError:
+            # TODO: These can occur on the first plot, but are non-fatal. Fix. 
             print "index error"
             return
         except IOError as err:
             msg = "An error occurred while trying to read the recording file."
             self.root.handleError(err, msg, closeFile=True)
-        except Exception as err:
-            self.root.handleError(err, what="plotting data")
+#         except Exception as err:
+#             self.root.handleError(err, what="plotting data")
         
 
     def _OnPaint(self, evt):
