@@ -433,6 +433,7 @@ class SlamStickX(Recorder):
             self._config = config
         return self._config
 
+
         
 #===============================================================================
 
@@ -511,14 +512,10 @@ class SlamStickClassic(Recorder):
             return 0
     
     @classmethod
-    def _packUID(cls, s):
-        if not s:
-            return '\x00' * 8
-        return str(s)[:8].ljust(8,'\x00')
-    
-    @classmethod
     def _unpackUID(cls, s):
-        return s.rstrip('\x00')
+        if '\x00' in s:
+            s = s.split('\x00')[0]
+        return s.rstrip(u'\x00\xff')
 
 
     def _loadConfig(self, source):
@@ -544,7 +541,7 @@ class SlamStickClassic(Recorder):
     def name(self):
         """ The recording device's (user-assigned) name. """
         if self._name is None:
-            n = self.getConfig().get('USERUID_RESERVE', '').strip()
+            n = self.getConfig().get('USER_NAME', '').strip()
             self._name = str(n or self.volumeName)
         return self._name
 

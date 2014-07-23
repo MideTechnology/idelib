@@ -201,6 +201,7 @@ CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
                    'SECONDS_PER_TRIGGER': lambda x: x*2,
                    'ALARM_TIME': unpackTime,
                    'RTCC_TIME': unpackTime,
+                   'TZ_OFFSET': lambda x: 0 if x > 24 else x,
                    'TRIGGER_FLAGS': bytearray,
                    'TRIG_RESERVED_TAP_FF': bytearray,
                    'SYSUID_RESERVE': unpackStr,
@@ -220,7 +221,6 @@ def decodeConfig(data):
     """ Apply the `CONFIG_DECODERS` to the configuration data. Used internally
         after reading a config file.
     """ 
-    print data
     result = data.copy()
     for name, decoder in CONFIG_DECODERS.iteritems():
         if name in result:
@@ -232,7 +232,6 @@ def encodeConfig(data):
     """ Apply the `CONFIG_ENCODERS` to the configuration data. Used internally
         before writing a config file.
     """ 
-    print data
     result = data.copy()
     for name, encoder in CONFIG_ENCODERS.iteritems():
         if name in result:

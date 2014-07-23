@@ -73,17 +73,26 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*indent)
+            col1.SetSizerProps(valign="center")
+            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
         else:
             col1 = self
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
         txt = cleanUnicode(value)
         c = wx.StaticText(col1, -1, labelText)
         c.SetSizerProps(valign="center")
-        if fieldStyle is None:
-            t = wx.TextCtrl(self, -1, txt, size=fieldSize)
+        
+        if units:
+            subpane = sc.SizedPanel(self, -1)
+            subpane.SetSizerType("horizontal")
+            subpane.SetSizerProps(expand=True)
         else:
-            t = wx.TextCtrl(self, -1, txt, size=fieldSize, style=fieldStyle)
+            subpane = self
+        
+        if fieldStyle is None:
+            t = wx.TextCtrl(subpane, -1, txt, size=fieldSize)
+        else:
+            t = wx.TextCtrl(subpane, -1, txt, size=fieldSize, style=fieldStyle)
 
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
@@ -93,6 +102,12 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             self.fieldSize = t.GetSize()
         
         self.controls[t] = [t]
+        
+        if units:
+            u = wx.StaticText(subpane, -1, units)
+            u.SetSizerProps(valign="center")
+            self.controls[t].append(u)
+        
         if col1 != self:
             self.controls[t].append(col1)
         if name is not None:
@@ -114,7 +129,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*indent)
+            col1.SetSizerProps(valign="center")
+            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
         else:
             col1 = self
         size = size or (self.fieldSize[0]+20, self.fieldSize[1])
@@ -149,7 +165,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*indent)
+            col1.SetSizerProps(valign="center")
+            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
         else:
             col1 = self
         c = wx.CheckBox(col1, -1, checkText)
@@ -185,10 +202,10 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
 
         indent += self.indent
         if indent > 0:
-            subpane = sc.SizedPanel(self, -1)
-            subpane.SetSizerType("horizontal")
-            wx.StaticText(subpane, -1, ' '*indent)
-            c = wx.CheckBox(subpane, -1, checkText)
+            col1 = sc.SizedPanel(self, -1)
+            col1.SetSizerType("horizontal")
+            wx.StaticText(col1, -1, ' '*indent)
+            c = wx.CheckBox(col1, -1, checkText)
         else:
             c = wx.CheckBox(self, -1, checkText)
         c.SetSizerProps(valign="center")
@@ -205,8 +222,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         u.SetSizerProps(valign="center")
         
         self.controls[c] = [t, u]
-        if subpane != self:
-            self.controls[c].append(subpane)
+        if col1 != self:
+            self.controls[c].append(col1)
         
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
@@ -244,7 +261,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*indent)
+            col1.SetSizerProps(valign="center")
+            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
         else:
             col1 = self
         if check:
@@ -300,7 +318,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*indent)
+            col1.SetSizerProps(valign="center")
+            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
         else:
             col1 = self
         if check:
@@ -355,7 +374,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*indent)
+            col1.SetSizerProps(valign="center")
+            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
         else:
             col1 = self
         if check:
@@ -410,7 +430,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*indent)
+            col1.SetSizerProps(valign="center")
+            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
         else:
             col1 = self
         if check:
@@ -444,13 +465,15 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
 
 
     def startGroup(self, label, indent=0):
-        """
+        """ Start a visual 'grouping' of controls, starting with a group
+            title. Items within the group will be indented.
         """
         indent += self.indent
         if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
-            wx.StaticText(col1, -1, ' '*indent)
+            col1.SetSizerProps(valign="center")
+            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
         else:
             col1 = self
             
@@ -516,6 +539,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
 
 
     def getDeviceData(self):
+        # Stub. Subclasses should implement this.
         pass 
 
 
@@ -696,40 +720,38 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
 
 
     def buildUI(self):
-        self.delayCheck = self.addIntField(
-            "Wake After Delay:", "PreRecordDelay", "seconds", 0, (0,86400))
+        self.delayCheck = self.addIntField("Wake After Delay:", 
+            "PreRecordDelay", "seconds", 0, (0,86400))
 
-        self.wakeCheck = self.addDateTimeField(
-            "Wake at specific time:", "WakeTimeUTC")
-        
-        self.useUtcCheck = self.addCheck("UTC Time", 
-            tooltip="If unchecked, the wake time is relative to the current time zone.")
+        self.wakeCheck = self.addDateTimeField("Wake at specific time:", 
+                                               "WakeTimeUTC")
+        self.indent += 1
+        self.useUtcCheck = self.addCheck("UTC Time", tooltip=\
+            "If unchecked, the wake time is relative to the current time zone.")
+        self.indent -= 1
         self.useUtcCheck.SetValue(self.root.useUtc)
         self.makeChild(self.wakeCheck, self.useUtcCheck)
         
-        self.timeCheck = self.addIntField(
-            "Limit recording time to:", "RecordingTime", "seconds", 0, 
-            minmax=(0,86400))
+        self.timeCheck = self.addIntField("Limit recording time to:", 
+            "RecordingTime", "seconds", 0, minmax=(0,86400))
         
         self.rearmCheck = self.addCheck("Re-triggerable", "AutoRearm")
         self.makeChild(self.timeCheck, self.rearmCheck)
         
         self.pressLoCheck = self.addIntField("Pressure Trigger (Low):", 
-                                             units="Pa", minmax=(0,120000),
-                                             value=0)
+            units="Pa", minmax=(0,120000), value=90000)
         self.pressHiCheck = self.addIntField("Pressure Trigger (High):", 
-                                             units="Pa", minmax=(0,120000),
-                                             value=120000)
+            units="Pa", minmax=(0,120000), value=110000)
         self.tempLoCheck = self.addFloatField("Temperature Trigger (Low):", 
-                                          units=u'\xb0C', minmax=(-40.0,80.0),
-                                          value=-40.0)
+            units=u'\xb0C', minmax=(-40.0,80.0), value=-15.0)
         self.tempHiCheck = self.addFloatField("Temperature Trigger (High):", 
-                                          units=u'\xb0C', minmax=(-40.0,80.0),
-                                          value=80.0)
+            units=u'\xb0C', minmax=(-40.0,80.0), value=35.0)
         self.accelLoCheck = self.addFloatField("Accelerometer Trigger (Low):", 
-           units="G", tooltip="The lower trigger limit. Less than 0.")
+            units="G", tooltip="The lower trigger limit. Less than 0.", 
+            value=-5)
         self.accelHiCheck = self.addFloatField("Accelerometer Trigger (High):", 
-           units="G", tooltip="The upper trigger limit. Greater than 0.")
+            units="G", tooltip="The upper trigger limit. Greater than 0.", 
+            value=5)
 
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
@@ -1295,58 +1317,61 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
 
     
     def buildUI(self):
-        self.delayCheck = self.addFloatField(
-            "Delay Before Recording:", "RECORD_DELAY", "seconds", precision=2, 
-            minmax=(0,2**17), tooltip="Seconds to delay before recording. "
-            "Note: This will be rounded to the lowest multiple of 2.")
+        self.delayCheck = self.addIntField("Delay After Button:", 
+            "RECORD_DELAY", "seconds", minmax=(0,2**17), 
+            tooltip="Seconds to delay between pressing the 'record' button "
+            "and the start of recording. Note: This will be rounded to the "
+            "lowest multiple of 2.")
 
         self.wakeCheck = self.addDateTimeField(
             "Wake at specific time:", "ALARM_TIME", 
             tooltip="The date and time at which to start recording. "
             "Note: the year is ignored.")
+        self.indent += 1
         self.useUtcCheck = self.addCheck("Use UTC Time")
+        self.indent -= 1
         self.useUtcCheck.SetValue(self.root.useUtc)
         self.makeChild(self.wakeCheck, self.useUtcCheck)
         
-        self.timeCheck = self.addFloatField(
+        self.timeCheck = self.addIntField(
             "Recording Limit, Time:", "SECONDS_PER_TRIGGER", "seconds", 
-            precision=2, minmax=(0,2**17), tooltip="Recording length. "
+            minmax=(0,2**17), tooltip="Recording length. "
             "Note: This will be rounded to the lowest multiple of 2.")
         
-        self.sampleCountCheck = self.addIntField(
-            "Recording Limit, Samples:", "SAMPLES_PER_TRIGGER", "samples", 
-            minmax=(0,2**16))
+#         self.sampleCountCheck = self.addIntField(
+#             "Recording Limit, Samples:", "SAMPLES_PER_TRIGGER", "samples", 
+#             minmax=(0,2**16))
         
         self.rearmCheck = self.addCheck("Re-triggerable",
             tooltip="Recorder will restart when triggering event re-occurs.")
         
         self.chimeCheck = self.addChoiceField("Trigger at Intervals", 
             choices=self.CHIME_TIMES.values(), tooltip="The frequency at "
-            "which to take recordings.")
-        self.repeatCheck = self.addIntField("Number of Repeats", 'REPEATS', 
+            "which to take recordings.", selected=0)
+        self.repeatCheck = self.addIntField("Limit Number of Recordings", 'REPEATS', 
             minmax=(0,255), tooltip="The number of recordings to make, "
             "in addition to the first.")
         
-        self.startGroup('Accelerometer Triggers')
-#         self.indent = 1
+#         self.startGroup('Accelerometer Triggers')
         self.accelTrigCheck = self.addFloatField("Accelerometer Threshold:", 
             'TRIG_THRESH_ACT', units="g", minmax=(0.0,16.0), precision=0.01, 
             tooltip="The minimum acceleration to trigger recording. "
             "Note: due to noise, 0 may cause undesired operation.")
-        self.xCheck = self.addCheck("X Axis Acceleration Trigger",
+        self.indent += 1
+        self.xCheck = self.addCheck("X Axis Trigger",
             tooltip="Acceleration on X axis will trigger recording.")
-        self.yCheck = self.addCheck("Y Axis Acceleration Trigger",
+        self.yCheck = self.addCheck("Y Axis Trigger",
             tooltip="Acceleration on Y axis will trigger recording.")
-        self.zCheck = self.addCheck("Z Axis Acceleration Trigger",
+        self.zCheck = self.addCheck("Z Axis Trigger",
             tooltip="Acceleration on Z axis will trigger recording.")
-        self.acCheck = self.addCheck("AC Coupled")
+        self.acCheck = self.addCheck("Ignore Gravity")
         self.napCheck = self.addChoiceField("Accel. Check Interval",
               choices=self.NAP_TIMES.values(), selected=0, check=False)
-
+        
         self.makeChild(self.accelTrigCheck, self.xCheck, self.yCheck, self.zCheck, self.acCheck, self.napCheck)
-        self.endGroup()
-#         self.indent = 0
-
+        self.indent -= 1
+#         self.endGroup()
+        
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         self.addButton("Reset to Defaults", wx.ID_DEFAULT, self.OnDefaultsBtn, 
@@ -1461,32 +1486,39 @@ class ClassicOptionsPanel(BaseConfigPanel):
 
 
     def buildUI(self):
-        self.nameField = self.addField("Device Name:", "USERUID_RESERVE", 
+        self.nameField = self.addField("Device Name:", "USER_NAME", 
             tooltip="A custom name for the recorder. Not the same as the "
-                    "volume label. 8 characters max.")
+                    "volume label. 64 characters maximum.")
         self.nameField.SetSizerProps(expand=True)
+
+        noteSize = self.nameField.GetSize()
+        self.noteField = self.addField("Device Notes:", "USER_NOTES",
+            fieldSize=(noteSize[0], noteSize[1]*3), fieldStyle=wx.TE_MULTILINE,
+            tooltip="Custom notes about the recorder (position, user ID, etc.)."
+            " 256 characters maximum.")
+        self.noteField.SetSizerProps(expand=True)
 
         self.addSpacer()
         
         self.samplingCheck = self.addChoiceField("Sampling Frequency:",
-                                                 'BW_RATE_PWR',
-            units="Hz", choices=self.SAMPLE_RATES.values(), 
-            selected=len(self.SAMPLE_RATES)-1, check=False,
-            tooltip="Checking this field overrides the device's default.")
+            'BW_RATE_PWR', "Hz", choices=self.SAMPLE_RATES.values(), 
+            selected=len(self.SAMPLE_RATES)-1, check=False)
         
         self.addSpacer()
         
         self.rtccCheck = self.addCheck("Enable Realtime Clock/Cal.")
+        self.indent += 1
         self.setTimeCheck = self.addCheck("Set RTCC Time/Date", 
            tooltip="Set the device's realtime clock/calendar to the current "
            "system time on save")
         self.setTimeCheck.SetValue(self.root.setTime)
-        self.utcCheck = self.addCheckField("UTC Offset:", "TZ_OFFSET", "Hours", 
+        self.utcCheck = self.addField("UTC Offset:", "TZ_OFFSET", "Hours", 
             str(-time.timezone/60/60), tooltip="The local timezone's offset "
             "from UTC time. Used only for file timestamps.")
         self.tzBtn = self.addButton("Get UTC", -1,  self.OnSetTZ,
             "Fill the UTC Offset field with the offset for the local timezone")
         self.makeChild(self.rtccCheck, self.setTimeCheck, self.utcCheck, self.tzBtn)
+        self.indent -= 1
         
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
@@ -1506,6 +1538,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
         
         if self.info.get('SWREV', 0) < 2:
             self.hideField(self.rtccCheck)
+            self.hideField(self.samplingCheck)
         
         for k,v in self.info.iteritems():
             c = self.fieldMap.get(k, None)
@@ -1548,7 +1581,11 @@ class ClassicOptionsPanel(BaseConfigPanel):
                 data['RTCC_TIME'] = datetime.now()
         else:
             data['RTCC_ENA'] = 0
-
+        
+        # Simple test to update config file version. 
+        if data['SWREV'] > 1:
+            data['CONFIGFILE_VER'] = max(2, data['CONFIGFILE_VER'])
+            
         self.root.setTime = self.setTimeCheck.GetValue()
         return data
 
