@@ -169,7 +169,7 @@ class SimpleUpdater(object):
     """ A simple text-based progress updater.
     """
     
-    def __init__(self, cancelAt=1.0):
+    def __init__(self, cancelAt=1.0, quiet=False):
         """ Constructor.
             @keyword cancelAt: A percentage at which to abort the import. For
                 testing purposes.
@@ -178,7 +178,12 @@ class SimpleUpdater(object):
         self.startTime = None
         self.cancelAt = cancelAt
         self.estSum = None
-        
+        self.quiet = quiet
+    
+    def dump(self, s):
+        if not self.quiet:
+            sys.stdout.write(s)
+    
     def __call__(self, count=0, total=None, percent=None, error=None, 
                  starting=False, done=False):
         if percent >= self.cancelAt:
@@ -192,17 +197,17 @@ class SimpleUpdater(object):
             logger.info("Import completed in %s" % (datetime.now() - self.startTime))
             logger.info("Original estimate was %s" % self.estSum)
         else:
-            sys.stdout.write('\x0d%s samples read' % count)
+            self.dump('\x0d%s samples read' % count)
             if percent is not None:
                 p = int(percent*100)
-                sys.stdout.write(' (%d%%)' % p)
+                self.dump(' (%d%%)' % p)
                 if p > 0 and p < 100:
                     d = ((datetime.now() - self.startTime) / p) * (100-p)
-                    sys.stdout.write(' - est. completion in %s' % d)
+                    self.dump(' - est. completion in %s' % d)
                     if self.estSum is None:
                         self.estSum = d
                 else:
-                    sys.stdout.write(' '*25)
+                    self.dump(' '*25)
             sys.stdout.flush()
     
 

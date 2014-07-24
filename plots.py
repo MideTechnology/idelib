@@ -450,8 +450,9 @@ class PlotCanvas(wx.ScrolledWindow):
         try:
             self._OnPaint(evt)
         except IndexError:
-            # TODO: These can occur on the first plot, but are non-fatal. Fix. 
-            print "index error"
+            # TODO: These can occur on the first plot, but are non-fatal. Fix.
+            # XXX: At least remove this message box! 
+            wx.MessageBox("index error; should be non-fatal but needs to be reported!", 'debugging message')
             return
         except IOError as err:
             msg = "An error occurred while trying to read the recording file."

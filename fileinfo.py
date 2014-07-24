@@ -72,9 +72,11 @@ class ChannelInfoPanel(InfoPanel):
                    (subc.displayRange[0], subc.displayRange[1], subc.units[0]))
                 self.addItem("Nominal Sample Rate:", "%s Hz" % srate)
                 self.addItem("Minimum Value:", 
-                             self.plotLink(cid, subcid, *events.getMin()))
+                             self.plotLink(cid, subcid, *events.getMin()),
+                             escape=False)
                 self.addItem("Maximum Value:", 
-                             self.plotLink(cid, subcid, *events.getMax()))
+                             self.plotLink(cid, subcid, *events.getMax()),
+                             escape=False)
 #                 if mmm:
 #                     self.addItem("Median:", "%.4f" % mmm[1])
                 
@@ -213,7 +215,7 @@ if __name__ == "__main__":
         doc = classic_importer.importFile('test_recordings/data.dat')
     else:
         from mide_ebml import importer
-        doc=importer.importFile(updater=importer.SimpleUpdater(0.25))
+        doc=importer.importFile(updater=importer.SimpleUpdater(0.25, quiet=True))
         
     print "filename: %r" % doc.filename
     print "type: %r" % doc.__class__

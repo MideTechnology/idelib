@@ -16,6 +16,7 @@ Created on Dec 16, 2013
 
 __all__ = ['configureRecorder']
 
+import cgi
 from collections import OrderedDict
 from datetime import datetime
 import string
@@ -1022,16 +1023,22 @@ class InfoPanel(HtmlWindow):
         self.buildUI()
         self.initUI()
 
+    def escape(self, s):
+        return cgi.escape(cleanUnicode(s))
 
-    def addItem(self, k, v):
+    def addItem(self, k, v, escape=True):
         """ Append a labeled info item.
         """
         # Automatically create new table if not already in one.
         if not self._inTable:
             self.html.append(u"<table width='100%'>")
             self._inTable = True
-        k = cleanUnicode(k)
-        v = cleanUnicode(v)
+        if escape:
+            k = self.escape(k)
+            v = self.escape(v)
+        else:
+            k = cleanUnicode(k)
+            v = cleanUnicode(v)
         
         self.html.append(u"<tr><td width='%d%%'>%s</td>" % 
                          (self.column_widths[0],k))
@@ -1047,9 +1054,13 @@ class InfoPanel(HtmlWindow):
             self._inTable = False
 
 
-    def addLabel(self, v, warning=False):
+    def addLabel(self, v, warning=False, escape=True):
         """ Append a label.
         """
+        if escape:
+            v = self.escape(v)
+        else:
+            v = cleanUnicode(v)
         if self._inTable:
             self.html.append(u"</table>")
             self._inTable = False
@@ -1146,15 +1157,18 @@ class InfoPanel(HtmlWindow):
 
 class CalibrationPanel(InfoPanel):
     """ Panel for displaying SSX calibration polynomials. Read-only.
-    
-        @todo: Refactor this to use the new InfoPanel.
     """
     
     def getDeviceData(self):
         PP = PolynomialParser(None)
         self.info = [PP.parse(c) for c in self.data.value]
         
-        
+    def cleanFloat(self, f, places=6):
+        s = (('%%.%df' % places) % f).rstrip('0')
+        if s.endswith('.'):
+            return '%s0' % s
+        return s
+    
     def buildUI(self):
         """
         """
@@ -1171,12 +1185,16 @@ class CalibrationPanel(InfoPanel):
             self.html.append('<ul>')
             self.html.append('<li>%s</li>' % calType)
             if hasattr(cal, 'coefficients'):
-                coeffs = ', '.join(map(lambda x: '%.5f' % x, cal.coefficients))
-                coeffs = '<tt>(%s)</tt>' % coeffs
-                self.html.append('<li>Coefficients: %s</li>' % coeffs)
+                coeffs = ', '.join(map(self.cleanFloat, cal.coefficients))
+                refs = ', '.join(map(self.cleanFloat, cal.references))
+                self.html.append('<li>Coefficients: <tt>%s</tt></li>' % coeffs)
+                self.html.append('<li>Reference(s): <tt>%s</tt></li>' % refs)
+            poly = cal.source.split()[-1]
             self.html.append('<li>Polynomial: <tt>%s</tt></li>' % str(cal))
+            if str(cal) != poly:
+                self.html.append('<li>Polynomial, Reduced: <tt>%s</tt></li>' % poly)
             self.html.append('</ul></p>')
-            
+
         self.html.append("</body></html>")
         self.SetPage(''.join(self.html))
             
@@ -1246,9 +1264,9 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             "Wake at specific time:", "ALARM_TIME", 
             tooltip="The date and time at which to start recording. "
             "Note: the year is ignored.")
-        self.indent += 1
+        self.indent += 2
         self.useUtcCheck = self.addCheck("Use UTC Time")
-        self.indent -= 1
+        self.indent -= 2
         self.useUtcCheck.SetValue(self.root.useUtc)
         self.makeChild(self.wakeCheck, self.useUtcCheck)
         
@@ -1310,7 +1328,9 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
                     other = self.delayCheck
                 else:
                     other = self.wakeCheck
-                other.SetValue(False)
+                    
+                if hasattr(other, 'SetValue'):
+                    other.SetValue(False)
                 self.enableField(other)
 
 
@@ -1334,8 +1354,8 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         self.zCheck.SetValue((trigs & 0b00010000) and True)
         
         trigs = self.info.get('TRIGGER_FLAGS', 0)
-        self.accelTrigCheck.SetValue((trigs[1] & 0b10000000))
-        self.wakeCheck.SetValue((trigs[1] & 0b00001000))
+        self.accelTrigCheck.SetValue((trigs[1] & 0b10000000) and True)
+        self.wakeCheck.SetValue((trigs[1] & 0b00001000) and True)
         
         conf = self.info.get('CONFIG_FLAGS', 0b10000000)
         self.rearmCheck.SetValue((conf & 0b01000000) and True)

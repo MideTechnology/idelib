@@ -1593,7 +1593,9 @@ class Viewer(wx.Frame, MenuMixin):
         """
         """
         if self.dataset:
+            self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
             RecorderInfoDialog.showRecorderInfo(self.dataset)
+            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         
         
 #     def OnPickRecentFile(self, evt):
