@@ -74,7 +74,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
             col1.SetSizerProps(valign="center")
-            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
         else:
             col1 = self
         fieldSize = self.fieldSize if fieldSize is None else fieldSize
@@ -101,7 +102,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if self.fieldSize is None:
             self.fieldSize = t.GetSize()
         
-        self.controls[t] = [t]
+        self.controls[t] = [t, c]
         
         if units:
             u = wx.StaticText(subpane, -1, units)
@@ -109,7 +110,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             self.controls[t].append(u)
         
         if col1 != self:
-            self.controls[t].append(col1)
+            self.controls[t].append(pad)
         if name is not None:
             self.fieldMap[name] = t
             
@@ -130,7 +131,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
             col1.SetSizerProps(valign="center")
-            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
         else:
             col1 = self
         size = size or (self.fieldSize[0]+20, self.fieldSize[1])
@@ -143,7 +145,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         
         self.controls[b] = []
         if col1 != self:
-            self.controls[b].append(col1)
+            self.controls[b].append(pad)
 
         if tooltip is not None:
             b.SetToolTipString(cleanUnicode(tooltip))
@@ -166,7 +168,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
             col1.SetSizerProps(valign="center")
-            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
         else:
             col1 = self
         c = wx.CheckBox(col1, -1, checkText)
@@ -177,7 +180,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             
         self.controls[c] = [None]
         if col1 != self:
-            self.controls[c].append(col1)
+            self.controls[c].append(pad)
         if name is not None:
             self.fieldMap[name] = c
             
@@ -204,7 +207,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if indent > 0:
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType("horizontal")
-            wx.StaticText(col1, -1, ' '*indent)
+            pad = wx.StaticText(col1, -1, ' '*indent)
             c = wx.CheckBox(col1, -1, checkText)
         else:
             c = wx.CheckBox(self, -1, checkText)
@@ -223,7 +226,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         
         self.controls[c] = [t, u]
         if col1 != self:
-            self.controls[c].append(col1)
+            self.controls[c].append(pad)
         
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
@@ -262,7 +265,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
             col1.SetSizerProps(valign="center")
-            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
         else:
             col1 = self
         if check:
@@ -281,6 +285,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         u.SetSizerProps(valign="center")
         
         self.controls[c] = [lf, u]
+        if col1 != self:
+            self.controls[c].append(pad)
         
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
@@ -319,7 +325,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
             col1.SetSizerProps(valign="center")
-            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
         else:
             col1 = self
         if check:
@@ -339,6 +346,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         u.SetSizerProps(valign="center")
         
         self.controls[c] = [lf, u]
+        if col1 != self:
+            self.controls[c].append(pad)
         
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
@@ -375,7 +384,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
             col1.SetSizerProps(valign="center")
-            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
         else:
             col1 = self
         if check:
@@ -398,7 +408,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         
         self.controls[c] = [field, u]
         if col1 != self:
-            self.controls[c].append(col1)
+            self.controls[c].append(pad)
         
         if selected is not None:
             field.SetSelection(int(selected))
@@ -431,7 +441,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             col1 = sc.SizedPanel(self, -1)
             col1.SetSizerType('horizontal')
             col1.SetSizerProps(valign="center")
-            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
         else:
             col1 = self
         if check:
@@ -445,7 +456,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         
         self.controls[c] = [ctrl]
         if col1 != self:
-            self.controls[c].append(col1)
+            self.controls[c].append(pad)
             
         if name is not None:
             self.fieldMap[name] = c
@@ -493,7 +504,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
     
     
     def makeChild(self, parent, *children):
-        """ Set one or more fields as the children of another, related field
+        """ Set one or more fields as the 'children' of another field
             (e.g. individual trigger parameters that should be disabled when
             a main 'use triggers' checkbox is unchecked).
         """
@@ -911,8 +922,8 @@ class OptionsPanel(BaseConfigPanel):
         self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
             tooltip="If checked, data recorder will not apply oversampling.")
         
-        self.utcCheck = self.addIntField("Local UTC Offset:", "UTCOffset", "Hours", 
-            str(-time.timezone/60/60), minmax=(-24,24), 
+        self.utcCheck = self.addIntField("Local UTC Offset:", "UTCOffset", 
+            "Hours", str(-time.timezone/60/60), minmax=(-24,24), 
             tooltip="The local timezone's offset from UTC time. "
             "Used only for file timestamps.")
         
@@ -967,8 +978,8 @@ class OptionsPanel(BaseConfigPanel):
                 self.root.device.setTime()
             except IOError:
                 wx.MessageBox(
-                    "An error occurred when trying to access the device.",
-                    "Set Device Time", parent=self)
+                    "An error occurred when trying to set the recorder's clock.",
+                    "Configuration Error", wx.OK | wx.ICON_ERROR, parent=self)
                 
         self.root.setTime = self.setTimeCheck.GetValue()
         
@@ -1000,6 +1011,8 @@ class InfoPanel(HtmlWindow):
                    'Recorder Serial': lambda x: "SSX%07d" % x
                    }
 
+    column_widths = (50,50)
+
     def __init__(self, *args, **kwargs):
         self.info = kwargs.pop('info', {})
         self.root = kwargs.pop('root', None)
@@ -1017,8 +1030,13 @@ class InfoPanel(HtmlWindow):
         if not self._inTable:
             self.html.append(u"<table width='100%'>")
             self._inTable = True
-        self.html.append(u"<tr><td width='50%%'>%s</td>" % cleanUnicode(k))
-        self.html.append(u"<td width='50%%'><b>%s</b></td></tr>" % cleanUnicode(v))
+        k = cleanUnicode(k)
+        v = cleanUnicode(v)
+        
+        self.html.append(u"<tr><td width='%d%%'>%s</td>" % 
+                         (self.column_widths[0],k))
+        self.html.append(u"<td width='%d%%'><b>%s</b></td></tr>" % 
+                         (self.column_widths[1],v))
 
 
     def closeTable(self):
@@ -1065,7 +1083,11 @@ class InfoPanel(HtmlWindow):
     def buildUI(self):
         self.getDeviceData()
         self.html = [u"<html><body>"]
-        for k,v in self.data.iteritems():
+        if isinstance(self.data, dict):
+            items = self.data.iteritems()
+        else:
+            items = iter(self.data)
+        for k,v in items:
             if k.startswith('_label'):
                 # Treat this like a label
                 self.addLabel(v)
@@ -1122,108 +1144,7 @@ class InfoPanel(HtmlWindow):
 # 
 #===============================================================================
 
-class old_InfoPanel(BaseConfigPanel):
-    """ A generic configuration dialog page showing various read-only properties
-        of a recorder.
-        
-        @cvar field_types: A dictionary pairing field names with a function to
-            prepare the value for display.
-            
-        @todo: Get rid of this after refactoring CalibrationPanel
-    """
-    # Replacement, human-readable field names
-    field_names = {'HwRev': 'Hardware Revision',
-                   'FwRev': 'Firmware Revision',
-                   }
-
-    # Formatters for specific fields. The keys should be the string as
-    # displayed (de-camel-cased or replaced by field_names)
-    field_types = {'Date of Manufacture': datetime.fromtimestamp,
-                   'Hardware Revision': str,
-                   'Firmware Revision': str,
-                   'Recorder Serial': lambda x: "SSX%07d" % x
-                   }
-
-    def __init__(self, *args, **kwargs):
-        self.info = kwargs.pop('info', {})
-        super(old_InfoPanel, self).__init__(*args, **kwargs)
-
-
-    def _fromCamelCase(self, s):
-        """ break a 'camelCase' string into space-separated words.
-        """
-        result = []
-        lastChar = ''
-        for i in range(len(s)):
-            c = s[i]
-            if c.isupper() and lastChar.islower():
-                result.append(' ')
-            result.append(c)
-            lastChar = c
-        return ''.join(result).replace(" Of ", " of ")
-
-
-    def getDeviceData(self):
-        self.data = OrderedDict()
-        for k,v in self.info.iteritems():
-            self.data[self.field_names.get(k, self._fromCamelCase(k))] = v
-
-
-    def buildUI(self):
-        infoColor = wx.Colour(60,60,60)
-        mono = wx.Font(self.GetFont().GetPointSize()+1, wx.MODERN, 
-                            wx.NORMAL, wx.BOLD, False, u'monospace')
-        sc.SizedPanel(self, -1) # Spacer
-        wx.StaticText(self, -1, "All values are read-only"
-                      ).SetForegroundColour("RED")
-        
-        self.text = []
-        
-        for k,v in self.data.iteritems():
-            if k.startswith('_label'):
-                # Treat this like a label
-                sc.SizedPanel(self, -1) # Spacer
-                wx.StaticText(self, -1, v)
-                continue
-            
-            try:
-                if k.startswith('_'):
-                    continue
-                elif k in self.field_types:
-                    v = self.field_types[k](v)
-                elif isinstance(v, (int, long)):
-                    v = "0x%08X" % v
-                else:
-                    v = cleanUnicode(v)
-            except TypeError:
-                v = cleanUnicode(v)
-                
-            t = self.addField('%s:' % k, k, None, v, fieldStyle=wx.TE_READONLY)
-            t.SetSizerProps(expand=True)
-            t.SetFont(mono)
-            t.SetForegroundColour(infoColor)
-            self.text.append("%s: %s" % (k,v))
-    
-        sc.SizedPanel(self, -1) # Spacer
-        copyBtn = wx.Button(self, -1, "Copy to Clipboard")
-        copyBtn.Bind(wx.EVT_BUTTON, self.OnCopy)
-        
-        self.Fit()
-
-    def initUI(self):
-        pass
-
-    def OnCopy(self, evt):
-        data = wx.TextDataObject()
-        data.SetText("\n".join(self.text))
-        if wx.TheClipboard.Open():
-            wx.TheClipboard.SetData(data)
-            wx.TheClipboard.Close()
-        else:
-            wx.MessageBox("Unable to open the clipboard", "Error")
-
-
-class CalibrationPanel(old_InfoPanel):
+class CalibrationPanel(InfoPanel):
     """ Panel for displaying SSX calibration polynomials. Read-only.
     
         @todo: Refactor this to use the new InfoPanel.
@@ -1238,46 +1159,28 @@ class CalibrationPanel(old_InfoPanel):
         """
         """
         self.getDeviceData()
-        self.text = []
-        bold = wx.Font(self.GetFont().GetPointSize(), wx.FONTFAMILY_DEFAULT, 
-                            wx.NORMAL, wx.BOLD, False)
-        infoColor = wx.Colour(60,60,60)
-        mono = wx.Font(self.GetFont().GetPointSize()+1, wx.MODERN, 
-                            wx.NORMAL, wx.BOLD, False, u'monospace')
+        self.html = [u"<html><body>"]
         
-        sc.SizedPanel(self, -1) # Spacer
-        wx.StaticText(self, -1, "All values are read-only"
-                      ).SetForegroundColour("RED")
-                      
         for cal in self.info:
-            calId = cal.id
+            self.html.append("<p><b>Calibration ID %d</b>" % cal.id)
             calType = cal.__class__.__name__
             if hasattr(cal, 'channelId'):
-                s = "Channel %x" % cal.channelId
+                calType += "; references Channel %x" % cal.channelId
                 if hasattr(cal, 'subchannelId'):
-                    s += ", Subchannel %x" % cal.subchannelId
-                calType = "%s; references %s" % (calType, s)
-            wx.StaticText(self, -1, "Calibration ID %x:" % calId).SetFont(bold)
-            wx.StaticText(self, -1, calType).SetFont(bold)
+                    calType += ", Subchannel %d" % cal.subchannelId
+            self.html.append('<ul>')
+            self.html.append('<li>%s</li>' % calType)
+            if hasattr(cal, 'coefficients'):
+                coeffs = ', '.join(map(lambda x: '%.5f' % x, cal.coefficients))
+                coeffs = '<tt>(%s)</tt>' % coeffs
+                self.html.append('<li>Coefficients: %s</li>' % coeffs)
+            self.html.append('<li>Polynomial: <tt>%s</tt></li>' % str(cal))
+            self.html.append('</ul></p>')
             
-            t = self.addField("Polynomial:", None, '', str(cal), 
-                              fieldStyle=wx.TE_READONLY)
-            t.SetForegroundColour(infoColor)
-            t.SetSizerProps(expand=True)
-            t.SetFont(mono)
+        self.html.append("</body></html>")
+        self.SetPage(''.join(self.html))
             
-            self.text.append("Calibration ID %x: %s" % (calId, calType))
-            self.text.append("Polynomial: %s" % str(cal))
-
-        sc.SizedPanel(self, -1) # Spacer
-        copyBtn = wx.Button(self, -1, "Copy to Clipboard")
-        copyBtn.Bind(wx.EVT_BUTTON, self.OnCopy)
         
-        self.Fit()
-
-
-
-
 #===============================================================================
 # Slam Stick Classic configuration panels
 #===============================================================================
@@ -1286,16 +1189,16 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
     """
     """
     CHIME_TIMES = OrderedDict((
-        (0b00000000, '0.5 seconds'),
-        (0b00000100, '1 second'),
-        (0b00001000, '10 seconds'),
-        (0b00001100, '1 minute'),
-        (0b00010000, '10 minutes'),
-        (0b00010100, '1 Hour'),
-        (0b00011000, '1 Day'),
-        (0b00011100, '1 Week'),
-        (0b00100000, '1 Month'),
-        (0b00100100, '1 Year')
+        (0b00000000, 'Every 0.5 seconds'),
+        (0b00000100, 'Every 1 second'),
+        (0b00001000, 'Every 10 seconds'),
+        (0b00001100, 'Every 1 minute'),
+        (0b00010000, 'Every 10 minutes'),
+        (0b00010100, 'Every 1 Hour'),
+        (0b00011000, 'Every 1 Day'),
+        (0b00011100, 'Every 1 Week'),
+        (0b00100000, 'Every 1 Month'),
+        (0b00100100, 'At specified time only')
     ))
     
     NAP_TIMES = OrderedDict((
@@ -1313,16 +1216,32 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             self.data['ALARM_TIME'] = datetime.now()
         
         if not self.root.useUtc:
-            self.data['ALARM_TIME'] = datetime2int(self.data['ALARM_TIME'], -time.timezone)
+            self.data['ALARM_TIME'] = datetime2int(self.data['ALARM_TIME'], 
+                                                   -time.timezone)
 
     
     def buildUI(self):
-        self.delayCheck = self.addIntField("Delay After Button:", 
-            "RECORD_DELAY", "seconds", minmax=(0,2**17), 
+        self.delayCheck = self.addIntField("Delay After Button Press:", 
+            "RECORD_DELAY", "seconds", minmax=(0,2**17), check=False,
             tooltip="Seconds to delay between pressing the 'record' button "
             "and the start of recording. Note: This will be rounded to the "
             "lowest multiple of 2.")
-
+        self.timeCheck = self.addIntField(
+            "Recording Length Limit:", "SECONDS_PER_TRIGGER", "seconds", 
+            minmax=(0,2**17), tooltip="Recording length. "
+            "Note: This will be rounded to the lowest multiple of 2. "
+            "Zero is no limit.")
+        
+#         self.sampleCountCheck = self.addIntField(
+#             "Recording Limit, Samples:", "SAMPLES_PER_TRIGGER", "samples", 
+#             minmax=(0,2**16))
+        
+        self.indent += 1
+        self.rearmCheck = self.addCheck("Re-triggerable",
+            tooltip="Recorder will restart when triggering event re-occurs.")
+        self.indent -= 1
+        
+        self.intGroup = self.startGroup("Interval Trigger")
         self.wakeCheck = self.addDateTimeField(
             "Wake at specific time:", "ALARM_TIME", 
             tooltip="The date and time at which to start recording. "
@@ -1333,26 +1252,18 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         self.useUtcCheck.SetValue(self.root.useUtc)
         self.makeChild(self.wakeCheck, self.useUtcCheck)
         
-        self.timeCheck = self.addIntField(
-            "Recording Limit, Time:", "SECONDS_PER_TRIGGER", "seconds", 
-            minmax=(0,2**17), tooltip="Recording length. "
-            "Note: This will be rounded to the lowest multiple of 2.")
-        
-#         self.sampleCountCheck = self.addIntField(
-#             "Recording Limit, Samples:", "SAMPLES_PER_TRIGGER", "samples", 
-#             minmax=(0,2**16))
-        
-        self.rearmCheck = self.addCheck("Re-triggerable",
-            tooltip="Recorder will restart when triggering event re-occurs.")
-        
         self.chimeCheck = self.addChoiceField("Trigger at Intervals", 
             choices=self.CHIME_TIMES.values(), tooltip="The frequency at "
             "which to take recordings.", selected=0)
-        self.repeatCheck = self.addIntField("Limit Number of Recordings", 'REPEATS', 
-            minmax=(0,255), tooltip="The number of recordings to make, "
-            "in addition to the first.")
+        self.repeatCheck = self.addIntField("Limit Number of Triggers:", 
+            'REPEATS', minmax=(0,255), tooltip="The number of interval-based "
+            "triggers to record, in addition to the first. Does not include "
+            "recordings started by the accelerometer trigger.")
+        self.endGroup()
+        self.makeChild(self.intGroup, self.wakeCheck, self.chimeCheck, 
+                       self.repeatCheck)
         
-#         self.startGroup('Accelerometer Triggers')
+        self.startGroup('Accelerometer Triggers')
         self.accelTrigCheck = self.addFloatField("Accelerometer Threshold:", 
             'TRIG_THRESH_ACT', units="g", minmax=(0.0,16.0), precision=0.01, 
             tooltip="The minimum acceleration to trigger recording. "
@@ -1364,11 +1275,16 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             tooltip="Acceleration on Y axis will trigger recording.")
         self.zCheck = self.addCheck("Z Axis Trigger",
             tooltip="Acceleration on Z axis will trigger recording.")
-        self.acCheck = self.addCheck("Ignore Gravity")
+        self.acCheck = self.addCheck("Ignore Gravity", 
+             tooltip="AC couple the input to trigger on accelerometer changes, "
+             "ignoring the constant 1 G acceleration of Earth's gravity.")
         self.napCheck = self.addChoiceField("Accel. Check Interval",
-              choices=self.NAP_TIMES.values(), selected=0, check=False)
+             choices=self.NAP_TIMES.values(), selected=0, check=False,
+             tooltip="The frequency at which the recorder will check the "
+             "accelerometer trigger. Lower values use less power.")
         
-        self.makeChild(self.accelTrigCheck, self.xCheck, self.yCheck, self.zCheck, self.acCheck, self.napCheck)
+        self.makeChild(self.accelTrigCheck, self.xCheck, self.yCheck, 
+                       self.zCheck, self.acCheck, self.napCheck)
         self.indent -= 1
 #         self.endGroup()
         
@@ -1406,9 +1322,10 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         
         # Hide fields not supported by earlier versions of the firmware
         if self.info.get('SWREV', 0) < 2:
-            self.hideField(self.wakeCheck)
-            self.hideField(self.chimeCheck)
-            self.hideField(self.repeatCheck)
+            self.hideField(self.intGroup)
+#             self.hideField(self.wakeCheck)
+#             self.hideField(self.chimeCheck)
+#             self.hideField(self.repeatCheck)
         
         trigs = self.info.get('TRIG_ACT_INACT_REG', 0)
         self.acCheck.SetValue((trigs & 0b10000000) and True)
@@ -1797,7 +1714,15 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
         setTime = dlg.setTime
         data = dlg.getData()
         if save:
-            dev.saveConfig(data)
+            try:
+                dev.saveConfig(data)
+            except IOError as err:
+                msg = ("An error occurred when trying to update the "
+                       " recorder's configuration data.")
+                if err.errno == 2:
+                    msg += "\nThe recorder appears to have been removed."
+                wx.MessageBox(msg, "Configuration Error", wx.OK | wx.ICON_ERROR,
+                              parent=parent)
         result = data, dlg.setTime, dlg.useUtc, dev
         
     dlg.Destroy()

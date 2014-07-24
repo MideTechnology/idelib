@@ -213,7 +213,7 @@ if __name__ == "__main__":
         doc = classic_importer.importFile('test_recordings/data.dat')
     else:
         from mide_ebml import importer
-        doc=importer.importFile()
+        doc=importer.importFile(updater=importer.SimpleUpdater(0.25))
         
     print "filename: %r" % doc.filename
     print "type: %r" % doc.__class__
