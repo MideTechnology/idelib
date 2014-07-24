@@ -3,6 +3,7 @@ Created on Jul 1, 2014
 
 @author: dstokes
 '''
+import cgi
 from datetime import datetime
 from glob import glob
 import os.path
@@ -69,11 +70,15 @@ class AboutBox(SC.SizedDialog):
     TEMPFILE = os.path.join('ABOUT', 'about_tmp.html')
 
     def makeAboutFile(self):
+        escapedStrings = self.strings.copy()
+        for k in escapedStrings:
+            escapedStrings[k] = cgi.escape(unicode(escapedStrings[k]))
         filename = os.path.join(self.rootDir, self.TEMPFILE)
         if True:#not os.path.exists(filename):
             with open(os.path.join(self.rootDir, self.TEMPLATE), 'rb') as f:
                 with open(filename, 'wb') as out:
-                    out.write(f.read() % self.strings)
+                    template = f.read().replace('%"', '%%"').replace('**','%')
+                    out.write(template % escapedStrings)
         return filename
             
 
