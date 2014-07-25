@@ -1649,25 +1649,51 @@ class ConfigDialog(sc.SizedDialog):
                                       "All files (*.*)|*.*"),
                             style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
         while not done:
-            d = dlg.ShowModal()
-            if d != wx.ID_OK:
-                done = True
-            else:
-                try:
-                    filename = dlg.GetPath()
-                    self.device.importConfig(filename)
-                    for i in range(self.notebook.GetPageCount()):
-                        self.notebook.GetPage(i).initUI()
+            try:
+                d = dlg.ShowModal()
+                if d != wx.ID_OK:
                     done = True
-                except devices.ConfigError:
-                    # TODO: More specific error message (wrong device type
-                    # vs. not a config file
-                    md = wx.MessageBox( 
-                        "The selected file does not appear to be a valid "
-                        "configuration file for this device.", 
-                        "Invalid Configuration", parent=self,
-                        style=wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION) 
-                    done = md == wx.CANCEL
+                else:
+                    try:
+                        filename = dlg.GetPath()
+                        self.device.importConfig(filename)
+                        for i in range(self.notebook.GetPageCount()):
+                            self.notebook.GetPage(i).initUI()
+                        done = True
+                    except devices.ConfigVersionError as err:
+                        # TODO: More specific error message (wrong device type
+                        # vs. not a config file
+                        cname, cvers, dname, dvers = err.args[1]
+                        if cname != dname:
+                            md = wx.MessageBox( 
+                                "The selected file does not appear to be a  "
+                                "valid configuration file for this device.", 
+                                "Invalid Configuration", parent=self,
+                                style=wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION) 
+                            done = md == wx.CANCEL
+                        else:
+                            s = "older" if cvers < dvers else "newer"
+                            md = wx.MessageBox(
+                                 "The selected file was exported from a %s "
+                                 "version of %s.\nImporting it may cause "
+                                 "problems.\n\nImport anyway?" % (s, cname), 
+                                 "Configuration Version Mismatch", parent=self, 
+                                 style=wx.YES_NO | wx.NO_DEFAULT | wx.ICON_EXCLAMATION)
+                            if md == wx.YES:
+                                self.device.importConfig(filename, 
+                                                         allowOlder=True, 
+                                                         allowNewer=True)
+                                done = True
+    
+            except ValueError:
+                # TODO: More specific error message (wrong device type
+                # vs. not a config file
+                md = wx.MessageBox( 
+                    "The selected file does not appear to be a valid "
+                    "configuration file for this device.", 
+                    "Invalid Configuration", parent=self,
+                    style=wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION) 
+                done = md == wx.CANCEL
         dlg.Destroy()
 
     
@@ -1679,7 +1705,7 @@ class ConfigDialog(sc.SizedDialog):
         if dlg.ShowModal() == wx.ID_OK:
             try:
                 self.device.exportConfig(dlg.GetPath(), data=self.getData())
-            except:
+            except NotImplementedError:
                 # TODO: More specific error message
                 wx.MessageBox( 
                     "The configuration data could not be exported to the "
@@ -1720,7 +1746,6 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
     if not dev:
         raise ValueError("Specified path %r does not appear to be a recorder" %\
                          path)
-#     print dev.getInfo()
     dlg = ConfigDialog(parent, -1, "Configure %s (%s)" % (dev.baseName, path), 
                        device=dev, setTime=setTime, useUtc=useUtc)
     

@@ -66,7 +66,7 @@ from plots import PlotSet
 from preference_dialog import PrefsDialog
 from range_dialog import RangeDialog
 from memorydialog import MemoryDialog
-
+import updater
 # Special helper objects and functions
 import devices
 from threaded_file import ThreadAwareFile
@@ -647,6 +647,7 @@ class Viewer(wx.Frame, MenuMixin):
         super(Viewer, self).__init__(*args, **kwargs)
         self._appname = APPNAME
         self._version = __version__
+        self._versionNumbers = VERSION
         
         self.root = self # for consistency with other objects
         self.dataset = None
@@ -1881,8 +1882,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.statusBar.stopProgress(evt.label)
         self.removeOperation(evt.job)
         self.menubar.FindItemById(wx.ID_CANCEL).Enable(False)
-
-
+        
+        
     #===========================================================================
     # Background operation stuff
     #===========================================================================
@@ -2104,8 +2105,8 @@ class Viewer(wx.Frame, MenuMixin):
         
         if closeFile:
             self.closeFile()
- 
-
+         
+    
 #===============================================================================
 # 
 #===============================================================================
@@ -2115,6 +2116,9 @@ class ViewerApp(wx.App):
         Viewer; the app mainly handles global settings like preferences 
         (and the primary functionality inherited from `wx.App`, of course).
     """
+    version = VERSION
+    versionString = __version__
+    
     # Preferences format version: change if a change renders old ones unusable.
     PREFS_VERSION = 0
     defaultPrefsFile = 'ss_lab.cfg'
@@ -2189,6 +2193,10 @@ class ViewerApp(wx.App):
         'showFullPath': True,#False,
         'showUtcTime': True,
         'titleLength': 80,
+
+        'updater.interval': 4,
+        'updater.lastCheck': 0, 
+        'update.version': VERSION,
 
         # WVR/SSX-specific parameters: the hard-coded warning range.        
         'wvr.tempMin': -20.0,
@@ -2405,13 +2413,13 @@ class ViewerApp(wx.App):
         self.prefsFile = kwargs.pop('prefsFile', None)
         self.initialFilename = kwargs.pop('filename', None)
         
+        super(ViewerApp, self).__init__(*args, **kwargs)
+        
+        self.recentFilesMenu = wx.Menu()
         self.viewers = []
         self.changedFiles = True
-        
-        super(ViewerApp, self).__init__(*args, **kwargs)
-        self.recentFilesMenu = wx.Menu()
-        
         self.stdPaths = wx.StandardPaths.Get()
+        
         if self.prefsFile is None:
             self.prefsFile = os.path.join(self.stdPaths.GetUserDataDir(),
                                          self.defaultPrefsFile)
@@ -2423,7 +2431,14 @@ class ViewerApp(wx.App):
         
         if __DEBUG__:
             self.showBetaWarning()
-        
+
+        self.Bind(EVT_UPDATE_AVAILABLE, self.OnUpdateAvailable)
+
+        # XXX: TEST, REMOVE
+        if self.getPref('updater.interval',3) > 0:
+            updater.checkUpdates(self)
+
+
     def createNewView(self, title=None, filename=None):
         """ Create a new viewer window.
         """
@@ -2432,6 +2447,7 @@ class ViewerApp(wx.App):
         viewer = Viewer(None, title=title, app=self, filename=filename)
         self.viewers.append(viewer)
         viewer.Show()
+    
     
     def abbreviateName(self, filename, length=None):
         length = length or self.getPref('titleLength', None)
@@ -2483,6 +2499,11 @@ class ViewerApp(wx.App):
             return
         self.savePrefs(self.prefsFile)
 
+
+    def OnUpdateAvailable(self, evt):
+        wx.MessageBox("New version: %r" % evt.info)
+        
+        
 
 #===============================================================================
 # 

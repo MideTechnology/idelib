@@ -9,7 +9,7 @@ import os.path
 import sys
 
 import wx; wx = wx
-import wx.lib.sized_controls as sc
+import wx.lib.sized_controls as SC
 
 from config_dialog import InfoPanel, CalibrationPanel
 from mide_ebml import util
@@ -92,7 +92,7 @@ class ChannelInfoPanel(InfoPanel):
 # Recorder Info: device data stored in a recording, similar to device info. 
 #===============================================================================
 
-class RecorderInfoDialog(sc.SizedDialog):
+class RecorderInfoDialog(SC.SizedDialog):
     """ Dialog showing the recorder info from a recording file. Self-contained;
         show the dialog via the `showRecorderInfo()` method.
     """

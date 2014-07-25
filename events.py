@@ -20,6 +20,8 @@ from wx.lib.newevent import NewEvent as _NewEvent
 (EvtInitPlots,       EVT_INIT_PLOTS) =_NewEvent()
 (EvtImportError,     EVT_IMPORT_ERROR) =_NewEvent()
 
+(EvtUpdateAvailable, EVT_UPDATE_AVAILABLE) = _NewEvent()
+
 # Not currently used
 # (EvtZoomInH,  EVT_ZOOM_IN_H ) =_NewEvent()
 # (EvtZoomOutH, EVT_ZOOM_OUT_H) =_NewEvent()

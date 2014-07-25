@@ -10,6 +10,7 @@ import calendar
 from collections import OrderedDict
 import ctypes
 from datetime import datetime
+import json
 import os
 import string
 from StringIO import StringIO
@@ -26,6 +27,9 @@ from mide_ebml.classic import config as classic_config
 #===============================================================================
 
 class ConfigError(ValueError):
+    pass
+
+class ConfigVersionError(ConfigError):
     pass
 
 #===============================================================================
@@ -118,6 +122,36 @@ class Recorder(object):
         return info.get(name, default)
 
     
+    @property
+    def name(self):
+        """ The recording device's (user-assigned) name. """
+        if self._name is not None:
+            return self._name
+        userdata = self.getConfig().get('RecorderUserData', {})
+        self._name = userdata.get('RecorderName', '')
+        return self._name
+
+    @property
+    def productName(self):
+        """ The recording device's manufacturer-issued name. """
+        return self.productName
+    
+    @property
+    def serial(self):
+        """ The recorder's manufacturer-issued serial number. """
+        return None
+
+    @property
+    def hardwareVersion(self):
+        return 0
+    
+    @property
+    def firmwareVersion(self):
+        return 0
+    
+    def _configVersion(self):
+        return self.productName, self.firmwareVersion
+    
     def getInfo(self, default=None, refresh=False):
         """ Retrieve a recorder's device information. Subclasses need to
             implement this.
@@ -164,16 +198,18 @@ class Recorder(object):
         if not data:
             raise ConfigError("No configuration data!")
         with open(filename, 'wb') as f:
-            f.write("%s\n" % self.productName)
+            json.dump([self.productName, self.firmwareVersion],f)
+            f.write('\n')
             self._saveConfig(f, data, verify)
             return True
         
         
-    def importConfig(self, filename, update=True):
+    def importConfig(self, filename, update=True, allowOlder=False, 
+                     allowNewer=False):
         """ Read device configuration data from a file. The file must contain
             the device's product name, a newline, and then the data in the
             device's native format. If the product name doesn't match the
-            device's product name an `TypeError` is raised.
+            device's product name a `ConfigVersionError` is raised.
             
             @param filename: The name of the exported config file to import.
             @keyword update: If `True`, the config data is applied to the
@@ -181,16 +217,30 @@ class Recorder(object):
             @return: A dictionary of configuration attributes.
         """
         with open(filename,'rb') as f:
-            pname = f.readline().strip()
-            if pname != self.productName:
-                raise ConfigError("Device mismatch: this is %r, file is %r" % \
-                                (pname, self.productName))
+            cname, cvers = json.loads(f.readline().strip())
+            if cname == self.productName:
+                if cvers < self.firmwareVersion:
+                    good = allowOlder
+                elif cvers > self.firmwareVersion:
+                    good = allowOlder
+                else:
+                    good = True
+            else:
+                good = False
+
+            versions = (cname, cvers, self.productName, self.firmwareVersion)
+            if not good:
+                raise ConfigVersionError(
+                    "Device mismatch: this is %r v.%r, file is %r v.%r" % \
+                    versions, versions)
         
-            config = self._loadConfig(f)
+            config = self._loadConfig(StringIO(f.read()))
+            
         if update:
             self.getConfig().update(config)
         else:
             self._config = config
+        
         return self._config
 
 
@@ -337,11 +387,11 @@ class SlamStickX(Recorder):
 
     @property
     def hardwareVersion(self):
-        return self._getInfoAttr('HwRev', '')
+        return self._getInfoAttr('HwRev', -1)
     
     @property
     def firmwareVersion(self):
-        return self._getInfoAttr('SwRev', '')
+        return self._getInfoAttr('FwRev', -1)
 
     def getAccelRange(self):
         """ Get the range of the device's acceleration measurement.
@@ -408,31 +458,36 @@ class SlamStickX(Recorder):
             f.write(self.TIME_PARSER.pack(t))
         return t
 
-    def importConfig(self, filename, update=True):
-        """ Read device configuration data from a file. The file must contain
-            the device's product name, a newline, and then the data in the
-            device's native format. If the product name doesn't match the
-            device's product name an `TypeError` is raised.
-            
-            @param filename: The name of the exported config file to import.
-            @keyword update: If `True`, the config data is applied to the
-                device. If `False`, it is just imported.
-            @return: A dictionary of configuration attributes.
-        """
-        with open(filename,'rb') as f:
-            pname = f.readline().strip()
-            if pname != self.productName:
-                raise ConfigError("Device mismatch: this is %r, file is %r" % \
-                                (pname, self.productName))
-        
-            # the python-ebml library doesn't respect an initial offset
-            config = self._loadConfig(StringIO(f.read()))
-        if update:
-            self.getConfig().update(config)
-        else:
-            self._config = config
-        return self._config
+#     def importConfig(self, filename, update=True):
+#         """ Read device configuration data from a file. The file must contain
+#             the device's product name, a newline, and then the data in the
+#             device's native format. If the product name doesn't match the
+#             device's product name an `TypeError` is raised.
+#             
+#             @param filename: The name of the exported config file to import.
+#             @keyword update: If `True`, the config data is applied to the
+#                 device. If `False`, it is just imported.
+#             @return: A dictionary of configuration attributes.
+#         """
+#         with open(filename,'rb') as f:
+#             pname = f.readline().strip()
+#             if pname != self.productName:
+#                 raise ConfigError("Device mismatch: this is %r, file is %r" % \
+#                                 (pname, self.productName))
+#         
+#             # the python-ebml library doesn't respect an initial offset
+#             config = self._loadConfig(StringIO(f.read()))
+#         if update:
+#             self.getConfig().update(config)
+#         else:
+#             self._config = config
+#         return self._config
 
+
+    def getDefaults(self):
+        """
+        """
+        
 
         
 #===============================================================================
@@ -604,7 +659,11 @@ class SlamStickClassic(Recorder):
 
 
     def getAccelRange(self):
+        """ Get the range of the device's acceleration measurement.
+        """
+        # Slam Stick Classic only comes in one flavor: 16 G.
         return (-16,16) 
+ 
  
 #===============================================================================
 # 
