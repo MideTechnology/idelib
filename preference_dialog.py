@@ -6,9 +6,13 @@ Created on May 8, 2014
 @author: dstokes
 '''
 
+import time
+
 import wx; wx=wx
 import wx.propgrid as PG
 import wx.lib.sized_controls as SC
+
+from updater import INTERVALS
 
 #===============================================================================
 # 
@@ -78,7 +82,7 @@ class PrefsDialog(SC.SizedDialog):
         self.SetAffirmativeId(wx.ID_SAVE)
         self.SetEscapeId(wx.ID_CANCEL)
         
-        self.SetSize((500,566))
+        self.SetSize((500,586))
         self.SetMinSize((300,200))
         self.SetMaxSize((1000,1000))
 
@@ -137,6 +141,8 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.IntProperty("X Axis Value Precision", "precisionX", value=4))
         _add(PG.IntProperty("Y Axis Value Precision", "precisionY", value=4))
         _add(PG.EnumProperty("Locale", "locale", self.LANG_LABELS))
+        _add(PG.EnumProperty("Automatic Update Check Interval", "updater.interval", 
+                             INTERVALS.values()))
         
         _add(PG.PropertyCategory("Slam Stick X/WVR Special Preferences"))
         temphelp = ("Accelerometer readings when the temperature (Channel "
@@ -160,9 +166,10 @@ class PrefsDialog(SC.SizedDialog):
                 locale = 'LANGUAGE_ENGLISH_US'
             localeIdx = self.LANGUAGES.index(locale)
         else:
-            localeIdx = locale
-            
+            localeIdx = locale    
         prefs['locale'] = localeIdx
+        
+        
         self.pg.SetPropertyValues(prefs)
 
     #===========================================================================
@@ -171,7 +178,12 @@ class PrefsDialog(SC.SizedDialog):
 
     def OnDefaultsButton(self, evt):
         """ Restore the default settings. """
-        self.populateGrid(self.defaultPrefs)
+        # Keep the file history, though
+        hist = self.prefs.get('fileHistory', None)
+        self.prefs = self.defaultPrefs.copy()
+        if hist is not None:
+            self.prefs['fileHistory'] = hist
+        self.populateGrid(self.prefs)
 
 
     def getChangedPrefs(self):
@@ -225,6 +237,6 @@ class PrefsDialog(SC.SizedDialog):
 
 if __name__ == "__main__":
     app = wx.App()
-    d = PrefsDialog(None, -1, "Prefs Test")
+    d = PrefsDialog(None, -1, "Prefs Test", defaultPrefs={'updater.lastCheck': time.time()})
     d.ShowModal()
     app.MainLoop()

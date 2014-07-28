@@ -41,6 +41,7 @@ from datetime import datetime
 import fnmatch
 import json
 import os
+import time
 
 from wx.lib.rcsizer import RowColSizer
 import wx; wx = wx # Workaround for Eclipse code comprehension
@@ -619,6 +620,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_NOMEAN_ALL = wx.NewId()
     ID_DATA_NOMEAN_NONE = wx.NewId()
     ID_DATA_WARNINGS = wx.NewId()
+    ID_HELP_CHECK_UPDATES = wx.NewId()
 
     ID_DEBUG_SUBMENU = wx.NewId()
     ID_DEBUG_SAVEPREFS = wx.NewId()
@@ -858,6 +860,9 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
                          "About %s %s..." % (APPNAME, __version__), "", 
                          self.OnHelpAboutMenu)
+        helpMenu.AppendSeparator()
+        self.addMenuItem(helpMenu, self.ID_HELP_CHECK_UPDATES,
+                         "Check for Updates", "", self.OnAboutCheckUpdates)
         if __DEBUG__:
             helpMenu.AppendSeparator()
             debugMenu = wx.Menu()
@@ -932,6 +937,7 @@ class Viewer(wx.Frame, MenuMixin):
         # There are fewer of them than menus that are disabled.
         menus = (wx.ID_NEW, wx.ID_OPEN, wx.ID_CLOSE, wx.ID_EXIT, 
                  self.ID_DEVICE_CONFIG, wx.ID_ABOUT, wx.ID_PREFERENCES,
+                 self.ID_HELP_CHECK_UPDATES,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, self.ID_DEBUG0,
                  self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4)
         
@@ -1029,7 +1035,9 @@ class Viewer(wx.Frame, MenuMixin):
                         "local hard drive.\n\nContinue anyway?", 
                         "Performance Warning", icon=wx.ICON_INFORMATION, 
                         pref="saveOnRecorderWarning", saveNo=False)
-                    done = a == wx.ID_YES
+                    done = a == wx.YES
+                else:
+                    done = True
             else:
                 done = True
         dlg.Destroy()
@@ -1652,6 +1660,13 @@ class Viewer(wx.Frame, MenuMixin):
         })
     
 
+    def OnAboutCheckUpdates(self, evt):
+        """
+        """
+        self.app.setPref('updater.version', self.app.version)
+        updater.startCheckUpdatesThread(self.app, force=True)
+        
+
     def OnDontRemoveMeanCheck(self, evt):
         """
         """ 
@@ -2185,8 +2200,8 @@ class ViewerApp(wx.App):
                           "BLACK",
                           "BLUE VIOLET"],
 
-        'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
 #         'locale': 'English_United States.1252', # Python's locale name string
+        'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'openOnStart': True,
         'showDebugChannels': __DEBUG__,
@@ -2194,9 +2209,10 @@ class ViewerApp(wx.App):
         'showUtcTime': True,
         'titleLength': 80,
 
-        'updater.interval': 4,
-        'updater.lastCheck': 0, 
-        'update.version': VERSION,
+        # Automatic update checking
+        'updater.interval': 3, # see updater.INTERVALS
+        'updater.lastCheck': 0, # Unix timestamp of the last version check
+        'updater.version': VERSION, # The last version check
 
         # WVR/SSX-specific parameters: the hard-coded warning range.        
         'wvr.tempMin': -20.0,
@@ -2219,9 +2235,11 @@ class ViewerApp(wx.App):
         
         filename = os.path.realpath(os.path.expanduser(filename))
         logger.debug(u"Loading preferences from %r" % filename)
-#         if __DEBUG__: print "loaded prefs from %r" % filename
 
         prefs = {}
+        if not os.path.exists(filename):
+            # No preferences file; probably the first run for this machine/user
+            return {}
         try:
             with open(filename) as f:
                 prefs = json.load(f)
@@ -2243,9 +2261,12 @@ class ViewerApp(wx.App):
                         if isinstance(prefs[k], list):
                             for i in xrange(len(prefs[k])):
                                 prefs[k][i] = tuple2color(prefs[k][i])
-        except IOError:# as err:
-            # TODO: Report a problem, or just ignore?
-            pass
+        except (ValueError, IOError):# as err:
+            # Import problem. Bad file will raise IOError; bad JSON, ValueError.
+            wx.MessageBox("An error occurred while trying to read the "
+                          "preferences file.\nDefault settings will be used.",
+                          "Preferences File Error")
+            return {}
         
         # Load recent file history
 #         hist = prefs.setdefault('fileHistory', {}).setdefault('import', [])
@@ -2436,7 +2457,8 @@ class ViewerApp(wx.App):
 
         # XXX: TEST, REMOVE
         if self.getPref('updater.interval',3) > 0:
-            updater.checkUpdates(self)
+#             updater.checkUpdates(self)
+            updater.startCheckUpdatesThread(self)
 
 
     def createNewView(self, title=None, filename=None):
@@ -2487,12 +2509,17 @@ class ViewerApp(wx.App):
             
 
     def OnInit(self):
+        """ Post-Constructor initialization event handler. 
+        """
         self.SetAppName(APPNAME)
+        self.SetAppDisplayName(APPNAME)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         return True
 
 
     def OnClose(self, evt):
+        """ Handle Quit. 
+        """
         evt.Skip()
         if len(self.viewers) > 0:
             evt.Veto()
@@ -2501,7 +2528,36 @@ class ViewerApp(wx.App):
 
 
     def OnUpdateAvailable(self, evt):
-        wx.MessageBox("New version: %r" % evt.info)
+        """ Handle events generated by the automatic version checker.
+        """
+        topWindow = None
+        for v in self.viewers:
+            if v.HasFocus:
+                topWindow = v
+                
+        if evt.version is False:
+            self.setPref('updater.lastCheck', time.time())
+            if getattr(evt, 'showNoUpdate', False):
+                wx.MessageBox(
+                    "Your copy of %s is up to date." % self.GetAppDisplayName(), 
+                    "Update Check", parent=topWindow, 
+                    style=wx.ICON_INFORMATION | wx.OK)
+            return
+        topWindow = None
+        for v in self.viewers:
+            if v.HasFocus:
+                topWindow = v
+        dlg = updater.UpdateDialog(topWindow, -1, root=self, 
+                                   newVersion=evt.version, 
+                                   changelog=evt.changelog)
+        response = dlg.ShowModal()
+        if response != wx.CANCEL:
+            self.setPref('updater.lastCheck', time.time())
+            if response == dlg.ID_SKIP:
+                self.setPref('updater.version', evt.version)
+        
+        dlg.Destroy()
+        
         
         
 
