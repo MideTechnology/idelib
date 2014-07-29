@@ -51,7 +51,7 @@ import images
 
 # Custom controls, events and base classes
 from base import ViewerPanel, MenuMixin
-from common import StatusBar
+from common import StatusBar, cleanUnicode
 from events import *
 from timeline import TimelineCtrl, TimeNavigatorCtrl
 
@@ -862,7 +862,7 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnHelpAboutMenu)
         helpMenu.AppendSeparator()
         self.addMenuItem(helpMenu, self.ID_HELP_CHECK_UPDATES,
-                         "Check for Updates", "", self.OnAboutCheckUpdates)
+                         "Check for Updates", "", self.OnHelpCheckUpdates)
         if __DEBUG__:
             helpMenu.AppendSeparator()
             debugMenu = wx.Menu()
@@ -1014,15 +1014,17 @@ class Viewer(wx.Frame, MenuMixin):
                     style=wx.SAVE|wx.OVERWRITE_PROMPT, deviceWarning=True):
         """ Wrapper for showing getting the name of an output file.
         """
+        exportTypes = "Comma Separated Values (*.csv)|*.csv"
+
         defaults = self.getDefaultExport() if defaults is None else defaults
-        types = self.app.getPref('exportTypes') if types is None else types
+        types = exportTypes if types is None else types
         
         defaultDir, defaultFile = defaults
         done = False
         
         dlg = wx.FileDialog(self, message=message, 
                             defaultDir=defaultDir,  defaultFile=defaultFile, 
-                            wildcard='|'.join(types), style=style)
+                            wildcard=types, style=style)
         
         while not done:
             filename = None
@@ -1567,7 +1569,7 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
 
     def OnFileNewMenu(self, evt):
-        """
+        """ Handle File->New Viewer Window menu events.
         """
         self.app.createNewView()
 
@@ -1575,12 +1577,17 @@ class Viewer(wx.Frame, MenuMixin):
     def OnFileOpenMenu(self, evt):
         """ Handle File->Open menu events.
         """
+        importTypes = ("All Recording Types (*.ide, *.dat)|*.ide;*.dat|"
+                        "MIDE Data File (*.ide)|*.ide|"
+                        "Slam Stick Classic (*.dat)|*.dat|"
+                        "All files (*.*)|*.*")
+
         defaultDir, defaultFile = self.getDefaultImport()
         dlg = wx.FileDialog(self, 
                             message="Choose a file",
                             defaultDir=defaultDir, 
                             defaultFile=defaultFile,
-                            wildcard="|".join(self.app.getPref('importTypes')),
+                            wildcard=importTypes,
                             style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
@@ -1660,7 +1667,7 @@ class Viewer(wx.Frame, MenuMixin):
         })
     
 
-    def OnAboutCheckUpdates(self, evt):
+    def OnHelpCheckUpdates(self, evt):
         """
         """
         self.app.setPref('updater.version', self.app.version)
@@ -1879,7 +1886,6 @@ class Viewer(wx.Frame, MenuMixin):
                                      evt.cancellable, evt.cancelEnabled)
         if evt.cancellable:
             self.menubar.FindItemById(wx.ID_CANCEL).Enable(True)
-
 
 
     def OnProgressUpdate(self, evt):
@@ -2140,13 +2146,7 @@ class ViewerApp(wx.App):
     
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
-        'importTypes': ["All Recording Types (*.ide, *.dat)|*.ide;*.dat",
-                        "MIDE Data File (*.ide)|*.ide", 
-                        "Slam Stick Classic (*.dat)|*.dat",
-                        "All files (*.*)|*.*"],
         'defaultFilename': '', #'data.dat',
-        'defaultImportType': 1,
-        'exportTypes': ["Comma Separated Values (*.csv)|*.csv"],
         'fileHistory': {},
         'fileHistorySize': 10,
         
@@ -2280,15 +2280,6 @@ class ViewerApp(wx.App):
     def savePrefs(self, filename=None):
         """ Write custom preferences to a file.
         """
-        filename = filename or self.prefsFile
-        try:
-            path = os.path.split(filename)[0]
-            if not os.path.exists(path):
-                os.makedirs(path)
-        except IOError:
-            # TODO: use a fall-back directory? Might not be fatal?
-            pass
-
         def _fix(d):
             if isinstance(d, (list,tuple)):
                 d = [_fix(x) for x in d]
@@ -2301,8 +2292,12 @@ class ViewerApp(wx.App):
         
         prefs = self.prefs.copy()
         prefs['prefsVersion'] = self.PREFS_VERSION
+        filename = filename or self.prefsFile
         
         try:
+            path = os.path.split(filename)[0]
+            if not os.path.exists(path):
+                os.makedirs(path)
             with open(filename, 'w') as f:
                 json.dump(_fix(prefs), f, indent=2, sort_keys=True)
         except IOError:# as err:
@@ -2453,11 +2448,10 @@ class ViewerApp(wx.App):
         if __DEBUG__:
             self.showBetaWarning()
 
+        # Automatic Update Check
         self.Bind(EVT_UPDATE_AVAILABLE, self.OnUpdateAvailable)
-
-        # XXX: TEST, REMOVE
+        
         if self.getPref('updater.interval',3) > 0:
-#             updater.checkUpdates(self)
             updater.startCheckUpdatesThread(self)
 
 
@@ -2507,7 +2501,10 @@ class ViewerApp(wx.App):
             title = u"%s (%d)" % (basetitle, i)
         return title 
             
-
+    #===========================================================================
+    # Event handlers
+    #===========================================================================
+    
     def OnInit(self):
         """ Post-Constructor initialization event handler. 
         """
@@ -2530,36 +2527,36 @@ class ViewerApp(wx.App):
     def OnUpdateAvailable(self, evt):
         """ Handle events generated by the automatic version checker.
         """
+        # Hack to make sure the dialog is in the foreground; sometimes a problem
+        # if the check took particularly long. May no longer be required.
         topWindow = None
         for v in self.viewers:
             if v.HasFocus:
                 topWindow = v
-                
+        
         if evt.version is False:
             self.setPref('updater.lastCheck', time.time())
             if getattr(evt, 'showNoUpdate', False):
+                # User-initiated checks show a dialog if there's no new version
                 wx.MessageBox(
                     "Your copy of %s is up to date." % self.GetAppDisplayName(), 
                     "Update Check", parent=topWindow, 
                     style=wx.ICON_INFORMATION | wx.OK)
             return
-        topWindow = None
-        for v in self.viewers:
-            if v.HasFocus:
-                topWindow = v
+        
         dlg = updater.UpdateDialog(topWindow, -1, root=self, 
                                    newVersion=evt.version, 
                                    changelog=evt.changelog)
         response = dlg.ShowModal()
+        
+        # Dialog itself handles all the browser stuff, just handle preferences
         if response != wx.CANCEL:
             self.setPref('updater.lastCheck', time.time())
             if response == dlg.ID_SKIP:
                 self.setPref('updater.version', evt.version)
         
         dlg.Destroy()
-        
-        
-        
+
 
 #===============================================================================
 # 
@@ -2567,7 +2564,9 @@ class ViewerApp(wx.App):
 
 if __name__ == '__main__':
     import argparse
-    desc = "%s v%s \n%s" % (APPNAME, __version__, __copyright__)
+    # Windows shell does not like high Unicode characters; remove the dot.
+    desc = cleanUnicode("%s v%s \n%s" % (APPNAME.replace(u'\u2022', ' '), 
+                                         __version__, __copyright__))
     parser = argparse.ArgumentParser(description=desc)
     parser.add_argument('-f', '--filename',  
                         help="The name of the MIDE (*.IDE) file to import")

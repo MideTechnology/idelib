@@ -272,7 +272,7 @@ class FFTView(wx.Frame, MenuMixin):
         dlg = wx.FileDialog(self, 
             message="Export CSV...", 
 #             defaultDir=defaultDir,  defaultFile=defaultFile, 
-            wildcard='|'.join(self.root.app.getPref('exportTypes')), 
+            wildcard = "Comma Separated Values (*.csv)|*.csv",
             style=wx.SAVE|wx.OVERWRITE_PROMPT)
         
         if dlg.ShowModal() == wx.ID_OK:
@@ -736,7 +736,7 @@ class SpectrogramView(FFTView):
         while baseName is None:
             dlg = wx.FileDialog(self, 
                 message="Export CSV(s)...", 
-                wildcard='|'.join(self.root.app.getPref('exportTypes')), 
+                wildcard="Comma Separated Values (*.csv)|*.csv", 
                 style=wx.SAVE)
             
             if dlg.ShowModal() == wx.ID_OK:

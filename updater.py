@@ -2,6 +2,22 @@
 System for retrieving the latest version number from the web and prompting the
 user to update if a newer version is available.
 
+The latest version information is provided in JSON, either as a feed or as a
+static file.
+
+    {
+        "version": [1, 2, 3],
+        "changelog": "http://example.mide.com/change_log.html"
+    }
+
+`version` is a list of version numbers: major, minor, and micro (build). It
+can be longer or shorter, but two is the expected minimum length. When compared
+to the app's `version` attribute, the shorter form takes precedence (the extra
+digits are ignored).
+
+`changelog` is the URL of the release notes for the new version. It is displayed
+in the new version announcement dialog.
+
 Created on Jul 25, 2014
 
 @author: dstokes
@@ -120,8 +136,16 @@ class UpdateDialog(SC.SizedDialog):
         downloadBtn = wx.Button(buttonpane, self.ID_DOWNLOAD, 
                                 "Go to download page")
         downloadBtn.SetSizerProps(halign="right")
-        wx.Button(buttonpane, wx.ID_CANCEL).SetSizerProps(halign="right")
+        cancelBtn = wx.Button(buttonpane, wx.ID_CANCEL)
+        cancelBtn.SetSizerProps(halign="right")
         
+        cancelBtn.SetToolTipString(
+            "Ignore this update for now. You will be notified again the next "
+            "time the update check is run.")
+        skipBtn.SetToolTipString(
+            'Do not receive further automatic notifications for version %s. '
+            'It will still appear in user-initiated version checks '
+            '(Help menu, Check for Updates sub-menu).' % newVers)
         downloadBtn.SetToolTipString('Open "%s" in your default browser' % \
                                      urllib.splitquery(self.downloadUrl)[0])
         
@@ -129,7 +153,6 @@ class UpdateDialog(SC.SizedDialog):
         downloadBtn.Bind(wx.EVT_BUTTON, self.OnDownload)
 
         minWidth = header.GetSize()[0] + 40
-        minHeight = 300 if self.changeUrl else -1
         self.SetMinSize((minWidth,300))
 
         self.Fit()
@@ -205,7 +228,7 @@ def checkUpdates(app, force=False, url=UPDATER_URL):
     lastUpdate = app.getPref('updater.lastCheck', 0)
     interval = app.getPref('updater.interval', 3)
     currentVersion = app.getPref('updater.version', None)
-    
+    time.sleep(5)
     if force or currentVersion is None or isNewer(app.version, currentVersion):
         currentVersion = app.version
     if force or isTimeToCheck(lastUpdate, interval):
