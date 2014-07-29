@@ -458,37 +458,6 @@ class SlamStickX(Recorder):
             f.write(self.TIME_PARSER.pack(t))
         return t
 
-#     def importConfig(self, filename, update=True):
-#         """ Read device configuration data from a file. The file must contain
-#             the device's product name, a newline, and then the data in the
-#             device's native format. If the product name doesn't match the
-#             device's product name an `TypeError` is raised.
-#             
-#             @param filename: The name of the exported config file to import.
-#             @keyword update: If `True`, the config data is applied to the
-#                 device. If `False`, it is just imported.
-#             @return: A dictionary of configuration attributes.
-#         """
-#         with open(filename,'rb') as f:
-#             pname = f.readline().strip()
-#             if pname != self.productName:
-#                 raise ConfigError("Device mismatch: this is %r, file is %r" % \
-#                                 (pname, self.productName))
-#         
-#             # the python-ebml library doesn't respect an initial offset
-#             config = self._loadConfig(StringIO(f.read()))
-#         if update:
-#             self.getConfig().update(config)
-#         else:
-#             self._config = config
-#         return self._config
-
-
-    def getDefaults(self):
-        """
-        """
-        
-
         
 #===============================================================================
 

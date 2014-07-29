@@ -547,10 +547,14 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         """ Create the UI elements within the page. Every subclass should
             implement this. Called after __init__() and before initUI().
         """
+        # Stub. Subclasses should implement this.
         pass
 
 
     def getDeviceData(self):
+        """ Retrieve the device's configuration data (or other info) and 
+            put it in the `data` attribute.
+        """
         # Stub. Subclasses should implement this.
         pass 
 
@@ -625,7 +629,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             field = self.controls[checkbox][0]
             if field is None:
                 return
-            field.Enable()
+            field.Enable(checked)
             if isinstance(field, wx.TextCtrl):
                 if isinstance(value, float):
                     value = "%.3f" % value
@@ -724,6 +728,9 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
     """
 
     def getDeviceData(self):
+        """ Retrieve the device's configuration data (or other info) and 
+            put it in the `data` attribute.
+        """
         cfg= self.root.device.getConfig()
         self.data = cfg.get('SSXTriggerConfiguration', {})
         if not self.root.useUtc and 'WakeTimeUTC' in self.data:
@@ -732,6 +739,9 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
 
 
     def buildUI(self):
+        """ Create the UI elements within the page. Every subclass should
+            implement this. Called after __init__() and before initUI().
+        """
         self.delayCheck = self.addIntField("Wake After Delay:", 
             "PreRecordDelay", "seconds", 0, (0,86400))
 
@@ -773,8 +783,24 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
 
         self.Fit()
         
+        
     def OnDefaultsBtn(self, evt):
-        wx.MessageBox("TODO: Implement SSX trigger defaults", "Not Implemented (Yet)")
+        """
+        """
+        # NOTE: This hard-coding is really not very pretty. Revise later.
+        self.setField(self.delayCheck, 0, False)
+        self.setField(self.timeCheck, 0, False)
+        self.setField(self.wakeCheck, datetime.now(), False)
+        self.useUtcCheck.SetValue(True)
+        self.rearmCheck.SetValue(False)
+
+        self.setField(self.pressLoCheck, 90000, False)
+        self.setField(self.pressHiCheck, 110000, False)
+        self.setField(self.tempLoCheck, -15, False)
+        self.setField(self.tempHiCheck, 35, False)
+        self.setField(self.accelLoCheck, -5, False)
+        self.setField(self.accelHiCheck, 5, False)
+        
 
 
     def OnCheckChanged(self, evt):
@@ -893,6 +919,9 @@ class OptionsPanel(BaseConfigPanel):
 
  
     def buildUI(self):
+        """ Create the UI elements within the page. Every subclass should
+            implement this. Called after __init__() and before initUI().
+        """
         self.nameField = self.addField("Device Name:", "RecorderName", 
             tooltip="A custom name for the recorder. Not the same as the "
                     "volume label.")
@@ -945,7 +974,13 @@ class OptionsPanel(BaseConfigPanel):
 
         
     def OnDefaultsBtn(self, evt):
-        wx.MessageBox("TODO: Implement SSX general defaults", "Not Implemented (Yet)")
+        """ Reset the device's fields to their factory default.
+        """
+        # NOTE: This hard-coding is really not very pretty. Revise later.
+        self.setField(self.samplingCheck, 5000, False)
+        self.setField(self.aaCornerCheck, 1000, False)
+        self.aaCheck.SetValue(False)
+        self.OnSetTZ(None)
 
     
     def OnSetTZ(self, event):
@@ -1092,6 +1127,9 @@ class InfoPanel(HtmlWindow):
 
 
     def buildUI(self):
+        """ Create the UI elements within the page. Every subclass should
+            implement this. Called after __init__() and before initUI().
+        """
         self.getDeviceData()
         self.html = [u"<html><body>"]
         if isinstance(self.data, dict):
@@ -1170,7 +1208,8 @@ class CalibrationPanel(InfoPanel):
         return s
     
     def buildUI(self):
-        """
+        """ Create the UI elements within the page. Every subclass should
+            implement this. Called after __init__() and before initUI().
         """
         self.getDeviceData()
         self.html = [u"<html><body>"]
@@ -1239,6 +1278,9 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
 
     
     def buildUI(self):
+        """ Create the UI elements within the page. Every subclass should
+            implement this. Called after __init__() and before initUI().
+        """
         self.delayCheck = self.addIntField("Delay After Button Press:", 
             "RECORD_DELAY", "seconds", minmax=(0,2**17), check=False,
             tooltip="Seconds to delay between pressing the 'record' button "
@@ -1423,6 +1465,9 @@ class ClassicOptionsPanel(BaseConfigPanel):
 
 
     def buildUI(self):
+        """ Create the UI elements within the page. Every subclass should
+            implement this. Called after __init__() and before initUI().
+        """
         self.nameField = self.addField("Device Name:", "USER_NAME", 
             tooltip="A custom name for the recorder. Not the same as the "
                     "volume label. 64 characters maximum.")
@@ -1678,7 +1723,7 @@ class ConfigDialog(sc.SizedDialog):
                                  "version of %s.\nImporting it may cause "
                                  "problems.\n\nImport anyway?" % (s, cname), 
                                  "Configuration Version Mismatch", parent=self, 
-                                 style=wx.YES_NO | wx.NO_DEFAULT | wx.ICON_EXCLAMATION)
+                                 style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
                             if md == wx.YES:
                                 self.device.importConfig(filename, 
                                                          allowOlder=True, 
