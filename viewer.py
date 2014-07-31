@@ -857,6 +857,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         helpMenu = wx.Menu()
         # TODO: (cross-platform) Move 'about' to right place for MacOS X.
+        # May not be an issue; the library may do it.
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
                          "About %s %s..." % (APPNAME, __version__), "", 
                          self.OnHelpAboutMenu)
@@ -1671,7 +1672,7 @@ class Viewer(wx.Frame, MenuMixin):
         """
         """
         self.app.setPref('updater.version', self.app.version)
-        updater.startCheckUpdatesThread(self.app, force=True)
+        updater.startCheckUpdatesThread(self.app, force=True, quiet=False)
         
 
     def OnDontRemoveMeanCheck(self, evt):
@@ -2534,9 +2535,29 @@ class ViewerApp(wx.App):
             if v.HasFocus:
                 topWindow = v
         
-        if evt.version is False:
+        if evt.error:
+            # do logging of error
+            logger.error('Update check at %s failed: %s' % 
+                         (evt.url, evt.response))
+            if not evt.quiet:
+                if isinstance(evt.response, IOError):
+                    msg = ("%s could connect to the web to check for updates "
+                           "due to a network error.\n\nTry again later." 
+                           % self.AppDisplayName)
+                else:
+                    msg = ("%s was unable to retrieve the update information "
+                           "from the Mide web site.\n\nPlease try again later." 
+                           % self.AppDisplayName)
+                if evt.url:
+                    url = str(url).split('?')[0]
+                    msg = "%s\n\nVersion information URL: %s" % (msg, evt.url)
+                wx.MessageBox(msg, "Check for Updates", parent=topWindow, 
+                              style=wx.ICON_EXCLAMATION | wx.OK)
+            return
+
+        if not evt.newVersion:
             self.setPref('updater.lastCheck', time.time())
-            if getattr(evt, 'showNoUpdate', False):
+            if not evt.quiet:
                 # User-initiated checks show a dialog if there's no new version
                 wx.MessageBox(
                     "Your copy of %s is up to date." % self.GetAppDisplayName(), 
@@ -2544,9 +2565,7 @@ class ViewerApp(wx.App):
                     style=wx.ICON_INFORMATION | wx.OK)
             return
         
-        dlg = updater.UpdateDialog(topWindow, -1, root=self, 
-                                   newVersion=evt.version, 
-                                   changelog=evt.changelog)
+        dlg = updater.UpdateDialog(topWindow, -1, updaterEvent=evt)
         response = dlg.ShowModal()
         
         # Dialog itself handles all the browser stuff, just handle preferences

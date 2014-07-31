@@ -18,22 +18,6 @@ wx = wx
 # 
 #===============================================================================
 
-# NOTE: This text is now in the file ABOUT/about.html
-ABOUT = u"""<html><body><a name="top"/><center>
-<img src="%(rootDir)s/ssl.jpg"/><br/>
-Version %(version)s (build %(buildNumber)s), %(buildTime)s<br/>
-<p>Copyright (c) 2014 <a href="http://www.mide.com/">Mid\xe9 Technology</a></p>
-</center>
-<p>
-This is the <i>new and improved</i> about box. It is here that the software should be described in 
-detail. There's a lot of room for whatever. Even images and <a href="#below">relative links</a>: this is a basic HTML
-renderer (nothing fancy). Party like it's 1997!</p>
-<p>
-</p><hr/>
-<p>Another example image:</p><center><img src="%(rootDir)s/ssx.jpg"/><br/><a href="http://www.mide.com/products/slamstick/slam-stick-lab-software.php">Slam Stick Lab Home</a></center>
-<a name="below">Relative link target.</a><br/><a href="#top">Go to Top</a>
-</body></html>""" 
-
 LICENSES = u"""<html><body>
 <a name='top'><h1>Third-Party Licenses</h1></a>
 %s
@@ -77,14 +61,18 @@ class AboutBox(SC.SizedDialog):
         if True:#not os.path.exists(filename):
             with open(os.path.join(self.rootDir, self.TEMPLATE), 'rb') as f:
                 with open(filename, 'wb') as out:
-                    template = f.read().replace('%"', '%%"').replace('**','%')
+                    # A bit of gymnastics to convert the HTML to a formatting
+                    # template. This is to allow for editing w/ normal HTML
+                    # tools. Variable names are stored Django template style.
+                    template = f.read().replace('%"', '%%"')
+                    template = template.replace('{ ', '{').replace(' }', '}')
+                    template = template.replace('{{','%(').replace('}}',')s')
                     out.write(template % escapedStrings)
         return filename
             
 
     def getLicenses(self):
         """ Retrieve and collate all license documents.
-            @todo: Be smarter about word wrap, maybe test line lengths?
         """
         result = [None]
         links = ["<ul>"]

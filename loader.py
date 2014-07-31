@@ -71,8 +71,6 @@ class Loader(Job):
         """ Create a nice message string containing the total import count
             and (optionally) the estimated time remaining.
         """
-        # BUG: wxPython is forcing the use of their own wx.Locale, but it 
-        # doesn't format numbers correctly. Figure out why.
         countStr = locale.format("%d", count, grouping=True)
 
         if est is None or est.seconds < 2:

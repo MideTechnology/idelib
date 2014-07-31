@@ -637,9 +637,7 @@ class SpectrogramView(FFTView):
                                           recordingTime=recordingTime)
 
             self.images = self.makePlots(self.data)
-#             self.images = self.makePlots_NoLog(self.data)
             self.makeLineList()
-            # TODO: DO SOMETHING WITH THE DRAWINGS
             for i in range(len(self.subchannels)):#ch in subchIds:
                 self.addPlot(i)
 

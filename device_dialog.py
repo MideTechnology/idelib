@@ -1,8 +1,6 @@
 """
 Dialog for selecting recording devices.
 
-@todo: Use the new `Recorder` classes everywhere! 
-
 """
 
 import sys

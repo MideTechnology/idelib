@@ -4,7 +4,8 @@ used by multiple files.
 
 Created on Dec 31, 2013
 
-@todo: Consolidate the date/time conversion; make sure it's consistent.
+@todo: Rewrite the whole date/time conversion stuff to be more time zone
+    friendly. It's kind of a mess.
 
 @author: dstokes
 '''
@@ -113,6 +114,9 @@ def makeWxDateTime(val):
         val = datetime2int(val)
     if isinstance(val, (int, float)):
         return wx.DateTimeFromTimeT(float(val))
+    elif isinstance(val, wx.DateTime):
+        return wx.DateTimeFromDateTime(val)
+    # Assume a struct_time or other sequence:
     return wx.DateTimeFromDMY(val[2], val[1]-1, val[0], val[3], val[4], val[5])
         
 

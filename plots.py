@@ -1165,7 +1165,7 @@ class WarningRangeIndicator(object):
             for r in self.source.getRange(*hRange):
                 # TODO: Apply transforms to DC in PlotCanvas.OnPaint() before
                 # calling WarningRangeIndicator.draw(), eliminating these
-                # offsets and scalars.
+                # offsets and scalars. May break rubber-band zooming, though.
                 x = (r[0]-hRange[0])*hScale
                 y = 0
                 w = ((r[1]-hRange[0])*hScale)-x if r[1] != -1 else size[0]*scale

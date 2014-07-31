@@ -3,15 +3,16 @@ The UI for configuring a recorder. Ultimately, the set of tabs will be
 determined by the recorder type, and will feature tabs specific to that 
 recorder. Since there's only the two SSX variants, this is not urgent.
 
+@author: dstokes
+
 @todo: I use `info` and `data` for the recorder info at different times;
     if there's no specific reason, unify. It may be vestigial.
+    
 @todo: Move device-specific components to different modules;
     This could be the start of a sort of extensible architecture.
+    
 @todo: `BaseConfigPanel` is a bit over-engineered; clean it up.
 
-Created on Dec 16, 2013
-
-@author: dstokes
 '''
 
 __all__ = ['configureRecorder']
@@ -28,7 +29,7 @@ import wx; wx = wx
 
 from mide_ebml import util
 from mide_ebml.parsers import PolynomialParser
-from common import datetime2int, makeWxDateTime, DateTimeCtrl, cleanUnicode
+from common import makeWxDateTime, DateTimeCtrl, cleanUnicode
 import devices
 
 
@@ -697,7 +698,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             if isinstance(fields[0], wx.Choice):
                 val = fields[0].GetStrings()[fields[0].GetCurrentSelection()]
             elif isinstance(fields[0], DateTimeCtrl):
-                val = datetime2int(fields[0].GetValue())
+                val = fields[0].GetValue().GetTicks()
             elif fields[0] is None:
                 val = 1
             else:
@@ -733,8 +734,8 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         """
         cfg= self.root.device.getConfig()
         self.data = cfg.get('SSXTriggerConfiguration', {})
-        if not self.root.useUtc and 'WakeTimeUTC' in self.data:
-            self.data['WakeTimeUTC'] -= time.timezone
+#         if 'WakeTimeUTC' in self.data and self.root.useUtc:
+#             self.data['WakeTimeUTC'] -= time.timezone - (time.daylight * 60 * 60)
             
 
 
@@ -781,17 +782,21 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                        "Reset the trigger configuration to the default values. "
                        "Does not change other tabs.")
 
+        self.useUtcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
+
         self.Fit()
         
-        
+    
     def OnDefaultsBtn(self, evt):
-        """
+        """ Apply the factory defaults, both in the field values and whether the
+            field is checked.
         """
         # NOTE: This hard-coding is really not very pretty. Revise later.
         self.setField(self.delayCheck, 0, False)
         self.setField(self.timeCheck, 0, False)
-        self.setField(self.wakeCheck, datetime.now(), False)
-        self.useUtcCheck.SetValue(True)
+        self.setField(self.wakeCheck, wx.DateTime_Now().GetTicks(), False)
+        self.useUtcCheck.SetValue(False)
+        self.useUtcCheck.Enable(False)
         self.rearmCheck.SetValue(False)
 
         self.setField(self.pressLoCheck, 90000, False)
@@ -802,8 +807,9 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.setField(self.accelHiCheck, 5, False)
         
 
-
     def OnCheckChanged(self, evt):
+        """ General checkbox event handler.
+        """
         cb = evt.EventObject
         if cb in self.controls:
             self.enableField(cb)
@@ -817,6 +823,17 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                 self.enableField(other)
 
 
+    def OnUtcCheck(self, evt):
+        """ Update the displayed time with or without the local UTC offset.
+        """
+        dt = self.controls[self.wakeCheck][0].GetValue()
+        if evt is True or evt.IsChecked():
+            t = dt.ToTimezone(dt.UTC).GetTicks()
+        else:
+            t = dt.FromTimezone(dt.UTC).GetTicks()
+        self.setField(self.wakeCheck, t)
+
+    
     def initUI(self):
         """
         """
@@ -848,6 +865,9 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                     # Temperature
                     self.setField(self.tempLoCheck, low)
                     self.setField(self.tempHiCheck, high)
+        
+        if self.root.useUtc:
+            self.OnUtcCheck(True)
         
         self.enableAll()
 
@@ -888,9 +908,10 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             data['Trigger'] = triggers
         
         self.root.useUtc = self.useUtcCheck.GetValue()
-        if not self.root.useUtc and 'WakeTimeUTC' in data:
-            data['WakeTimeUTC'] += time.timezone
-            
+        if self.root.useUtc and 'WakeTimeUTC' in data:
+            t = self.controls[self.wakeCheck][0].GetValue()
+            data['WakeTimeUTC'] = t.FromUTC().GetTicks()
+        
         if data:
             return OrderedDict(SSXTriggerConfiguration=data)
         
@@ -955,7 +976,7 @@ class OptionsPanel(BaseConfigPanel):
         self.utcCheck = self.addIntField("Local UTC Offset:", "UTCOffset", 
             "Hours", str(-time.timezone/60/60), minmax=(-24,24), 
             tooltip="The local timezone's offset from UTC time. "
-            "Used only for file timestamps.")
+            "Used primarily for file timestamps.")
         
         self.tzBtn = self.addButton("Get Local UTC Offset", -1,  self.OnSetTZ,
             "Fill the UTC Offset field with the offset for the local timezone.")
@@ -984,7 +1005,7 @@ class OptionsPanel(BaseConfigPanel):
 
     
     def OnSetTZ(self, event):
-        val = int(-time.timezone / 60 / 60)
+        val = int(-time.timezone / 60 / 60) + time.daylight
         self.setField(self.utcCheck, val)
 
 
@@ -1272,9 +1293,9 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         if self.data['ALARM_TIME'] == 0:
             self.data['ALARM_TIME'] = datetime.now()
         
-        if not self.root.useUtc:
-            self.data['ALARM_TIME'] = datetime2int(self.data['ALARM_TIME'], 
-                                                   -time.timezone)
+#         if not self.root.useUtc:
+#             self.data['ALARM_TIME'] = datetime2int(self.data['ALARM_TIME'], 
+#                                                    -time.timezone+time.daylight)
 
     
     def buildUI(self):
@@ -1354,6 +1375,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
                        "Reset the trigger configuration to the default values. "
                        "Does not change other tabs.")
 
+        self.useUtcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
         self.Fit()
 
         
@@ -1374,6 +1396,17 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
                 if hasattr(other, 'SetValue'):
                     other.SetValue(False)
                 self.enableField(other)
+
+
+    def OnUtcCheck(self, evt):
+        """ Update the displayed time with or without the local UTC offset.
+        """
+        dt = self.controls[self.wakeCheck][0].GetValue()
+        if evt is True or evt.IsChecked():
+            t = dt.ToTimezone(dt.UTC).GetTicks()
+        else:
+            t = dt.FromTimezone(dt.UTC).GetTicks()
+        self.setField(self.wakeCheck, t)
 
 
     def initUI(self):
@@ -1407,6 +1440,8 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
                       checked=(self.info.get('CHIME_EN',0) & 1) and True)
         
         self.enableAll()
+        if self.root.useUtc:
+            self.OnUtcCheck(True)
     
     
     def getData(self):
@@ -1437,9 +1472,13 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             data['CHIME_EN'] = 1
             data['ROLLPERIOD'] = self.CHIME_TIMES.keys()[self.controls[self.chimeCheck][0].GetSelection()]
         
+#         self.root.useUtc = self.useUtcCheck.GetValue()
+#         if self.wakeCheck.GetValue() and not self.root.useUtc:
+#             data['ALARM_TIME'] += time.timezone
         self.root.useUtc = self.useUtcCheck.GetValue()
-        if self.wakeCheck.GetValue() and not self.root.useUtc:
-            data['ALARM_TIME'] += time.timezone
+        if self.root.useUtc and self.wakeCheck.GetValue():
+            t = self.controls[self.wakeCheck][0].GetValue()
+            data['ALARM_TIME'] = t.FromUTC().GetTicks()
 
         return data
     
@@ -1510,7 +1549,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
 
         self.Fit()
 
-        
+
     def OnDefaultsBtn(self, evt):
         wx.MessageBox("TODO: Implement Classic defaults", "Not Implemented (Yet)")
 
@@ -1540,7 +1579,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
 
 
     def OnSetTZ(self, event):
-        val = str(-time.timezone / 60 / 60)
+        val = str((-time.timezone / 60 / 60) + time.daylight)
         self.setField(self.utcCheck, val)
 
 
@@ -1827,4 +1866,4 @@ if __name__ == "__main__":
     app = wx.App()
     recorderPath = devices.getDeviceList()[-1]
     print "configureRecorder() returned %r" % (configureRecorder(recorderPath, 
-                                                                 useUtc=False),)
+                                                                 useUtc=True),)
