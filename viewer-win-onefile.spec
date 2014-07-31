@@ -22,6 +22,7 @@ except Exception:
 
 try:
     from mide_ebml.dataset import __DEBUG__
+    __DEBUG__ = False
 except ImportError:
     logging.logger.warning("*** Could not get __DEBUG__ from mide_ebml.dataset!")
     __DEBUG__ = False

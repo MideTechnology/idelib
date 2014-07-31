@@ -33,6 +33,7 @@ Created on Jul 25, 2014
 from collections import OrderedDict
 # import httplib
 import json
+import os.path
 import threading
 import time
 import urllib
@@ -41,14 +42,18 @@ import wx; wx = wx
 import wx.lib.sized_controls as SC
 import wx.html
 
+from mide_ebml.dataset import __DEBUG__
+
 from events import EvtUpdateAvailable
 
 #===============================================================================
 # 
 #===============================================================================
 
-UPDATER_URL = "http://10.0.0.166/slam_stick_lab.json"
-CHANGELOG_URL = "http://10.0.0.166/slam_stick_lab_changelog.html"
+# UPDATER_BASE = "http://10.0.0.166/"
+UPDATER_BASE = "http://www.mide.com/software/updates/"
+UPDATER_URL = os.path.join(UPDATER_BASE, "slam_stick_lab.json")
+CHANGELOG_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_changelog.html")
 DOWNLOAD_URL = "http://www.mide.com/products/slamstick/slam-stick-lab-software.php?utm_source=Slam-Stick-X-Data-Logger&utm_medium=Device&utm_content=Link-to-software-page-from-Device-About-Us&utm_campaign=Slam-Stick-X"
 
 INTERVALS = OrderedDict(enumerate(("Never check automatically",
@@ -57,23 +62,51 @@ INTERVALS = OrderedDict(enumerate(("Never check automatically",
                                    "Daily",
                                    "Every time the app is launched")))
 
+#===============================================================================
+# 
+#===============================================================================
+
+def isSafeUrl(url):
+    """ Simple function to determine if a URL is (moderately) safe, i.e. is
+        at mide.com. 
+    """
+    if not url:
+        return False
+    
+    if __DEBUG__:
+        return True
+    
+    prot, addr = urllib.splittype(url)
+    if not prot.lower().startswith(('http','ftp')):
+        return False
+    host, _path = urllib.splithost(addr)
+    if not host.lower().endswith('mide.com'):
+        return False
+    return True
+
+
+def hijackWarning(parent, url):
+    """ Display a warning message if a URL doesn't point to a Mide server.
+    """
+    if url and len(url) > 40:
+        url = urllib.splitquery(url)[0]
+    d = wx.MessageBox(
+        "The link's URL does not appear to direct to a Mid\xe9 website.\n\n"
+        "This is likely intentional, but it could be an indication that the "
+        "update server has been compromised.\n\nURL: %s\n\n"
+        "Open the link anyway?" % url, "Possible Link Hijack", parent=parent,
+        style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
+    return d == wx.YES
 
 #===============================================================================
 # 
 #===============================================================================
 
 class SaferHtmlWindow(wx.html.HtmlWindow):
+    """ A slightly safer HTML window, which checks all URLs before opening
+        them. File and relative named anchor links open in the same window,
+        all others in the default browser.
     """
-    """
-#     def isValidURL(self, url):
-#         """
-#         """
-#         scheme, url = urllib.splittype(url)
-#         if scheme is None:
-#             return False
-#         host, _path = urllib.splithost(url)
-#         return host.endswith('mide.com')
-    
         
     def OnLinkClicked(self, linkinfo):
         """ Handle a link click. Does not permit outgoing links (for security).
@@ -81,9 +114,14 @@ class SaferHtmlWindow(wx.html.HtmlWindow):
         href = linkinfo.GetHref()
         if href.startswith(('file:', '#')):
             super(SaferHtmlWindow, self).OnLinkClicked(linkinfo)
-#         elif self.isValidURL(href):
-#             # Launch external web browser
-#             wx.LaunchDefaultBrowser(href)
+            return
+        
+        if not isSafeUrl(href):
+            if not hijackWarning(self, href):
+                return
+            
+        # Launch external web browser
+        wx.LaunchDefaultBrowser(href)
 
 
 #===============================================================================
@@ -113,7 +151,10 @@ class UpdateDialog(SC.SizedDialog):
         kwargs.setdefault('style', wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         super(UpdateDialog, self).__init__(*args, **kwargs)
         
-        self.newVersion = '.'.join(map(str,self.updaterEvent.newVersion))
+        vers = self.updaterEvent.newVersion
+        if len(vers) > 2 and isinstance(vers[-1], (float, int)):
+            vers = vers[:-1] + [str(vers[-1]).rjust(4,'0')]
+        self.newVersion = '.'.join(map(str,vers))
         self.changeUrl = self.updaterEvent.changelog
         self.downloadUrl = self.updaterEvent.url
         
@@ -121,34 +162,42 @@ class UpdateDialog(SC.SizedDialog):
         if not title:
             self.SetTitle("Update Check")
         
-        pane = self.GetContentsPane()
-        pane.SetSizerType("vertical")
-        
-        titleFont = self.GetFont().Bold()
-        titleFont.SetPointSize(int(titleFont.GetPointSize() * 1.5))
         appname = getattr(self.root, 'AppDisplayName', u"(Slam\u2022Stick Lab)")
         headerText = ("A new version of %s (%s) is available!" % 
                       (appname, self.newVersion))
+
+        pane = self.GetContentsPane()
+        pane.SetSizerType("vertical")
+        
         header = wx.StaticText(pane, -1, headerText)
-        header.SetFont(titleFont)
+        header.SetFont(self.GetFont().Bold().Scaled(1.5))
         minWidth = header.GetSize()[0] + 40
         
+        # The headline and the current version display
         boldFont = self.GetFont().Bold()
         s1 = SC.SizedPanel(pane, -1)
         s1.SetSizerType("horizontal", {'hgap':10, 'vgap':10})
         wx.StaticText(s1, -1, "Your version:")
         wx.StaticText(s1, -1, self.root.versionString).SetFont(boldFont)
         
+        # The changelog display
         self.html = SaferHtmlWindow(pane, -1)
         self.html.SetSizerProps(expand=True, proportion=-1)
-        if self.changeUrl:
+        if isSafeUrl(self.changeUrl):
             self.html.LoadPage(self.changeUrl)
         else:
             self.html.SetPage(self.DEFAULT_CHANGELIST)
         
-#         wx.StaticText(pane, -1, "You can change the frequency "
-#                       "of update checks in the Preferences Dialog.")
+        # Little link to the preferences dialog, for convenience.
+        s2 = SC.SizedPanel(pane, -1)
+        s2.SetSizerType('horizontal')
+        wx.StaticText(s2, -1, "You can change the frequency "
+                      "of update checks in the")
+        prefTxt = wx.StaticText(s2, -1, "Preferences Dialog.")
+        prefTxt.SetForegroundColour("BLUE")
+        prefTxt.Bind(wx.EVT_LEFT_UP, self.OnPrefClick)
         
+        # Bottom button pane
         buttonpane = SC.SizedPanel(pane, -1)
         buttonpane.SetSizerType("horizontal")
         buttonpane.SetSizerProps(expand=True)
@@ -178,10 +227,18 @@ class UpdateDialog(SC.SizedDialog):
         self.Fit()
         self.SetFocus()
 
+
+    def OnPrefClick(self, evt):
+        self.root.editPrefs()
+
     def OnSkip(self, evt):
         self.EndModal(self.ID_SKIP)
     
     def OnDownload(self, evt):
+        if not isSafeUrl(self.downloadUrl):
+            if not hijackWarning(self, self.downloadUrl):
+                self.EndModal(wx.ID_CANCEL)
+                return
         wx.LaunchDefaultBrowser(self.downloadUrl)
         self.EndModal(self.ID_DOWNLOAD)
     
@@ -296,39 +353,41 @@ def startCheckUpdatesThread(*args, **kwargs):
 # 
 #===============================================================================
 
-# if __name__ == '__main__':
-#     
-#     class FakeApp(wx.App):
-#         PREFS = {
-#                  }
-#         version = (9,9,10)
-#         versionString = '.'.join(map(str, version))
-#         def getPref(self, v, default):
-#             return self.PREFS.get(v, default)
-#         def setPref(self, v, val):
-#             self.PREFS[v] = val
-#     
-#     app = FakeApp()
-#     
-#     code, response = getLatestVersion()
-#     print "app.version = %r" % (app.version,)
-#     print "getLatestVersion returned code %r, version %r" % (code, response)
-#     if response is None:
-#         print "Error occurred; aborting"
-#         exit(1)
-# 
-#     vers = response.get('version', None)
-#     changeUrl = response.get('changelog', None)
-#     print "zipped: %r" % (zip(app.version, vers),)
-#     t = 1406471411.0
-#     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t,2))
-#     t = time.time()
-#     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
-#     print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
-#     
-#     evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
-#     
-# #     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
-#     dlg = UpdateDialog(None, -1, updaterEvent=evt)
-#     dlg.ShowModal()
-#     dlg.Destroy()
+if __name__ == '__main__':
+     
+    class FakeApp(wx.App):
+        PREFS = {
+                 }
+        version = (9,9,10)
+        versionString = '.'.join(map(str, version))
+        def getPref(self, v, default):
+            return self.PREFS.get(v, default)
+        def setPref(self, v, val):
+            self.PREFS[v] = val
+        def editPrefs(self, evt=None):
+            print "edit prefs"
+     
+    app = FakeApp()
+     
+    code, response = getLatestVersion()
+    print "app.version = %r" % (app.version,)
+    print "getLatestVersion returned code %r, version %r" % (code, response)
+    if response is None:
+        print "Error occurred; aborting"
+        exit(1)
+ 
+    vers = response.get('version', None)
+    changeUrl = response.get('changelog', None)
+    print "zipped: %r" % (zip(app.version, vers),)
+    t = 1406471411.0
+    print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t,2))
+    t = time.time()
+    print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
+    print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
+     
+    evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
+     
+#     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
+    dlg = UpdateDialog(None, -1, updaterEvent=evt)
+    dlg.ShowModal()
+    dlg.Destroy()

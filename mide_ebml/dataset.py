@@ -23,7 +23,6 @@ Created on Sep 26, 2013
 
 '''
 
-
 from collections import namedtuple, Iterable
 from datetime import datetime
 from itertools import imap, izip

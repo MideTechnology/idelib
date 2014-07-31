@@ -62,9 +62,9 @@ class AboutBox(SC.SizedDialog):
             with open(os.path.join(self.rootDir, self.TEMPLATE), 'rb') as f:
                 with open(filename, 'wb') as out:
                     # A bit of gymnastics to convert the HTML to a formatting
-                    # template. This is to allow for editing w/ normal HTML
+                    # template. This is to leverage existing, standard HTML
                     # tools. Variable names are stored Django template style.
-                    template = f.read().replace('%"', '%%"')
+                    template = f.read().replace('%', '%%')
                     template = template.replace('{ ', '{').replace(' }', '}')
                     template = template.replace('{{','%(').replace('}}',')s')
                     out.write(template % escapedStrings)
@@ -102,6 +102,7 @@ class AboutBox(SC.SizedDialog):
         
         self.rootDir = os.path.split(__file__)[0]
         self.strings['rootDir'] = os.path.join(self.rootDir, 'ABOUT')
+        self.strings.setdefault('lastUpdateCheck', 'Never')
         
         pane = self.GetContentsPane()
         notebook = wx.Notebook(pane, -1)#, style=wx.NB_BOTTOM)
@@ -109,7 +110,6 @@ class AboutBox(SC.SizedDialog):
         
         about = HtmlWindow(notebook, -1)
         notebook.AddPage(about, self.strings.get('appName'))
-#         about.SetPage(ABOUT % self.strings)
         about.LoadFile(self.makeAboutFile())
         
         licenses = HtmlWindow(notebook, -1)
@@ -135,11 +135,12 @@ class AboutBox(SC.SizedDialog):
 #===============================================================================
 
 if __name__ == '__main__':
+    import time
     from viewer import APPNAME
     app = wx.App()
     AboutBox.showDialog(None, strings={
            'appName': APPNAME, #"Slam Stick About Box",
            'version': 1.0, 
            'buildNumber': 999, 
-           'buildTime': datetime.now(),
+           'buildTime': datetime.fromtimestamp(int(time.time())),
         })

@@ -1660,11 +1660,17 @@ class Viewer(wx.Frame, MenuMixin):
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.
         """
+        updateCheck = self.app.getPref('updater.lastCheck', None)
+        if isinstance(updateCheck, (int, float)):
+            updateCheck = datetime.fromtimestamp(int(updateCheck))
+        else:
+            updateCheck = "Never"
         AboutBox.showDialog(self, -1, strings={
            'appName': APPNAME,
            'version': __version__, 
            'buildNumber': BUILD_NUMBER, 
            'buildTime': datetime.fromtimestamp(BUILD_TIME),
+           'lastUpdateCheck': updateCheck,
         })
     
 
@@ -2429,6 +2435,7 @@ class ViewerApp(wx.App):
     def __init__(self, *args, **kwargs):
         self.prefsFile = kwargs.pop('prefsFile', None)
         self.initialFilename = kwargs.pop('filename', None)
+        clean = kwargs.pop('clean', False)
         
         super(ViewerApp, self).__init__(*args, **kwargs)
         
@@ -2440,7 +2447,12 @@ class ViewerApp(wx.App):
         if self.prefsFile is None:
             self.prefsFile = os.path.join(self.stdPaths.GetUserDataDir(),
                                          self.defaultPrefsFile)
-        self.prefs = self.loadPrefs(self.prefsFile)
+
+        if not clean:
+            self.prefs = self.loadPrefs(self.prefsFile)
+        else:
+            self.prefs = {}
+            
 #         locale.setlocale(locale.LC_ALL, str(self.getPref('locale')))
         localeName = self.getPref('locale', 'LANGUAGE_ENGLISH_US')
         self.locale = wx.Locale(getattr(wx, localeName, wx.LANGUAGE_ENGLISH_US))
@@ -2549,8 +2561,8 @@ class ViewerApp(wx.App):
                            "from the Mide web site.\n\nPlease try again later." 
                            % self.AppDisplayName)
                 if evt.url:
-                    url = str(url).split('?')[0]
-                    msg = "%s\n\nVersion information URL: %s" % (msg, evt.url)
+                    url = str(evt.url).split('?')[0]
+                    msg = "%s\n\nVersion information URL: %s" % (msg, url)
                 wx.MessageBox(msg, "Check for Updates", parent=topWindow, 
                               style=wx.ICON_EXCLAMATION | wx.OK)
             return
@@ -2591,6 +2603,8 @@ if __name__ == '__main__':
                         help="The name of the MIDE (*.IDE) file to import")
     parser.add_argument("-p", "--prefsFile", 
                         help="An alternate preferences file")
+    parser.add_argument('-c', '--clean', action="store_true",
+                        help="Reset all preferences to their defaults")
     args = parser.parse_args()
 
     app = ViewerApp(**vars(args))
