@@ -4,6 +4,9 @@ Created on Dec 18, 2013
 @todo: Re-implement spectrum to reduce dependencies and make spec.welch()
     work using just the window instead of the full-size array.
 
+@todo: Run in another thread in order to keep the GUI from appearing to have
+    hung. Possibly `wx.lib.delayedresult`?
+
 @author: dstokes
 '''
 
@@ -123,7 +126,7 @@ class FFTView(wx.Frame, MenuMixin):
     def initMenus(self):
         """ Install and set up the main menu.
         """
-        helpText = "%s Help" % self.FULLNAME
+#         helpText = "%s Help" % self.FULLNAME
         
         self.menubar = wx.MenuBar()
         fileMenu = wx.Menu()
@@ -316,8 +319,8 @@ class FFTView(wx.Frame, MenuMixin):
             return False
     
     
-    def OnHelp(self, evt):
-        self.root.ask("FFT Help not implemented!", "TODO:", style=wx.OK, parent=self)
+#     def OnHelp(self, evt):
+#         self.root.ask("FFT Help not implemented!", "TODO:", style=wx.OK, parent=self)
 
 
     def OnClose(self, evt):

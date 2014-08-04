@@ -42,6 +42,7 @@ import wx; wx = wx
 import wx.lib.sized_controls as SC
 import wx.html
 
+from logger import logger
 from mide_ebml.dataset import __DEBUG__
 
 from events import EvtUpdateAvailable
@@ -121,6 +122,7 @@ class SaferHtmlWindow(wx.html.HtmlWindow):
                 return
             
         # Launch external web browser
+        logger.info('Updater HTML window opened %s' % href)
         wx.LaunchDefaultBrowser(href)
 
 
@@ -353,41 +355,41 @@ def startCheckUpdatesThread(*args, **kwargs):
 # 
 #===============================================================================
 
-if __name__ == '__main__':
-     
-    class FakeApp(wx.App):
-        PREFS = {
-                 }
-        version = (9,9,10)
-        versionString = '.'.join(map(str, version))
-        def getPref(self, v, default):
-            return self.PREFS.get(v, default)
-        def setPref(self, v, val):
-            self.PREFS[v] = val
-        def editPrefs(self, evt=None):
-            print "edit prefs"
-     
-    app = FakeApp()
-     
-    code, response = getLatestVersion()
-    print "app.version = %r" % (app.version,)
-    print "getLatestVersion returned code %r, version %r" % (code, response)
-    if response is None:
-        print "Error occurred; aborting"
-        exit(1)
- 
-    vers = response.get('version', None)
-    changeUrl = response.get('changelog', None)
-    print "zipped: %r" % (zip(app.version, vers),)
-    t = 1406471411.0
-    print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t,2))
-    t = time.time()
-    print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
-    print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
-     
-    evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
-     
-#     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
-    dlg = UpdateDialog(None, -1, updaterEvent=evt)
-    dlg.ShowModal()
-    dlg.Destroy()
+# if __name__ == '__main__':
+#      
+#     class FakeApp(wx.App):
+#         PREFS = {
+#                  }
+#         version = (9,9,10)
+#         versionString = '.'.join(map(str, version))
+#         def getPref(self, v, default):
+#             return self.PREFS.get(v, default)
+#         def setPref(self, v, val):
+#             self.PREFS[v] = val
+#         def editPrefs(self, evt=None):
+#             print "edit prefs"
+#      
+#     app = FakeApp()
+#      
+#     code, response = getLatestVersion()
+#     print "app.version = %r" % (app.version,)
+#     print "getLatestVersion returned code %r, version %r" % (code, response)
+#     if response is None:
+#         print "Error occurred; aborting"
+#         exit(1)
+#  
+#     vers = response.get('version', None)
+#     changeUrl = response.get('changelog', None)
+#     print "zipped: %r" % (zip(app.version, vers),)
+#     t = 1406471411.0
+#     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t,2))
+#     t = time.time()
+#     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
+#     print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
+#      
+#     evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
+#      
+# #     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
+#     dlg = UpdateDialog(None, -1, updaterEvent=evt)
+#     dlg.ShowModal()
+#     dlg.Destroy()

@@ -21,7 +21,7 @@ from mide_ebml.dataset import __DEBUG__
 from dev_build_number import BUILD_NUMBER, BUILD_TIME
 
 APPNAME = u"Slam\u2022Stick Lab"
-VERSION = (0, 1)
+VERSION = (1, 0)
 
 __version__= '.'.join(map(str, VERSION)) #"0.1"
 __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
@@ -29,9 +29,7 @@ __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 if __DEBUG__:
     __version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
 
-import logging
-logger = logging.getLogger('SlamStickLab')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+from logger import logger
 
 #===============================================================================
 # 
@@ -2337,7 +2335,7 @@ class ViewerApp(wx.App):
 
 
     def getRecentFiles(self, category="import"):
-        """
+        """ Retrieve the list of recent files within a category.
         """
         hist = self.prefs.setdefault('fileHistory', {})
         return hist.setdefault(category, [])

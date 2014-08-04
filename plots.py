@@ -14,8 +14,11 @@ from base import ViewerPanel
 from common import expandRange, mapRange
 from timeline import VerticalScaleCtrl
 
+from logger import logger
+
 # The actual data-related stuff
 import mide_ebml
+
 
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
@@ -451,14 +454,15 @@ class PlotCanvas(wx.ScrolledWindow):
             self._OnPaint(evt)
         except IndexError:
             # TODO: These can occur on the first plot, but are non-fatal. Fix.
-            # XXX: At least remove this message box! 
-            wx.MessageBox("index error; should be non-fatal but needs to be reported!", 'debugging message')
-            return
+            # TODO: Make sure this actually works!
+            logger.warning("IndexError in plot (race condition?); continuing.") 
+            wx.MilliSleep(50)
+            wx.PostEvent(self, evt)
         except IOError as err:
             msg = "An error occurred while trying to read the recording file."
             self.root.handleError(err, msg, closeFile=True)
-#         except Exception as err:
-#             self.root.handleError(err, what="plotting data")
+        except Exception as err:
+            self.root.handleError(err, what="plotting data")
         
 
     def _OnPaint(self, evt):
