@@ -21,7 +21,7 @@ from mide_ebml.dataset import __DEBUG__
 from dev_build_number import BUILD_NUMBER, BUILD_TIME
 
 APPNAME = u"Slam\u2022Stick Lab"
-VERSION = (1, 0)
+VERSION = (1, 0, 0)
 
 __version__= '.'.join(map(str, VERSION)) #"0.1"
 __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"

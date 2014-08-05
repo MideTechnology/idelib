@@ -336,11 +336,12 @@ class Bivariate(Univariate):
                 channel = self.dataset.channels[self.channelId][self.subchannelId]
                 self._eventlist = channel.getSession(session.sessionId)
                 self._sessionId = session.sessionId
-                
+            if len(self._eventlist) == 0:
+                return event
             x = event[-1]
             y = self._eventlist.getValueAt(event[-2], outOfRange=True)
             return event[-2],self._function(x,y[-1])
-        except IndexError:
+        except (IndexError, ZeroDivisionError):
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.

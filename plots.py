@@ -449,7 +449,9 @@ class PlotCanvas(wx.ScrolledWindow):
         """
 #         self._OnPaint(evt)
 #         return
-    
+        if len(self.Parent.source) == 0:
+            return
+        
         try:
             self._OnPaint(evt)
         except IndexError:
@@ -1156,6 +1158,9 @@ class WarningRangeIndicator(object):
             
             @param dc: TThe drawing context (a `wx.DC` subclass). 
         """
+        if len(self.source.source) < 2:
+            return
+        
         oldPen = dc.GetPen()
         oldBrush = dc.GetBrush()
         size = dc.GetSize() if size is None else size

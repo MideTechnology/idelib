@@ -4,19 +4,26 @@ Created on Sep 26, 2013
 @author: dstokes
 
 
+@todo: Handle files with channels containing a single sample better. Right now,
+    they are ignored, causing problems with other calculations.
+    
 @todo: See where NumPy can be leveraged. The original plan was to make this
     module free of all dependencies (save python_ebml), but NumPy greatly 
     improved the new min/mean/max stuff. Might as well take advantage of it
-    elsewhere!  
+    elsewhere!
+      
 @todo: Discontinuity handing. This will probably be conveyed as events with
     null values. An attribute/keyword may be needed to suppress this when 
     getting data for processing (FFT, etc.). Low priority.
+    
 @todo: Look at remaining places where lists are returned, consider using `yield` 
     instead (e.g. parseElement(), etc.)
+    
 @todo: Have Sensor.addChannel() possibly check the parser to see if the 
     blocks are single-sample, instantiate simpler Channel subclass (possibly
     also a specialized, simpler class of EventList, too). This will improve
     temperature calibrated SSX data.
+    
 @todo: Decide if dataset.useIndices is worth it, remove it if it isn't.
     Removing it may save a trivial amount of time/memory (one fewer 
     conditional in event-getting methods). Lowest priority.
@@ -810,7 +817,7 @@ class EventList(Cascading):
     """ A list-like object containing discrete time/value pairs. Data is 
         dynamically read from the underlying EBML file. 
         
-        @todo: Consider a subclass optimized for non-subsampled data (i.e. 
+        @todo: Consider a subclass optimized for non-sub-sampled data (i.e. 
             one sample per data block).
     """
 
@@ -1066,7 +1073,9 @@ class EventList(Cascading):
         
         span = self.rollingMeanSpan
         
-        if block._rollingMean is not None and block._rollingMeanSpan == span and block._rollingMeanLen == len(self._data):
+        if (block._rollingMean is not None 
+            and block._rollingMeanSpan == span 
+            and block._rollingMeanLen == len(self._data)):
             return block._rollingMean
         
         if span != -1:
@@ -1574,12 +1583,12 @@ class EventList(Cascading):
         if len(self._data) == 0:
             # Channel has no events. Probably shouldn't happen.
             # TODO: Get the sample rate from another session?
-            return -1
+            return 0
         
         if blockIdx < 0:
             blockIdx += len(self._data)
         
-        # See if it's already been computed
+        # See if it's already been computed or provided in the recording
         block = self._data[blockIdx]
         if block.sampleTime is not None:
             return block.sampleTime
@@ -1592,10 +1601,12 @@ class EventList(Cascading):
         startTime = block.startTime
         endTime = block.endTime
 
-        if endTime is None:
+        if endTime is None or endTime == startTime:
+            # No recorded end time, or a single-sample block.
             if len(self._data) == 1:
                 # Only one block; can't compute from that!
-                raise NotImplementedError("TODO: Implement getting sample rate in case of single block")
+                # TODO: Implement getting sample rate in case of single block?
+                return 0
             elif blockIdx == len(self._data) - 1:
                 # Last block; use previous.
                 startTime = self._data[blockIdx-1].startTime
@@ -1607,7 +1618,8 @@ class EventList(Cascading):
         numSamples = block.getNumSamples(self.parent.parser)
         if numSamples == 0:
             # No data in block
-            raise NotImplementedError("TODO: Implement getting sample rate in case of empty block")
+            # TODO: Implement getting sample rate in case of empty block?
+            numSamples = 1
 
         block.sampleTime = (endTime - startTime) / (numSamples)
         
@@ -1623,8 +1635,13 @@ class EventList(Cascading):
                 ideal world, all blocks would be the same.
             @return: The sample rate, as samples per second (float)
         """
+        
         if self._data[blockIdx].sampleRate is None:
-            self._data[blockIdx].sampleRate = 1000000.0 / self._getBlockSampleTime(blockIdx)
+            sampTime = self._getBlockSampleTime(blockIdx)
+            if sampTime > 0:
+                self._data[blockIdx].sampleRate = 1000000.0 / sampTime
+            else:
+                self._data[blockIdx].sampleRate = 0
         return self._data[blockIdx].sampleRate
 
 
@@ -1894,7 +1911,7 @@ class CompositePlot(Plot):
     """ A set of processed data derived from multiple sources.
     """
     
-    # TODO: Implement this!
+    # TODO: Implement this or remove it!
 
 
 

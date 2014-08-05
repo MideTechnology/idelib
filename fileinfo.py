@@ -62,21 +62,25 @@ class ChannelInfoPanel(InfoPanel):
             self.html.append("<p><b>Channel %02x: %s</b><ul>" % (cid, c.name))
             for subcid, subc in enumerate(c.subchannels):
                 events = subc.getSession()
-#                 mmm = events.getRangeMinMeanMax()
-                srate = ("%.3f" % events.getSampleRate()).rstrip('0')
-                srate = srate + '0' if srate.endswith('.') else srate
                 self.html.append("<li><b>Subchannel %02x.%d: %s</b></li>" % \
                                  (cid, subcid, subc.name))
                 
                 self.addItem("Sensor Range:", "%s to %s %s" % 
                    (subc.displayRange[0], subc.displayRange[1], subc.units[0]))
-                self.addItem("Nominal Sample Rate:", "%s Hz" % srate)
-                self.addItem("Minimum Value:", 
-                             self.plotLink(cid, subcid, *events.getMin()),
-                             escape=False)
-                self.addItem("Maximum Value:", 
-                             self.plotLink(cid, subcid, *events.getMax()),
-                             escape=False)
+                
+                # Hack for channels with no data.
+                if len(events) > 0:
+                    srate = ("%.3f" % events.getSampleRate()).rstrip('0')
+                    srate = srate + '0' if srate.endswith('.') else srate
+                    self.addItem("Nominal Sample Rate:", "%s Hz" % srate)
+                    self.addItem("Minimum Value:", 
+                                 self.plotLink(cid, subcid, *events.getMin()),
+                                 escape=False)
+                    self.addItem("Maximum Value:", 
+                                 self.plotLink(cid, subcid, *events.getMax()),
+                                 escape=False)
+                    
+#                 mmm = events.getRangeMinMeanMax()
 #                 if mmm:
 #                     self.addItem("Median:", "%.4f" % mmm[1])
                 
