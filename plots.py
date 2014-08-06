@@ -427,6 +427,8 @@ class PlotCanvas(wx.ScrolledWindow):
         minPts = []
         meanPts = []
         maxPts = []
+        # XXX: Test
+#         bufferMarks = []
 
         pMin, pMean, pMax = vals.next()
         _startline(minPts, pMin)
@@ -436,11 +438,16 @@ class PlotCanvas(wx.ScrolledWindow):
             _makeline(minPts, pMin)
             _makeline(meanPts, pMean)
             _makeline(maxPts, pMax)
+            # XXX: TEST
+#             x = (int(min(max(0, (pMin[0] - hRange[0])) * hScale, width)))
+#             bufferMarks.append((x,vRange[1]*vScale,x,vRange[0]*vScale))
         _finishline(minPts)
         _finishline(meanPts)
         _finishline(maxPts)
         
         self.minMeanMaxLines = (minPts[1:], meanPts, maxPts[1:])
+        # XXX: TEST
+#         self.bufferMarks = bufferMarks
     
 
     def OnPaint(self, evt):
@@ -527,7 +534,6 @@ class PlotCanvas(wx.ScrolledWindow):
                 self.Parent.zoomToFit(self)
                 return
 
-
         hScale = (size.x + 0.0) / (hRange[1]-hRange[0]) * self.viewScale
         if vRange[0] != vRange[1]:
             vScale = (size.y + 0.0) / (vRange[1]-vRange[0]) * self.viewScale
@@ -592,6 +598,8 @@ class PlotCanvas(wx.ScrolledWindow):
                     dc.DrawLineList(self.minMeanMaxLines[2], self.maxRangePen)
                 if self.root.drawMean:
                     dc.DrawLineList(self.minMeanMaxLines[1], self.meanRangePen)
+                # XXX: TEST
+#                 dc.DrawLineList(self.bufferMarks, self.meanRangePen)
 
         
         dc.SetPen(self._pen)

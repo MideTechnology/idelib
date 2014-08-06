@@ -466,7 +466,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if tooltip is not None:
             c.SetToolTipString(cleanUnicode(tooltip))
             ctrl.SetToolTipString(cleanUnicode(tooltip))
-        
+
         return c
 
 
@@ -826,6 +826,9 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
     def OnUtcCheck(self, evt):
         """ Update the displayed time with or without the local UTC offset.
         """
+        if not self.wakeCheck.GetValue():
+            # wake time field unchecked; skip changing. Can occur on startup.
+            return
         dt = self.controls[self.wakeCheck][0].GetValue()
         if evt is True or evt.IsChecked():
             t = dt.ToTimezone(dt.UTC).GetTicks()

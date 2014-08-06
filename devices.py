@@ -110,7 +110,7 @@ class Recorder(object):
     def _isRecorder(cls, dev):
         """ Basic test whether a path points to a recorder. """
         try:
-            return getDriveInfo(dev)[3] in (u'FAT', u'vfat')
+            return "fat" in getDriveInfo(dev)[3].lower()
         except (TypeError, IndexError):
             return False
     

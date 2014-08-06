@@ -1164,7 +1164,11 @@ class EventList(Cascading):
             return 0
         # For some reason, the cached self._length wasn't thread-safe.
 #         return self._length
-        return max(0, self._data[-1].indexRange[-1]-1)
+        try:
+            return max(0, self._data[-1].indexRange[-1]-1)
+        except (TypeError, IndexError):
+            # Can occur early on while asynchronously loading.
+            return 0
 
 
     def itervalues(self, start=0, end=-1, step=1, subchannels=True):

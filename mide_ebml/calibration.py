@@ -319,6 +319,11 @@ class Bivariate(Univariate):
         
         self._source = 'lambda x,y: %s' % self._fixSums(src)
         self._function = eval(self._source)
+        
+        # Optimization: it is possible that the polynomial could exclude Y
+        # completely. If that's the case, use a dummy value to speed things up.
+        self._noY = (0,1) if 'y' not in src else False 
+            
 
 
     def __call__(self, event, session=None):
@@ -338,8 +343,11 @@ class Bivariate(Univariate):
                 self._sessionId = session.sessionId
             if len(self._eventlist) == 0:
                 return event
+            
             x = event[-1]
-            y = self._eventlist.getValueAt(event[-2], outOfRange=True)
+            # Optimization: don't check the other channel if Y is unused
+            y = self._noY or self._eventlist.getValueAt(event[-2], 
+                                                         outOfRange=True)
             return event[-2],self._function(x,y[-1])
         except (IndexError, ZeroDivisionError):
             # In multithreaded environments, there's a rare race condition
