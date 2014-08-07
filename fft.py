@@ -41,6 +41,8 @@ class FFTView(wx.Frame, MenuMixin):
     
     ID_EXPORT_CSV = wx.NewId()
     ID_EXPORT_IMG = wx.NewId()
+    ID_DATA_LOG_AMP = wx.NewId()
+    ID_DATA_LOG_FREQ = wx.NewId()
     
     IMAGE_FORMATS = "Windows Bitmap (*.bmp)|*.bmp|" \
                      "JPEG (*.jpg)|*.jpg|" \
@@ -63,6 +65,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.range = (kwargs.pop("start",0), kwargs.pop("end",-1))
         self.data = kwargs.pop("data",None)
         self.sliceSize = kwargs.pop("sliceSize", 2**16)
+        self.logarithmic = kwargs.pop('logarithmic', (False, False))
         
         if self.source is None and self.subchannels is not None:
             self.source = self.subchannels[0].parent.getSession(
@@ -93,7 +96,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
         self.canvas.SetFontSizeAxis(10)
         self.canvas.SetFontSizeLegend(7)
-        self.canvas.setLogScale((False,False))
+        self.canvas.setLogScale(self.logarithmic)
         self.canvas.SetXSpec('min')
         self.canvas.SetYSpec('auto')
         
@@ -149,6 +152,17 @@ class FFTView(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_COPY, "&Copy", "", None, False)
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", None, False)
         self.menubar.Append(editMenu, "Edit")
+
+        self.dataMenu = wx.Menu()
+        self.logAmp = self.addMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, 
+                         "Amplitude: Logarithmic Scale", "",
+                         self.OnMenuDataLog, kind=wx.ITEM_CHECK)
+        self.logFreq = self.addMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, 
+                         "Frequency: Logarithmic Scale", "",
+                         self.OnMenuDataLog, kind=wx.ITEM_CHECK)
+        self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=self.logarithmic[0])
+        self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[1])
+        self.menubar.Append(self.dataMenu, "Data")
 
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
@@ -318,11 +332,16 @@ class FFTView(wx.Frame, MenuMixin):
             self.root.handleError(err, what=what)
             return False
     
-    
-#     def OnHelp(self, evt):
-#         self.root.ask("FFT Help not implemented!", "TODO:", style=wx.OK, parent=self)
 
-
+    def OnMenuDataLog(self, evt):
+        """
+        """
+        self.logarithmic = (self.logFreq.IsChecked(), self.logAmp.IsChecked())
+#         self.canvas.setLogScale((False, evt.IsChecked()))
+        self.canvas.setLogScale(self.logarithmic)
+        self.canvas.Redraw()
+        
+        
     def OnClose(self, evt):
         self.Close()
     
@@ -508,14 +527,23 @@ class SpectrogramView(FFTView):
     NAME = "Spectrogram"
     FULLNAME = "Spectrogram View"
     
+    ID_COLOR_SPECTRUM = wx.NewId()
+    ID_COLOR_GRAY = wx.NewId()
     
     def __init__(self, *args, **kwargs):
         """
         """
         self.slicesPerSec = float(kwargs.pop('slicesPerSec', 4.0))
         self.images = None
-        super(SpectrogramView, self).__init__(*args, **kwargs)
+        self.colorizers = {self.ID_COLOR_GRAY: self.plotGrayscale,
+                           self.ID_COLOR_SPECTRUM: self.plotColorSpectrum}
+        self.colorizerId = kwargs.pop('colorizer', self.ID_COLOR_SPECTRUM)
+        self.colorizer = self.colorizers.get(self.colorizerId, self.plotColorSpectrum)
         
+        # The spectrogram is basically a 3D graph, time/frequency/amplitude
+        kwargs.setdefault('logarithmic', (False, False, True))
+        super(SpectrogramView, self).__init__(*args, **kwargs)
+
 
     def initPlot(self):
         ""
@@ -589,7 +617,7 @@ class SpectrogramView(FFTView):
  
 
     @classmethod
-    def makePlots(self, data, colorizer=None):
+    def makePlots(self, data, logarithmic=(False, False, True), colorizer=None):
         """ Create a set of spectrogram images from a set of computed data.
         
             @param data: A list of (spectrogram data, frequency, bins) for each
@@ -598,7 +626,10 @@ class SpectrogramView(FFTView):
         """
         colorizer = self.plotColorSpectrum if colorizer is None else colorizer
         
-        temp = [np.log(d[0]) for d in data]
+        if logarithmic[2]:
+            temp = [np.log(d[0]) for d in data]
+        else:
+            temp = [d[0] for d in data]
 #         minAmp = np.amin(temp)
         minAmp = np.median(temp)
         maxAmp = np.amax(temp)
@@ -639,7 +670,7 @@ class SpectrogramView(FFTView):
                                           slicesPerSec=self.slicesPerSec, 
                                           recordingTime=recordingTime)
 
-            self.images = self.makePlots(self.data)
+            self.images = self.makePlots(self.data, self.logarithmic, self.colorizer)
             self.makeLineList()
             for i in range(len(self.subchannels)):#ch in subchIds:
                 self.addPlot(i)
@@ -699,12 +730,38 @@ class SpectrogramView(FFTView):
         super(SpectrogramView, self).initMenus()
         self.MenuBar.FindItemById(self.ID_EXPORT_IMG).Enable(False)
 
+        self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=False, enabled=False)
+        self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[2])
+        
+        self.dataMenu.AppendSeparator()
+        
+        colorMenu = wx.Menu()
+        self.addMenuItem(colorMenu, self.ID_COLOR_GRAY, "Grayscale", "", 
+                         self.OnMenuColorize, kind=wx.ITEM_RADIO)
+        self.addMenuItem(colorMenu, self.ID_COLOR_SPECTRUM, "Spectrum", "", 
+                         self.OnMenuColorize, kind=wx.ITEM_RADIO)
+        self.setMenuItem(colorMenu, self.colorizerId, checked=True)
+        self.dataMenu.AppendMenu(-1, "Colorization", colorMenu)
+
+
     #===========================================================================
     # 
     #===========================================================================
-    def OnHelp(self, evt):
-        self.root.ask("Spectrogram Help not implemented!", "TODO:", style=wx.OK, parent=self)
 
+    def redrawPlots(self):
+        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+        self.images = self.makePlots(self.data, self.logarithmic, self.colorizer)
+        self.makeLineList()
+        for i in range(self.canvas.GetPageCount()):
+            p = self.canvas.GetPage(i)
+            p.image = self.images[i]
+            p.Redraw()
+        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        
+
+    #===========================================================================
+    # 
+    #===========================================================================
 
     def OnExportCsv(self, evt):
         def cleanedName(n):
@@ -779,3 +836,14 @@ class SpectrogramView(FFTView):
         return True
 
 
+    def OnMenuDataLog(self, evt):
+        """
+        """
+        self.logarithmic=(False, False, evt.IsChecked())
+        self.redrawPlots()
+
+    
+    def OnMenuColorize(self, evt):
+        self.colorizer = self.colorizers.get(evt.GetId(), self.plotColorSpectrum)
+        self.redrawPlots()
+        
