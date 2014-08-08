@@ -230,15 +230,12 @@ class MPL3115PressureTempParser(object):
     def unpack_from(self, data, offset=0):
         """ Special-case parsing of a temperature data block.
         """
-        try:
-            rawpressure = self._pressureParser.unpack_from(data, offset)[0] >> 14
-            fracpressure, rawtemp, fractemp = self._parser.unpack_from(data, offset)
-            fracpressure = ((fracpressure >> 4) & 0b11) * 0.25
-            fractemp = (fractemp >> 4) * 0.0625
-    
-            return (rawpressure + fracpressure, rawtemp + fractemp)
-        except:
-            import pdb; pdb.set_trace()
+        rawpressure = self._pressureParser.unpack_from(data, offset)[0] >> 14
+        fracpressure, rawtemp, fractemp = self._parser.unpack_from(data, offset)
+        fracpressure = ((fracpressure >> 4) & 0b11) * 0.25
+        fractemp = (fractemp >> 4) * 0.0625
+
+        return (rawpressure + fracpressure, rawtemp + fractemp)
             
 
 

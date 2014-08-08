@@ -12,6 +12,7 @@ Created on Dec 31, 2013
 
 import calendar as calendar
 from datetime import datetime
+import os.path
 from threading import Thread as Thread
 # import time
 
@@ -55,6 +56,22 @@ def nextPow2(x):
 #===============================================================================
 # Formatting and parsing helpers
 #===============================================================================
+
+def sanitizeFilename(f, ascii=True):
+    """ A blunt instrument for coercing filenames into validity.
+    """
+    if not isinstance(f, unicode):
+        f = unicode(f)
+    path, name = os.path.split(f)
+    if ascii:
+        name = name.encode('ascii','replace')
+    f = ''.join((x for x in f if ord(x) > 31))
+    for c in """*?!;&$/\\:"', """:
+        name = name.replace(c, '_')
+    while '__' in f:
+        name = name.replace('__','_')
+    return os.path.join(path,name)
+
 
 def cleanUnicode(obj, encoding='utf8', errors='replace'):
     """ Helper function to produce valid unicode text. Apps built with
