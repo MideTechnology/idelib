@@ -1,19 +1,22 @@
 '''
 Slam Stick Lab Data Viewer
 
-Description should go here. At the moment, this is also the text that appears
-in the About Box.
-
-### This line and below are not in the About Box. ###
+Full-featured viewer for data recorded by Slam Stick and Slam Stick X data
+loggers.
 
 @todo: See individual TODO tags in the body of code. The long-term items
     are also listed here.
+    
 @todo: Multi-threaded plot drawing, so the app won't appear to hang and drawing
     can be interrupted.
+    
 @todo: Scroll wheel support (vertical), maybe middle-click drag as well.
+
 @todo: Revamp the zooming and navigation to be event-driven, handled as far up
     the chain as possible. Consider using wx.lib.pubsub if it's thread-safe
     in conjunction with wxPython views. X axis partially converted; Y axis not.
+    
+@todo: Clean up time range change 'tracking' and 'broadcast'. 
 '''
 
 # Debugging. Remove later (set to False)!
@@ -593,14 +596,12 @@ class Viewer(wx.Frame, MenuMixin):
     # Custom menu IDs
     ID_RECENTFILES = wx.NewId()
     ID_EXPORT = wx.NewId()
-    ID_EXPORT_VISIBLE = wx.NewId()
     ID_RENDER_FFT = wx.NewId()
     ID_RENDER_SPEC = wx.NewId()
     ID_FILE_PROPERTIES = wx.NewId()
     ID_EDIT_CLEARPREFS = wx.NewId()
     ID_EDIT_RANGES = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
-    ID_DEVICE_SET_CLOCK = wx.NewId()
     ID_VIEW_ZOOM_OUT_Y = wx.NewId()
     ID_VIEW_ZOOM_IN_Y = wx.NewId()
     ID_VIEW_ZOOM_FIT_Y = wx.NewId()
@@ -645,9 +646,6 @@ class Viewer(wx.Frame, MenuMixin):
         kwargs['size'] = kwargs.get('size', windowSize)
         
         super(Viewer, self).__init__(*args, **kwargs)
-        self._appname = APPNAME
-        self._version = __version__
-        self._versionNumbers = VERSION
         
         self.root = self # for consistency with other objects
         self.dataset = None
@@ -857,8 +855,8 @@ class Viewer(wx.Frame, MenuMixin):
         # TODO: (cross-platform) Move 'about' to right place for MacOS X.
         # May not be an issue; the library may do it.
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
-                         "About %s %s..." % (APPNAME, __version__), "", 
-                         self.OnHelpAboutMenu)
+            "About %s %s..." % (self.app.GetAppDisplayName(), self.app.versionString), 
+            "", self.OnHelpAboutMenu)
         helpMenu.AppendSeparator()
         self.addMenuItem(helpMenu, self.ID_HELP_CHECK_UPDATES,
                          "Check for Updates", "", self.OnHelpCheckUpdates)
@@ -938,7 +936,8 @@ class Viewer(wx.Frame, MenuMixin):
                  self.ID_DEVICE_CONFIG, wx.ID_ABOUT, wx.ID_PREFERENCES,
                  self.ID_HELP_CHECK_UPDATES,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, self.ID_DEBUG0,
-                 self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4)
+                 self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
+                 )
         
         if not enabled:
             self.enableMenuItems(self.menubar, menus, True, False)
@@ -1664,8 +1663,8 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             updateCheck = "Never"
         AboutBox.showDialog(self, -1, strings={
-           'appName': APPNAME,
-           'version': __version__, 
+           'appName': self.app.GetAppDisplayName(),
+           'version': self.app.versionString, 
            'buildNumber': BUILD_NUMBER, 
            'buildTime': datetime.fromtimestamp(BUILD_TIME),
            'lastUpdateCheck': updateCheck,
@@ -2144,6 +2143,7 @@ class ViewerApp(wx.App):
     """
     version = VERSION
     versionString = __version__
+    buildVersion = VERSION + (BUILD_NUMBER,)
     
     # Preferences format version: change if a change renders old ones unusable.
     PREFS_VERSION = 0

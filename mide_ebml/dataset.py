@@ -821,6 +821,7 @@ class EventList(Cascading):
             one sample per data block).
     """
 
+    # Default 5 second rolling mean
     DEFAULT_MEAN_SPAN = 5000000
 
     def __init__(self, parent, session=None):
@@ -901,6 +902,9 @@ class EventList(Cascading):
         # Possibly redundant if all sessions are 'closed.'
         if self.session.firstTime is None:
             self.session.firstTime = block.startTime
+        else:
+            self.session.firstTime = min(self.session.firstTime, block.startTime)
+            
         if self.session.lastTime is None:
             self.session.lastTime = block.endTime
         else:
@@ -1625,7 +1629,7 @@ class EventList(Cascading):
             # TODO: Implement getting sample rate in case of empty block?
             numSamples = 1
 
-        block.sampleTime = (endTime - startTime) / (numSamples)
+        block.sampleTime = (endTime - startTime) / (numSamples+0.0)
         
         return block.sampleTime
 

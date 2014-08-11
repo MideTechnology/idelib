@@ -15,6 +15,7 @@ import colorsys
 import csv
 import os.path
 import sys
+import time
 
 # import Image
 
@@ -28,7 +29,7 @@ import wx; wx = wx
 import spectrum as spec
 
 from base import MenuMixin
-from common import StatusBar, nextPow2
+from common import StatusBar, nextPow2, sanitizeFilename
 #===============================================================================
 # 
 #===============================================================================
@@ -70,7 +71,8 @@ class FFTView(wx.Frame, MenuMixin):
         if self.source is None and self.subchannels is not None:
             self.source = self.subchannels[0].parent.getSession(
                                                     self.root.session.sessionId)
-                
+        
+        
         super(FFTView, self).__init__(*args, **kwargs)
         
         self.timeScalar = getattr(self.root, "timeScalar", 1.0/(6**10))
@@ -81,11 +83,20 @@ class FFTView(wx.Frame, MenuMixin):
         self.initMenus()
         self.initPlot()
         
+        
         self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
         self.Show(True)
         self.Update()
+
+        # XXX: TESTING
+#         drawStart = time.time()
+#         self.source.parent.raw=True
+#         self.source.removeMean = False
         
         self.draw()
+
+        # XXX: TESTING
+#         print "Elapsed time: %s" % (time.time() - drawStart)
 
 
     def initPlot(self):
@@ -166,7 +177,7 @@ class FFTView(wx.Frame, MenuMixin):
 
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
-            "About %s %s..." % (self.root._appname, self.root._version), "", 
+            "About %s %s..." % (self.root.app.GetAppDisplayName(), self.root.app.versionString), "", 
              self.root.OnHelpAboutMenu)
         self.menubar.Append(helpMenu, "Help")
         
@@ -197,7 +208,7 @@ class FFTView(wx.Frame, MenuMixin):
         
     
     @classmethod
-    def from2diter(self, data, rows=None, cols=1):
+    def from2diter(cls, data, rows=None, cols=1):
         """ Build a 2D `numpy.ndarray` from an iterator (e.g. what's produced by 
             `EventList.itervalues`). 
             
@@ -594,7 +605,7 @@ class SpectrogramView(FFTView):
 
     
     @classmethod
-    def plotColorSpectrum(self, n):
+    def plotColorSpectrum(cls, n):
         """ Generate a 24-bit RGB color from a positive normalized float value 
             (0.0 to 1.0). 
              
@@ -606,7 +617,7 @@ class SpectrogramView(FFTView):
 
                      
     @classmethod
-    def plotGrayscale(self, n):
+    def plotGrayscale(cls, n):
         """ Generate a 24-bit RGB color from a positive normalized float value 
             (0.0 to 1.0). 
              
@@ -617,14 +628,14 @@ class SpectrogramView(FFTView):
  
 
     @classmethod
-    def makePlots(self, data, logarithmic=(False, False, True), colorizer=None):
+    def makePlots(cls, data, logarithmic=(False, False, True), 
+                  colorizer=plotColorSpectrum):
         """ Create a set of spectrogram images from a set of computed data.
         
             @param data: A list of (spectrogram data, frequency, bins) for each
                 channel.
             @return: A list of `wx.Image` images.
         """
-        colorizer = self.plotColorSpectrum if colorizer is None else colorizer
         
         if logarithmic[2]:
             temp = [np.log(d[0]) for d in data]
@@ -764,14 +775,6 @@ class SpectrogramView(FFTView):
     #===========================================================================
 
     def OnExportCsv(self, evt):
-        def cleanedName(n):
-            # TODO: This looks like a job for regex!
-            for c in """/\\:"', """:
-                n = n.replace(c, '_')
-            while '__' in n:
-                n = n.replace('__','_')
-            return n
-        
         exportChannels = []
         if len(self.subchannels) > 1:
             channelNames = [c.name for c in self.subchannels]
@@ -809,7 +812,7 @@ class SpectrogramView(FFTView):
             for idx in exportChannels:
                 c = self.subchannels[idx]
                 name, ext = os.path.splitext(baseName)
-                filenames.append('%s_%s%s' % (name, cleanedName(c.name), ext))
+                filenames.append('%s_%s%s' % (name, sanitizeFilename(c.name), ext))
             
             existing = filter(os.path.exists, filenames)
             if existing:

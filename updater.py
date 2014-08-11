@@ -311,15 +311,17 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL):
     interval = app.getPref('updater.interval', 3)
     currentVersion = app.getPref('updater.version', None)
     
+#     url = url + "?version=%s" % ('.'.join(map(str,app.buildVersion)))
+    
     # Helper function to create and post the event.
     def sendUpdateEvt(vers=None, date=None, cl=None, err=None, response=None):
         evt = EvtUpdateAvailable(newVersion=vers, changelog=cl, url=url, 
                                  error=err, response=response, quiet=quiet)
         wx.PostEvent(app, evt)
     
-    if force or currentVersion is None or isNewer(app.version, currentVersion):
-        currentVersion = app.version
-        
+    if force or currentVersion is None or isNewer(app.buildVersion, currentVersion):
+        currentVersion = app.buildVersion
+
     if force or isTimeToCheck(lastUpdate, interval):
         responseCode, responseContent = getLatestVersion(url)
         if responseContent:
@@ -354,30 +356,31 @@ def startCheckUpdatesThread(*args, **kwargs):
 #===============================================================================
 # 
 #===============================================================================
-
+# 
 # if __name__ == '__main__':
-#      
+#         
 #     class FakeApp(wx.App):
 #         PREFS = {
 #                  }
-#         version = (9,9,10)
+#         version = (0,1,10)
 #         versionString = '.'.join(map(str, version))
+#         buildVersion = version + (1234,)
 #         def getPref(self, v, default):
 #             return self.PREFS.get(v, default)
 #         def setPref(self, v, val):
 #             self.PREFS[v] = val
 #         def editPrefs(self, evt=None):
 #             print "edit prefs"
-#      
+#        
 #     app = FakeApp()
-#      
+#        
 #     code, response = getLatestVersion()
 #     print "app.version = %r" % (app.version,)
 #     print "getLatestVersion returned code %r, version %r" % (code, response)
 #     if response is None:
 #         print "Error occurred; aborting"
 #         exit(1)
-#  
+#    
 #     vers = response.get('version', None)
 #     changeUrl = response.get('changelog', None)
 #     print "zipped: %r" % (zip(app.version, vers),)
@@ -386,9 +389,9 @@ def startCheckUpdatesThread(*args, **kwargs):
 #     t = time.time()
 #     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
 #     print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
-#      
+#        
 #     evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
-#      
+#        
 # #     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
 #     dlg = UpdateDialog(None, -1, updaterEvent=evt)
 #     dlg.ShowModal()

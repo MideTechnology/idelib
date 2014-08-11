@@ -166,8 +166,10 @@ class LegendArea(ViewerPanel):
     #===========================================================================
     
     def OnResize(self, evt):
+        # evt.Size should never be 0, but it has occurred when splitting
+        # windows. The max() in the denominator is a hack to prevent (n/0).
         self.unitsPerPixel = abs((self.visibleRange[0] - self.visibleRange[1]) \
-                                 / (evt.Size[1] + 0.0))
+                                 / max(1,evt.Size[1] + 0.0))
         bRect = self.zoomFitButton.GetRect()
         self.unitLabel.SetPosition((-1,max(evt.Size[1]/2,bRect[1]+bRect[3])))
         evt.Skip()
