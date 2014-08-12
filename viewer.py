@@ -19,17 +19,14 @@ loggers.
 @todo: Clean up time range change 'tracking' and 'broadcast'. 
 '''
 
-# Debugging. Remove later (set to False)!
-from mide_ebml.dataset import __DEBUG__
-from dev_build_number import BUILD_NUMBER, BUILD_TIME
+from build_info import VERSION, DEBUG, BUILD_NUMBER, BUILD_TIME
 
+# VERSION = (1, 0, 0)
 APPNAME = u"Slam\u2022Stick Lab"
-VERSION = (1, 0, 0)
-
 __version__= '.'.join(map(str, VERSION)) #"0.1"
 __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 
-if __DEBUG__:
+if DEBUG:
     __version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
 
 from logger import logger
@@ -860,7 +857,7 @@ class Viewer(wx.Frame, MenuMixin):
         helpMenu.AppendSeparator()
         self.addMenuItem(helpMenu, self.ID_HELP_CHECK_UPDATES,
                          "Check for Updates", "", self.OnHelpCheckUpdates)
-        if __DEBUG__:
+        if DEBUG:
             helpMenu.AppendSeparator()
             debugMenu = wx.Menu()
             self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
@@ -2209,7 +2206,7 @@ class ViewerApp(wx.App):
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
         'loader': dict(numUpdates=100, updateInterval=1.0),
         'openOnStart': True,
-        'showDebugChannels': __DEBUG__,
+        'showDebugChannels': DEBUG,
         'showFullPath': True,#False,
         'showUtcTime': True,
         'titleLength': 80,
@@ -2456,7 +2453,7 @@ class ViewerApp(wx.App):
         self.locale = wx.Locale(getattr(wx, localeName, wx.LANGUAGE_ENGLISH_US))
         self.createNewView(filename=self.initialFilename)
         
-        if __DEBUG__:
+        if DEBUG:
             self.showBetaWarning()
 
         # Automatic Update Check

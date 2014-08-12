@@ -9,23 +9,20 @@ HOME_DIR = os.getcwd()
 try:
     import socket, sys, time
     sys.path.append(HOME_DIR)
-    from dev_build_number import BUILD_NUMBER
+    from build_info import BUILD_NUMBER, DEBUG, VERSION
     BUILD_NUMBER += 1
     logging.logger.info("*** Build number %d" % BUILD_NUMBER)
-    with open('dev_build_number.py', 'wb') as f:
-        f.write('# AUTOMATICALLY-GENERATED FILE; DO NOT CHANGE THIS FILE MANUALLY!\n')
+    with open('build_info.py', 'wb') as f:
+        f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
+        f.write('VERSION = %s\n' % str(VERSION))
+        f.write('DEBUG = %s\n' % DEBUG)
+        f.write('\n# AUTOMATICALLY-GENERATED CONTENT FOLLOWS; DO NOT EDIT MANUALLY!\n')
         f.write('BUILD_NUMBER = %d\n' % BUILD_NUMBER)
         f.write('BUILD_TIME = %d\n' % time.time())
         f.write('BUILD_MACHINE = %r\n' % socket.gethostname())
 except Exception:
     logging.logger.warning("*** Couldn't read and/or change build number!")
 
-try:
-    from mide_ebml.dataset import __DEBUG__
-    __DEBUG__ = False
-except ImportError:
-    logging.logger.warning("*** Could not get __DEBUG__ from mide_ebml.dataset!")
-    __DEBUG__ = False
 
 # Collect data files (needed for getting schema XML)
 # http://www.pyinstaller.org/wiki/Recipe/CollectDatafiles
@@ -82,5 +79,5 @@ exe = EXE(pyz,
           debug=False,
           strip=None,
           upx=True,
-          console=__DEBUG__
+          console=DEBUG
           )

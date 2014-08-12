@@ -582,9 +582,12 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         """
         if isinstance(checkbox, wx.CheckBox):
             state = checkbox.GetValue()
+        else:
+            checkbox.Enable(state)
         for c in self.controls[checkbox]:
             if c is not None:
                 c.Enable(state)
+        
        
             
     def enableAll(self):
@@ -634,7 +637,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             if isinstance(field, wx.TextCtrl):
                 if isinstance(value, float):
                     value = "%.3f" % value
-                else:
+                elif not isinstance(value, basestring):
                     value = str(value)
             elif isinstance(field, DateTimeCtrl):
                 value = makeWxDateTime(value)
@@ -1312,7 +1315,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             "lowest multiple of 2.")
         self.timeCheck = self.addIntField(
             "Recording Length Limit:", "SECONDS_PER_TRIGGER", "seconds", 
-            minmax=(0,2**17), tooltip="Recording length. "
+            minmax=(0,2**17), check=False, tooltip="Recording length. "
             "Note: This will be rounded to the lowest multiple of 2. "
             "Zero is no limit.")
         
@@ -1336,16 +1339,15 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         self.useUtcCheck.SetValue(self.root.useUtc)
         self.makeChild(self.wakeCheck, self.useUtcCheck)
         
-        self.chimeCheck = self.addChoiceField("Trigger at Intervals", 
-            choices=self.CHIME_TIMES.values(), tooltip="The frequency at "
-            "which to take recordings.", selected=0)
-        self.repeatCheck = self.addIntField("Limit Number of Triggers:", 
+        self.intervalField = self.addChoiceField("Trigger at Intervals", 
+            choices=self.CHIME_TIMES.values(), check=False, 
+            selected=len(self.CHIME_TIMES)-1, 
+            tooltip="The frequency at which to take recordings.")
+        self.chimeCheck = self.addIntField("Limit Number of Triggers:", 
             'REPEATS', minmax=(0,255), tooltip="The number of interval-based "
             "triggers to record, in addition to the first. Does not include "
             "recordings started by the accelerometer trigger.")
         self.endGroup()
-        self.makeChild(self.intGroup, self.wakeCheck, self.chimeCheck, 
-                       self.repeatCheck)
         
         self.startGroup('Accelerometer Triggers')
         self.accelTrigCheck = self.addFloatField("Accelerometer Threshold:", 
@@ -1370,7 +1372,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         self.makeChild(self.accelTrigCheck, self.xCheck, self.yCheck, 
                        self.zCheck, self.acCheck, self.napCheck)
         self.indent -= 1
-#         self.endGroup()
+        self.endGroup()
         
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
@@ -1383,8 +1385,19 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
 
         
     def OnDefaultsBtn(self, evt):
-        wx.MessageBox("TODO: Implement Classic trigger defaults", "Not Implemented (Yet)")
-
+        
+        self.setField(self.accelTrigCheck, 8.0, checked=False)
+        self.xCheck.SetValue(True)
+        self.xCheck.Enable(False)
+        self.yCheck.SetValue(True)
+        self.yCheck.Enable(False)
+        self.zCheck.SetValue(True)
+        self.zCheck.Enable(False)
+        self.acCheck.SetValue(True)
+        self.acCheck.Enable(False)
+        self.setField(self.napCheck, self.NAP_TIMES.values()[0])
+        self.enableField(self.napCheck, False)
+        
 
     def OnCheckChanged(self, evt):
         cb = evt.EventObject
@@ -1421,9 +1434,6 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         # Hide fields not supported by earlier versions of the firmware
         if self.info.get('SWREV', 0) < 2:
             self.hideField(self.intGroup)
-#             self.hideField(self.wakeCheck)
-#             self.hideField(self.chimeCheck)
-#             self.hideField(self.repeatCheck)
         
         trigs = self.info.get('TRIG_ACT_INACT_REG', 0)
         self.acCheck.SetValue((trigs & 0b10000000) and True)
@@ -1431,20 +1441,22 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         self.yCheck.SetValue((trigs & 0b00100000) and True)
         self.zCheck.SetValue((trigs & 0b00010000) and True)
         
+        if self.root.useUtc:
+            self.OnUtcCheck(True)
+            
         trigs = self.info.get('TRIGGER_FLAGS', 0)
-        self.accelTrigCheck.SetValue((trigs[1] & 0b10000000) and True)
-        self.wakeCheck.SetValue((trigs[1] & 0b00001000) and True)
+        self.accelTrigCheck.SetValue((trigs[1] & 0b10000000) != 0)
+        self.wakeCheck.SetValue((trigs[1] & 0b00001000) != 0)
         
         conf = self.info.get('CONFIG_FLAGS', 0b10000000)
         self.rearmCheck.SetValue((conf & 0b01000000) and True)
         
         self.setField(self.chimeCheck, 
-                      self.CHIME_TIMES.get(self.info.get('ROLLPERIOD',0)),
+                    self.info.get('REPEATS', 0),
                       checked=(self.info.get('CHIME_EN',0) & 1) and True)
+        self.setField(self.intervalField, self.CHIME_TIMES.get(self.info.get('ROLLPERIOD',0)))
         
         self.enableAll()
-        if self.root.useUtc:
-            self.OnUtcCheck(True)
     
     
     def getData(self):
@@ -1463,6 +1475,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         data['TRIG_ACT_INACT_REG'] = trigAxes
         
         trigFlags = self.info['TRIGGER_FLAGS'][:]
+        trigFlags[1] = 0
         if self.accelTrigCheck.GetValue(): trigFlags[1] |= 0b10000000
         if self.wakeCheck.GetValue(): trigFlags[1] |= 0b00001000
         data['TRIGGER_FLAGS'] = trigFlags
@@ -1473,7 +1486,9 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         
         if self.chimeCheck.GetValue():
             data['CHIME_EN'] = 1
-            data['ROLLPERIOD'] = self.CHIME_TIMES.keys()[self.controls[self.chimeCheck][0].GetSelection()]
+        else:
+            data['CHIME_EN'] = 0
+        data['ROLLPERIOD'] = self.CHIME_TIMES.keys()[self.controls[self.intervalField][0].GetSelection()]
         
 #         self.root.useUtc = self.useUtcCheck.GetValue()
 #         if self.wakeCheck.GetValue() and not self.root.useUtc:

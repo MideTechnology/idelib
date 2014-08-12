@@ -43,7 +43,7 @@ import wx.lib.sized_controls as SC
 import wx.html
 
 from logger import logger
-from mide_ebml.dataset import __DEBUG__
+from build_info import DEBUG
 
 from events import EvtUpdateAvailable
 
@@ -74,7 +74,7 @@ def isSafeUrl(url):
     if not url:
         return False
     
-    if __DEBUG__:
+    if DEBUG:
         return True
     
     prot, addr = urllib.splittype(url)
@@ -154,7 +154,7 @@ class UpdateDialog(SC.SizedDialog):
         super(UpdateDialog, self).__init__(*args, **kwargs)
         
         vers = self.updaterEvent.newVersion
-        if len(vers) > 2 and isinstance(vers[-1], (float, int)):
+        if len(vers) > 3 and isinstance(vers[-1], (float, int)):
             vers = vers[:-1] + [str(vers[-1]).rjust(4,'0')]
         self.newVersion = '.'.join(map(str,vers))
         self.changeUrl = self.updaterEvent.changelog

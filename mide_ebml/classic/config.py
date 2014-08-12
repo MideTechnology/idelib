@@ -174,10 +174,19 @@ def unpackTime(t):
     except ValueError:
         return 0
 
+def packStr(s):
+    if not s:
+        return ''
+    if isinstance(s, bytearray):
+        return str(s)
+    return s.encode('utf-8')
+
 def unpackStr(s):
+    if not isinstance(s, basestring):
+        return ''
     if '\x00' in s:
         s = s.split('\x00')[0]
-    return s.rstrip(u'\x00\xff')
+    return s.rstrip('\x00\xff').decode('utf-8')
 
 
 #===============================================================================
@@ -193,8 +202,8 @@ CONFIG_ENCODERS = {'RECORD_DELAY': lambda x: int(x/2),
                    'SYSUID_RESERVE': str,
                    'USERUID_RESERVE': str,
                    'TRIG_THRESH_ACT': lambda x: max(0, min(255, int(x/0.0625))),
-                   'USER_NAME': str,
-                   'USER_NOTES': str,
+                   'USER_NAME': packStr,
+                   'USER_NOTES': packStr,
                    '_padding': str,
                    }
 CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
@@ -284,7 +293,7 @@ def writeConfig(dest, data, validate=True):
     if isinstance(dest, basestring):
         with open(dest, 'wb') as f:
             return writeConfig(f, data, validate)
-        
+    
     try:
         c = CONFIG_PARSER.pack(*encodeConfig(data).values())
         dest.write(c)
