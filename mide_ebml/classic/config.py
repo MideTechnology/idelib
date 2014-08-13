@@ -101,7 +101,7 @@ CONFIG_FIELDS = OrderedDict((
     ('RTCC_ENA', 'B'),            # (W)Enables the RTCC module on the device (R)Module is enabled. [REV2]
     ('RTCC_IS_SET', 'B'),         # (R) RTCC value is set / considered valid [REV2]
     ('WR_RTCC', 'B'),             # (W) if byte value = 0x5A, the RTCC_TIME[7] in this file (above) is written to the hardware RTCC, and the peripheral enabled. [REV2]
-    ('TZ_OFFSET', 'B'),           # Timezone offset from UTC in integer hours. If 0, RTCC/alarm are in local time (and/or local time == UTC)
+    ('TZ_OFFSET', 'b'),           # Timezone offset from UTC in integer hours. If 0, RTCC/alarm are in local time (and/or local time == UTC)
     ('ALARM_TIME', '7s'),         # Same format as RTCC_TIME[7], except the 1st byte is reserved/unimplemented: alarm does not use year. MUST be set to a valid alarm time if triggering on RTCC enabled in TRIGGER_FLAGS.
     ('REPEATS', 'B'),             # Number of times to repeat. 0 = single-shot, 255 = 255 repeats (256 total alarms). Ignored if CHIME_EN is set.
     ('ROLLPERIOD', 'B'),          # Alarm rollover period (every minute, etc.). Bit patterns defined in rtcc.h.
@@ -189,6 +189,12 @@ def unpackStr(s):
     return s.rstrip('\x00\xff').decode('utf-8')
 
 
+def _clampVal(v, loVal, hiVal):
+    if v is None:
+        return 0
+    return max(loVal, min(hiVal, v))
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -221,6 +227,11 @@ CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
                    '_padding': unpackStr,
                    }
 
+GENERIC_ENCODERS = {'b': lambda x: _clampVal(x, -128, 127),
+                    'B': lambda x: _clampVal(x, 0, 255),
+                    'h': lambda x: _clampVal(x, -32768, 32767),
+                    'H': lambda x: _clampVal(x, 0, 2**16),
+                    }
 
 #===============================================================================
 # 
@@ -242,9 +253,15 @@ def encodeConfig(data):
         before writing a config file.
     """ 
     result = data.copy()
-    for name, encoder in CONFIG_ENCODERS.iteritems():
-        if name in result:
-            result[name] = encoder(result[name])
+    for name, dtype in CONFIG_FIELDS.iteritems():
+        val = result[name]
+        if name in CONFIG_ENCODERS:
+            # Use special case encoder for the data
+            result[name] = CONFIG_ENCODERS[name](val)
+        elif dtype in GENERIC_ENCODERS:
+            # Use generic encoder for the type (out of range values can break
+            # a struct).
+            result[name] = GENERIC_ENCODERS[dtype](val)
     return result
 
 

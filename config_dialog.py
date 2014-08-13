@@ -592,9 +592,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if checkbox not in self.controls:
             return
         for c in self.controls[checkbox]:
-            if c is not None and c != checkbox:
-                self.enableField(c, state)
-        
+            if c is not None:
+                c.Enable(state)
        
             
     def enableAll(self):
@@ -1365,7 +1364,6 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         self.useUtcCheck = self.addCheck("Use UTC Time")
         self.indent -= 2
         self.useUtcCheck.SetValue(self.root.useUtc)
-        self.makeChild(self.wakeCheck, self.useUtcCheck)
         
         self.intervalField = self.addChoiceField("Trigger at Intervals", 
             choices=self.CHIME_TIMES.values(), check=False, 
@@ -1376,6 +1374,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             'REPEATS', minmax=(0,255), tooltip="The number of interval-based "
             "triggers to record, in addition to the first. Does not include "
             "recordings started by the accelerometer trigger.")
+        self.makeChild(self.wakeCheck, self.useUtcCheck, self.intervalField, self.chimeCheck)
         self.endGroup()
         
         self.startGroup('Accelerometer Triggers')

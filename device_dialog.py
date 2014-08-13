@@ -3,6 +3,7 @@ Dialog for selecting recording devices.
 
 """
 
+import struct
 import sys
 from collections import namedtuple
 
@@ -141,23 +142,30 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.recorders = {}
         self.itemDataMap = {} # required by ColumnSorterMixin
 
-        # Reuse the list of paths to get the list of Recorder objects
+            # Reuse the list of paths to get the list of Recorder objects
         for dev in getDevices(self.recorderPaths):
-            path = dev.path
-            index = self.list.InsertStringItem(sys.maxint, path)
-            self.recorders[index] = dev
-            self.list.SetColumnWidth(0, max(pathWidth,
-                                            self.GetTextExtent(path)[0]))
-            for i, col in enumerate(self.COLUMNS[1:], 1):
-                self.list.SetStringItem(index, i, thing2string(dev, col))
-                self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
-                self.listWidth = max(self.listWidth, 
-                                     self.list.GetItemRect(index)[2])
-                
-            self.list.SetItemData(index, index)
-            self.itemDataMap[index] = [getattr(dev, c.propName, c.default) \
-                                       for c in self.COLUMNS]
-        
+            try:
+                path = dev.path
+                index = self.list.InsertStringItem(sys.maxint, path)
+                self.recorders[index] = dev
+                self.list.SetColumnWidth(0, max(pathWidth,
+                                                self.GetTextExtent(path)[0]))
+                for i, col in enumerate(self.COLUMNS[1:], 1):
+                    self.list.SetStringItem(index, i, thing2string(dev, col))
+                    self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
+                    self.listWidth = max(self.listWidth, 
+                                         self.list.GetItemRect(index)[2])
+                    
+                self.list.SetItemData(index, index)
+                self.itemDataMap[index] = [getattr(dev, c.propName, c.default) \
+                                           for c in self.COLUMNS]
+            except:
+                wx.MessageBox("An error occurred while trying to access a recorder (%s)."
+                              "\n\nThe device's configuration data may be damaged. "
+                              "Try disconnecting and reconnecting the device." % dev.path, 
+                              "Device Error", parent=self)
+                self.list.DeleteItem(index)
+
         if self.firstDrawing:
             self.list.Fit()
             self.firstDrawing = False

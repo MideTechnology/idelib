@@ -1,17 +1,23 @@
 # -*- mode: python -*-
 
+from datetime import datetime
 import glob
 import os
+
 # HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
 HOME_DIR = os.getcwd()
+
+startTime = datetime.now()
+print "what?"
 
 # This is a moderately kludgey auto-incrementing build number.
 try:
     import socket, sys, time
     sys.path.append(HOME_DIR)
     from build_info import BUILD_NUMBER, DEBUG, VERSION
+    versionString = '.'.join(map(str,VERSION))
     BUILD_NUMBER += 1
-    logging.logger.info("*** Build number %d" % BUILD_NUMBER)
+    logging.logger.info("*** Building Version %s, Build number %d" % (versionString,BUILD_NUMBER))
     with open('build_info.py', 'wb') as f:
         f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
         f.write('VERSION = %s\n' % str(VERSION))
@@ -21,6 +27,9 @@ try:
         f.write('BUILD_TIME = %d\n' % time.time())
         f.write('BUILD_MACHINE = %r\n' % socket.gethostname())
 except Exception:
+    BUILD_NUMBER = "Unknown"
+    VERSION = "Unknown"
+    DEBUG = True
     logging.logger.warning("*** Couldn't read and/or change build number!")
 
 
@@ -81,3 +90,6 @@ exe = EXE(pyz,
           upx=True,
           console=DEBUG
           )
+
+logging.logger.info("*** Completed building version %s, Build number %d, DEBUG=%s" % (versionString,BUILD_NUMBER,DEBUG))
+logging.logger.info("*** Build time: %s" % (datetime.now()-startTime))
