@@ -5,13 +5,18 @@ recorder. Since there's only the two SSX variants, this is not urgent.
 
 @author: dstokes
 
+@todo: This has grown organically and should be completely refactored. The
+    basic design was based on SSX requirements, with optional fields; making
+    it support SSC was a hack.
+    
+@todo: `BaseConfigPanel` is a bit over-engineered; clean it up.
+
 @todo: I use `info` and `data` for the recorder info at different times;
     if there's no specific reason, unify. It may be vestigial.
     
 @todo: Move device-specific components to different modules;
     This could be the start of a sort of extensible architecture.
-    
-@todo: `BaseConfigPanel` is a bit over-engineered; clean it up.
+
 
 '''
 
@@ -584,9 +589,11 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             state = checkbox.GetValue()
         else:
             checkbox.Enable(state)
+        if checkbox not in self.controls:
+            return
         for c in self.controls[checkbox]:
-            if c is not None:
-                c.Enable(state)
+            if c is not None and c != checkbox:
+                self.enableField(c, state)
         
        
             
@@ -737,9 +744,6 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         """
         cfg= self.root.device.getConfig()
         self.data = cfg.get('SSXTriggerConfiguration', {})
-#         if 'WakeTimeUTC' in self.data and self.root.useUtc:
-#             self.data['WakeTimeUTC'] -= time.timezone - (time.daylight * 60 * 60)
-            
 
 
     def buildUI(self):
@@ -764,20 +768,28 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.rearmCheck = self.addCheck("Re-triggerable", "AutoRearm")
         self.makeChild(self.timeCheck, self.rearmCheck)
         
-        self.pressLoCheck = self.addIntField("Pressure Trigger (Low):", 
-            units="Pa", minmax=(0,120000), value=90000)
-        self.pressHiCheck = self.addIntField("Pressure Trigger (High):", 
-            units="Pa", minmax=(0,120000), value=110000)
-        self.tempLoCheck = self.addFloatField("Temperature Trigger (Low):", 
-            units=u'\xb0C', minmax=(-40.0,80.0), value=-15.0)
-        self.tempHiCheck = self.addFloatField("Temperature Trigger (High):", 
-            units=u'\xb0C', minmax=(-40.0,80.0), value=35.0)
-        self.accelLoCheck = self.addFloatField("Accelerometer Trigger (Low):", 
+        self.presTrigCheck = self.addCheck("Pressure Trigger")
+        self.pressLoCheck = self.addIntField("Pressure Trigger, Low:", 
+            units="Pa", minmax=(0,120000), value=90000, indent=2, check=False)
+        self.pressHiCheck = self.addIntField("Pressure Trigger, High:", 
+            units="Pa", minmax=(0,120000), value=110000, indent=2, check=False)
+        self.makeChild(self.presTrigCheck, self.pressLoCheck, self.pressHiCheck)
+        
+        self.tempTrigCheck = self.addCheck("Temperature Trigger")
+        self.tempLoCheck = self.addFloatField("Temperature Trigger, Low:", 
+            units=u'\xb0C', minmax=(-40.0,80.0), value=-15.0, indent=2, check=False)
+        self.tempHiCheck = self.addFloatField("Temperature Trigger, High:", 
+            units=u'\xb0C', minmax=(-40.0,80.0), value=35.0, indent=2, check=False)
+        self.makeChild(self.tempTrigCheck, self.tempLoCheck, self.tempHiCheck)
+        
+        self.accelTrigCheck = self.addCheck("Acceleration Trigger")
+        self.accelLoCheck = self.addFloatField("Accelerometer Trigger, Low:", 
             units="G", tooltip="The lower trigger limit. Less than 0.", 
-            value=-5)
-        self.accelHiCheck = self.addFloatField("Accelerometer Trigger (High):", 
+            value=-5, indent=2, check=False)
+        self.accelHiCheck = self.addFloatField("Accelerometer Trigger, High:", 
             units="G", tooltip="The upper trigger limit. Greater than 0.", 
-            value=5)
+            value=5, indent=2, check=False)
+        self.makeChild(self.accelTrigCheck, self.accelLoCheck, self.accelHiCheck)
 
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
@@ -802,13 +814,18 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.useUtcCheck.Enable(False)
         self.rearmCheck.SetValue(False)
 
+        self.tempTrigCheck.SetValue(False)
         self.setField(self.pressLoCheck, 90000, False)
         self.setField(self.pressHiCheck, 110000, False)
+        self.pressTrigCheck.SetValue(False)
         self.setField(self.tempLoCheck, -15, False)
         self.setField(self.tempHiCheck, 35, False)
+        self.accelTrigCheck.SetValue(False)
         self.setField(self.accelLoCheck, -5, False)
         self.setField(self.accelHiCheck, 5, False)
         
+        self.enableAll()
+
 
     def OnCheckChanged(self, evt):
         """ General checkbox event handler.
@@ -858,17 +875,20 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             high = trigger.get('TriggerWindowHi', None)
             if channel == 0:
                 # Accelerometer. Both or neither must be set.
-                low = accelTransform(0 if low is None else low)
-                high = accelTransform(65535 if high is None else high)
+                low = -5.0 if low is None else accelTransform(low)
+                high = 5.0 if high is None else accelTransform(high)
                 self.setField(self.accelLoCheck, low)
                 self.setField(self.accelHiCheck, high)
+                self.accelTrigCheck.SetValue(True)
             elif channel == 1:
                 if subchannel == 0:
                     # Pressure
+                    self.presTrigCheck.SetValue(True)
                     self.setField(self.pressLoCheck, low)
                     self.setField(self.pressHiCheck, high)
                 elif subchannel == 1:
                     # Temperature
+                    self.tempTrigCheck.SetValue(True)
                     self.setField(self.tempLoCheck, low)
                     self.setField(self.tempHiCheck, high)
         
@@ -876,6 +896,12 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             self.OnUtcCheck(True)
         
         self.enableAll()
+
+        # HACK: Fields and parent check both in controls, so enableAll doesn't
+        # always work. Refactor later.
+        self.enableField(self.presTrigCheck)
+        self.enableField(self.tempTrigCheck)
+        self.enableField(self.accelTrigCheck)
 
 
     def getData(self):
@@ -887,23 +913,25 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         for name,control in self.fieldMap.iteritems():
             self.addVal(control, data, name)
         
-        if self.accelLoCheck.GetValue() or self.accelHiCheck.GetValue():
+        if self.accelTrigCheck.GetValue():
             trig = OrderedDict(TriggerChannel=0)
             self.addVal(self.accelLoCheck, trig, "TriggerWindowLo", kind=float,
-                        transform=self.root.device._packAccel, default=0)
+                        transform=self.root.device._packAccel, 
+                        default=self.root.device._packAccel(-5.0))
             self.addVal(self.accelHiCheck, trig, "TriggerWindowHi", kind=float,
-                        transform=self.root.device._packAccel, default=65535)
+                        transform=self.root.device._packAccel, 
+                        default=self.root.device._packAccel(5.0))
             if len(trig) > 2:
                 triggers.append(trig)
                  
-        if self.pressLoCheck.GetValue() or self.pressHiCheck.GetValue():
+        if self.presTrigCheck.GetValue():
             trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=0)
             self.addVal(self.pressLoCheck, trig, 'TriggerWindowLo')
             self.addVal(self.pressHiCheck, trig, 'TriggerWindowHi')
             if len(trig) > 2:
                 triggers.append(trig)
                      
-        if self.tempLoCheck.GetValue() or self.tempHiCheck.GetValue():
+        if self.tempTrigCheck.GetValue():
             trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=1)
             self.addVal(self.tempLoCheck, trig, 'TriggerWindowLo')
             self.addVal(self.tempHiCheck, trig, 'TriggerWindowHi')
@@ -1325,13 +1353,13 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         
         self.indent += 1
         self.rearmCheck = self.addCheck("Re-triggerable",
-            tooltip="Recorder will restart when triggering event re-occurs.")
+            tooltip="Recorder will restart when triggering event re-occurs. "
+            "Only applicable when the recording length is limited.")
         self.indent -= 1
         
         self.intGroup = self.startGroup("Interval Trigger")
-        self.wakeCheck = self.addDateTimeField(
-            "Wake at specific time:", "ALARM_TIME", 
-            tooltip="The date and time at which to start recording. "
+        self.wakeCheck = self.addDateTimeField("Alarm Time:", "ALARM_TIME", 
+            tooltip="The date and time used for all interval triggers. "
             "Note: the year is ignored.")
         self.indent += 2
         self.useUtcCheck = self.addCheck("Use UTC Time")
@@ -1342,7 +1370,8 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         self.intervalField = self.addChoiceField("Trigger at Intervals", 
             choices=self.CHIME_TIMES.values(), check=False, 
             selected=len(self.CHIME_TIMES)-1, 
-            tooltip="The frequency at which to take recordings.")
+            tooltip="The frequency at which to take recordings, based on "
+            "the Alarm Time.")
         self.chimeCheck = self.addIntField("Limit Number of Triggers:", 
             'REPEATS', minmax=(0,255), tooltip="The number of interval-based "
             "triggers to record, in addition to the first. Does not include "
@@ -1385,7 +1414,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
 
         
     def OnDefaultsBtn(self, evt):
-        
+        self.setField(self.chimeCheck, 0, checked=False)
         self.setField(self.accelTrigCheck, 8.0, checked=False)
         self.xCheck.SetValue(True)
         self.xCheck.Enable(False)
@@ -1436,10 +1465,10 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             self.hideField(self.intGroup)
         
         trigs = self.info.get('TRIG_ACT_INACT_REG', 0)
-        self.acCheck.SetValue((trigs & 0b10000000) and True)
-        self.xCheck.SetValue((trigs & 0b01000000) and True)
-        self.yCheck.SetValue((trigs & 0b00100000) and True)
-        self.zCheck.SetValue((trigs & 0b00010000) and True)
+        self.acCheck.SetValue((trigs & 0b10000000) != 0)
+        self.xCheck.SetValue((trigs & 0b01000000) != 0)
+        self.yCheck.SetValue((trigs & 0b00100000) != 0)
+        self.zCheck.SetValue((trigs & 0b00010000) != 0)
         
         if self.root.useUtc:
             self.OnUtcCheck(True)
@@ -1457,6 +1486,11 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         self.setField(self.intervalField, self.CHIME_TIMES.get(self.info.get('ROLLPERIOD',0)))
         
         self.enableAll()
+        self.enableField(self.napCheck, self.accelTrigCheck.GetValue())
+        self.enableField(self.intervalField, self.wakeCheck.GetValue())
+        
+        if self.info['SWREV'] > 1 and self.info['CONFIGFILE_VER'] == 1:
+            self.setField(self.chimeCheck, 0, checked=False)
     
     
     def getData(self):
@@ -1569,7 +1603,12 @@ class ClassicOptionsPanel(BaseConfigPanel):
 
 
     def OnDefaultsBtn(self, evt):
-        wx.MessageBox("TODO: Implement Classic defaults", "Not Implemented (Yet)")
+        self.rtccCheck.SetValue(True)
+        self.enableField(self.rtccCheck)
+        self.setTimeCheck.SetValue(True)
+        self.setTimeCheck.Enable(True)
+        self.setField(self.samplingCheck, self.SAMPLE_RATES.values()[-1])
+        self.enableField(self.samplingCheck, True)
 
 
     def initUI(self):
