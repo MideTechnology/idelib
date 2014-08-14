@@ -142,6 +142,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.recorders = {}
         self.itemDataMap = {} # required by ColumnSorterMixin
 
+        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
             # Reuse the list of paths to get the list of Recorder objects
         for dev in getDevices(self.recorderPaths):
             try:
@@ -169,6 +170,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         if self.firstDrawing:
             self.list.Fit()
             self.firstDrawing = False
+
+        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
 
     def getSelected(self):

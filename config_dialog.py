@@ -816,7 +816,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.tempTrigCheck.SetValue(False)
         self.setField(self.pressLoCheck, 90000, False)
         self.setField(self.pressHiCheck, 110000, False)
-        self.pressTrigCheck.SetValue(False)
+        self.presTrigCheck.SetValue(False)
         self.setField(self.tempLoCheck, -15, False)
         self.setField(self.tempHiCheck, 35, False)
         self.accelTrigCheck.SetValue(False)
@@ -824,6 +824,9 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.setField(self.accelHiCheck, 5, False)
         
         self.enableAll()
+        self.enableField(self.tempTrigCheck)
+        self.enableField(self.presTrigCheck)
+        self.enableField(self.accelTrigCheck)
 
 
     def OnCheckChanged(self, evt):
