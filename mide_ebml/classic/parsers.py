@@ -48,7 +48,7 @@ class RecordingParser(object):
         sample rate = (6.25 * (2 ** (samprateCode - 6)))
     """
     sectorSize = 512
-    headerParser = struct.Struct("<IBxIxxbBHH")
+    headerParser = struct.Struct("<IBxIxxBBHH")
     indexParser = struct.Struct("<HH")
     secondScalar = 1000000.0
     timeScalar = secondScalar / 2**15
@@ -59,14 +59,18 @@ class RecordingParser(object):
         
         
     def decodeFatDateTime(self, raw_date, raw_time, tzoffset):
-        year = ((raw_date & 0xFE00) >> 9) + 1980 # fix "years since 1980" offset
-        month = (raw_date & 0x01E0) >> 5
-        day = (raw_date & 0x001F)
+        year = ((raw_date >> 9) & 0x7f) + 1980 # fix "years since 1980" offset
+        month = (raw_date >> 5) & 0x0f
+        day = (raw_date & 0x1f)
         
-        hour = (raw_time & 0xF800) >> 11
-        minute = (raw_time & 0x07E0) >> 5
-        second = (raw_time & 0x001F) << 1
-        
+#         raw_time >>= 16
+        second = (raw_time & 0x1f) * 2
+        minute = (raw_time >> 5) & 0x3f
+        hour = (raw_time >> 11) & 0x1f
+#         hour = (raw_time & 0xF800) >> 11
+#         minute = (raw_time & 0x07E0) >> 5
+#         second = (raw_time & 0x001F) << 1
+
         try:
 #             return datetime(year, month, day, hour, minute, second)
             return time.mktime((year, month, day, hour, minute, second,0,0,0))
@@ -77,7 +81,7 @@ class RecordingParser(object):
     def findEnd(self, data, sampleSize):
         """ Find the end of the final recording session.
         """
-        data = data.rtrim('\xff')
+        data = data.rstrip('\xff')
         return data[:len(data)-(len(data)%sampleSize)]
     
     
@@ -87,21 +91,24 @@ class RecordingParser(object):
         startPos = pos[0] * self.sectorSize
         endPos = pos[1] * self.sectorSize
         
-        if endPos > self.filesize or startPos > self.filesize:
+        if startPos >= self.filesize:
             raise parsers.ParsingError("Classic data file appears damaged.")
+        if endPos > self.filesize:
+            endPos = self.filesize
         
         self.doc.file.seek(startPos)
         header = self.doc.file.read(self.headerParser.size)
-        size, sampleRate, ticks, tzOffset, flags, date, time = \
+        size, sampleRate, ticks, flags, tzOffset, date, time = \
             self.headerParser.unpack_from(header)
         
         dataStart = self.doc.file.tell()
         channel = self.doc.channels[channelId]
         sampLen = channel.parser.size
         
-        if flags & 0x00000001:
-            # 'device clock is set' bit
-            timestamp = self.decodeFatDateTime(date, time, tzOffset)
+#         print "flags: %s, date: %x, time: %x" % (bin(flags), date, time)
+        if flags & 0x01 and not flags & 0b10000000:
+            # 'device clock is set' bit, and flags aren't invalid
+            timestamp = self.decodeFatDateTime(time, date, tzOffset)
         else:
             timestamp = None
         

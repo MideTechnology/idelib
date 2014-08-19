@@ -1244,7 +1244,6 @@ class InfoPanel(HtmlWindow):
             # Show in same window (file, etc.)
             super(InfoPanel, self).OnLinkClicked(linkinfo)
             
-    
 
 #===============================================================================
 # 
@@ -1482,10 +1481,10 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         conf = self.info.get('CONFIG_FLAGS', 0b10000000)
         self.rearmCheck.SetValue((conf & 0b01000000) and True)
         
-        self.setField(self.chimeCheck, 
-                    self.info.get('REPEATS', 0),
-                      checked=(self.info.get('CHIME_EN',0) & 1) and True)
-        self.setField(self.intervalField, self.CHIME_TIMES.get(self.info.get('ROLLPERIOD',0)))
+        self.setField(self.chimeCheck, self.info.get('REPEATS', 0),
+                      checked=(not self.info.get('CHIME_EN',0) & 1))
+        self.setField(self.intervalField, 
+                      self.CHIME_TIMES.get(self.info.get('ROLLPERIOD',0)))
         
         self.enableAll()
         self.enableField(self.napCheck, self.accelTrigCheck.GetValue())
@@ -1521,14 +1520,13 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         data['CONFIG_FLAGS'] = confFlags
         
         if self.chimeCheck.GetValue():
-            data['CHIME_EN'] = 1
-        else:
+            # CHIME is enabled when recording count NOT limited!
             data['CHIME_EN'] = 0
+        else:
+            data['CHIME_EN'] = 1
+            
         data['ROLLPERIOD'] = self.CHIME_TIMES.keys()[self.controls[self.intervalField][0].GetSelection()]
         
-#         self.root.useUtc = self.useUtcCheck.GetValue()
-#         if self.wakeCheck.GetValue() and not self.root.useUtc:
-#             data['ALARM_TIME'] += time.timezone
         self.root.useUtc = self.useUtcCheck.GetValue()
         if self.root.useUtc and self.wakeCheck.GetValue():
             t = self.controls[self.wakeCheck][0].GetValue()
@@ -1626,7 +1624,6 @@ class ClassicOptionsPanel(BaseConfigPanel):
                 continue
             self.setField(c, v)
         
-#         self.info['RTCC_ENA'] = self.info['RTCC_ENA']
         self.rtccCheck.SetValue(self.info.get('RTCC_ENA',0) and True)
         
         r = self.info.setdefault('BW_RATE_PWR', 0x0f) & 0xf

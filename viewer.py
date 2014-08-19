@@ -1237,11 +1237,16 @@ class Viewer(wx.Frame, MenuMixin):
         """
         sessions = []
         for session in self.dataset.sessions:
-            s = "%d" % session.sessionId
+            s = "%d:" % session.sessionId
             if session.utcStartTime is not None:
-                s = "%s: %s" % (s, session.utcStartTime)
+                utcStartTime = session.utcStartTime
+                if isinstance(utcStartTime, (int, float)):
+                    utcStartTime = datetime.fromtimestamp(utcStartTime)
+                s = "%s %s" % (s, utcStartTime)
             if session.startTime is not None and session.endTime is not None:
                 length = session.endTime - session.startTime
+                if length == 0:
+                    continue
                 s = "%s (%0.4f seconds)" % (s, length * self.timeScalar)
             sessions.append(s)
                 
