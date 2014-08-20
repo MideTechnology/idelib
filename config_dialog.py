@@ -952,7 +952,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             return OrderedDict(SSXTriggerConfiguration=data)
         
         return data
-        
+
 
 #===============================================================================
 # 
@@ -1648,7 +1648,7 @@ class ClassicOptionsPanel(BaseConfigPanel):
             self.addVal(control, data, name)
         
         samplingIdx = self.controls[self.samplingCheck][0].GetSelection()
-        data['BW_RATE_PWR'] = self.SAMPLE_RATES.keys()[samplingIdx] | 0b1000
+        data['BW_RATE_PWR'] = self.SAMPLE_RATES.keys()[samplingIdx]
 
         if self.rtccCheck.GetValue():
             data['RTCC_ENA'] = 1

@@ -8,7 +8,6 @@ import os
 HOME_DIR = os.getcwd()
 
 startTime = datetime.now()
-print "what?"
 
 # This is a moderately kludgey auto-incrementing build number.
 try:
@@ -92,4 +91,4 @@ exe = EXE(pyz,
           )
 
 logging.logger.info("*** Completed building version %s, Build number %d, DEBUG=%s" % (versionString,BUILD_NUMBER,DEBUG))
-logging.logger.info("*** Build time: %s" % (datetime.now()-startTime))
+logging.logger.info("*** Elapsed build time: %s" % (datetime.now()-startTime))
