@@ -44,11 +44,12 @@ class FFTView(wx.Frame, MenuMixin):
     ID_EXPORT_IMG = wx.NewId()
     ID_DATA_LOG_AMP = wx.NewId()
     ID_DATA_LOG_FREQ = wx.NewId()
+    ID_VIEW_SHOWTITLE = wx.NewId()
+    ID_VIEW_SHOWLEGEND = wx.NewId()
     
     IMAGE_FORMATS = "Windows Bitmap (*.bmp)|*.bmp|" \
                      "JPEG (*.jpg)|*.jpg|" \
                      "Portable Network Graphics (*.png)|*.png" 
-
     
     def __init__(self, *args, **kwargs):
         """ FFT view main panel. Takes standard wx.Window arguments plus:
@@ -72,9 +73,10 @@ class FFTView(wx.Frame, MenuMixin):
             self.source = self.subchannels[0].parent.getSession(
                                                     self.root.session.sessionId)
         
-        
         super(FFTView, self).__init__(*args, **kwargs)
         
+        self.showTitle = self.root.app.getPref('fft.showTitle', True)
+        self.showLegend = self.root.app.getPref('fft.showLegend', True)
         self.timeScalar = getattr(self.root, "timeScalar", 1.0/(6**10))
         self.statusBar = StatusBar(self)
         self.statusBar.stopProgress()
@@ -82,7 +84,6 @@ class FFTView(wx.Frame, MenuMixin):
         
         self.initMenus()
         self.initPlot()
-        
         
         self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
         self.Show(True)
@@ -110,8 +111,9 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.setLogScale(self.logarithmic)
         self.canvas.SetXSpec('min')
         self.canvas.SetYSpec('auto')
-        
-   
+        self.canvas.SetEnableLegend(self.showLegend)
+        self.canvas.SetEnableTitle(self.showTitle)
+
 
     def draw(self):
         """
@@ -175,6 +177,11 @@ class FFTView(wx.Frame, MenuMixin):
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[1])
         self.menubar.Append(self.dataMenu, "Data")
 
+        self.addMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, "Show Legend", "", self.OnMenuViewLegend, kind=wx.ITEM_CHECK)
+        self.addMenuItem(self.dataMenu, self.ID_VIEW_SHOWTITLE, "Show Title", "", self.OnMenuViewTitle, kind=wx.ITEM_CHECK)
+        self.setMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, checked=self.showLegend)
+        self.setMenuItem(self.dataMenu, self.ID_VIEW_SHOWTITLE, checked=self.showTitle)
+        
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
             "About %s %s..." % (self.root.app.GetAppDisplayName(), self.root.app.versionString), "", 
@@ -352,7 +359,16 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.setLogScale(self.logarithmic)
         self.canvas.Redraw()
         
-        
+    def OnMenuViewLegend(self, evt):
+        self.showLegend = evt.IsChecked()
+        self.canvas.SetEnableLegend(self.showLegend)
+        self.canvas.Redraw()
+    
+    def OnMenuViewTitle(self, evt):
+        self.showTitle = evt.IsChecked()
+        self.canvas.SetEnableTitle(self.showTitle)
+        self.canvas.Redraw()
+
     def OnClose(self, evt):
         self.Close()
     
@@ -577,6 +593,7 @@ class SpectrogramView(FFTView):
         p.SetXSpec('min')
         p.SetYSpec('auto')
         self.canvas.AddPage(p, self.subchannels[channelIdx].name)
+        p.SetEnableTitle(self.showTitle)
 
         p.image = self.images[channelIdx]
         p.Draw(self.lines[channelIdx])
@@ -743,6 +760,7 @@ class SpectrogramView(FFTView):
 
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=False, enabled=False)
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[2])
+        self.setMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, checked=False, enabled=False)
         
         self.dataMenu.AppendSeparator()
         
@@ -766,6 +784,7 @@ class SpectrogramView(FFTView):
         for i in range(self.canvas.GetPageCount()):
             p = self.canvas.GetPage(i)
             p.image = self.images[i]
+            p.SetEnableTitle(self.showTitle)
             p.Redraw()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         
@@ -849,4 +868,8 @@ class SpectrogramView(FFTView):
     def OnMenuColorize(self, evt):
         self.colorizer = self.colorizers.get(evt.GetId(), self.plotColorSpectrum)
         self.redrawPlots()
-        
+
+    def OnMenuViewTitle(self, evt):
+        self.showTitle = evt.IsChecked()
+        self.redrawPlots()
+
