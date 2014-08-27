@@ -29,7 +29,7 @@ import wx; wx = wx
 import spectrum as spec
 
 from base import MenuMixin
-from common import StatusBar, nextPow2, sanitizeFilename
+from common import mapRange, StatusBar, nextPow2, sanitizeFilename
 #===============================================================================
 # 
 #===============================================================================
@@ -403,6 +403,9 @@ class SpectrogramPlot(P.PlotCanvas):
         If it's not, the offscreen buffer is used
         """
 
+        # Modification: remember if xAxis or yAxis set (the variables change)
+        zoomed = not (xAxis is None and yAxis is None)
+        
         if dc == None:
             # sets new dc and clears it 
             dc = wx.BufferedDC(wx.ClientDC(self.canvas), self._Buffer)
@@ -525,7 +528,34 @@ class SpectrogramPlot(P.PlotCanvas):
         
         # MODIFICATION: Draw the spectrogram bitmap
         if self.image is not None:
-            img = self.image.Scale(rectWidth, rectHeight).ConvertToBitmap()
+            if zoomed:
+                x_range = self.GetXMaxRange()
+                y_range = self.GetYMaxRange()
+                img_w, img_h = self.image.GetSize()
+                
+                
+                x1 = mapRange(p1[0], x_range[0], x_range[1], 0, img_w)
+                x2 = mapRange(p2[0], x_range[0], x_range[1], 0, img_w)
+                
+                y1 = mapRange(p1[1], y_range[0], y_range[1], 0, img_h)
+                y2 = mapRange(p2[1], y_range[0], y_range[1], 0, img_h)
+                
+                print "xAxis:", xAxis
+                print "yAxis:", yAxis
+                print "p1:",p1
+                print "p2:",p2
+                print "x_range:", x_range
+                print "y_range:", y_range
+                print "img size:", self.image.GetSize()
+                print "rect:", x1, y1, x2, y2
+                print "*"*30
+#                 print "rect:", x1, y1, crop_w, crop_h
+#                 img = self.image.GetSubImage(wx.Rect(x1, img_h-y2, abs(x2-x1), abs(y2-y1)))
+                img = self.image.Size(wx.Size(abs(x2-x1), abs(y2-y1)), wx.Point(-x1, -(img_h-y2)), 255, 255, 255)
+#                 img = self.image.GetSubImage(wx.Rect(x1, y1, crop_w, crop_h))
+            else:
+                img = self.image
+            img = img.Scale(rectWidth, rectHeight).ConvertToBitmap()
             dc.DrawBitmap(img, ptx, pty)
         
         self._drawAxes(dc, p1, p2, scale, shift, xticks, yticks)
@@ -596,7 +626,10 @@ class SpectrogramView(FFTView):
         p.SetEnableTitle(self.showTitle)
 
         p.image = self.images[channelIdx]
-        p.Draw(self.lines[channelIdx])
+        # XXX: REMOVE xAxis AND yAxis
+#         p.Draw(self.lines[channelIdx], yAxis=(0,2000))
+        p.Draw(self.lines[channelIdx], xAxis=(0,6), yAxis=(400,2000))
+#         p.Draw(self.lines[channelIdx])
 
 
     def makeLineList(self):
@@ -608,6 +641,7 @@ class SpectrogramView(FFTView):
         start = self.source[0][-2] * self.timeScalar
         end = self.source[-1][-2] * self.timeScalar
         self.lines = []
+        self.ranges = []
 
         for i in range(len(self.data)):
             d = self.data[i]
