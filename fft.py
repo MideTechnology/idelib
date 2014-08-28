@@ -15,12 +15,12 @@ import colorsys
 import csv
 import os.path
 import sys
-import time
+# import time
 
 # import Image
 
 import numpy as np
-from numpy.core import hstack
+from numpy.core import hstack, vstack
 
 import wx.lib.plot as P
 from wx import aui
@@ -30,6 +30,55 @@ import spectrum as spec
 
 from base import MenuMixin
 from common import mapRange, StatusBar, nextPow2, sanitizeFilename
+#===============================================================================
+# 
+#===============================================================================
+
+class PlotPanel(wx.Panel):
+    """
+    """
+    def __init__(self, *args, **kwargs):
+        super(PlotPanel, self).__init__(*args, **kwargs)
+        self.canvas = None
+        
+        self.sizer = wx.FlexGridSizer(2,2,0,0)
+        self.canvas = wx.BoxSizer(wx.HORIZONTAL)
+        self.vScrollbar = wx.ScrollBar(self, style=wx.SB_VERTICAL)
+        self.hScrollbar = wx.ScrollBar(self, style=wx.SB_HORIZONTAL)
+        
+        self.sizer.Add(self.canvas, 1, wx.EXPAND)
+        self.sizer.Add(self.vScrollbar, 0, wx.EXPAND)
+        self.sizer.Add(self.hScrollbar, 0, wx.EXPAND)
+        self.sizer.Add(wx.BoxSizer(wx.HORIZONTAL), -1, wx.EXPAND)
+        
+        self.sizer.AddGrowableCol(0)
+        self.sizer.AddGrowableRow(0)
+        self.SetSizerAndFit(self.sizer)
+
+#===============================================================================
+# 
+#===============================================================================
+
+class FFTPlotCanvas(P.PlotCanvas):
+    def _Draw(self, graphics, xAxis = None, yAxis = None, dc = None):
+        """ Zoom on the plot
+            Centers on the X,Y coords given in Center
+            Zooms by the Ratio = (Xratio, Yratio) given
+        """
+        if xAxis is not None:
+            x_range = self.GetXMaxRange()
+            xAxis = (max(x_range[0], xAxis[0]), min(x_range[1], xAxis[1]))
+        if yAxis is not None:
+            y_range = self.GetYMaxRange()
+            yAxis = (max(y_range[0], yAxis[0]), min(y_range[1], yAxis[1]))
+        
+        try:
+            super(FFTPlotCanvas, self)._Draw(graphics, xAxis, yAxis, dc)
+        except OverflowError:
+            # XXX: THIS IS A HACK TO GET AROUND SPORADIC 'FLOAT INFINITY' ISSUE
+            pass
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -46,6 +95,7 @@ class FFTView(wx.Frame, MenuMixin):
     ID_DATA_LOG_FREQ = wx.NewId()
     ID_VIEW_SHOWTITLE = wx.NewId()
     ID_VIEW_SHOWLEGEND = wx.NewId()
+    ID_VIEW_ANTIALIAS = wx.NewId()
     
     IMAGE_FORMATS = "Windows Bitmap (*.bmp)|*.bmp|" \
                      "JPEG (*.jpg)|*.jpg|" \
@@ -68,6 +118,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.data = kwargs.pop("data",None)
         self.sliceSize = kwargs.pop("sliceSize", 2**16)
         self.logarithmic = kwargs.pop('logarithmic', (False, False))
+        self.exportPrecision = kwargs.pop('exportPrecision', 6)
         
         if self.source is None and self.subchannels is not None:
             self.source = self.subchannels[0].parent.getSession(
@@ -75,6 +126,7 @@ class FFTView(wx.Frame, MenuMixin):
         
         super(FFTView, self).__init__(*args, **kwargs)
         
+        self.SetMinSize((640,480))
         self.showTitle = self.root.app.getPref('fft.showTitle', True)
         self.showLegend = self.root.app.getPref('fft.showLegend', True)
         self.timeScalar = getattr(self.root, "timeScalar", 1.0/(6**10))
@@ -103,7 +155,10 @@ class FFTView(wx.Frame, MenuMixin):
     def initPlot(self):
         """
         """
-        self.canvas = P.PlotCanvas(self)
+        self.content = PlotPanel(self)
+        self.canvas = FFTPlotCanvas(self.content)
+        self.content.canvas.Add(self.canvas, 1, wx.EXPAND)
+#         self.canvas = P.PlotCanvas(self)
         self.canvas.SetEnableAntiAliasing(True)
         self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
         self.canvas.SetFontSizeAxis(10)
@@ -113,7 +168,10 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.SetYSpec('auto')
         self.canvas.SetEnableLegend(self.showLegend)
         self.canvas.SetEnableTitle(self.showTitle)
-
+        self.canvas.SetEnableZoom(True)
+        self.canvas.SetShowScrollbars(True)
+        self.content.Fit()
+        self.Fit()
 
     def draw(self):
         """
@@ -176,11 +234,11 @@ class FFTView(wx.Frame, MenuMixin):
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=self.logarithmic[0])
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[1])
         self.menubar.Append(self.dataMenu, "Data")
-
+        
         self.addMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, "Show Legend", "", self.OnMenuViewLegend, kind=wx.ITEM_CHECK)
         self.addMenuItem(self.dataMenu, self.ID_VIEW_SHOWTITLE, "Show Title", "", self.OnMenuViewTitle, kind=wx.ITEM_CHECK)
         self.setMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, checked=self.showLegend)
-        self.setMenuItem(self.dataMenu, self.ID_VIEW_SHOWTITLE, checked=self.showTitle)
+        self.setMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, checked=self.showLegend)
         
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
@@ -358,7 +416,7 @@ class FFTView(wx.Frame, MenuMixin):
 #         self.canvas.setLogScale((False, evt.IsChecked()))
         self.canvas.setLogScale(self.logarithmic)
         self.canvas.Redraw()
-        
+
     def OnMenuViewLegend(self, evt):
         self.showLegend = evt.IsChecked()
         self.canvas.SetEnableLegend(self.showLegend)
@@ -377,7 +435,7 @@ class FFTView(wx.Frame, MenuMixin):
 # 
 #===============================================================================
 
-class SpectrogramPlot(P.PlotCanvas):
+class SpectrogramPlot(FFTPlotCanvas):
     """ A subclass of the standard `wx.lib.plot.PlotCanvas` that draws a bitmap
         instead of a vector graph. 
         
@@ -390,6 +448,9 @@ class SpectrogramPlot(P.PlotCanvas):
         """
         """
         self.image = kwargs.pop('image', None)
+        self.outOfRangeColor = kwargs.pop('outOfRangeColor', (200,200,200))
+        self.zoomedImage = None
+        self.lastZoom = None
         super(SpectrogramPlot, self).__init__(*args, **kwargs)
 
 
@@ -405,6 +466,7 @@ class SpectrogramPlot(P.PlotCanvas):
 
         # Modification: remember if xAxis or yAxis set (the variables change)
         zoomed = not (xAxis is None and yAxis is None)
+        thisZoom = str((xAxis, yAxis))
         
         if dc == None:
             # sets new dc and clears it 
@@ -445,14 +507,31 @@ class SpectrogramPlot(P.PlotCanvas):
         # set font size for every thing but title and legend
         dc.SetFont(self._getFont(self._fontSizeAxis))
 
+        # MODIFICATION: Get ranges
+        x_range = None
+        y_range = None
+
+        # BUG: Zoom limitations don't work!
+#         print "==============================\nbefore:"
+#         print xAxis, x_range
+#         print yAxis, y_range
+
         # sizes axis to axis type, create lower left and upper right corners of plot
         if xAxis == None or yAxis == None:
             # One or both axis not specified in Draw
             p1, p2 = graphics.boundingBox()     # min, max points of graphics
             if xAxis == None:
                 xAxis = self._axisInterval(self._xSpec, p1[0], p2[0]) # in user units
+            else:
+                # MODIFICATION: (this 'else' branch) limit zoom to data extents
+                x_range = self.GetXMaxRange()
+                xAxis = (max(x_range[0], xAxis[0]), min(x_range[1], xAxis[1]))
             if yAxis == None:
                 yAxis = self._axisInterval(self._ySpec, p1[1], p2[1])
+            else:
+                # MODIFICATION: (this 'else' branch) limit zoom to data extents
+                y_range = self.GetYMaxRange()
+                yAxis = (max(y_range[0], yAxis[0]), min(y_range[1], yAxis[1]))
             # Adjust bounding box for axis spec
             p1[0],p1[1] = xAxis[0], yAxis[0]     # lower left corner user scale (xmin,ymin)
             p2[0],p2[1] = xAxis[1], yAxis[1]     # upper right corner user scale (xmax,ymax)
@@ -463,6 +542,10 @@ class SpectrogramPlot(P.PlotCanvas):
 
         self.last_draw = (graphics, np.array(xAxis), np.array(yAxis))       # saves most recient values
 
+#         print "==============================\nafter:"
+#         print xAxis, x_range
+#         print yAxis, y_range
+#         
         # Get ticks and textExtents for axis if required
         if self._xSpec is not 'none':        
             xticks = self._xticks(xAxis[0], xAxis[1])
@@ -529,34 +612,35 @@ class SpectrogramPlot(P.PlotCanvas):
         # MODIFICATION: Draw the spectrogram bitmap
         if self.image is not None:
             if zoomed:
-                x_range = self.GetXMaxRange()
-                y_range = self.GetYMaxRange()
-                img_w, img_h = self.image.GetSize()
-                
-                
-                x1 = mapRange(p1[0], x_range[0], x_range[1], 0, img_w)
-                x2 = mapRange(p2[0], x_range[0], x_range[1], 0, img_w)
-                
-                y1 = mapRange(p1[1], y_range[0], y_range[1], 0, img_h)
-                y2 = mapRange(p2[1], y_range[0], y_range[1], 0, img_h)
-                
-                print "xAxis:", xAxis
-                print "yAxis:", yAxis
-                print "p1:",p1
-                print "p2:",p2
-                print "x_range:", x_range
-                print "y_range:", y_range
-                print "img size:", self.image.GetSize()
-                print "rect:", x1, y1, x2, y2
-                print "*"*30
-#                 print "rect:", x1, y1, crop_w, crop_h
-#                 img = self.image.GetSubImage(wx.Rect(x1, img_h-y2, abs(x2-x1), abs(y2-y1)))
-                img = self.image.Size(wx.Size(abs(x2-x1), abs(y2-y1)), wx.Point(-x1, -(img_h-y2)), 255, 255, 255)
-#                 img = self.image.GetSubImage(wx.Rect(x1, y1, crop_w, crop_h))
+                if thisZoom == self.lastZoom and self.zoomedImage is not None:
+                    img = self.zoomedImage
+                else:
+                    self.lastZoom = thisZoom
+                    if x_range is None:
+                        x_range = self.GetXMaxRange()
+                    if y_range is None:
+                        y_range = self.GetYMaxRange()
+                    img_w, img_h = self.image.GetSize()
+                    
+                    x1 = mapRange(p1[0], x_range[0], x_range[1], 0, img_w)
+                    x2 = mapRange(p2[0], x_range[0], x_range[1], 0, img_w)
+                    y1 = mapRange(p1[1], y_range[0], y_range[1], 0, img_h)
+                    y2 = mapRange(p2[1], y_range[0], y_range[1], 0, img_h)
+                    
+                    zoomSize = wx.Size(max(1, abs(x2-x1)), max(1, abs(y2-y1)))
+                    zoomPos = wx.Point(-x1, -(img_h-y2))
+                    self.zoomedImage = self.image.Size(zoomSize, zoomPos, 
+                                                       *self.outOfRangeColor)
+                img = self.zoomedImage
             else:
                 img = self.image
-            img = img.Scale(rectWidth, rectHeight).ConvertToBitmap()
-            dc.DrawBitmap(img, ptx, pty)
+                
+            try:
+                # Bad dimensions raise an exception; ignore it.
+                img = img.Scale(rectWidth, rectHeight).ConvertToBitmap()
+                dc.DrawBitmap(img, ptx, pty)
+            except:
+                pass
         
         self._drawAxes(dc, p1, p2, scale, shift, xticks, yticks)
         
@@ -590,12 +674,20 @@ class SpectrogramView(FFTView):
     def __init__(self, *args, **kwargs):
         """
         """
-        self.slicesPerSec = float(kwargs.pop('slicesPerSec', 4.0))
-        self.images = None
+        # Colorizers: The functions that render the spectrogram image.
         self.colorizers = {self.ID_COLOR_GRAY: self.plotGrayscale,
                            self.ID_COLOR_SPECTRUM: self.plotColorSpectrum}
+        # 'Out of range' colors: The background color if the plot is scrolled
+        # or zoomed out beyond the bounds of the image. The color is one that
+        # is identifiable as not part of the spectrogram rendering.
+        self.outOfRangeColors = {self.ID_COLOR_GRAY: (200,200,255),
+                                 self.ID_COLOR_SPECTRUM: (200,200,200)}
+        
+        self.slicesPerSec = float(kwargs.pop('slicesPerSec', 4.0))
+        self.images = None
         self.colorizerId = kwargs.pop('colorizer', self.ID_COLOR_SPECTRUM)
         self.colorizer = self.colorizers.get(self.colorizerId, self.plotColorSpectrum)
+        self.outOfRangeColor = self.outOfRangeColors.get(self.colorizerId, (200,200,200))
         
         # The spectrogram is basically a 3D graph, time/frequency/amplitude
         kwargs.setdefault('logarithmic', (False, False, True))
@@ -615,7 +707,6 @@ class SpectrogramView(FFTView):
         """
         
         p = SpectrogramPlot(self)
-        p.SetEnableAntiAliasing(True)
         p.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
         p.SetFontSizeAxis(10)
         p.SetFontSizeLegend(7)
@@ -626,10 +717,13 @@ class SpectrogramView(FFTView):
         p.SetEnableTitle(self.showTitle)
 
         p.image = self.images[channelIdx]
+        p.outOfRangeColor = self.outOfRangeColor
+        p.SetEnableZoom(True)
+        p.SetShowScrollbars(True)
         # XXX: REMOVE xAxis AND yAxis
 #         p.Draw(self.lines[channelIdx], yAxis=(0,2000))
-        p.Draw(self.lines[channelIdx], xAxis=(0,6), yAxis=(400,2000))
-#         p.Draw(self.lines[channelIdx])
+#         p.Draw(self.lines[channelIdx], xAxis=(0,6), yAxis=(400,2000))
+        p.Draw(self.lines[channelIdx])
 
 
     def makeLineList(self):
@@ -806,7 +900,6 @@ class SpectrogramView(FFTView):
         self.setMenuItem(colorMenu, self.colorizerId, checked=True)
         self.dataMenu.AppendMenu(-1, "Colorization", colorMenu)
 
-
     #===========================================================================
     # 
     #===========================================================================
@@ -818,7 +911,9 @@ class SpectrogramView(FFTView):
         for i in range(self.canvas.GetPageCount()):
             p = self.canvas.GetPage(i)
             p.image = self.images[i]
+            p.zoomedImage = None
             p.SetEnableTitle(self.showTitle)
+            p.outOfRangeColor = self.outOfRangeColor
             p.Redraw()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         
@@ -828,6 +923,7 @@ class SpectrogramView(FFTView):
     #===========================================================================
 
     def OnExportCsv(self, evt):
+        dataFormat = "%%.%df" % self.exportPrecision
         exportChannels = []
         if len(self.subchannels) > 1:
             channelNames = [c.name for c in self.subchannels]
@@ -880,9 +976,15 @@ class SpectrogramView(FFTView):
 
         for num, filename in zip(exportChannels, filenames): 
             try:
+                data, freqs, times  = self.data[num]
+                freqs = np.reshape(hstack((np.array((-1,)),freqs)), (-1,1))
+                data = hstack((freqs, vstack((np.reshape(times, (1,-1)), data))))
                 out = open(filename, "wb")
-                writer = csv.writer(out)
-                writer.writerows(self.data[num][0])
+                for d in data:
+                    out.write(', '.join(map(lambda x: dataFormat % x, d)))
+                    out.write('\n')
+#                 writer = csv.writer(out)
+#                 writer.writerows(data)
                 out.close()
             except Exception as err:
                 what = "exporting %s as CSV %s" % (self.NAME, filename)
@@ -900,8 +1002,11 @@ class SpectrogramView(FFTView):
 
     
     def OnMenuColorize(self, evt):
-        self.colorizer = self.colorizers.get(evt.GetId(), self.plotColorSpectrum)
+        evt_id = evt.GetId()
+        self.colorizer = self.colorizers.get(evt_id, self.plotColorSpectrum)
+        self.outOfRangeColor = self.outOfRangeColors.get(evt_id, (200,200,200))
         self.redrawPlots()
+
 
     def OnMenuViewTitle(self, evt):
         self.showTitle = evt.IsChecked()
