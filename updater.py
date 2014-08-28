@@ -295,7 +295,8 @@ def getLatestVersion(url=UPDATER_URL):
         return err, None
 
 
-def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL):
+def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL, 
+                 downloadUrl=DOWNLOAD_URL):
     """ Wrapper for the whole version checking system, to be called by the 
         main app instance.
         
@@ -315,7 +316,7 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL):
     
     # Helper function to create and post the event.
     def sendUpdateEvt(vers=None, date=None, cl=None, err=None, response=None):
-        evt = EvtUpdateAvailable(newVersion=vers, changelog=cl, url=url, 
+        evt = EvtUpdateAvailable(newVersion=vers, changelog=cl, url=downloadUrl, 
                                  error=err, response=response, quiet=quiet)
         wx.PostEvent(app, evt)
     
@@ -353,12 +354,10 @@ def startCheckUpdatesThread(*args, **kwargs):
     t.start()
 
 
-#===============================================================================
-# 
-#===============================================================================
-# 
+#  
+#  
 # if __name__ == '__main__':
-#         
+#          
 #     class FakeApp(wx.App):
 #         PREFS = {
 #                  }
@@ -371,16 +370,16 @@ def startCheckUpdatesThread(*args, **kwargs):
 #             self.PREFS[v] = val
 #         def editPrefs(self, evt=None):
 #             print "edit prefs"
-#        
+#         
 #     app = FakeApp()
-#        
+#         
 #     code, response = getLatestVersion()
 #     print "app.version = %r" % (app.version,)
 #     print "getLatestVersion returned code %r, version %r" % (code, response)
 #     if response is None:
 #         print "Error occurred; aborting"
 #         exit(1)
-#    
+#     
 #     vers = response.get('version', None)
 #     changeUrl = response.get('changelog', None)
 #     print "zipped: %r" % (zip(app.version, vers),)
@@ -389,9 +388,9 @@ def startCheckUpdatesThread(*args, **kwargs):
 #     t = time.time()
 #     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
 #     print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
-#        
+#         
 #     evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
-#        
+#         
 # #     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
 #     dlg = UpdateDialog(None, -1, updaterEvent=evt)
 #     dlg.ShowModal()
