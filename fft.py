@@ -19,7 +19,7 @@ import sys
 
 # import Image
 
-import numpy as np
+import numpy as np; np=np
 from numpy.core import hstack, vstack
 
 import wx.lib.plot as P
@@ -34,26 +34,26 @@ from common import mapRange, StatusBar, nextPow2, sanitizeFilename
 # 
 #===============================================================================
 
-class PlotPanel(wx.Panel):
-    """
-    """
-    def __init__(self, *args, **kwargs):
-        super(PlotPanel, self).__init__(*args, **kwargs)
-        self.canvas = None
-        
-        self.sizer = wx.FlexGridSizer(2,2,0,0)
-        self.canvas = wx.BoxSizer(wx.HORIZONTAL)
-        self.vScrollbar = wx.ScrollBar(self, style=wx.SB_VERTICAL)
-        self.hScrollbar = wx.ScrollBar(self, style=wx.SB_HORIZONTAL)
-        
-        self.sizer.Add(self.canvas, 1, wx.EXPAND)
-        self.sizer.Add(self.vScrollbar, 0, wx.EXPAND)
-        self.sizer.Add(self.hScrollbar, 0, wx.EXPAND)
-        self.sizer.Add(wx.BoxSizer(wx.HORIZONTAL), -1, wx.EXPAND)
-        
-        self.sizer.AddGrowableCol(0)
-        self.sizer.AddGrowableRow(0)
-        self.SetSizerAndFit(self.sizer)
+# class PlotPanel(wx.Panel):
+#     """
+#     """
+#     def __init__(self, *args, **kwargs):
+#         super(PlotPanel, self).__init__(*args, **kwargs)
+#         self.canvas = None
+#         
+#         self.sizer = wx.FlexGridSizer(2,2,0,0)
+#         self.canvas = wx.BoxSizer(wx.HORIZONTAL)
+#         self.vScrollbar = wx.ScrollBar(self, style=wx.SB_VERTICAL)
+#         self.hScrollbar = wx.ScrollBar(self, style=wx.SB_HORIZONTAL)
+#         
+#         self.sizer.Add(self.canvas, 1, wx.EXPAND)
+#         self.sizer.Add(self.vScrollbar, 0, wx.EXPAND)
+#         self.sizer.Add(self.hScrollbar, 0, wx.EXPAND)
+#         self.sizer.Add(wx.BoxSizer(wx.HORIZONTAL), -1, wx.EXPAND)
+#         
+#         self.sizer.AddGrowableCol(0)
+#         self.sizer.AddGrowableRow(0)
+#         self.SetSizerAndFit(self.sizer)
 
 #===============================================================================
 # 
@@ -155,10 +155,12 @@ class FFTView(wx.Frame, MenuMixin):
     def initPlot(self):
         """
         """
-        self.content = PlotPanel(self)
-        self.canvas = FFTPlotCanvas(self.content)
-        self.content.canvas.Add(self.canvas, 1, wx.EXPAND)
+#         self.content = PlotPanel(self)
+#         self.canvas = FFTPlotCanvas(self.content)
+#         self.content.canvas.Add(self.canvas, 1, wx.EXPAND)
+
 #         self.canvas = P.PlotCanvas(self)
+        self.canvas = FFTPlotCanvas(self)
         self.canvas.SetEnableAntiAliasing(True)
         self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
         self.canvas.SetFontSizeAxis(10)
@@ -170,7 +172,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.SetEnableTitle(self.showTitle)
         self.canvas.SetEnableZoom(True)
         self.canvas.SetShowScrollbars(True)
-        self.content.Fit()
+#         self.content.Fit()
         self.Fit()
 
     def draw(self):
@@ -224,25 +226,32 @@ class FFTView(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", None, False)
         self.menubar.Append(editMenu, "Edit")
 
+        self.viewMenu = wx.Menu()
+        self.addMenuItem(self.viewMenu, wx.ID_ZOOM_IN, "Zoom Out\tCtrl+-", "", self.OnZoomOut)
+        self.addMenuItem(self.viewMenu, wx.ID_ZOOM_OUT, "Zoom In\tCtrl+=", "", self.OnZoomIn)
+        self.addMenuItem(self.viewMenu, wx.ID_RESET, "Zoom to Fit\tCtrl+0", "", 
+                         self.OnMenuViewReset)
+        self.viewMenu.AppendSeparator()
+        self.addMenuItem(self.viewMenu, self.ID_VIEW_SHOWLEGEND, 
+                         "Show Legend", "", self.OnMenuViewLegend, 
+                         kind=wx.ITEM_CHECK, checked=self.showLegend)
+        self.addMenuItem(self.viewMenu, self.ID_VIEW_SHOWTITLE, 
+                         "Show Title", "", self.OnMenuViewTitle, 
+                         kind=wx.ITEM_CHECK, checked=self.showTitle)
+        self.menubar.Append(self.viewMenu, "View")
+        
         self.dataMenu = wx.Menu()
         self.logAmp = self.addMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, 
-                         "Amplitude: Logarithmic Scale", "",
-                         self.OnMenuDataLog, kind=wx.ITEM_CHECK)
+                         "Amplitude: Logarithmic Scale", "", self.OnMenuDataLog,
+                         kind=wx.ITEM_CHECK, checked=self.logarithmic[1])
         self.logFreq = self.addMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, 
-                         "Frequency: Logarithmic Scale", "",
-                         self.OnMenuDataLog, kind=wx.ITEM_CHECK)
-        self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=self.logarithmic[0])
-        self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[1])
+                         "Frequency: Logarithmic Scale", "", self.OnMenuDataLog,
+                         kind=wx.ITEM_CHECK, checked=self.logarithmic[0])
         self.menubar.Append(self.dataMenu, "Data")
-        
-        self.addMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, "Show Legend", "", self.OnMenuViewLegend, kind=wx.ITEM_CHECK)
-        self.addMenuItem(self.dataMenu, self.ID_VIEW_SHOWTITLE, "Show Title", "", self.OnMenuViewTitle, kind=wx.ITEM_CHECK)
-        self.setMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, checked=self.showLegend)
-        self.setMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, checked=self.showLegend)
         
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
-            "About %s %s..." % (self.root.app.GetAppDisplayName(), self.root.app.versionString), "", 
+            "About %s..." % self.root.app.fullAppName, "", 
              self.root.OnHelpAboutMenu)
         self.menubar.Append(helpMenu, "Help")
         
@@ -407,7 +416,27 @@ class FFTView(wx.Frame, MenuMixin):
             what = "exporting %s as an image" % self.NAME
             self.root.handleError(err, what=what)
             return False
+
+    def zoomPlot(self, plot, amount):
+        fullX = plot.GetXMaxRange()
+        fullY = plot.GetYMaxRange()
+        oldX = plot.GetXCurrentRange()
+        oldY = plot.GetYCurrentRange()
+#         print "Before: x=%s y=%s" % (oldX, oldY)
+        newX = (max(fullX[0], (1.0-amount) * oldX[0]), min(fullX[1], (1.0+amount) * oldX[1]))
+        newY = (max(fullY[0], (1.0-amount) * oldY[0]), min(fullY[1], (1.0+amount) * oldY[1]))
+#         print "After: x=%s y=%s" % (newX, newY)
+        if newX[1] > newX[0] and newY[1] > newY[0]:
+            plot.Draw(plot.last_draw[0], xAxis=newX, yAxis=newY)
+
+    def OnZoomOut(self, evt):
+        self.zoomPlot(self.canvas, .1)
+        
+    def OnZoomIn(self, evt):
+        self.zoomPlot(self.canvas, -.1)
     
+    def OnMenuViewReset(self, evt):
+        self.canvas.Reset()
 
     def OnMenuDataLog(self, evt):
         """
@@ -888,7 +917,7 @@ class SpectrogramView(FFTView):
 
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=False, enabled=False)
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[2])
-        self.setMenuItem(self.dataMenu, self.ID_VIEW_SHOWLEGEND, checked=False, enabled=False)
+        self.setMenuItem(self.viewMenu, self.ID_VIEW_SHOWLEGEND, checked=False, enabled=False)
         
         self.dataMenu.AppendSeparator()
         
@@ -993,6 +1022,14 @@ class SpectrogramView(FFTView):
 
         return True
 
+    def OnZoomOut(self, evt):
+        self.zoomPlot(self.canvas.GetCurrentPage(), .1)
+
+    def OnZoomIn(self, evt):
+        self.zoomPlot(self.canvas.GetCurrentPage(), -.1)
+
+    def OnMenuViewReset(self, evt):
+        self.canvas.GetCurrentPage().Reset()
 
     def OnMenuDataLog(self, evt):
         """

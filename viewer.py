@@ -776,13 +776,10 @@ class Viewer(wx.Frame, MenuMixin):
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom Out X\tCtrl+-", "",
                          self.OnZoomOutX)
-#                          self.navigator.OnZoomOut)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_IN, "Zoom In X\tCtrl+=", "",
                          self.OnZoomInX)
-#                          self.navigator.OnZoomIn)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_FIT, "Zoom to Fit X\tCtrl+0", "",
                          self.OnZoomFitX)
-#                          self.navigator.OnZoomFit)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_OUT_Y, 
                          "Zoom Out Y\tAlt+-", '', self.OnZoomOutY)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_IN_Y, 
@@ -852,8 +849,7 @@ class Viewer(wx.Frame, MenuMixin):
         # TODO: (cross-platform) Move 'about' to right place for MacOS X.
         # May not be an issue; the library may do it.
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
-            "About %s %s..." % (self.app.GetAppDisplayName(), self.app.versionString), 
-            "", self.OnHelpAboutMenu)
+            "About %s..." % self.app.fullAppName, "", self.OnHelpAboutMenu)
         helpMenu.AppendSeparator()
         self.addMenuItem(helpMenu, self.ID_HELP_CHECK_UPDATES,
                          "Check for Updates", "", self.OnHelpCheckUpdates)
@@ -1468,7 +1464,9 @@ class Viewer(wx.Frame, MenuMixin):
                    source=source, subchannels=subchannels, start=startTime, 
                    end=stopTime, sliceSize=sliceSize)
             self.fftViews[viewId] = view
-        except Exception as e:
+            
+        # XXX: REMOVE
+        except NotImplementedError as e: #Exception as e:
             self.handleError(e, what="generating FFT")
 
 
@@ -1501,7 +1499,9 @@ class Viewer(wx.Frame, MenuMixin):
                    start=startTime, end=stopTime, slicesPerSec=slicesPerSec,)
                     #sliceSize=sliceSize)
             self.fftViews[viewId] = view
-        except Exception as e:
+            
+        # XXX: REMOVE
+        except NotImplementedError as e: #Exception as e:
             self.handleError(e, what="generating Spectrogram")
         
     #===========================================================================
@@ -2439,7 +2439,7 @@ class ViewerApp(wx.App):
         
         super(ViewerApp, self).__init__(*args, **kwargs)
         
-        self.recentFilesMenu = wx.Menu()
+#         self.recentFilesMenu = wx.Menu()
         self.viewers = []
         self.changedFiles = True
         self.stdPaths = wx.StandardPaths.Get()
@@ -2521,6 +2521,7 @@ class ViewerApp(wx.App):
     def OnInit(self):
         """ Post-Constructor initialization event handler. 
         """
+        self.fullAppName = "%s %s" % (APPNAME, self.versionString)
         self.SetAppName(APPNAME)
         self.SetAppDisplayName(APPNAME)
         self.Bind(wx.EVT_CLOSE, self.OnClose)

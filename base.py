@@ -197,7 +197,7 @@ class MenuMixin(object):
     """
     
     def addMenuItem(self, menu, id_, text, helpString, handler=None, 
-                    enabled=True, kind=wx.ITEM_NORMAL):
+                    enabled=True, kind=wx.ITEM_NORMAL, checked=False):
         """ Helper method for doing the grunt work involved in adding a menu
             item to a menu.
             
@@ -209,9 +209,14 @@ class MenuMixin(object):
             @keyword enabled: The initial enabled state of the menu item.
             @keyword kind: WX flags for the menu item type (e.g.
                 `wx.ITEM_NORMAL`, `wx.ITEM_CHECK`, etc).
+            @keyword checked: If `True`, the menu item will be checked by
+                default. Only applicable to `wx.ITEM_CHECK` items; radio buttons
+                need to be set separately.
         """
         item = menu.Append(id_, text, helpString, kind)
         item.Enable(enabled)
+        if kind == wx.ITEM_CHECK:
+            item.Check(checked)
         if handler is not None:
             self.Bind(wx.EVT_MENU, handler, item)
         return item
