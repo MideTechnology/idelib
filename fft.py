@@ -426,8 +426,11 @@ class FFTView(wx.Frame, MenuMixin):
         newX = (max(fullX[0], (1.0-amount) * oldX[0]), min(fullX[1], (1.0+amount) * oldX[1]))
         newY = (max(fullY[0], (1.0-amount) * oldY[0]), min(fullY[1], (1.0+amount) * oldY[1]))
 #         print "After: x=%s y=%s" % (newX, newY)
-        if newX[1] > newX[0] and newY[1] > newY[0]:
-            plot.Draw(plot.last_draw[0], xAxis=newX, yAxis=newY)
+        if newX[0] > newX[1]:
+            newX = tuple(oldX)
+        if newY[0] > newY[1]:
+            newY = tuple(oldY)
+        plot.Draw(plot.last_draw[0], xAxis=newX, yAxis=newY)
 
     def OnZoomOut(self, evt):
         self.zoomPlot(self.canvas, .1)

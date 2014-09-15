@@ -50,7 +50,7 @@ import images
 # Custom controls, events and base classes
 from base import ViewerPanel, MenuMixin
 from common import StatusBar, cleanUnicode
-from events import *
+import events
 from timeline import TimelineCtrl, TimeNavigatorCtrl
 
 # Views, dialogs and such
@@ -221,10 +221,11 @@ class Timeline(ViewerPanel):
         
         if broadcast:
             instigator = self if instigator is None else instigator
-            wx.PostEvent(self.root, EvtSetVisibleRange(start=self.currentTime, 
-                                                       end=end, 
-                                                       instigator=self, 
-                                                       tracking=tracking))
+            wx.PostEvent(self.root, 
+                         events.EvtSetVisibleRange(start=self.currentTime, 
+                                                   end=end, 
+                                                   instigator=self, 
+                                                   tracking=tracking))
 
 
     def getVisibleRange(self):
@@ -663,13 +664,13 @@ class Viewer(wx.Frame, MenuMixin):
         # FUTURE: FFT views as separate windows will eventually be refactored.
         self.fftViews = {}
         
-        self.Bind(EVT_SET_VISIBLE_RANGE, self.OnSetVisibleRange)
-        self.Bind(EVT_SET_TIME_RANGE, self.OnSetTimeRange)
-        self.Bind(EVT_PROGRESS_START, self.OnProgressStart)
-        self.Bind(EVT_PROGRESS_UPDATE, self.OnProgressUpdate)
-        self.Bind(EVT_PROGRESS_END, self.OnProgressEnd)
-        self.Bind(EVT_INIT_PLOTS, self.initPlots)
-        self.Bind(EVT_IMPORT_ERROR, self.handleError)
+        self.Bind(events.EVT_SET_VISIBLE_RANGE, self.OnSetVisibleRange)
+        self.Bind(events.EVT_SET_TIME_RANGE, self.OnSetTimeRange)
+        self.Bind(events.EVT_PROGRESS_START, self.OnProgressStart)
+        self.Bind(events.EVT_PROGRESS_UPDATE, self.OnProgressUpdate)
+        self.Bind(events.EVT_PROGRESS_END, self.OnProgressEnd)
+        self.Bind(events.EVT_INIT_PLOTS, self.initPlots)
+        self.Bind(events.EVT_IMPORT_ERROR, self.handleError)
         
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
@@ -2462,7 +2463,7 @@ class ViewerApp(wx.App):
             self.showBetaWarning()
 
         # Automatic Update Check
-        self.Bind(EVT_UPDATE_AVAILABLE, self.OnUpdateAvailable)
+        self.Bind(events.EVT_UPDATE_AVAILABLE, self.OnUpdateAvailable)
         
         if self.getPref('updater.interval',3) > 0:
             updater.startCheckUpdatesThread(self)

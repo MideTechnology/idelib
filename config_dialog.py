@@ -1377,6 +1377,9 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             "triggers to record, in addition to the first. Does not include "
             "recordings started by the accelerometer trigger.")
         self.makeChild(self.wakeCheck, self.useUtcCheck, self.intervalField, self.chimeCheck)
+        # Keep track of wakeCheck apart from the group so enabling works,
+        # so the next line should remain commented out. 
+#         self.makeChild(self.intGroup, self.wakeCheck)
         self.endGroup()
         
         self.startGroup('Accelerometer Triggers')
@@ -1464,6 +1467,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         # Hide fields not supported by earlier versions of the firmware
         if self.info.get('SWREV', 0) < 2:
             self.hideField(self.intGroup)
+            self.hideField(self.wakeCheck)
         
         trigs = self.info.get('TRIG_ACT_INACT_REG', 0)
         self.acCheck.SetValue((trigs & 0b10000000) != 0)
