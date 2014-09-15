@@ -25,9 +25,11 @@ class ModalExportProgress(wx.ProgressDialog):
     """
     def __init__(self, *args, **kwargs):
         self.cancelled = False
-        self.message = kwargs.pop('message', 'Exporting %d of %d samples')
+        self.message = kwargs.pop('message', 'Exporting %s of %s samples')
         style = wx.PD_CAN_ABORT|wx.PD_APP_MODAL|wx.PD_REMAINING_TIME
         kwargs.setdefault("style", style)
+        # XXX: TEST
+        kwargs['maximum'] = 1000
         super(ModalExportProgress, self).__init__(*args, **kwargs)
         
     
@@ -35,8 +37,14 @@ class ModalExportProgress(wx.ProgressDialog):
                  done=False):
         if done:
             return
-        msg = self.message % (count, total)
-        keepGoing, skip = super(ModalExportProgress, self).Update(count, msg)
+        # XXX: TEST
+        if percent is None:
+            percent = (count+0.0) / total
+        percent = int(1000*percent)
+        msg = self.message % (locale.format("%d", count, grouping=True),
+                              locale.format("%d", total, grouping=True))
+        keepGoing, skip = super(ModalExportProgress, self).Update(percent, msg)
+#         keepGoing, skip = super(ModalExportProgress, self).Update(count, msg)
         self.cancelled = not keepGoing
         return keepGoing, skip
 
