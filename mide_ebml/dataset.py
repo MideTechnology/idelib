@@ -38,7 +38,7 @@ import os.path
 import random
 import sys
 
-import numpy
+import numpy; numpy=numpy
 
 from ebml.schema.mide import MideDocument
 import util
@@ -1777,11 +1777,11 @@ class EventList(Cascading):
             @return: The number of rows exported and the elapsed time.
         """
         # Dummy callback to be used if none is supplied
-        def dummyCallback(*args, **kwargs): pass
+#         def dummyCallback(*args, **kwargs): pass
         
         if callback is None:
             noCallback = True
-            callback = dummyCallback
+#             callback = dummyCallback
         else:
             noCallback = False
         
@@ -1821,23 +1821,24 @@ class EventList(Cascading):
         start = start + len(self) if start < 0 else start
         stop = stop + len(self) if stop < 0 else stop
         
+        # Catch all or no exceptions
+        ex = None if raiseExceptions or noCallback else Exception
+        
         t0 = datetime.now()
         if headers:
             stream.write('"Time",%s\n' % ','.join(['"%s"' % n for n in names]))
         try:
             for num, evt in enumerate(self.iterSlice(start, stop, step)):
-                if getattr(callback, 'cancelled', False):
-                    callback(done=True)
-                    break
                 stream.write("%s\n" % formatter(evt))
-                if updateInt == 0 or num % updateInt == 0:
-                    callback(num, total=totalLines)
-                callback(done=True)
-        except Exception as e:
-            if raiseExceptions or noCallback:
-                raise e
-            else:
-                callback(error=e)
+                if callback is not None:
+                    if getattr(callback, 'cancelled', False):
+                        callback(done=True)
+                        break
+                    if updateInt == 0 or num % updateInt == 0:
+                        callback(num, total=totalLines)
+                    callback(done=True)
+        except ex as e:
+            callback(error=e)
 
         # Restore old removeMean        
         self.removeMean = oldRemoveMean

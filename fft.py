@@ -22,7 +22,8 @@ import sys
 import numpy as np; np=np
 from numpy.core import hstack, vstack
 
-import wx.lib.plot as P
+# import wx.lib.plot as P
+import wx_lib_plot as P
 from wx import aui
 import wx; wx = wx 
 

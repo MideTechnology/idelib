@@ -25,7 +25,9 @@ test_recordings
 profiling/*
 
 build
+build_64
 dist
+dist_64
 *_python
 images_work
 backups

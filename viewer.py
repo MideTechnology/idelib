@@ -1460,19 +1460,16 @@ class Viewer(wx.Frame, MenuMixin):
         viewId = wx.NewId()
         size = self.GetSize()
         
-        # XXX: TEST. REMOVE LATER.
-        # NotImplementedError should not be raised, so it effectively
-        # disables the exception handling method.
-        ex = NotImplementedError if DEBUG else Exception
+        # Catch no exceptions if not in debug.
+        ex = None if DEBUG else Exception
 
         try:
             view = FFTView(self, viewId, title=title, size=size, root=self, 
                    source=source, subchannels=subchannels, start=startTime, 
                    end=stopTime, sliceSize=sliceSize)
             self.fftViews[viewId] = view
-            
-        # XXX: REMOVE
-        except ex as e: #Exception as e:
+        
+        except ex as e:
             self.handleError(e, what="generating FFT")
 
 
@@ -1499,10 +1496,8 @@ class Viewer(wx.Frame, MenuMixin):
         viewId = wx.NewId()
         size = self.GetSize()
 
-        # XXX: TEST. REMOVE LATER.
-        # NotImplementedError should not be raised, so it effectively
-        # disables the exception handling method.
-        ex = NotImplementedError if DEBUG else Exception
+        # Catch no exceptions if not in debug.
+        ex = None if DEBUG else Exception
 
         try:
             view = SpectrogramView(self, viewId, title=title, size=size, 

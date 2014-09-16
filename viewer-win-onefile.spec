@@ -3,6 +3,7 @@
 from datetime import datetime
 import glob
 import os
+import sys
 
 # HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
 HOME_DIR = os.getcwd()
@@ -15,7 +16,8 @@ try:
     sys.path.append(HOME_DIR)
     from build_info import BUILD_NUMBER, DEBUG, VERSION
     versionString = '.'.join(map(str,VERSION))
-    BUILD_NUMBER += 1
+    if "32 bit" in sys.version:
+        BUILD_NUMBER += 1
     logging.logger.info("*** Building Version %s, Build number %d" % (versionString,BUILD_NUMBER))
     with open('build_info.py', 'wb') as f:
         f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
