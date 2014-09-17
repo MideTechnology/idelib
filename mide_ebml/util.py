@@ -43,6 +43,10 @@ def encode_container(data, length=None, schema=DEFAULT_SCHEMA,
             a set of `(name, value)` pairs. The data can be nested, combining
             both.  
         @keyword length: Unused; for compatibility with `ebml.core` methods.
+        @keyword schema: The full module name of the EBML schema.
+        @keyword elements: A dictionary of the schema's elements keyed by name.
+            This should generally be left `None`, which defaults to all
+            elements in the schema.
         @return: A `bytearray` of binary EBML data.
     """
     result = bytearray()
@@ -87,6 +91,7 @@ ENCODERS = {
     CONTAINER: encode_container
 }
 
+# Mapping of encoder data types to standard Python types
 PYTHONTYPES = {
     INT: int,
     UINT: int,
@@ -303,6 +308,26 @@ def read_ebml(stream, schema=DEFAULT_SCHEMA, ordered=True):
     if newStream:
         stream.close()
     return result
+
+
+def getRawData(el):
+    """ Retrieve an EBML element's raw binary. The element must be part of a
+        Document, and the Document must be from a file or file-like stream.
+        
+        @param el: An EBML element
+        @return: The EBML element's binary data, headers and payload and all.
+    """
+    fs = el.document.stream.file
+    closed = fs.closed
+    if closed:
+        fs = file(fs.name, 'rb') 
+    oldPos = fs.tell()
+    fs.seek(el.stream.offset)
+    data = bytearray(fs.read(el.size))
+    fs.seek(oldPos)
+    if closed:
+        fs.close()
+    return data
 
 
 #===============================================================================

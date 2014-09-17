@@ -1774,17 +1774,11 @@ class EventList(Cascading):
             @keyword useIsoFormat: If `True`, the time column is written as
                 the standard ISO date/time string. Only applies if `useUtcTime`
                 is `True`.
-            @return: The number of rows exported and the elapsed time.
+            @return: Tuple: The number of rows exported and the elapsed time.
         """
-        # Dummy callback to be used if none is supplied
-#         def dummyCallback(*args, **kwargs): pass
-        
-        if callback is None:
-            noCallback = True
-#             callback = dummyCallback
-        else:
-            noCallback = False
-        
+        noCallback = callback is None
+
+        # Create a function for formatting the event time.        
         if useUtcTime and self.session.utcStartTime:
             if useIsoFormat:
                 timeFormatter = lambda x: datetime.utcfromtimestamp(x[-2] * timeScalar + self.session.utcStartTime).isoformat()
@@ -1793,6 +1787,7 @@ class EventList(Cascading):
         else:
             timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar)
         
+        # Create the function for formatting an entire row.
         if self.hasSubchannels:
             if isinstance(subchannels, Iterable):
                 fstr = '%s, ' + ', '.join([dataFormat] * len(subchannels))
@@ -1808,6 +1803,7 @@ class EventList(Cascading):
             formatter = lambda x: fstr % (timeFormatter(x),x[-1])
             names = [self.parent.name]
 
+        # Save current mean removal settings, apply ones for export.
         oldRemoveMean = self.removeMean
         oldMeanSpan = self.rollingMeanSpan
         if removeMean is not None:
