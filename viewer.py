@@ -17,6 +17,8 @@ loggers.
     in conjunction with wxPython views. X axis partially converted; Y axis not.
     
 @todo: Clean up time range change 'tracking' and 'broadcast'. 
+
+@todo: Clean up the 'background operation' system. It's overly complex. 
 '''
 
 from build_info import VERSION, DEBUG, BUILD_NUMBER, BUILD_TIME
@@ -221,11 +223,9 @@ class Timeline(ViewerPanel):
         
         if broadcast:
             instigator = self if instigator is None else instigator
-            wx.PostEvent(self.root, 
-                         events.EvtSetVisibleRange(start=self.currentTime, 
-                                                   end=end, 
-                                                   instigator=self, 
-                                                   tracking=tracking))
+            evt = events.EvtSetVisibleRange(start=self.currentTime, end=end, 
+                                            instigator=self, tracking=tracking)
+            wx.PostEvent(self.root, evt)
 
 
     def getVisibleRange(self):
@@ -866,6 +866,8 @@ class Viewer(wx.Frame, MenuMixin):
 
         #=======================================================================
         # "Recent Files" submenu
+        # TODO: Make this work. There were problems with it being used in
+        # multiple windows.
 
 #         self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentFile, id=wx.ID_FILE1, id2=wx.ID_FILE9)
 #         self.app.fileHistory.UseMenu(self.recentFilesMenu)
@@ -1004,7 +1006,7 @@ class Viewer(wx.Frame, MenuMixin):
 
     def getSaveFile(self, message, defaults=None, types=None, 
                     style=wx.SAVE|wx.OVERWRITE_PROMPT, deviceWarning=True):
-        """ Wrapper for showing getting the name of an output file.
+        """ Wrapper for getting the name of an output file.
         """
         exportTypes = "Comma Separated Values (*.csv)|*.csv"
 
@@ -1230,7 +1232,8 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
     
     def selectSession(self):
-        """
+        """ Show a list of sessions in a recording and allow the user to choose
+            one. This changes the Viewer's `session` variable.
         """
         sessions = []
         for session in self.dataset.sessions:
@@ -1611,7 +1614,7 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnFileProperties(self, evt):
-        """
+        """ Handle File->Recording Properties menu events.
         """
         if self.dataset:
             self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
@@ -1734,8 +1737,12 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnDataWarningsCheck(self, evt):
-        """
-        """
+        """ Handler for ID_DATA_WARNINGS menu item selection. The method can
+            also be used to explicitly set the item checked or unchecked.
+            
+            @param evt: The menu event. Can also be `True` or `False` to force
+                the check to be set (kind of a hack).
+        """ 
         if isinstance(evt, bool):
             self.setMenuItem(self.menubar, self.ID_DATA_WARNINGS, checked=evt)
             checked = evt
@@ -1865,6 +1872,7 @@ class Viewer(wx.Frame, MenuMixin):
     def OnSetPlotColor(self, evt):
         """
         """
+        # Forward the event to the active plot.
         p = self.plotarea.getActivePage()
         if p:
             p.setPlotColor(evt)
@@ -2020,14 +2028,26 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
     
-    def startBusy(self, cancellable=False):
-        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+    def startBusy(self, cancellable=False, modal=False):
+        """ Start the 'busy' display.
+            @keyword cancellable: if `True`, the 'Cancel' button in the menu
+                bar is enabled. 
+            @keyword modal: If `True`, the 'wait' cursor is shown; if `False`,
+                the 'wait arrow' one is used.
+        """
+        if modal:
+            self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        else:
+            self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
         if cancellable:
             self.menubar.FindItemById(wx.ID_CANCEL).Enable(True)
         self.busy = True
 
 
     def stopBusy(self):
+        """ Change the cursor and cancel button back, presumably after calling
+            `startBusy`.
+        """
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         self.menubar.FindItemById(wx.ID_CANCEL).Enable(False)
         self.busy = False

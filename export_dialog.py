@@ -37,14 +37,13 @@ class ModalExportProgress(wx.ProgressDialog):
                  done=False):
         if done:
             return
-        # XXX: TEST
-        if percent is None:
+
+        if percent is None and total:
             percent = (count+0.0) / total
         percent = int(1000*percent)
         msg = self.message % (locale.format("%d", count, grouping=True),
                               locale.format("%d", total, grouping=True))
         keepGoing, skip = super(ModalExportProgress, self).Update(percent, msg)
-#         keepGoing, skip = super(ModalExportProgress, self).Update(count, msg)
         self.cancelled = not keepGoing
         return keepGoing, skip
 
