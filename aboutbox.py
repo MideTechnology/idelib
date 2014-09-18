@@ -7,6 +7,7 @@ import cgi
 from datetime import datetime
 from glob import glob
 import os.path
+import sys
 
 import wx
 import wx.lib.sized_controls as SC
@@ -104,6 +105,10 @@ class AboutBox(SC.SizedDialog):
         self.strings['rootDir'] = os.path.join(self.rootDir, 'ABOUT')
         self.strings.setdefault('lastUpdateCheck', 'Never')
         
+        # Add note if this is the 64 bit version. Only relevant in Windows. 
+        if sys.platform.startswith("win") and "64 bit" in sys.version:
+            self.strings['version'] += " (64 bit)"
+        
         pane = self.GetContentsPane()
         notebook = wx.Notebook(pane, -1)#, style=wx.NB_BOTTOM)
         notebook.SetSizerProps(expand=True, proportion=-1)
@@ -140,7 +145,7 @@ if __name__ == '__main__':
     app = wx.App()
     AboutBox.showDialog(None, strings={
            'appName': APPNAME, #"Slam Stick About Box",
-           'version': 1.0, 
+           'version': "1.0", 
            'buildNumber': 999, 
            'buildTime': datetime.fromtimestamp(int(time.time())),
         })
