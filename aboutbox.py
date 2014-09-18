@@ -75,6 +75,12 @@ class AboutBox(SC.SizedDialog):
     def getLicenses(self):
         """ Retrieve and collate all license documents.
         """
+        # For the wx.lib.wordwrap to wrap the monospaced text correctly:
+        oldFont = self.GetFont()
+        font = self.GetFont()
+        font.SetFamily(wx.FONTFAMILY_TELETYPE)
+        self.SetFont(font)
+        
         result = [None]
         links = ["<ul>"]
         files = glob(os.path.join(self.rootDir, 'LICENSES/*.txt'))
@@ -84,13 +90,16 @@ class AboutBox(SC.SizedDialog):
             lic = u"<a name='%s'><h2>%s</h2></a>" % (name, name)
             with open(filename, 'rb') as f:
                 text = f.read()
-                longest = len(sorted(text.split('\n'), key=lambda x: len(x))[-1])
+                longest = max([len(x) for x in text.split('\n')])
                 if longest > 80:
-                    text = wordwrap(text, 400, wx.ClientDC(self))
+                    text = wordwrap(text, 500, wx.ClientDC(self))
                 lic = u"%s<pre>%s</pre>" % (lic, text)
             result.append(lic)
         links.append("</ul>")
         result[0] = ''.join(links)
+
+        # Restore the old font, just in case:        
+        self.SetFont(oldFont)
         return LICENSES %  '<hr/>'.join(result)
 
 
@@ -98,6 +107,7 @@ class AboutBox(SC.SizedDialog):
         self.strings = kwargs.pop('strings', None)
         kwargs.setdefault("style", 
             wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        kwargs.setdefault("size", (640, 480))
         
         super(AboutBox, self).__init__(*args, **kwargs)
         
@@ -126,6 +136,7 @@ class AboutBox(SC.SizedDialog):
         self.Fit()
         self.SetSize((700,500))
         self.Center()
+        
 
     @classmethod
     def showDialog(cls, *args, **kwargs):
@@ -140,12 +151,12 @@ class AboutBox(SC.SizedDialog):
 #===============================================================================
 
 if __name__ == '__main__':
-    import time
     from viewer import APPNAME
+    from build_info import VERSION, BUILD_TIME, BUILD_NUMBER
     app = wx.App()
     AboutBox.showDialog(None, strings={
            'appName': APPNAME, #"Slam Stick About Box",
-           'version': "1.0", 
-           'buildNumber': 999, 
-           'buildTime': datetime.fromtimestamp(int(time.time())),
+           'version': '.'.join(map(str,VERSION)), 
+           'buildNumber': BUILD_NUMBER, 
+           'buildTime': datetime.fromtimestamp(BUILD_TIME),
         })
