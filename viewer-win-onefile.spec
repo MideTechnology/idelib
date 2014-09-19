@@ -10,32 +10,22 @@ HOME_DIR = os.getcwd()
 
 startTime = datetime.now()
 
+logging.logger.setLevel(logging.WARN)
+
 # This is a moderately kludgey auto-incrementing build number.
 try:
     import socket, sys, time
     sys.path.append(HOME_DIR)
     from build_info import BUILD_NUMBER, DEBUG, VERSION
     versionString = '.'.join(map(str,VERSION))
-    if "32 bit" in sys.version:
-        BUILD_NUMBER += 1
-    logging.logger.info("*** Building Version %s, Build number %d" % (versionString,BUILD_NUMBER))
-    with open('build_info.py', 'wb') as f:
-        f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
-        f.write('VERSION = %s\n' % str(VERSION))
-        f.write('DEBUG = %s\n' % DEBUG)
-        f.write('\n# AUTOMATICALLY-GENERATED CONTENT FOLLOWS; DO NOT EDIT MANUALLY!\n')
-        f.write('BUILD_NUMBER = %d\n' % BUILD_NUMBER)
-        f.write('BUILD_TIME = %d\n' % time.time())
-        f.write('BUILD_MACHINE = %r\n' % socket.gethostname())
 except Exception:
-    BUILD_NUMBER = "Unknown"
-    VERSION = "Unknown"
+    BUILD_NUMBER = versionString = VERSION = "Unknown"
     DEBUG = True
     logging.logger.warning("*** Couldn't read and/or change build number!")
 
 
 # Collect data files (needed for getting schema XML)
-# http://www.pyinstaller.org/wiki/Recipe/CollectDatafiles
+# Modified version of http://www.pyinstaller.org/wiki/Recipe/CollectDatafiles
 def Datafiles(*filenames, **kw):
     import os
     
@@ -82,11 +72,11 @@ exe = EXE(pyz,
           a.binaries,
           a.zipfiles,
           a.datas,
-                schemas,
+          schemas,
           exclude_binaries=False,
           name='Slam Stick Lab.exe',
           icon='ssl.ico',
-          debug=False,
+          debug=DEBUG,
           strip=None,
           upx=True,
           console=DEBUG
