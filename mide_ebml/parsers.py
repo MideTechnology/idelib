@@ -287,6 +287,7 @@ class ElementHandler(object):
     product = None
     elementName = None
     isSubElement = False
+    isHeader = False
     children = None
     
     def __init__(self, doc, **kwargs):
@@ -503,6 +504,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
     """
     product = SimpleChannelDataBlock
     elementName = product.__name__
+    isHeader = False
    
     def __init__(self, doc, **kwargs):
         super(SimpleChannelDataBlockParser, self).__init__(doc, **kwargs)
@@ -511,21 +513,22 @@ class SimpleChannelDataBlockParser(ElementHandler):
         self.stampRollover = {}
         self.lastStamp = {}
     
-    
+
     def fixOverflow(self, block, timestamp):
         """ Return an adjusted, scaled time from a low-resolution timestamp.
         """
         channel = block.getHeader()[1]
         timestamp += self.timestampOffset.setdefault(channel, 0)
         # NOTE: This might need to just be '<' (for discontinuities)
-        if timestamp <= self.lastStamp.get(channel,0):
+#         if timestamp <= self.lastStamp.get(channel,0):
+        while timestamp <= self.lastStamp.get(channel,0):
             timestamp += block.maxTimestamp
             self.timestampOffset[channel] += block.maxTimestamp
         self.lastStamp[channel] = timestamp
         return timestamp * block.timeScalar
     
    
-    def parse(self, element, sessionId=None):
+    def parse(self, element, sessionId=None, timeOffset=0):
         """ Create a (Simple)ChannelDataBlock from the given EBML element.
         
             @param element: A sample-carrying EBML element.
@@ -540,9 +543,9 @@ class SimpleChannelDataBlockParser(ElementHandler):
             raise ParsingError("Element would not parse: %s (ID %02x) @%d (%s)" % 
                                (element.name, element.id, element.stream.offset, e))
         
-        block.startTime = int(self.fixOverflow(block, timestamp))
+        block.startTime = timeOffset + int(self.fixOverflow(block, timestamp))
         if block.endTime is not None:
-            block.endTime = int(self.fixOverflow(block, block.endTime))
+            block.endTime = timeOffset + int(self.fixOverflow(block, block.endTime))
 
         if channel not in self.doc.channels:
             # Unknown channel; could be debugging info, so that might be okay.
@@ -654,6 +657,8 @@ class RecorderPropertyParser(ElementHandler):
     """ Base class for elements that just add a value to the Dataset's
         `recorderInfo` but aren't in the `RecorderInfo` element.
     """
+    isHeader = True
+    
     def parse(self, element, **kwargs):
         self.doc.recorderInfo[self.elementName] = element.value
         
@@ -745,6 +750,7 @@ class CalibrationListParser(ElementHandler):
         `dataset.Dataset`. It also keeps a copy of all the calibration items
         in a `items` attribute (a list). 
     """
+    isHeader = True
     elementName = "CalibrationList"
     children = (UnivariatePolynomialParser, BivariatePolynomialParser,
                 CalibrationDateParser, CalibrationExpiryParser,
@@ -868,6 +874,7 @@ class RecordingPropertiesParser(ElementHandler):
     """
     elementName = "RecordingProperties"
     isSubElement = False
+    isHeader = True
     children = (RecorderInfoParser, SensorListParser)
 
 
