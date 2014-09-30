@@ -1989,7 +1989,7 @@ class WarningRange(object):
         t = max(min(at, self.source[0][-2]),self.source[1][-2])
 #         if at < self.source[0][-2] or at > self.source[-1][-2]:
 #             return None
-        val = self.source.getValueAt(t)
+        val = self.source.getValueAt(t, outOfRange=True)
         return at, self.valid(val[-1])
 
 

@@ -217,7 +217,6 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
     # For seeking and reading elements, separate from doc to prevent conflicts
     oldFile = open(doc.stream.file.name, 'rb')
     
-    utcTime = 0
     i = doc.iterroots()
     el = None
     header = bytearray()
@@ -226,34 +225,31 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
         elementCount += 1
         if 'ChannelDataBlock' in el.name:
             break
-        elif el.name == 'TimeBaseUTC':
-            utcTime = el.value
         else:
             header.extend(util.getRawData(el, oldFile))
-    
-    newFile = True
-    
-    if utcTime == 0:
-        utcTime = int(time.time())
-
-    fileStartTime = None
     
     num = 0
     filesize = len(header)
 
     # dict of which channels have been written to a new file
     wroteFirst={}
-    
+    fileWrites = 0
     fs = None
     try:
         while True:
+            
+            if fs is None or fs.closed:
+                num += 1
+                if num > 3:
+                    break
+                fs = open(filename % num, 'wb')
+                fs.write(header)
+                filesize = len(header)
+                wroteFirst.clear()
+                fileWrites = 0
+            
             raw = None
-            if el.name == 'TimeBaseUTC':
-                utcTime = el.value
-                el = i.next()
-                elementCount += 1
-                continue
-            if el.name == 'SimpleChannelDataBlock':
+            if el.name in ('TimeBaseUTC', 'Sync','SimpleChannelDataBlock'):
                 el = i.next()
                 elementCount += 1
                 continue
@@ -265,10 +261,7 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
                         el = i.next()
                         elementCount += 1
                         continue
-                    if fileStartTime is None:
-                        fileStartTime = int((block.startTime - (el.value[1].value * block.timeScalar)) / 1000000.0)
                     if num > 1 and not wroteFirst.setdefault(block.channel, False):
-                        print "%d channel=%d num=%d, wroteFirstBlock=%r" % (elementCount, block.channel, num, wroteFirst)
                         wroteFirst[block.channel] = True
                         data = util.parse_ebml(el)[el.name][0]
                         data['StartTimeCodeAbsMod'] = int(block.startTime / parser.timeScalar)
@@ -278,32 +271,15 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
                 except parsers.ParsingError as err:
                     logger.error("Parsing error during import: %s" % err)
 
-            if raw is None: 
+            if raw is None:
                 raw = util.getRawData(el, oldFile)
                 
-            if fs is None:
-#                 print ".",
-                print "%5d file start: %4d, %s, block start: %10d (%s), raw start: %10d" % (elementCount, fileStartTime, datetime.utcfromtimestamp(utcTime+fileStartTime).time(),block.startTime, datetime.utcfromtimestamp(utcTime+(block.startTime/1000000.0)).time(), el.value[1].value * parser.timeScalar)
-                # New file
-                num += 1
-                if num > 3:
-                    break
-                fs = open(filename % num, 'wb')
-                fs.write(header)
-                filesize = len(header)
-#                 if fileStartTime is not None:
-                fs.write(util.build_ebml('TimeBaseUTC', utcTime))
-#                 fs.write(util.build_ebml('TimeBaseUTC', utcTime + fileStartTime))
-                fileStartTime = None
-                        
             fs.write(raw)
             filesize += len(raw)
+            fileWrites += 1
             
             if filesize >= maxSize:
-                print "File size is %d, starting #%d" % (filesize, num)
-                wroteFirst.clear()
                 fs.close()
-                fs = None
 
             el = i.next()
             elementCount += 1
