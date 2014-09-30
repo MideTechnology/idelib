@@ -104,14 +104,6 @@ class SimpleUpdater(object):
                     self.dump(' '*25)
             sys.stdout.flush()
 
-#===============================================================================
-# 
-#===============================================================================
-
-def getRawData(el, fp):
-    fp.seek(el.stream.offset)
-    return bytearray(fp.read(el.size))
-
 
 #===============================================================================
 # 
@@ -237,7 +229,9 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
         elif el.name == 'TimeBaseUTC':
             utcTime = el.value
         else:
-            header.extend(getRawData(el, oldFile))
+            header.extend(util.getRawData(el, oldFile))
+    
+    newFile = True
     
     if utcTime == 0:
         utcTime = int(time.time())
@@ -247,6 +241,9 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
     num = 0
     filesize = len(header)
 
+    # dict of which channels have been written to a new file
+    wroteFirst={}
+    
     fs = None
     try:
         while True:
@@ -270,17 +267,20 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
                         continue
                     if fileStartTime is None:
                         fileStartTime = int((block.startTime - (el.value[1].value * block.timeScalar)) / 1000000.0)
-                    
+                    if num > 1 and not wroteFirst.setdefault(block.channel, False):
+                        print "%d channel=%d num=%d, wroteFirstBlock=%r" % (elementCount, block.channel, num, wroteFirst)
+                        wroteFirst[block.channel] = True
+                        data = util.parse_ebml(el)[el.name][0]
+                        data['StartTimeCodeAbsMod'] = int(block.startTime / parser.timeScalar)
+                        if getattr(block, 'endTime', None):
+                            data['EndTimeCodeAbsMod'] = int(block.endTime / parser.timeScalar)
+                        raw = util.build_ebml(el.name, data)
                 except parsers.ParsingError as err:
                     logger.error("Parsing error during import: %s" % err)
 
-            if raw is None:
-                raw = getRawData(el, oldFile)
+            if raw is None: 
+                raw = util.getRawData(el, oldFile)
                 
-            if filesize + len(raw) > maxSize:
-                fs.close()
-                fs = None
-
             if fs is None:
 #                 print ".",
                 print "%5d file start: %4d, %s, block start: %10d (%s), raw start: %10d" % (elementCount, fileStartTime, datetime.utcfromtimestamp(utcTime+fileStartTime).time(),block.startTime, datetime.utcfromtimestamp(utcTime+(block.startTime/1000000.0)).time(), el.value[1].value * parser.timeScalar)
@@ -292,12 +292,19 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
                 fs.write(header)
                 filesize = len(header)
 #                 if fileStartTime is not None:
-                fs.write(util.build_ebml('TimeBaseUTC', utcTime + fileStartTime))
+                fs.write(util.build_ebml('TimeBaseUTC', utcTime))
+#                 fs.write(util.build_ebml('TimeBaseUTC', utcTime + fileStartTime))
                 fileStartTime = None
                         
             fs.write(raw)
             filesize += len(raw)
             
+            if filesize >= maxSize:
+                print "File size is %d, starting #%d" % (filesize, num)
+                wroteFirst.clear()
+                fs.close()
+                fs = None
+
             el = i.next()
             elementCount += 1
             
@@ -368,7 +375,7 @@ def mergeFiles(filenames=mergeTestFiles, newName="Merged.IDE", maxSize=1024*1024
                     else:
                         timeOffset = el.value - firstTime
                 if not wroteHeader:
-                    header.extend(getRawData(el, fp))
+                    header.extend(util.getRawData(el))
             
             if not wroteHeader:
                 out.write(header)
@@ -402,7 +409,7 @@ def mergeFiles(filenames=mergeTestFiles, newName="Merged.IDE", maxSize=1024*1024
                             logger.error("Parsing error during import: %s" % err)
                     
                     if raw is None:
-                        raw = getRawData(el, fp)
+                        raw = util.getRawData(el)
 #                     print "(%s %dB)" % (el.name, len(raw)),
                     out.write(raw)
                     el = i.next()

@@ -521,7 +521,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
         timestamp += self.timestampOffset.setdefault(channel, 0)
         # NOTE: This might need to just be '<' (for discontinuities)
 #         if timestamp <= self.lastStamp.get(channel,0):
-        while timestamp <= self.lastStamp.get(channel,0):
+        while timestamp < self.lastStamp.get(channel,0):
             timestamp += block.maxTimestamp
             self.timestampOffset[channel] += block.maxTimestamp
         self.lastStamp[channel] = timestamp

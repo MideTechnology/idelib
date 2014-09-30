@@ -310,14 +310,20 @@ def read_ebml(stream, schema=DEFAULT_SCHEMA, ordered=True):
     return result
 
 
-def getRawData(el):
+def getRawData(el, fs=None):
     """ Retrieve an EBML element's raw binary. The element must be part of a
         Document, and the Document must be from a file or file-like stream.
+        Note that since this changes the read position in the file, this 
+        function is NOT thread safe unless a separate file stream is provided,
+        or `threaded_file` was used to open the main document.
         
         @param el: An EBML element
+        @keyword fs: An alternate file-like object, so that the EBML document's
+            main stream is not affected.
         @return: The EBML element's binary data, headers and payload and all.
     """
-    fs = el.document.stream.file
+    if fs is None:
+        fs = el.document.stream.file
     closed = fs.closed
     if closed:
         fs = file(fs.name, 'rb') 
