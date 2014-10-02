@@ -1,39 +1,30 @@
 '''
 
-FOR TESTING: 
-
-From outside the mide_ebml directory:
-
-Read entire file:
-from mide_ebml import importer; doc=importer.importFile(updater=importer.SimpleUpdater()); ax=doc.channels[0][2].getSession(0)
-
-Read 25%
-from mide_ebml import importer; doc=importer.importFile(updater=importer.SimpleUpdater(0.25)); ax=doc.channels[0][2].getSession(0)
-
-profiling: 
-import cProfile; cProfile.run('list(ax.iterResampledRange(566293, 2350113, 2250.0, padding=1))', sort='cumtime')
-
-Time to read file:
-From Slam Stick X: 0:06:47.506000
 '''
 
 from datetime import datetime
+import math
 import os.path
 import struct
 import sys
-import time
 
-from ebml.schema.mide import MideDocument
-import parsers
-import util
-
-from importer import nullUpdater
+# Song and dance to find libraries in sibling folder.
+# Should not matter after PyInstaller builds it.
+try:
+    import mide_ebml
+except ImportError:
+    sys.path.append('..')
+    
+from mide_ebml.ebml.schema.mide import MideDocument
+from mide_ebml import parsers
+from mide_ebml import util
+from mide_ebml.importer import nullUpdater
 
 #===============================================================================
 # 
 #===============================================================================
 
-from dataset import __DEBUG__
+from mide_ebml.dataset import __DEBUG__
 
 import logging
 logger = logging.getLogger('mide_ebml')
@@ -63,11 +54,12 @@ class SimpleUpdater(object):
     """ A simple text-based progress updater.
     """
     
-    def __init__(self, cancelAt=1.0, quiet=False):
+    def __init__(self, cancelAt=1.0, quiet=False, out=sys.stdout):
         """ Constructor.
             @keyword cancelAt: A percentage at which to abort the import. For
                 testing purposes.
         """
+        self.out = out
         self.cancelled = False
         self.startTime = None
         self.cancelAt = cancelAt
@@ -76,37 +68,20 @@ class SimpleUpdater(object):
     
     def dump(self, s):
         if not self.quiet:
-            sys.stdout.write(s)
+            self.out.write(s)
+            self.out.flush()
     
     def __call__(self, count=0, total=None, percent=None, error=None, 
                  starting=False, done=False):
-        if percent >= self.cancelAt:
-            self.cancelled=True
-        if self.startTime is None:
-            self.startTime = datetime.now()
-        if starting:
-            logger.info("Import started at %s" % self.startTime)
-            return
+        
         if done:
-            logger.info("Import completed in %s" % (datetime.now() - self.startTime))
-            logger.info("Original estimate was %s" % self.estSum)
+            self.dump('\nSplitting complete!\n')
         else:
-            self.dump('\x0d%s samples read' % count)
-            if percent is not None:
-                p = int(percent*100)
-                self.dump(' (%d%%)' % p)
-                if p > 0 and p < 100:
-                    d = ((datetime.now() - self.startTime) / p) * (100-p)
-                    self.dump(' - est. completion in %s' % d)
-                    if self.estSum is None:
-                        self.estSum = d
-                else:
-                    self.dump(' '*25)
-            sys.stdout.flush()
+            self.dump('.')
 
 
 #===============================================================================
-# 
+# Modified parser and data block classes, simplified for splitting.
 #===============================================================================
 
 class ChannelDataBlockParser(parsers.ChannelDataBlockParser):
@@ -172,19 +147,20 @@ elementParserTypes = [ChannelDataBlockParser]
 #===============================================================================
 
 def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10, 
-              updater=nullUpdater, numUpdates=500, updateInterval=1.0,
+              numDigits=3, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
               parserTypes=elementParserTypes):
     """ Import the data from a file into a Dataset.
     
-        @todo: Remove the metadata-reading parts and put them in `openFile()`.
-            Also move the defaultSensors there as well.
-    
-        @param doc: The Dataset document into which to import the data.
+        @param doc: The EBML document to split.
+        @keyword savePath: The path to which to save the split files.
+        @keyword basename: The base name of each file, if different from the
+            original's.
+        @keyword maxSize: The maximum size of each file.
         @keyword updater: A function (or function-like object) to notify as 
             work is done. It should take four keyword arguments: `count` (the 
             current line number), `total` (the total number of samples), `error` 
             (an unexpected exception, if raised during the import), and `done` 
-            (will be `True` when the export is complete). If the updater object 
+            (will be `True` when the split is complete). If the updater object 
             has a `cancelled` attribute that is `True`, the import will be 
             aborted. The default callback is `None` (nothing will be notified).
         @keyword numUpdates: The minimum number of calls to the updater to be
@@ -194,9 +170,6 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
             the updater. More updates will be made if indicated by the specified
             `numUpdates`.
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        @keyword defaultSensors: A nested dictionary containing a default set 
-            of sensors, channels, and subchannels. These will only be used if
-            the dataset contains no sensor/channel/subchannel definitions. 
     """
     try:
         if basename is None:
@@ -207,8 +180,7 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
     except NotImplementedError: #(TypeError, AttributeError, ValueError):
         name, ext = "Split", ".IDE"
         savePath = ""
-    filename = os.path.join(savePath, "%s_%%03d%s" % (name, ext))
-    
+    filename = os.path.join(savePath, "%s_%%0%dd%s" % (name, numDigits, ext))
     
     elementParsers = dict([(f.elementName, f(None)) for f in parserTypes])
 
@@ -240,8 +212,8 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
             
             if fs is None or fs.closed:
                 num += 1
-                if num > 3:
-                    break
+#                if num > 3:
+#                    break
                 fs = open(filename % num, 'wb')
                 fs.write(header)
                 filesize = len(header)
@@ -280,6 +252,7 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
             
             if filesize >= maxSize:
                 fs.close()
+                updater(count=num)
 
             el = i.next()
             elementCount += 1
@@ -300,97 +273,71 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
         pass
         
     oldFile.close()
+    updater(done=True)
     return num
 
 
-def splitFile(filename=testFile, savePath='temp/', basename=None, 
+def splitFile(filename=testFile, savePath='temp/', basename=None, numDigits=3,
               maxSize=1024*1024*10, updater=nullUpdater, numUpdates=500, 
               updateInterval=1.0, parserTypes=elementParserTypes):
-    print "Splitting %s" % filename
+    """ Wrapper function to split a file based on filename.
+    
+        @param filename: The name of the IDE file to split.
+        @keyword savePath: The path to which to save the split files.
+        @keyword basename: The base name of each file, if different from the
+            original's.
+        @keyword maxSize: The maximum size of each file.
+        @keyword updater: A function (or function-like object) to notify as 
+            work is done. It should take four keyword arguments: `count` (the 
+            current line number), `total` (the total number of samples), `error` 
+            (an unexpected exception, if raised during the import), and `done` 
+            (will be `True` when the split is complete). If the updater object 
+            has a `cancelled` attribute that is `True`, the import will be 
+            aborted. The default callback is `None` (nothing will be notified).
+        @keyword numUpdates: The minimum number of calls to the updater to be
+            made. More updates will be made if the updates take longer than
+            than the specified `updateInterval`. 
+        @keyword updateInterval: The maximum number of seconds between calls to 
+            the updater. More updates will be made if indicated by the specified
+            `numUpdates`.
+        @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
+    """
+    
     with open(filename, 'rb') as fp:
         doc = MideDocument(fp)
-        return  splitDoc(doc, savePath, basename, maxSize, updater, numUpdates, updateInterval, parserTypes)
-
-#===============================================================================
-# 
-#===============================================================================
-
-from glob import glob
-mergeTestFiles = glob(r"C:\Users\dstokes\workspace\SSXViewer\test_recordings\Combine_Files\SSX*.IDE")
-
-def mergeFiles(filenames=mergeTestFiles, newName="Merged.IDE", maxSize=1024*1024*10, 
-               updater=nullUpdater, numUpdates=500, updateInterval=1.0, 
-               parserTypes=elementParserTypes):
+        return  splitDoc(doc, savePath=savePath, basename=basename, numDigits=numDigits, maxSize=maxSize, updater=updater, numUpdates=numUpdates, updateInterval=updateInterval, parserTypes=parserTypes)
+ 
+ 
+if __name__ == '__main__':
+    import argparse
     
-    print "Merging %d files" % len(filenames)
-    
-    if not newName.lower().endswith('.ide'):
-        newName += ".IDE"
-    elementParsers = dict([(f.elementName, f(None)) for f in parserTypes])
+    argparser = argparse.ArgumentParser(description="Mide .IDE File Splitter - Copyright (c) %d Mide Technology" % datetime.now().year)
+    argparser.add_argument('-s', '--size', type=int, help="The maximum size of each generated file, in MB.", default=16)
+    argparser.add_argument('-n', '--numSplits', type=int, help="The number of files to generate (overrides '--size').")
+    argparser.add_argument('-o', '--output', help="The output path to which to save the split files. Defaults to the same as the source file.")
+    argparser.add_argument('source', help="The source .IDE file to split.")
 
-    out = file(newName, 'wb')
-    wroteHeader = False
-    timeOffset = 0
-    firstTime = None
+    args = argparser.parse_args()
+    sourceFile = os.path.abspath(args.source)
     
-    for filenum, filename in enumerate(filenames):
-        print "\n\n=== %s" % filename
-        with open(filename, 'rb') as fp:
-            doc = MideDocument(fp)
-            
-            i = doc.iterroots()
-            el = None #i.next()
-            header = bytearray()
-            while True:
-                el = i.next()
-                if el.name in ('ChannelDataBlock', 'SimpleChannelDataBlock'):
-                    break
-                elif el.name == "TimeBaseUTC":
-                    if firstTime is None:
-                        firstTime = el.value
-                    else:
-                        timeOffset = el.value - firstTime
-                if not wroteHeader:
-                    header.extend(util.getRawData(el))
-            
-            if not wroteHeader:
-                out.write(header)
-                wroteHeader = True
+    if not os.path.isfile(args.source):
+        sys.stderr.write("File '%s' does not exist!\n" % sourceFile)
+        sys.exit(1)
+    if args.numSplits is not None:
+        numSplits = args.numSplits
+        maxSize = int(math.ceil(os.path.getsize(sourceFile)/(numSplits+0.0)))
+    else:
+        maxSize = args.size * 1024 * 1024
+        numSplits = int(math.ceil(os.path.getsize(sourceFile)/(maxSize+0.0)))
     
-            try:
-                while True:
-#                     if el.name == "TimeBaseUTC":
-#                         el = i.next()
-#                         continue
-                    raw = None
-                    if filenum > 0 and el.name in elementParsers:
-                        try:
-                            block = elementParsers[el.name].parse(el)
-                            data = util.parse_ebml(block.element)
-                            payload = data[el.name][0]
-                            oldStart = 0
-                            if 'StartTimeCodeAbsMod' in payload:
-                                oldStart = payload['StartTimeCodeAbsMod']
-                                blockTime = timeOffset + (block.startTime * 0.000001)
-                                payload['StartTimeCodeAbsMod'] += int((blockTime / block.timeScalar)+0.5)
-                                print "channel %d block start: %s" % (block.channel,blockTime)
-                            if 'EndTimeCodeAbsMod' in payload:
-                                end = (payload['EndTimeCodeAbsMod'] - oldStart) + int(timeOffset / block.timeScalar) 
-#                                 blockTime = timeOffset + (block.endTime * 0.000001)
-                                payload['EndTimeCodeAbsMod'] = end
-                            raw = util.build_ebml(el.name, payload)
-                            
-                        except parsers.ParsingError as err:
-                            print "Crap: %s" % err
-                            logger.error("Parsing error during import: %s" % err)
-                    
-                    if raw is None:
-                        raw = util.getRawData(el)
-#                     print "(%s %dB)" % (el.name, len(raw)),
-                    out.write(raw)
-                    el = i.next()
-                    
-            except StopIteration:
-                pass
-                
-    out.close()    
+    if args.output is not None:
+        savePath = args.output
+    else:
+        savePath = os.path.dirname(sourceFile)
+    
+    numDigits = max(2, len(str(numSplits)))
+    
+    t0 = datetime.now()
+    print "Splitting %s into %d files..." % (os.path.basename(sourceFile), numSplits)
+    splitFile(sourceFile, savePath=savePath, maxSize=maxSize, numDigits=numDigits, updater=SimpleUpdater())
+    print "Finished splitting in %s" % (datetime.now() - t0)
