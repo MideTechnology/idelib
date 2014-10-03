@@ -42,10 +42,11 @@ import firmware
 
 RECORDER_NAME = "SlamStick X"
 
-PRODUCT_PATH = "R:/LOG-Data_Loggers/LOG-0002_Slam_Stick_X/"
-FIRMWARE_PATH = os.path.join(PRODUCT_PATH, "Design_Files/Firmware_and_Software/Manufacturing/LOG-XXXX-SlamStickX_Birther/firmware")
-SOURCE_DATA_PATH = os.path.join(PRODUCT_PATH, "Design_Files/Firmware_and_Software/Manufacturing/LOG-XXXX-SlamStickX_Birther/data_templates")
-DB_PATH = os.path.join(PRODUCT_PATH, "/Product_Database")
+PRODUCT_ROOT_PATH = "R:/LOG-Data_Loggers/LOG-0002_Slam_Stick_X/"
+BIRTHER_PATH = os.path.join(PRODUCT_ROOT_PATH, "Design_Files/Firmware_and_Software/Manufacturing/LOG-XXXX-SlamStickX_Birther/")
+FIRMWARE_PATH = os.path.join(BIRTHER_PATH, "/firmware")
+SOURCE_DATA_PATH = os.path.join(BIRTHER_PATH, "/data_templates")
+DB_PATH = os.path.join(PRODUCT_ROOT_PATH, "/Product_Database")
 
 BIRTH_LOG_NAME = "product_log.csv"
 CAL_LOG_NAME = "calibration_log.csv"
@@ -108,7 +109,7 @@ spinner = SpinnyCallback()
 #===============================================================================
 
 def getSSXSerial(block=False, timeout=30, delay=.5):
-    """
+    """ Get the names of all serial ports connected to bootloader-mode SSX.
     """
     if block:
         if timeout is not None:
@@ -130,6 +131,7 @@ def getSSXSerial(block=False, timeout=30, delay=.5):
 #===============================================================================
 
 def changeFilename(filename, ext=None, path=None):
+    """ Change the path and/or extension of a filename. """
     if ext is not None:
         ext = ext.lstrip('.')
         filename = "%s.%s" % (os.path.splitext(filename)[0], ext)
@@ -137,14 +139,25 @@ def changeFilename(filename, ext=None, path=None):
         filename = os.path.join(path, os.path.basename(filename))
     return os.path.abspath(filename)
 
-def readFileLine(filename, dataType=None):
+def readFileLine(filename, dataType=None, fail=True):
+    """ Open a file and read a single line.
+        @param filename: The full path and name of the file to read.
+        @keyword dataType: The type to which to cast the data. Defaults to int.
+        @keyword fail: If `False`, failures to cast the read data returns the
+            raw string.
+    """
+    ex = ValueError if fail else None
     with open(filename, 'r') as f:
         d = f.readline()
-    if dataType is None:
-        return int(float(d))
-    return dataType(d)
+    try:
+        if dataType is None:
+            return int(float(d))
+        return dataType(d)
+    except ex:
+        return d
 
 def writeFileLine(filename, val, mode='w'):
+    """ Open a file and write a line. """
     with open(filename, mode) as f:
         return f.write(str(val))
 
@@ -166,25 +179,6 @@ def write_pretty_xml(fname,elem):
     """
     writeFileLine(fname, prettify_xml(elem), mode="wt")
 
-#===============================================================================
-# 
-#===============================================================================
-
-def ide2csv(filename, savePath=None, importCallback=SimpleUpdater(),
-            channel=0, subchannels=(2,1,0)):
-    """ Wrapper for quickly dumping IDE data to CSV.
-    """
-    saveFilename = changeFilename(filename, ".csv", savePath)
-    doc = importFile(filename, updater=importCallback)
-    a = doc.channels[channel].getSession()
-    with open(saveFilename, 'wb') as fp:
-        rows, _ = a.exportCsv(fp, subchannels=subchannels)
-    doc.ebmldoc.stream.file.close()
-    return saveFilename, rows
-
-
-def rms(data, axis=None):
-    return np.sqrt(np.mean(data**2, axis=axis))
 
 #===============================================================================
 # 

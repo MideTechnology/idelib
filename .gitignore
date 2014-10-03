@@ -23,6 +23,8 @@ test*.xml
 test*.png
 test_recordings
 profiling/*
+assembly/*.jpg
+assembly/firmware
 
 build
 build_64

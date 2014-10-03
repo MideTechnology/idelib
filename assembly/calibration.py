@@ -210,8 +210,9 @@ def analyze(filename, serialNum='xxxxxxxxx', imgPath=None, imgType=".jpg"):
         axes.set_xlabel('Time (seconds)')
         axes.set_ylabel('Amplitude (g)')
         
-        imgName = os.path.splitext(os.path.basename(filename))[0]+imgType
-        pylab.savefig(imgName)
+        imgType = imgType.strip('.')
+        imgName = 'vibe_test_%s.%s' % (os.path.splitext(os.path.basename(filename))[0], imgType)
+        pylab.savefig(os.path.join(imgPath, imgName))
 #         pylab.show()
     
     # Done
@@ -267,4 +268,7 @@ def calConstant(filenames, prev_cal=(1,1,1), serialNum='', savePath='.'):
     result.extend(calib)
     result.extend(trans)
     
+    with open(os.path.join(savePath, 'calibration_%d.txt' % time.time()), 'w') as f:
+        f.writelines(result)
+        
     return '\n'.join(result)
