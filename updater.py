@@ -250,10 +250,13 @@ class UpdateDialog(SC.SizedDialog):
 
 def isTimeToCheck(lastUpdate, interval=3):
     """ Determine if it is time to check for updates.
+        
+        @param lastUpdate: The *NIX epoch time of the last update check.
+        @keyword interval: The check frequency, as specified in `INTERVALS`.
     """
-    if interval == 0:
+    if interval == 0: # "Never check automatically"
         return False
-    if interval == 4:
+    if interval == 4: # "Every time the app is launched"
         return True
 
     now = time.localtime()
@@ -275,6 +278,11 @@ def isNewer(v1, v2):
                 return v > u
     except TypeError:
         return False
+    
+    # Numbers are equal, but the release version trumps the debug version
+    # since the debug versions have the same number. The JSON will not be
+    # updated until release.
+    return DEBUG
 
 
 def getLatestVersion(url=UPDATER_URL):
@@ -326,7 +334,7 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL,
     if force or isTimeToCheck(lastUpdate, interval):
         responseCode, responseContent = getLatestVersion(url)
         if responseContent:
-            newVersion= responseContent['version']
+            newVersion= responseContent.get('version', (0,0,0))
             changelog = responseContent.get('changelog', CHANGELOG_URL)
             updateDate = responseContent.get('date', None)
             if isNewer(newVersion, currentVersion):
