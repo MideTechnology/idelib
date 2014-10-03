@@ -10,6 +10,21 @@ import time
 
 import numpy as np
 import pylab
+VIEWER_PATH = "P:/WVR_RIF/04_Design/Electronic/Software/SSX_Viewer"
+
+CWD = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(CWD)
+
+try:
+    import mide_ebml
+except ImportError:
+    if os.path.exists('../mide_ebml'):
+        sys.path.append(os.path.abspath('..'))
+    elif os.path.exists(os.path.join(CWD, '../mide_ebml')):
+        sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
+    elif os.path.exists(VIEWER_PATH):
+        sys.path.append(VIEWER_PATH)
+#     import mide_ebml
 
 from mide_ebml.importer import importFile, SimpleUpdater
 
@@ -115,7 +130,14 @@ def getFirstIndex(a, fun, col):
 # 
 #===============================================================================
 
-def analyze(filename, serialNum='xxxxxxxxx', render=False):
+def dump_csv(data, filename):
+    stacked = np.hstack((data[:,0].reshape((-1,1))*.000001,
+                         data[:,3].reshape((-1,1)),
+                         data[:,2].reshape((-1,1)),
+                         data[:,1].reshape((-1,1))))
+    np.savetxt(filename, stacked, delimiter=',')
+
+def analyze(filename, serialNum='xxxxxxxxx', imgPath=None, imgType=".jpg"):
     """ An attempt to port the analysis loop of SSX_Calibration.m to Python.
     """
     thres = 4           # (gs) acceleration detection threshold (trigger for finding which axis is calibrated)
@@ -123,23 +145,21 @@ def analyze(filename, serialNum='xxxxxxxxx', render=False):
     stop= start + 5000  # Look # of data points ahead of first index match
     cal_value = 7.075   # RMS value of closed loop calibration
     
-    print "importing...",
+    print "importing %s..." % os.path.basename(filename),
     doc = importFile(filename)
     a = doc.channels[0].getSession()
     a.removeMean = True
     a.rollingMeanSpan = -1
     data = flattened(a, len(a))
     
-    print "%d samples imported" % len(data)
+    print "%d samples imported. " % len(data), 
     times = data[:,0] * .000001
 
     gt = lambda(x): x > thres
     
-    print "getting indices... x",
+    print "getting indices...",
     index1 = getFirstIndex(data, gt, 3)
-    print "y",
     index2 = getFirstIndex(data, gt, 2)
-    print "z"
     index3 = getFirstIndex(data, gt, 1)
     
     if index1 == index2 == 0:
@@ -157,13 +177,11 @@ def analyze(filename, serialNum='xxxxxxxxx', render=False):
     z_accel = data[index3+start:index3+stop,1]
     z_times = times[index3+start:index3+stop]
 
-    print "computing RMS... x",
+    print "computing RMS...",
     x_rms = rms(x_accel)
 #     x_rms = window_rms(x_accel)
-    print "y",
     y_rms = rms(y_accel)
 #     y_rms = window_rms(y_accel)
-    print "z"
     z_rms = rms(z_accel)
 #     z_rms = window_rms(z_accel)
     
@@ -174,36 +192,47 @@ def analyze(filename, serialNum='xxxxxxxxx', render=False):
     cal_val = [x_rms, y_rms, z_rms, x_cal, y_cal, z_cal]
         
     # Generate the plot
-    if render:
-        print "plotting..."
+    if imgPath:
+        print "plotting...",
         plotXMin = min(x_times[0], y_times[0], z_times[0])
         plotXMax = max(x_times[-1], y_times[-1], z_times[-1])
         plotXPad = (plotXMax-plotXMin) * 0.01
-        pylab.figure(figsize=(8,6), dpi=80, facecolor="white")
+        fig = pylab.figure(figsize=(8,6), dpi=80, facecolor="white")
         pylab.suptitle("File: %s, SN: %s" % (os.path.basename(filename), serialNum), fontsize=24)
         pylab.subplot(1,1,1)
         pylab.xlim(plotXMin-plotXPad, plotXMax+plotXPad)
-        pylab.plot(x_times, x_accel, color="red", linewidth=1.0, linestyle="-", label="X-Axis")
-        pylab.plot(y_times, y_accel, color="green", linewidth=1.0, linestyle="-", label="Y-Axis")
-        pylab.plot(z_times, z_accel, color="blue", linewidth=1.0, linestyle="-", label="Z-Axis")
+        pylab.plot(x_times, x_accel, color="red", linewidth=1.5, linestyle="-", label="X-Axis")
+        pylab.plot(y_times, y_accel, color="green", linewidth=1.5, linestyle="-", label="Y-Axis")
+        pylab.plot(z_times, z_accel, color="blue", linewidth=1.5, linestyle="-", label="Z-Axis")
         pylab.legend(loc='upper right')
-        pylab.show()
+        
+        axes = fig.gca()
+        axes.set_xlabel('Time (seconds)')
+        axes.set_ylabel('Amplitude (g)')
+        
+        imgName = os.path.splitext(os.path.basename(filename))[0]+imgType
+        pylab.savefig(imgName)
+#         pylab.show()
     
     # Done
+    print ''
     return cal_val
 
-def calc_trans(a, b, c, a_corr, b_corr, c_corr):
-    a_cross = a * a_corr
-    b_cross = b * b_corr
-    c_ampl =  c * c_corr
-    Stab = (np.sqrt(((a_cross)**2)+((b_cross)**2)))
-    Stb = 100 * (Stab/c_ampl)
-    return Stb
 
-def calConstant(filenames, prev_cal=(1,1,1), serialNum=''):
-    basenames = map(os.path.basename, filenames)
-    cal_val = [analyze(f) for f in filenames]
+def calConstant(filenames, prev_cal=(1,1,1), serialNum='', savePath='.'):
+    """
+    """
+    def calc_trans(a, b, c, a_corr, b_corr, c_corr):
+        a_cross = a * a_corr
+        b_cross = b * b_corr
+        c_ampl =  c * c_corr
+        Stab = (np.sqrt(((a_cross)**2)+((b_cross)**2)))
+        Stb = 100 * (Stab/c_ampl)
+        return Stb
     
+    basenames = map(os.path.basename, filenames)
+    cal_val = [analyze(f, imgPath=savePath) for f in filenames]
+
     calib = ['']*3
     for j in range(3):
         if cal_val[j][3] <= 2:
