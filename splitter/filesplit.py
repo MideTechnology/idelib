@@ -1,5 +1,8 @@
 '''
+Module/utility for splitting an .IDE file into more manageable pieces.
 
+@todo: Replace the per-element read/write with something that does it to all
+    the data between two elements, in order to reduce read/write count.
 '''
 
 from datetime import datetime
@@ -212,8 +215,6 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
             
             if fs is None or fs.closed:
                 num += 1
-#                if num > 3:
-#                    break
                 fs = open(filename % num, 'wb')
                 fs.write(header)
                 filesize = len(header)
@@ -225,6 +226,8 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
                 el = i.next()
                 elementCount += 1
                 continue
+            elif el.name == 'ChannelDataBlock' and el.value[0].value in wroteFirst:
+                pass
             elif el.name in elementParsers:
                 try:
                     parser = elementParsers[el.name]
@@ -257,7 +260,7 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
             el = i.next()
             elementCount += 1
             
-    except IOError as e:
+    except None as e:#IOError as e:
         if e.errno is None:
             # The EBML library raises an empty IOError if it hits EOF.
             # TODO: Handle other cases of empty IOError (lots in python-ebml)
