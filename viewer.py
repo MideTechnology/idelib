@@ -75,6 +75,7 @@ from threaded_file import ThreadAwareFile
 # The actual data-related stuff
 import mide_ebml; mide_ebml = mide_ebml # Workaround for Eclipse code comp.
 import mide_ebml.classic.importer
+import mide_ebml.multi_importer
 
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
@@ -597,6 +598,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_RENDER_FFT = wx.NewId()
     ID_RENDER_SPEC = wx.NewId()
     ID_FILE_PROPERTIES = wx.NewId()
+    ID_FILE_MULTI = wx.NewId()
     ID_EDIT_CLEARPREFS = wx.NewId()
     ID_EDIT_RANGES = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
@@ -674,8 +676,11 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
-        if filename:
-            self.openFile(filename)
+        if filename is not None:
+            if isinstance(filename, basestring):
+                self.openFile(filename)
+            else:
+                self.openMultiple(filename)
         elif self.app.getPref('openOnStart', True):
             self.OnFileOpenMenu(None)
 
@@ -723,6 +728,9 @@ class Viewer(wx.Frame, MenuMixin):
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...\tCtrl+O", "", 
                          self.OnFileOpenMenu)
+        if True:
+            self.addMenuItem(fileMenu, self.ID_FILE_MULTI, "Open Multiple...", "",
+                         self.OnFileOpenMulti)
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCrtl-.", "", 
                          self.cancelOperation, enabled=False)
         fileMenu.AppendSeparator()
@@ -931,6 +939,7 @@ class Viewer(wx.Frame, MenuMixin):
         menus = (wx.ID_NEW, wx.ID_OPEN, wx.ID_CLOSE, wx.ID_EXIT, 
                  self.ID_DEVICE_CONFIG, wx.ID_ABOUT, wx.ID_PREFERENCES,
                  self.ID_HELP_CHECK_UPDATES,
+                 self.ID_FILE_MULTI,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, self.ID_DEBUG0,
                  self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
                  )
@@ -1308,6 +1317,7 @@ class Viewer(wx.Frame, MenuMixin):
                     return False
                 
         self.closeFile()
+        stream = None
         
         try:
             stream = ThreadAwareFile(filename, 'rb')
@@ -1346,7 +1356,8 @@ class Viewer(wx.Frame, MenuMixin):
             return False
         except Exception as err:
             # Catch-all for unanticipated errors
-            stream.closeAll()
+            if stream is not None:
+                stream.closeAll()
             self.handleError(err, what="importing the file %s" % filename,
                                  closeFile=True)
             return False
@@ -1366,6 +1377,51 @@ class Viewer(wx.Frame, MenuMixin):
         return True
     
     
+    def openMultiple(self, filenames, prompt=True):
+        """
+            @todo: Add all th schema version checking and error handling
+                present in the normal openFile().
+        """
+        title = "%s - %s (%d files)" % (os.path.basename(filenames[0]), 
+                                        os.path.basename(filenames[-1]), 
+                                        len(filenames))
+
+        if prompt and self.dataset is not None:
+            if self.dataset.loading is True:
+                if self.ask("Abort loading the current file?") != wx.ID_YES:
+                    return False
+            else:
+                q = self.ask("Do you want to close the current file?\n"
+                             "'No' will open the file in another window.",
+                             "Open File",style=wx.YES_NO|wx.CANCEL,
+                             pref="openInSameWindow")
+                if q == wx.ID_NO:
+                    self.app.createNewView(filename=filenames, title=title)
+                    return False
+                elif q == wx.ID_CANCEL:
+                    return False
+                
+        self.closeFile()
+        
+        streams = [ThreadAwareFile(filename, 'rb') for filename in filenames]
+        newDoc = mide_ebml.multi_importer.multiOpen(streams)
+
+        self.dataset = newDoc
+        if len(newDoc.sessions) > 1:
+            if not self.selectSession():
+                newDoc.close()
+                return False
+            title = "%s (Session %d)" % (title, self.session.sessionId)
+        else:
+            self.session = newDoc.lastSession
+        loader = Loader(self, newDoc, mide_ebml.multi_importer.multiRead, **self.app.getPref('loader'))
+        self.pushOperation(loader)
+        self.SetTitle(self.app.getWindowTitle(title))
+        loader.start()
+        self.enableMenus(True)
+        return True
+
+
     def closeFile(self):
         """ Close a file. Does not close the viewer window itself.
         """
@@ -1605,6 +1661,28 @@ class Viewer(wx.Frame, MenuMixin):
         # Note to self: do this last!
         dlg.Destroy()
 
+
+    def OnFileOpenMulti(self, evt):
+        """
+        """
+        self.openMultiple(mide_ebml.multi_importer.testFiles)
+        return
+        importTypes =   "MIDE Data File (*.ide)|*.ide"
+
+        defaultDir, _ = self.getDefaultImport()
+        dlg = wx.FileDialog(self, 
+                            message="Choose Multiple Files",
+                            defaultDir=defaultDir, 
+                            wildcard=importTypes,
+                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST|wx.MULTIPLE)
+        dlg.SetFilterIndex(0)
+        if dlg.ShowModal() == wx.ID_OK:
+            filenames = dlg.GetPaths()
+            self.openMultiple(filenames)
+            
+        # Note to self: do this last!
+        dlg.Destroy()
+        
 
     def OnFileExitMenu(self, evt):
         """ Handle File->Exit menu events. 
@@ -2493,7 +2571,7 @@ class ViewerApp(wx.App):
             updater.startCheckUpdatesThread(self)
 
 
-    def createNewView(self, title=None, filename=None):
+    def createNewView(self, filename=None, title=None):
         """ Create a new viewer window.
         """
         if title is None:

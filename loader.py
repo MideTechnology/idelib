@@ -1,5 +1,10 @@
 '''
-The MIDE EBML recording file importer. 
+The MIDE EBML recording file importer.
+
+@todo: The viewer depends on this sending update events in order to draw
+    anything. It's currently a little brittle; it needs to have done some
+    updates before finishing, burdening the importers. Add something that the 
+    importer can call that will be certain to send the 'completed' event.
 '''
 
 from datetime import datetime
@@ -57,7 +62,7 @@ class Loader(Job):
             sessionId = self.dataset.lastSession.sessionId
         
         self.totalUpdates = 0
-        self.reader(self.dataset, self, 
+        self.reader(self.dataset, updater=self, 
                     numUpdates=self.numUpdates,
                     updateInterval=self.updateInterval,
                     sessionId=sessionId)
@@ -95,7 +100,7 @@ class Loader(Job):
             @param done: `True` when the export is complete.
         """
         self.totalUpdates += 1
-        
+
         if error is not None:
             self.cancel()
             wx.PostEvent(self.root, EvtImportError(err=error))
@@ -106,7 +111,7 @@ class Loader(Job):
             return
         
         if not self.readingData:
-            if count > 0:
+            if count or percent:
                 # The start of data.
                 self.readingData = True
                 if self.root.session is None:

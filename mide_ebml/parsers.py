@@ -521,7 +521,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
         timestamp += self.timestampOffset.setdefault(channel, 0)
         # NOTE: This might need to just be '<' (for discontinuities)
 #         if timestamp <= self.lastStamp.get(channel,0):
-        while timestamp <= self.lastStamp.get(channel,0):
+        while timestamp < self.lastStamp.get(channel,0):
             timestamp += block.maxTimestamp
             self.timestampOffset[channel] += block.maxTimestamp
         self.lastStamp[channel] = timestamp
@@ -658,6 +658,7 @@ class RecorderPropertyParser(ElementHandler):
         `recorderInfo` but aren't in the `RecorderInfo` element.
     """
     isHeader = True
+    isSubElement = True
     
     def parse(self, element, **kwargs):
         self.doc.recorderInfo[self.elementName] = element.value
@@ -668,6 +669,7 @@ class PolynomialParser(ElementHandler):
         Each are a subclass of this, although this class does all the work.
     """
     isSubElement = True
+    isHeader = True
     
     # Parameter names: mapping of element names to the keyword arguments used
     # to instantiate a polynomial object. Also used to remove unknown elements
@@ -719,13 +721,15 @@ class PolynomialParser(ElementHandler):
 
 
 class UnivariatePolynomialParser(PolynomialParser):
-    """ Parses a single-variable polynomial. 
+    """ Parses a single-variable polynomial. Inherits everything from
+        `PolynomialParser`.
     """
     elementName = "UnivariatePolynomial"
 
 
 class BivariatePolynomialParser(PolynomialParser):
-    """ Parses a two-variable polynomial. 
+    """ Parses a two-variable polynomial. Inherits everything from
+        `PolynomialParser`.
     """
     elementName = "BivariatePolynomial"
 
@@ -836,7 +840,8 @@ class PlotParser(ElementHandler):
     """
     elementName = "Plot"
     isSubElement = True
-    
+    isHeader = True
+   
     def parse(self, element, **kwargs):
         """
         """
@@ -936,7 +941,6 @@ class SyncParser(ElementHandler):
 #===============================================================================
 # 
 #===============================================================================
-
 
 class TimeCodeScaleParser(ElementHandler):
     """ Stub for TimeCodeScale element handler.

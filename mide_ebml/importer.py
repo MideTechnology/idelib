@@ -286,7 +286,7 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
     
     elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
 
-    doc.addSession(0)
+    doc.addSession()
 
     elementCount = 0
     eventsRead = 0

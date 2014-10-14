@@ -312,6 +312,28 @@ class FFTView(wx.Frame, MenuMixin):
     
     
     @classmethod
+    def from2diterWithDiscontinuity(cls, data, rows=None, cols=1):
+        if rows is None:
+            if hasattr(data, '__len__'):
+                rows = len(data)
+        
+        # Build a 2D array. Numpy's `fromiter()` is 1D, but there's probably a 
+        # better way to do this.
+        dataIter = iter(data)
+        row1 = dataIter.next()
+        if isinstance(row1, Iterable):
+            cols = len(row1)
+            
+        points = np.zeros(shape=(rows,cols), dtype=float)
+        points[0,:] = row1
+        
+        for i, row in enumerate(dataIter,1):
+            points[i,:] = row
+    
+        return points        
+
+
+    @classmethod
     def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16):
         """ Compute 1D FFT from one or more channels of data, using Welch's
             method.

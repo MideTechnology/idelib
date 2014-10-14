@@ -1,5 +1,6 @@
 import argparse
 from datetime import datetime
+import json
 import logging
 import os
 import subprocess
@@ -7,7 +8,10 @@ import socket
 import sys
 import time
 
+from updater import UPDATER_URL
+
 HOME_DIR = os.getcwd()
+VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
 logger = logging.getLogger('SlamStickLab.BuildAll')
 
 builds = (
@@ -61,8 +65,9 @@ try:
     
     thisBuildNumber = BUILD_NUMBER if args.noincrement else BUILD_NUMBER + 1
     thisDebug = not args.release
+    thisTime = time.time()
     
-    writeInfo(thisVersion, thisDebug, thisBuildNumber, time.time(), socket.gethostname())
+    writeInfo(thisVersion, thisDebug, thisBuildNumber, thisTime, socket.gethostname())
     versionString = '.'.join(map(str,thisVersion))
 
 except ImportError:
@@ -70,6 +75,7 @@ except ImportError:
     logger.warning("*** Couldn't read and/or change build number!")
     thisBuildNumber = thisVersion = versionString = "Unknown"
     thisDebug = True
+
 
 print "*"*78
 print ("*** Building Version %s, Build number %d," % (versionString,thisBuildNumber)),
@@ -91,5 +97,14 @@ if bad == len(builds):
     writeInfo(VERSION, DEBUG, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE)
 else:
     print "Version: %s, build %s, DEBUG=%s" % (versionString, thisBuildNumber, thisDebug)
-    
+
+if args.release and bad == 0:
+    print "*"*78
+    print "Everything is okay; updating version info file '%s'" % VERSION_INFO_FILE
+    with open(VERSION_INFO_FILE,'w') as f:
+        json.dump({"version": thisVersion, 
+                   "changelog": UPDATER_URL, 
+                   "date": int(thisTime)},
+                  f)
+        
 print "*"*78

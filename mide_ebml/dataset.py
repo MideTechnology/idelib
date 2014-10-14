@@ -289,6 +289,8 @@ class Dataset(Cascading):
         self.loading = True
         self.ebmldoc = MideDocument(stream)
         self.filename = getattr(stream, "name", None)
+        
+        self.subsets = []
 
         if name is None:
             if self.filename is not None:
@@ -305,6 +307,19 @@ class Dataset(Cascading):
                               "library is %d" % (self.schemaVersion, 
                                                  self.ebmldoc.version))
 
+    def close(self):
+        result = self.ebmldoc.stream.file.close()
+        for s in self.subsets:
+            try:
+                s.close()
+            except (AttributeError, IOError):
+                pass
+        return result
+                
+    
+    @property
+    def closed(self):
+        return getattr(self.ebmldoc.stream.file, "closed", True)
 
     def addSession(self, startTime=None, endTime=None, utcStartTime=None):
         """ Create a new session, add it to the Dataset, and return it.
@@ -1989,7 +2004,7 @@ class WarningRange(object):
         t = max(min(at, self.source[0][-2]),self.source[1][-2])
 #         if at < self.source[0][-2] or at > self.source[-1][-2]:
 #             return None
-        val = self.source.getValueAt(t)
+        val = self.source.getValueAt(t, outOfRange=True)
         return at, self.valid(val[-1])
 
 
