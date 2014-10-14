@@ -66,6 +66,7 @@ from loader import Loader
 from plots import PlotSet
 from preference_dialog import PrefsDialog
 from range_dialog import RangeDialog
+from renderplot import PlotView
 from memorydialog import MemoryDialog
 import updater
 # Special helper objects and functions
@@ -76,6 +77,13 @@ from threaded_file import ThreadAwareFile
 import mide_ebml; mide_ebml = mide_ebml # Workaround for Eclipse code comp.
 import mide_ebml.classic.importer
 import mide_ebml.multi_importer
+
+# XXX: FOR TESTING; REMOVE LATER
+import socket
+
+#===============================================================================
+# 
+#===============================================================================
 
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
@@ -597,6 +605,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_EXPORT = wx.NewId()
     ID_RENDER_FFT = wx.NewId()
     ID_RENDER_SPEC = wx.NewId()
+    ID_RENDER_PLOTS = wx.NewId()
     ID_FILE_PROPERTIES = wx.NewId()
     ID_FILE_MULTI = wx.NewId()
     ID_EDIT_CLEARPREFS = wx.NewId()
@@ -728,15 +737,16 @@ class Viewer(wx.Frame, MenuMixin):
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...\tCtrl+O", "", 
                          self.OnFileOpenMenu)
-        if True:
-            self.addMenuItem(fileMenu, self.ID_FILE_MULTI, "Open Multiple...", "",
-                         self.OnFileOpenMulti)
+#         self.addMenuItem(fileMenu, self.ID_FILE_MULTI, "Open Multiple...", "",
+#                          self.OnFileOpenMulti)
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCrtl-.", "", 
                          self.cancelOperation, enabled=False)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_EXPORT, 
                          "&Export Data (CSV)...\tCtrl+S", "", self.exportCsv)
         fileMenu.AppendSeparator()
+        self.addMenuItem(fileMenu, self.ID_RENDER_PLOTS, "Render Plots...", '',
+                         self.renderPlot)
         self.addMenuItem(fileMenu, self.ID_RENDER_FFT, 
                          "Render &FFT...\tCtrl+F", "", 
                          self.renderFFT)
@@ -868,6 +878,8 @@ class Viewer(wx.Frame, MenuMixin):
             self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
                              "Save All Preferences", "",
                              lambda(evt): self.app.saveAllPrefs())
+            self.addMenuItem(debugMenu, self.ID_DEBUG0, "Open Multiple...", "",
+                             self.OnFileOpenMulti)
             helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
             
         self.menubar.Append(helpMenu, '&Help')
@@ -1567,7 +1579,46 @@ class Viewer(wx.Frame, MenuMixin):
             
         except ex as e: #Exception as e:
             self.handleError(e, what="generating Spectrogram")
+
+
+    def renderPlot(self, evt=None):
+        """ Render multiple subchannels in a single image.
         
+            @todo: This will eventually be obsolete.
+                Remove once plots have bee refactored to show multiple channels.
+            
+            @keyword evt: An event (not actually used), making this method
+                compatible with event handlers.
+        """
+        settings = xd.ExportDialog.getExport(root=self)
+        if settings is None:
+            return
+        
+        source = settings.get('source', None)
+        subchannels = settings['channels']
+        startTime, stopTime = settings['timeRange']
+        
+        title = "%s (%ss to %ss)" % (
+                      ", ".join([c.name for c in subchannels]), 
+                      self._formatTime(startTime), self._formatTime(stopTime)) 
+        viewId = wx.NewId()
+        
+        size = self.GetSize()
+        
+        # Catch no exceptions if not in debug.
+        ex = None if DEBUG else Exception
+
+        try:
+            view = PlotView(self, viewId, title=title, size=size, root=self, 
+                   source=source, subchannels=subchannels, start=startTime, 
+                   end=stopTime)
+            self.fftViews[viewId] = view
+         
+        except ex as e:
+            self.handleError(e, what="rendering a plot view")
+
+
+
     #===========================================================================
     # 
     #===========================================================================
@@ -1665,8 +1716,10 @@ class Viewer(wx.Frame, MenuMixin):
     def OnFileOpenMulti(self, evt):
         """
         """
-        self.openMultiple(mide_ebml.multi_importer.testFiles)
-        return
+        # XXX: REMOVE THIS!
+        if socket.gethostname() == "DEDHAM" and wx.GetKeyState(wx.WXK_SHIFT):
+            return self.openMultiple(mide_ebml.multi_importer.testFiles)
+        
         importTypes =   "MIDE Data File (*.ide)|*.ide"
 
         defaultDir, _ = self.getDefaultImport()

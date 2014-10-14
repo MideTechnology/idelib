@@ -372,10 +372,10 @@ class ExportDialog(sc.SizedDialog):
             of columns that will be exported.
         """
         if msg is None:
-            if num == 0:
-                msg = "No columns selected"
+            if num == 1:
+                msg = "1 subchannel selected"
             else:
-                msg = "Exporting %d columns (time + %d data)" % (num+1,num)
+                msg = "%d subchannels selected" % num
         self.treeMsg.SetLabel(msg)
 
 
@@ -578,6 +578,19 @@ class CSVExportDialog(ExportDialog):
         self.isoCheck.Enable(self._utcTime)
         self.utcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
 
+
+    def showColumnsMsg(self, num=0, msg=None):
+        """ Display a message below the tree view, meant to show the number
+            of columns that will be exported.
+        """
+        if msg is None:
+            if num == 0:
+                msg = "No columns selected"
+            else:
+                msg = "Exporting %d columns (time + %d data)" % (num+1,num)
+        self.treeMsg.SetLabel(msg)
+
+
     def OnUtcCheck(self, evt):
         self.isoCheck.Enable(evt.IsChecked())
 
@@ -662,18 +675,6 @@ class FFTExportDialog(ExportDialog):
 #         self.orderList, _ = self._addChoice("Sampling Order:",
 #             choices=self.SAMPLE_ORDER, default=self._samplingOrder,
 #             parent = subpane)        
-
-    def showColumnsMsg(self, num=0, msg=None):
-        """ Display a message below the tree view, meant to show the number
-            of columns that will be exported.
-        """
-        if msg is None:
-            if num == 1:
-                msg = "%d subchannel selected" % num
-            else:
-                msg = "%d subchannels selected" % num
-        self.treeMsg.SetLabel(msg)
-
 
     def validateSettings(self, selected=None):
         """ High-level validation of input range; handles warning displays
