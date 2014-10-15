@@ -3,6 +3,7 @@ Created on Oct 14, 2014
 
 @author: dstokes
 '''
+from collections import Iterable
 
 import numpy as np; np=np
 from numpy.core import hstack, vstack
@@ -43,6 +44,26 @@ class PlotView(FFTView):
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=False, enabled=False)
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[1])
 
+    @classmethod
+    def from2diter(cls, data, rows=None, cols=1):
+        """ Build a 2D `numpy.ndarray` from an iterator (e.g. what's produced by 
+            `EventList.itervalues`). 
+            
+            @todo: This is not the best implementation; even though 
+                'numpy.fromiter()` doesn't support 2D arrays, there may be 
+                something else in Numpy for doing this.
+        """
+        if rows is None:
+            if hasattr(data, '__len__'):
+                rows = len(data)
+        
+        points = np.zeros(shape=(rows,cols), dtype=float)
+        for i, v in enumerate(data):
+            points[i,0] = v[0] * 0.000001
+            points[i,1:] = v[1]
+    
+        return points
+
 
     @classmethod
     def generateData(cls, data, rows=None, cols=None):
@@ -55,31 +76,26 @@ class PlotView(FFTView):
         """ Turn each column of data into its own line plot.
         """
         lines = []
-        cols = self.data.shape[-1]-1
-        
         times = self.data[:,0].reshape(-1,1)
 
         for ch in self.subchannels:
             i = ch.id
             points = (hstack((times, self.data[:,i+1].reshape(-1,1))))
             name = self.subchannels[i-1].name
-
             lines.append(P.PolyLine(points, legend=name, 
                         colour=self.root.getPlotColor(self.subchannels[i-1])))
-            
+        
         self.lines = P.PlotGraphics(lines, title=self.GetTitle(), 
                                     xLabel=self.source.units[0], yLabel="Amplitude")
-    
 
     def draw(self):
         """
         """
         self.lines = None
         if self.subchannels is not None:
-            subchannelIds = [c.id for c in self.subchannels]
             start, stop = self.source.getRangeIndices(*self.range)
             data = self.source.iterSlice(start, stop)
-            self.data = self.from2diter(data, rows=stop-start, cols=len(self.subchannels)+1)
+            self.data = self.from2diter(data, rows=min(len(self.source), stop-start), cols=len(self.subchannels)+1)
             
         if self.data is not None:
             self.makeLineList()
@@ -88,3 +104,8 @@ class PlotView(FFTView):
             self.canvas.Draw(self.lines)
 
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+
+    #===========================================================================
+    # 
+    #===========================================================================
+            

@@ -97,6 +97,7 @@ class FFTView(wx.Frame, MenuMixin):
     ID_VIEW_SHOWTITLE = wx.NewId()
     ID_VIEW_SHOWLEGEND = wx.NewId()
     ID_VIEW_ANTIALIAS = wx.NewId()
+    ID_VIEW_CHANGETITLE = wx.NewId()
     
     IMAGE_FORMATS = "Windows Bitmap (*.bmp)|*.bmp|" \
                      "JPEG (*.jpg)|*.jpg|" \
@@ -212,10 +213,11 @@ class FFTView(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, self.ID_EXPORT_IMG, "Export &Image...", "", 
                          self.OnExportImage)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", 
-                         None, False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...\tCtrl+P", "", 
+                         self.OnFilePrint)
+        self.addMenuItem(fileMenu, wx.ID_PREVIEW, "Print Preview...", "", self.OnFilePrintPreview)
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
-                         None, False)
+                         self.OnFilePageSetup)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_CLOSE, "Close &Window", "", 
                          self.OnClose)
@@ -239,6 +241,9 @@ class FFTView(wx.Frame, MenuMixin):
         self.addMenuItem(self.viewMenu, self.ID_VIEW_SHOWTITLE, 
                          "Show Title", "", self.OnMenuViewTitle, 
                          kind=wx.ITEM_CHECK, checked=self.showTitle)
+        self.viewMenu.AppendSeparator()
+        self.addMenuItem(self.viewMenu, self.ID_VIEW_CHANGETITLE,
+                         "Edit Title...", "", self.OnViewChangeTitle)
         self.menubar.Append(self.viewMenu, "View")
         
         self.dataMenu = wx.Menu()
@@ -301,7 +306,7 @@ class FFTView(wx.Frame, MenuMixin):
         row1 = dataIter.next()
         if isinstance(row1, Iterable):
             cols = len(row1)
-            
+        
         points = np.zeros(shape=(rows,cols), dtype=float)
         points[0,:] = row1
         
@@ -482,9 +487,27 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.SetEnableTitle(self.showTitle)
         self.canvas.Redraw()
 
+    def OnViewChangeTitle(self, evt):
+        dlg = wx.TextEntryDialog(self, 'New Plot Title:', 'Change Title', 
+                                 self.lines.getTitle())
+
+        if dlg.ShowModal() == wx.ID_OK:
+            self.lines.setTitle(dlg.GetValue())
+            self.canvas.Redraw()
+
+        dlg.Destroy()
+
     def OnClose(self, evt):
         self.Close()
-    
+
+    def OnFilePageSetup(self, event):
+        self.canvas.PageSetup()
+        
+    def OnFilePrint(self, evt):
+        self.canvas.Printout()
+        
+    def OnFilePrintPreview(self, evt):
+        self.canvas.PrintPreview()
 
 #===============================================================================
 # 
@@ -1074,4 +1097,27 @@ class SpectrogramView(FFTView):
     def OnMenuViewTitle(self, evt):
         self.showTitle = evt.IsChecked()
         self.redrawPlots()
+
+    def OnFilePageSetup(self, event):
+        self.canvas.GetCurrentPage().PageSetup()
+        
+    def OnFilePrint(self, evt):
+        self.canvas.GetCurrentPage().Printout()
+        
+    def OnFilePrintPreview(self, evt):
+        self.canvas.GetCurrentPage().PrintPreview()
+
+
+    def OnViewChangeTitle(self, evt):
+        p = self.canvas.GetCurrentPage()
+        idx = self.canvas.GetPageIndex(p)
+        
+        dlg = wx.TextEntryDialog(self, 'New Plot Title:', 'Change Title', 
+                                 self.lines[idx].getTitle())
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            self.lines[idx].setTitle(dlg.GetValue())
+            p.Redraw()
+
+        dlg.Destroy()
 
