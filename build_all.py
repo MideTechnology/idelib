@@ -15,8 +15,8 @@ VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
 logger = logging.getLogger('SlamStickLab.BuildAll')
 
 builds = (
-    r"C:\Python27\Scripts\pyinstaller.exe --noconfirm --onefile -i .\ssl.ico viewer-win-onefile.spec",
-    r"c:\Python27_64\Scripts\pyinstaller --noconfirm --onefile --distpath=dist_64 --workpath=build_64 -i .\ssl.ico viewer-win-onefile.spec",
+    r'C:\Python27\Scripts\pyinstaller.exe --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
+    r'c:\Python27_64\Scripts\pyinstaller --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer-win-onefile.spec',
 )
 
 #===============================================================================
@@ -84,10 +84,15 @@ if thisDebug:
 else:
     print "Release version"
 
+buildArgs = {
+    'dist_32': 'Slam Stick Lab v%s.%04d (32 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
+    'dist_64': 'Slam Stick Lab v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
+}
+
 bad = 0
 for i, build in enumerate(builds):
-    print("="*78),("\nBuild #%d: %s\n" % (i+1, build)),("="*78)
-    bad += subprocess.call(build, stdout=sys.stdout, stdin=sys.stdin, shell=True)
+    print("="*78),("\nBuild #%d: %s\n" % (i+1, build % buildArgs)),("="*78)
+    bad += subprocess.call(build % buildArgs, stdout=sys.stdout, stdin=sys.stdin, shell=True)
 
 print "*"*78
 print "Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now() - t0)

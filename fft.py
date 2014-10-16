@@ -15,7 +15,7 @@ import colorsys
 import csv
 import os.path
 import sys
-# import time
+import time
 
 # import Image
 
@@ -31,6 +31,9 @@ import spectrum as spec
 
 from base import MenuMixin
 from common import mapRange, StatusBar, nextPow2, sanitizeFilename
+
+from build_info import DEBUG
+
 #===============================================================================
 # 
 #===============================================================================
@@ -144,14 +147,16 @@ class FFTView(wx.Frame, MenuMixin):
         self.Update()
 
         # XXX: TESTING
-#         drawStart = time.time()
+        if DEBUG:
+            drawStart = time.time()
 #         self.source.parent.raw=True
 #         self.source.removeMean = False
         
         self.draw()
 
         # XXX: TESTING
-#         print "Elapsed time: %s" % (time.time() - drawStart)
+        if DEBUG:
+            print "Elapsed time: %s" % (time.time() - drawStart)
 
 
     def initPlot(self):
@@ -210,16 +215,17 @@ class FFTView(wx.Frame, MenuMixin):
         fileMenu = wx.Menu()
         self.addMenuItem(fileMenu, self.ID_EXPORT_CSV, "&Export CSV...", "", 
                          self.OnExportCsv)
-        self.addMenuItem(fileMenu, self.ID_EXPORT_IMG, "Export &Image...", "", 
-                         self.OnExportImage)
+        self.addMenuItem(fileMenu, self.ID_EXPORT_IMG, "&Save Image...\tCtrl+S", "", 
+                         self.OnExportImage, True)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...\tCtrl+P", "", 
                          self.OnFilePrint)
-        self.addMenuItem(fileMenu, wx.ID_PREVIEW, "Print Preview...", "", self.OnFilePrintPreview)
+        self.addMenuItem(fileMenu, wx.ID_PREVIEW, "Print Preview...", "", 
+                         self.OnFilePrintPreview)
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
                          self.OnFilePageSetup)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_CLOSE, "Close &Window", "", 
+        self.addMenuItem(fileMenu, wx.ID_CLOSE, "Close &Window\tCtrl+W", "", 
                          self.OnClose)
         self.menubar.Append(fileMenu, "File")
         
@@ -229,31 +235,35 @@ class FFTView(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", None, False)
         self.menubar.Append(editMenu, "Edit")
 
-        self.viewMenu = wx.Menu()
-        self.addMenuItem(self.viewMenu, wx.ID_ZOOM_IN, "Zoom Out\tCtrl+-", "", self.OnZoomOut)
-        self.addMenuItem(self.viewMenu, wx.ID_ZOOM_OUT, "Zoom In\tCtrl+=", "", self.OnZoomIn)
-        self.addMenuItem(self.viewMenu, wx.ID_RESET, "Zoom to Fit\tCtrl+0", "", 
+        viewMenu = wx.Menu()
+        self.addMenuItem(viewMenu, wx.ID_ZOOM_IN, "Zoom Out\tCtrl+-", "", 
+                         self.OnZoomOut)
+        self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom In\tCtrl+=", "", 
+                         self.OnZoomIn)
+        self.addMenuItem(viewMenu, wx.ID_RESET, "Zoom to Fit\tCtrl+0", "", 
                          self.OnMenuViewReset)
-        self.viewMenu.AppendSeparator()
-        self.addMenuItem(self.viewMenu, self.ID_VIEW_SHOWLEGEND, 
-                         "Show Legend", "", self.OnMenuViewLegend, 
+        viewMenu.AppendSeparator()
+        self.addMenuItem(viewMenu, self.ID_VIEW_SHOWLEGEND, 
+                         "Show Legend\tCtr+L", "", self.OnMenuViewLegend, 
                          kind=wx.ITEM_CHECK, checked=self.showLegend)
-        self.addMenuItem(self.viewMenu, self.ID_VIEW_SHOWTITLE, 
-                         "Show Title", "", self.OnMenuViewTitle, 
+        self.addMenuItem(viewMenu, self.ID_VIEW_SHOWTITLE, 
+                         "Show Title\tCtrl+T", "", self.OnMenuViewTitle, 
                          kind=wx.ITEM_CHECK, checked=self.showTitle)
-        self.viewMenu.AppendSeparator()
-        self.addMenuItem(self.viewMenu, self.ID_VIEW_CHANGETITLE,
+        viewMenu.AppendSeparator()
+        self.addMenuItem(viewMenu, self.ID_VIEW_CHANGETITLE,
                          "Edit Title...", "", self.OnViewChangeTitle)
-        self.menubar.Append(self.viewMenu, "View")
+        self.menubar.Append(viewMenu, "View")
+        self.viewMenu = viewMenu
         
-        self.dataMenu = wx.Menu()
-        self.logAmp = self.addMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, 
+        dataMenu = wx.Menu()
+        self.logAmp = self.addMenuItem(dataMenu, self.ID_DATA_LOG_AMP, 
                          "Amplitude: Logarithmic Scale", "", self.OnMenuDataLog,
                          kind=wx.ITEM_CHECK, checked=self.logarithmic[1])
-        self.logFreq = self.addMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, 
+        self.logFreq = self.addMenuItem(dataMenu, self.ID_DATA_LOG_FREQ, 
                          "Frequency: Logarithmic Scale", "", self.OnMenuDataLog,
                          kind=wx.ITEM_CHECK, checked=self.logarithmic[0])
-        self.menubar.Append(self.dataMenu, "Data")
+        self.menubar.Append(dataMenu, "Data")
+        self.dataMenu = dataMenu
         
         helpMenu = wx.Menu()
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
@@ -413,10 +423,11 @@ class FFTView(wx.Frame, MenuMixin):
             return False
         
         try:
-            out = open(filename, "wb")
-            writer = csv.writer(out)
-            writer.writerows(self.data)
-            out.close()
+            np.savetxt(filename, self.data, fmt='%.6f', delimiter=', ')
+#             out = open(filename, "wb")
+#             writer = csv.writer(out)
+#             writer.writerows(self.data)
+#             out.close()
             return True
         except Exception as err:
             what = "exporting %s as CSV" % self.NAME
@@ -962,7 +973,7 @@ class SpectrogramView(FFTView):
 
     def initMenus(self):
         super(SpectrogramView, self).initMenus()
-        self.MenuBar.FindItemById(self.ID_EXPORT_IMG).Enable(False)
+#         self.MenuBar.FindItemById(self.ID_EXPORT_IMG).Enable(False)
 
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=False, enabled=False)
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[2])
@@ -1120,4 +1131,26 @@ class SpectrogramView(FFTView):
             p.Redraw()
 
         dlg.Destroy()
+
+
+    def OnExportImage(self, event):
+        filename = None
+        dlg = wx.FileDialog(self, 
+            message="Export Image...", 
+            wildcard=self.IMAGE_FORMATS, 
+            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+        
+        if dlg.ShowModal() == wx.ID_OK:
+            filename = dlg.GetPath()
+        dlg.Destroy()
+        
+        if filename is None:
+            return False
+        
+        try:
+            return self.canvas.GetCurrentPage().SaveFile(filename)
+        except Exception as err:
+            what = "exporting %s as an image" % self.NAME
+            self.root.handleError(err, what=what)
+            return False
 

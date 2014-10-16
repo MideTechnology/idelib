@@ -673,7 +673,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.setVisibleRange(self.timerange[0], self.timerange[1])
         
         # FUTURE: FFT views as separate windows will eventually be refactored.
-        self.fftViews = {}
+        self.childViews = {}
         
         self.Bind(events.EVT_SET_VISIBLE_RANGE, self.OnSetVisibleRange)
         self.Bind(events.EVT_SET_TIME_RANGE, self.OnSetTimeRange)
@@ -1538,7 +1538,7 @@ class Viewer(wx.Frame, MenuMixin):
             view = FFTView(self, viewId, title=title, size=size, root=self, 
                    source=source, subchannels=subchannels, start=startTime, 
                    end=stopTime, sliceSize=sliceSize)
-            self.fftViews[viewId] = view
+            self.childViews[viewId] = view
         
         except ex as e:
             self.handleError(e, what="generating FFT")
@@ -1575,7 +1575,7 @@ class Viewer(wx.Frame, MenuMixin):
                    root=self, source=source, subchannels=subchannels, 
                    start=startTime, end=stopTime, slicesPerSec=slicesPerSec,)
                     #sliceSize=sliceSize)
-            self.fftViews[viewId] = view
+            self.childViews[viewId] = view
             
         except ex as e: #Exception as e:
             self.handleError(e, what="generating Spectrogram")
@@ -1590,13 +1590,20 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword evt: An event (not actually used), making this method
                 compatible with event handlers.
         """
-        settings = xd.ExportDialog.getExport(root=self)
+        settings = xd.ExportDialog.getExport(root=self, title="Render Plot")
         if settings is None:
             return
         
         source = settings.get('source', None)
         subchannels = settings['channels']
         startTime, stopTime = settings['timeRange']
+        removeMeanType = settings.get('removeMean', 0)
+        
+        removeMean = removeMeanType > 0
+        if removeMeanType == 1:
+            meanSpan = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+        else:
+            meanSpan = -1
         
         title = "%s (%ss to %ss)" % (
                       ", ".join([c.name for c in subchannels]), 
@@ -1611,8 +1618,9 @@ class Viewer(wx.Frame, MenuMixin):
         try:
             view = PlotView(self, viewId, title=title, size=size, root=self, 
                    source=source, subchannels=subchannels, start=startTime, 
-                   end=stopTime)
-            self.fftViews[viewId] = view
+                   end=stopTime, removeMean=removeMean, meanSpan=meanSpan)
+
+            self.childViews[viewId] = view
          
         except ex as e:
             self.handleError(e, what="rendering a plot view")
@@ -1668,7 +1676,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.cancelAllOperations()
         
         # Close related windows
-        for fft in self.fftViews.itervalues():
+        for fft in self.childViews.itervalues():
             try:
                 fft.Destroy()
             except (AttributeError, wx.PyDeadObjectError):
