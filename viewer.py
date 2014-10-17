@@ -1605,9 +1605,8 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             meanSpan = -1
         
-        title = "%s (%ss to %ss)" % (
-                      ", ".join([c.name for c in subchannels]), 
-                      self._formatTime(startTime), self._formatTime(stopTime)) 
+        title = ", ".join([c.name for c in subchannels]) 
+
         viewId = wx.NewId()
         
         size = self.GetSize()

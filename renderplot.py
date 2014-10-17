@@ -3,13 +3,11 @@ Created on Oct 14, 2014
 
 @author: dstokes
 '''
-from collections import Iterable
 
 import numpy as np; np=np
-from numpy.core import hstack, vstack
 
 import wx
-import wx_lib_plot as P
+from wx_lib_plot import PolyLine, PlotGraphics
 
 from fft import FFTPlotCanvas, FFTView
 
@@ -126,6 +124,7 @@ class PlotView(FFTView):
         """
         self.lines = None
         if self.subchannels is not None:
+            timeScalar = self.root.timeScalar
             if self.removeMean:
                 oldMean = self.source.removeMean
                 oldSpan = self.source.rollingMeanSpan
@@ -137,13 +136,14 @@ class PlotView(FFTView):
             points = [np.zeros(shape=(rows,2), dtype=float) for _ in self.subchannels]
             for row, evt in enumerate(self.source.iterSlice(start, stop)):
                 for col, ch in enumerate(self.subchannels):
-                    points[col][row,0] = evt[0]*self.root.timeScalar
-                    points[col][row,1] = evt[1][ch.id]
+                    pts = points[col]
+                    pts[row,0] = evt[0]*timeScalar
+                    pts[row,1] = evt[1][ch.id]
             
             lines = [None]*len(self.subchannels)
             for col, ch in enumerate(self.subchannels):
-                lines[col] = P.PolyLine(points[col], legend=ch.name, colour=self.root.getPlotColor(ch))
-            self.lines = P.PlotGraphics(lines, title=self.GetTitle(), 
+                lines[col] = PolyLine(points[col], legend=ch.name, colour=self.root.getPlotColor(ch))
+            self.lines = PlotGraphics(lines, title=self.GetTitle(), 
                                     xLabel=self.source.units[0], yLabel="Amplitude")
                             
             if self.removeMean:

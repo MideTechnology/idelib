@@ -157,8 +157,8 @@ class ExportDialog(sc.SizedDialog):
         wx.StaticLine(pane, -1).SetSizerProps(expand=True)
         wx.StaticText(pane, -1, "Range to Export:")
         rangePane = sc.SizedPanel(pane, -1)
-        self._addRangeRB(rangePane, self.RB_RANGE_ALL, "All", style=wx.RB_GROUP),
-        self._addRangeRB(rangePane, self.RB_RANGE_VIS, "Visible Range")
+        self._addRangeRB(rangePane, self.RB_RANGE_ALL, "All", style=wx.RB_GROUP)
+        self._addRangeRB(rangePane, self.RB_RANGE_VIS, "Visible Range").SetValue(True)
         rangeFieldPane = sc.SizedPanel(rangePane,-1)
         rangeFieldPane.SetSizerType("horizontal")
         self._addRangeRB(rangeFieldPane, self.RB_RANGE_CUSTOM, "Specific Range:")
@@ -225,7 +225,9 @@ class ExportDialog(sc.SizedDialog):
     def _addRangeRB(self, parent, ID, label, **kwargs):
         """ Helper to add range RadioButtons
         """
-        self.rangeBtns.append(wx.RadioButton(parent, ID, label, **kwargs))
+        rb = wx.RadioButton(parent, ID, label, **kwargs)
+        self.rangeBtns.append(rb)
+        return rb
 
     
     def _addTreeItems(self, parentItem, obj, types=None, 

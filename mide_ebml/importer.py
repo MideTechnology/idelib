@@ -19,7 +19,7 @@ From Slam Stick X: 0:06:47.506000
 
 from datetime import datetime
 import sys
-import time
+from time import time as time_time
 
 import calibration
 from dataset import Dataset
@@ -302,10 +302,10 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
         ticSize = filesize+1
     
     if updateInterval > 0:
-        nextUpdateTime = time.time() + updateInterval
+        nextUpdateTime = time_time() + updateInterval
     else:
         # An update time 24 hours in the future should mean no updates.
-        nextUpdateTime = time.time() + 5184000
+        nextUpdateTime = time_time() + 5184000
     
     firstDataPos = 0
     nextUpdatePos = ticSize
@@ -318,12 +318,16 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
             if getattr(updater, "cancelled", False):
                 doc.loadCancelled = True
                 break
-
-            if r.name in elementParsers:
+            
+            # OPTIMIZATION: local variables
+            r_name = r.name
+            r_stream_offset = r.stream.offset
+            
+            if r_name in elementParsers:
                 try:
                     readRecordingProperties = (readRecordingProperties or 
-                                               r.name == "RecordingProperties") 
-                    parser = elementParsers[r.name]
+                                               r_name == "RecordingProperties") 
+                    parser = elementParsers[r_name]
                     
                     if not readingData and parser.makesData():
                         # The first data has been read. Notify the updater!
@@ -333,7 +337,7 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
                             if defaultSensors is not None:
                                 createDefaultSensors(doc, defaultSensors)
                             readRecordingProperties = True
-                        firstDataPos = r.stream.offset
+                        firstDataPos = r_stream_offset
                         dataSize = filesize - firstDataPos + 0.0
                         readingData = True
                 
@@ -349,14 +353,14 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
             else:
                 # Unknown block type
                 logger.warning("unknown block %r (ID 0x%02x) @%d" % \
-                               (r.name, r.id, r.stream.offset))
+                               (r.name, r.id, r_stream_offset))
                 continue
             
             # More progress display stuff
             # FUTURE: Possibly do the update check every nth elements; that
             # would have slightly less work per cycle.
-            thisOffset = r.stream.offset
-            thisTime = time.time()
+            thisOffset = r_stream_offset
+            thisTime = time_time()
             if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:
                 # Update progress bar
                 updater(count=eventsRead,

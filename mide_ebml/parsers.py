@@ -390,12 +390,14 @@ class BaseDataBlock(object):
             end += self.body_size
         else:
             end = self.headerSize + (end * parser.size)
-            
-        for i in xrange(start,end,parser.size*step):
-            if subchannel is not None:
-                yield parser.unpack_from(data, i)[subchannel]
-            else:
-                yield parser.unpack_from(data, i)
+        
+        parser_unpack_from = parser.unpack_from
+        if subchannel is not None:
+            for i in xrange(start,end,parser.size*step):
+                yield parser_unpack_from(data, i)[subchannel]
+        else:
+            for i in xrange(start,end,parser.size*step):
+                yield parser_unpack_from(data, i)
 
 
     def parseByIndexWith(self, parser, indices, subchannel=None):
@@ -408,14 +410,16 @@ class BaseDataBlock(object):
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
+        parser_unpack_from = parser.unpack_from
+        parser_size = parser.size
         for i in indices:
             if i >= self.numSamples:
                 continue
-            idx = self.headerSize + (i*parser.size)
+            idx = self.headerSize + (i*parser_size)
             if subchannel is not None:
-                yield parser.unpack_from(data, idx)[subchannel]
+                yield parser_unpack_from(data, idx)[subchannel]
             else:
-                yield parser.unpack_from(data, idx)
+                yield parser_unpack_from(data, idx)
 
 
     def parseMinMeanMax(self, parser):

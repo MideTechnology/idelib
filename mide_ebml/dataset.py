@@ -1205,6 +1205,7 @@ class EventList(Cascading):
                 yield v[-1]
         
 
+
     def iterSlice(self, start=0, end=-1, step=1):
         """ Create an iterator producing events for a range indices.
         """
@@ -1241,25 +1242,42 @@ class EventList(Cascading):
         subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
         endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
 
+        # OPTIMIZATION: making local variables for faster access
+        parent = self.parent
+        parent_transform = self.parent._transform
+        parent_id = self.parent.id
+        parent_parseBlock = parent.parseBlock
+        session = self.session
+        hasSubchannels = self.hasSubchannels
+        _data = self._data
+        _getBlockSampleTime = self._getBlockSampleTime
+        _getBlockRollingMean = self._getBlockRollingMean
+        if not hasSubchannels:
+            parent_parent_transform = parent.parent._transform
+        else:
+            parent_subchannels = parent.subchannels
+
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
             blockIdx = int(startBlockIdx + (i * blockStep))
-            block = self._data[blockIdx]
-            sampleTime = self._getBlockSampleTime(i)
+            block = _data[blockIdx]
+            sampleTime = _getBlockSampleTime(i)
             lastSubIdx = endSubIdx if blockIdx == endBlockIdx else block.numSamples
             times = (block.startTime + sampleTime * t for t in xrange(subIdx, lastSubIdx, step))
-            values = self.parent.parseBlock(block, start=subIdx, end=lastSubIdx, 
-                                            step=step, offset=self._getBlockRollingMean(blockIdx))
+            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx, 
+                                       step=step, offset=_getBlockRollingMean(blockIdx))
 
-            for event in izip(times, values):
-                if self.hasSubchannels:
+            if hasSubchannels:
+                for event in izip(times, values):
                     # TODO: Refactor this ugliness
                     # This is some nasty stuff to apply nested transforms
-                    event=[c._transform(f((event[-2],v),self.session), self.session) for f,c,v in izip(self.parent._transform, self.parent.subchannels, event[-1])]
+                    event=[c._transform(f((event[-2],v),session), session) for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
                     event=(event[0][0], tuple((e[1] for e in event)))
-                else:
-                    event = self.parent._transform(self.parent.parent._transform[self.parent.id](event, self.session))
-                yield event
+                    yield event
+            else:
+                for event in izip(times, values):
+                    event = parent_transform(parent_parent_transform[parent_id](event, session))
+                    yield event
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
 
@@ -1289,12 +1307,27 @@ class EventList(Cascading):
         
         subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
         endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-        
+
+        # OPTIMIZATION: making local variables for faster access
+        parent = self.parent
+        parent_transform = self.parent._transform
+        parent_id = self.parent.id
+        parent_parseBlockByIndex = parent.parseBlockByIndex
+        session = self.session
+        hasSubchannels = self.hasSubchannels
+        _data = self._data
+        _getBlockSampleTime = self._getBlockSampleTime
+        _getBlockRollingMean = self._getBlockRollingMean
+        if not hasSubchannels:
+            parent_parent_transform = parent.parent._transform
+#         else:
+#             parent_subchannels = parent.subchannels
+
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
             blockIdx = int(startBlockIdx + (i * blockStep))
-            block = self._data[blockIdx]
-            sampleTime = self._getBlockSampleTime(i)
+            block = _data[blockIdx]
+            sampleTime = _getBlockSampleTime(i)
             lastSubIdx = endSubIdx if blockIdx == endBlockIdx else block.numSamples
             
             indices = range(subIdx, lastSubIdx, step)
@@ -1304,17 +1337,19 @@ class EventList(Cascading):
                     indices[x] = int(indices[x] + (((random.random()*2)-1) * jitter * step))
                 
             times = (block.startTime + sampleTime * t for t in indices)
-            values = self.parent.parseBlockByIndex(block, indices, 
-                                                   self._getBlockRollingMean(blockIdx))
+            values = parent_parseBlockByIndex(block, indices, 
+                                                   _getBlockRollingMean(blockIdx))
             
-            for event in izip(times, values):
-                if self.hasSubchannels:
+            if hasSubchannels:
+                for event in izip(times, values):
                     # TODO: (post Transform fix) Refactor later
-                    event=[f((event[-2],v), self.session) for f,v in izip(self.parent._transform, event[-1])]
+                    event=[f((event[-2],v), session) for f,v in izip(parent_transform, event[-1])]
                     event=(event[0][0], tuple((e[1] for e in event)))
-                else:
-                    event = self.parent._transform(self.parent.parent._transform[self.parent.id](event, self.session), self.session)
-                yield event
+                    yield event
+            else:
+                    event = parent_transform(parent_parent_transform[parent_id](event, session), session)
+                    yield event
+
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
       
@@ -1569,17 +1604,17 @@ class EventList(Cascading):
         for block in self._data:
             if not (block.min is None or block.mean is None or block.max is None):
                 continue
-            block.min = []
-            block.mean = []
-            block.max = []
+            block_min = []
+            block_mean = []
+            block_max = []
             vals = numpy.array(parseBlock(block))
             for i in range(vals.shape[1]):
-                block.min.append(vals[:,i].min())
-                block.mean.append(vals[:,i].mean())
-                block.max.append(vals[:,i].max())
-            block.min = tuple(block.min)
-            block.mean = tuple(block.mean)
-            block.max = tuple(block.max)
+                block_min.append(vals[:,i].min())
+                block_mean.append(vals[:,i].mean())
+                block_max.append(vals[:,i].max())
+            block.min = tuple(block_min)
+            block.mean = tuple(block_mean)
+            block.max = tuple(block_max)
         
             self.hasMinMeanMax = True
             

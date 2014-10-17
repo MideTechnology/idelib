@@ -12,18 +12,15 @@ Created on Dec 18, 2013
 
 from collections import Iterable
 import colorsys
-import csv
 import os.path
 import sys
 import time
 
-# import Image
-
 import numpy as np; np=np
 from numpy.core import hstack, vstack
 
-# import wx.lib.plot as P
-import wx_lib_plot as P
+# from wx.lib.plot import PolyLine, PlotGraphics, PlotCanvas
+from wx_lib_plot import PolyLine, PlotGraphics, PlotCanvas
 from wx import aui
 import wx; wx = wx 
 
@@ -63,7 +60,7 @@ from build_info import DEBUG
 # 
 #===============================================================================
 
-class FFTPlotCanvas(P.PlotCanvas):
+class FFTPlotCanvas(PlotCanvas):
     def _Draw(self, graphics, xAxis = None, yAxis = None, dc = None):
         """ Zoom on the plot
             Centers on the X,Y coords given in Center
@@ -156,7 +153,7 @@ class FFTView(wx.Frame, MenuMixin):
 
         # XXX: TESTING
         if DEBUG:
-            print "Elapsed time: %s" % (time.time() - drawStart)
+            print "Elapsed time (%s): %s" % (self.FULLNAME, time.time() - drawStart)
 
 
     def initPlot(self):
@@ -290,10 +287,10 @@ class FFTView(wx.Frame, MenuMixin):
             points = (hstack((freqs, self.data[:,i+1].reshape(-1,1))))
             name = self.subchannels[i-1].name
 
-            lines.append(P.PolyLine(points, legend=name, 
+            lines.append(PolyLine(points, legend=name, 
                         colour=self.root.getPlotColor(self.subchannels[i-1])))
             
-        self.lines = P.PlotGraphics(lines, title=self.GetTitle(), 
+        self.lines = PlotGraphics(lines, title=self.GetTitle(), 
                                     xLabel="Frequency", yLabel="Amplitude")
         
     
@@ -826,13 +823,14 @@ class SpectrogramView(FFTView):
         self.lines = []
         self.ranges = []
 
+        self_lines_append = self.lines.append
         for i in range(len(self.data)):
             d = self.data[i]
             points = ((start, d[1][0]), 
                       (end, d[1][-1]))
             name = self.subchannels[i-1].name
  
-            self.lines.append(P.PlotGraphics([P.PolyLine(points, legend=name)],
+            self_lines_append(PlotGraphics([PolyLine(points, legend=name)],
                               title=self.subchannels[i].name, #title=self.GetTitle(),
                               xLabel="Time", yLabel="Frequency"))
              
@@ -1068,13 +1066,15 @@ class SpectrogramView(FFTView):
                 data, freqs, times  = self.data[num]
                 freqs = np.reshape(hstack((np.array((-1,)),freqs)), (-1,1))
                 data = hstack((freqs, vstack((np.reshape(times, (1,-1)), data))))
-                out = open(filename, "wb")
-                for d in data:
-                    out.write(', '.join(map(lambda x: dataFormat % x, d)))
-                    out.write('\n')
-#                 writer = csv.writer(out)
-#                 writer.writerows(data)
-                out.close()
+                np.savetxt(filename, data, fmt=dataFormat, delimiter=', ')
+
+#                 out = open(filename, "wb")
+#                 for d in data:
+#                     out.write(', '.join(map(lambda x: dataFormat % x, d)))
+#                     out.write('\n')
+# #                 writer = csv.writer(out)
+# #                 writer.writerows(data)
+#                 out.close()
             except Exception as err:
                 what = "exporting %s as CSV %s" % (self.NAME, filename)
                 self.root.handleError(err, what=what)
