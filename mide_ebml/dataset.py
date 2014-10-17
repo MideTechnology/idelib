@@ -800,7 +800,6 @@ class SubChannel(Channel):
         return self.parent.parseBlockByIndex(block, indices, subchannel=self.id,
                                              offset=offset)
 
-    
         
     def getSession(self, sessionId=None):
         """ Retrieve a session by ID. If none is provided, the last session in
@@ -1106,17 +1105,17 @@ class EventList(Cascading):
         else:
             firstBlock = lastBlock = None
         
-        block._rollingMean = numpy.median(
+        block._rollingMean = rollingMean = numpy.median(
                         [b.mean for b in self._data[firstBlock:lastBlock]], 0)
-        block._rollingMeanSpan = span
-        block._rollingMeanLen = len(self._data)
+        block._rollingMeanSpan = rollingMeanSpan = span
+        block._rollingMeanLen = rollingMeanLen = len(self._data)
         
         if span == -1:
             # Set-wide median/mean removal; same across all blocks.
             for b in self._data:
-                b._rollingMean = block._rollingMean
-                b._rollingMeanSpan = block._rollingMeanSpan
-                b._rollingMeanLen = block._rollingMeanLen
+                b._rollingMean = rollingMean
+                b._rollingMeanSpan = rollingMeanSpan
+                b._rollingMeanLen = rollingMeanLen
         
         return block._rollingMean
     
@@ -1451,28 +1450,42 @@ class EventList(Cascading):
         """
         startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
         
+        # OPTIMIZATION: Local variables for things used in inner loops
+        hasSubchannels = self.hasSubchannels
+        session = self.session
+        _getBlockRollingMean = self._getBlockRollingMean
+        parent_transform = self.parent._transform
+        if not self.hasSubchannels:
+            parent_parent_transform = self.parent.parent._transform
+            parent_id = self.parent.id
+        
         for block in self._data[startBlockIdx:endBlockIdx]:
             if block.minMeanMax is None:
                 continue
             t = block.startTime
 #             if block.endTime is not None:
 #                 t = (t + block.endTime)/2
-            m = self._getBlockRollingMean(block.blockIndex)
+            m = _getBlockRollingMean(block.blockIndex)
+            m = 0 if m is None else m
             result = []
-            for val in (block.min, block.mean, block.max):
-                if m is not None:
-                    val -= m
-                if self.hasSubchannels:
-                    event=[f((t,v), self.session) for f,v in izip(self.parent._transform, val)]
-                    event=(event[0][0], tuple((e[1] for e in event)))
-                else:
-                    val = val[self.parent.id]
-                    event = self.parent._transform(self.parent.parent._transform[self.parent.id]((t,val), self.session), self.session)
-                if not times:
-                    event = event[-1]
-                result.append(event)
             
-            yield result
+            if hasSubchannels:
+                for val in (block.min, block.mean, block.max):
+                    val -= m
+                    event=[f((t,v), self.session) for f,v in izip(parent_transform, val)]
+                    event=(event[0][0], tuple((e[1] for e in event)))
+                    result.append(event)
+            else:
+                for val in (block.min, block.mean, block.max):
+                    val -= m
+                    val = val[parent_id]
+                    event = parent_transform(parent_parent_transform[parent_id]((t,val), session), session)
+                    result.append(event)
+                
+            if times:
+                yield result
+            else:
+                yield [e[-1] for e in result]
     
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
@@ -1650,11 +1663,6 @@ class EventList(Cascading):
         block = self._data[blockIdx]
         if block.sampleTime is not None:
             return block.sampleTime
-        
-        # See if the parent has the attribute defined
-        sampleTime = self.getAttribute('_sampleTime', None)[1]
-        if sampleTime is not None:
-            return sampleTime
         
         startTime = block.startTime
         endTime = block.endTime
