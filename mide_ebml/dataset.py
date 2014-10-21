@@ -302,7 +302,9 @@ class Dataset(Cascading):
 
         self.schemaVersion = util.getSchemaDocument().version
         if not quiet:
-            if self.schemaVersion != self.ebmldoc.version:
+            # It is currently assumed future versions will be backwards
+            # compatible. Change if/when not, or if certain old versions aren't.
+            if self.schemaVersion > self.ebmldoc.version:
                 raise IOError("EBML schema version mismatch: file is %d, "
                               "library is %d" % (self.schemaVersion, 
                                                  self.ebmldoc.version))
@@ -886,7 +888,7 @@ class EventList(Cascading):
         """ Create a shallow copy of the event list.
         """
         parent = self.parent if newParent is None else newParent
-        newList = EventList(parent, self.session)
+        newList = self.__class__(parent, self.session)
         newList._data = self._data
         newList._length = self._length
         newList.dataset = self.dataset
