@@ -64,7 +64,7 @@ testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\test_recordings\\Calibrate
 default_sensors = {
     0x00: {"name": "SlamStick X Combined Sensor", 
            "channels": {
-                0x00: {"name": "Accelerometer XYZ",
+                0x00: {"name": "Accelerometer ZYX",
                        "parser": parsers.AccelerometerParser(),
                        "transform": (calibration.AccelTransform(),
                                      calibration.AccelTransform(),

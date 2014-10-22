@@ -45,7 +45,7 @@ def hexdump(data):
 #===============================================================================
 
 class MatStream(object):
-    formatChars = {
+    typeFormatChars = {
         MP.miINT8:   'b',
         MP.miUINT8:  'B',
         MP.miINT16:  'h',
@@ -55,6 +55,17 @@ class MatStream(object):
         MP.miUTF8:   'c',
         MP.miSINGLE: 'f',
         MP.miDOUBLE: 'd',
+        }
+    classFormatChars = {
+        MP.mxINT8_CLASS:   'b',
+        MP.mxUINT8_CLASS:  'B',
+        MP.mxINT16_CLASS:  'h',
+        MP.mxUINT16_CLASS: 'H',
+        MP.mxINT32_CLASS:  'i',
+        MP.mxUINT32_CLASS: 'I',
+        MP.mxCHAR_CLASS:   'c',
+        MP.mxSINGLE_CLASS: 'f',
+        MP.mxDOUBLE_CLASS: 'd',
     }
     
     intPack = struct.Struct('I')
@@ -172,7 +183,7 @@ class MatStream(object):
         self.expectedRows = rows
 
         self.numCols = cols+1
-        fchar = self.formatChars.get(dtype, self.formatChars[MP.miDOUBLE]) * self.numCols
+        fchar = self.typeFormatChars.get(dtype, self.typeFormatChars[MP.miDOUBLE]) * self.numCols
         self.rowFormatter = struct.Struct(fchar)
         
         # Start of matrix element, initial size of 0 (rewritten at end)
@@ -182,9 +193,9 @@ class MatStream(object):
         # Write flags and matrix type
         # NOTE: This didn't work right; hard-coding something that does.
 #         self.pack('xxBBxxxx', (flags, mtype))
-        self.pack('BBBBBBBB', (0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
+        self.pack('BBBBBBBB', (0x06, 0x00, 0x00, mtype, 0x00, 0x00, 0x00, 0x00))
         
-        # Write matrix dimensions. Because the file stores data column first,
+        # Write matrix dimensions. Because the file stores data column first,re
         # the recording data is stored 'sideways': lots of columns. The
         # second dimension is rewritten at the end.
         self.pack('II', (cols+1, rows), dtype=MP.miINT32)
@@ -217,7 +228,7 @@ class MatStream(object):
 # 
 #===============================================================================
 
-def exportCsv(events, filename, start=0, stop=-1, step=1, subchannels=True,
+def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
               callback=None, callbackInterval=0.01, timeScalar=1,
               raiseExceptions=False, useUtcTime=False, removeMean=None,
               meanSpan=None):
@@ -316,113 +327,3 @@ def exportCsv(events, filename, start=0, stop=-1, step=1, subchannels=True,
 # 
 #===============================================================================
 
-class StreamedDataset(dataset.Dataset):
-    """ A stand-in for the normal `dataset.Dataset` object, tuned for
-        streaming calibrated data into another file, as opposed to importing
-        everything.
-    """
-    def __init__(self, *args, **kwargs):
-        self.outStream = self.kwargs.pop('outStream')
-        self.channelId = self.kwargs.pop('exportChannelId', 0)
-        self.subchannelId = self.kwargs.pop('exportSubchannelId', None)
-        self._loading = True
-        super(StreamedDataset, self).__init__(*args, **kwargs)
-    
-    @property
-    def loading(self):
-        return self._loading
-    
-    @loading.setter
-    def loading(self, val):
-        if val is False and self._loading is True:
-            self.outStream.close()
-        self._loading = val
-
-
-    def writeToStream(self, event, channelId=0, subchannelId=None):
-        # This is what writes an event to the stream. Maybe different
-        # streams based on channel and subchannel ID.
-        pass
-    
-    
-
-class StreamedChannel(dataset.Channel):
-    def getSubChannel(self, subchannelId):
-        """ Retrieve one of the Channel's SubChannels. All Channels have at
-            least one. A SubChannel object will be automatically generated if
-            one hasn't already explicitly been defined.
-            
-            @param subchannelId: 
-            @return: The SubChannel matching the given ID.
-        """
-        # If there is no SubChannel explicitly defined for a subchannel, 
-        # dynamically generate one.
-        if self.subchannels[subchannelId] is None:
-            self.subchannels[subchannelId] = StreamedSubChannel(self, subchannelId)
-        return self.subchannels[subchannelId]
-
-    def getSession(self, sessionId=None):
-        """ Retrieve a session 
-        """
-        if sessionId is None:
-            session = self.dataset.lastSession
-            sessionId = session.sessionId
-        elif self.dataset.hasSession(sessionId):
-            session = self.dataset.sessions[sessionId]
-        else:
-            raise KeyError("Dataset has no Session id=%r" % sessionId)
-        return self.sessions.setdefault(sessionId, StreamedEventList(self, session))
-
-
-class StreamedSubChannel(StreamedChannel, dataset.SubChannel):
-    """
-    """
-
-class StreamedEventList(dataset.EventList):
-    """
-    """
-    
-    def __init__(self, *args, **kwargs):
-        self.lastEvent = None
-        super(StreamedEventList, self).__init__(*args, **kwargs)
-    
-    def copy(self, *args, **kwargs):
-        c = super(StreamedEventList, self).copy(*args, **kwargs)
-        c.lastEvent = self.lastEvent
-        return c
-    
-    def append(self, block):
-        # `append()` doesn't really append; it writes the data to a file.
-        values = self.parent.parseBlock(block)
-        sampleTime = (block.endTime - block.startTime) / len(values)
-        times = (block.startTime + (i * sampleTime) for i in xrange(len(values)))
-        if self.hasSubchannels:
-            for event in izip(times, values):
-                # TODO: Refactor this ugliness
-                # This is some nasty stuff to apply nested transforms
-                event=[c._transform(f((event[-2],v),self.session), self.session) for f,c,v in izip(self.parent._transform, self.parent.subchannels, event[-1])]
-                event=(event[0][0], tuple((e[1] for e in event)))
-                self.dataset.writeToStream(event, self.parent.id)
-        else:
-            for event in izip(times, values):
-                event = self.parent._transform(self.parent.parent._transform[self.parent.id](event, self.session))
-                self.dataset.writeToStream(event, self.parent.parent.id, self.parent.id)
-                
-        self.lastEvent = event
-
-
-    def getValueAt(self, at, outOfRange=True):
-        # Always gets the last value.
-        if self.hasSubchannels:
-            return self.lastEvent
-        else:
-            return self.lastEvent[-1][self.parent.id]
-    
-
-
-def ideIterator(filename, **kwargs):
-    """
-    """
-    with open(filename, 'rb') as stream:
-        doc = importer.openFile(stream, **kwargs)
-        

@@ -11,6 +11,7 @@ import time
 from dataset import Dataset
 from importer import elementParserTypes, default_sensors, createDefaultSensors
 from importer import nullUpdater #, SimpleUpdater, testFile
+from parsers import ParsingError
 
 # TODO: Remove this testing stuff.
 import glob
@@ -96,7 +97,7 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
 
 def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterval=.1,
              total=None, bytesRead=0, samplesRead=0, parserTypes=elementParserTypes,
-             sessionId=0):
+             sessionId=0, onlyChannel=None, **kwargs):
     """ Import the data from a file into a Dataset.
     
         @param doc: The Dataset document into which to import the data.
@@ -124,7 +125,10 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
         @keyword defaultSensors: A nested dictionary containing a default set 
             of sensors, channels, and subchannels. These will only be used if
-            the dataset contains no sensor/channel/subchannel definitions. 
+            the dataset contains no sensor/channel/subchannel definitions.
+            
+        @keyword onlyChannel: If a number, only the channel specified will
+            be imported. Kind of a hack, to be redone later.
     """
     
     parsers = dict([(f.elementName, f(doc)) for f in parserTypes])
@@ -172,6 +176,11 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
                             (r.name, r.id, r.stream.offset))
                 continue
             
+            # HACK: Not the best implementation. Should be moved somewhere.
+            if onlyChannel is not None and r.name == "ChannelDataBlock":
+                if r.value[0].value != onlyChannel:
+                    continue 
+            
             if source != doc and r.name == "TimeBaseUTC":
                 timeOffset = (r.value - doc.lastSession.utcStartTime) * 1000000.0
                 continue
@@ -183,7 +192,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
                     if isinstance(added, int):
                         eventsRead += added
                     
-            except parsers.ParsingError as err:
+            except ParsingError as err:
                 # TODO: Error messages
                 logger.error("Parsing error during import: %s" % err)
                 continue
