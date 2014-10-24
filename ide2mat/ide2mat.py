@@ -9,6 +9,8 @@ from itertools import izip
 import os.path
 import sys
 
+from scipy.io.matlab import mio5_params as MP
+
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
@@ -93,7 +95,7 @@ class DummyWriter(object):
 # 
 #===============================================================================
 
-def ideIterator(doc, writer, channelId=0, calChannelId=1,  **kwargs):
+def ideIterator(doc, writer, channelId=0, calChannelId=1, **kwargs):
     """
     """
     # Iterate over 'plots' (subchannels) to create empty Sessions.
@@ -117,7 +119,7 @@ def ideIterator(doc, writer, channelId=0, calChannelId=1,  **kwargs):
                 sc.sessions[sid] = StreamedEventList(sess)
     
     # "Import" the channel to export. It really just gets dumped to file.
-    importer.readData(doc, onlyChannel=channelId)
+    importer.readData(doc, onlyChannel=channelId, **kwargs)
     
     return doc
 
@@ -148,20 +150,42 @@ class SimpleUpdater(object):
     
     def __call__(self, count=0, total=None, percent=None, error=None, 
                  starting=False, done=False):
-        
+        if percent >= self.cancelAt:
+            self.cancelled=True
+        if self.startTime is None:
+            self.startTime = datetime.now()
         if done:
-            self.dump('\nSplitting complete!\n')
+            self.dump("Done!\n")
         else:
-            self.dump('.')
+            if percent is not None:
+                p = int(percent*100)
+                self.dump('%3d%%\x08\x08\x08\x08' % p)
+            sys.stdout.flush()
+
+#         if done:
+#             self.dump('\nSplitting complete!\n')
+#         else:
+#             self.dump('.')
 
 
 #===============================================================================
 # 
 #===============================================================================
 
-def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,  **kwargs):
+def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,  dtype="double", **kwargs):
     """
     """
+    if dtype == 'single':
+        _mtype = MP.mxDOUBLE_CLASS #MP.mxSINGLE_CLASS
+        _dtype = MP.miSINGLE
+    elif dtype == 'double':
+        _mtype = MP.mxDOUBLE_CLASS 
+        _dtype = MP.miDOUBLE
+    else:
+        # TODO: Make this based on system architecture
+        _mtype = MP.mxDOUBLE_CLASS 
+        _dtype = MP.miDOUBLE
+        
     if matFilename is None:
         matFilename = os.path.splitext(ideFilename)[0] + ".mat"
     elif os.path.isdir(matFilename):
@@ -174,7 +198,8 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,  **kwarg
                                               str(recTime)[:19])
         
         mat = matfile.MatStream(matFilename, comment)
-        mat.startArray(doc.channels[0].name, len(doc.channels[0].subchannels))
+        mat.startArray(doc.channels[0].name, len(doc.channels[0].subchannels),
+                       mtype=_mtype, dtype=_dtype)
         
         ideIterator(doc, mat.writeRow, **kwargs)
         mat.close()
@@ -189,16 +214,35 @@ if __name__ == "__main__":
     
     argparser = argparse.ArgumentParser(description="Mide .IDE to .MAT Converter - Copyright (c) %d Mide Technology" % datetime.now().year)
     argparser.add_argument('-o', '--output', help="The output path to which to save the .MAT files. Defaults to the same as the source file.")
-    argparser.add_argument('source', nargs="*", help="The source .IDE file(s) to split.")
+    argparser.add_argument('-t', '--type', choices=('single','double'), help="Force data to be saved as 'single' (32b) or 'double' (64b) values.")
+    argparser.add_argument('source', nargs="+", help="The source .IDE file(s) to split.")
 
     args = argparser.parse_args()
     sourceFiles = []
     for f in args.source:
         sourceFiles.extend(glob(f))
     
-    for f in sourceFiles:
-        print "Converting %s" % f
-        ide2mat(f, matFilename=args.output)
-
-    print "Conversion complete!"
+    if not all(map(os.path.exists, sourceFiles)):
+        # Missing a file.
+        missing = map(lambda x: not os.path.exists(x), sourceFiles)
+        print "Source file(s) could not be found:"
+        print "\n\t".join(missing)
+        sys.exit(1)
         
+    if args.output is not None:
+        if not os.path.exists(args.output):
+            print "Output path does not exist: %s" % args.output
+            sys.exit(1)
+        if not os.path.isdir(args.output):
+            print "Specified output is not a directory: %s" % args.output
+            sys.exit(1)
+    
+    try:
+        for f in sourceFiles:
+            print ('Converting "%s"...' % f),
+            ide2mat(f, matFilename=args.output, updater=SimpleUpdater(), dtype=args.type)
+    
+        print "\nConversion complete!"
+    except KeyboardInterrupt:
+        print
+        print "*** Conversion canceled! MAT version of %s may be incomplete." % f

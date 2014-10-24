@@ -5,14 +5,10 @@ Created on Oct 17, 2014
 '''
 from scipy.io.matlab import mio5_params as MP
 
-import dataset
-import multi_importer as importer
-
 from datetime import datetime
-from itertools import imap, izip
 import os.path
+import string
 import struct
-import time
 
 #===============================================================================
 # 
@@ -39,12 +35,22 @@ def hexdump(data):
         a = ["%02x" % c for c in data]
     return ' '.join(a)
 
+
+def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_'):
+    s = s.strip()
+    result = [c if c in validChars else '_' for c in s.strip()]
+    if result[0].isdigit():
+        result.insert(0, '_')
+    return ''.join(result).rstrip('_').replace('__','_')
     
 #===============================================================================
 # 
 #===============================================================================
 
 class MatStream(object):
+    """
+    """
+    
     typeFormatChars = {
         MP.miINT8:   'b',
         MP.miUINT8:  'B',
@@ -55,7 +61,8 @@ class MatStream(object):
         MP.miUTF8:   'c',
         MP.miSINGLE: 'f',
         MP.miDOUBLE: 'd',
-        }
+    }
+    
     classFormatChars = {
         MP.mxINT8_CLASS:   'b',
         MP.mxUINT8_CLASS:  'B',
@@ -70,7 +77,7 @@ class MatStream(object):
     
     intPack = struct.Struct('I')
     
-    def __init__(self, filename, msg="MIDE IDE to MAT"):
+    def __init__(self, filename, msg="MATLAB 5.0 MAT-file MIDE IDE to MAT"):
         """ Constructor. Create a new .MAT file. 
         """
         if filename is not None:
@@ -129,13 +136,14 @@ class MatStream(object):
         return dataSize + 8
 
     
-    def packStr(self, string):
+    def packStr(self, string, maxlen=31):
         """ Write a string to the file, proceeded by type and size info, aligned
             to 64 bits. Used internally.
         """
+        string = string[:maxlen]
         n = self.next8(len(string))
         fmt = 'II %ds' % n
-        self.write(struct.pack(fmt, MP.miINT8, n, string))
+        self.write(struct.pack(fmt, MP.miINT8, len(string), string))
 
    
     def endArray(self):
@@ -202,7 +210,7 @@ class MatStream(object):
         self.rowsPos = self.stream.tell() - 4
         
         # Write the matrix name
-        self.packStr(name)
+        self.packStr(sanitizeName(name))
         
         # Write the start of the 'PR' element; the size will be filled in later.
         self.write(struct.pack('II', dtype, self.rowFormatter.size * rows))
@@ -222,6 +230,36 @@ class MatStream(object):
         if self._inArray:
             self.endArray()
         return self.stream.close()
+
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def makeHeader(doc, session=-1, prefix="MATLAB 5.0 MAT-file"):
+    """ Generate MAT file header text from a `Dataset` document.
+    """
+    if not isinstance(prefix, basestring):
+        prefix = ''
+    elif not prefix.endswith(' '):
+        prefix += ' '
+        
+    msg = "%sGenerated from %s" % (prefix, os.path.basename(doc.filename))
+
+    s = doc.sessions[session]
+    if s.utcStartTime:
+        createTime = s.utcStartTime
+    else:
+        try:
+            createTime = os.path.getctime(doc.filename)
+        except IOError:
+            createTime = None
+    
+    if createTime is not None:
+        msg = "%s recorded %s UTC" % (msg, datetime.utcfromtimestamp(createTime))
+    
+    return msg
 
 
 #===============================================================================
@@ -273,34 +311,51 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     if meanSpan is not None:
         events.rollingMeanSpan = meanSpan
     
+    start = (1 + start + len(events)) if start < 0 else start
+    stop = (1 + stop + len(events)) if stop < 0 else stop
     totalLines = (stop - start) / (step + 0.0)
     updateInt = int(totalLines * callbackInterval)
-    
-    start = start + len(events) if start < 0 else start
-    stop = stop + len(events) if stop < 0 else stop
     
     # Catch all or no exceptions
     ex = None if raiseExceptions or noCallback else Exception
     
     t0 = datetime.now()
     
-    if events.session.utcStartTime:
-        createTime = events.session.utcStartTime
+    createTime = 0
+    if useUtcTime:
+        if events.session.utcStartTime:
+            createTime = events.session.utcStartTime
+        else:
+            try:
+                createTime = os.path.getctime(events.dataset.filename)
+            except IOError:
+                pass
+   
+    # If specific subchannels are specified, export them in order.
+    if events.hasSubchannels:
+        if subchannels is True:
+            numCols = len(events.parent.subchannels)
+            formatter = None
+        else:
+            numCols = len(subchannels)
+            # Create a function instead of chewing the subchannels every time
+            formatter = eval("lambda x: (%s,)" % \
+                       ",".join([("x[%d]" % c) for c in subchannels]))
     else:
-        createTime = os.path.getctime(events.dataset.filename)
-    
-    comments = "%s, recorded %s" % (os.path.basename(events.dataset.filename), 
-                                    datetime.utcfromtimestamp(createTime))
+        numCols = 1
+        formatter = lambda x: (x,)
+
+    comments = makeHeader(events.dataset, events.session.sessionId)
     matfile = MatStream(filename, comments)
+    matfile.startArray(events.parent.name, numCols, rows=totalLines)
     
     try:
         for num, evt in enumerate(events.iterSlice(start, stop, step)):
-            if useUtcTime:
-                evt = (createTime + (evt[0] * timeScalar), evt[1])
-            else:
-                evt = (evt[0] * timeScalar, evt[1])
+            t, v = evt
+            if formatter is not None:
+                v = formatter(v)
 
-            matfile.writeRow(evt)
+            matfile.writeRow((createTime + (t * timeScalar), v))
             
             if callback is not None:
                 if getattr(callback, 'cancelled', False):

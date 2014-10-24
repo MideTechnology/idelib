@@ -74,7 +74,7 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
                 doc.loadCancelled = True
                 break
             if r.name not in parsers:
-                pass
+                continue
             parser = parsers[r.name]
             if parser.makesData():
                 break
