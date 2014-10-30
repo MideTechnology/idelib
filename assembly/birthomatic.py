@@ -202,7 +202,7 @@ def autoRename(newName=RECORDER_NAME, timeout=60, callback=spinner):
                     continue
                 if os.system('label %s %s' % (v.strip("\\"), newName)) == 0:
                     print "\x07*** Renamed %s from %s to %s" % (v, info[1], newName)
-                    return True
+                    return v
                 else:
                     print "\x07\x07!!! Failed to rename drive %s (labeled %r)!" % (v, info[1])
                     return False

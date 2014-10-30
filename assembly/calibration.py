@@ -4,13 +4,18 @@ Created on Sep 30, 2014
 @author: dstokes
 '''
 from collections import Iterable
-import os.path
+import os, os.path
+import subprocess
 import sys
 import time
 
+from xml.etree import ElementTree as ET
+
 import numpy as np
 import pylab
+
 VIEWER_PATH = "P:/WVR_RIF/04_Design/Electronic/Software/SSX_Viewer"
+INKSCAPE_PATH = r"C:\Program Files (x86)\Inkscape\inkscape.exe"
 
 CWD = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(CWD)
@@ -139,6 +144,8 @@ def dump_csv(data, filename):
 
 def analyze(filename, serialNum='xxxxxxxxx', imgPath=None, imgType=".jpg"):
     """ An attempt to port the analysis loop of SSX_Calibration.m to Python.
+    
+        @return: The calibration constants tuple and the mean temperature.
     """
     thres = 4           # (gs) acceleration detection threshold (trigger for finding which axis is calibrated)
     start= 5000         # Look # data points ahead of first index match after finding point that exceeds threshold
@@ -217,7 +224,8 @@ def analyze(filename, serialNum='xxxxxxxxx', imgPath=None, imgType=".jpg"):
     
     # Done
     print ''
-    return cal_val
+    
+    return cal_val, np.mean([x[-1] for x in doc.channels[1][1].getSession()])
 
 
 def calConstant(filenames, prev_cal=(1,1,1), serialNum='', savePath='.'):
@@ -232,7 +240,13 @@ def calConstant(filenames, prev_cal=(1,1,1), serialNum='', savePath='.'):
         return Stb
     
     basenames = map(os.path.basename, filenames)
-    cal_val = [analyze(f, imgPath=savePath) for f in filenames]
+    cal_val = []
+    cal_temp = []
+    for f in filenames:
+        c, t = analyze(f, imgPath=savePath)
+        cal_val.append(c)
+        cal_temp.append(t)
+#     cal_val = [analyze(f, imgPath=savePath) for f in filenames]
 
     calib = ['']*3
     for j in range(3):
@@ -272,3 +286,32 @@ def calConstant(filenames, prev_cal=(1,1,1), serialNum='', savePath='.'):
         f.writelines(result)
         
     return '\n'.join(result)
+
+# NOTE: Need access to calibration constants for other things. Return them
+# and the temperature.
+
+#===============================================================================
+# 
+#===============================================================================
+
+def createCertificate(serialNum, certNum, savePath='.', template="Slam-Stick-X-Calibration-template.svg"):
+    xd = ET.parse(template)
+    xr = xd.getroot()
+    
+    def setText(elId, t):
+        xr.find(".//*[@id='%s']" % elId).text=str(t)
+    
+    certTxt = "C%05d" % certNum
+    
+    setText('FIELD_PRODUCT_SERIAL', serialNum)
+    setText('FIELD_CERTIFICATE_NUMBER', certTxt)
+    # TODO: More fields
+    
+    tempFilename = changeFilename(template.replace('template',certTxt), path=savePath)
+    certFilename = changeFilename(tempFilename, ext='.pdf')
+    xd.write(tempFilename)
+
+    subprocess.call('"%s" -f "%s" -A "%s"' % (INKSCAPE_PATH, tempFilename, certFilename), stdout=sys.stdout, stdin=sys.stdin, shell=True)
+    os.remove(tempFilename)
+    return certFilename
+
