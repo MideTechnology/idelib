@@ -22,28 +22,34 @@
      id="path3868" /></clipPath>
 
  <style type="text/css"><![CDATA[
-      .valueText {
-
+      tspan {
         font-size:11.25px;
         font-variant:normal;
         font-weight:normal;
         writing-mode:lr-tb;
-        fill:#000000;
         fill-opacity:1;
         fill-rule:nonzero;
         stroke:none;
         font-family:Arial;
         -inkscape-font-specification:Arial;
+        fill:#000000;
       }
+      .valueText {
+        font-weight:normal;
+    }
     .labelText {
-font-size:11.25px;font-variant:normal;font-weight:bolder;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial-Bold;
-}
+        font-weight:bolder;
+        -inkscape-font-specification:Arial-Bold;
+    }
     .headerText {
-font-size:13.80000019px;font-variant:normal;font-weight:bold;writing-mode:lr-tb;fill:#ffffff;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial-Bold;
-}
+        font-size:13.80000019px;
+        font-weight:bold;
+        fill:#ffffff;
+        -inkscape-font-specification:Arial-Bold;
+    }
     ]]></style>
-
 </defs>
+
 <path d="m 82.2,282.025 215.7625,0 0,-28.2 -215.7625,0 0,28.2 z"
      id="path3458"
      style="fill:#404040;fill-opacity:1;fill-rule:evenodd;stroke:none" />
@@ -58,359 +64,98 @@ font-size:13.80000019px;font-variant:normal;font-weight:bold;writing-mode:lr-tb;
 <path d="m 82.2,882.72 643.025,0 0,-5.55 -643.025,0 0,5.55 z"
      id="path3466"
      style="fill:#f2f2f2;fill-opacity:1;fill-rule:evenodd;stroke:none" />
-<text
-     x="198.325"
-     y="231.02499"
-     id="text3468"
-     ><tspan
-       id="FIELD_DOCUMENT_NUMBER"
-       class="valueText">LOG-0002-601</tspan></text>
-<text
-     x="435.0625"
-     y="231.02499"
-     id="text3472"
-     ><tspan
-       id="FIELD_PROCEDURE_NUMBER"
-       class="valueText">300-601-502</tspan></text>
-<text
-     x="666.875"
-     y="231.02499"
-     id="text3476"
-     ><tspan
-       id="FIELD_CERTIFICATE_NUMBER"
-       class="valueText">C00048</tspan></text>
-<text
-     x="198.325"
-     y="296.72501"
-     id="text3480"
-     ><tspan
-       id="FIELD_PRODUCT_DESC"
-       class="valueText">Slam Stick X (500g)</tspan></text>
-<text
-     x="435.0625"
-     y="296.72501"
-     id="text3484"
-     ><tspan
-       id="FIELD_REF_MAN"
-       class="valueText">ENDEVCO</tspan></text>
-<text
-     x="666.875"
-     y="296.72501"
-     id="text3488"
-     ><tspan
-       id="FIELD_CAL_X"
-       class="valueText">1.1299</tspan></text>
-<text
-     x="198.325"
-     y="318.51251"
-     id="text3492"
-     ><tspan
-       id="FIELD_PRODUCT_MAN"
-       class="valueText">Mide Technology</tspan></text>
-<text
-     x="435.0625"
-     y="318.51251"
-     id="text3496"
-     ><tspan
-       id="FIELD_REF_MODEL"
-       class="valueText">7251A-10 /133</tspan></text>
-<text
-     x="666.875"
-     y="318.51251"
-     id="text3500"
-     ><tspan
-       id="FIELD_CAL_Y"
-       class="valueText">1.1098</tspan></text>
-<text
-     x="198.325"
-     y="340.26251"
-     id="text3504"
-     ><tspan
-       id="FIELD_PRODUCT_SERIAL"
-       class="valueText">SSX0000042</tspan></text>
-<text
-     x="435.0625"
-     y="340.26251"
-     id="text3508"
-     ><tspan
-       id="FIELD_REF_SERIAL"
-       class="valueText">12740/BL33</tspan></text>
-<text
-     x="666.875"
-     y="340.26251"
-     id="text3512"
-     ><tspan
-       id="FIELD_CAL_Z"
-       class="valueText">1.1786</tspan></text>
-<text
-     x="198.325"
-     y="362.01251"
-     id="text3516"
-     ><tspan
-       id="FIELD_PRODUCT_PART"
-       class="valueText">LOG-0002-500G</tspan></text>
-<text
-     x="435.0625"
-     y="362.01251"
-     id="text3520"
-     ><tspan
-       id="FIELD_REF_NIST"
-       class="valueText">683/283655-13</tspan></text>
-<text
-     x="666.875"
-     y="362.01251"
-     id="text3524"
-     ><tspan
-       id="FIELD_CAL_TEMPCOMP"
-       class="valueText">-0.30</tspan></text>
-<text
-     x="198.325"
-     y="383.76251"
-     id="text3528"
-     ><tspan
-       id="FIELD_PRODUCT_MANDATE"
-       class="valueText">1/1/2015</tspan></text>
-<text
-     x="666.875"
-     y="383.76251"
-     id="text3532"
-     ><tspan
-       id="FIELD_CAL_TEMP"
-       class="valueText">22.8</tspan></text>
-<text
-     x="198.325"
-     y="405.51251"
-     id="text3536"
-     ><tspan
-       id="FIELD_PRODUCT_CALDATE"
-       class="valueText">10/6/2014</tspan></text>
-<text
-     x="666.875"
-     y="405.51251"
-     id="text3540"
-     ><tspan
-       id="FIELD_CAL_HUMIDITY"
-       class="valueText">39</tspan></text>
-<text
-     x="551.48749"
-     y="231.02499"
-     id="text3552"
-     ><tspan
-       id="tspan3554"
-       class="labelText">Certificate Number: </tspan></text>
-<text
-     x="82.949997"
-     y="231.02499"
-     id="text3564"
-     ><tspan
-       id="tspan3566"
-       class="labelText">Document Number: </tspan></text>
-<text
-     x="128.10001"
-     y="296.125"
-     id="text3576"
-     ><tspan
-       id="tspan3578"
-       class="labelText">Description:</tspan></text>
-<text
-     x="118.65"
-     y="317.91251"
-     id="text3588"
-     ><tspan
-       id="tspan3590"
-       class="labelText">Manufacturer:</tspan></text>
-<text
-     x="319.11249"
-     y="231.02499"
-     id="text3600"
-     ><tspan
-       id="tspan3602"
-       class="labelText">Procedure Number: </tspan></text>
-<text
-     x="334.11249"
-     y="296.125"
-     id="text3612"
-     ><tspan
-       id="tspan3614"
-       class="labelText">Ref Manufacturer:</tspan></text>
-<text
-     x="327.21249"
-     y="317.91251"
-     id="text3624"
-     ><tspan
-       id="tspan3626"
-       class="labelText">Ref Model Number:</tspan></text>
-<text
-     x="617.52502"
-     y="296.125"
-     id="text3636"
-     ><tspan
-       id="tspan3638"
-       class="labelText">X - Axis:</tspan></text>
-<text
-     x="617.52502"
-     y="317.91251"
-     id="text3648"
-     ><tspan
-       id="tspan3650"
-       class="labelText">Y - Axis:</tspan></text>
-<text
-     x="331.71249"
-     y="272.27499"
-     id="text3660"
-     ><tspan
-       id="tspan3662"
-       class="headerText">Reference Accelerometer</tspan></text>
-<text
-     x="124.5"
-     y="272.27499"
-     id="text3672"
-     ><tspan
-       id="tspan3674"
-       class="headerText">Product Information</tspan></text>
-<text
-     x="550.73749"
-     y="361.41251"
-     id="text3684"
-     ><tspan
-       id="tspan3686"
-       class="labelText">Temp. Comp.</tspan></text>
-<text
-     x="625.22498"
-     y="361.41251"
-     id="text3688"
-     ><tspan
-       id="tspan3690"
-       class="valueText">(%/°C)</tspan></text>
-<text
-     x="658.77502"
-     y="361.41251"
-     id="text3692"
-     ><tspan
-       id="tspan3694"
-       class="labelText">:</tspan></text>
-<text
-     x="555.23749"
-     y="272.27499"
-     id="text3704"
-     ><tspan
-       id="tspan3706"
-       class="headerText">Calibration Parameters</tspan></text>
-<text
-     x="122.55"
-     y="361.41251"
-     id="text3716"
-     ><tspan
-       id="tspan3718"
-       class="labelText">Part Number:</tspan></text>
-<text
-     x="81.599998"
-     y="383.16251"
-     id="text3728"
-     ><tspan
-       id="tspan3730"
-       class="labelText">Date of Manufacture:</tspan></text>
-<text
-     x="321.66251"
-     y="361.41251"
-     id="text3740"
-     ><tspan
-       id="tspan3742"
-       class="labelText">Ref N.I.S.T. Number:</tspan></text>
-<text
-     x="329.16251"
-     y="339.66251"
-     id="text3752"
-     ><tspan
-       id="tspan3754"
-       class="labelText">Ref Serial Number:</tspan></text>
-<text
-     x="618.125"
-     y="339.66251"
-     id="text3764"
-     ><tspan
-       id="tspan3766"
-       class="labelText">Z - Axis:</tspan></text>
-<text
-     x="113.7"
-     y="339.66251"
-     id="text3776"
-     ><tspan
-       id="tspan3778"
-       class="labelText">Serial Number:</tspan></text>
-<text
-     x="144.3"
-     y="907.62"
-     id="text3788"
-     ><tspan
-       id="tspan3790"
-       class="labelText">Mide Technology Corporation: </tspan></text>
-<text
-     x="313.69"
-     y="907.62"
-     id="text3792"
-     ><tspan
-       id="tspan3794"
-       class="valueText">200 Boston Avenue, Suite 1000, Medford MA 02155, U.S.A </tspan></text>
-<text
-     x="638.97498"
-     y="907.62"
-     id="text3796"
-     ><tspan
-       id="tspan3798"
-       style="font-size:11.25px;font-variant:normal;font-weight:bold;writing-mode:lr-tb;fill:#f79646;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial-Bold">www.mide.com</tspan></text>
-<text
-     x="567.08752"
-     y="383.16251"
-     id="text3808"
-     ><tspan
-       id="tspan3810"
-       class="labelText">Temperature</tspan></text>
-<text
-     x="638.65253"
-     y="383.16251"
-     id="text3812"
-     ><tspan
-       id="tspan3814"
-       class="valueText">(°C)</tspan></text>
-<text
-     x="658.77502"
-     y="383.16251"
-     id="text3816"
-     ><tspan
-       id="tspan3818"
-       class="labelText">:</tspan></text>
-<text
-     x="574.13751"
-     y="404.91251"
-     id="text3828"
-     ><tspan
-       id="tspan3830"
-       class="labelText">Humidity</tspan></text>
-<text
-     x="624.77502"
-     y="404.91251"
-     id="text3832"
-     ><tspan
-       id="tspan3834"
-       class="valueText">(%RH)</tspan></text>
-<text
-     x="658.77502"
-     y="404.91251"
-     id="text3836"
-     ><tspan
-       id="tspan3838"
-       class="labelText">:</tspan></text>
-<text
-     x="89.849998"
-     y="404.91251"
-     id="text3848"
-     ><tspan
-       id="tspan3850"
-       class="labelText">Date of Calibration:</tspan></text>
-<path
-     d="m 104.76776,895.06097 0,9.13273 13.11619,0 0,-1.93349 -8.58514,0 0,-1.666 7.45809,0 0,-1.93348 -7.45809,0 0,-1.64572 8.58514,0 0,-1.95404 -13.11619,0 z m -16.845808,0 0,2.98285 8.910625,0 0.04336,0 0.108398,0.0206 0.152046,0.0205 0.194973,0.0411 0.216652,0.0822 0.217085,0.10277 0.216652,0.16443 0.195117,0.20582 0.151613,0.26721 0.08701,0.32928 0.04336,0.39081 -0.04336,0.4115 -0.08701,0.32887 -0.151613,0.26748 -0.195117,0.20554 -0.216652,0.16485 -0.217085,0.12333 -0.216652,0.0617 -0.194973,0.0411 -0.152046,0.0411 -0.108398,0 -0.04336,0 -8.910625,0 0,2.87967 8.910625,0 0.04336,0 0.152046,0 0.194972,-0.0206 0.281691,-0.0411 0.325484,-0.0411 0.368265,-0.0822 0.412203,-0.0822 0.433304,-0.12374 0.455417,-0.14388 0.455417,-0.18499 0.433304,-0.22637 0.43388,-0.26721 0.41206,-0.30872 0.36826,-0.37026 0.32549,-0.4115 0.28169,-0.45219 0.19497,-0.5351 0.13008,-0.5758 0.0434,-0.65815 -0.0434,-0.65802 -0.13008,-0.5762 -0.21665,-0.53483 -0.26001,-0.45247 -0.32549,-0.43205 -0.38994,-0.34943 -0.39038,-0.32914 -0.43388,-0.26762 -0.454984,-0.2261 -0.455417,-0.18499 -0.433737,-0.16471 -0.433304,-0.12332 -0.412203,-0.10278 -0.368265,-0.0617 -0.325484,-0.0617 -0.281691,-0.0411 -0.194972,-0.021 -0.152046,0 -0.04336,-0.0205 -8.910625,0 z m -7.522694,0 0,9.13273 4.509223,0 0,-9.13273 -4.509223,0 z m -20.054399,0 0,9.13273 3.425529,0 0,-6.56138 2.970112,6.56138 3.815908,0 3.07851,-6.56138 0,6.56138 3.750435,0 0,-9.13273 -5.94008,0 -2.623526,5.821 -2.536664,-5.821 -5.940224,0 z m 57.539091,-2.44762 -11.14363,1.91293 11.14363,-0.90508 0,-1.00785 z m -64.476727,-2.96189 71.414507,0 0,19.35539 -71.414507,0 0,-19.35539 z"
-     id="path3872"
+     
+<text x="198.325" y="231.02499" >
+<tspan id="FIELD_documentNum" class="valueText">LOG-0002-601</tspan>
+</text>
+<text x="435.0625" y="231.02499" >
+<tspan id="FIELD_procedureNum" class="valueText">300-601-502</tspan>
+</text>
+<text x="666.875" y="231.02499" >
+<tspan id="FIELD_certificateNum" class="valueText">C00048</tspan>
+</text>
+<text x="198.325" y="296.72501" >
+<tspan id="FIELD_productName" class="valueText">Slam Stick X (500g)</tspan>
+</text>
+<text x="435.0625" y="296.72501" >
+<tspan id="FIELD_referenceMan" class="valueText">ENDEVCO</tspan>
+</text>
+<text x="666.875" y="296.72501" >
+<tspan id="FIELD_cal_x" class="valueText">1.1299</tspan>
+</text>
+<text x="198.325" y="318.51251" >
+<tspan id="FIELD_productMan" class="valueText">Mide Technology</tspan>
+</text>
+<text x="435.0625" y="318.51251" >
+<tspan id="FIELD_refModel" class="valueText">7251A-10 /133</tspan>
+</text>
+<text x="666.875" y="318.51251" >
+<tspan id="FIELD_cal_y" class="valueText">1.1098</tspan>
+</text>
+<text x="198.325" y="340.26251" >
+<tspan id="FIELD_productSerial" class="valueText">SSX0000042</tspan>
+</text>
+<text x="435.0625" y="340.26251" >
+<tspan id="FIELD_refSerial" class="valueText">12740/BL33</tspan>
+</text>
+<text x="666.875" y="340.26251" >
+<tspan id="FIELD_cal_z" class="valueText">1.1786</tspan>
+</text>
+<text x="198.325" y="362.01251" >
+<tspan id="FIELD_productPartNum" class="valueText">LOG-0002-500G</tspan>
+</text>
+<text x="435.0625" y="362.01251" >
+<tspan id="FIELD_refNist" class="valueText">683/283655-13</tspan>
+</text>
+<text x="666.875" y="362.01251" >
+<tspan id="FIELD_calTempComp" class="valueText">-0.30</tspan>
+</text>
+<text x="198.325" y="383.76251" >
+<tspan id="FIELD_productManDate" class="valueText">1/1/2015</tspan>
+</text>
+<text x="666.875" y="383.76251" >
+<tspan id="FIELD_calTemp" class="valueText">22.8</tspan>
+</text>
+<text x="198.325" y="405.51251" >
+<tspan id="FIELD_productCalDate" class="valueText">10/6/2014</tspan>
+</text>
+<text x="666.875" y="405.51251" >
+<tspan id="FIELD_calHumidity" class="valueText">39</tspan>
+</text>
+
+<text x="551.48749" y="231.02499" ><tspan class="labelText">Certificate Number: </tspan></text>
+<text x="82.949997" y="231.02499" ><tspan class="labelText">Document Number: </tspan></text>
+<text x="128.10001" y="296.125" ><tspan class="labelText">Description:</tspan></text>
+<text x="118.65" y="317.91251" ><tspan class="labelText">Manufacturer:</tspan></text>
+<text x="319.11249" y="231.02499" ><tspan class="labelText">Procedure Number: </tspan></text>
+<text x="334.11249" y="296.125" ><tspan class="labelText">Ref Manufacturer:</tspan></text>
+<text x="327.21249" y="317.91251" ><tspan class="labelText">Ref Model Number:</tspan></text>
+<text x="617.52502" y="296.125" ><tspan class="labelText">X - Axis:</tspan></text>
+<text x="617.52502" y="317.91251" ><tspan class="labelText">Y - Axis:</tspan></text>
+<text x="331.71249" y="272.27499" ><tspan class="headerText">Reference Accelerometer</tspan></text>
+<text x="124.5" y="272.27499" ><tspan class="headerText">Product Information</tspan></text>
+<text x="550.73749" y="361.41251" ><tspan class="labelText">Temp. Comp.</tspan></text>
+<text x="625.22498" y="361.41251" ><tspan class="valueText">(%/°C)</tspan></text>
+<text x="658.77502" y="361.41251" ><tspan class="labelText">:</tspan></text>
+<text x="555.23749" y="272.27499" ><tspan class="headerText">Calibration Parameters</tspan></text>
+<text x="122.55" y="361.41251" ><tspan class="labelText">Part Number:</tspan></text>
+<text x="81.599998" y="383.16251" ><tspan class="labelText">Date of Manufacture:</tspan></text>
+<text x="321.66251" y="361.41251" ><tspan class="labelText">Ref N.I.S.T. Number:</tspan></text>
+<text x="329.16251" y="339.66251" ><tspan class="labelText">Ref Serial Number:</tspan></text>
+<text x="618.125" y="339.66251" ><tspan class="labelText">Z - Axis:</tspan></text>
+<text x="113.7" y="339.66251" ><tspan class="labelText">Serial Number:</tspan></text>
+<text x="144.3" y="907.62" ><tspan class="labelText">Mide Technology Corporation: </tspan></text>
+<text x="313.69" y="907.62" ><tspan class="valueText">200 Boston Avenue, Suite 1000, Medford MA 02155, U.S.A </tspan></text>
+<text x="638.97498" y="907.62" ><tspan style="font-size:11.25px;font-variant:normal;font-weight:bold;writing-mode:lr-tb;fill:#f79646;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial-Bold">www.mide.com</tspan></text>
+<text x="567.08752" y="383.16251" ><tspan class="labelText">Temperature</tspan></text>
+<text x="638.65253" y="383.16251" ><tspan class="valueText">(°C)</tspan></text>
+<text x="658.77502" y="383.16251" ><tspan class="labelText">:</tspan></text>
+<text x="574.13751" y="404.91251" ><tspan class="labelText">Humidity</tspan></text>
+<text x="624.77502" y="404.91251" ><tspan class="valueText">(%RH)</tspan></text>
+<text x="658.77502" y="404.91251" ><tspan class="labelText">:</tspan></text>
+<text x="89.849998" y="404.91251" ><tspan class="labelText">Date of Calibration:</tspan></text>
+<path d="m 104.76776,895.06097 0,9.13273 13.11619,0 0,-1.93349 -8.58514,0 0,-1.666 7.45809,0 0,-1.93348 -7.45809,0 0,-1.64572 8.58514,0 0,-1.95404 -13.11619,0 z m -16.845808,0 0,2.98285 8.910625,0 0.04336,0 0.108398,0.0206 0.152046,0.0205 0.194973,0.0411 0.216652,0.0822 0.217085,0.10277 0.216652,0.16443 0.195117,0.20582 0.151613,0.26721 0.08701,0.32928 0.04336,0.39081 -0.04336,0.4115 -0.08701,0.32887 -0.151613,0.26748 -0.195117,0.20554 -0.216652,0.16485 -0.217085,0.12333 -0.216652,0.0617 -0.194973,0.0411 -0.152046,0.0411 -0.108398,0 -0.04336,0 -8.910625,0 0,2.87967 8.910625,0 0.04336,0 0.152046,0 0.194972,-0.0206 0.281691,-0.0411 0.325484,-0.0411 0.368265,-0.0822 0.412203,-0.0822 0.433304,-0.12374 0.455417,-0.14388 0.455417,-0.18499 0.433304,-0.22637 0.43388,-0.26721 0.41206,-0.30872 0.36826,-0.37026 0.32549,-0.4115 0.28169,-0.45219 0.19497,-0.5351 0.13008,-0.5758 0.0434,-0.65815 -0.0434,-0.65802 -0.13008,-0.5762 -0.21665,-0.53483 -0.26001,-0.45247 -0.32549,-0.43205 -0.38994,-0.34943 -0.39038,-0.32914 -0.43388,-0.26762 -0.454984,-0.2261 -0.455417,-0.18499 -0.433737,-0.16471 -0.433304,-0.12332 -0.412203,-0.10278 -0.368265,-0.0617 -0.325484,-0.0617 -0.281691,-0.0411 -0.194972,-0.021 -0.152046,0 -0.04336,-0.0205 -8.910625,0 z m -7.522694,0 0,9.13273 4.509223,0 0,-9.13273 -4.509223,0 z m -20.054399,0 0,9.13273 3.425529,0 0,-6.56138 2.970112,6.56138 3.815908,0 3.07851,-6.56138 0,6.56138 3.750435,0 0,-9.13273 -5.94008,0 -2.623526,5.821 -2.536664,-5.821 -5.940224,0 z m 57.539091,-2.44762 -11.14363,1.91293 11.14363,-0.90508 0,-1.00785 z m -64.476727,-2.96189 71.414507,0 0,19.35539 -71.414507,0 0,-19.35539 z"
+     id="MideLogo"
      style="fill:#fa7400;fill-opacity:1;fill-rule:evenodd;stroke:#fa7400;stroke-width:0.02109968;stroke-linecap:butt;stroke-linejoin:round;stroke-miterlimit:10;stroke-opacity:1;stroke-dasharray:none" />
      <image
    xlink:href="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0a
