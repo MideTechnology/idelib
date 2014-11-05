@@ -78,8 +78,10 @@ CONFIG_FIELDS = OrderedDict((
     # offset: 67
     ('BW_RATE_PWR', 'B'),         # Sample rate code (bits 3..0) + power save bit (bit 4), directly matching the ADXL345's BW_RATE register contents. The power save bit doesn't really save enough to be relevant for us.
     ('RECORD_DELAY', 'H'),        # Recording pre-delay in units of 2 seconds.
+                                  # NOTE: Conversion from/to 2 second units is done automatically at read/write time! 
     ('SAMPLES_PER_TRIGGER', 'H'), # Terminate recording if this many (XYZ) samples have been recorded (actual number of samples recorded will be rounded up to the nearest sector).
     ('SECONDS_PER_TRIGGER', 'H'), # Terminate recording if this many seconds have elapsed since start (actual number of samples recorded will be rounded up to the nearest sector). In units of 2 seconds.
+                                  # NOTE: Conversion from/to 2 second units is done automatically at read/write time! 
 
     # offset: 74
     ('TRIGGER_FLAGS', '2s'),      # Four nibbles, MSB..LSB, provide trigger rules for each of 4 possible trigger sources (extA, extB, shock, RTCC).
@@ -199,15 +201,15 @@ def _clampVal(v, loVal, hiVal):
 # 
 #===============================================================================
 
-CONFIG_ENCODERS = {'RECORD_DELAY': lambda x: int(x/2),
-                   'SECONDS_PER_TRIGGER': lambda x: int(x/2),
+CONFIG_ENCODERS = {'RECORD_DELAY': lambda x: _clampVal(int(x/2), 0, 2**16-2),
+                   'SECONDS_PER_TRIGGER': lambda x: _clampVal(int(x/2), 0, 2**16-2),
                    'ALARM_TIME': packTime,
                    'RTCC_TIME': packTime,
                    'TRIGGER_FLAGS': str,
                    'TRIG_RESERVED_TAP_FF': str,
                    'SYSUID_RESERVE': str,
                    'USERUID_RESERVE': str,
-                   'TRIG_THRESH_ACT': lambda x: max(0, min(255, int(x/0.0625))),
+                   'TRIG_THRESH_ACT': lambda x: _clampVal(int(x/0.0625), 0, 254),
                    'USER_NAME': packStr,
                    'USER_NOTES': packStr,
                    '_padding': str,
@@ -228,9 +230,9 @@ CONFIG_DECODERS = {'RECORD_DELAY': lambda x: x*2,
                    }
 
 GENERIC_ENCODERS = {'b': lambda x: _clampVal(x, -128, 127),
-                    'B': lambda x: _clampVal(x, 0, 255),
+                    'B': lambda x: _clampVal(x, 0, 2**8-2),
                     'h': lambda x: _clampVal(x, -32768, 32767),
-                    'H': lambda x: _clampVal(x, 0, 2**16),
+                    'H': lambda x: _clampVal(x, 0, 2**16-2),
                     }
 
 #===============================================================================

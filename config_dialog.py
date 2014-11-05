@@ -1338,13 +1338,13 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             implement this. Called after __init__() and before initUI().
         """
         self.delayCheck = self.addIntField("Delay After Button Press:", 
-            "RECORD_DELAY", "seconds", minmax=(0,2**17), check=False,
+            "RECORD_DELAY", "seconds", minmax=(0,2**17-4), check=False,
             tooltip="Seconds to delay between pressing the 'record' button "
             "and the start of recording. Note: This will be rounded to the "
             "lowest multiple of 2.")
         self.timeCheck = self.addIntField(
             "Recording Length Limit:", "SECONDS_PER_TRIGGER", "seconds", 
-            minmax=(0,2**17), check=False, tooltip="Recording length. "
+            minmax=(0,2**17-4), check=False, tooltip="Recording length. "
             "Note: This will be rounded to the lowest multiple of 2. "
             "Zero is no limit.")
         
@@ -1373,7 +1373,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             tooltip="The frequency at which to take recordings, based on "
             "the Alarm Time.")
         self.chimeCheck = self.addIntField("Limit Number of Triggers:", 
-            'REPEATS', minmax=(0,255), tooltip="The number of interval-based "
+            'REPEATS', minmax=(0,254), tooltip="The number of interval-based "
             "triggers to record, in addition to the first. Does not include "
             "recordings started by the accelerometer trigger.")
         self.makeChild(self.wakeCheck, self.useUtcCheck, self.intervalField, self.chimeCheck)
@@ -1543,10 +1543,10 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
 class ClassicOptionsPanel(BaseConfigPanel):
     """
     """
-    SAMPLE_RATES = OrderedDict(((0x06, '6.25'), 
-                                (0x07, '12.5'), 
-                                (0x08, '25'), 
-                                (0x09, '50'), 
+    SAMPLE_RATES = OrderedDict((#(0x06, '6.25'), 
+                                #(0x07, '12.5'), 
+                                #(0x08, '25'), 
+                                #(0x09, '50'), 
                                 (0x0A, '100'), 
                                 (0x0B, '200'), 
                                 (0x0C, '400'), 

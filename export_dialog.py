@@ -517,7 +517,7 @@ class ExportDialog(sc.SizedDialog):
             @keyword sortChannels: If `True`, sort channels by name.
             @return: A dictionary of settings or `None`
         """
-        title = kwargs.get('title', cls.DEFAULT_TITLE)
+        title = kwargs.setdefault('title', cls.DEFAULT_TITLE)
         root = kwargs['root']
         parent = root if isinstance(root, wx.Window) else None
         warnSlow = kwargs.pop('warnSlow', True)
@@ -558,27 +558,33 @@ class CSVExportDialog(ExportDialog):
         applicable only to CSV.
     """
     
-    DEFAULT_TITLE= "Export CSV"
+    DEFAULT_TITLE= "Export Data"
     
     def __init__(self, *args, **kwargs):
         self._addHeaders = kwargs.pop('addHeaders', False)
         self._utcTime = kwargs.pop('useUtcTime', False)
         self._isoTime = kwargs.pop('useIsoFormat', False)
+        self.exportType = kwargs.pop('exportType', '.csv')
+        
         super(CSVExportDialog, self).__init__(*args, **kwargs)
 
 
     def buildSpecialUI(self):
         """ Called before the buttons are added.
         """
-        self.headerCheck, subpane = self._addCheck("Include Column Headers",
+        self.headerCheck, subpane = self._addCheck("Include Column Headers (CSV only)",
                                      default=self._addHeaders)
         self.utcCheck, _ = self._addCheck("Use Absolute UTC Timestamps",
                                           default=self._utcTime, parent=subpane)
-        self.isoCheck, _ = self._addCheck("Use ISO Time Format",
+        self.isoCheck, _ = self._addCheck("Use ISO Time Format (CSV only)",
                                           default=self._isoTime, parent=subpane)
         
         self.isoCheck.Enable(self._utcTime)
         self.utcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
+
+        if self.exportType == '.mat':
+            self.headerCheck.Hide()
+            self.isoCheck.Hide()
 
 
     def showColumnsMsg(self, num=0, msg=None):

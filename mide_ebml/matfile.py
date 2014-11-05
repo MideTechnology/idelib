@@ -85,6 +85,7 @@ class MatStream(object):
                 self.stream = open(filename, 'wb')
             else:
                 self.stream = filename
+            msg = msg.encode('utf8')
             self.write(struct.pack('116s II H 2s', msg, 0, 0, 0x0100, 'IM'))
         else:
             self.stream = None

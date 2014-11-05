@@ -77,6 +77,7 @@ from threaded_file import ThreadAwareFile
 import mide_ebml; mide_ebml = mide_ebml # Workaround for Eclipse code comp.
 import mide_ebml.classic.importer
 import mide_ebml.multi_importer
+import mide_ebml.matfile
 
 # XXX: FOR TESTING; REMOVE LATER
 import socket
@@ -743,7 +744,7 @@ class Viewer(wx.Frame, MenuMixin):
                          self.cancelOperation, enabled=False)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_EXPORT, 
-                         "&Export Data (CSV)...\tCtrl+S", "", self.exportCsv)
+                         "&Export Data...\tCtrl+S", "", self.OnFileExportMenu)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_RENDER_PLOTS, "Render Plots...", '',
                          self.renderPlot)
@@ -1029,7 +1030,8 @@ class Viewer(wx.Frame, MenuMixin):
                     style=wx.SAVE|wx.OVERWRITE_PROMPT, deviceWarning=True):
         """ Wrapper for getting the name of an output file.
         """
-        exportTypes = "Comma Separated Values (*.csv)|*.csv"
+        exportTypes = "Comma Separated Values (*.csv)|*.csv|" \
+                      "MATLAB (*.mat)|*.mat"
 
         defaults = self.getDefaultExport() if defaults is None else defaults
         types = exportTypes if types is None else types
@@ -1445,7 +1447,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.enableMenus(False)
 
         
-    def exportCsv(self, evt=None):
+    def OnFileExportMenu(self, evt=None):
         """ Export the active plot view's data as CSV. after getting input from
             the user (range, window size, etc.).
             
@@ -1455,7 +1457,20 @@ class Viewer(wx.Frame, MenuMixin):
         noMean = 0
         if self.plotarea[0].source.removeMean:
             noMean = 2 if self.plotarea[0].source.rollingMeanSpan == -1 else 1
-        settings = xd.CSVExportDialog.getExport(root=self, removeMean=noMean)
+
+        filename = self.getSaveFile("Export Data...")
+        if filename is None:
+            return
+
+        exportType = os.path.splitext(filename)[-1].lower()
+
+        if exportType not in ('.csv', '.mat'):
+            # TODO: report bad file type
+            return
+        
+        settings = xd.CSVExportDialog.getExport(root=self, removeMean=noMean,
+                                                exportType=exportType,
+                                                title='Export %s' % exportType.strip('.').upper())
         
         if settings is None:
             return
@@ -1464,7 +1479,7 @@ class Viewer(wx.Frame, MenuMixin):
         subchannels = settings['channels']
         subchannelIds = [c.id for c in subchannels]
         start, stop = settings['indexRange']
-        addHeaders = settings['addHeaders']
+        addHeaders = settings.get('addHeaders', False)
         removeMeanType = settings.get('removeMean', 0)
         
         removeMean = removeMeanType > 0
@@ -1473,34 +1488,47 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             meanSpan = -1
         
-        filename = self.getSaveFile("Export CSV...")
-        if filename is None:
-            return
-
-        try:
-            stream = open(filename, 'w')
-        except Exception as err:
-            self.handleError(err, what="exporting CSV")
-            return
-        
         self.drawingSuspended = True
         numRows = stop-start
         msg = "Exporting %d rows" % numRows
-        dlg = xd.ModalExportProgress("Exporting CSV", msg, maximum=numRows, 
+            
+        dlg = xd.ModalExportProgress("Exporting %s" % exportType.upper(), 
+                                     msg, maximum=numRows, 
                                      parent=self)
-        
-        source.exportCsv(stream, start=start, stop=stop, 
-                         subchannels=subchannelIds, timeScalar=self.timeScalar, 
-                         callback=dlg, callbackInterval=0.0005, 
-                         raiseExceptions=True,
-                         useIsoFormat=settings['useIsoFormat'],
-                         useUtcTime=settings['useUtcTime'],
-                         headers=addHeaders,
-                         removeMean=removeMean,
-                         meanSpan=meanSpan)
-        
+        if exportType == '.csv':
+            try:
+                stream = open(filename, 'w')
+            
+                source.exportCsv(stream, start=start, stop=stop, 
+                                 subchannels=subchannelIds, timeScalar=self.timeScalar, 
+                                 callback=dlg, callbackInterval=0.0005, 
+                                 raiseExceptions=True,
+                                 useIsoFormat=settings['useIsoFormat'],
+                                 useUtcTime=settings['useUtcTime'],
+                                 headers=addHeaders,
+                                 removeMean=removeMean,
+                                 meanSpan=meanSpan)
+                
+                stream.close()
+            
+            except Exception as err:
+                self.handleError(err, what="exporting CSV")
+            
+        elif exportType == '.mat':
+            try:
+                mide_ebml.matfile.exportMat(source, filename, start=start, stop=stop, 
+                             subchannels=subchannelIds, timeScalar=self.timeScalar, 
+                             callback=dlg, callbackInterval=0.0005, 
+                             raiseExceptions=True,
+                             useUtcTime=settings['useUtcTime'],
+                             removeMean=removeMean,
+                             meanSpan=meanSpan)
+            
+#             except Exception as err:
+            except None as err:
+                self.handleError(err, what="exporting MAT")
+            
         dlg.Destroy()
-        stream.close()
         self.drawingSuspended = False
 
 
