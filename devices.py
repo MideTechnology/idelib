@@ -107,8 +107,10 @@ class Recorder(object):
 
 
     @classmethod
-    def _isRecorder(cls, dev):
+    def _isRecorder(cls, dev, strict=True):
         """ Basic test whether a path points to a recorder. """
+        if strict is False:
+            return True
         try:
             return "fat" in getDriveInfo(dev)[3].lower()
         except (TypeError, IndexError):
@@ -309,13 +311,20 @@ class SlamStickX(Recorder):
         self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
 
     @classmethod
-    def isRecorder(cls, dev):
+    def isRecorder(cls, dev, strict=True):
         """ Test whether a given filesystem path refers to the root directory
             of a Slam Stick X recorder.
+        
+            @param dev: The path to the possible recording device (e.g. a
+                mount point under *NIX, or a drive letter under Windows)
+            @keyword strict: If `False`, only the directory structure is used
+                to identify a recorder. If `True`, non-FAT file systems will
+                be automatically rejected. 
         """
         try:
-            return (cls._isRecorder(dev) and
+            return (cls._isRecorder(dev, strict) and
                     os.path.exists(os.path.join(dev, cls.INFO_FILE)))
+
         except (IOError, TypeError):
             return False
 
@@ -471,15 +480,18 @@ class SlamStickClassic(Recorder):
     baseName = "Slam Stick Classic"
 
     @classmethod
-    def isRecorder(cls, dev):
+    def isRecorder(cls, dev, strict=True):
         """ Does the specified path refer to a recorder?
         
             @param dev: The path to the possible recording device (e.g. a
                 mount point under *NIX, or a drive letter under Windows)
+            @keyword strict: If `False`, only the directory structure is used
+                to identify a recorder. If `True`, non-FAT file systems will
+                be automatically rejected. 
         """
         dev = os.path.realpath(dev)
         try:
-            return (cls._isRecorder(dev) and
+            return (cls._isRecorder(dev, strict) and
                     os.path.exists(os.path.join(dev, cls.CONFIG_FILE)) and
                     os.path.exists(os.path.join(dev, cls.DATA_FILE)))
         except (IOError, TypeError):

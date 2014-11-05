@@ -8,10 +8,18 @@ PHASE 1: Before calibration
     4. Set recorder clock
     5. Copy documentation and software folders
 
-PHASE 2: Post-Calibration (TBD. Manual for now.)
+PHASE 2: Offline work
+    x. Potting, assembly, recording shaker sessions.
+
+PHASE 3: Post-Calibration (TBD. Manual for now.)
     1. Wait for an SSX in drive mode (see ssx_namer)
-    2. Generate CSV from IDE
-    X. TBD, currently MATLAB stuff.
+    2. Generate calibration data from IDE files on recorder (see calibration.py)
+    3. Generate calibration certificate
+    4. Prompt user to enter bootloader mode
+    
+PHASE 4: Final steps
+    1. Wait for an SSX in firmware mode (getSSXSerial)
+    2. Upload new manifest/calibration to user page.
 
 
     
