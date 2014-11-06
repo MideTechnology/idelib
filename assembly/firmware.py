@@ -5,7 +5,9 @@ Created on Sep 25, 2014
 '''
 import io
 import os
+from StringIO import StringIO
 import struct
+import sys
 import time
 
 import serial.tools.list_ports
@@ -13,6 +15,19 @@ import serial
 
 import xmodem
 
+CWD = os.path.abspath(os.path.dirname(__file__))
+sys.path.append(CWD)
+
+try:
+    import mide_ebml
+except ImportError:
+    if os.path.exists('../mide_ebml'):
+        sys.path.append(os.path.abspath('..'))
+    elif os.path.exists(os.path.join(CWD, '../mide_ebml')):
+        sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
+    import mide_ebml
+
+from mide_ebml import util as ebml_util
 
 #===============================================================================
 # 
@@ -203,7 +218,7 @@ class ssx_bootloadable_device(object):
         """
         ver = self.get_version_string()
         if not ver:
-            return False
+            return None, None
         # Grab any salient information from the bootloader string (mainly 
         # CHIPID, but also bootloader version).
         # Example output: "BOOTLOADER version 1.01m2, Chip ID 2483670050B7D82F"
@@ -237,4 +252,21 @@ def getSSXSerial(block=False, timeout=30, delay=.5):
 # 
 #===============================================================================
 
-
+def readUserPage(devPath):
+    """
+    """
+    systemPath = os.path.join(devPath, 'SYSTEM', 'DEV')
+    data = []
+    for i in range(4):
+        filename = os.path.join(systemPath, 'USERPG%d' % i)
+        with open(filename, 'rb') as fs:
+            data.append(fs.read())
+    data = ''.join(data)
+    
+    manOffset, manSize, calOffset, calSize = struct.unpack_from("<HHHH", data)
+    manData = StringIO(data[manOffset:manOffset+manSize])
+    calData = StringIO(data[calOffset:calOffset+calSize])
+    manifest = ebml_util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
+    calibration = ebml_util.read_ebml(calData)
+    
+    return manifest, calibration

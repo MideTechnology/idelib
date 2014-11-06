@@ -7,7 +7,6 @@ from collections import Iterable, OrderedDict
 from datetime import datetime
 import os, os.path
 from StringIO import StringIO
-import string
 import struct
 import subprocess
 import sys
@@ -36,6 +35,7 @@ except ImportError:
 #     import mide_ebml
 
 from mide_ebml import util as ebml_util
+from mide_ebml import xml2ebml
 from mide_ebml.importer import importFile, SimpleUpdater
 
 from glob import glob
@@ -128,16 +128,6 @@ def ide2csv(filename, savePath=None, importCallback=SimpleUpdater(),
     return saveFilename, rows
 
 
-def rms(data, axis=None):
-    return np.sqrt(np.mean(data**2, axis=axis))
-
-
-def window_rms(a, window_size=2):
-    a2 = np.power(a,2)
-    window = np.ones(window_size)/float(window_size)
-    return np.sqrt(np.convolve(a2, window, 'valid'))
-
-
 def from2diter(data, rows=None, cols=1):
     """ Build a 2D `numpy.ndarray` from an iterator (e.g. what's produced by 
         `EventList.itervalues`). 
@@ -165,38 +155,6 @@ def from2diter(data, rows=None, cols=1):
 
     return points
 
-def flattened(data, rows=None, cols=4):
-    """ Given accelerometer data, with each event (time, (z,y,x)), produce an
-        array that's (time, z, y, x)
-    """
-    result = np.zeros(shape=(len(data),cols), dtype=float)
-    for i, row in enumerate(data):
-        result[i,0] = row[0]
-        result[i,1:] = row[1]
-    return result
-
-def flattenedIndexed(data, rows=None, cols=4):
-    """ Given accelerometer data, with each event (time, (z,y,x)), produce an
-        array that's (index, time, z, y, x)
-    """
-    result = np.zeros(shape=(len(data),cols+1), dtype=float)
-    for i, row in enumerate(data):
-        result[i,0] = i
-        result[i,1] = row[0]
-        result[i,2:] = row[1]
-    return result
-
-def getFirstIndex(a, fun, col):
-    """ Return the index of the first item in the given column that passes the
-        given test.
-    """
-    it = np.nditer(a[:,col], flags=['f_index'])
-    while not it.finished:
-        if fun(it[0]):
-            return it.index
-        it.iternext()
-    return 0
-        
 #===============================================================================
 # 
 #===============================================================================
@@ -224,6 +182,52 @@ class CalFile(object):
         return '%s %2.4f %2.4f %2.4f %2.4f %2.4f %2.4f' % \
             ((self.name,) + tuple(self.rms) + tuple(self.cal))
     
+    @classmethod
+    def flattened(cls, data, rows=None, cols=4):
+        """ Given accelerometer data, with each event (time, (z,y,x)), produce an
+            array that's (time, z, y, x)
+        """
+        result = np.zeros(shape=(len(data),cols), dtype=float)
+        for i, row in enumerate(data):
+            result[i,0] = row[0]
+            result[i,1:] = row[1]
+        return result
+    
+    @classmethod
+    def flattenedIndexed(cls, data, rows=None, cols=4):
+        """ Given accelerometer data, with each event (time, (z,y,x)), produce an
+            array that's (index, time, z, y, x)
+        """
+        result = np.zeros(shape=(len(data),cols+1), dtype=float)
+        for i, row in enumerate(data):
+            result[i,0] = i
+            result[i,1] = row[0]
+            result[i,2:] = row[1]
+        return result
+    
+    @classmethod
+    def getFirstIndex(cls, a, fun, col):
+        """ Return the index of the first item in the given column that passes the
+            given test.
+        """
+        it = np.nditer(a[:,col], flags=['f_index'])
+        while not it.finished:
+            if fun(it[0]):
+                return it.index
+            it.iternext()
+        return 0
+    
+    @classmethod
+    def rms(cls, data, axis=None):
+        return np.sqrt(np.mean(data**2, axis=axis))
+    
+    @classmethod
+    def window_rms(cls, a, window_size=2):
+        a2 = np.power(a,2)
+        window = np.ones(window_size)/float(window_size)
+        return np.sqrt(np.convolve(a2, window, 'valid'))
+
+
     def analyze(self):
         """ An attempt to port the analysis loop of SSX_Calibration.m to Python.
         
@@ -242,7 +246,7 @@ class CalFile(object):
         a = doc.channels[0].getSession()
         a.removeMean = True
         a.rollingMeanSpan = -1
-        data = flattened(a, len(a))
+        data = self.flattened(a, len(a))
         
         _print("%d samples imported. " % len(data)) 
         times = data[:,0] * .000001
@@ -251,9 +255,9 @@ class CalFile(object):
         
         _print("getting indices... ")
         indices = XYZ(
-            getFirstIndex(data, gt, 3),
-            getFirstIndex(data, gt, 2),
-            getFirstIndex(data, gt, 1)
+            self.getFirstIndex(data, gt, 3),
+            self.getFirstIndex(data, gt, 2),
+            self.getFirstIndex(data, gt, 1)
         )
         
         if indices.x == indices.y == 0:
@@ -272,9 +276,9 @@ class CalFile(object):
                          times[indices.z+start:indices.z+stop])
     
         _print("computing RMS...")
-        self.rms = XYZ(rms(self.accel.x), 
-                       rms(self.accel.y), 
-                       rms(self.accel.z))
+        self.rms = XYZ(self.rms(self.accel.x), 
+                       self.rms(self.accel.y), 
+                       self.rms(self.accel.z))
         
         self.cal = XYZ(cal_value / self.rms.x, 
                        cal_value / self.rms.y, 
@@ -341,7 +345,7 @@ class Calibrator(object):
     TODO: check if 'Ref' values are constant.
     """
     
-    def __init__(self, files=None,
+    def __init__(self, devPath=None,
                  certNum=0,
                  calHumidity=50,
                  calTempComp=-0.30,
@@ -352,7 +356,7 @@ class Calibrator(object):
                  refModel="7251A-10/133", 
                  refSerial="12740/BL33", 
                  refNist="683/283655-13"):
-        self.cal_val = files
+        self.devPath = devPath
         self.serialNum = None
         self.certNum = certNum
         
@@ -370,18 +374,30 @@ class Calibrator(object):
         self.refNist = refNist
     
         self.calTime = 0
-        
-    
-    def readManifest(self, devpath):
+        self.cal_vals=None
+
+
+    def getFiles(self):
+        """ Get the filenames from the first recording directory with 3 IDE
+            files. These are presumably the shaker recordings.
+        """
+        for _root, _dirs, files in os.walk(os.path.join(self.devPath, 'DATA')):
+            ides = filter(lambda x: x.upper().endswith('.IDE'), files)
+            if len(ides) == 3:
+                return ides
+
+
+    def readManifest(self):
         """ Read the user page containing the manifest and (possibly)
             calibration data.
             
             Note: Run AFTER calculating calibration constants.
         """
         # Recombine all the 'user page' files
+        systemPath = os.path.join(self.devPath, 'SYSTEM', 'DEV')
         data = []
         for i in range(4):
-            filename = os.path.join(devpath, 'SYSTEM', 'DEV', 'USERPG%d' % i)
+            filename = os.path.join(systemPath, 'USERPG%d' % i)
             with open(filename, 'rb') as fs:
                 data.append(fs.read())
         data = ''.join(data)
@@ -406,14 +422,14 @@ class Calibrator(object):
         self.productSerialNum = "SSX%07d" % self.productSerialNumInt
         
         # Firmware revision number is in the DEVINFO file
-        devInfo = ebml_util.read_ebml(os.path.join(devpath, 'SYSTEM', 'DEV', 'DEVINFO'))
+        devInfo = ebml_util.read_ebml(os.path.join(systemPath, 'DEVINFO'))
         self.productFwRev = devInfo['RecordingProperties']['FwRev']
         systemInfo['FwRev'] = self.productFwRev
         
         return manifest, calibration
 
     
-    def calculate(self, filenames, prev_cal=(1,1,1), serialNum='', savePath='.'):
+    def calculate(self, filenames=None, prev_cal=(1,1,1), serialNum='', savePath='.'):
         """
         """
         def calc_trans(a, b, c, a_corr, b_corr, c_corr):
@@ -424,27 +440,30 @@ class Calibrator(object):
             Stb = 100 * (Stab/c_ampl)
             return Stb
         
+        if filenames is None:
+            filenames = self.getFiles()
+        
         self.serialNum = self.serialNum or serialNum
         basenames = map(os.path.basename, filenames)
-        if self.cal_val is None:
-            self.cal_val = [CalFile(f, serialNum) for f in filenames]
-        cal_val = self.cal_val
+        if self.cal_vals is None:
+            self.cal_vals = [CalFile(f, serialNum) for f in filenames]
+        cal_vals = self.cal_vals
         
         self.cal = XYZ()
         self.cal_files = XYZ()
         for j in range(3):
-            if cal_val[j].cal.x <= 2:
-                self.cal.x = cal_val[j].cal.x * prev_cal[0]
+            if cal_vals[j].cal.x <= 2:
+                self.cal.x = cal_vals[j].cal.x * prev_cal[0]
                 self.cal_files.x = basenames[j]
-            if cal_val[j].cal.y <= 2:
-                self.cal.y = cal_val[j].cal.y * prev_cal[1]
+            if cal_vals[j].cal.y <= 2:
+                self.cal.y = cal_vals[j].cal.y * prev_cal[1]
                 self.cal_files.y = basenames[j]
-            if cal_val[j].cal.z <= 2:
-                self.cal.z = cal_val[j].cal.z * prev_cal[2]
+            if cal_vals[j].cal.z <= 2:
+                self.cal.z = cal_vals[j].cal.z * prev_cal[2]
                 self.cal_files.z = basenames[j]
         
         for i in range(3):
-            x,y,z = cal_val[i].rms
+            x,y,z = cal_vals[i].rms
             if x <= 2 and y <= 2:
                 self.Sxy = calc_trans(x,y,z,self.cal.x, self.cal.y, self.cal.z)
                 self.Sxy_file = basenames[i]
@@ -455,7 +474,7 @@ class Calibrator(object):
                 self.Sxz = calc_trans(z,x,y,self.cal.z,self.cal.x,self.cal.y)
                 self.Sxz_file = basenames[i]
         
-        self.cal_temps = XYZ([cal.cal_temp for cal in self.cal_val])
+        self.cal_temps = XYZ([cal.cal_temp for cal in self.cal_vals])
         self.calTemp = np.mean(self.cal_temps)            
 
         self.calTimestamp = int(time.mktime(time.gmtime()))
@@ -471,12 +490,10 @@ class Calibrator(object):
                   'Date: %s' % time.asctime(),
                   '    File  X-rms   Y-rms   Z-rms   X-cal   Y-cal   Z-cal']
         
-        result.extend(map(str, self.cal_val))
-            
+        result.extend(map(str, self.cal_vals))
         result.append("%s, X Axis Calibration Constant %.4f" % (self.cal_files.x, self.cal.x))
         result.append("%s, Y Axis Calibration Constant %.4f" % (self.cal_files.y, self.cal.y))
         result.append("%s, Z Axis Calibration Constant %.4f" % (self.cal_files.z, self.cal.z))
-    
         result.append("%s, Transverse Sensitivity in XY = %.2f percent" % (self.Sxy_file, self.Sxy))
         result.append("%s, Transverse Sensitivity in YZ = %.2f percent" % (self.Syz_file, self.Syz))
         result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (self.Sxz_file, self.Sxz))
@@ -538,18 +555,18 @@ class Calibrator(object):
             ('FIELD_cal_y', self.cal.y),
             ('FIELD_cal_z', self.cal.z),
             ('FIELD_certificateNum', certTxt),
-            ('FIELD_documentNum', self.documentNum),
-            ('FIELD_procedureNum', self.procedureNum),
+#             ('FIELD_documentNum', self.documentNum),
+#             ('FIELD_procedureNum', self.procedureNum),
             ('FIELD_productCalDate', datetime.now().strftime("%M/%d/%Y")),
 #             ('FIELD_productMan', 'Mide Technology Corp.'),
             ('FIELD_productManDate', self.productManDate),
             ('FIELD_productName', self.productName),
             ('FIELD_productPartNum', self.productPartNum),
             ('FIELD_productSerial', self.serialNum),
-            ('FIELD_refModel', self.refModel),
-            ('FIELD_refNist', self.refNist),
-            ('FIELD_refSerial', self.refSerial),
-            ('FIELD_referenceMan', self.refMan),
+#             ('FIELD_refModel', self.refModel),
+#             ('FIELD_refNist', self.refNist),
+#             ('FIELD_refSerial', self.refSerial),
+#             ('FIELD_referenceMan', self.refMan),
         ]
         
         for name, val in fieldIds:
@@ -557,6 +574,8 @@ class Calibrator(object):
         
         tempFilename = changeFilename(template.replace('template',certTxt), path=savePath)
         certFilename = changeFilename(tempFilename, ext='.pdf')
+        if os.path.exists(tempFilename):
+            os.remove(tempFilename)
         xd.write(tempFilename)
     
         subprocess.call('"%s" -f "%s" -A "%s"' % (INKSCAPE_PATH, tempFilename, certFilename), stdout=sys.stdout, stdin=sys.stdin, shell=True)
@@ -564,25 +583,31 @@ class Calibrator(object):
         return certFilename
 
 
-    def createEbml(self):
+    def createEbml(self, xmlTemplate=None):
         """ Create the calibration EBML data, for inclusion in a recorder's
             user page or an external user calibration file.
         """
-        g = int(self.productPartNum.rsplit('-',1)[-1])
-        baseCoefs = [(g*2.0)/65535.0, -g]
-        
-        template = OrderedDict([
-            ('UnivariatePolynomial', [
-                OrderedDict([('CalID', 0), 
-                             ('CalReferenceValue', 0.0), 
-                             ('PolynomialCoef', baseCoefs)])
-                ]
-            ), 
-            ('BivariatePolynomial', [] ), # filled in below
-            ('CalibrationSerialNumber', self.certNum),
-            ('CalibrationDate', self.calTimestamp)
-         ])
-        
+        if xmlTemplate is None:
+            g = int(self.productPartNum.rsplit('-',1)[-1])
+            baseCoefs = [(g*2.0)/65535.0, -g]
+             
+            calList = OrderedDict([
+                ('UnivariatePolynomial', [
+                    OrderedDict([('CalID', 0), 
+                                 ('CalReferenceValue', 0.0), 
+                                 ('PolynomialCoef', baseCoefs)])
+                    ]
+                ), 
+                ('BivariatePolynomial', [] ), # filled in below
+                ('CalibrationSerialNumber', self.certNum),
+                ('CalibrationDate', self.calTimestamp)
+             ])
+        else:
+            doc = ebml_util.read_ebml(StringIO(xml2ebml.readXml(xmlTemplate)))
+            calList = doc['CalibrationList']
+            calList['CalibrationSerialNumber'] = self.certNum
+            calList['CalibrationDate'] = self.calTimestamp
+            
         for i in range(3):
             thisCal = OrderedDict([
                 ('CalId', i+1),
@@ -592,8 +617,8 @@ class Calibrator(object):
                 ('BivariateSubChannelIDRef',1), 
                 ('PolynomialCoef', [self.cal[i] * -0.003, self.cal[i], 0.0, 0.0]), 
             ])
-            template['BivariatePolynomial'].append(thisCal)
+            calList['BivariatePolynomial'].append(thisCal)
         
-        return ebml_util.build_ebml('CalibrationList', template)
+        return ebml_util.build_ebml('CalibrationList', calList)
 
 
