@@ -3,12 +3,51 @@ Created on Oct 17, 2014
 
 @author: dstokes
 '''
-from scipy.io.matlab import mio5_params as MP
 
 from datetime import datetime
 import os.path
 import string
 import struct
+
+# NOTE: 64 bit Scipy is unstable; avoid using it for now.
+# from scipy.io.matlab import mio5_params as MP
+
+class MP:
+    miCOMPRESSED = 15
+    miDOUBLE = 9
+    miINT16 = 3
+    miINT32 = 5
+    miINT64 = 12
+    miINT8 = 1
+    miMATRIX = 14
+    miSINGLE = 7
+    miUINT16 = 4
+    miUINT32 = 6
+    miUINT64 = 13
+    miUINT8 = 2
+    miUTF16 = 17
+    miUTF32 = 18
+    miUTF8 = 16
+    
+    mxCELL_CLASS = 1
+    mxCHAR_CLASS = 4
+    mxDOUBLE_CLASS = 6
+    mxFUNCTION_CLASS = 16
+    mxINT16_CLASS = 10
+    mxINT32_CLASS = 12
+    mxINT64_CLASS = 14
+    mxINT8_CLASS = 8
+    mxOBJECT_CLASS = 3
+    mxOBJECT_CLASS_FROM_MATRIX_H = 18
+    mxOPAQUE_CLASS = 17
+    mxSINGLE_CLASS = 7
+    mxSPARSE_CLASS = 5
+    mxSTRUCT_CLASS = 2
+    mxUINT16_CLASS = 11
+    mxUINT32_CLASS = 13
+    mxUINT64_CLASS = 15
+    mxUINT8_CLASS = 9
+
 
 #===============================================================================
 # 
