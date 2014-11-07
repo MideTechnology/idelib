@@ -4,8 +4,10 @@ Created on Sep 30, 2014
 @author: dstokes
 '''
 from collections import Iterable, OrderedDict
+import csv
 from datetime import datetime
 import os, os.path
+import string
 from StringIO import StringIO
 import struct
 import subprocess
@@ -43,6 +45,8 @@ testFiles = glob(r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Product_Database\_C
 
 # NOTE: Make sure devices.py is copied to deployed directory
 import devices
+
+from birth_utils import changeFilename, writeFile
 
 #===============================================================================
 # 
@@ -105,15 +109,6 @@ def _println(*args):
 #===============================================================================
 # Helper functions. Mostly Numpy data manipulation.
 #===============================================================================
-
-def changeFilename(filename, ext=None, path=None):
-    if ext is not None:
-        ext = ext.lstrip('.')
-        filename = "%s.%s" % (os.path.splitext(filename)[0], ext)
-    if path is not None:
-        filename = os.path.join(path, os.path.basename(filename))
-    return os.path.abspath(filename)
-
 
 def ide2csv(filename, savePath=None, importCallback=SimpleUpdater(),
             channel=0, subchannels=(2,1,0)):
@@ -285,11 +280,15 @@ class CalFile(object):
                        cal_value / self.rms.z)
     
         self.cal_temp = np.mean([x[-1] for x in doc.channels[1][1].getSession()])
+        self.cal_press = np.mean([x[-1] for x in doc.channels[1][0].getSession()])
         
         _println()
 
 
-    def render(self, imgPath):
+    def render(self, imgPath, baseName='vibe_test_', imgType=".jpg"):
+        imgName = '%s%s.%s' % (baseName, os.path.splitext(os.path.basename(self.filename))[0], imgType)
+        saveName = os.path.join(imgPath, imgName)
+        
         # Generate the plot
         _print("plotting...")
         plotXMin = min(self.times.x[0], self.times.y[0], self.times.z[0])
@@ -308,10 +307,10 @@ class CalFile(object):
         axes.set_xlabel('Time (seconds)')
         axes.set_ylabel('Amplitude (g)')
         
-        imgType = self.imgType.strip('.')
-        imgName = 'vibe_test_%s.%s' % (os.path.splitext(os.path.basename(self.filename))[0], imgType)
-        pylab.savefig(os.path.join(imgPath, imgName))
+        pylab.savefig(saveName)
 #         pylab.show()
+    
+        return saveName
 
 
 #===============================================================================
@@ -357,7 +356,7 @@ class Calibrator(object):
                  refSerial="12740/BL33", 
                  refNist="683/283655-13"):
         self.devPath = devPath
-        self.serialNum = None
+        self.productSerialNum = None
         self.certNum = certNum
         
         self.documentNum = documentNum
@@ -373,25 +372,31 @@ class Calibrator(object):
         self.refSerial = refSerial
         self.refNist = refNist
     
-        self.calTime = 0
+        self.calTimestamp = 0
         self.cal_vals=None
+        self.cal_files = None
 
+        if devPath is not None:
+            self.readManifest()
+            
 
     def getFiles(self):
         """ Get the filenames from the first recording directory with 3 IDE
             files. These are presumably the shaker recordings.
         """
-        for _root, _dirs, files in os.walk(os.path.join(self.devPath, 'DATA')):
-            ides = filter(lambda x: x.upper().endswith('.IDE'), files)
-            if len(ides) == 3:
-                return ides
+        ides = []
+        for root, dirs, files in os.walk(os.path.join(self.devPath, 'DATA')):
+            ides.extend(map(lambda x: os.path.join(root, x), filter(lambda x: x.upper().endswith('.IDE'), files)))
+            for d in dirs:
+                if d.startswith('.'):
+                    dirs.remove(d)
+        return ides[:3]
 
 
     def readManifest(self):
         """ Read the user page containing the manifest and (possibly)
             calibration data.
             
-            Note: Run AFTER calculating calibration constants.
         """
         # Recombine all the 'user page' files
         systemPath = os.path.join(self.devPath, 'SYSTEM', 'DEV')
@@ -423,15 +428,17 @@ class Calibrator(object):
         
         # Firmware revision number is in the DEVINFO file
         devInfo = ebml_util.read_ebml(os.path.join(systemPath, 'DEVINFO'))
-        self.productFwRev = devInfo['RecordingProperties']['FwRev']
+        self.productFwRev = devInfo['RecordingProperties'].get('FwRev',1)
         systemInfo['FwRev'] = self.productFwRev
         
         return manifest, calibration
 
     
-    def calculate(self, filenames=None, prev_cal=(1,1,1), serialNum='', savePath='.'):
+    def calculate(self, filenames=None, prev_cal=(1,1,1)):
         """
         """
+        self.calDate = datetime.now()
+        
         def calc_trans(a, b, c, a_corr, b_corr, c_corr):
             a_cross = a * a_corr
             b_cross = b * b_corr
@@ -443,10 +450,11 @@ class Calibrator(object):
         if filenames is None:
             filenames = self.getFiles()
         
-        self.serialNum = self.serialNum or serialNum
+        # TODO: Check for correct number of files?
+        
         basenames = map(os.path.basename, filenames)
         if self.cal_vals is None:
-            self.cal_vals = [CalFile(f, serialNum) for f in filenames]
+            self.cal_vals = [CalFile(f, self.productSerialNum) for f in filenames]
         cal_vals = self.cal_vals
         
         self.cal = XYZ()
@@ -475,7 +483,9 @@ class Calibrator(object):
                 self.Sxz_file = basenames[i]
         
         self.cal_temps = XYZ([cal.cal_temp for cal in self.cal_vals])
-        self.calTemp = np.mean(self.cal_temps)            
+        self.calTemp = np.mean(self.cal_temps)
+        self.cal_pressures = XYZ([cal.cal_press for cal in self.cal_vals])
+        self.calPress = np.mean(self.cal_pressures)          
 
         self.calTimestamp = int(time.mktime(time.gmtime()))
 
@@ -486,7 +496,14 @@ class Calibrator(object):
     def createTxt(self, saveTo=None):
         """ Generate the calibration text, optionally saving it to a file.
         """
-        result = ['Serial Number: %s' % self.serialNum,
+        if isinstance(saveTo, basestring):
+            if self.calTimestamp is None:
+                self.calTimestamp = time.time()
+            dt = datetime.utcfromtimestamp(self.calTimestamp)
+            saveName = 'calibration_%s.txt' % ''.join(filter(lambda x:x not in string.punctuation, dt.isoformat()[:19]))
+            saveTo = os.path.join(saveTo, saveName)
+        
+        result = ['Serial Number: %s' % self.productSerialNum,
                   'Date: %s' % time.asctime(),
                   '    File  X-rms   Y-rms   Z-rms   X-cal   Y-cal   Z-cal']
         
@@ -501,12 +518,21 @@ class Calibrator(object):
         result = '\n'.join(result)
         
         if isinstance(saveTo, basestring):
-            saveTo = open(saveTo, 'wb')
+            writeFile(saveTo, result)
+            return saveTo
         if hasattr(saveTo, 'write'):
             saveTo.write(result)
-            
+        
         return result
 
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def createPlots(self, savePath='.'):
+        if self.cal_vals is None:
+            return False
+        return [c.render(savePath) for c in self.cal_vals]
 
     #===========================================================================
     # 
@@ -549,20 +575,20 @@ class Calibrator(object):
         
         fieldIds = [
             ('FIELD_calHumidity', self.calHumidity),
-            ('FIELD_calTemp', self.calTemp),
+            ('FIELD_calTemp', "%.2f" % self.calTemp),
             ('FIELD_calTempComp', self.calTempComp),
-            ('FIELD_cal_x', self.cal.x),
-            ('FIELD_cal_y', self.cal.y),
-            ('FIELD_cal_z', self.cal.z),
+            ('FIELD_cal_x', "%.4f" % self.cal.x),
+            ('FIELD_cal_y', "%.4f" % self.cal.y),
+            ('FIELD_cal_z', "%.4f" % self.cal.z),
             ('FIELD_certificateNum', certTxt),
 #             ('FIELD_documentNum', self.documentNum),
 #             ('FIELD_procedureNum', self.procedureNum),
-            ('FIELD_productCalDate', datetime.now().strftime("%M/%d/%Y")),
+            ('FIELD_productCalDate', datetime.utcfromtimestamp(self.calTimestamp).strftime("%M/%d/%Y")),
 #             ('FIELD_productMan', 'Mide Technology Corp.'),
             ('FIELD_productManDate', self.productManDate),
             ('FIELD_productName', self.productName),
             ('FIELD_productPartNum', self.productPartNum),
-            ('FIELD_productSerial', self.serialNum),
+            ('FIELD_productSerial', self.productSerialNum),
 #             ('FIELD_refModel', self.refModel),
 #             ('FIELD_refNist', self.refNist),
 #             ('FIELD_refSerial', self.refSerial),
@@ -572,7 +598,7 @@ class Calibrator(object):
         for name, val in fieldIds:
             setText(name, val)
         
-        tempFilename = changeFilename(template.replace('template',certTxt), path=savePath)
+        tempFilename = os.path.realpath(changeFilename(template.replace('template',certTxt), path=savePath))
         certFilename = changeFilename(tempFilename, ext='.pdf')
         if os.path.exists(tempFilename):
             os.remove(tempFilename)
@@ -583,12 +609,52 @@ class Calibrator(object):
         return certFilename
 
 
+    def writeProductLog(self, saveTo=None):
+        """
+        """
+        caldate = str(datetime.utcfromtimestamp(self.calTimestamp))
+        mandate = str(datetime.utcfromtimestamp(self.productManTimestamp))
+        
+        data = OrderedDict([
+                ("Cal #",                self.certNum),
+                ("Rev",                  self.calRev),
+                ("Cal Date",             caldate),
+                ("Serial #",             self.productSerialNum),
+                ("Hardware",             self.productHwRev),
+                ("Firmware",             self.productFwRev),
+                ("Product Name",         self.productName),
+                ("Part Number",          self.productPartNum),
+                ("Date of Manufacture",  mandate),
+                ("Ref Manufacturer",     self.refMan),
+                ("Ref Model #",          self.refModel),
+                ("Ref Serial #",         self.refSerial),
+                ("NIST #",               self.refNist),
+                ("832M1 Serial #",       self.accelSerial),
+                ("Temp. (C)",            self.calTemp),
+                ("Rel. Hum. (%)",        self.calHumidity),
+                ("Temp Comp. (%/C)",     self.calTempComp),
+                ("X-Axis",               self.cal.x),
+                ("Y-Axis",               self.cal.y),
+                ("Z-Axis",               self.cal.z),
+                ("Pressure (Pa)",        self.calPress)])
+        
+        if saveTo is not None:
+            newFile = not os.path.exists(saveTo)
+            with open(saveTo, 'ab') as f:
+                writer = csv.writer(f)
+                if newFile:
+                    writer.writerow(data.keys())
+                writer.writerow(data.values())
+                
+        return data
+        
+
     def createEbml(self, xmlTemplate=None):
         """ Create the calibration EBML data, for inclusion in a recorder's
             user page or an external user calibration file.
         """
         if xmlTemplate is None:
-            g = int(self.productPartNum.rsplit('-',1)[-1])
+            g = int(self.productPartNum.rsplit('-',1)[-1].strip(string.ascii_letters))
             baseCoefs = [(g*2.0)/65535.0, -g]
              
             calList = OrderedDict([
@@ -610,7 +676,7 @@ class Calibrator(object):
             
         for i in range(3):
             thisCal = OrderedDict([
-                ('CalId', i+1),
+                ('CalID', i+1),
                 ('CalReferenceValue', 0.0), 
                 ('BivariateCalReferenceValue', self.cal_temps[i]), 
                 ('BivariateChannelIDRef', 1), 
@@ -622,3 +688,10 @@ class Calibrator(object):
         return ebml_util.build_ebml('CalibrationList', calList)
 
 
+#===============================================================================
+# 
+#===============================================================================
+
+def calibrate(devPath):
+    c = Calibrator(devPath)
+    
