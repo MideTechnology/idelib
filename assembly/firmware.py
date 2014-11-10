@@ -9,6 +9,8 @@ from StringIO import StringIO
 import struct
 import sys
 import time
+from xml.etree import ElementTree as ET
+import xml.dom.minidom as minidom
 
 import serial.tools.list_ports
 import serial
@@ -28,6 +30,7 @@ except ImportError:
     import mide_ebml
 
 from mide_ebml import util as ebml_util
+import birth_utils
 
 #===============================================================================
 # 
@@ -143,7 +146,7 @@ class ssx_bootloadable_device(object):
         return False
 
     def send_app(self, filename):
-        if self.sendCommand("U"):
+        if self.sendCommand("u"):
             return self.send_file(filename)
         return False
 
@@ -196,8 +199,8 @@ class ssx_bootloadable_device(object):
     
         manSize = len(manifest)
         calSize = len(caldata)
-        data = bytearray(struct.pack("<HHHH2040x", (MANIFEST_OFFSET, manSize, 
-                                                    CALDATA_OFFSET, calSize)))
+        data = bytearray(struct.pack("<HHHH2040x", MANIFEST_OFFSET, manSize, 
+                                                    CALDATA_OFFSET, calSize))
         data[MANIFEST_OFFSET:MANIFEST_OFFSET+manSize] = manifest
         data[CALDATA_OFFSET:CALDATA_OFFSET+calSize] = caldata
         
@@ -225,28 +228,6 @@ class ssx_bootloadable_device(object):
         (bootverstring, chipidstring) = ver.split(",")
         return bootverstring.rsplit(" ", 1)[-1], chipidstring.rsplit(" ", 1)[-1]
     
-    
-#===============================================================================
-# 
-#===============================================================================
-
-def getSSXSerial(block=False, timeout=30, delay=.5):
-    """
-    """
-    if block:
-        if timeout is not None:
-            deadline = time.time() + timeout
-        while timeout is None or deadline > time.time():
-            p = getSSXSerial(block=False)
-            if p is not None:
-                return p
-            time.sleep(delay)
-        return None
-    
-    ports = filter(lambda x: 'EFM32 USB CDC Serial' in x[1], 
-                   serial.tools.list_ports.comports())
-    if len(ports) > 0:
-        return [x[0] for x in ports]
 
 #===============================================================================
 # 
@@ -270,3 +251,77 @@ def readUserPage(devPath):
     calibration = ebml_util.read_ebml(calData)
     
     return manifest, calibration
+
+#===============================================================================
+# 
+#===============================================================================
+
+def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, dest):
+    """
+    """
+    filename = os.path.join(templatePath, partNum, str(hwRev), "manifest.template.xml")
+    xmltree = ET.parse(filename)
+    xmlroot = xmltree.getroot()
+    # Mostly good as-is, but need to update SerialNumber, DateOfManufacture 
+    # and AnalogSensorSerialNumber. There is only one element with each name, 
+    # so we can simply "find" by that name and update the value.
+    el = xmlroot.find("./SystemInfo/SerialNumber")
+    el.set('value', str(device_sn))
+    el = xmlroot.find("./SystemInfo/DateOfManufacture")
+    el.set('value', str(int(time.mktime(time.gmtime()))) )
+    el = xmlroot.find("./AnalogSensorInfo/AnalogSensorSerialNumber")
+    el.set('value', device_accel_sn) # already a string
+    xmltree.write(dest)
+    return xmlroot
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def getSSXSerial(block=False, timeout=30, delay=.25, callback=birth_utils.spinner):
+    """ Get the names of all serial ports connected to bootloader-mode SSX.
+    """
+    if block:
+        if timeout is not None:
+            deadline = time.time() + timeout
+        while timeout is None or deadline > time.time():
+            p = getSSXSerial(block=False)
+            time.sleep(delay)
+            if p is not None:
+                return p
+            if callback:
+                callback.update()
+        
+        return None
+    
+    ports = filter(lambda x: 'EFM32 USB CDC Serial' in x[1], 
+                   serial.tools.list_ports.comports())
+    if len(ports) > 0:
+        return [x[0] for x in ports]
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def getBootloaderSSX(block=True, timeout=None, delay=0.25, callback=birth_utils.spinner, quiet=False, fail=False):
+    """ Wait for and return a Slam Stick X in bootloader mode.
+    """
+    ex = None if fail else IOError
+    if not quiet: print "Waiting for Slam Stick X in bootloader mode...",
+    sp = getSSXSerial(block=block, timeout=timeout, delay=delay, callback=callback)
+    if sp is None:
+        # Should never happen if block == True
+        return
+    if not quiet: print "Found device on %s; connecting..." % sp[0]
+    while True:
+        try:
+            ssxboot = ssx_bootloadable_device(sp[0])
+            if not quiet: print "Connected to SSX bootloader via %s" % sp[0]
+            return ssxboot
+        except ex:
+            print "Unable to connect to bootloader!"
+            raw_input("Unplug the SSX, re-attach it, press the button, and type [enter]")
+
+

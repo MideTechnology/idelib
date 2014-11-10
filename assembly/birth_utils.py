@@ -27,6 +27,8 @@ def inRange(v, minVal, maxVal):
 #===============================================================================
 
 def changeFilename(filename, ext=None, path=None):
+    """ Modify the path or extension of a filename. 
+    """
     if ext is not None:
         ext = ext.lstrip('.')
         filename = "%s.%s" % (os.path.splitext(filename)[0], ext)
@@ -35,7 +37,7 @@ def changeFilename(filename, ext=None, path=None):
     return os.path.abspath(filename)
 
 
-def readFileLine(filename, dataType=None, fail=True, last=True):
+def readFileLine(filename, dataType=None, fail=True, last=True, default=None):
     """ Open a file and read a single line.
         @param filename: The full path and name of the file to read.
         @keyword dataType: The type to which to cast the data. Defaults to int.
@@ -102,7 +104,7 @@ def readBirthLog(filename):
     result = dict()
     for val, field in zip(sp, fields):
         fname, ftype = field
-        result[fname] = ftype(val)
+        result[fname] = ftype(val.strip())
     return result
 
 

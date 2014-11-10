@@ -7,6 +7,7 @@ from collections import Iterable, OrderedDict
 import csv
 from datetime import datetime
 import os, os.path
+import shutil
 import string
 from StringIO import StringIO
 import struct
@@ -348,7 +349,7 @@ class Calibrator(object):
                  certNum=0,
                  calHumidity=50,
                  calTempComp=-0.30,
-                 calRev="A",
+                 calRev="C",
                  documentNum="LOG-0002-601", 
                  procedureNum="300-601-502", 
                  refMan="ENDEVCO", 
@@ -538,7 +539,7 @@ class Calibrator(object):
     # 
     #===========================================================================
     
-    def createCertificate(self, savePath='.', 
+    def createCertificate(self, savePath='.', createPdf=True,
                           template="Slam-Stick-X-Calibration-template.svg"):
         """ Create the certificate PDF from the template. The template SVG 
             contains `<tspan>` elements with IDs beginning with `FIELD_` which
@@ -599,13 +600,31 @@ class Calibrator(object):
             setText(name, val)
         
         tempFilename = os.path.realpath(changeFilename(template.replace('template',certTxt), path=savePath))
-        certFilename = changeFilename(tempFilename, ext='.pdf')
         if os.path.exists(tempFilename):
             os.remove(tempFilename)
         xd.write(tempFilename)
-    
-        subprocess.call('"%s" -f "%s" -A "%s"' % (INKSCAPE_PATH, tempFilename, certFilename), stdout=sys.stdout, stdin=sys.stdin, shell=True)
-        os.remove(tempFilename)
+
+        if createPdf:
+            return self.convertSvg(tempFilename)
+        
+        return tempFilename    
+
+
+    @classmethod
+    def convertSvg(cls, svgFilename, removeSvg=True):
+        """ Helper method to convert SVG to PDF using Inkscape. Separated
+            from createCertificate because the conversion will sometimes
+            crash hard.
+        """
+        certFilename = changeFilename(svgFilename, ext='.pdf')
+        if os.path.exists(certFilename):
+            os.remove(certFilename)
+            
+        result = subprocess.call('"%s" -f "%s" -A "%s"' % (INKSCAPE_PATH, svgFilename, certFilename), 
+                                 stdout=sys.stdout, stdin=sys.stdin, shell=True)
+        
+        if removeSvg and result == 0:
+            os.remove(svgFilename)
         return certFilename
 
 
@@ -692,6 +711,18 @@ class Calibrator(object):
 # 
 #===============================================================================
 
-def calibrate(devPath):
-    c = Calibrator(devPath)
+def makeCalTemplateXml(templatePath, partNum, hwRev, dest):
+    """ Generate the generic calibration XML.
+    """
+    filename = os.path.join(templatePath, partNum, str(hwRev), "cal.template.xml")
+    shutil.copy(filename, dest)
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def generateUserCal():
+    """
+    """
     
