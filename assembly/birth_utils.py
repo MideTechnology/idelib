@@ -7,6 +7,7 @@ Created on Nov 7, 2014
 @author: dstokes
 '''
 
+from collections import OrderedDict
 import os
 import shutil
 import sys
@@ -14,6 +15,7 @@ import time
 
 from devices import SlamStickX
 import ssx_namer
+from scipy.weave.converters import default
 
 #===============================================================================
 # 
@@ -37,7 +39,7 @@ def changeFilename(filename, ext=None, path=None):
     return os.path.abspath(filename)
 
 
-def readFileLine(filename, dataType=None, fail=True, last=True, default=None):
+def readFileLine(filename, dataType=None, fail=False, last=True, default=None):
     """ Open a file and read a single line.
         @param filename: The full path and name of the file to read.
         @keyword dataType: The type to which to cast the data. Defaults to int.
@@ -45,20 +47,26 @@ def readFileLine(filename, dataType=None, fail=True, last=True, default=None):
             raw string.
     """
     ex = ValueError if fail else None
-    with open(filename, 'r') as f:
-        if last:
-            for l in f:
-                l = l.strip()
-                if len(l) > 0:
-                    d = l
-        else:
-            d = f.readline().strip()
     try:
-        if dataType is None:
-            return int(float(d))
-        return dataType(d)
-    except ex:
-        return d
+        with open(filename, 'r') as f:
+            if last:
+                for l in f:
+                    l = l.strip()
+                    if len(l) > 0:
+                        d = l
+            else:
+                d = f.readline().strip()
+        if len(d) == 0:
+            return default
+        try:
+            if dataType is None:
+                return int(float(d))
+            return dataType(d)
+        except ex:
+            return d
+    except IOError:
+        return default
+
 
 def writeFileLine(filename, val, mode='w', newline=True):
     """ Open a file and write a line. """
@@ -84,11 +92,10 @@ def writeFile(filename, data):
 # 
 #===============================================================================
 
-def readBirthLog(filename):
+def parseBirthLog(l):
     """
     """
-    l = readFileLine(filename, str, last=True)
-    sp = l.split(',')
+    sp = l.strip().split(',')
     fields = (
         ('birthday', str),
         ('timestamp', int),
@@ -101,12 +108,33 @@ def readBirthLog(filename):
         ('accelSerialNum', str),
         ('partNum', str)
     )
-    result = dict()
+    result = OrderedDict()
     for val, field in zip(sp, fields):
         fname, ftype = field
-        result[fname] = ftype(val.strip())
+        val = ftype(val.strip())
+        val = None if val == 'None' else val
+        result[fname] = val
     return result
 
+
+def readBirthLog(filename):
+    return parseBirthLog(readFileLine(filename, str, last=True))
+
+
+def findBirthLog(filename, key="serialNum", val=None, last=True):
+    result = None
+    with open(filename, 'rb') as f:
+        for l in f:
+            try:
+                line = parseBirthLog(l)
+            except (ValueError, IOError):
+                continue
+            if line:
+                if line[key] == val:
+                    result = line
+                    if not last:
+                        break
+    return result
 
 #===============================================================================
 # 
@@ -151,7 +179,7 @@ def waitForSSX(onlyNew=False, timeout=60, callback=spinner):
     ssx_namer.deviceChanged()
 
     deadline = time.time() + timeout if timeout else None
-    print excluded_drives
+#     print excluded_drives
     while True:
         if ssx_namer.deviceChanged():
             vols = set(ssx_namer.getCurrentDrives()) - excluded_drives
@@ -172,8 +200,50 @@ def waitForSSX(onlyNew=False, timeout=60, callback=spinner):
 #===============================================================================
 
 def copyFileTo(source, destPath):
+    if not os.path.exists(source):
+        raise IOError("No such file/directory: %r" % source)
     dest = changeFilename(source, path=destPath)
     if os.path.exists(dest):
         os.remove(dest)
     shutil.copy(source, dest)
     return dest
+
+def copyTreeTo(source, dest):
+    if not os.path.exists(source):
+        raise IOError("No such file/directory: %r" % source)
+    if os.path.exists(dest):
+        shutil.rmtree(dest)
+    shutil.copytree(source, dest)
+    return dest
+
+    
+
+#===============================================================================
+# 
+#===============================================================================
+
+def getYesNo(prompt, default=None):
+    """ Prompt user for a yes-or-no answer. """
+    q = ''
+    while q not in ('Y','N'):
+        q = raw_input(prompt).strip().upper()
+        if len(q) == 0 and default is not None:
+            return default
+    return q
+
+def getNumber(prompt, dataType=float, default=None, minmax=None):
+    """ Prompt user for a number. """
+    while True:
+        try:
+            q = raw_input(prompt).strip()
+            if q == '':
+                if default is not None:
+                    return default
+                continue
+            val = dataType(q)
+            if minmax is not None and not inRange(val, *minmax):
+                print "Enter a value between %s and %s." % minmax
+            else:
+                return val
+        except ValueError as err:
+            print str(err).capitalize()

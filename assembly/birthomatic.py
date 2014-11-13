@@ -3,15 +3,16 @@ Here's how it should work:
 
 PHASE 1: Before calibration
     1. Wait for an SSX in firmware mode (getSSXSerial)
-   *2. Prompt user for part number, hardware revision number, accelerometer SN
-    3. Get next recorder serial number
-    4. Get bootloader version, chip ID from device
-    5. Create chip ID directory in product_database
-    6. Generate manifest and generic calibration list for model
-    7. Upload firmware, user page data (firmware.ssx_bootloadable_device)
-    8. Update birth log
-    9. Reset device, immediately start autoRename
-   *n. Notify user that recorder is ready for potting/calibration
+    2. Get bootloader version, chip ID from device
+    3. Get previous birth info from log (if any exists)
+   *4. Prompt user for part number, hardware revision number, accelerometer SN
+    5. Get next recorder serial number
+    6. Create chip ID directory in product_database
+    7. Generate manifest and generic calibration list for model
+    8. Upload firmware, user page data (firmware.ssx_bootloadable_device)
+    9. Update birth log
+    10. Reset device, immediately start autoRename
+   *11. Notify user that recorder is ready for potting/calibration
 
 PHASE 2: Offline work
     x. Potting, assembly, recording shaker sessions.
@@ -37,20 +38,15 @@ Created on Sep 24, 2014
 
 @author: dstokes
 '''
-# import csv
+
 from datetime import datetime
 from glob import glob
 import os.path
 import shutil
+import socket
 import string
 import sys
 import time
-# from xml.etree import ElementTree as ET
-# import xml.dom.minidom as minidom
-# 
-# import numpy as np
-# import serial.tools.list_ports
-# import serial
 
 #===============================================================================
 # 
@@ -62,15 +58,19 @@ PRODUCT_ROOT_PATH = "R:/LOG-Data_Loggers/LOG-0002_Slam_Stick_X/"
 BIRTHER_PATH = os.path.join(PRODUCT_ROOT_PATH, "Design_Files/Firmware_and_Software/Manufacturing/LOG-XXXX-SlamStickX_Birther/")
 
 # XXX: TESTING: REMOVE LATER
-PRODUCT_ROOT_PATH = r"C:\Users\dstokes\workspace\SSXViewer\assembly\temp"
+if socket.gethostname() == "DEDHAM":
+    PRODUCT_ROOT_PATH = r"C:\Users\dstokes\workspace\SSXViewer\assembly\temp"
 
 FIRMWARE_PATH = os.path.join(BIRTHER_PATH, "firmware")
 TEMPLATE_PATH = os.path.join(BIRTHER_PATH, "data_templates")
 DB_PATH = os.path.join(PRODUCT_ROOT_PATH, "Product_Database")
 CAL_PATH = os.path.join(DB_PATH, '_Calibration')
 
-BIRTH_LOG_NAME = "product_log.csv"
-CAL_LOG_NAME = "calibration_log.csv"
+DEV_SN_FILE = os.path.join(DB_PATH, 'last_sn.txt')
+CAL_SN_FILE = os.path.join(DB_PATH, 'last_cal_sn.txt')
+
+BIRTH_LOG_FILE = os.path.join(DB_PATH, "product_log.csv")
+CAL_LOG_FILE = os.path.join(DB_PATH, "calibration_log.csv")
 
 DB_LOG_FILE = os.path.join(DB_PATH, 'SlamStickX_Product_Database.csv') 
 
@@ -165,24 +165,26 @@ def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev, device_
     return ','.join(data)+'\n'
 
 
-
 #===============================================================================
 # 
 #===============================================================================
 
+def getPartNumbers():
+    return map(os.path.basename, glob(os.path.join(TEMPLATE_PATH, "LOG*")))
+
 def getPartNumber():
-    dirs = map(os.path.basename, glob(os.path.join(TEMPLATE_PATH, "LOG*")))
+    dirs = getPartNumbers()
     print "Select a part number:"
     for i in range(len(dirs)):
         print "  %d: %s" % (i, dirs[i])
-    p = raw_input("Part number? ")
-    try:
-        return dirs[int(p)]
-    except TypeError:
-        return None
-    
+    p = utils.getNumber("Part Number? ", dataType=int, minmax=(0, len(dirs)-1))
+    return dirs[p]
+
+def getHardwareRevs(partNum):
+    return map(os.path.basename, glob(os.path.join(TEMPLATE_PATH, partNum, '*')))
+
 def getHardwareRev(partNum):
-    dirs = map(os.path.basename, glob(os.path.join(TEMPLATE_PATH, partNum, '*')))
+    dirs = getHardwareRevs(partNum)
     if len(dirs) == 1:
         return int(dirs[0])
     p = raw_input("Hardware revision number (%s; default=%s)? " % (', '.join(dirs),dirs[-1])).strip()
@@ -193,11 +195,23 @@ def getHardwareRev(partNum):
     except TypeError:
         return None
 
+def getFirmwareRevs(partNum):
+    return [utils.readFileLine(APP_VER_FILE)]
+
 def getFirmwareRev(partNum=None):
     return utils.readFileLine(APP_VER_FILE)
 
+def isValidAccelSerial(sn):
+    sn = sn.strip()
+    return isinstance(sn, basestring) and len(sn) == 8 and sn[4] == '-'
+
 def getAccelSerialNum():
-    return raw_input("Accelerometer serial number? ")
+    while True:
+        sn = raw_input("Accelerometer serial number? ").strip()
+        if isValidAccelSerial(sn):
+            return sn
+        print "Bad accelerometer number: enter in format nnnn-nnn"
+        
 
 def getFirmwareFile(partNum=None, fwRev=None):
     return APP_FILE
@@ -222,20 +236,16 @@ def copyContent(devPath):
         shutil.copytree(c, dest, ignore=shutil.ignore_patterns('.*','Thumbs.db'))
     
 
-def uploadCalibration(devPort):
-    """
-    """
-    pass
-
-
 #===============================================================================
 # 
 #===============================================================================
 
-def birth(serialNum=None):
+def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=None):
     """
     """
     rebirth = serialNum is not None
+    accelSerialNum = None
+    
     print "*" * 60
     print "Starting Slam Stick X Auto-Birther."
     print "Plug in a new Slam Stick X and press the button to enter bootloader mode."
@@ -246,55 +256,85 @@ def birth(serialNum=None):
     if ssxboot is None:
         return
     
-    # 2. Prompt user for part number, hardware revision number, firmware rev.
-    partNum = getPartNumber()
-    if partNum is None:
-        return
-    
-    hwRev = getHardwareRev(partNum)
-    if hwRev is None:
-        return
-    
-    accelSerialNum = getAccelSerialNum()
-    if not accelSerialNum:
-        return
-    
-    fwRev = getFirmwareRev(partNum)
-    if not isinstance(fwRev, int):
-        return
-    
-    print "\nGetting serial number...",
-    # 3. Get next recorder serial number
-    if serialNum is None:
-        serialNum = utils.readFileLine(os.path.join(DB_PATH, "last_sn.txt"))+1
-    elif isinstance(serialNum, basestring):
-        # In case the serial number is the print version ("SSXxxxxxxx")
-        serialNum = int(serialNum.strip(string.ascii_letters + string.punctuation + string.whitespace))
-    
-    serialNumStr = "SSX%07d" % serialNum
-    print "SN: %s" % serialNumStr
-    
-    # 4. Get bootloader version, chip ID from device
+    # 2. Get bootloader version, chip ID from device
     print "Getting bootloader version and chip ID...",
     bootVer, chipId = ssxboot.getVersionAndId()
     if bootVer is None or chipId is None:
         return
     print bootVer, chipId
     
-    # 5. Create chip ID directory in product_database
-    print "Creating database folders..."
+    # 3. Get previous birth info from log (if any exists)
+    logInfo = utils.findBirthLog(BIRTH_LOG_FILE, 'chipId', chipId)
+    if logInfo:
+        # Get rid of info we don't care about right now
+        for k in ('timestamp','rebirth', 'bootVer'):
+            logInfo.pop(k, None)
+        print "Birthing log entry for this device already exists:"
+        for k,v in logInfo.items():
+            if k == 'serialNum': v = "SSX%07d" % v
+            print "%s: %s" % (k.rjust(16), v)
+        if utils.getYesNo("Use existing data (Y)?", default="Y") == "Y":
+            serialNum = logInfo.get('serialNum', None)
+            partNum = logInfo.get('partNum', None)
+            hwRev = logInfo.get('hwRev', None)
+            fwRev = logInfo.get('fwRev', None) 
+            accelSerialNum = logInfo.get('accelSerialNum', None)
+            rebirth = True
+    
+    # 4. Prompt user for part number, hardware revision number, firmware rev.
+    if partNum is not None:
+        if partNum not in getPartNumbers():
+            print "Invalid part number: %s" % partNum
+            partNum = None
+       
+    partNum = partNum if partNum else getPartNumber()
+    if partNum is None:
+        return
+    
+    if hwRev is not None:
+        if str(hwRev) not in getHardwareRevs(partNum):
+            print "Invalid hardware revision number: %s" % hwRev
+            hwRev = None
+    
+    hwRev = hwRev if hwRev else getHardwareRev(partNum)
+    if hwRev is None:
+        return
+    
+    fwRev = fwRev if fwRev else getFirmwareRev(partNum)
+    if not isinstance(fwRev, int):
+        return
+    
+    if accelSerialNum:
+        if not isValidAccelSerial(accelSerialNum):
+            print "Invalid accelerometer serial number: %s" % accelSerialNum
+    accelSerialNum = accelSerialNum if accelSerialNum else getAccelSerialNum()
+    if not accelSerialNum:
+        return
+        
+    # 5. Get next recorder serial number
+    if serialNum is None:
+        print "Getting new serial number...",
+        serialNum = utils.readFileLine(os.path.join(DB_PATH, "last_sn.txt"))+1
+        utils.writeFileLine(os.path.join(DB_PATH, "last_sn.txt"), serialNum)
+    elif isinstance(serialNum, basestring):
+        # In case the serial number is the print version ("SSXxxxxxxx")
+        serialNum = int(serialNum.strip(string.ascii_letters + string.punctuation + string.whitespace))
+    
+    # 6. Create chip ID directory in product_database
     chipDirName = os.path.realpath(os.path.join(DB_PATH, chipId))
     if not os.path.exists(chipDirName):
+        print "Creating chip ID folder..."
         os.mkdir(chipDirName)
-    
+        
+    serialNumStr = "SSX%07d" % serialNum
+    print "SN: %s, accelerometer SN: %s" % (serialNumStr, accelSerialNum)
+        
     calDirName = os.path.realpath(os.path.join(CAL_PATH, serialNumStr))
     if not os.path.exists(calDirName):
+        print "Creating calibration folder..."
         os.mkdir(calDirName)
     
-    utils.writeFileLine(os.path.join(chipDirName, 'accel_sn.txt'), accelSerialNum)
-    utils.writeFileLine(os.path.join(chipDirName, 'mide_sn.txt'), serialNum)
-    
-    # 6. Generate manifest and generic calibration list for model
+    # 7. Generate manifest and generic calibration list for model
     print "Creating manifest and default calibration files..."
     manXmlFile = os.path.join(chipDirName, 'manifest.xml')
     firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, accelSerialNum, manXmlFile)
@@ -304,34 +344,43 @@ def birth(serialNum=None):
 
     calXmlFile = os.path.join(chipDirName, 'cal.template.xml')
     calibration.makeCalTemplateXml(TEMPLATE_PATH, partNum, hwRev, calXmlFile)
-    calEbml = xml2ebml.readXml(calXmlFile) 
+    calEbml = xml2ebml.readXml(calXmlFile, schema='mide_ebml.ebml.schema.mide') 
     with open(utils.changeFilename(calXmlFile, ext="ebml"), 'wb') as f:
         f.write(calEbml)
+
+    # Copy template as 'current' (original script did this).
+    curCalXmlFile = os.path.join(chipDirName, 'cal.current.xml')
+    if not os.path.exists(curCalXmlFile):
+        shutil.copy(calXmlFile, curCalXmlFile)
     
-#     # 7. Upload firmware, user page data (firmware.ssx_bootloadable_device)
+    # 8. Upload firmware, user page data (firmware.ssx_bootloadable_device)
     print "Uploading firmware version %s..." % fwRev
     ssxboot.send_app(getFirmwareFile(partNum, fwRev))
     print "Uploading manifest and generic calibration data..."
     ssxboot.sendUserpage(manEbml, calEbml)
     
-    # 8. Update birth log
+    # 9. Update birth log
     print "Updating birthing logs and serial number..."
     logline = makeBirthLogEntry(chipId, serialNum, rebirth, bootVer, hwRev, fwRev, accelSerialNum, partNum)
-    utils.writeFileLine(os.path.join(DB_PATH, BIRTH_LOG_NAME), logline, mode='at')
+    utils.writeFileLine(BIRTH_LOG_FILE, logline, mode='at')
     utils.writeFileLine(os.path.join(calDirName, 'birth_log.txt'), logline)
     utils.writeFileLine(os.path.join(DB_PATH, "last_sn.txt"), serialNum)
-    
-    # 9. Reset device, immediately start autoRename
+    utils.writeFileLine(os.path.join(chipDirName, 'mide_sn.txt'), serialNum)
+    utils.writeFileLine(os.path.join(chipDirName, 'accel_sn.txt'), accelSerialNum)
+   
+    # 10. Reset device, immediately start autoRename
     print "Exiting bootloader..."
     ssxboot.disconnect()
     utils.waitForSSX(timeout=10)
     
-    # n. Notify user that recorder is ready for potting/calibration
+    # 11. Notify user that recorder is ready for potting/calibration
     print "*" * 60
     print "\x07Slam Stick X SN:%s ready for calibration and potting!" % (serialNumStr)
     print "       Part Number:", partNum
     print "       Hardware ID:", chipId
     print "  Accelerometer SN:", accelSerialNum
+    print " Hardware Revision:", hwRev
+    print " Firmware Revision:", fwRev
     print "Please disconnect it now."
     
         
@@ -339,7 +388,7 @@ def birth(serialNum=None):
 # 
 #===============================================================================
 
-def calibrate(devPath=None, rename=True):
+def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     """ Do all the post-shaker stuff: calculate calibration constants, 
         copy content, et cetera.
     """
@@ -369,29 +418,48 @@ def calibrate(devPath=None, rename=True):
     SlamStickX(devPath).setTime()
     
     #  2. Read device info to get serial number.
-    certNum = utils.readFileLine(os.path.join(DB_PATH, 'last_cal_sn.txt'))
-    c = calibration.Calibrator(devPath, certNum)
+    if certNum is None:
+        certNum = utils.readFileLine(CAL_SN_FILE)+1
+        writeCertNum = True
+    else:
+        writeCertNum = False
+    calRev = utils.readFileLine(os.path.join(CAL_PATH, 'cal_rev.txt'), str, default='C')
+    
+    c = calibration.Calibrator(devPath, certNum, calRev, isUpdate=recalculate)
     
     if c.productSerialNum is None:
         print "!!! Could not get serial number from recorder on %s" % devPath
         return
     
+    print "Recorder SN: %s, calibration SN: %s" % (c.productSerialNum, certNum)
+    
     #  2. Create serial number directory in product_database/_Calibration
     calDirName = os.path.realpath(os.path.join(CAL_PATH, c.productSerialNum))
     if not os.path.exists(calDirName):
-        print "!!! Directory %s does not exist!" % calDirName
-        return
+        print "Calibration directory %s does not exist; attempting to create..." % c.productSerialNum
+        os.mkdir(calDirName)
     
     print "Reading birth log data..."
+    birthFile = os.path.join(CAL_PATH, c.productSerialNum, 'birth_log.txt')
     try:
-        birthFile = os.path.join(CAL_PATH, c.productSerialNum, 'birth_log.txt')
-        birthInfo = utils.readBirthLog(birthFile)
-        chipId = birthInfo.get('chipId', None)
-        if chipId is None:
-            print "!!! Could not get chipId from %s" % birthFile
-            return
+        if not os.path.exists(birthFile):
+            # Possibly birthed by old script; copy data from main log.
+            birthInfo = utils.findBirthLog(BIRTH_LOG_FILE, val=c.productSerialNumInt)
+            logline = makeBirthLogEntry(*birthInfo.values()[2:])
+            utils.writeFileLine(birthFile, logline)
+        else:
+            birthInfo = utils.readBirthLog(birthFile)
     except IOError as err:
         print "!!! %s" % err
+        return
+
+    if not birthInfo:
+        print "!!! Could not get birth info!"
+        return
+        
+    chipId = birthInfo.get('chipId', None)
+    if chipId is None:
+        print "!!! Could not get chipId from %s" % birthFile
         return
         
     chipDirName = os.path.realpath(os.path.join(DB_PATH, chipId))
@@ -404,20 +472,31 @@ def calibrate(devPath=None, rename=True):
     calBackupPath = os.path.join(chipDirName, str(certNum))
     docsPath = os.path.join(devPath, 'DOCUMENTATION')
     
-    if os.path.exists(calCurrentName):
-        # Calibration EBML exists; recalculate anyway?
-        q = ''
-        while q.upper() not in ('Y','N'):
-            q = raw_input("\x07\x07Calibration EBML already exists! Recompute (Y/N)? ")
-            recompute = q == 'Y'
+    compute = True
+    
+    calCurrentXml = utils.changeFilename(calCurrentName, ext='.xml')
+    if os.path.exists(calCurrentXml) and not recalculate:
+        try:
+            x = utils.readFile(calCurrentXml)
+        except IOError:
+            x = ''
+        if 'CalibrationSerialNumber' in x:
+            # Calibration EBML exists; recalculate anyway?
+            q = utils.getYesNo("\x07\x07Calibration data already exists! Recompute (Y/N)? ")
+            compute = q == 'Y'
     else:
-        recompute = True
+        compute = True
     
-    if recompute:
-        #  3. Generate calibration data from IDE files on recorder (see calibration.py)
+    if compute:
+        c.calHumidity = utils.getNumber("Humidity at recording time (default: %.2f)? " % c.calHumidity, default=c.calHumidity)
+        
         print "Copying calibration recordings from device..."
-        sourceFiles = [utils.copyFileTo(s, calDirName) for s in c.getFiles()]
-    
+        utils.copyTreeTo(os.path.join(devPath, "DATA"), os.path.join(calDirName, "DATA"))
+        utils.copyTreeTo(os.path.join(devPath, "SYSTEM"), os.path.join(calDirName, "SYSTEM"))
+        
+        #  3. Generate calibration data from IDE files on recorder (see calibration.py)
+        sourceFiles = c.getFiles(calDirName)
+
         print "Calculating calibration constants from recordings..."
         c.calculate(sourceFiles)
         
@@ -425,25 +504,29 @@ def calibrate(devPath=None, rename=True):
         caldata = c.createEbml(calTemplateName)
         utils.writeFile(calCurrentName, caldata)
         
+        if writeCertNum:
+            print "Incrementing calibration serial number..."
+            utils.writeFileLine(CAL_SN_FILE, certNum)
+    
         print "Writing to product 'database' spreadsheet..."
         c.writeProductLog(DB_LOG_FILE)
     
         #  4. Generate calibration certificate
-        print "Creating documentation:",
-        print "text file,",
-        txtFile = c.createTxt(calDirName)
+        print "Creating documentation: text file, ",
+        c.createTxt(calDirName)
         print "calibration recording plots,",
-        plotFiles = c.createPlots(calDirName)
+        c.createPlots(calDirName)
         print "certificate PDF"
         # BUG: TODO: This sometimes fails and takes Python with it. Move to end.
         certFile = c.createCertificate(calDirName)
     
-        #  5. Copy calibration certificate to device
-        print "Copying calibration documents..."
-        copyfiles = plotFiles + [txtFile, certFile]
-        for filename in copyfiles:
-            utils.copyFileTo(filename, docsPath)
+        copyfiles = [certFile]
+        
     else:
+        copyfiles = []
+        certFiles = glob(os.path.join(calDirName, '*.pdf'))
+        if certFiles:
+            copyfiles = [certFiles[-1]]
         caldata = utils.readFile(calCurrentName)
 
     if not os.path.exists(calBackupPath):
@@ -451,14 +534,23 @@ def calibrate(devPath=None, rename=True):
         utils.writeFile(os.path.join(calBackupPath, 'cal.ebml'), caldata)
 
     # 11. Copy documentation and software folders
-    print "Copying content to device..."
+    copyStart = datetime.now()
+    print "Copying standard content to device..."
     copyContent(devPath)
+    print "Copying calibration documentation to device..."
+    for filename in copyfiles:
+        utils.copyFileTo(filename, docsPath)
+    copyTime = datetime.now()-copyStart
+    
+    print "Removing old DATA directory from device..."
+    shutil.rmtree(os.path.join(devPath, "DATA"))
     
     print """\x07Press the Slam Stick X's "X" button to enter bootloader mode."""
     ssxboot = firmware.getBootloaderSSX()
     if ssxboot is None:
+        print "!!! Failed to connect to bootloader!"
         return
- 
+    
     print "Uploading updated manifest and calibration data..."
     manifest = utils.readFile(os.path.join(chipDirName, 'manifest.ebml'))
     ssxboot.sendUserpage(manifest, caldata)
@@ -467,17 +559,38 @@ def calibrate(devPath=None, rename=True):
     ssxboot.disconnect()
     utils.waitForSSX(timeout=10)
     
+    totalTime = str(datetime.now()-startTime).rsplit('.',1)[0]
+    copyTime = str(copyTime).rsplit('.',1)[0]
     print "*" * 60
     print "\x07Slam Stick X SN:%s calibration complete!" % (c.productSerialNum)
     print "    Calibration SN:", certNum
     print "       Part Number:", c.productPartNum
     print "       Hardware ID:", chipId
     print "  Accelerometer SN:", c.accelSerial
-    print "Total time: %s" % (datetime.now() - startTime)
+    print "Total time: %s (%s spent copying files)" % (totalTime, copyTime)
     print "Please disconnect the Slam Stick X now."
-    
 
-def resumeCalibration(devPath):
-    """
-    """
+
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == "__main__":
+    import argparse
     
+    parser = argparse.ArgumentParser(description="Improved SSX Birthing/Calibration Suite")
+    parser.add_argument("mode", help="The job to do", choices=["birth", "calibrate", "cal"])
+    parser.add_argument("--serialNum", "-s", help="Serial number of the device being birthed. Defaults to a fresh one.")
+#     parser.add_argument("--partNum", "-p", help="Part number to birth.")
+#     parser.add_argument("--hwRev", "-w", help="Hardware revision to birth.")
+#     parser.add_argument("--fwRev", "-f", help="Firmware revision to birth.")
+#     parser.add_argument("--accelSerialNum", "-a", help="Accelerometer serial number to birth.")
+    args = parser.parse_args()
+    
+    try:
+        if args.mode == "birth":
+            birth(serialNum=args.serialNum)
+        elif args.mode.startswith("cal"):
+            calibrate()
+    except KeyboardInterrupt:
+        print "Quitting..."

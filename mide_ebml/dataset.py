@@ -300,7 +300,7 @@ class Dataset(Cascading):
         else:
             self.name = name
 
-        self.schemaVersion = util.getSchemaDocument().version
+        self.schemaVersion = self.ebmldoc.__class__.version
         if not quiet:
             # It is currently assumed future versions will be backwards
             # compatible. Change if/when not, or if certain old versions aren't.

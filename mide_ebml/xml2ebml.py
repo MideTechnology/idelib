@@ -75,7 +75,7 @@ def build_ebml(xmlElement, schema=DEFAULT_SCHEMA, elements=None, sizes=None):
     name, value = xmlElement.tagName, xmlElement.getAttribute('value')
     
     if name not in elements:
-        raise TypeError("Unknown element type: %r" % name)
+        raise TypeError("Unknown element type in schema %s: %r" % (schema, name))
     
     elementClass = elements[name]
     if elementClass.type not in ENCODERS:

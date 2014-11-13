@@ -163,7 +163,7 @@ class ssx_bootloadable_device(object):
             if not retval:
                 self.msg("ERROR: File upload failed!")
                 return retval
-            self.msg("OK.")
+            self.msg("Userpage payload uploaded successfully.")
             return retval
         return False
 

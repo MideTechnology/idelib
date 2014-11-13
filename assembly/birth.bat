@@ -1,0 +1,1 @@
+python birthomatic.py birth

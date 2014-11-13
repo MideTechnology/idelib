@@ -35,7 +35,7 @@ except ImportError:
         sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
     elif os.path.exists(VIEWER_PATH):
         sys.path.append(VIEWER_PATH)
-#     import mide_ebml
+    import mide_ebml
 
 from mide_ebml import util as ebml_util
 from mide_ebml import xml2ebml
@@ -47,7 +47,7 @@ testFiles = glob(r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Product_Database\_C
 # NOTE: Make sure devices.py is copied to deployed directory
 import devices
 
-from birth_utils import changeFilename, writeFile
+from birth_utils import changeFilename, writeFile, writeFileLine
 
 #===============================================================================
 # 
@@ -286,12 +286,12 @@ class CalFile(object):
         _println()
 
 
-    def render(self, imgPath, baseName='vibe_test_', imgType=".jpg"):
+    def render(self, imgPath, baseName='vibe_test_', imgType=".png"):
         imgName = '%s%s.%s' % (baseName, os.path.splitext(os.path.basename(self.filename))[0], imgType)
         saveName = os.path.join(imgPath, imgName)
         
         # Generate the plot
-        _print("plotting...")
+#         _print("plotting...")
         plotXMin = min(self.times.x[0], self.times.y[0], self.times.z[0])
         plotXMax = max(self.times.x[-1], self.times.y[-1], self.times.z[-1])
         plotXPad = (plotXMax-plotXMin) * 0.01
@@ -347,9 +347,10 @@ class Calibrator(object):
     
     def __init__(self, devPath=None,
                  certNum=0,
+                 calRev="C",
+                 isUpdate=False,
                  calHumidity=50,
                  calTempComp=-0.30,
-                 calRev="C",
                  documentNum="LOG-0002-601", 
                  procedureNum="300-601-502", 
                  refMan="ENDEVCO", 
@@ -359,6 +360,7 @@ class Calibrator(object):
         self.devPath = devPath
         self.productSerialNum = None
         self.certNum = certNum
+        self.isUpdate=False
         
         self.documentNum = documentNum
         self.procedureNum = procedureNum
@@ -381,12 +383,13 @@ class Calibrator(object):
             self.readManifest()
             
 
-    def getFiles(self):
+    def getFiles(self, path=None):
         """ Get the filenames from the first recording directory with 3 IDE
             files. These are presumably the shaker recordings.
         """
+        path = self.devPath if path is None else path
         ides = []
-        for root, dirs, files in os.walk(os.path.join(self.devPath, 'DATA')):
+        for root, dirs, files in os.walk(os.path.join(path, 'DATA')):
             ides.extend(map(lambda x: os.path.join(root, x), filter(lambda x: x.upper().endswith('.IDE'), files)))
             for d in dirs:
                 if d.startswith('.'):
@@ -412,7 +415,7 @@ class Calibrator(object):
         manData = StringIO(data[manOffset:manOffset+manSize])
         calData = StringIO(data[calOffset:calOffset+calSize])
         manifest = ebml_util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
-        calibration = ebml_util.read_ebml(calData)
+        calibration = ebml_util.read_ebml(calData, schema='mide_ebml.ebml.schema.mide')
 
         systemInfo = manifest['DeviceManifest']['SystemInfo']
         self.productSerialNumInt = systemInfo['SerialNumber']
@@ -424,11 +427,11 @@ class Calibrator(object):
         sensorInfo = manifest['DeviceManifest']['AnalogSensorInfo']
         self.accelSerial = sensorInfo['AnalogSensorSerialNumber']
         
-        self.productManDate = datetime.utcfromtimestamp(self.productManTimestamp).strftime("%M/%d/%Y")
+        self.productManDate = datetime.utcfromtimestamp(self.productManTimestamp).strftime("%m/%d/%Y")
         self.productSerialNum = "SSX%07d" % self.productSerialNumInt
         
         # Firmware revision number is in the DEVINFO file
-        devInfo = ebml_util.read_ebml(os.path.join(systemPath, 'DEVINFO'))
+        devInfo = ebml_util.read_ebml(os.path.join(systemPath, 'DEVINFO'), schema='mide_ebml.ebml.schema.mide')
         self.productFwRev = devInfo['RecordingProperties'].get('FwRev',1)
         systemInfo['FwRev'] = self.productFwRev
         
@@ -490,6 +493,17 @@ class Calibrator(object):
 
         self.calTimestamp = int(time.mktime(time.gmtime()))
 
+    #===========================================================================
+    # 
+    #===========================================================================
+
+    def createCalLogEntry(self, filename, chipId, mode='at'):
+        """
+        """
+        l = map(str, (time.asctime(), self.calTimestamp, chipId,
+                      self.productSerialNumInt, self.isUpdate, self.certNum))
+        writeFileLine(filename, ','.join(l), mode=mode)
+        
     #===========================================================================
     # 
     #===========================================================================
@@ -577,14 +591,14 @@ class Calibrator(object):
         fieldIds = [
             ('FIELD_calHumidity', self.calHumidity),
             ('FIELD_calTemp', "%.2f" % self.calTemp),
-            ('FIELD_calTempComp', self.calTempComp),
+            ('FIELD_calTempComp', "%.2f" % self.calTempComp),
             ('FIELD_cal_x', "%.4f" % self.cal.x),
             ('FIELD_cal_y', "%.4f" % self.cal.y),
             ('FIELD_cal_z', "%.4f" % self.cal.z),
             ('FIELD_certificateNum', certTxt),
 #             ('FIELD_documentNum', self.documentNum),
 #             ('FIELD_procedureNum', self.procedureNum),
-            ('FIELD_productCalDate', datetime.utcfromtimestamp(self.calTimestamp).strftime("%M/%d/%Y")),
+            ('FIELD_productCalDate', datetime.utcfromtimestamp(self.calTimestamp).strftime("%m/%d/%Y")),
 #             ('FIELD_productMan', 'Mide Technology Corp.'),
             ('FIELD_productManDate', self.productManDate),
             ('FIELD_productName', self.productName),
@@ -623,7 +637,7 @@ class Calibrator(object):
         result = subprocess.call('"%s" -f "%s" -A "%s"' % (INKSCAPE_PATH, svgFilename, certFilename), 
                                  stdout=sys.stdout, stdin=sys.stdin, shell=True)
         
-        if removeSvg and result == 0:
+        if removeSvg and result == 0 and os.path.exists(certFilename):
             os.remove(svgFilename)
         return certFilename
 
@@ -666,7 +680,7 @@ class Calibrator(object):
                 writer.writerow(data.values())
                 
         return data
-        
+
 
     def createEbml(self, xmlTemplate=None):
         """ Create the calibration EBML data, for inclusion in a recorder's
@@ -684,14 +698,17 @@ class Calibrator(object):
                     ]
                 ), 
                 ('BivariatePolynomial', [] ), # filled in below
-                ('CalibrationSerialNumber', self.certNum),
-                ('CalibrationDate', self.calTimestamp)
              ])
         else:
-            doc = ebml_util.read_ebml(StringIO(xml2ebml.readXml(xmlTemplate)))
+            if xmlTemplate.lower().endswith('.xml'):
+                e = xml2ebml.readXml(xmlTemplate, schema="mide_ebml.ebml.schema.mide")
+                doc = ebml_util.read_ebml(StringIO(e), schema='mide_ebml.ebml.schema.mide')
+            elif xmlTemplate.lower().endswith('.ebml'):
+                ebml_util.read_ebml(xmlTemplate, schema='mide_ebml.ebml.schema.mide')
             calList = doc['CalibrationList']
-            calList['CalibrationSerialNumber'] = self.certNum
-            calList['CalibrationDate'] = self.calTimestamp
+            
+        calList['CalibrationSerialNumber'] = self.certNum
+        calList['CalibrationDate'] = self.calTimestamp
             
         for i in range(3):
             thisCal = OrderedDict([
@@ -704,7 +721,7 @@ class Calibrator(object):
             ])
             calList['BivariatePolynomial'].append(thisCal)
         
-        return ebml_util.build_ebml('CalibrationList', calList)
+        return ebml_util.build_ebml('CalibrationList', calList, schema='mide_ebml.ebml.schema.mide')
 
 
 #===============================================================================
