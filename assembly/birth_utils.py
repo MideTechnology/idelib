@@ -229,6 +229,7 @@ def getYesNo(prompt, default=None):
         q = raw_input(prompt).strip().upper()
         if len(q) == 0 and default is not None:
             return default
+        q = q[0]
     return q
 
 def getNumber(prompt, dataType=float, default=None, minmax=None):
@@ -247,3 +248,11 @@ def getNumber(prompt, dataType=float, default=None, minmax=None):
                 return val
         except ValueError as err:
             print str(err).capitalize()
+            
+#===============================================================================
+# 
+#===============================================================================
+
+def errMsg(*msg):
+    print "\x07\x07\x07%s" % '\n'.join(map(str,msg))
+    raw_input("Press enter to continue.")

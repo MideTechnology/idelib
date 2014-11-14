@@ -39,7 +39,7 @@ Created on Sep 24, 2014
 @author: dstokes
 '''
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from glob import glob
 import os.path
 import shutil
@@ -254,6 +254,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     # 1. Wait for an SSX in firmware mode (getSSXSerial)
     ssxboot = firmware.getBootloaderSSX()
     if ssxboot is None:
+        utils.errMsg("Failed to find bootloader SSX!")
         return
     
     # 2. Get bootloader version, chip ID from device
@@ -289,6 +290,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
        
     partNum = partNum if partNum else getPartNumber()
     if partNum is None:
+        utils.errMsg("Failed to get part number!")
         return
     
     if hwRev is not None:
@@ -298,10 +300,12 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
     hwRev = hwRev if hwRev else getHardwareRev(partNum)
     if hwRev is None:
+        utils.errMsg("Failed to get hardware revision number!")
         return
     
     fwRev = fwRev if fwRev else getFirmwareRev(partNum)
     if not isinstance(fwRev, int):
+        utils.errMsg("Failed to get firmware revision number!")
         return
     
     if accelSerialNum:
@@ -309,6 +313,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
             print "Invalid accelerometer serial number: %s" % accelSerialNum
     accelSerialNum = accelSerialNum if accelSerialNum else getAccelSerialNum()
     if not accelSerialNum:
+        utils.errMsg("Failed to get accelerometer serial number!")
         return
         
     # 5. Get next recorder serial number
@@ -392,7 +397,8 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     """ Do all the post-shaker stuff: calculate calibration constants, 
         copy content, et cetera.
     """
-    startTime = datetime.now()
+    startTime = time.time()
+    totalTime = 0
     
     #  1. Wait for an SSX in drive mode (see ssx_namer)
     if devPath is None:
@@ -407,7 +413,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
         print "Found SSX on %s" % devPath
     else:
         if not SlamStickX.isRecorder(devPath):
-            print "!!! Specified path %s is not a Slam Stick X!"
+            utils.errMsg( "!!! Specified path %s is not a Slam Stick X!")
             return
         print "*" * 60
         print "Starting Slam Stick X Auto-Calibration of device on %s." % devPath
@@ -428,7 +434,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     c = calibration.Calibrator(devPath, certNum, calRev, isUpdate=recalculate)
     
     if c.productSerialNum is None:
-        print "!!! Could not get serial number from recorder on %s" % devPath
+        utils.errMsg( "!!! Could not get serial number from recorder on %s" % devPath)
         return
     
     print "Recorder SN: %s, calibration SN: %s" % (c.productSerialNum, certNum)
@@ -445,26 +451,30 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
         if not os.path.exists(birthFile):
             # Possibly birthed by old script; copy data from main log.
             birthInfo = utils.findBirthLog(BIRTH_LOG_FILE, val=c.productSerialNumInt)
+            if not birthInfo:
+                utils.errMsg("Could not get birth log info from either file:",
+                             birthFile, BIRTH_LOG_FILE)
+                return
             logline = makeBirthLogEntry(*birthInfo.values()[2:])
             utils.writeFileLine(birthFile, logline)
         else:
             birthInfo = utils.readBirthLog(birthFile)
     except IOError as err:
-        print "!!! %s" % err
+        utils.errMsg("!!! %s" % err)
         return
 
     if not birthInfo:
-        print "!!! Could not get birth info!"
+        utils.errMsg("!!! Could not get birth info!")
         return
         
     chipId = birthInfo.get('chipId', None)
     if chipId is None:
-        print "!!! Could not get chipId from %s" % birthFile
+        utils.errMsg( "!!! Could not get chipId from %s" % birthFile)
         return
         
     chipDirName = os.path.realpath(os.path.join(DB_PATH, chipId))
     if not os.path.exists(chipDirName):
-        print "!!! Directory %s does not exist!" % chipDirName
+        utils.errMsg( "!!! Directory %s does not exist!" % chipDirName)
         return
 
     calTemplateName = os.path.join(chipDirName, 'cal.template.xml')
@@ -482,13 +492,17 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
             x = ''
         if 'CalibrationSerialNumber' in x:
             # Calibration EBML exists; recalculate anyway?
+            totalTime += time.time() - startTime
             q = utils.getYesNo("\x07\x07Calibration data already exists! Recompute (Y/N)? ")
+            startTime = time.time()
             compute = q == 'Y'
     else:
         compute = True
     
     if compute:
+        totalTime += time.time() - startTime
         c.calHumidity = utils.getNumber("Humidity at recording time (default: %.2f)? " % c.calHumidity, default=c.calHumidity)
+        startTime = time.time()
         
         print "Copying calibration recordings from device..."
         utils.copyTreeTo(os.path.join(devPath, "DATA"), os.path.join(calDirName, "DATA"))
@@ -499,18 +513,26 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
 
         print "Calculating calibration constants from recordings..."
         c.calculate(sourceFiles)
+        c.closeFiles()
+        
+        if (c.Sxy is None or c.Syz is None or c.Sxz is None):
+            result = ["!!! Error in calculating transverse sensitivity (bad file?)"]
+            result.append("Only found the following:")
+            if c.Sxy is not None:
+                result.append("%s, Transverse Sensitivity in XY = %.2f percent" % (c.Sxy_file, c.Sxy))
+            if c.Syz is not None:
+                result.append("%s, Transverse Sensitivity in YZ = %.2f percent" % (c.Syz_file, c.Syz))
+            if c.Sxz is not None:
+                result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (c.Sxz_file, c.Sxz))
+            utils.errMsg(*result)
+            return
+        
+        print c.createTxt()
         
         print "Building calibration EBML..."
         caldata = c.createEbml(calTemplateName)
         utils.writeFile(calCurrentName, caldata)
         
-        if writeCertNum:
-            print "Incrementing calibration serial number..."
-            utils.writeFileLine(CAL_SN_FILE, certNum)
-    
-        print "Writing to product 'database' spreadsheet..."
-        c.writeProductLog(DB_LOG_FILE)
-    
         #  4. Generate calibration certificate
         print "Creating documentation: text file, ",
         c.createTxt(calDirName)
@@ -522,6 +544,13 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     
         copyfiles = [certFile]
         
+        print "Writing to product 'database' spreadsheet..."
+        c.writeProductLog(DB_LOG_FILE)
+    
+        if writeCertNum:
+            print "Incrementing calibration serial number..."
+            utils.writeFileLine(CAL_SN_FILE, certNum)
+    
     else:
         copyfiles = []
         certFiles = glob(os.path.join(calDirName, '*.pdf'))
@@ -546,10 +575,14 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     shutil.rmtree(os.path.join(devPath, "DATA"))
     
     print """\x07Press the Slam Stick X's "X" button to enter bootloader mode."""
+    # Don't count the time spent waiting for the user to press the button.
+    totalTime += (time.time() - startTime)
     ssxboot = firmware.getBootloaderSSX()
     if ssxboot is None:
-        print "!!! Failed to connect to bootloader!"
+        utils.errMsg( "!!! Failed to connect to bootloader!")
         return
+    # Reset startTime to resume counting elapsed time
+    startTime = time.time()
     
     print "Uploading updated manifest and calibration data..."
     manifest = utils.readFile(os.path.join(chipDirName, 'manifest.ebml'))
@@ -559,7 +592,8 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     ssxboot.disconnect()
     utils.waitForSSX(timeout=10)
     
-    totalTime = str(datetime.now()-startTime).rsplit('.',1)[0]
+    totalTime += (time.time() - startTime)
+    totalTime = str(timedelta(seconds=int(totalTime)))
     copyTime = str(copyTime).rsplit('.',1)[0]
     print "*" * 60
     print "\x07Slam Stick X SN:%s calibration complete!" % (c.productSerialNum)

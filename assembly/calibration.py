@@ -397,6 +397,14 @@ class Calibrator(object):
         return ides[:3]
 
 
+    def closeFiles(self):
+        if self.cal_vals:
+            for c in self.cal_vals:
+                try:
+                    c.doc.close()
+                except Exception:
+                    pass
+
     def readManifest(self):
         """ Read the user page containing the manifest and (possibly)
             calibration data.
@@ -473,6 +481,10 @@ class Calibrator(object):
             if cal_vals[j].cal.z <= 2:
                 self.cal.z = cal_vals[j].cal.z * prev_cal[2]
                 self.cal_files.z = basenames[j]
+        
+        self.Sxy = self.Sxy_file = None
+        self.Syz = self.Syz_file = None
+        self.Sxz = self.Sxz_file = None
         
         for i in range(3):
             x,y,z = cal_vals[i].rms
