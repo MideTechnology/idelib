@@ -263,8 +263,8 @@ class AccelerometerParser(object):
         return v-32767
 
     def unpack_from(self, data, offset=0):
-        return tuple(map(self.adjustment, 
-                         self.parser.unpack_from(data, offset)))
+        z, y, x = map(self.adjustment, self.parser.unpack_from(data, offset))
+        return -z,y,x
     
 
 #===============================================================================
@@ -425,9 +425,13 @@ class BaseDataBlock(object):
     def parseMinMeanMax(self, parser):
         if self.minMeanMax is None:
             return None
-        self.min = parser.unpack_from(self.minMeanMax)
+        # NOTE: Because the Z axis is inverted on SSX, the min/max need correction
+        # This may create a performance hit.
+        self.min = list(parser.unpack_from(self.minMeanMax))
         self.mean = parser.unpack_from(self.minMeanMax, parser.size)
-        self.max = parser.unpack_from(self.minMeanMax, parser.size*2)
+        self.max = list(parser.unpack_from(self.minMeanMax, parser.size*2))
+        for i, vals in enumerate(zip(self.min, self.max)):
+            self.min[i], self.max[i] = sorted(vals)
         return self.min, self.mean, self.max
 
 
@@ -556,8 +560,9 @@ class SimpleChannelDataBlockParser(ElementHandler):
             # FUTURE: Better handling of unknown channel types. Low priority.
             return 0
 
-        self.doc.channels[channel].getSession(sessionId).append(block)
-        return block.getNumSamples(self.doc.channels[channel].parser)
+        ch = self.doc.channels[channel]
+        ch.getSession(sessionId).append(block)
+        return block.getNumSamples(ch.parser) * len(ch.children)
 
 
 #===============================================================================

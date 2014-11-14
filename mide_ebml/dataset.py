@@ -1473,14 +1473,12 @@ class EventList(Cascading):
             
             if hasSubchannels:
                 for val in (block.min, block.mean, block.max):
-                    val -= m
-                    event=[f((t,v), self.session) for f,v in izip(parent_transform, val)]
+                    event=[f((t,v-m), self.session) for f,v in izip(parent_transform, val)]
                     event=(event[0][0], tuple((e[1] for e in event)))
                     result.append(event)
             else:
                 for val in (block.min, block.mean, block.max):
-                    val -= m
-                    val = val[parent_id]
+                    val = val[parent_id]-m[parent_id]
                     event = parent_transform(parent_parent_transform[parent_id]((t,val), session), session)
                     result.append(event)
                 

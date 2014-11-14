@@ -1,0 +1,39 @@
+mide_ebml To-Do List
+====================
+
+*Note:* See also individual TODO items noted in the code ("TODO:" in comments,
+"@todo" in doc strings.
+
+
+Major items
+-----------
+
+Refactor everything to use Numpy for parsing data. Early experiments with this
+ran into a bottleneck somewhere, probably implicit casting of Numpy arrays to 
+Python lists, so just changing the parser isn't enough.
+
+Related to the above: Change things so that the EventList data for a parent
+Channel returns a flat tuple/list/array/etc., rather than a time and a tuple.
+Many things expect channels to have tuple values, though, so this will be
+fairly substantial. However, making this change will allow for more use of
+Numpy, which could make everything much faster.
+
+Identify stubs of functionality that were left over from early designs and
+are no longer necessary.
+
+
+Minor items
+-----------
+
+The mix-in classes used in dataset.py are over-engineered. Identify the
+required functionality and simplify.
+
+Get rid of the vestigial remains of the 'with index' functionality in the 
+EventLists. This was used for testing, but is no longer used by anything.
+
+
+Longer term
+-----------
+
+Read sensor description data, rather than rely upon hard-coded values based on
+the device type UID.

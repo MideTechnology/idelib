@@ -313,6 +313,10 @@ class SSXCalibrator(object):
                 self.cal.z = cal_vals[j].cal.z * prev_cal[2]
                 self.cal_files.z = basenames[j]
         
+        self.Sxy = self.Sxy_file = None
+        self.Syz = self.Syz_file = None
+        self.Sxz = self.Sxz_file = None
+        
         for i in range(3):
             x,y,z = cal_vals[i].rms
             if x <= 2 and y <= 2:
