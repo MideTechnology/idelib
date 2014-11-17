@@ -460,7 +460,7 @@ class ExportDialog(sc.SizedDialog):
             return 0
         events = subchannels[0].getSession(self.root.session.sessionId)
         first, last = events.getRangeIndices(*timerange)
-        return last - first
+        return (last - first) * len(subchannels)
         
 
     #===========================================================================
@@ -572,18 +572,18 @@ class CSVExportDialog(ExportDialog):
     def buildSpecialUI(self):
         """ Called before the buttons are added.
         """
-        self.headerCheck, subpane = self._addCheck("Include Column Headers (CSV only)",
+        self.headerCheck, subpane = self._addCheck("Include Column Headers",
                                      default=self._addHeaders)
         self.utcCheck, _ = self._addCheck("Use Absolute UTC Timestamps",
                                           default=self._utcTime, parent=subpane)
-        self.isoCheck, _ = self._addCheck("Use ISO Time Format (CSV only)",
+        self.isoCheck, _ = self._addCheck("Use ISO Time Format",
                                           default=self._isoTime, parent=subpane)
         
         self.isoCheck.Enable(self._utcTime)
         self.utcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
 
         if self.exportType == '.mat':
-            self.headerCheck.Hide()
+            self.headerCheck.SetLabel("Include Channel Names")
             self.isoCheck.Hide()
 
 
@@ -647,7 +647,7 @@ class FFTExportDialog(ExportDialog):
     DEFAULT_WINDOW_SIZE = 2**16
     
     # These will be removed later, once memory usage is accurately computed.
-    manyEvents = 10**6
+    manyEvents = 20**6
     maxEvents = manyEvents * 4
     
     DEFAULT_TITLE = "Render FFT"

@@ -1031,7 +1031,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Wrapper for getting the name of an output file.
         """
         exportTypes = "Comma Separated Values (*.csv)|*.csv|" \
-                      "MATLAB (*.mat)|*.mat"
+                      "MATLAB 5.0 (*.mat)|*.mat"
 
         defaults = self.getDefaultExport() if defaults is None else defaults
         types = exportTypes if types is None else types
@@ -1493,7 +1493,7 @@ class Viewer(wx.Frame, MenuMixin):
         msg = "Exporting %d rows" % numRows
             
         dlg = xd.ModalExportProgress("Exporting %s" % exportType.upper(), 
-                                     msg, maximum=numRows, 
+                                     msg, maximum=numRows*len(subchannels), 
                                      parent=self)
         if exportType == '.csv':
             try:
@@ -1516,11 +1516,15 @@ class Viewer(wx.Frame, MenuMixin):
             
         elif exportType == '.mat':
             try:
-                mide_ebml.matfile.exportMat(source, filename, start=start, stop=stop, 
-                             subchannels=subchannelIds, timeScalar=self.timeScalar, 
-                             callback=dlg, callbackInterval=0.0005, 
+                mide_ebml.matfile.exportMat(source, 
+                             filename, start=start, stop=stop, 
+                             subchannels=subchannelIds, 
+                             timeScalar=self.timeScalar, 
+                             callback=dlg, 
+                             callbackInterval=0.0005, 
                              raiseExceptions=True,
                              useUtcTime=settings['useUtcTime'],
+                             headers=addHeaders,
                              removeMean=removeMean,
                              meanSpan=meanSpan)
             

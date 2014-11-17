@@ -1870,6 +1870,8 @@ class EventList(Cascading):
             self.rollingMeanSpan = meanSpan
         
         totalLines = (stop - start) / (step + 0.0)
+        numChannels = len(names)
+        totalSamples = totalLines * numChannels
         updateInt = int(totalLines * callbackInterval)
         
         start = start + len(self) if start < 0 else start
@@ -1889,7 +1891,7 @@ class EventList(Cascading):
                         callback(done=True)
                         break
                     if updateInt == 0 or num % updateInt == 0:
-                        callback(num, total=totalLines)
+                        callback(num*numChannels, total=totalSamples)
                     callback(done=True)
         except ex as e:
             callback(error=e)

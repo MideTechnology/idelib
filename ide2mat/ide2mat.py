@@ -172,7 +172,7 @@ class SimpleUpdater(object):
 # 
 #===============================================================================
 
-def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,  dtype="double", **kwargs):
+def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1, dtype="double", **kwargs):
     """
     """
     if dtype == 'single':
@@ -198,6 +198,7 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,  dtype="
                                               str(recTime)[:19])
         
         mat = matfile.MatStream(matFilename, comment)
+        mat.writeNames([c.name for c in doc.channels[0].subchannels])
         mat.startArray(doc.channels[0].name, len(doc.channels[0].subchannels),
                        mtype=_mtype, dtype=_dtype)
         

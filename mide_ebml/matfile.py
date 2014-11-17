@@ -53,26 +53,26 @@ class MP:
 # 
 #===============================================================================
 
-def dump8(data, start=0, end=None):
-    """ Debugging tool. Prints data as 8 columns of hex. """
-    end = len(data) if end is None else end
-    for i in range(start,end,8):
-        print '%s:' % (str(i).rjust(4)), 
-        try:
-            for j in range(8):
-                print "%02x" % (ord(data[i+j])),
-        except IndexError:
-            print "(end)",
-            break
-        print
-
-def hexdump(data):
-    """ Debugging tool. Dumps a string or a collection of numbers as hex. """
-    if isinstance(data, basestring):
-        a = ["%02x" % ord(c) for c in data]
-    else:
-        a = ["%02x" % c for c in data]
-    return ' '.join(a)
+# def dump8(data, start=0, end=None):
+#     """ Debugging tool. Prints data as 8 columns of hex. """
+#     end = len(data) if end is None else end
+#     for i in range(start,end,8):
+#         print '%s:' % (str(i).rjust(4)), 
+#         try:
+#             for j in range(8):
+#                 print "%02x" % (ord(data[i+j])),
+#         except IndexError:
+#             print "(end)",
+#             break
+#         print
+# 
+# def hexdump(data):
+#     """ Debugging tool. Dumps a string or a collection of numbers as hex. """
+#     if isinstance(data, basestring):
+#         a = ["%02x" % ord(c) for c in data]
+#     else:
+#         a = ["%02x" % c for c in data]
+#     return ' '.join(a)
 
 
 def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_'):
@@ -257,6 +257,25 @@ class MatStream(object):
         self.prSize = self.stream.tell() - 4
         
 
+    def writeNames(self, names, title="channel_names"):
+        """
+        """
+        names.insert(0, 'Time')
+        nameSize = max(map(len, names))
+        names = [n.ljust(nameSize) for n in names]
+        payload = ''.join([''.join(x) for x in zip(*names)])
+        
+        totalSize = 40 + self.next8(len(title)) + 8 + self.next8(len(payload))
+        
+        self.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
+        self.pack('BBBBBBBB', (0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
+        self.pack('II', (len(names), nameSize), dtype=MP.miINT32)
+        self.packStr(sanitizeName(title))
+        self.write(struct.pack("II", MP.miUTF8, nameSize*len(names)))
+        self.write(payload.ljust(self.next8(len(payload)), '\0'))
+        
+
+
     def writeRow(self, event):
         """
         """
@@ -308,8 +327,8 @@ def makeHeader(doc, session=-1, prefix="MATLAB 5.0 MAT-file"):
 
 def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
               callback=None, callbackInterval=0.01, timeScalar=1,
-              raiseExceptions=False, useUtcTime=False, removeMean=None,
-              meanSpan=None):
+              raiseExceptions=False, useUtcTime=False, headers=True, 
+              removeMean=None, meanSpan=None):
     """ Export a `dataset.EventList` as a Matlab .MAT file.
     
         @param events: an `EventList` from which to export.
@@ -376,17 +395,26 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
         if subchannels is True:
             numCols = len(events.parent.subchannels)
             formatter = None
+            names = [x.name for x in events.parent.subchannels]
         else:
             numCols = len(subchannels)
             # Create a function instead of chewing the subchannels every time
             formatter = eval("lambda x: (%s,)" % \
                        ",".join([("x[%d]" % c) for c in subchannels]))
+            names = [events.parent.subchannels[x].name for x in subchannels]
     else:
         numCols = 1
         formatter = lambda x: (x,)
+        names = [events.parent.name]
 
+    totalSamples = totalLines * numCols
+    
     comments = makeHeader(events.dataset, events.session.sessionId)
     matfile = MatStream(filename, comments)
+    
+    if headers:
+        matfile.writeNames(names)
+        
     matfile.startArray(events.parent.name, numCols, rows=totalLines)
     
     try:
@@ -402,7 +430,7 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
                     callback(done=True)
                     break
                 if updateInt == 0 or num % updateInt == 0:
-                    callback(num, total=totalLines)
+                    callback(num*numCols, total=totalSamples)
                     
         if callback:
             callback(done=True)
