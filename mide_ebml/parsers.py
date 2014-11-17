@@ -425,8 +425,8 @@ class BaseDataBlock(object):
     def parseMinMeanMax(self, parser):
         if self.minMeanMax is None:
             return None
-        # NOTE: Because the Z axis is inverted on SSX, the min/max need correction
-        # This may create a performance hit.
+        # NOTE: Because the SSX Z axis is inverted, the min/max need correction
+        # This may create a performance hit. Optimize?
         self.min = list(parser.unpack_from(self.minMeanMax))
         self.mean = parser.unpack_from(self.minMeanMax, parser.size)
         self.max = list(parser.unpack_from(self.minMeanMax, parser.size*2))
