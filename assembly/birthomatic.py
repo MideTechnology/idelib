@@ -72,7 +72,7 @@ CAL_SN_FILE = os.path.join(DB_PATH, 'last_cal_sn.txt')
 BIRTH_LOG_FILE = os.path.join(DB_PATH, "product_log.csv")
 CAL_LOG_FILE = os.path.join(DB_PATH, "calibration_log.csv")
 
-DB_LOG_FILE = os.path.join(DB_PATH, 'SlamStickX_Product_Database.csv') 
+DB_LOG_FILE = os.path.join(CAL_PATH, 'SSX_Calibration_Sheet.csv') 
 
 BOOT_FILE = os.path.join(FIRMWARE_PATH, "boot.bin")
 BOOT_VER_FILE = os.path.join(FIRMWARE_PATH, "boot_version.txt")
@@ -396,6 +396,9 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
 def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     """ Do all the post-shaker stuff: calculate calibration constants, 
         copy content, et cetera.
+        
+        @todo: consider modularizing this more for future reusability. This has
+            grown somewhat organically.
     """
     startTime = time.time()
     totalTime = 0
@@ -500,12 +503,30 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
         compute = True
     
     if compute:
+        copyData = True
+        dataDir = os.path.join(devPath, "DATA")
+        dataCopyDir = os.path.join(calDirName, "DATA")
+        if not os.path.exists(dataDir):
+            if os.path.exists(dataCopyDir):
+                print "!!! Recorder has no DATA, but a copy exists in the Calibration directory."
+                q = utils.getYesNo("Use existing copy of DATA and continue (Y/N)? ")
+                if q == "Y":
+                    copyData = False
+                else:
+                    utils.errMsg("!!! Calibration cancelled!")
+                    return
+            else:
+                utils.errMsg("!!! Recorder has no DATA directory!")
+                return
+        
+        
         totalTime += time.time() - startTime
         c.calHumidity = utils.getNumber("Humidity at recording time (default: %.2f)? " % c.calHumidity, default=c.calHumidity)
         startTime = time.time()
         
         print "Copying calibration recordings from device..."
-        utils.copyTreeTo(os.path.join(devPath, "DATA"), os.path.join(calDirName, "DATA"))
+        if copyData:
+            utils.copyTreeTo(dataDir, dataCopyDir)
         utils.copyTreeTo(os.path.join(devPath, "SYSTEM"), os.path.join(calDirName, "SYSTEM"))
         
         #  3. Generate calibration data from IDE files on recorder (see calibration.py)
@@ -526,6 +547,31 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
                 result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (c.Sxz_file, c.Sxz))
             utils.errMsg(*result)
             return
+        
+        if c.Sxy > 10 or c.Syz > 10 or c.Sxz > 10:
+            print "!!! Extreme transverse sensitivity detected in recording(s)!"
+            print "%s, Transverse Sensitivity in XY = %.2f percent" % (c.Sxy_file, c.Sxy)
+            print "%s, Transverse Sensitivity in YZ = %.2f percent" % (c.Syz_file, c.Syz)
+            print "%s, Transverse Sensitivity in ZX = %.2f percent" % (c.Sxz_file, c.Sxz)
+            q = utils.getYesNo("Continue with device calibration (Y/N)? ")
+            if q == "N":
+                return
+        
+        if not all([utils.inRange(x.cal_temp, 15, 27) for x in c.cal_vals]):
+            print "!!! Extreme temperature detected in recording(s)!"
+            for x in c.cal_vals:
+                print "%s: %.2f degrees C" % (os.path.basename(x.filename), x.cal_temp)
+            q = utils.getYesNo("Continue with device calibration (Y/N)? ")
+            if q == "N":
+                return
+            
+        if not all([utils.inRange(x.cal_press, 96235, 106365) for x in c.cal_vals]):
+            print "!!! Extreme air pressure detected in recording(s)!"
+            q = utils.getYesNo("Continue with device calibration (Y/N)? ")
+            for x in c.cal_vals:
+                print "%s: %.2f Pa" % (os.path.basename(x.filename), x.cal_press)
+            if q == "N":
+                return
         
         print c.createTxt()
         
