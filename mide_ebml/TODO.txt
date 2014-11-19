@@ -17,8 +17,16 @@ Many things expect channels to have tuple values, though, so this will be
 fairly substantial. However, making this change will allow for more use of
 Numpy, which could make everything much faster.
 
-Identify stubs of functionality that were left over from early designs and
-are no longer necessary.
+Handle discontinuous data better. Possibly more of a viewer-side task, but it
+will need backend support in the mide-ebml library. 
+
+Consider implementing a subclass of EventList optimized for channels with
+single-sample data blocks (i.e. pressure/temperature). There's a lot of
+overhead in place for handling the subsamples in the accelerometer data blocks. 
+
+Implement the use of a rolling mean for getting temperature data in calibration.
+The getValueAt() method is a severe bottleneck. This is possibly part of
+the single sample subclass mentioned above.
 
 
 Minor items
@@ -28,6 +36,9 @@ required functionality and simplify.
 
 Get rid of the vestigial remains of the 'with index' functionality in the 
 EventLists. This was used for testing, but is no longer used by anything.
+
+Identify stubs of functionality that were left over from early designs and
+are no longer necessary.
 
 
 Longer term
@@ -41,3 +52,6 @@ Support for streaming data.
 Wish List items
 ---------------
 
+Single-point events. Similar to an extreme case of discontinuity in the data.
+These could be marks with non-numeric data (annotations, etc.), which would
+juse render in the viewer as something like a vertical line. 

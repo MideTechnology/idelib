@@ -1130,44 +1130,50 @@ class EventList(Cascading):
                 For multiple results, a list of (time, value) tuples.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
-        if isinstance(idx, Iterable):
-            result = []
-            for t in idx:
-                v = self[t]
-                if isinstance(v, list):
-                    result.extend(v)
-                else:
-                    result.append(v)
-            return result
+#         # TODO: Is this ever used?
+#         if isinstance(idx, Iterable):
+#             result = []
+#             for t in idx:
+#                 v = self[t]
+#                 if isinstance(v, list):
+#                     result.extend(v)
+#                 else:
+#                     result.append(v)
+#             return result
         
-        if isinstance(idx, slice):
+        if isinstance(idx, int):
+            
+            if idx >= len(self):
+                raise IndexError("EventList index out of range")
+            
+            if idx < 0:
+                idx = max(0, len(self) + idx)
+            
+            blockIdx = self._getBlockIndexWithIndex(idx)
+            subIdx = idx - self._getBlockIndexRange(blockIdx)[0]
+            
+            block = self._data[blockIdx]
+            
+            timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
+            value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1,
+                                           offset=self._getBlockRollingMean(blockIdx))[0]
+            
+            if self.hasSubchannels:
+                event=tuple(c._transform(f((timestamp,v),self.session)) for f,c,v in izip(self.parent._transform, self.parent.subchannels, value))
+                event=(event[0][0], tuple((e[1] for e in event)))
+            else:
+                event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value),self.session))
+            
+            if self.dataset.useIndices:
+                return Event(idx, event[0], event[1])
+            
+            return event
+
+        elif isinstance(idx, slice):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
         
-        if idx >= len(self):
-            raise IndexError("EventList index out of range")
-        
-        if idx < 0:
-            idx = max(0, len(self) + idx)
-        
-        blockIdx = self._getBlockIndexWithIndex(idx)
-        subIdx = idx - self._getBlockIndexRange(blockIdx)[0]
-        
-        block = self._data[blockIdx]
-        
-        timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
-        value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1,
-                                       offset=self._getBlockRollingMean(blockIdx))[0]
-        
-        if self.hasSubchannels:
-            event=tuple(c._transform(f((timestamp,v),self.session)) for f,c,v in izip(self.parent._transform, self.parent.subchannels, value))
-            event=(event[0][0], tuple((e[1] for e in event)))
         else:
-            event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value),self.session))
-        
-        if self.dataset.useIndices:
-            return Event(idx, event[0], event[1])
-        
-        return event
+            raise TypeError("EventList indices must be integers or slices, not %s" % type(idx))
 
 
     def __iter__(self):
@@ -1348,6 +1354,7 @@ class EventList(Cascading):
                     event=(event[0][0], tuple((e[1] for e in event)))
                     yield event
             else:
+                for event in izip(times, values):
                     event = parent_transform(parent_parent_transform[parent_id](event, session), session)
                     yield event
 
@@ -1740,6 +1747,8 @@ class EventList(Cascading):
         """ Retrieve the value at a specific time, interpolating between
             existing events.
             
+            @todo: Optimize. This creates a bottleneck in the calibration.
+            
             @param at: The time at which to take the sample.
             @keyword outOfRange: If `False`, times before the first sample
                 or after the last will raise an `IndexError`. If `True`, the
@@ -1832,6 +1841,12 @@ class EventList(Cascading):
             @keyword useIsoFormat: If `True`, the time column is written as
                 the standard ISO date/time string. Only applies if `useUtcTime`
                 is `True`.
+            @keyword headers: If `True`, the first line of the CSV will contain
+                the names of each column.
+            @keyword removeMean: Overrides the EventList's mean removal for the
+                export.
+            @keyword meanSpan: The span of the mean removal for the export. 
+                -1 removes the total mean.
             @return: Tuple: The number of rows exported and the elapsed time.
         """
         noCallback = callback is None
