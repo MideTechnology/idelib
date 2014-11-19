@@ -193,16 +193,15 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1, dtype="d
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
         
-        recTime = datetime.utcfromtimestamp(doc.lastSession.utcStartTime)
-        comment = "%s - Recorded %s (UTC)" % (os.path.basename(ideFilename),
-                                              str(recTime)[:19])
-        
-        mat = matfile.MatStream(matFilename, comment)
+        mat = matfile.MatStream(matFilename, matfile.makeHeader(doc))
         mat.writeNames([c.name for c in doc.channels[0].subchannels])
         mat.startArray(doc.channels[0].name, len(doc.channels[0].subchannels),
                        mtype=_mtype, dtype=_dtype)
         
-        ideIterator(doc, mat.writeRow, **kwargs)
+        try:
+            ideIterator(doc, mat.writeRow, **kwargs)
+        except KeyboardInterrupt:
+            pass
         mat.close()
 
 #===============================================================================
