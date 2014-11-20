@@ -172,7 +172,7 @@ class SimpleUpdater(object):
 # 
 #===============================================================================
 
-def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1, dtype="double", **kwargs):
+def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1, dtype="double", nocal=False, **kwargs):
     """
     """
     if dtype == 'single':
@@ -192,6 +192,9 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1, dtype="d
         matFilename = os.path.join(matFilename, os.path.splitext(os.path.basename(ideFilename))[0]+".mat")
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
+        if nocal:
+            for sc in doc.channels[0].subchannels:
+                sc.raw = True
         
         mat = matfile.MatStream(matFilename, matfile.makeHeader(doc))
         mat.writeNames([c.name for c in doc.channels[0].subchannels])
@@ -215,6 +218,7 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description="Mide .IDE to .MAT Converter - Copyright (c) %d Mide Technology" % datetime.now().year)
     argparser.add_argument('-o', '--output', help="The output path to which to save the .MAT files. Defaults to the same as the source file.")
     argparser.add_argument('-t', '--type', choices=('single','double'), help="Force data to be saved as 'single' (32b) or 'double' (64b) values.")
+    argparser.add_argument('-n', '--nocal', action="store_true", help="Do not apply temperature correction calibration to accelerometer data (faster).")
     argparser.add_argument('source', nargs="+", help="The source .IDE file(s) to split.")
 
     args = argparser.parse_args()
@@ -238,11 +242,12 @@ if __name__ == "__main__":
             sys.exit(1)
     
     try:
+        t0 = datetime.now()
         for f in sourceFiles:
             print ('Converting "%s"...' % f),
-            ide2mat(f, matFilename=args.output, updater=SimpleUpdater(), dtype=args.type)
+            ide2mat(f, matFilename=args.output, updater=SimpleUpdater(), dtype=args.type, nocal=args.nocal)
     
-        print "\nConversion complete!"
+        print "\nConversion complete! Total time: %s" % (datetime.now() - t0)
     except KeyboardInterrupt:
         print
         print "*** Conversion canceled! MAT version of %s may be incomplete." % f

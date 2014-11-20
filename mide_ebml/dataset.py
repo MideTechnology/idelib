@@ -72,32 +72,32 @@ Event = namedtuple("Event", ('index','time','value'))
 # Interpolation objects, for getting value at a specific time
 #===============================================================================
 
-class Interpolation(object):
-    """ A function-like class that will produce a value at a specified point
-        between two events. Upon instantiation, it can be passed any 
-        additional data that a specific interpolation type may need. The
-        `__call__()` method also takes a reference to the list-like object
-        containing the Events, so any data all the way back to the Dataset
-        itself is available.
-    """
-    def __init__(self, *args, **kwargs):
-        pass
-    
-    def __call__(self, v1, v2, percent):
-        raise NotImplementedError("Interpolation is an abstract base class")
-
-
-class Lerp(Interpolation):
-    """ A simple linear interpolation between two values.
-    """
-    def __call__(self, events, idx1, idx2, percent):
-#         print events, idx1, idx2, percent
-        percent += 0.0
-        v1 = events[idx1][-1]
-        v2 = events[idx2][-1]
-        return v1 + (percent * (v2 - v1))
-
-    
+# class Interpolation(object):
+#     """ A function-like class that will produce a value at a specified point
+#         between two events. Upon instantiation, it can be passed any 
+#         additional data that a specific interpolation type may need. The
+#         `__call__()` method also takes a reference to the list-like object
+#         containing the Events, so any data all the way back to the Dataset
+#         itself is available.
+#     """
+#     def __init__(self, *args, **kwargs):
+#         pass
+#     
+#     def __call__(self, v1, v2, percent):
+#         raise NotImplementedError("Interpolation is an abstract base class")
+# 
+# 
+# class Lerp(Interpolation):
+#     """ A simple linear interpolation between two values.
+#     """
+#     def __call__(self, events, idx1, idx2, percent):
+# #         print events, idx1, idx2, percent
+#         percent += 0.0
+#         v1 = events[idx1][-1]
+#         v2 = events[idx2][-1]
+#         return v1 + (percent * (v2 - v1))
+# 
+#     
 #===============================================================================
 # Mix-In Classes
 #===============================================================================
@@ -560,11 +560,11 @@ class Channel(Cascading, Transformable):
         # Channels have 1 or more subchannels
         self.subchannels = [None] * len(self.types)
         
-        if interpolators is None:
-            # Note: all interpolators will reference the same object by
-            # default.
-            interpolators = tuple([Lerp()] * len(self.types))
-        self.interpolators = interpolators
+#         if interpolators is None:
+#             # Note: all interpolators will reference the same object by
+#             # default.
+#             interpolators = tuple([Lerp()] * len(self.types))
+#         self.interpolators = interpolators
         
         # A set of session EventLists. Populated dynamically with
         # each call to getSession(). 
@@ -731,7 +731,7 @@ class SubChannel(Channel):
         self.dataset = parent.dataset
         self.sensor = parent.sensor
         self.types = (parent.types[subChannelId], )
-        self.interpolators = (parent.interpolators[subChannelId], )
+#         self.interpolators = (parent.interpolators[subChannelId], )
         
         self._sessions = None
         
@@ -854,16 +854,16 @@ class EventList(Cascading):
         # The second is the latest block.
         if self.hasSubchannels or not isinstance(parent.parent, Channel):
             self._blockIdxTable = ({},{})
-#             self._blockTimeTable = ({},{})
+            self._blockTimeTable = ({},{})
             self._blockIdxTableSize = None
-#             self._blockTimeTableSize = None
+            self._blockTimeTableSize = None
         else:
             s = self.session.sessionId if session is not None else None
             ps = parent.parent.getSession(s)
             self._blockIdxTable = ps._blockIdxTable
-#             self._blockTimeTable = ps._blockTimeTable
+            self._blockTimeTable = ps._blockTimeTable
             self._blockIdxTableSize = ps._blockIdxTableSize
-#             self._blockTimeTableSize = ps._blockTimeTableSize
+            self._blockTimeTableSize = ps._blockTimeTableSize
         
         self._hasSubsamples = False
         
@@ -929,13 +929,19 @@ class EventList(Cascading):
         # Cache the index range for faster searching
         if self._blockIdxTableSize is None:
             self._blockIdxTableSize = block.numSamples * 10
-#             self._blockTimeTableSize = self._blockIdxTableSize * 10
+        if self._blockTimeTableSize is None:
+            if len(self._data) > 1:
+                self._blockTimeTableSize = (block.startTime - self._data[-2].startTime) * 10
+                tableTime = int(block.startTime / self._blockTimeTableSize)
+            else:
+                tableTime = 0
+        else:
+            tableTime = int(block.startTime / self._blockTimeTableSize)
         tableIdx = block.indexRange[0] / self._blockIdxTableSize
-#         tableTime = block.startTime / self._blockTimeTableSize
         self._blockIdxTable[0].setdefault(tableIdx, block.blockIndex)
         self._blockIdxTable[1][tableIdx] = block.blockIndex
-#         self._blockTimeTable[0].setdefault(tableTime, block.blockIndex)
-#         self._blockTimeTable[1][tableTime] = block.blockIndex
+        self._blockTimeTable[0].setdefault(tableTime, block.blockIndex)
+        self._blockTimeTable[1][tableTime] = block.blockIndex
         
         self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
         
@@ -1065,11 +1071,14 @@ class EventList(Cascading):
             @keyword start: The first block index to search
             @keyword stop: The last block index to search
         """
-#         tableTime = t / self._blockTimeTableSize
-#         if stop == -1:
-#             stop = self._blockTimeTable[1].get(tableTime, -2) + 1                
-#         if start == 0:
-#             start = max(self._blockTimeTable[0].get(tableTime, 0)-1, 0)
+        try:
+            tableTime = int(t / self._blockTimeTableSize)
+            if stop == -1:
+                stop = self._blockTimeTable[1].get(tableTime, -2) + 1                
+            if start == 0:
+                start = max(self._blockTimeTable[0].get(tableTime, 0)-1, 0)
+        except TypeError:
+            pass
             
         return self._searchBlockRanges(t, self._getBlockTimeRange,
                                        start, stop)
@@ -1775,12 +1784,19 @@ class EventList(Cascading):
         endTime = endEvt[-2] - startEvt[-2] + 0.0
         percent = relAt/endTime
         if self.hasSubchannels:
-            result = startEvt[-1][:]
+            result = list(startEvt[-1])
             for i in xrange(len(self.parent.types)):
-                result[i] = self.parent.interpolators[i](self, startIdx, startIdx+1, percent)
-                result[i] = self.parent.types[i](result[i])
+                v1 = startEvt[-1][i]
+                v2 = endEvt[-1][i]
+                result[i] = v1 + (percent * (v2 - v1))
+#                 result[i] = self.parent.interpolators[i](self, startIdx, startIdx+1, percent)
+#                 result[i] = self.parent.types[i](result[i])
+            result = tuple(result)
         else:
-            result = self.parent.types[0](self.parent.interpolators[0](self, startIdx, startIdx+1, percent))
+            v1 = startEvt[-1]
+            v2 = endEvt[-1]
+            result = v1 + (percent * (v2 - v1))
+#             result = self.parent.types[0](self.parent.interpolators[0](self, startIdx, startIdx+1, percent))
         if self.dataset.useIndices:
             return None, at, result
         return at, result
