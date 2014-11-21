@@ -116,7 +116,8 @@ class MatStream(object):
     
     intPack = struct.Struct('I')
     
-    def __init__(self, filename, msg="MATLAB 5.0 MAT-file MIDE IDE to MAT"):
+    def __init__(self, filename, msg="MATLAB 5.0 MAT-file MIDE IDE to MAT",
+                 timeScalar=1):
         """ Constructor. Create a new .MAT file. 
         """
         if filename is not None:
@@ -128,7 +129,8 @@ class MatStream(object):
             self.write(struct.pack('116s II H 2s', msg, 0, 0, 0x0100, 'IM'))
         else:
             self.stream = None
-            
+        
+        self.timeScalar = timeScalar
         self._inArray = False
 
 
@@ -279,7 +281,7 @@ class MatStream(object):
     def writeRow(self, event):
         """
         """
-        self.write(self.rowFormatter.pack(event[-2], *event[-1]))
+        self.write(self.rowFormatter.pack(event[-2]*self.timeScalar, *event[-1]))
         self.numRows += 1
     
 
