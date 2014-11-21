@@ -14,23 +14,22 @@ import time
 
 import numpy as np
 
-VIEWER_PATH = "P:/WVR_RIF/04_Design/Electronic/Software/SSX_Viewer"
-INKSCAPE_PATH = r"C:\Program Files (x86)\Inkscape\inkscape.exe"
 
-CWD = os.path.abspath(os.path.dirname(__file__))
-sys.path.append(CWD)
-
-import mide_ebml
 from mide_ebml import util as ebml_util
 from mide_ebml import xml2ebml
 from mide_ebml.importer import importFile
 
-from glob import glob
-testFiles = glob(r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Product_Database\_Calibration\SSX0000039\DATA\20140923\*.IDE")
-
 # NOTE: Make sure devices.py is copied to deployed directory
 import devices
 
+
+#===============================================================================
+# 
+#===============================================================================
+
+class CalibrationError(ValueError):
+    """
+    """
 
 #===============================================================================
 # 
@@ -97,6 +96,8 @@ def _println(*args):
 class SSXCalFile(object):
     """ One analyzed IDE file.
     """
+    ACCEL_THRESH = 4 # (gs) acceleration detection threshold (trigger for finding which axis is calibrated)
+    CAL_VALUE = 7.075   # RMS value of closed loop calibration
     
     def __init__(self, filename):
         self.filename = filename
@@ -145,10 +146,8 @@ class SSXCalFile(object):
     def analyze(self):
         """ An attempt to port the analysis loop of SSX_Calibration.m to Python.
         """
-        thres = 4           # (gs) acceleration detection threshold (trigger for finding which axis is calibrated)
         start= 5000         # Look # data points ahead of first index match after finding point that exceeds threshold
         stop= start + 5000  # Look # of data points ahead of first index match
-        cal_value = 7.075   # RMS value of closed loop calibration
         
         _print("importing %s... " % os.path.basename(self.filename))
         self.doc = doc = importFile(self.filename)
@@ -163,7 +162,7 @@ class SSXCalFile(object):
         _print("%d samples imported. " % len(data)) 
         times = data[:,0] * .000001
     
-        gt = lambda(x): x > thres
+        gt = lambda(x): x > self.ACCEL_THRESH
         
         _print("getting indices... ")
         indices = XYZ(
@@ -191,9 +190,9 @@ class SSXCalFile(object):
                        self.rms(self.accel.y), 
                        self.rms(self.accel.z))
         
-        self.cal = XYZ(cal_value / self.rms.x, 
-                       cal_value / self.rms.y, 
-                       cal_value / self.rms.z)
+        self.cal = XYZ(self.CAL_VALUE / self.rms.x, 
+                       self.CAL_VALUE / self.rms.y, 
+                       self.CAL_VALUE / self.rms.z)
     
         self.cal_temp = np.mean([x[-1] for x in doc.channels[1][1].getSession()])
         self.cal_press = np.mean([x[-1] for x in doc.channels[1][0].getSession()])
@@ -213,13 +212,14 @@ class SSXCalibrator(object):
         self.devPath = devPath
         self.productSerialNum = None
         self.certNum = 0
+        self.originalCal = None
         
         self.calTimestamp = 0
         self.cal_vals=None
         self.cal_files = None
 
         if devPath is not None:
-            self.readManifest()
+            _, self.originalCal = self.readManifest()
             
 
     def getFiles(self, path=None):
@@ -236,13 +236,14 @@ class SSXCalibrator(object):
         return ides[:3]
 
 
-    def readManifest(self):
+    def readManifest(self, devPath=None):
         """ Read the user page containing the manifest and (possibly)
             calibration data.
             
         """
+        devPath = self.devPath if devPath is None else self.devPath
         # Recombine all the 'user page' files
-        systemPath = os.path.join(self.devPath, 'SYSTEM', 'DEV')
+        systemPath = os.path.join(devPath, 'SYSTEM', 'DEV')
         data = []
         for i in range(4):
             filename = os.path.join(systemPath, 'USERPG%d' % i)
@@ -278,7 +279,7 @@ class SSXCalibrator(object):
 
     
     def calculate(self, filenames=None, prev_cal=(1,1,1)):
-        """
+        """ Compute calibration constants from a set of recording files.
         """
         self.calDate = datetime.now()
         
@@ -336,31 +337,24 @@ class SSXCalibrator(object):
 
         self.calTimestamp = int(time.mktime(time.gmtime()))
 
+        if (self.Sxy is None or self.Syz is None or self.Sxz is None):
+            # One or more files wasn't identifiable as being an axis recording
+            bad = list(basenames)
+            for f in (self.Sxy_file, self.Sxy_file, self.Sxz_file):
+                if f in bad:
+                    bad.remove(f)
+            raise CalibrationError("Calibration could not be computed from file(s): %s" % ', '.join(bad))
+        
 
-    def createEbml(self, xmlTemplate=None):
+    def createEbml(self, template=None):
         """ Create the calibration EBML data, for inclusion in a recorder's
             user page or an external user calibration file.
         """
-        if xmlTemplate is None:
-            g = int(self.productPartNum.rsplit('-',1)[-1].strip(string.ascii_letters))
-            baseCoefs = [(g*2.0)/65535.0, -g]
-             
-            calList = OrderedDict([
-                ('UnivariatePolynomial', [
-                    OrderedDict([('CalID', 0), 
-                                 ('CalReferenceValue', 0.0), 
-                                 ('PolynomialCoef', baseCoefs)])
-                    ]
-                ), 
-                ('BivariatePolynomial', [] ), # filled in below
-             ])
-        else:
-            if xmlTemplate.lower().endswith('.xml'):
-                e = xml2ebml.readXml(xmlTemplate, schema="mide_ebml.ebml.schema.mide")
-                doc = ebml_util.read_ebml(StringIO(e), schema='mide_ebml.ebml.schema.mide')
-            elif xmlTemplate.lower().endswith('.ebml'):
-                ebml_util.read_ebml(xmlTemplate, schema='mide_ebml.ebml.schema.mide')
+        if template is not None:
+            doc = ebml_util.read_ebml(template, schema='mide_ebml.ebml.schema.mide')
             calList = doc['CalibrationList']
+        else:
+            calList = self.originalCal['CalibrationList']
             
         calList['CalibrationSerialNumber'] = self.certNum
         calList['CalibrationDate'] = self.calTimestamp
