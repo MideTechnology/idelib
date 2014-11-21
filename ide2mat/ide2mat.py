@@ -195,11 +195,10 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
         matFilename = os.path.join(matFilename, os.path.splitext(os.path.basename(ideFilename))[0]+".mat")
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
-        if raw:
-            doc.channels[0].raw = True
-        if nocal:
-            for sc in doc.channels[0].subchannels:
-                sc.raw = True
+        for c in doc.channels.itervalues():
+            c.raw = raw
+            for sc in c.subchannels:
+                sc.raw = raw or nocal
         
         mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), timeScalar=timeScalar)
         mat.writeNames([c.name for c in doc.channels[0].subchannels])
@@ -208,6 +207,14 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
         
         try:
             ideIterator(doc, mat.writeRow, **kwargs)
+            mat.endArray()
+            
+            mat.startArray(doc.channels[1].name, len(doc.channels[1].subchannels),
+                           mtype=_mtype, dtype=_dtype)
+            for evt in doc.channels[1].getSession():
+                mat.writeRow(evt)
+            mat.endArray()
+            
         except KeyboardInterrupt:
             pass
         mat.close()
