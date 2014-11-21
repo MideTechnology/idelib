@@ -2,22 +2,21 @@
 .pydevproject
 
 *.7z
-*.zip
-*.pyc
-*.cfg
-*.lnk
 *.bak
-*.old
-*.ebml
-*.csv
-*.ide
+*.cfg
 *.cfx
+*.csv
 *.dat
+*.ebml
+*.ide
+*.lnk
+*.mat
+*.old
+*.pyc
 *.xls
 *.xlsx
+*.zip
 *~
-
-*.cfx
 
 test*.xml
 test*.png
@@ -25,6 +24,7 @@ test_recordings
 profiling/*
 assembly/*.jpg
 assembly/firmware
+assembly/temp
 
 build
 build_64

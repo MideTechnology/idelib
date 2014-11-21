@@ -15,7 +15,6 @@ import time
 
 from devices import SlamStickX
 import ssx_namer
-from scipy.weave.converters import default
 
 #===============================================================================
 # 
