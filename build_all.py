@@ -8,7 +8,7 @@ import socket
 import sys
 import time
 
-from updater import UPDATER_URL
+from updater import CHANGELOG_URL
 
 HOME_DIR = os.getcwd()
 VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
@@ -108,7 +108,7 @@ if args.release and bad == 0:
     print "Everything is okay; updating version info file '%s'" % VERSION_INFO_FILE
     with open(VERSION_INFO_FILE,'w') as f:
         json.dump({"version": thisVersion, 
-                   "changelog": UPDATER_URL, 
+                   "changelog": CHANGELOG_URL, 
                    "date": int(thisTime)},
                   f)
         
