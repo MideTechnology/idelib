@@ -172,24 +172,32 @@ def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev, device_
 def getPartNumbers():
     return map(os.path.basename, glob(os.path.join(TEMPLATE_PATH, "LOG*")))
 
-def getPartNumber():
+def getPartNumber(default=None):
     dirs = getPartNumbers()
+    if default in dirs:
+        default = dirs.index(default)
+        prompt = "Part Number (default=%s)? " % default
+    else:
+        prompt="Part Number? "
+    
     print "Select a part number:"
     for i in range(len(dirs)):
         print "  %d: %s" % (i, dirs[i])
-    p = utils.getNumber("Part Number? ", dataType=int, minmax=(0, len(dirs)-1))
+    p = utils.getNumber(prompt, dataType=int, minmax=(0, len(dirs)-1), default=default)
     return dirs[p]
 
-def getHardwareRevs(partNum):
+def getHardwareRevs(partNum, default=None):
     return map(os.path.basename, glob(os.path.join(TEMPLATE_PATH, partNum, '*')))
 
-def getHardwareRev(partNum):
+def getHardwareRev(partNum, default=None):
     dirs = getHardwareRevs(partNum)
+    if default is None:
+        default = dirs[-1]
     if len(dirs) == 1:
         return int(dirs[0])
-    p = raw_input("Hardware revision number (%s; default=%s)? " % (', '.join(dirs),dirs[-1])).strip()
+    p = raw_input("Hardware revision number (%s; default=%s)? " % (', '.join(dirs),default)).strip()
     if p == "":
-        p = dirs[-1]
+        p = default
     try:
         return int(p)
     except TypeError:
@@ -202,12 +210,16 @@ def getFirmwareRev(partNum=None):
     return utils.readFileLine(APP_VER_FILE)
 
 def isValidAccelSerial(sn):
+    if not isinstance(sn, basestring):
+        return False
     sn = sn.strip()
-    return isinstance(sn, basestring) and len(sn) == 8 and sn[4] == '-'
+    return len(sn) == 8 and sn[4] == '-'
 
-def getAccelSerialNum():
+def getAccelSerialNum(default=None):
+    d = "" if default is None else " (default: %s)" % default
+    prompt = "Accelerometer serial number%s? " % d
     while True:
-        sn = raw_input("Accelerometer serial number? ").strip()
+        sn = raw_input(prompt).strip() or default
         if isValidAccelSerial(sn):
             return sn
         print "Bad accelerometer number: enter in format nnnn-nnn"
@@ -287,8 +299,8 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         if partNum not in getPartNumbers():
             print "Invalid part number: %s" % partNum
             partNum = None
-       
-    partNum = partNum if partNum else getPartNumber()
+    
+    partNum = getPartNumber(default=partNum)
     if partNum is None:
         utils.errMsg("Failed to get part number!")
         return
@@ -308,10 +320,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         utils.errMsg("Failed to get firmware revision number!")
         return
     
-    if accelSerialNum:
-        if not isValidAccelSerial(accelSerialNum):
-            print "Invalid accelerometer serial number: %s" % accelSerialNum
-    accelSerialNum = accelSerialNum if accelSerialNum else getAccelSerialNum()
+    accelSerialNum = getAccelSerialNum(default=accelSerialNum)
     if not accelSerialNum:
         utils.errMsg("Failed to get accelerometer serial number!")
         return
