@@ -443,15 +443,18 @@ class SlamStickX(Recorder):
         return self.TIME_PARSER.unpack_from(t)
     
     
-    def setTime(self, t=None):
+    def setTime(self, t=None, pause=True):
         """ Set a recorder's date/time. A variety of standard time types are
-            accepted.
+            accepted. Note that the minimum unit of time is the whole second.
         
             @param dev: The path to the recording device.
             @keyword t: The time to write, as either seconds since the epoch 
                 (i.e. 'Unix time'), `datetime.datetime` or a UTC 
                 `time.struct_time`. The current time  (from the host) is used 
                 if `None` (default).
+            @keyword pause: If `True` (default), the system waits until a
+                whole-numbered second before setting the clock. This may
+                improve accuracy across multiple recorders.
             @return: The time that was set, as integer seconds since the epoch.
         """
         if t is None:
@@ -464,9 +467,34 @@ class SlamStickX(Recorder):
             t = int(t)
             
         with open(self.clockFile, 'wb') as f:
+            if pause:
+                t0 = int(time.time())
+                while int(time.time()) <= t0:
+                    pass
             f.write(self.TIME_PARSER.pack(t))
         return t
 
+
+
+    def readManifest(self):
+        """ Read the device's manifest and calibration data.
+        """
+        # Recombine all the 'user page' files
+        systemPath = os.path.join(self.path, 'SYSTEM', 'DEV')
+        data = []
+        for i in range(4):
+            filename = os.path.join(systemPath, 'USERPG%d' % i)
+            with open(filename, 'rb') as fs:
+                data.append(fs.read())
+        data = ''.join(data)
+        
+        manOffset, manSize, calOffset, calSize = struct.unpack_from("<HHHH", data)
+        manData = StringIO(data[manOffset:manOffset+manSize])
+        calData = StringIO(data[calOffset:calOffset+calSize])
+        manifest = util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
+        calibration = util.read_ebml(calData, schema='mide_ebml.ebml.schema.mide')
+        
+        return manifest, calibration
         
 #===============================================================================
 
@@ -612,7 +640,7 @@ class SlamStickClassic(Recorder):
         return self.getConfig(refresh=True).get('RTCC_TIME', None)
    
     
-    def setTime(self, t=None):
+    def setTime(self, t=None, pause=True):
         """ Set a recorder's date/time. A variety of standard time types are
             accepted.
         

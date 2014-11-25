@@ -164,6 +164,11 @@ class MatStream(object):
         self.stream.write(data)
 
 
+    def seek(self, pos):
+#         print "seek: %d" % pos
+        self.stream.seek(pos)
+
+
     def pack(self, fmt, args, dtype=MP.miUINT32):
         """ Write data to the file, proceeded by the type and size (aligned to
             64 bits). Used internally.
@@ -191,26 +196,36 @@ class MatStream(object):
     def endArray(self):
         """ End an array, updating all the sizes.
         """
+#         print "end array"
+        
         if not self._inArray:
             return False
+        self._inArray = False
         
         endPos = self.stream.tell()
+        realEnd = self.next8(endPos)
         
         # Move back and rewrite the actual total size
-        self.stream.seek(self.dataStartPos-4)
-        self.write(self.intPack.pack(endPos-self.dataStartPos))
+        self.seek(self.dataStartPos-4)
+#         print "writing total size: %s" % self.next8(endPos-self.dataStartPos)
+        self.write(self.intPack.pack(self.next8(endPos-self.dataStartPos)))
         
-        if self.numRows != self.expectedRows:
-            # Move back and rewrite the actual number of rows (columns, actually)
-            self.stream.seek(self.rowsPos)
-            self.write(self.intPack.pack(self.numRows))
+#         if self.numRows != self.expectedRows:
+#             # Move back and rewrite the actual number of rows (columns, actually)
+        self.seek(self.rowsPos)
+#         print "writing number of rows: %s" % self.numRows
+        self.write(self.intPack.pack(self.numRows))
             
-            # Move back and write the actual payload size (the 'real' portion only)
-            self.stream.seek(self.prSize)
-            self.write(self.intPack.pack(self.numRows * self.rowFormatter.size))
-            
+        # Move back and write the actual payload size (the 'real' portion only)
+        self.seek(self.prSize)
+#         print "writing payload size: %s" % (self.numRows * self.rowFormatter.size)
+        self.write(self.intPack.pack(self.numRows * self.rowFormatter.size))
+        
         # Go back to the end.
-        self.stream.seek(endPos)
+        self.seek(endPos)
+        if endPos < realEnd:
+            self.write('\0' * (realEnd-endPos))
+
         return True
 
 
@@ -227,7 +242,7 @@ class MatStream(object):
         """
         if self._inArray:
             self.endArray()
-            
+
         self._inArray = True
         self.numRows = 0
         self.expectedRows = rows
@@ -259,22 +274,42 @@ class MatStream(object):
         self.prSize = self.stream.tell() - 4
         
 
-    def writeNames(self, names, title="channel_names"):
+    def writeStringArray(self, title, strings):
+        """ Write a set of strings as a MATLAB character array.
         """
-        """
-        names.insert(0, 'Time')
-        nameSize = max(map(len, names))
-        names = [n.ljust(nameSize) for n in names]
-        payload = ''.join([''.join(x) for x in zip(*names)])
+        textSize = max(map(len, strings))
+        strings = [n.ljust(textSize) for n in strings]
+        payload = ''.join([''.join(x) for x in zip(*strings)])
         
         totalSize = 40 + self.next8(len(title)) + 8 + self.next8(len(payload))
         
         self.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
         self.pack('BBBBBBBB', (0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
-        self.pack('II', (len(names), nameSize), dtype=MP.miINT32)
+        self.pack('II', (len(strings), textSize), dtype=MP.miINT32)
         self.packStr(sanitizeName(title))
-        self.write(struct.pack("II", MP.miUTF8, nameSize*len(names)))
+        self.write(struct.pack("II", MP.miUTF8, textSize*len(strings)))
         self.write(payload.ljust(self.next8(len(payload)), '\0'))
+
+        
+    def writeNames(self, names, title="channel_names"):
+        """ Write IDE column names to the MAT file, for easy identification
+            of rows in MATLAB (IDE data is written in columns in order to
+            stream).
+        """
+        names.insert(0, 'Time')
+        self.writeStringArray(title, names)
+#         nameSize = max(map(len, names))
+#         names = [n.ljust(nameSize) for n in names]
+#         payload = ''.join([''.join(x) for x in zip(*names)])
+#         
+#         totalSize = 40 + self.next8(len(title)) + 8 + self.next8(len(payload))
+#         
+#         self.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
+#         self.pack('BBBBBBBB', (0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
+#         self.pack('II', (len(names), nameSize), dtype=MP.miINT32)
+#         self.packStr(sanitizeName(title))
+#         self.write(struct.pack("II", MP.miUTF8, nameSize*len(names)))
+#         self.write(payload.ljust(self.next8(len(payload)), '\0'))
         
 
 
@@ -331,7 +366,8 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
               callback=None, callbackInterval=0.01, timeScalar=1,
               raiseExceptions=False, useUtcTime=False, headers=True, 
               removeMean=None, meanSpan=None):
-    """ Export a `dataset.EventList` as a Matlab .MAT file.
+    """ Export a `dataset.EventList` as a Matlab .MAT file. Works in a manner
+        similar to the standard `EventList.exportCsv()` method.
     
         @param events: an `EventList` from which to export.
         @param filename: The path/name of the .MAT file to write.

@@ -1068,12 +1068,13 @@ class OptionsPanel(BaseConfigPanel):
         
         if self.setTimeCheck.GetValue():
             try:
+                self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
                 self.root.device.setTime()
             except IOError:
                 wx.MessageBox(
                     "An error occurred when trying to set the recorder's clock.",
                     "Configuration Error", wx.OK | wx.ICON_ERROR, parent=self)
-                
+        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         self.root.setTime = self.setTimeCheck.GetValue()
         
         return data

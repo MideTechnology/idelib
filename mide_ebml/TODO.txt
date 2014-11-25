@@ -40,6 +40,11 @@ EventLists. This was used for testing, but is no longer used by anything.
 Identify stubs of functionality that were left over from early designs and
 are no longer necessary.
 
+Simplify the transform system. The whole thing with the 'hidden'
+_transform attributes (so Channel.transform always shows the transform, even
+if Channel.raw=True) is kind of nice, but overly complicated. The API is for
+internal use only at this point, anyway. 
+
 
 Longer term
 -----------
@@ -54,4 +59,4 @@ Wish List items
 
 Single-point events. Similar to an extreme case of discontinuity in the data.
 These could be marks with non-numeric data (annotations, etc.), which would
-juse render in the viewer as something like a vertical line. 
+just render in the viewer as something like a vertical line. 

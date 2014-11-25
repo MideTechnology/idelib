@@ -7,6 +7,9 @@ Created on Sep 26, 2013
 @todo: Handle files with channels containing a single sample better. Right now,
     they are ignored, causing problems with other calculations.
     
+@todo: Consider an EventList subclass for subchannels, or see about making
+    parent Channel EventLists flat.
+    
 @todo: See where NumPy can be leveraged. The original plan was to make this
     module free of all dependencies (save python_ebml), but NumPy greatly 
     improved the new min/mean/max stuff. Might as well take advantage of it
@@ -162,37 +165,18 @@ class Cascading(object):
         return result
 
 
-    def getTransforms(self, id_=None, _tlist=None):
-        """ Get a list of all transforms applied to the data, from first (the
-            lowest-level parent) to last (the transform, if any, on the
-            object itself).
-            
-            Applicable only to objects also derived from `Transformable`.
-        """
-        _tlist = [] if _tlist is None else _tlist
-        if getattr(self, "_transform", None) is not None:
-            if isinstance(self._transform, Iterable) and id_ is not None:
-                x = self._transform[id_]
-            else:
-                x = self._transform
-            if x != Transform.null:
-                _tlist.insert(0, x)
-        if isinstance(self.parent, Cascading):
-            subchannelId = getattr(self, "id", None)
-            self.parent.getTransforms(subchannelId, _tlist)
-        return _tlist
-
-
     def __repr__(self):
         return "<%s %r>" % (self.__class__.__name__, self.path())
     
     
-class Transformable(object):
+class Transformable(Cascading):
     """ A mix-in class for objects that transform data (apply calibration,
         etc.), making it easy to turn the transformation on or off.
         
         @ivar transform: The transformation function/object
-        @ivar raw: If `False`, the transform will not be applied to data.  
+        @ivar raw: If `False`, the transform will not be applied to data.
+            Note: The object's `transform` attribute will not change; it will
+            just be ignored.
     """
 
     # The 'null' transforms applied if displaying raw data. 
@@ -233,8 +217,32 @@ class Transformable(object):
         if self._raw:
             self._transform, self._mapTransform = self._rawTransforms
         else:
-            self._transform = self.transform
+            if isinstance(self.transform, Iterable):
+                self._transform = [t or Transform.null for t in self.transform]
+            else:
+                self._transform = self.transform or Transform.null 
+ 
             self._mapTransform = self.transform
+
+    def getTransforms(self, id_=None, _tlist=None):
+        """ Get a list of all transforms applied to the data, from first (the
+            lowest-level parent) to last (the transform, if any, on the
+            object itself).
+            
+        """
+        _tlist = [] if _tlist is None else _tlist
+        if getattr(self, "_transform", None) is not None:
+            if isinstance(self._transform, Iterable) and id_ is not None:
+                x = self._transform[id_]
+            else:
+                x = self._transform
+            if x != Transform.null:
+                _tlist.insert(0, x)
+        if isinstance(self.parent, Cascading):
+            subchannelId = getattr(self, "id", None)
+            self.parent.getTransforms(subchannelId, _tlist)
+        return _tlist
+
 
 
 #===============================================================================
@@ -512,7 +520,7 @@ class Sensor(Cascading):
 # Channels
 #===============================================================================
 
-class Channel(Cascading, Transformable):
+class Channel(Transformable):
     """ Output from a Sensor, containing one or more SubChannels. A Sensor
         contains one or more Channels. SubChannels of a Channel can be
         accessed by index like a list or tuple.
@@ -1287,9 +1295,15 @@ class EventList(Cascading):
                 for event in izip(times, values):
                     # TODO: Refactor this ugliness
                     # This is some nasty stuff to apply nested transforms
-                    event=[c._transform(f((event[-2],v),session), session) for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
-                    event=(event[0][0], tuple((e[1] for e in event)))
-                    yield event
+                    try:
+                        event=[c._transform(f((event[-2],v),session), session) for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
+                        event=(event[0][0], tuple((e[1] for e in event)))
+                        yield event
+                    except TypeError as err:
+                        print err
+                        print "parent transform: %s" % str(parent_transform)
+                        for c in parent_subchannels:
+                            print "subchannel %s: %s" % (c.id, c.transform)
             else:
                 for event in izip(times, values):
                     event = parent_transform(parent_parent_transform[parent_id](event, session))
@@ -1381,7 +1395,11 @@ class EventList(Cascading):
         if t <= self._data[0].startTime:
             return -1
         blockIdx = self._getBlockIndexWithTime(t)
-        block = self._data[blockIdx]
+        try:
+            block = self._data[blockIdx]
+        except IndexError:
+            blockIdx = len(self._data)-1
+            block = self._data[blockIdx]
         return int(block.indexRange[0] + \
                    ((t - block.startTime) / self._getBlockSampleTime(blockIdx)))
         

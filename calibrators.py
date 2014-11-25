@@ -1,4 +1,6 @@
 '''
+Module for calculating the calibration constants for recording devices. 
+
 Created on Sep 30, 2014
 
 @author: dstokes
@@ -6,7 +8,6 @@ Created on Sep 30, 2014
 from collections import OrderedDict
 from datetime import datetime
 import os.path
-import string
 from StringIO import StringIO
 import struct
 import sys
@@ -16,12 +17,9 @@ import numpy as np
 
 
 from mide_ebml import util as ebml_util
-from mide_ebml import xml2ebml
 from mide_ebml.importer import importFile
 
-# NOTE: Make sure devices.py is copied to deployed directory
 import devices
-
 
 #===============================================================================
 # 
@@ -205,7 +203,8 @@ class SSXCalFile(object):
 #===============================================================================
 
 class SSXCalibrator(object):
-    """
+    """ A class representing and computing a set of calibration constants
+        based on a set of shaker recordings.
     """
     
     def __init__(self, devPath=None):
@@ -219,6 +218,7 @@ class SSXCalibrator(object):
         self.cal_files = None
 
         if devPath is not None:
+            self.device = devices.SlamStickX(devPath)
             _, self.originalCal = self.readManifest()
             
 
@@ -242,38 +242,25 @@ class SSXCalibrator(object):
             
         """
         devPath = self.devPath if devPath is None else self.devPath
-        # Recombine all the 'user page' files
-        systemPath = os.path.join(devPath, 'SYSTEM', 'DEV')
-        data = []
-        for i in range(4):
-            filename = os.path.join(systemPath, 'USERPG%d' % i)
-            with open(filename, 'rb') as fs:
-                data.append(fs.read())
-        data = ''.join(data)
+        ssx = devices.SlamStickX(devPath)
         
-        manOffset, manSize, calOffset, calSize = struct.unpack_from("<HHHH", data)
-        manData = StringIO(data[manOffset:manOffset+manSize])
-        calData = StringIO(data[calOffset:calOffset+calSize])
-        manifest = ebml_util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
-        calibration = ebml_util.read_ebml(calData, schema='mide_ebml.ebml.schema.mide')
-
+        manifest, calibration = ssx.readManifest()
         systemInfo = manifest['DeviceManifest']['SystemInfo']
-        self.productSerialNumInt = systemInfo['SerialNumber']
-        self.productManTimestamp = systemInfo['DateOfManufacture']
-        self.productName = systemInfo['ProductName']
-        self.productHwRev = systemInfo['HwRev']
-        self.productPartNum = systemInfo['PartNumber']
-        
         sensorInfo = manifest['DeviceManifest']['AnalogSensorInfo']
         self.accelSerial = sensorInfo['AnalogSensorSerialNumber']
         
+        # Firmware revision number is in the DEVINFO file
+        devInfo = ssx.getInfo()
+        self.productFwRev = devInfo.get('FwRev',1)
+        self.productHwRev = devInfo.get('HwRev',1)
+        self.productSerialNumInt = devInfo['SerialNumber']
+        self.productManTimestamp = devInfo['DateOfManufacture']
+        self.productName = devInfo['ProductName']
+        self.productPartNum = devInfo['PartNumber']
+        systemInfo['FwRev'] = self.productFwRev
+        
         self.productManDate = datetime.utcfromtimestamp(self.productManTimestamp).strftime("%m/%d/%Y")
         self.productSerialNum = "SSX%07d" % self.productSerialNumInt
-        
-        # Firmware revision number is in the DEVINFO file
-        devInfo = ebml_util.read_ebml(os.path.join(systemPath, 'DEVINFO'), schema='mide_ebml.ebml.schema.mide')
-        self.productFwRev = devInfo['RecordingProperties'].get('FwRev',1)
-        systemInfo['FwRev'] = self.productFwRev
         
         return manifest, calibration
 
