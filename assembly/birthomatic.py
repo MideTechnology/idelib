@@ -209,6 +209,9 @@ def getFirmwareRevs(partNum):
 def getFirmwareRev(partNum=None):
     return utils.readFileLine(APP_VER_FILE)
 
+def getBootloaderRev(partNum=None):
+    return utils.readFileLine(BOOT_VER_FILE, dataType=str)
+
 def isValidAccelSerial(sn):
     if not isinstance(sn, basestring):
         return False
@@ -227,7 +230,10 @@ def getAccelSerialNum(default=None):
 
 def getFirmwareFile(partNum=None, fwRev=None):
     return APP_FILE
-    
+
+def getBootloaderFile(partNum=None, fwRev=None):
+    return BOOT_FILE
+
 #===============================================================================
 # 
 #===============================================================================
@@ -320,6 +326,11 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         utils.errMsg("Failed to get firmware revision number!")
         return
     
+    bootRev = getBootloaderRev(partNum)
+    if not bootRev:
+        utils.errMsg("Failed to get bootloader revision number!")
+        return
+    
     accelSerialNum = getAccelSerialNum(default=accelSerialNum)
     if not accelSerialNum:
         utils.errMsg("Failed to get accelerometer serial number!")
@@ -328,8 +339,8 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     # 5. Get next recorder serial number
     if serialNum is None:
         print "Getting new serial number...",
-        serialNum = utils.readFileLine(os.path.join(DB_PATH, "last_sn.txt"))+1
-        utils.writeFileLine(os.path.join(DB_PATH, "last_sn.txt"), serialNum)
+        serialNum = utils.readFileLine(DEV_SN_FILE)+1
+#         utils.writeFileLine(os.path.join(DB_PATH, "last_sn.txt"), serialNum)
     elif isinstance(serialNum, basestring):
         # In case the serial number is the print version ("SSXxxxxxxx")
         serialNum = int(serialNum.strip(string.ascii_letters + string.punctuation + string.whitespace))
@@ -368,6 +379,8 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         shutil.copy(calXmlFile, curCalXmlFile)
     
     # 8. Upload firmware, user page data (firmware.ssx_bootloadable_device)
+    print "Uploading bootloader version %s..." % bootRev
+    ssxboot.send_bootloader(getBootloaderFile(partNum, fwRev))
     print "Uploading firmware version %s..." % fwRev
     ssxboot.send_app(getFirmwareFile(partNum, fwRev))
     print "Uploading manifest and generic calibration data..."
@@ -378,7 +391,8 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     logline = makeBirthLogEntry(chipId, serialNum, rebirth, bootVer, hwRev, fwRev, accelSerialNum, partNum)
     utils.writeFileLine(BIRTH_LOG_FILE, logline, mode='at')
     utils.writeFileLine(os.path.join(calDirName, 'birth_log.txt'), logline)
-    utils.writeFileLine(os.path.join(DB_PATH, "last_sn.txt"), serialNum)
+    if not rebirth:
+        utils.writeFileLine(DEV_SN_FILE, serialNum)
     utils.writeFileLine(os.path.join(chipDirName, 'mide_sn.txt'), serialNum)
     utils.writeFileLine(os.path.join(chipDirName, 'accel_sn.txt'), accelSerialNum)
    
