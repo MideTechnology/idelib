@@ -124,8 +124,11 @@ def time2int(val, tzOffset=0):
     t = datetime.strptime(str(val), '%H:%M:%S')
     return int((t.hour * 60 * 60) + (t.minute * 60) + t.second + tzOffset)
 
+
 def makeWxDateTime(val):
-    """
+    """ Create a `wx.DateTime` instance from a standard `datetime`, time tuple
+        (or a similar 'normal' tuple), epoch timestamp, or another 
+        `wx.DateTime` object.
     """
     if isinstance(val, datetime):
         val = datetime2int(val)
@@ -137,6 +140,20 @@ def makeWxDateTime(val):
     return wx.DateTimeFromDMY(val[2], val[1]-1, val[0], val[3], val[4], val[5])
         
 
+def parseTime(val):
+    """ Convert a time entered in SMPTE-like format (seconds, M:S, or H:M:S)
+        to seconds. Fractional values accepted.
+    """
+    result = 0
+    mult = 1
+    for p in reversed(str(val).strip().split(':')):
+        try:
+            result += float(p.strip()) * mult
+        except ValueError:
+            pass
+        mult *= 60
+    return result
+        
 #===============================================================================
 # Field validators
 #===============================================================================

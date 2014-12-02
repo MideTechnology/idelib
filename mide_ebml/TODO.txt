@@ -7,6 +7,9 @@ mide_ebml To-Do List
 
 Major items
 -----------
+Unit testing FTW. Some should be created prior to the refactoring-related items
+listed below.
+
 Refactor everything to use Numpy for parsing data. Early experiments with this
 ran into a bottleneck somewhere, probably implicit casting of Numpy arrays to 
 Python lists, so just changing the parser isn't enough.

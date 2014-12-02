@@ -1,0 +1,36 @@
+Slam Stick Lab To-Do List
+=========================
+
+*Note:* See also the mide_ebml TODO list, as wekk as the individual TODO items 
+noted in the code ("TODO:" in comments, "@todo" in doc strings. This list 
+includes some of the latter, but not all.
+
+Major items
+-----------
+Mac OS port. The bulk of the code will 'just work,' but there are a couple of
+things (recorder identification, etc.) which will need to be rewritten. Some
+of the UI looks kind of weird on a Mac with a Retina display, but this may be
+wxPython and not easily corrected. Future releases of wxPython may look better.
+
+FFT fix. The vertical scale is off. The smaller the window, the lower the
+maximum gets. Also gets lower with larger ranges. I think something is
+calculating a mean of the amplitudes in each window -- smaller windows will 
+get less variation in them, so they average differently. 
+
+
+Minor items
+-----------
+Calculate FFT/Spectrograms in another thread or with wx.lib.delayedresult to
+prevent the app from being labeled "(Not Responding)" by the OS. This bugs me,
+a lot, but it's hard to get it bumped in priority.
+
+
+Longer term
+-----------
+
+
+
+'Wish List' items ("it would be nice if...")
+--------------------------------------------
+
+

@@ -1,39 +1,43 @@
 '''
+Module for reading and analyzing Mide Instrumentation Data Exchange (MIDE)
+files.
+
 Created on Sep 26, 2013
 
 @author: dstokes
 
-
-@todo: Handle files with channels containing a single sample better. Right now,
-    they are ignored, causing problems with other calculations.
-    
-@todo: Consider an EventList subclass for subchannels, or see about making
-    parent Channel EventLists flat.
-    
-@todo: See where NumPy can be leveraged. The original plan was to make this
-    module free of all dependencies (save python_ebml), but NumPy greatly 
-    improved the new min/mean/max stuff. Might as well take advantage of it
-    elsewhere!
-      
-@todo: Discontinuity handing. This will probably be conveyed as events with
-    null values. An attribute/keyword may be needed to suppress this when 
-    getting data for processing (FFT, etc.). Low priority.
-    
-@todo: Look at remaining places where lists are returned, consider using `yield` 
-    instead (e.g. parseElement(), etc.)
-    
-@todo: Have Sensor.addChannel() possibly check the parser to see if the 
-    blocks are single-sample, instantiate simpler Channel subclass (possibly
-    also a specialized, simpler class of EventList, too). This will improve
-    temperature calibrated SSX data.
-    
-@todo: Decide if dataset.useIndices is worth it, remove it if it isn't.
-    Removing it may save a trivial amount of time/memory (one fewer 
-    conditional in event-getting methods). Lowest priority.
-
 '''
 
-from collections import namedtuple, Iterable
+# TODO: Handle files with channels containing a single sample better. Right now,
+#    they are ignored, causing problems with other calculations.
+#
+# TODO: Consider an EventList subclass for subchannels, or see about making
+#    parent Channel EventLists flat.
+#   
+# TODO: See where NumPy can be leveraged. The original plan was to make this
+#     module free of all dependencies (save python_ebml), but NumPy greatly 
+#     improved the new min/mean/max stuff. Might as well take advantage of it
+#     elsewhere!
+#       
+# TODO: Nice discontinuity handing. This will probably be conveyed as events 
+#     with null values. An attribute/keyword may be needed to suppress this when 
+#     getting data for processing (FFT, etc.). Low priority.
+#     
+# TODO: Look at remaining places where lists are returned, consider using `yield` 
+#     instead (e.g. parseElement(), etc.)
+#     
+# TODO: Have Sensor.addChannel() possibly check the parser to see if the 
+#     blocks are single-sample, instantiate simpler Channel subclass (possibly
+#     also a specialized, simpler class of EventList, too). This will improve
+#     temperature calibrated SSX data.
+#     
+# TODO: Decide if dataset.useIndices is worth it, remove it if it isn't.
+#     Removing it may save a trivial amount of time/memory (one fewer 
+#     conditional in event-getting methods). Lowest priority.
+
+
+# from collections import namedtuple
+from collections import Iterable
 from datetime import datetime
 from itertools import imap, izip
 from numbers import Number
@@ -44,7 +48,7 @@ import sys
 import numpy; numpy=numpy
 
 from ebml.schema.mide import MideDocument
-import util
+# import util
 
 from calibration import Transform
 from parsers import getParserTypes, getParserRanges
@@ -68,39 +72,9 @@ __DEBUG__ = False
 #===============================================================================
 
 # A 'named tuple' class, mainly for debugging purposes.
-Event = namedtuple("Event", ('index','time','value'))
+# Event = namedtuple("Event", ('index','time','value'))
 
 
-#===============================================================================
-# Interpolation objects, for getting value at a specific time
-#===============================================================================
-
-# class Interpolation(object):
-#     """ A function-like class that will produce a value at a specified point
-#         between two events. Upon instantiation, it can be passed any 
-#         additional data that a specific interpolation type may need. The
-#         `__call__()` method also takes a reference to the list-like object
-#         containing the Events, so any data all the way back to the Dataset
-#         itself is available.
-#     """
-#     def __init__(self, *args, **kwargs):
-#         pass
-#     
-#     def __call__(self, v1, v2, percent):
-#         raise NotImplementedError("Interpolation is an abstract base class")
-# 
-# 
-# class Lerp(Interpolation):
-#     """ A simple linear interpolation between two values.
-#     """
-#     def __call__(self, events, idx1, idx2, percent):
-# #         print events, idx1, idx2, percent
-#         percent += 0.0
-#         v1 = events[idx1][-1]
-#         v2 = events[idx2][-1]
-#         return v1 + (percent * (v2 - v1))
-# 
-#     
 #===============================================================================
 # Mix-In Classes
 #===============================================================================
@@ -290,7 +264,7 @@ class Dataset(Cascading):
         self.currentSession = None
         self.recorderInfo = {}
         
-        self.useIndices = False
+#         self.useIndices = False
         
         self.fileDamaged = False
         self.loadCancelled = False
@@ -1181,8 +1155,8 @@ class EventList(Cascading):
             else:
                 event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value),self.session))
             
-            if self.dataset.useIndices:
-                return Event(idx, event[0], event[1])
+#             if self.dataset.useIndices:
+#                 return Event(idx, event[0], event[1])
             
             return event
 
@@ -1190,7 +1164,7 @@ class EventList(Cascading):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
         
         else:
-            raise TypeError("EventList indices must be integers or slices, not %s" % type(idx))
+            raise TypeError("EventList indices must be integers or slices, not %s (%r)" % (type(idx), idx))
 
 
     def __iter__(self):
@@ -1815,8 +1789,8 @@ class EventList(Cascading):
             v2 = endEvt[-1]
             result = v1 + (percent * (v2 - v1))
 #             result = self.parent.types[0](self.parent.interpolators[0](self, startIdx, startIdx+1, percent))
-        if self.dataset.useIndices:
-            return None, at, result
+#         if self.dataset.useIndices:
+#             return None, at, result
         return at, result
     
 
