@@ -170,9 +170,11 @@ def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev, device_
 #===============================================================================
 
 def getPartNumbers():
+    """ Get a list of all known Part Numbers. """
     return map(os.path.basename, glob(os.path.join(TEMPLATE_PATH, "LOG*")))
 
 def getPartNumber(default=None):
+    """ Prompt the user for a Part Number. """
     dirs = getPartNumbers()
     if default in dirs:
         default = dirs.index(default)
@@ -187,9 +189,11 @@ def getPartNumber(default=None):
     return dirs[p]
 
 def getHardwareRevs(partNum, default=None):
+    """ Get a list of all known Hardware Revisions. """
     return map(os.path.basename, glob(os.path.join(TEMPLATE_PATH, partNum, '*')))
 
 def getHardwareRev(partNum, default=None):
+    """ Prompt the user for a Hardware Revision number. """
     dirs = getHardwareRevs(partNum)
     if default is None:
         default = dirs[-1]
@@ -204,21 +208,29 @@ def getHardwareRev(partNum, default=None):
         return None
 
 def getFirmwareRevs(partNum):
+    """ Get a list of all known Firmware Revisions. """
+    # There's only one:
     return [utils.readFileLine(APP_VER_FILE)]
 
 def getFirmwareRev(partNum=None):
+    """ Prompt the user for a Firmware Revision number. """
+    # There's only one:
     return utils.readFileLine(APP_VER_FILE)
 
 def getBootloaderRev(partNum=None):
+    """ Get the latest bootloader revision number. """
     return utils.readFileLine(BOOT_VER_FILE, dataType=str)
 
 def isValidAccelSerial(sn):
+    """ Simple sanity-check for accelerometer serial numbers (####-##). """
+    # TODO: This is kind of brittle. Maybe use regex and/or consult used SNs.
     if not isinstance(sn, basestring):
         return False
     sn = sn.strip()
     return len(sn) == 8 and sn[4] == '-'
 
 def getAccelSerialNum(default=None):
+    """ Prompt the user for an accelerometer serial number ."""
     d = "" if default is None else " (default: %s)" % default
     prompt = "Accelerometer serial number%s? " % d
     while True:
@@ -229,9 +241,11 @@ def getAccelSerialNum(default=None):
         
 
 def getFirmwareFile(partNum=None, fwRev=None):
+    """ Get the path and name of the latest firmware file. """
     return APP_FILE
 
 def getBootloaderFile(partNum=None, fwRev=None):
+    """ Get the path and name of the latest bootloader file. """
     return BOOT_FILE
 
 #===============================================================================
@@ -259,7 +273,7 @@ def copyContent(devPath):
 #===============================================================================
 
 def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=None):
-    """
+    """ Perform initial configuration of a Slam Stick X.
     """
     rebirth = serialNum is not None
     accelSerialNum = None
@@ -283,6 +297,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     print bootVer, chipId
     
     # 3. Get previous birth info from log (if any exists)
+    # User gets prompted if they want to use existing data; those become defaults.
     logInfo = utils.findBirthLog(BIRTH_LOG_FILE, 'chipId', chipId)
     if logInfo:
         # Get rid of info we don't care about right now
@@ -343,16 +358,17 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
 #         utils.writeFileLine(os.path.join(DB_PATH, "last_sn.txt"), serialNum)
     elif isinstance(serialNum, basestring):
         # In case the serial number is the print version ("SSXxxxxxxx")
+        print "(Re-)Using serial number %s" % serialNum
         serialNum = int(serialNum.strip(string.ascii_letters + string.punctuation + string.whitespace))
     
+    serialNumStr = "SSX%07d" % serialNum
+    print "SN: %s, accelerometer SN: %s" % (serialNumStr, accelSerialNum)
+        
     # 6. Create chip ID directory in product_database
     chipDirName = os.path.realpath(os.path.join(DB_PATH, chipId))
     if not os.path.exists(chipDirName):
         print "Creating chip ID folder..."
         os.mkdir(chipDirName)
-        
-    serialNumStr = "SSX%07d" % serialNum
-    print "SN: %s, accelerometer SN: %s" % (serialNumStr, accelSerialNum)
         
     calDirName = os.path.realpath(os.path.join(CAL_PATH, serialNumStr))
     if not os.path.exists(calDirName):
@@ -392,6 +408,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     utils.writeFileLine(BIRTH_LOG_FILE, logline, mode='at')
     utils.writeFileLine(os.path.join(calDirName, 'birth_log.txt'), logline)
     if not rebirth:
+        print "Writing serial number to file: %s" % serialNum
         utils.writeFileLine(DEV_SN_FILE, serialNum)
     utils.writeFileLine(os.path.join(chipDirName, 'mide_sn.txt'), serialNum)
     utils.writeFileLine(os.path.join(chipDirName, 'accel_sn.txt'), accelSerialNum)
@@ -411,6 +428,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     print " Firmware Revision:", fwRev
     print "Please disconnect it now."
     
+    utils.errMsg()
         
 #===============================================================================
 # 
@@ -420,7 +438,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     """ Do all the post-shaker stuff: calculate calibration constants, 
         copy content, et cetera.
         
-        @todo: consider modularizing this more for future reusability. This has
+        @todo: consider modularizing this more for future re-usability. This has
             grown somewhat organically.
     """
     startTime = time.time()
