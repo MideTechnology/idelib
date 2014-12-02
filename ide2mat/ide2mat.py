@@ -1,4 +1,6 @@
 '''
+A utility for generating MATLAB .MAT files from Slam Stick X .IDE recordings.
+
 Created on Oct 22, 2014
 
 @author: dstokes
@@ -6,7 +8,9 @@ Created on Oct 22, 2014
 
 from datetime import datetime
 from itertools import izip
+import locale
 import os.path
+# import struct
 import sys
 
 # from scipy.io.matlab import mio5_params as MP
@@ -120,7 +124,8 @@ def ideIterator(doc, writer, channelId=0, calChannelId=1, **kwargs):
                 sc.sessions[sid] = StreamedEventList(sess)
     
     # "Import" the channel to export. It really just gets dumped to file.
-    importer.readData(doc, onlyChannel=channelId, **kwargs)
+    
+    importer.readData(doc, onlyChannel=channelId, updateInterval=1.0, **kwargs)
     
     return doc
 
@@ -132,7 +137,7 @@ class SimpleUpdater(object):
     """ A simple text-based progress updater.
     """
     
-    def __init__(self, cancelAt=1.0, quiet=False, out=sys.stdout):
+    def __init__(self, cancelAt=1.0, quiet=False, out=sys.stdout, precision=0):
         """ Constructor.
             @keyword cancelAt: A percentage at which to abort the import. For
                 testing purposes.
@@ -143,7 +148,15 @@ class SimpleUpdater(object):
         self.cancelAt = cancelAt
         self.estSum = None
         self.quiet = quiet
-    
+        self.lastMsg = None
+        
+        if precision == 0:
+            self.formatter = " %d%%"
+        else:
+            self.formatter = " %%.%df%%%%" % precision
+
+        locale.setlocale(0,'English_United States.1252')
+
     def dump(self, s):
         if not self.quiet:
             self.out.write(s)
@@ -159,8 +172,12 @@ class SimpleUpdater(object):
             self.dump("Done!\n")
         else:
             if percent is not None:
-                p = int(percent*100)
-                self.dump('%3d%%\x08\x08\x08\x08' % p)
+                num = locale.format("%d", count, grouping=True)
+                msg = "%s samples exported %s" % (num, self.formatter % (percent*100))
+                if msg != self.lastMsg:
+                    self.dump(msg)
+                    self.dump('\x08' * len(msg))
+                    self.lastMsg = msg
             sys.stdout.flush()
 
 
@@ -169,15 +186,20 @@ class SimpleUpdater(object):
 #===============================================================================
 
 def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1, 
-            dtype="double", nocal=False, raw=False, accelOnly=True, **kwargs):
+            dtype="double", nocal=False, raw=False, accelOnly=True,
+            noTimes=False, maxSize=matfile.MatStream.MAX_SIZE, **kwargs):
     """
     """
     timeScalar =  1.0/(10**6)
     if raw:
         timeScalar = 1
         nocal = True
-        _mtype = MP.mxINT32_CLASS
-        _dtype = MP.miINT32
+        if noTimes:
+            _mtype = MP.mxINT16_CLASS
+            _dtype = MP.miINT16
+        else:
+            _mtype = MP.mxINT64_CLASS
+            _dtype = MP.miINT64
     elif dtype == 'single':
         _mtype = MP.mxDOUBLE_CLASS #MP.mxSINGLE_CLASS
         _dtype = MP.miSINGLE
@@ -193,6 +215,10 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
         matFilename = os.path.splitext(ideFilename)[0] + ".mat"
     elif os.path.isdir(matFilename):
         matFilename = os.path.join(matFilename, os.path.splitext(os.path.basename(ideFilename))[0]+".mat")
+        
+    msg = "Initializing..."
+    print (msg + ('\x08' * len(msg))),
+    
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
         for c in doc.channels.itervalues():
@@ -200,20 +226,26 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             for sc in c.subchannels:
                 sc.raw = raw or nocal
         
-        mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), timeScalar=timeScalar)
+        mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), timeScalar=timeScalar, maxFileSize=maxSize)
         mat.writeNames([c.name for c in doc.channels[0].subchannels])
         if len(doc.transforms) > 1:
             mat.writeStringArray("cal_polynomials", map(str, doc.transforms.values()[1:]))
+            
         mat.startArray(doc.channels[0].name, len(doc.channels[0].subchannels),
-                       mtype=_mtype, dtype=_dtype)
+                       mtype=_mtype, dtype=_dtype, noTimes=noTimes)
         
         try:
+            print ("Channel %d: " % channelId),
+            msg = "Initializing..."
+            print (msg + ('\x08' * len(msg))),
+            
             ideIterator(doc, mat.writeRow, **kwargs)
             mat.endArray()
             
             if not accelOnly:
+                print ("Channel %d: " % calChannelId),
                 mat.startArray(doc.channels[1].name, len(doc.channels[1].subchannels),
-                               mtype=_mtype, dtype=_dtype)
+                               mtype=MP.mxDOUBLE_CLASS, dtype=MP.miDOUBLE, noTimes=noTimes)
                 for evt in doc.channels[1].getSession():
                     mat.writeRow(evt)
                 mat.endArray()
@@ -235,7 +267,9 @@ if __name__ == "__main__":
     argparser.add_argument('-t', '--type', choices=('single','double'), help="Force data to be saved as 'single' (32b) or 'double' (64b) values.")
     argparser.add_argument('-n', '--nocal', action="store_true", help="Do not apply temperature correction calibration to accelerometer data (faster).")
     argparser.add_argument('-r', '--raw', action="store_true", help="Write data in raw form: no calibration, integer ADC units. For expert users only.")
+    argparser.add_argument('-s', '--noTimestamps', action="store_true", help="Save without sample time stamps. For expert users only.")
     argparser.add_argument('-a', '--accelOnly', action='store_true', help="Export only accelerometer data.")
+    argparser.add_argument('-m', '--maxSize', type=int, default=matfile.MatStream.MAX_SIZE, help="The maximum MAT file size in bytes. Must be less than 2GB.")
     argparser.add_argument('source', nargs="+", help="The source .IDE file(s) to split.")
 
     args = argparser.parse_args()
@@ -262,7 +296,12 @@ if __name__ == "__main__":
         t0 = datetime.now()
         for f in sourceFiles:
             print ('Converting "%s"...' % f),
-            ide2mat(f, matFilename=args.output, updater=SimpleUpdater(), dtype=args.type, nocal=args.nocal, raw=args.raw, accelOnly=args.accelOnly)
+            fsize = os.path.getsize(f)
+            digits = max(0, min(2, (len(str(fsize))/2)-1))
+            ide2mat(f, matFilename=args.output, dtype=args.type, 
+                    nocal=args.nocal, raw=args.raw, accelOnly=args.accelOnly, 
+                    noTimes=args.noTimestamps, maxSize=args.maxSize,
+                    updater=SimpleUpdater(precision=digits))
     
         print "\nConversion complete! Total time: %s" % (datetime.now() - t0)
     except KeyboardInterrupt:
