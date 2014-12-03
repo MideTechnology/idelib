@@ -206,7 +206,7 @@ class MatStream(object):
         self._inArray = False
         self.arrayName = None
 
-        print "newFile: %s" % filename
+#         print "newFile: %s" % filename
 
 
     @property
@@ -335,7 +335,7 @@ class MatStream(object):
         else:
             self.numCols = cols+1
         fchar = self.typeFormatChars.get(self.arrayDType, self.typeFormatChars[MP.miDOUBLE]) * self.numCols
-        print "\ncols:%s self.numCols: %s formatter: %r" % (cols, self.numCols, fchar)
+#         print "\ncols:%s self.numCols: %s formatter: %r" % (cols, self.numCols, fchar)
         self.rowFormatter = struct.Struct(fchar)
         
         # Start of matrix element, initial size of 0 (rewritten at end)
@@ -345,7 +345,7 @@ class MatStream(object):
         # Write flags and matrix type
         # NOTE: This didn't work right; hard-coding something that does.
 #         self.pack('xxBBxxxx', (flags, mtype))
-        self.pack('BBBBBBBB', (0x06, 0x00, 0x00, self.arrayMType, 0x00, 0x00, 0x00, 0x00))
+        self.pack('BBBBBBBB', (self.arrayMType, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
         
         # Write matrix dimensions. Because the file stores data column first,re
         # the recording data is stored 'sideways': lots of columns. The
@@ -411,11 +411,7 @@ class MatStream(object):
             self.endArray()
             self.startArray(self.arrayBaseName, cols, arrayNumber=arrayNum)
         if self.arrayNoTimes:
-            try:
-                data = self.rowFormatter.pack(*event[-1])
-            except Exception as err:
-                print "event won't pack: %r" % (event,)
-                raise err
+            data = self.rowFormatter.pack(*event[-1])
         else:
             data = self.rowFormatter.pack(event[-2]*self.timeScalar, *event[-1])
         self.write(data)

@@ -24,6 +24,7 @@ except ImportError:
     
 from mide_ebml import matfile
 from mide_ebml.matfile import MP
+from mide_ebml.importer import nullUpdater
 import mide_ebml.multi_importer as importer
 
 
@@ -134,7 +135,8 @@ def ideIterator(doc, writer, channelId=0, calChannelId=1, **kwargs):
 #===============================================================================
 
 class SimpleUpdater(object):
-    """ A simple text-based progress updater.
+    """ A simple text-based progress updater. Simplifed version of the one in
+        mide_ebml.importer
     """
     
     def __init__(self, cancelAt=1.0, quiet=False, out=sys.stdout, precision=0):
@@ -148,7 +150,7 @@ class SimpleUpdater(object):
         self.cancelAt = cancelAt
         self.estSum = None
         self.quiet = quiet
-        self.lastMsg = None
+        self.lastMsg = ''
         
         if precision == 0:
             self.formatter = " %d%%"
@@ -173,11 +175,12 @@ class SimpleUpdater(object):
         else:
             if percent is not None:
                 num = locale.format("%d", count, grouping=True)
-                msg = "%s samples exported %s" % (num, self.formatter % (percent*100))
+                msg = "%s samples exported" % num
                 if msg != self.lastMsg:
+                    self.lastMsg = msg
+                    msg = "%s (%s)" % (msg, self.formatter % (percent*100))
                     self.dump(msg)
                     self.dump('\x08' * len(msg))
-                    self.lastMsg = msg
             sys.stdout.flush()
 
 
@@ -201,7 +204,7 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             _mtype = MP.mxINT64_CLASS
             _dtype = MP.miINT64
     elif dtype == 'single':
-        _mtype = MP.mxDOUBLE_CLASS #MP.mxSINGLE_CLASS
+        _mtype = MP.mxSINGLE_CLASS
         _dtype = MP.miSINGLE
     elif dtype == 'double':
         _mtype = MP.mxDOUBLE_CLASS 
@@ -210,15 +213,14 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
         # TODO: Make this based on system architecture
         _mtype = MP.mxDOUBLE_CLASS 
         _dtype = MP.miDOUBLE
-        
+    
+    updater = kwargs.get('updater', nullUpdater)
+    
     if matFilename is None:
         matFilename = os.path.splitext(ideFilename)[0] + ".mat"
     elif os.path.isdir(matFilename):
         matFilename = os.path.join(matFilename, os.path.splitext(os.path.basename(ideFilename))[0]+".mat")
         
-    msg = "Initializing..."
-    print (msg + ('\x08' * len(msg))),
-    
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
         for c in doc.channels.itervalues():
@@ -242,13 +244,27 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             ideIterator(doc, mat.writeRow, **kwargs)
             mat.endArray()
             
+            if updater is not nullUpdater:
+                print updater.lastMsg, " " * 10
+            
             if not accelOnly:
                 print ("Channel %d: " % calChannelId),
                 mat.startArray(doc.channels[1].name, len(doc.channels[1].subchannels),
                                mtype=MP.mxDOUBLE_CLASS, dtype=MP.miDOUBLE, noTimes=noTimes)
-                for evt in doc.channels[1].getSession():
+                
+                events = doc.channels[calChannelId].getSession()
+                numSamples = len(events) + 0.0
+                numSubCh = len(events[0][-1])
+                updater(count=0, total=len(events), percent=0.0)
+                
+                for i, evt in enumerate(events,1):
                     mat.writeRow(evt)
+                    if i == numSamples or i % 10 == 0:
+                        updater(count=i*numSubCh, percent=i/numSamples)
                 mat.endArray()
+            
+                if updater is not nullUpdater:
+                    print updater.lastMsg, " " * 10
             
         except KeyboardInterrupt:
             pass
@@ -295,7 +311,7 @@ if __name__ == "__main__":
     try:
         t0 = datetime.now()
         for f in sourceFiles:
-            print ('Converting "%s"...' % f),
+            print ('Converting "%s"...' % f)
             fsize = os.path.getsize(f)
             digits = max(0, min(2, (len(str(fsize))/2)-1))
             ide2mat(f, matFilename=args.output, dtype=args.type, 
