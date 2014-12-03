@@ -215,11 +215,14 @@ class MatStream(object):
 
 
     @classmethod
-    def appendTo(cls, filename):
+    def appendTo(cls, filename, **kwargs):
         """ Open an existing .MAT file for appending. """
-        matfile = cls(None)
-        matfile.stream = open(filename, 'ab')
-        matfile.totalSize = os.path.getsize(filename)
+        matfile = cls(None, **kwargs)
+        if isinstance(filename, basestring):
+            matfile.stream = open(filename, 'ab')
+            matfile.totalSize = os.path.getsize(filename)
+        else:
+            matfile.stream = filename
         return matfile
         
 
@@ -383,12 +386,13 @@ class MatStream(object):
         self.write(payload.ljust(self.next8(len(payload)), '\0'))
 
         
-    def writeNames(self, names, title="channel_names"):
+    def writeNames(self, names, title="channel_names", noTimes=False):
         """ Write IDE column names to the MAT file, for easy identification
             of rows in MATLAB (IDE data is written in columns in order to
             stream).
         """
-        names.insert(0, 'Time')
+        if not noTimes:
+            names.insert(0, 'Time')
         self.writeStringArray(title, names)
 
 
@@ -416,7 +420,13 @@ class MatStream(object):
             data = self.rowFormatter.pack(event[-2]*self.timeScalar, *event[-1])
         self.write(data)
         self.numRows += 1
+
     
+    def writeRecorderInfo(self, info):
+        """
+        """
+        if 'RecorderSerial' in info:
+            self.writeStringArray('RecorderSerial', ['SSX%07d' % info['RecorderSerial']])
 
     def close(self):
         """ Close the file.

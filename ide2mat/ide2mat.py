@@ -51,35 +51,51 @@ class StreamedEventList(object):
                     'rollingMeanSpan', 'session', 'units']:
                 setattr(self, att, getattr(eventlist, att))
 
+
     def __len__(self):
         return len(self.eventlist)
 
 
     def append(self, block):
         # `append()` doesn't really append; it writes the data to a file.
+        self_session = self.session
+        self_writer = self.writer
         values = self.parent.parseBlock(block)
         if block.endTime is None:
             sampleTime = 0
         else:
             sampleTime = (block.endTime - block.startTime) / len(values)
         times = (block.startTime + (i * sampleTime) for i in xrange(len(values)))
-        if self.hasSubchannels:
-            for event in izip(times, values):
+        events = zip(times, values)
+        
+        # In this case, there are always subchannels
+        if self.parent.raw:
+            map(self_writer, events)
+            event = events[-1]
+        elif self.parent.children[0].raw:
+            # In this case, if one subchannel is raw, they all are
+            parent_transform = self.parent._transform # optimization
+            for event in events:
+                # TODO: Refactor this ugliness
+                event=[f((event[-2],v),self_session) 
+                       for f,v in izip(parent_transform, event[-1])]
+                event=(event[0][0], tuple((e[1] for e in event)))
+                if self_writer is not None:
+                    self_writer(event)
+        else:
+            # optimization: local variables for speed in loop
+            parent_transform = self.parent._transform
+            parent_subchannels = self.parent.subchannels
+            for event in events:
                 # TODO: Refactor this ugliness
                 # This is some nasty stuff to apply nested transforms
-                event=[c._transform(f((event[-2],v),self.session), self.session) for f,c,v in izip(self.parent._transform, self.parent.subchannels, event[-1])]
+                event=[c._transform(f((event[-2],v),self_session), self_session) 
+                       for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
                 event=(event[0][0], tuple((e[1] for e in event)))
-                if self.writer is not None:
-                    self.writer(event)
-        else:
-            for event in izip(times, values):
-                event = self.parent._transform(self.parent.parent._transform[self.parent.id](event, self.session))
-                if self.writer is not None:
-                    self.writer(event)
+                if self_writer is not None:
+                    self_writer(event)
                 
         self.lastEvent = event
-
-#         print self.eventlist.parent.id, event
 
 
     def getValueAt(self, at, outOfRange=True):
@@ -119,6 +135,8 @@ def ideIterator(doc, writer, channelId=0, calChannelId=1, **kwargs):
             continue
         w = writer if channelId == channel.id else None
         for sid, sess in channel.sessions.iteritems():
+            if channelId == channel.id:
+                pass
             channel.sessions[sid] = StreamedEventList(sess, w)
         for sc in channel.subchannels:
             for sid, sess in sc.sessions.iteritems():
@@ -237,9 +255,9 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                        mtype=_mtype, dtype=_dtype, noTimes=noTimes)
         
         try:
-            print ("Channel %d: " % channelId),
+            print ("  Channel %d: " % channelId),
             msg = "Initializing..."
-            print (msg + ('\x08' * len(msg))),
+            print (msg + ('\x08' * (1+len(msg)))),
             
             ideIterator(doc, mat.writeRow, **kwargs)
             mat.endArray()
@@ -248,7 +266,7 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                 print updater.lastMsg, " " * 10
             
             if not accelOnly:
-                print ("Channel %d: " % calChannelId),
+                print ("  Channel %d: " % calChannelId),
                 mat.startArray(doc.channels[1].name, len(doc.channels[1].subchannels),
                                mtype=MP.mxDOUBLE_CLASS, dtype=MP.miDOUBLE, noTimes=noTimes)
                 
@@ -266,9 +284,11 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                 if updater is not nullUpdater:
                     print updater.lastMsg, " " * 10
             
-        except KeyboardInterrupt:
-            pass
-        mat.close()
+            mat.close()
+            
+        except KeyboardInterrupt as ex:
+            mat.close()
+            raise ex
 
 #===============================================================================
 # 
@@ -319,7 +339,6 @@ if __name__ == "__main__":
                     noTimes=args.noTimestamps, maxSize=args.maxSize,
                     updater=SimpleUpdater(precision=digits))
     
-        print "\nConversion complete! Total time: %s" % (datetime.now() - t0)
+        print "Conversion complete! Total time: %s" % (datetime.now() - t0)
     except KeyboardInterrupt:
-        print
-        print "*** Conversion canceled! MAT version of %s may be incomplete." % f
+        print "\n*** Conversion canceled! MAT version(s) of %s may be incomplete." % f
