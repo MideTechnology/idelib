@@ -1,7 +1,5 @@
 '''
-Created on Oct 17, 2014
-
-@author: dstokes
+MATLAB .MAT file exporting.
 '''
 
 from datetime import datetime
@@ -132,6 +130,7 @@ class MatStream(object):
     """
     MAX_LENGTH = (2**31)-9 # Accounts for data being rounded to the next x8.
     MAX_SIZE = int(MAX_LENGTH * .95) # scale back by 5%, just to be certain
+    DEFAULT_HEADER = "MATLAB 5.0 MAT-file MIDE IDE to MAT"
     
     typeFormatChars = {
         MP.miINT8:   'b',
@@ -147,30 +146,40 @@ class MatStream(object):
         MP.miDOUBLE: 'd',
     }
     
-    classFormatChars = {
-        MP.mxINT8_CLASS:   'b',
-        MP.mxUINT8_CLASS:  'B',
-        MP.mxINT16_CLASS:  'h',
-        MP.mxUINT16_CLASS: 'H',
-        MP.mxINT32_CLASS:  'i',
-        MP.mxUINT32_CLASS: 'I',
-        MP.mxCHAR_CLASS:   'c',
-        MP.mxSINGLE_CLASS: 'f',
-        MP.mxDOUBLE_CLASS: 'd',
+    # Map data types to matrix types
+    classTypes = {
+        MP.miINT8:   MP.mxINT8_CLASS,
+        MP.miUINT8:  MP.mxUINT8_CLASS,
+        MP.miINT16:  MP.mxINT16_CLASS,
+        MP.miUINT16: MP.mxUINT16_CLASS,
+        MP.miINT32:  MP.mxINT32_CLASS,
+        MP.miUINT32: MP.mxUINT32_CLASS,
+        MP.miINT64:  MP.mxINT64_CLASS,
+        MP.miUINT64: MP.mxUINT64_CLASS,
+        MP.miUTF8:   MP.mxCHAR_CLASS,
+        MP.miSINGLE: MP.mxSINGLE_CLASS,
+        MP.miDOUBLE: MP.mxDOUBLE_CLASS,
     }
     
     intPack = struct.Struct('I')
 
 
-    def __init__(self, filename, msg="MATLAB 5.0 MAT-file MIDE IDE to MAT",
-                 timeScalar=1, serialize=True, maxFileSize=MAX_SIZE):
-        """ Constructor. Create a new .MAT file. 
+    def __init__(self, filename, msg=DEFAULT_HEADER,
+                 serialize=True, maxFileSize=MAX_SIZE):
+        """ Constructor. Create a new .MAT file.
+            @param filename: The name of the new file, or `None`.
+            @keyword msg: The message string to appear at the start of the
+                MAT file. The first 4 bytes must be non-zero.
         """
+        self.basename = filename
         self.filename = filename
-        self.msg = msg.encode('utf8')
+        self.msg = msg.encode('utf8') or self.DEFAULT_HEADER
         self.stream = None
-        self.timeScalar = timeScalar
 
+        # MATLAB identifies the file as level 4 if the first byte is 0.
+        if '\x00' in self.msg[:4]:
+            self.msg = self.DEFAULT_HEADER
+            
         self.maxFileSize = min(self.MAX_SIZE, self.next8(maxFileSize))
         
         if filename is not None:
@@ -182,23 +191,23 @@ class MatStream(object):
         # Default array parameters. Typically set by startArray().
         self._inArray = False
         self.arrayName = None
-        self.arrayMType = MP.mxDOUBLE_CLASS
+        self.arrayMType = None
         self.arrayDType = MP.miDOUBLE
         self.arrayFlags = 0
         self.arrayNoTimes = False
         
 
     def newFile(self, serialize=True):
-        """
+        """ Used internally. Wraps file creation.
         """
         if self.stream is not None:
             self.close()
             
         if serialize:
-            filename = serialFilename(self.filename)
+            self.filename = serialFilename(self.basename)
         else:
-            filename = self.filename
-        self.stream = open(filename, 'wb')
+            self.filename = self.basename
+        self.stream = open(self.filename, 'wb')
 
         self.write(struct.pack('116s II H 2s', self.msg, 0, 0, 0x0100, 'IM'))
         self.totalSize = self.stream.tell()
@@ -206,7 +215,17 @@ class MatStream(object):
         self._inArray = False
         self.arrayName = None
 
-#         print "newFile: %s" % filename
+
+    def checkFileSize(self, size):
+        """ Check if adding data of the given size will exceed the maximum    
+            file size; start a new file if it will.
+        """
+        if self.next8(self.totalSize + size) >= self.maxFileSize:
+            self.newFile()
+            if self._inArray:
+                arrayNum = self.arrayNumber + 1
+                cols = self.numCols if self.arrayNoTimes else self.numCols - 1
+                self.startArray(self.arrayBaseName, cols, arrayNumber=arrayNum)
 
 
     @property
@@ -216,7 +235,8 @@ class MatStream(object):
 
     @classmethod
     def appendTo(cls, filename, **kwargs):
-        """ Open an existing .MAT file for appending. """
+        """ Open an existing .MAT file for appending. 
+        """
         matfile = cls(None, **kwargs)
         if isinstance(filename, basestring):
             matfile.stream = open(filename, 'ab')
@@ -258,10 +278,10 @@ class MatStream(object):
             @param args: Arguments for the struct formatting string (i.e. data).
             @keyword dtype: The type for the data size element.
         """
-        dataSize = self.next8(struct.calcsize(fmt))
+        dataSize = struct.calcsize(fmt)
         result = struct.pack('II'+fmt, dtype, dataSize, *args)
         self.write(result.ljust(self.next8(len(result)),'\0'))
-        return dataSize + 8
+        return self.next8(dataSize + 8)
 
     
     def packStr(self, string, maxlen=31):
@@ -288,8 +308,7 @@ class MatStream(object):
         self.seek(self.dataStartPos-4)
         self.write(self.intPack.pack(self.next8(dataEndPos-self.dataStartPos)))
         
-#         if self.numRows != self.expectedRows:
-#             # Move back and rewrite the actual number of rows (columns, actually)
+        # Move back and rewrite the actual number of rows (columns, actually)
         self.seek(self.rowsPos)
         self.write(self.intPack.pack(self.numRows))
             
@@ -303,22 +322,26 @@ class MatStream(object):
             self.write('\0' * (arrayEndPos-dataEndPos))
 
         self.totalSize = self.stream.tell()
+        self.arrayMType = None
         return True
 
 
-    def startArray(self, name, cols, rows=1, arrayNumber=0, mtype=None, dtype=None, flags=0, noTimes=None):
+    def startArray(self, name, cols, rows=1, arrayNumber=0, 
+                   mtype=None, dtype=None, flags=0, noTimes=None):
         """ Begin a 2D array for storing the recorded data.
         
             @param name: The name of the matrix (array).
             @param cols: The number of columns in the data (excluding time).
             @keyword rows: The number of rows in the data (if known).
-            @keyword mtype: The Matlab matrix type.
-            @keyword dtype: The Matlab data type in the matrix (usually matches
-                the matrix's type).
+            @keyword dtype: The Matlab data type in the matrix.
+            @keyword mtype: The Matlab matrix type. Defaults to match `dtype`.
             @keyword flags: A set of bit flags for the matrix.
         """
         if self._inArray:
             self.endArray()
+
+        self.totalSize = self.stream.tell()
+        self.checkFileSize(80 + self.next8(len(name)))
 
         self.arrayBaseName = name
         self.arrayNumber = arrayNumber
@@ -330,6 +353,9 @@ class MatStream(object):
         self.arrayFlags = self.arrayFlags if flags is None else flags
         self.arrayNoTimes = self.arrayNoTimes if noTimes is None else noTimes
         
+        if self.arrayMType is None:
+            self.arrayMType = self.classTypes[self.arrayDType]
+        
         if arrayNumber > 0:
             name = "%s%d" % (self.arrayBaseName, arrayNumber)
 
@@ -338,7 +364,6 @@ class MatStream(object):
         else:
             self.numCols = cols+1
         fchar = self.typeFormatChars.get(self.arrayDType, self.typeFormatChars[MP.miDOUBLE]) * self.numCols
-#         print "\ncols:%s self.numCols: %s formatter: %r" % (cols, self.numCols, fchar)
         self.rowFormatter = struct.Struct(fchar)
         
         # Start of matrix element, initial size of 0 (rewritten at end)
@@ -346,8 +371,6 @@ class MatStream(object):
         self.dataStartPos = self.stream.tell()
         
         # Write flags and matrix type
-        # NOTE: This didn't work right; hard-coding something that does.
-#         self.pack('xxBBxxxx', (flags, mtype))
         self.pack('BBBBBBBB', (self.arrayMType, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
         
         # Write matrix dimensions. Because the file stores data column first,re
@@ -364,10 +387,7 @@ class MatStream(object):
         self.prSize = self.stream.tell() - 4
         
         self.totalSize = self.stream.tell()
-        self.arraySize = self.totalSize - self.dataStartPos
         
-#         print "array start. dataStartPos=%s, rowsPos=%s" % (self.dataStartPos, self.rowsPos)
-
 
     def writeStringArray(self, title, strings):
         """ Write a set of strings as a MATLAB character array.
@@ -378,12 +398,17 @@ class MatStream(object):
         
         totalSize = 40 + self.next8(len(title)) + 8 + self.next8(len(payload))
         
+        # Ensure that this won't exceed the max file size before writing
+        self.checkFileSize(totalSize)
+        
         self.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
         self.pack('BBBBBBBB', (0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
         self.pack('II', (len(strings), textSize), dtype=MP.miINT32)
         self.packStr(sanitizeName(title))
         self.write(struct.pack("II", MP.miUTF8, textSize*len(strings)))
         self.write(payload.ljust(self.next8(len(payload)), '\0'))
+        
+        self.totalSize = self.stream.tell()
 
         
     def writeNames(self, names, title="channel_names", noTimes=False):
@@ -401,32 +426,62 @@ class MatStream(object):
         
             @param event: The sample, in the format `(time, (v1, v2, ...))`
         """
-        self.arraySize += self.rowFormatter.size
+        self.checkFileSize(self.rowFormatter.size)
         self.totalSize += self.rowFormatter.size
-        if self.next8(self.totalSize) >= self.maxFileSize:
-            arrayNum = self.arrayNumber + 1
-            cols = self.numCols if self.arrayNoTimes else self.numCols - 1
-            self.newFile()
-            self.startArray(self.arrayBaseName, cols, arrayNumber=arrayNum)
-        elif self.arraySize > self.MAX_LENGTH or self.numRows > self.MAX_LENGTH:
+
+        if self.numRows > self.MAX_LENGTH:
             # May be obsolete; can it ever happen before the file size max?
             arrayNum = self.arrayNumber + 1
             cols = self.numCols if self.arrayNoTimes else self.numCols - 1
             self.endArray()
             self.startArray(self.arrayBaseName, cols, arrayNumber=arrayNum)
+            
         if self.arrayNoTimes:
             data = self.rowFormatter.pack(*event[-1])
         else:
             data = self.rowFormatter.pack(event[-2]*self.timeScalar, *event[-1])
+            
         self.write(data)
         self.numRows += 1
 
+
+    def writeValue(self, name, val, dtype=MP.miDOUBLE):
+        """ Write a single numeric value to the MAT file. Don't use for strings.
+        """
+        name = sanitizeName(name)
+        mtype = self.classTypes.get(dtype, MP.mxDOUBLE_CLASS)
+        fchar = self.typeFormatChars.get(dtype,'d')
+        dsize = struct.calcsize(fchar)
+        totalSize = 40 + self.next8(len(name)) + 8 + self.next8(dsize)
+        
+        self.checkFileSize(totalSize)
+        
+        self.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
+        self.pack('BBBBBBBB', (mtype, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)) #flags
+        self.pack('II', (1, 1), dtype=MP.miINT32) # dimensions
+        self.packStr(name)
+        self.pack(fchar, (val,), dtype=dtype)
+        self.totalSize = self.stream.tell()
+        
     
     def writeRecorderInfo(self, info):
+        """ Write an IDE file's 'RecorderInfo' data to the MAT as a set of
+            strings.
+        """
+        if info:
+            s = ['%s:\t%s' % i for i in info.iteritems()]
+            self.writeStringArray('recorder_info', s)
+
+
+    def writeCalibration(self, cals):
         """
         """
-        if 'RecorderSerial' in info:
-            self.writeStringArray('RecorderSerial', ['SSX%07d' % info['RecorderSerial']])
+        for calId, cal in cals.iteritems():
+            vals = cal.references + cal.coefficients
+            self.startArray("calibration%d" % calId, len(vals), dtype=MP.miDOUBLE, noTimes=True)
+            self.writeRow((0,vals))
+            self.endArray()
+        
 
     def close(self):
         """ Close the file.

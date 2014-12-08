@@ -5,10 +5,8 @@ Created on Dec 3, 2014
 '''
 
 from datetime import datetime
-from itertools import izip
 import locale
 import os.path
-from StringIO import StringIO
 import sys
 import time
 
@@ -35,9 +33,11 @@ from mide_ebml.parsers import MPL3115PressureTempParser, ChannelDataBlock
 class AccelDumper(object):
     maxTimestamp = ChannelDataBlock.maxTimestamp
     
-    def __init__(self, writer):
+    def __init__(self, numCh, writer=None):
         self.writer = writer
+        self.numCh = numCh
         self.numRows = 0
+        self.numSamp = 0
         self.firstTime = None
         self.lastTime = 0
     
@@ -62,8 +62,9 @@ class AccelDumper(object):
         self.lastTime = self.fixOverflow(el.value[2].value)
         
         data = el.value[-1].value 
-        vals= np.frombuffer(data, np.uint16).reshape((-1,3)).astype(np.int32) - 32767
+        vals= np.frombuffer(data, np.uint16).reshape((-1,3))
         self.numRows += vals.shape[0]
+        self.numSamp += vals.shape[0] * self.numCh
         for v in vals:
             self.writer((0,v))
 
@@ -81,6 +82,7 @@ class MPL3115Dumper(AccelDumper):
             self.firstTime = self.lastTime
         
         self.numRows += 1
+        self.numSamp += self.numCh
         self.data.append(self.tempParser.unpack_from(el.value[-1].value))
 
 
@@ -98,20 +100,24 @@ class SimpleUpdater(object):
             @keyword cancelAt: A percentage at which to abort the import. For
                 testing purposes.
         """
+        locale.setlocale(0,'English_United States.1252')
         self.out = out
-        self.cancelled = False
-        self.startTime = None
         self.cancelAt = cancelAt
-        self.estSum = None
         self.quiet = quiet
+        self.precision = precision
+        self.reset()
+
+
+    def reset(self):
+        self.startTime = None
+        self.cancelled = False
+        self.estSum = None
         self.lastMsg = ''
         
-        if precision == 0:
+        if self.precision == 0:
             self.formatter = " %d%%"
         else:
-            self.formatter = " %%.%df%%%%" % precision
-
-        locale.setlocale(0,'English_United States.1252')
+            self.formatter = " %%.%df%%%%" % self.precision
 
     def dump(self, s):
         if not self.quiet:
@@ -120,12 +126,16 @@ class SimpleUpdater(object):
     
     def __call__(self, count=0, total=None, percent=None, error=None, 
                  starting=False, done=False):
+        if starting:
+            self.reset()
+            return
         if percent >= self.cancelAt:
             self.cancelled=True
         if self.startTime is None:
-            self.startTime = datetime.now()
+            self.startTime = time.time()
         if done:
-            self.dump("Done!\n")
+            self.dump(" Done.".ljust(len(self.lastMsg))+'\n')
+            self.reset()
         else:
             if percent is not None:
                 num = locale.format("%d", count, grouping=True)
@@ -133,8 +143,13 @@ class SimpleUpdater(object):
                 if msg != self.lastMsg:
                     self.lastMsg = msg
                     msg = "%s (%s)" % (msg, self.formatter % (percent*100))
+                    dt = time.time() - self.startTime
+                    if dt > 0:
+                        sampSec = count/dt
+                        msg = "%s - %s samples/sec." % (msg, locale.format("%d", sampSec, grouping=True))
                     self.dump(msg)
                     self.dump('\x08' * len(msg))
+                    self.lastMsg = msg
                 if percent >= self.cancelAt:
                     self.cancelled=True
             sys.stdout.flush()
@@ -153,6 +168,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
     """
     
     updater = kwargs.get('updater', nullUpdater)
+    maxSize = max(1024*1024*16, maxSize)
     
     if matFilename is None:
         matFilename = os.path.splitext(ideFilename)[0] + ".mat"
@@ -164,50 +180,85 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
         mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), maxFileSize=maxSize)
         mat.writeNames([c.name for c in doc.channels[0].subchannels])
         
-        if len(doc.transforms) > 1:
-            mat.writeStringArray("cal_polynomials", map(str, doc.transforms.values()[1:]))
+        # Write calibration polynomials as strings
+        mat.writeCalibration(doc.transforms)
         
         numAccelCh = len(doc.channels[0].subchannels)
         numTempCh = len(doc.channels[1].subchannels)
-        
-        mat.startArray(doc.channels[0].name, numAccelCh,
-                       mtype=MP.mxINT16_CLASS, dtype=MP.miINT16, noTimes=True)
-
-        accelDumper = AccelDumper(mat.writeRow)
-        tempDumper = MPL3115Dumper(None)
         
         totalSize = os.path.getsize(ideFilename) + 0.0
         nextUpdate = time.time() + updateInterval
         
         try:
-            print "Reading data...",
-            for i, el in enumerate(doc.ebmldoc.iterroots()):
-                if el.name == "ChannelDataBlock":
-                    chId = el.value[0].value
-                    if chId == 0:
-                        accelDumper.write(el)
-                    elif chId == 1:
-                        tempDumper.write(el)
-                if i % 100 == 0 or time.time() > nextUpdate:
-                    count = (accelDumper.numRows*numAccelCh)+(tempDumper.numRows*numTempCh)
-                    updater(count=count, total=None, percent=(stream.tell()/totalSize))
-                    nextUpdate = time.time() + updateInterval
+            mat.writeRecorderInfo(doc.recorderInfo)
+            if doc.sessions[0].utcStartTime:
+                mat.writeValue('start_time_utc', doc.sessions[0].utcStartTime, MP.miINT64)
+            mat.startArray(doc.channels[0].name, numAccelCh, dtype=MP.miUINT16, noTimes=True)
+    
+            dumpers = (AccelDumper(3, mat.writeRow), MPL3115Dumper(2))
+            
+            lastMat = ''
+            writeMsg = '' 
+            
+            try:
+                for i, el in enumerate(doc.ebmldoc.iterroots()):
+                    if mat.filename != lastMat:
+                        lastMat = mat.filename
+                        msgLen = len(writeMsg)
+                        writeMsg = "  Writing %s... " % os.path.basename(lastMat)
+                        print "%s%s" % ('\x08'*msgLen, writeMsg),
+                        nextUpdate = 0
+    
+                    if el.name == "ChannelDataBlock":
+                        chId = el.value[0].value
+                        if chId < 2:
+                            dumpers[chId].write(el)
+                            
+                        # EXPERIMENTAL!
+#                         for chEl in el.value:
+#                             try:
+#                                 del chEl.cached_value
+#                             except AttributeError:
+#                                 pass
+#                             del chEl.stream
+#                             del chEl
+#                         del el.stream
+                        
+                    if i % 250 == 0 or time.time() > nextUpdate:
+                        count = sum((x.numSamp for x in dumpers))
+                        updater(count=count, total=None, percent=(stream.tell()/totalSize))
+                        nextUpdate = time.time() + updateInterval
+                    
+#                     try:
+#                         del el.stream
+#                         del el.cached_value
+#                     except AttributeError:
+#                         pass
+                    
+                    doc.ebmldoc.stream.substreams.clear()
+                    del el
+            except IOError:
+                pass
+                
             mat.endArray()
             
             if not accelOnly:
                 mat.startArray(doc.channels[1].name, numTempCh,
-                       mtype=MP.mxSINGLE_CLASS, dtype=MP.miSINGLE, noTimes=True)
-                for r in tempDumper.data:
+                       dtype=MP.miSINGLE, noTimes=True)
+                for r in dumpers[1].data:
                     mat.writeRow((0,r))
                 mat.endArray()
 
-            sampRates = [1000000.0/(((d.lastTime-d.firstTime)*ChannelDataBlock.timeScalar)/d.numRows) for d in (accelDumper, tempDumper)]
+            # Calculate actual sampling rate based on total count and total time
+            sampRates = [1000000.0/(((d.lastTime-d.firstTime)*ChannelDataBlock.timeScalar)/d.numRows) for d in dumpers]
+            mat.startArray("sampling_rates", len(sampRates), dtype=MP.miSINGLE, noTimes=True)
+            mat.writeRow((0,sampRates))
+            mat.endArray()
             
-            mat.startArray("sampling_rates", )
-            print sampRates
-#             for i,d in enumerate((accelDumper, tempDumper)):
-#                 print "Channel %d: rows: %d, firstTime=%s, lastTime=%s" % (i, d.numBuffers, d.firstTime, d.lastTime)
-            
+            mat.close()
+            return sum((x.numSamp for x in dumpers))
+        
+        except IOError:
             mat.close()
             
         except KeyboardInterrupt as ex:
@@ -226,7 +277,7 @@ if __name__ == "__main__":
     argparser.add_argument('-o', '--output', help="The output path to which to save the .MAT files. Defaults to the same as the source file.")
     argparser.add_argument('-a', '--accelOnly', action='store_true', help="Export only accelerometer data.")
     argparser.add_argument('-m', '--maxSize', type=int, default=matfile.MatStream.MAX_SIZE, help="The maximum MAT file size in bytes. Must be less than 2GB.")
-    argparser.add_argument('source', nargs="+", help="The source .IDE file(s) to split.")
+    argparser.add_argument('source', nargs="+", help="The source .IDE file(s) to convert.")
 
     args = argparser.parse_args()
     sourceFiles = []
@@ -249,15 +300,24 @@ if __name__ == "__main__":
             sys.exit(1)
     
     try:
+        totalSamples = 0
         t0 = datetime.now()
+        updater=SimpleUpdater()
         for f in sourceFiles:
             print ('Converting "%s"...' % f)
-            fsize = os.path.getsize(f)
-            digits = max(0, min(2, (len(str(fsize))/2)-1))
-            raw2mat(f, matFilename=args.output, accelOnly=args.accelOnly, 
-                    maxSize=args.maxSize, updater=SimpleUpdater(precision=digits))
+            updater.precision = max(0, min(2, (len(str(os.path.getsize(f)))/2)-1))
+            updater(starting=True)
+            totalSamples += raw2mat(f, matFilename=args.output, 
+                accelOnly=args.accelOnly, maxSize=args.maxSize, 
+                updater=updater)
+            updater(done=True)
     
-        print "Conversion complete! Total time: %s" % (datetime.now() - t0)
+        totalTime = datetime.now() - t0
+        tstr = str(totalTime).rstrip('0.')
+        sampSec = locale.format("%d", totalSamples/totalTime.total_seconds(), grouping=True)
+        print "Conversion complete! Total time: %s (%s samples/sec.)" % (tstr, sampSec)
     except KeyboardInterrupt:
         print "\n*** Conversion canceled! MAT version(s) of %s may be incomplete." % f
+#     except IOError as err: #Exception as err:
+#         print "\n\x07*** Conversion failed! %r" % err
 

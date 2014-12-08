@@ -211,9 +211,7 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             noTimes=False, maxSize=matfile.MatStream.MAX_SIZE, **kwargs):
     """
     """
-    timeScalar =  1.0/(10**6)
     if raw:
-        timeScalar = 1
         nocal = True
         if noTimes:
             _mtype = MP.mxINT16_CLASS
@@ -246,7 +244,7 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             for sc in c.subchannels:
                 sc.raw = raw or nocal
         
-        mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), timeScalar=timeScalar, maxFileSize=maxSize)
+        mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), maxFileSize=maxSize)
         mat.writeNames([c.name for c in doc.channels[0].subchannels])
         if len(doc.transforms) > 1:
             mat.writeStringArray("cal_polynomials", map(str, doc.transforms.values()[1:]))
