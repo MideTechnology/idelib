@@ -212,7 +212,6 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
     fs = None
     try:
         while True:
-            
             if fs is None or fs.closed:
                 num += 1
                 fs = open(filename % num, 'wb')
@@ -260,14 +259,19 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
             el = i.next()
             elementCount += 1
             
-    except None as e:#IOError as e:
+            # XXX: EXPERIMENTAL
+            # NOTE: This is messing with internals of python_ebml. May change!
+            doc.stream.substreams.clear()
+
+    
+    except IOError as e:
         if e.errno is None:
             # The EBML library raises an empty IOError if it hits EOF.
             # TODO: Handle other cases of empty IOError (lots in python-ebml)
             doc.fileDamaged = True
         else:
             updater(error=e)
-    except StopIteration:
+    except (StopIteration, KeyboardInterrupt):
         pass
         
     try:
@@ -308,7 +312,10 @@ def splitFile(filename=testFile, savePath='temp/', basename=None, numDigits=3,
     
     with open(filename, 'rb') as fp:
         doc = MideDocument(fp)
-        return  splitDoc(doc, savePath=savePath, basename=basename, numDigits=numDigits, maxSize=maxSize, updater=updater, numUpdates=numUpdates, updateInterval=updateInterval, parserTypes=parserTypes)
+        return  splitDoc(doc, savePath=savePath, basename=basename, 
+                         numDigits=numDigits, maxSize=maxSize, updater=updater, 
+                         numUpdates=numUpdates, updateInterval=updateInterval, 
+                         parserTypes=parserTypes)
  
  
 if __name__ == '__main__':

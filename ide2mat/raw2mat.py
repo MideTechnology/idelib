@@ -168,7 +168,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
     """
     
     updater = kwargs.get('updater', nullUpdater)
-    maxSize = max(1024*1024*16, maxSize)
+    maxSize = max(1024**2*16, min(matfile.MatStream.MAX_SIZE, 1024**2*maxSize))
     
     if matFilename is None:
         matFilename = os.path.splitext(ideFilename)[0] + ".mat"
@@ -237,6 +237,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                     
                     doc.ebmldoc.stream.substreams.clear()
                     del el
+                    
             except IOError:
                 pass
                 
