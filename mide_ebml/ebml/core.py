@@ -47,9 +47,10 @@ def decode_vint_length(byte, mask=True):
 	length = None
 	value_mask = None
 	for n in xrange(1, 9):
-		if byte & (2**8 - (2**(8 - n))) == 2**(8 - n):
+		x = 2**(8 - n)
+		if byte & (256 - (x)) == x:
 			length = n
-			value_mask = (2**(8 - n)) - 1
+			value_mask = (x) - 1
 			break
 	if length is None:
 		raise IOError('Cannot decode invalid varible-length integer.')
@@ -73,9 +74,13 @@ def read_element_id(stream):
 	length, id_ = decode_vint_length(byte, False)
 	if length > 4:
 		raise IOError('Cannot decode element ID with length > 8.')
-	for i in xrange(0, length - 1):
-		byte = ord(stream.read(1))
-		id_ = (id_ * 2**8) + byte
+# 	for i in xrange(0, length - 1):
+# 		byte = ord(stream.read(1))
+# 		id_ = (id_ * 256) + byte
+	if length > 1:
+		for i in stream.read(length - 1):
+			byte = ord(i)
+			id_ = (id_ * 256) + byte
 	return id_, length
 
 
@@ -93,9 +98,13 @@ def read_element_size(stream):
 	byte = ord(stream.read(1))
 	length, size = decode_vint_length(byte)
 	
-	for i in xrange(0, length - 1):
-		byte = ord(stream.read(1))
-		size = (size * 2**8) + byte
+# 	for i in xrange(0, length - 1):
+# 		byte = ord(stream.read(1))
+# 		size = (size * 256) + byte
+	if length > 1:
+		for i in stream.read(length - 1):
+			byte = ord(i)
+			size = (size * 256) + byte
 	
 	if size == maximum_element_size_for_length(length) + 1:
 		size = None
@@ -117,9 +126,13 @@ def read_unsigned_integer(stream, size):
 	"""
 	
 	value = 0
-	for i in xrange(0, size):
-		byte = ord(stream.read(1))
-		value = (value << 8) | byte
+# 	for i in xrange(0, size):
+# 		byte = ord(stream.read(1))
+# 		value = (value * 256) | byte
+	if size > 0:
+		for i in stream.read(size):
+			byte = ord(i)
+			value = (value * 256) | byte
 	return value
 
 
@@ -140,9 +153,12 @@ def read_signed_integer(stream, size):
 	if size > 0:
 		first_byte = ord(stream.read(1))
 		value = first_byte
-		for i in xrange(1, size):
-			byte = ord(stream.read(1))
-			value = (value << 8) | byte
+# 		for i in xrange(1, size):
+# 			byte = ord(stream.read(1))
+# 			value = (value * 256) | byte
+		for i in stream.read(size):
+			byte = ord(i)
+			value = (value * 256) | byte
 		if (first_byte & 0b10000000) == 0b10000000:
 			value = -(2**(size*8) - value)
 	return value
