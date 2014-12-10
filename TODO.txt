@@ -24,10 +24,27 @@ Calculate FFT/Spectrograms in another thread or with wx.lib.delayedresult to
 prevent the app from being labeled "(Not Responding)" by the OS. This bugs me,
 a lot, but it's hard to get it bumped in priority.
 
+Multi-threaded plot drawing, so the app won't appear to hang and drawing can 
+be interrupted (e.g. by scrolling during redraw).
+
+
+Very Minor Items
+----------------
+Scroll wheel support (vertical), maybe middle-click drag as well.
+
+Revamp the zooming and navigation to be event-driven, handled as far up the 
+chain as possible. Consider using wx.lib.pubsub if it's thread-safe in c
+conjunction with wxPython views. X axis partially converted; Y axis not.
+    
+Clean up time range change 'tracking' and 'broadcast'. 
+
+Clean up the 'background operation' system. It's overly complex. 
+
 
 Longer term
 -----------
-
+Re-implement the underlying mide_ebml library. See separate TODO list in that
+project.
 
 
 'Wish List' items ("it would be nice if...")

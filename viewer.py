@@ -4,21 +4,6 @@ Slam Stick Lab Data Viewer
 Full-featured viewer for data recorded by Slam Stick and Slam Stick X data
 loggers.
 
-@todo: See individual TODO tags in the body of code. The long-term items
-    are also listed here.
-    
-@todo: Multi-threaded plot drawing, so the app won't appear to hang and drawing
-    can be interrupted.
-    
-@todo: Scroll wheel support (vertical), maybe middle-click drag as well.
-
-@todo: Revamp the zooming and navigation to be event-driven, handled as far up
-    the chain as possible. Consider using wx.lib.pubsub if it's thread-safe
-    in conjunction with wxPython views. X axis partially converted; Y axis not.
-    
-@todo: Clean up time range change 'tracking' and 'broadcast'. 
-
-@todo: Clean up the 'background operation' system. It's overly complex. 
 '''
 
 from build_info import VERSION, DEBUG, BUILD_NUMBER, BUILD_TIME
