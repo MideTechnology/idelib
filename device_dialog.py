@@ -24,6 +24,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     """ The dialog for selecting data to export.
     """
 
+    ID_SET_TIME = wx.NewId()
+
     ColumnInfo = namedtuple("ColumnInfo", 
                             ['name','propName','formatter','default'])
 
@@ -77,11 +79,22 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
 #         self.infoText = wx.StaticText(pane, -1, "Selected device info here.")
 #         self.infoText.SetSizerProps(expand=True)
-        
-        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
-        self.okButton = self.FindWindowById(wx.ID_OK)
-        self.okButton.Enable(False)
 
+        buttonpane = sc.SizedPanel(pane, -1)
+        buttonpane.SetSizerType("horizontal")
+        buttonpane.SetSizerProps(expand=True)
+        self.setClockButton = wx.Button(buttonpane, self.ID_SET_TIME, "Set All Clocks")
+        self.setClockButton.SetSizerProps(halign="left")
+        self.setClockButton.SetToolTipString("Set the time of every attached recorder with a RTC")
+        sc.SizedPanel(buttonpane, -1).SetSizerProps(proportion=1) # Spacer
+        self.okButton = wx.Button(buttonpane, wx.ID_OK)
+        self.okButton.SetSizerProps(halign="right")
+        self.okButton.Enable(False)
+        self.cancelButton = wx.Button(buttonpane, wx.ID_CANCEL)
+        self.cancelButton.SetSizerProps(halign="right")
+
+        self.Bind(wx.EVT_BUTTON, self.setClocks, id=self.ID_SET_TIME)
+        
         # call deviceChanged() to set the initial state
         deviceChanged(recordersOnly=True)
         self.addColumns()
@@ -200,6 +213,18 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             # Close the dialog
             self.EndModal(wx.ID_OK)
         evt.Skip()
+
+
+    def setClocks(self, evt=None):
+        butts = self.okButton, self.cancelButton, self.setClockButton
+        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        for b in butts:
+            b.Enable(False)
+        for rec in self.recorders.values():
+            rec.setTime()
+        for b in butts:
+            b.Enable(True)
+        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
 #===============================================================================
 # 
