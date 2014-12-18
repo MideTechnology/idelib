@@ -1476,19 +1476,23 @@ class EventList(Cascading):
 #             if block.endTime is not None:
 #                 t = (t + block.endTime)/2
             m = _getBlockRollingMean(block.blockIndex)
-            m = 0 if m is None else m
             result = []
+            result_append = result.append
             
             if hasSubchannels:
+                m = 0 if m is None else m
                 for val in (block.min, block.mean, block.max):
-                    event=[f((t,v-m), self.session) for f,v in izip(parent_transform, val)]
+                    event=[f((t,v-m), session) for f,v in izip(parent_transform, val)]
                     event=(event[0][0], tuple((e[1] for e in event)))
-                    result.append(event)
+                    result_append(event)
             else:
                 for val in (block.min, block.mean, block.max):
-                    val = val[parent_id]-m[parent_id]
+                    if m is not None:
+                        val = val[parent_id]-m[parent_id]
+                    else:
+                        val = val[parent_id]
                     event = parent_transform(parent_parent_transform[parent_id]((t,val), session), session)
-                    result.append(event)
+                    result_append(event)
                 
             if times:
                 yield result

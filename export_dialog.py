@@ -675,14 +675,16 @@ class FFTExportDialog(ExportDialog):
     def buildSpecialUI(self):
         """ Called before the OK/Cancel buttons are added.
         """
-        
-        self.sizeList, _subpane = self._addChoice("Sampling Window Size:",
-            choices=self.WINDOW_SIZES, default=self.windowSize, 
-            tooltip="The size of the 'window' used in Welch's method")
+        pass
+        # TODO: Fix windowed FFT calculation, re-enable window size UI
+#         self.sizeList, _subpane = self._addChoice("Sampling Window Size:",
+#             choices=self.WINDOW_SIZES, default=self.windowSize, 
+#             tooltip="The size of the 'window' used in Welch's method")
         
 #         self.orderList, _ = self._addChoice("Sampling Order:",
 #             choices=self.SAMPLE_ORDER, default=self._samplingOrder,
 #             parent = subpane)        
+
 
     def validateSettings(self, selected=None):
         """ High-level validation of input range; handles warning displays
@@ -741,8 +743,8 @@ class FFTExportDialog(ExportDialog):
         if result is None:
             return None
         
-        windowSize = int(self.sizeList.GetString(self.sizeList.GetSelection()))
-        result['windowSize'] = windowSize
+#         windowSize = int(self.sizeList.GetString(self.sizeList.GetSelection()))
+#         result['windowSize'] = windowSize
 #         result['samplingOrder'] = self.orderList.GetSelection()
         return result
 

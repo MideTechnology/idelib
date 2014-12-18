@@ -1540,7 +1540,7 @@ class Viewer(wx.Frame, MenuMixin):
         source = settings.get('source', None)
         subchannels = settings['channels']
         startTime, stopTime = settings['timeRange']
-        sliceSize = settings['windowSize']
+        sliceSize = settings.get('windowSize', 2**16)
         
         title = "FFT: %s (%ss to %ss)" % (
                       ", ".join([c.name for c in subchannels]), 

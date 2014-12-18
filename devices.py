@@ -469,8 +469,8 @@ class SlamStickX(Recorder):
         with open(self.clockFile, 'wb') as f:
             if pause:
                 t0 = int(time.time())
-                while int(time.time()) <= t0:
-                    pass
+                while int(t) <= t0:
+                    t = time.time()
             f.write(self.TIME_PARSER.pack(t))
         return t
 

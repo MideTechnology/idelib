@@ -65,6 +65,8 @@ from collections import Iterable
 import numpy as np
 ma = np.ma
 
+from common import nextPow2
+
 def window_hanning(x):
     "return x times the hanning window of len(x)"
     return np.hanning(len(x))*x
@@ -284,3 +286,38 @@ def csd(x, y, NFFT=256, Fs=2, detrend=detrend_none, window=window_hanning,
     return Pxy, freqs
 
 
+#===============================================================================
+# 
+#===============================================================================
+
+# def simplerFFT(data, start=0, end=None, NFFT=2**12, Fs=1000, window=np.hanning):
+#     """
+#     """
+#     if window is None:
+#         windowMult = np.ones(NFFT)
+#     else:
+#         windowMult = window(NFFT)
+# 
+#     end = len(data) if end is None else end
+#     
+#     total = 0
+# #     total = abs(np.fft.fft(data[start:start+NFFT/2] * windowMult[NFFT/2:], NFFT)[:NFFT/2+1]/NFFT)
+#     
+#     print 'start/end/sliceSize: ', start, end, NFFT/2
+#     for i in xrange(start, end, int(NFFT/2)):
+#         chunk = data[i:i+NFFT]
+#         chunkLen = len(chunk)
+#         if chunkLen < NFFT:
+#             chunk = np.concatenate((chunk, np.zeros(NFFT-chunkLen)))
+#         total += 2*abs(np.fft.fft(chunk * windowMult, NFFT)[:NFFT/2+1]/chunkLen)
+#         
+# #     return total / (float(end-start) / (NFFT + 1.0))
+#     return total / (float(end-start) / (NFFT/2))
+# 
+# 
+# 
+# def fft(data, NFFT=2**12, Fs=1000):
+#     """ TEMPORARY.
+#     """
+#     sliceSize = min(len(data), NFFT)
+#     return 2*abs(np.fft.fft(data, NFFT)/sliceSize)[:NFFT/2+1]

@@ -284,11 +284,12 @@ class FFTView(wx.Frame, MenuMixin):
         freqs = self.data[:,0].reshape(-1,1)
 
         for i in range(cols):
+            print "i=%s" % i
             points = (hstack((freqs, self.data[:,i+1].reshape(-1,1))))
-            name = self.subchannels[i-1].name
+            name = self.subchannels[i].name
 
             lines.append(PolyLine(points, legend=name, 
-                        colour=self.root.getPlotColor(self.subchannels[i-1])))
+                        colour=self.root.getPlotColor(self.subchannels[i])))
             
         self.lines = PlotGraphics(lines, title=self.GetTitle(), 
                                     xLabel="Frequency", yLabel="Amplitude")
@@ -345,10 +346,66 @@ class FFTView(wx.Frame, MenuMixin):
         return points        
 
 
+#     @classmethod
+#     def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16):
+#         """ Compute 1D FFT from one or more channels of data, using Welch's
+#             method.
+#         
+#             @note: This is the implementation from the old viewer and does not
+#                 scale well to massive datasets. This *will* run of of memory; 
+#                 the exact number of samples/RAM has yet to be determined.
+#                 
+#             @param data: An iterable collection of event values (no times!). The
+#                 data can have one or more channels (e.g. accelerometer X or XYZ
+#                 together). This can be an iterator, generator, or array.
+#             @keyword rows: The number of rows (samples) in the set, if known.
+#             @keyword cols: The number of columns (channels) in the set; a 
+#                 default if the dataset does not contain multiple columns.
+#             @keyword fs: Frequency of sample, i.e. the sample rate (Hz)
+#             @keyword sliceSize: The size of the 'window' used to compute the 
+#                 FFTs via Welch's method. Should be a power of 2!
+#             @return: A multidimensional array, with the first column the 
+#                 frequency.
+#         """
+# #         print "rows=%r cols=%r fs=%r sliceSize=%r" % (rows, cols, fs, sliceSize)
+#         points = cls.from2diter(data, rows, cols)
+#         rows, cols = points.shape
+#         shape = points.shape
+#         points.resize((max(nextPow2(shape[0]),sliceSize), shape[1]))
+#         
+#         slicePad = sliceSize
+#         sliceSize = max(sliceSize, rows)
+#         
+#         # NOTE: Copied verbatim from old viewer. Revisit whether or not all this
+#         #     shaping and stacking is really necessary.
+#         fftData = np.arange(0, slicePad/2.0 + 1) * (fs/float(slicePad))
+#         fftData = fftData.reshape(-1,1)
+#         
+#         scalar = (sliceSize/2.0)
+#         
+#         for i in xrange(cols):
+#             # Returns (FFT data, frequencies)
+#             tmp_fft, _ = spec.welch(points[:,i], NFFT=sliceSize, Fs=fs, 
+#                                     detrend=spec.detrend_mean, 
+#                                     noverlap=sliceSize/2, sides='onesided', 
+#                                     scale_by_freq=False, pad_to=slicePad, 
+#                                     window=spec.window_hanning)
+#             tmp_fft = tmp_fft / scalar
+#             tmp_fft = tmp_fft.reshape(-1,1)
+#             fftData = hstack((fftData, tmp_fft))
+#             
+#             # Remove huge DC component from displayed data; so data of interest 
+#             # can be seen after auto axis fitting
+#             thisCol = i+1
+#             fftData[0,thisCol] = 0.0
+#             fftData[1,thisCol] = 0.0
+#             fftData[2,thisCol] = 0.0
+#         
+#         return fftData
+
     @classmethod
     def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16):
-        """ Compute 1D FFT from one or more channels of data, using Welch's
-            method.
+        """ Compute 1D FFT from one or more channels of data.
         
             @note: This is the implementation from the old viewer and does not
                 scale well to massive datasets. This *will* run of of memory; 
@@ -361,41 +418,28 @@ class FFTView(wx.Frame, MenuMixin):
             @keyword cols: The number of columns (channels) in the set; a 
                 default if the dataset does not contain multiple columns.
             @keyword fs: Frequency of sample, i.e. the sample rate (Hz)
-            @keyword sliceSize: The size of the 'window' used to compute the 
-                FFTs via Welch's method. Should be a power of 2!
             @return: A multidimensional array, with the first column the 
                 frequency.
         """
-        
         points = cls.from2diter(data, rows, cols)
         rows, cols = points.shape
-        shape = points.shape
-        points.resize((max(nextPow2(shape[0]),sliceSize), shape[1]))
+        NFFT = nextPow2(rows)
         
-        # NOTE: Copied verbatim from old viewer. Revisit whether or not all this
-        #     shaping and stacking is really necessary.
-        fftData = np.arange(0, sliceSize/2.0 + 1) * (fs/float(sliceSize))
+        # Create frequency range (first column)
+        fftData = np.arange(0, NFFT/2.0 + 1) * (fs/float(NFFT))
         fftData = fftData.reshape(-1,1)
         
-        scalar = (sliceSize/2.0)
-        
+#         print "rows: %s\tNFFT=%s" % (rows, NFFT)
         for i in xrange(cols):
-            # Returns (FFT data, frequencies)
-            tmp_fft, _ = spec.welch(points[:,i], NFFT=sliceSize, Fs=fs, 
-                                    detrend=spec.detrend_mean, 
-                                    noverlap=sliceSize/2, sides='onesided', 
-                                    scale_by_freq=False, pad_to=sliceSize, 
-                                    window=spec.window_hanning)
-            tmp_fft = tmp_fft / scalar
-            tmp_fft = tmp_fft.reshape(-1,1)
-            fftData = hstack((fftData, tmp_fft))
+            tmp_fft = 2*abs(np.fft.fft(points[:,i], NFFT)/rows)[:NFFT/2+1]
+            fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
             
             # Remove huge DC component from displayed data; so data of interest 
             # can be seen after auto axis fitting
             thisCol = i+1
-            fftData[0,thisCol] = 0
-            fftData[1,thisCol] = 0
-            fftData[2,thisCol] = 0
+            fftData[0,thisCol] = 0.0
+            fftData[1,thisCol] = 0.0
+            fftData[2,thisCol] = 0.0
         
         return fftData
 

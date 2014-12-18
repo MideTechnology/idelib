@@ -274,7 +274,7 @@ class StatusBar(wx.StatusBar):
         self.xFieldNum = 1
         logoFieldNum = 0
 
-        fieldWidths[logoFieldNum] = logo.GetSize()[0]
+        fieldWidths[logoFieldNum] = logo.GetSize()[0]-6
         fieldWidths[self.messageFieldNum] = -4
         fieldWidths[warnFieldNum] = -4
         fieldWidths[progressFieldNum] = -2
