@@ -19,6 +19,7 @@ from logger import logger
 # The actual data-related stuff
 import mide_ebml
 
+from build_info import DEBUG
 
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
@@ -461,6 +462,8 @@ class PlotCanvas(wx.ScrolledWindow):
         if len(self.Parent.source) == 0:
             return
         
+        ex = None if DEBUG else Exception
+        
         try:
             self._OnPaint(evt)
         except IndexError:
@@ -472,7 +475,7 @@ class PlotCanvas(wx.ScrolledWindow):
         except IOError as err:
             msg = "An error occurred while trying to read the recording file."
             self.root.handleError(err, msg, closeFile=True)
-        except Exception as err:
+        except ex as err:
             self.root.handleError(err, what="plotting data")
         
 
