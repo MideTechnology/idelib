@@ -13,40 +13,40 @@ import struct
 
 class MP:
     """ MAT data and matrix types. """
-    miCOMPRESSED = 15
-    miDOUBLE = 9
-    miINT16 = 3
-    miINT32 = 5
-    miINT64 = 12
-    miINT8 = 1
-    miMATRIX = 14
-    miSINGLE = 7
-    miUINT16 = 4
-    miUINT32 = 6
-    miUINT64 = 13
-    miUINT8 = 2
-    miUTF16 = 17
-    miUTF32 = 18
-    miUTF8 = 16
+    miINT8 =            0x01
+    miUINT8 =           0x02
+    miINT16 =           0x03
+    miUINT16 =          0x04
+    miINT32 =           0x05
+    miUINT32 =          0x06
+    miSINGLE =          0x07
+    miDOUBLE =          0x09
+    miINT64 =           0x0c
+    miUINT64 =          0x0d
+    miMATRIX =          0x0e
+    miCOMPRESSED =      0x0f
+    miUTF8 =            0x10
+    miUTF16 =           0x11
+    miUTF32 =           0x12
     
-    mxCELL_CLASS = 1
-    mxCHAR_CLASS = 4
-    mxDOUBLE_CLASS = 6
-    mxFUNCTION_CLASS = 16
-    mxINT16_CLASS = 10
-    mxINT32_CLASS = 12
-    mxINT64_CLASS = 14
-    mxINT8_CLASS = 8
-    mxOBJECT_CLASS = 3
-    mxOBJECT_CLASS_FROM_MATRIX_H = 18
-    mxOPAQUE_CLASS = 17
-    mxSINGLE_CLASS = 7
-    mxSPARSE_CLASS = 5
-    mxSTRUCT_CLASS = 2
-    mxUINT16_CLASS = 11
-    mxUINT32_CLASS = 13
-    mxUINT64_CLASS = 15
-    mxUINT8_CLASS = 9
+    mxCELL_CLASS =      0x01
+    mxSTRUCT_CLASS =    0x02
+    mxOBJECT_CLASS =    0x03
+    mxCHAR_CLASS =      0x04
+    mxSPARSE_CLASS =    0x05
+    mxDOUBLE_CLASS =    0x06
+    mxSINGLE_CLASS =    0x07
+    mxINT8_CLASS =      0x08
+    mxUINT8_CLASS =     0x09
+    mxFUNCTION_CLASS =  0x10
+    mxINT16_CLASS =     0x0a
+    mxUINT16_CLASS =    0x0b
+    mxINT32_CLASS =     0x0c
+    mxUINT32_CLASS =    0x0d
+    mxINT64_CLASS =     0x0e
+    mxUINT64_CLASS =    0x0f
+    mxOPAQUE_CLASS =    0x11
+    mxOBJECT_CLASS_FROM_MATRIX_H = 0x12
 
 
 #===============================================================================
@@ -132,6 +132,7 @@ class MatStream(object):
     MAX_SIZE = int(MAX_LENGTH * .95) # scale back by 5%, just to be certain
     DEFAULT_HEADER = "MATLAB 5.0 MAT-file MIDE IDE to MAT"
     
+    # Map MATLAB types to the struct formatting character
     typeFormatChars = {
         MP.miINT8:   'b',
         MP.miUINT8:  'B',
@@ -221,8 +222,9 @@ class MatStream(object):
             file size; start a new file if it will.
         """
         if self.next8(self.totalSize + size) >= self.maxFileSize:
+            inArray = self._inArray
             self.newFile()
-            if self._inArray:
+            if inArray:
                 arrayNum = self.arrayNumber + 1
                 cols = self.numCols if self.arrayNoTimes else self.numCols - 1
                 self.startArray(self.arrayBaseName, cols, arrayNumber=arrayNum)

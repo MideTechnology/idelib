@@ -5,6 +5,7 @@ Created on Dec 3, 2014
 '''
 
 from datetime import datetime
+import importlib
 import locale
 import os.path
 import sys
@@ -15,7 +16,7 @@ import numpy as np
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
-    import mide_ebml
+    _ = importlib.import_module('mide_ebml')
 except ImportError:
     sys.path.append('..')
     
@@ -31,6 +32,7 @@ from mide_ebml.parsers import MPL3115PressureTempParser, ChannelDataBlock
 
 
 class AccelDumper(object):
+    """ Parser replacement that dumps accelerometer data as read. """
     maxTimestamp = ChannelDataBlock.maxTimestamp
     
     def __init__(self, numCh, writer=None):
@@ -70,6 +72,7 @@ class AccelDumper(object):
 
 
 class MPL3115Dumper(AccelDumper):
+    """ Parser replacement that dumps temperature/pressure data as read. """
     tempParser = MPL3115PressureTempParser()
     
     def __init__(self, *args, **kwargs):
@@ -91,8 +94,8 @@ class MPL3115Dumper(AccelDumper):
 #===============================================================================
 
 class SimpleUpdater(object):
-    """ A simple text-based progress updater. Simplifed version of the one in
-        mide_ebml.importer
+    """ A simple text-based progress updater. Simplified version of the one in
+        `mide_ebml.importer`
     """
     
     def __init__(self, cancelAt=1.0, quiet=False, out=sys.stdout, precision=0):
@@ -164,7 +167,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             dtype="double", nocal=False, raw=False, accelOnly=True,
             noTimes=False, maxSize=matfile.MatStream.MAX_SIZE, 
             updateInterval=1.5, **kwargs):
-    """
+    """ The main function that handles generating MAT files from an IDE file.
     """
     
     updater = kwargs.get('updater', nullUpdater)
@@ -178,7 +181,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
         mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), maxFileSize=maxSize)
-        mat.writeNames([c.name for c in doc.channels[0].subchannels])
+        mat.writeNames([c.name for c in doc.channels[0].subchannels], noTimes=noTimes)
         
         # Write calibration polynomials as strings
         mat.writeCalibration(doc.transforms)
@@ -214,27 +217,14 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                         if chId < 2:
                             dumpers[chId].write(el)
                             
-                        # EXPERIMENTAL!
-#                         for chEl in el.value:
-#                             try:
-#                                 del chEl.cached_value
-#                             except AttributeError:
-#                                 pass
-#                             del chEl.stream
-#                             del chEl
-#                         del el.stream
-                        
                     if i % 250 == 0 or time.time() > nextUpdate:
                         count = sum((x.numSamp for x in dumpers))
                         updater(count=count, total=None, percent=(stream.tell()/totalSize))
                         nextUpdate = time.time() + updateInterval
-                    
-#                     try:
-#                         del el.stream
-#                         del el.cached_value
-#                     except AttributeError:
-#                         pass
-                    
+
+                    # Remove per-element substreams. Saves memory; a large
+                    # file may contain tens of thousands.
+                    # NOTE: This may change if the underlying EMBL library does.
                     doc.ebmldoc.stream.substreams.clear()
                     del el
                     
