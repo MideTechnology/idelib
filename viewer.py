@@ -7,6 +7,7 @@ loggers.
 '''
 
 from build_info import VERSION, DEBUG, BUILD_NUMBER, BUILD_TIME
+from logger import logger
 
 # VERSION = (1, 0, 0)
 APPNAME = u"Slam\u2022Stick Lab"
@@ -15,8 +16,16 @@ __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 
 if DEBUG:
     __version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
+    import socket
+    if socket.gethostname() == 'DEDHAM':
+        try:
+            import yappi
+            yappi.start()
+            logger.info('yappi profiler started.')
+        except ImportError:
+            logger.info('Could not import profiler (yappi), continuing...')
+            pass
 
-from logger import logger
 
 #===============================================================================
 # 
@@ -65,7 +74,6 @@ import mide_ebml.multi_importer
 import mide_ebml.matfile
 
 # XXX: FOR TESTING; REMOVE LATER
-import socket
 
 #===============================================================================
 # 
@@ -1413,7 +1421,9 @@ class Viewer(wx.Frame, MenuMixin):
             title = "%s (Session %d)" % (title, self.session.sessionId)
         else:
             self.session = newDoc.lastSession
-        loader = Loader(self, newDoc, mide_ebml.multi_importer.multiRead, **self.app.getPref('loader'))
+            
+        loader = Loader(self, newDoc, mide_ebml.multi_importer.multiRead, 
+                        **self.app.getPref('loader'))
         self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(title))
         loader.start()
@@ -1447,15 +1457,15 @@ class Viewer(wx.Frame, MenuMixin):
         if filename is None:
             return
 
-        exportType = os.path.splitext(filename)[-1].lower()
+        exportType = os.path.splitext(filename)[-1].upper().strip('.')
 
-        if exportType not in ('.csv', '.mat'):
+        if exportType not in ('CSV', 'MAT'):
             # TODO: report bad file type
             return
         
         settings = xd.CSVExportDialog.getExport(root=self, removeMean=noMean,
-                                                exportType=exportType,
-                                                title='Export %s' % exportType.strip('.').upper())
+                                                exportType=exportType, 
+                                                title='Export %s' % exportType)
         
         if settings is None:
             return
@@ -1477,15 +1487,16 @@ class Viewer(wx.Frame, MenuMixin):
         numRows = stop-start
         msg = "Exporting %d rows" % numRows
             
-        dlg = xd.ModalExportProgress("Exporting %s" % exportType.upper(), 
+        dlg = xd.ModalExportProgress("Exporting %s" % exportType, 
                                      msg, maximum=numRows*len(subchannels), 
                                      parent=self)
-        if exportType == '.csv':
+        if exportType == 'CSV':
             try:
                 stream = open(filename, 'w')
             
                 source.exportCsv(stream, start=start, stop=stop, 
-                                 subchannels=subchannelIds, timeScalar=self.timeScalar, 
+                                 subchannels=subchannelIds, 
+                                 timeScalar=self.timeScalar, 
                                  callback=dlg, callbackInterval=0.0005, 
                                  raiseExceptions=True,
                                  useIsoFormat=settings['useIsoFormat'],
@@ -1499,7 +1510,7 @@ class Viewer(wx.Frame, MenuMixin):
             except Exception as err:
                 self.handleError(err, what="exporting CSV")
             
-        elif exportType == '.mat':
+        elif exportType == 'MAT':
             try:
                 mide_ebml.matfile.exportMat(source, 
                              filename, start=start, stop=stop, 
@@ -1741,8 +1752,8 @@ class Viewer(wx.Frame, MenuMixin):
         """
         """
         # XXX: REMOVE THIS!
-        if socket.gethostname() == "DEDHAM" and wx.GetKeyState(wx.WXK_SHIFT):
-            return self.openMultiple(mide_ebml.multi_importer.testFiles)
+#         if socket.gethostname() == "DEDHAM" and wx.GetKeyState(wx.WXK_SHIFT):
+#             return self.openMultiple(mide_ebml.multi_importer.testFiles)
         
         importTypes =   "MIDE Data File (*.ide)|*.ide"
 
@@ -2613,10 +2624,20 @@ class ViewerApp(wx.App):
 
 
     def __init__(self, *args, **kwargs):
+        """ Constructor. Takes standard `wx.App` arguments, plus:
+            @keyword prefsFile: The full path and name to an alternative
+                configuration file.
+            @keyword initialFilename: The name of a file to open on load.
+            @keyword clean: If `True`, the preferences are reset.
+            @keyword loadLastFile: If `True` and no `initialFilename' is
+                specified, the viewer will reload the last file opened.
+        """
         self.prefsFile = kwargs.pop('prefsFile', None)
         self.initialFilename = kwargs.pop('filename', None)
         clean = kwargs.pop('clean', False)
         
+        loadLast = kwargs.pop('loadLastFile', False)
+                    
         super(ViewerApp, self).__init__(*args, **kwargs)
         
 #         self.recentFilesMenu = wx.Menu()
@@ -2632,6 +2653,12 @@ class ViewerApp(wx.App):
             self.prefs = self.loadPrefs(self.prefsFile)
         else:
             self.prefs = {}
+
+        if loadLast and self.initialFilename is None:
+            try:
+                self.initialFilename = self.getRecentFiles()[0]
+            except KeyError:
+                pass
             
 #         locale.setlocale(locale.LC_ALL, str(self.getPref('locale')))
         localeName = self.getPref('locale', 'LANGUAGE_ENGLISH_US')

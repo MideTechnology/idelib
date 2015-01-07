@@ -564,7 +564,7 @@ class CSVExportDialog(ExportDialog):
         self._addHeaders = kwargs.pop('addHeaders', False)
         self._utcTime = kwargs.pop('useUtcTime', False)
         self._isoTime = kwargs.pop('useIsoFormat', False)
-        self.exportType = kwargs.pop('exportType', '.csv')
+        self.exportType = kwargs.pop('exportType', 'csv').lower()
         
         super(CSVExportDialog, self).__init__(*args, **kwargs)
 
@@ -582,7 +582,7 @@ class CSVExportDialog(ExportDialog):
         self.isoCheck.Enable(self._utcTime)
         self.utcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
 
-        if self.exportType == '.mat':
+        if self.exportType == 'mat':
             self.headerCheck.SetLabel("Include Channel Names")
             self.isoCheck.Hide()
 

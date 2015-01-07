@@ -150,7 +150,7 @@ def parseTime(val):
         try:
             result += float(p.strip()) * mult
         except ValueError:
-            pass
+            return None
         mult *= 60
     return result
         
