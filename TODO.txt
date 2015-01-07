@@ -1,7 +1,7 @@
 Slam Stick Lab To-Do List
 =========================
 
-*Note:* See also the mide_ebml TODO list, as wekk as the individual TODO items 
+*Note:* See also the mide_ebml TODO list, as well as the individual TODO items 
 noted in the code ("TODO:" in comments, "@todo" in doc strings. This list 
 includes some of the latter, but not all.
 
@@ -11,11 +11,6 @@ Mac OS port. The bulk of the code will 'just work,' but there are a couple of
 things (recorder identification, etc.) which will need to be rewritten. Some
 of the UI looks kind of weird on a Mac with a Retina display, but this may be
 wxPython and not easily corrected. Future releases of wxPython may look better.
-
-FFT fix. The vertical scale is off. The smaller the window, the lower the
-maximum gets. Also gets lower with larger ranges. I think something is
-calculating a mean of the amplitudes in each window -- smaller windows will 
-get less variation in them, so they average differently. 
 
 
 Minor items
@@ -27,19 +22,22 @@ a lot, but it's hard to get it bumped in priority.
 Multi-threaded plot drawing, so the app won't appear to hang and drawing can 
 be interrupted (e.g. by scrolling during redraw).
 
+Calibration editing dialog. Also (possibly) import and export of calibration.
+
 
 Very Minor Items
 ----------------
 Scroll wheel support (vertical), maybe middle-click drag as well.
 
 Revamp the zooming and navigation to be event-driven, handled as far up the 
-chain as possible. Consider using wx.lib.pubsub if it's thread-safe in c
+chain as possible. Consider using wx.lib.pubsub if it's thread-safe in
 conjunction with wxPython views. X axis partially converted; Y axis not.
     
 Clean up time range change 'tracking' and 'broadcast'. 
 
 Clean up the 'background operation' system. It's overly complex. 
 
+Clean up lots of things that are overengineered.
 
 Longer term
 -----------

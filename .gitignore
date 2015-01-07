@@ -27,9 +27,11 @@ assembly/firmware
 assembly/temp
 
 build
-build_64
 dist
-dist_64
+*_32
+*_64
+*_32b
+*_64b
 Slam Stick Lab v*
 *_python
 images_work

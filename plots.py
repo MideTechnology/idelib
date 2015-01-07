@@ -1103,7 +1103,7 @@ class Plot(ViewerPanel):
                        checked=self.root.drawMajorHLines)
         rt.setMenuItem(rt.menubar, self.root.ID_VIEW_LINES_MINOR, enabled=True, 
                        checked=self.root.drawMinorHLines)
-        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_MEAN, enabled=True, 
+        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_MEAN, enabled=enabled, 
                        checked=self.root.drawMean)
         
         rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME,
