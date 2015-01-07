@@ -165,8 +165,8 @@ class MatStream(object):
     intPack = struct.Struct('I')
 
 
-    def __init__(self, filename, msg=DEFAULT_HEADER,
-                 serialize=True, maxFileSize=MAX_SIZE):
+    def __init__(self, filename, msg=DEFAULT_HEADER, serialize=True, 
+                 maxFileSize=MAX_SIZE, timeScalar=1):
         """ Constructor. Create a new .MAT file.
             @param filename: The name of the new file, or `None`.
             @keyword msg: The message string to appear at the start of the
@@ -176,6 +176,7 @@ class MatStream(object):
         self.filename = filename
         self.msg = msg.encode('utf8') or self.DEFAULT_HEADER
         self.stream = None
+        self.timeScalar = timeScalar
 
         # MATLAB identifies the file as level 4 if the first byte is 0.
         if '\x00' in self.msg[:4]:
@@ -613,7 +614,7 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     totalSamples = totalLines * numCols
     
     comments = makeHeader(events.dataset, events.session.sessionId)
-    matfile = MatStream(filename, comments)
+    matfile = MatStream(filename, comments, timeScalar=timeScalar)
     
     if headers:
         matfile.writeNames(names)
@@ -626,7 +627,7 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
             if formatter is not None:
                 v = formatter(v)
 
-            matfile.writeRow((createTime + (t * timeScalar), v))
+            matfile.writeRow((createTime + t, v))
             
             if callback is not None:
                 if getattr(callback, 'cancelled', False):

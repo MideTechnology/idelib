@@ -241,6 +241,8 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                 mat.endArray()
 
             # Calculate actual sampling rate based on total count and total time
+            # TODO: Write this for each MAT file.
+            # TODO: Write the time range in each file (reset parser.firstTime)
             sampRates = [1000000.0/(((d.lastTime-d.firstTime)*ChannelDataBlock.timeScalar)/d.numRows) for d in dumpers]
             mat.startArray("sampling_rates", len(sampRates), dtype=MP.miSINGLE, noTimes=True)
             mat.writeRow((0,sampRates))
