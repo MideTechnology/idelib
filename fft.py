@@ -190,9 +190,9 @@ class FFTView(wx.Frame, MenuMixin):
             # BUG: Calculation of actual sample rate is wrong. Investigate.
 #             fs = (channel[stop][-2]-channel[start][-2]) / ((stop-start) + 0.0)
             fs = self.source.getSampleRate()
-            self.data = self.generateData(data, stop-start, 
-                                             len(self.subchannels), fs, 
-                                             self.sliceSize)
+            self.data = self.generateData(data, rows=stop-start, 
+                                          cols=len(self.subchannels), fs=fs, 
+                                          sliceSize=self.sliceSize)
             
         if self.data is not None:
             self.makeLineList()
@@ -284,7 +284,7 @@ class FFTView(wx.Frame, MenuMixin):
         freqs = self.data[:,0].reshape(-1,1)
 
         for i in range(cols):
-            print "i=%s" % i
+#             print "i=%s" % i
             points = (hstack((freqs, self.data[:,i+1].reshape(-1,1))))
             name = self.subchannels[i].name
 
@@ -314,12 +314,16 @@ class FFTView(wx.Frame, MenuMixin):
         row1 = dataIter.next()
         if isinstance(row1, Iterable):
             cols = len(row1)
-        
+#         print "shape=",rows,cols
         points = np.zeros(shape=(rows,cols), dtype=float)
         points[0,:] = row1
         
         for i, row in enumerate(dataIter,1):
-            points[i,:] = row
+            # XXX: HACK. Spectrogram generation fails here. Find real cause.
+            try:
+                points[i,:] = row
+            except IndexError:
+                break
     
         return points
     
@@ -561,6 +565,7 @@ class FFTView(wx.Frame, MenuMixin):
     def OnFilePrintPreview(self, evt):
         self.canvas.PrintPreview()
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -598,7 +603,7 @@ class SpectrogramPlot(FFTPlotCanvas):
         zoomed = not (xAxis is None and yAxis is None)
         thisZoom = str((xAxis, yAxis))
         
-        if dc == None:
+        if dc is None:
             # sets new dc and clears it 
             dc = wx.BufferedDC(wx.ClientDC(self.canvas), self._Buffer)
             bbr = wx.Brush(self.GetBackgroundColour(), wx.SOLID)
@@ -647,16 +652,16 @@ class SpectrogramPlot(FFTPlotCanvas):
 #         print yAxis, y_range
 
         # sizes axis to axis type, create lower left and upper right corners of plot
-        if xAxis == None or yAxis == None:
+        if xAxis is None or yAxis is None:
             # One or both axis not specified in Draw
             p1, p2 = graphics.boundingBox()     # min, max points of graphics
-            if xAxis == None:
+            if xAxis is None:
                 xAxis = self._axisInterval(self._xSpec, p1[0], p2[0]) # in user units
             else:
                 # MODIFICATION: (this 'else' branch) limit zoom to data extents
                 x_range = self.GetXMaxRange()
                 xAxis = (max(x_range[0], xAxis[0]), min(x_range[1], xAxis[1]))
-            if yAxis == None:
+            if yAxis is None:
                 yAxis = self._axisInterval(self._ySpec, p1[1], p2[1])
             else:
                 # MODIFICATION: (this 'else' branch) limit zoom to data extents
@@ -791,6 +796,9 @@ class SpectrogramPlot(FFTPlotCanvas):
         self._adjustScrollbars()
         
 
+#===============================================================================
+# 
+#===============================================================================
 
 class SpectrogramView(FFTView):
     """
@@ -835,7 +843,6 @@ class SpectrogramView(FFTView):
     def addPlot(self, channelIdx):
         """
         """
-        
         p = SpectrogramPlot(self)
         p.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
         p.SetFontSizeAxis(10)
@@ -877,27 +884,24 @@ class SpectrogramView(FFTView):
             self_lines_append(PlotGraphics([PolyLine(points, legend=name)],
                               title=self.subchannels[i].name, #title=self.GetTitle(),
                               xLabel="Time", yLabel="Frequency"))
-             
 
     
     @classmethod
     def plotColorSpectrum(cls, n):
         """ Generate a 24-bit RGB color from a positive normalized float value 
             (0.0 to 1.0). 
-             
-            @note: Not currently used.
         """
         # Because H=0 and H=1.0 have the same RGB value, reduce `n`.
-        return tuple(map(lambda x: int(x*255), 
-                         colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)))
+        r,g,b = colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)
+        return int(r*255), int(g*255), int(b*255) 
+#         return tuple(map(lambda x: int(x*255), 
+#                          colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)))
 
                      
     @classmethod
     def plotGrayscale(cls, n):
-        """ Generate a 24-bit RGB color from a positive normalized float value 
-            (0.0 to 1.0). 
-             
-            @note: Not currently used.
+        """ Generate a grayscale level (as 24-bit RGB color where R==G==B) from
+            a positive normalized float value (0.0 to 1.0). 
         """
         v = int(n*255)
         return v,v,v
@@ -914,7 +918,7 @@ class SpectrogramView(FFTView):
         """
         
         if logarithmic[2]:
-            temp = [np.log(d[0]) for d in data]
+            temp = [np.log(d[0]) if d != 0 else 0 for d in data]
         else:
             temp = [d[0] for d in data]
 #         minAmp = np.amin(temp)
@@ -944,20 +948,28 @@ class SpectrogramView(FFTView):
         self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
 
         if self.subchannels is not None:
-            subchIds = [c.id for c in self.subchannels]
             start, stop = self.source.getRangeIndices(*self.range)
             recordingTime = self.source[-1][-2] - self.source[0][-2]
             recordingTime *= self.timeScalar
-            data = self.source.itervalues(start, stop, subchannels=subchIds)
             fs = self.source.getSampleRate()
-            
-            self.data = self.generateData(data, rows=stop-start, 
+            subchIds = [c.id for c in self.subchannels]
+            data = self.source.itervalues(start, stop, subchannels=subchIds)
+            self.data = self.generateData(data, rows=stop-start,
                                           cols=len(self.subchannels), fs=fs, 
                                           sliceSize=self.sliceSize,
                                           slicesPerSec=self.slicesPerSec, 
                                           recordingTime=recordingTime)
 
-            self.images = self.makePlots(self.data, self.logarithmic, self.colorizer)
+#             self.data = self.generateData(self.source, rows=stop-start, 
+#                                           start=start, stop=stop,
+#                                           cols=len(self.subchannels), 
+#                                           timerange=self.range, fs=fs, 
+#                                           sliceSize=self.sliceSize*8,
+#                                           slicesPerSec=self.slicesPerSec, 
+#                                           recordingTime=recordingTime)
+            
+            self.images = self.makePlots(self.data, self.logarithmic, 
+                                         self.colorizer)
             self.makeLineList()
             for i in range(len(self.subchannels)):#ch in subchIds:
                 self.addPlot(i)
@@ -969,11 +981,11 @@ class SpectrogramView(FFTView):
     def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
                      slicesPerSec=4.0, recordingTime=None):
         """ Compute 2D FFT from one or more channels of data.
-        
+         
             @note: This is the implementation from the old viewer and does not
                 scale well to massive datasets. This *will* run of of memory; 
                 the exact number of samples/RAM has yet to be determined.
-                
+                 
             @param data: An iterable collection of event values (no times!). The
                 data can have one or more channels (e.g. accelerometer X or XYZ
                 together). This can be an iterator, generator, or array.
@@ -988,13 +1000,13 @@ class SpectrogramView(FFTView):
         points = cls.from2diter(data, rows, cols)
         rows, cols = points.shape
 #         points.resize((max(nextPow2(rows),sliceSize), cols))
-        
+         
         specgram_nfft = int(rows/(recordingTime*slicesPerSec))
-        
+         
 #         print "recordingTime:",recordingTime
 #         print "specgram_nfft:",specgram_nfft
         specData = []
-                
+                 
         for i in xrange(cols):
             pts = points[:,i]
             # This is basically what matplotlib.mlab.specgram does.
@@ -1004,11 +1016,66 @@ class SpectrogramView(FFTView):
                 window=spec.window_hanning, noverlap=specgram_nfft/2, 
                 pad_to=None, sides='onesided', scale_by_freq=None)
             Pxx = Pxx.real
-    
+     
             specData.append((Pxx[1:,:], freqs[1:], bins))
-            
+             
         return specData
-        
+
+
+#     @classmethod
+#     def generateData(cls, data, start=0, stop=None, cols=1, timerange=None, 
+#                      fs=5000, sliceSize=2**16, slicesPerSec=4.0, 
+#                      recordingTime=None, **kwargs):
+#         """ Compute 2D FFT from one or more channels of data.
+#          
+#             @note: This is the implementation from the old viewer and does not
+#                 scale well to massive datasets. This *will* run of of memory; 
+#                 the exact number of samples/RAM has yet to be determined.
+#                  
+#             @param data: An iterable collection of event values (no times!). The
+#                 data can have one or more channels (e.g. accelerometer X or XYZ
+#                 together). This can be an iterator, generator, or array.
+#             @keyword rows: The number of rows (samples) in the set, if known.
+#             @keyword cols: The number of columns (channels) in the set; a 
+#                 default if the dataset does not contain multiple columns.
+#             @keyword fs: Frequency of sample, i.e. the sample rate (Hz)
+#             @keyword slicesPerSec: 
+#             @return: A multidimensional array, with the first column the 
+#                 frequency.
+#         """
+#         specData = [None] * cols
+#         freqs = None
+#         stop = len(data) if stop is None else stop
+#         rows = stop - start
+#         totalTime = timerange[1] - timerange[0]
+#  
+#         nfft = nextPow2(int((totalTime / 1000000) * slicesPerSec))
+#          
+#         bins = np.arange(timerange[0], timerange[1], float(totalTime)/nfft) / 1000000
+#         nfft = int(rows/nfft)
+#         print "start: %s \t stop: %s \t NFFT: %s len(bins): %s" % (start,stop,nfft,len(bins))
+#  
+#         for n,i in enumerate(xrange(start, stop, nfft)):
+#             print n,i
+#             if isinstance(data, np.ndarray):
+#                 dataslice = data[:,i:i+nfft]
+#             else:
+#                 dataslice = data.itervalues(i,i+nfft)
+#             fft = super(SpectrogramView, cls).generateData(dataslice, rows=rows, cols=cols, fs=fs)
+#             if freqs is None:
+#                 freqs = fft[:,0]
+#             for c in xrange(cols):
+#                 thisCol = fft[:,c+1].reshape((1,-1))
+#                 if specData[c] is None:
+#                     specData[c] = [thisCol, freqs, bins]
+#                 else:
+#                     specData[c][0] = vstack((specData[c][0], thisCol))
+#  
+# #         print specData
+# #         print [[y.shape for y in x] for x in specData]
+#         return specData
+    
+
     #===========================================================================
     # 
     #===========================================================================
@@ -1198,3 +1265,12 @@ class SpectrogramView(FFTView):
             self.root.handleError(err, what=what)
             return False
 
+#===============================================================================
+# 
+#===============================================================================
+
+# XXX: REMOVE THIS LATER. Makes running this module run the 'main' viewer.
+if __name__ == "__main__":
+    import viewer
+    app = viewer.ViewerApp(loadLastFile=True)
+    app.MainLoop()
