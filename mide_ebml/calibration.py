@@ -151,11 +151,17 @@ class Univariate(Transform):
         """
         self.id = calId
         self.dataset = dataset
-        varName = str(varName)
-        srcVarName = "x"
         self._coeffs = tuple(coeffs)
         self._variables = (varName,)
         self._references = (reference,)
+        
+        self._build()
+        
+    def _build(self):
+        varName = str(self._variables[0])
+        srcVarName = "x"
+        reference = self._references[0]
+        coeffs = self._coeffs
         
         if reference != 0:
             varName = "(%s-%s)" % (varName, reference)
@@ -201,6 +207,11 @@ class Univariate(Transform):
     def coefficients(self):
         """ The polynomial's coefficients. """
         return self._coeffs
+    
+    @coefficients.setter
+    def coefficients(self, val):
+        self._coeffs = val
+        self._build()
         
     @property
     def source(self):
@@ -212,10 +223,20 @@ class Univariate(Transform):
         """ The name(s) of the variable(s) used in the polynomial. """
         return self._variables
     
+    @variables.setter
+    def variables(self, val):
+        self._variables = val
+        self._build()
+    
     @property
     def references(self):
         """ The constant offset(s). """
         return self._references
+    
+    @references.setter
+    def references(self, val):
+        self._references = val
+        self._build()
     
     @property
     def function(self):
@@ -281,6 +302,13 @@ class Bivariate(Univariate):
         self._references = (float(reference), float(reference2))
         self._coeffs = tuple(map(float,coeffs))
         self._variables = tuple(map(str, varNames))
+        
+        self._build()
+        
+    def _build(self):
+        coeffs = self._coeffs
+        reference, reference2 = self._references
+        varNames = self._variables
         
         # Construct the polynomial expression string
         strF = "(%s*x*y)+(%s*x)+(%s*y)+%s"
