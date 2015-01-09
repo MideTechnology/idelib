@@ -190,6 +190,12 @@ class UnivariateDialog(SC.SizedDialog):
         self._addicon(subpane, c)
         return c
 
+    def _channelstr(self, c):
+        if isinstance(c, SubChannel):
+            return "%d.%d: %s" % (c.parent.id, c.id, c.name)
+        else:
+            return "%d: %s" % (c.id, c.name)
+        
     #===========================================================================
     # 
     #===========================================================================
@@ -197,6 +203,7 @@ class UnivariateDialog(SC.SizedDialog):
     def __init__(self, *args, **kwargs):
         self.ebmldoc = kwargs.pop('ebmldoc', None)
         self.cal = kwargs.pop('cal', None)
+        showChannels = kwargs.pop('showChannels', False)
         
         kwargs['title'] = kwargs.get('title', None) or self.DEFAULT_TITLE
         super(UnivariateDialog, self).__init__(*args, **kwargs)
@@ -210,8 +217,11 @@ class UnivariateDialog(SC.SizedDialog):
         # Build list of channel names, and map back to the channel.
         self.channels = {}
         for c in self.ebmldoc.getPlots():
-            self.channels["%d.%d: %s" % (c.parent.id, c.id, c.name)] = c
-        self.channelNames = sorted(self.channels.keys())
+            self.channels[self._channelstr(c)] = c
+        if showChannels:
+            for c in self.ebmldoc.channels.values():
+                self.channels[self._channelstr(c)] = c
+        self.channelNames = sorted(self.channels.keys(), key=lambda x: x.replace(':',' '))
         
         if self.cal is None:
             if len(self.ebmldoc.transforms) > 0:
@@ -227,7 +237,7 @@ class UnivariateDialog(SC.SizedDialog):
         self.pane.SetSizerType("form")
         
         self.idField = self._addtext("Calibration ID", default=self.calLabel, style=wx.TE_READONLY)
-        self.channelList = self._addlist("Used By", self.channelNames, selected=0, single=False)
+        self.channelList = self._addlist("Used By", self.channelNames, selected=self.getChannelsUsing(), single=False)
         self.lineHeight = self.idField.GetTextExtent("yY")[1] 
         
         self.buildUI()
@@ -296,6 +306,22 @@ class UnivariateDialog(SC.SizedDialog):
         except (ValueError, TypeError):
             self.polyText.SetValue("")
             return False
+
+
+    def getChannelsUsing(self):
+        """
+        """
+        result = []
+        for n, c in enumerate(self.channels.values()):
+            if c.transform is not None:
+                try:
+                    if c.transform.id == self.calId:
+                        result.append(n)
+                except AttributeError:
+                    if self.calId in [getattr(x,'id',None) for x in filter(None, c.transform)]:
+                        result.append(n)
+        return result
+            
         
 
 #===============================================================================
@@ -313,7 +339,16 @@ class BivariateDialog(UnivariateDialog):
     NUM_REFS = (2,2) # (min. max)
     
     def buildUI(self):
-        self.sourceList = self._addchoice("Source", self.channelNames, selected=0)
+        chIdx = None
+        if self.ebmldoc is not None and self.cal is not None:
+            ch = self.ebmldoc.channels[self.cal.channelId][self.cal.subchannelId]
+            print self.cal.channelId, self.cal.subchannelId
+            try:
+                print 
+                chIdx = self.channelNames.index(self._channelstr(ch))
+            except ValueError:
+                pass
+        self.sourceList = self._addchoice("Source", self.channelNames, selected=chIdx)
         super(BivariateDialog, self).buildUI()
         
         
@@ -321,7 +356,7 @@ class BivariateDialog(UnivariateDialog):
         if not super(BivariateDialog, self).updatePoly(valid):
             return False
         
-        source = self.channels[self.sourceList.GetStringSelection()]
+        source = self.channels.get(self.sourceList.GetStringSelection(), None)
         if isinstance(source, SubChannel):
             self.cal.channelId = source.parent.id
             self.cal.subchannelId = source.id
