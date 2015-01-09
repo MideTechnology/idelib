@@ -7,7 +7,10 @@ Created on Nov 27, 2013
 
 @author: dstokes
 
-@todo: Use regex to optimize built univariate and bivariate functions
+@todo: Use regex to optimize built univariate and bivariate functions, like:
+    re.sub(r'\(0(\.0?)\*([xy]|\(.*\))', '0', src)
+    re.sub(r'\+0(\.0?)\)', '', src)
+
 '''
 
 # __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
@@ -103,7 +106,7 @@ class AccelTransform200G(Transform):
     modifiesValue = True
     def __call__(self, event, session=None):
 #         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
-        return event[:-1] + ((event[-1] / 32767) * 25.0,)
+        return event[:-1] + ((event[-1] / 32767) * 200.0,)
 
 
 
@@ -120,11 +123,13 @@ class Univariate(Transform):
     """
     modifiesValue = True
 
+    @classmethod
     def _floatOrInt(self, v):
         " Helper method to convert floats with no decimal component to ints. "
         iv = int(v)
         return iv if iv == v else v
     
+    @classmethod
     def _stremove(self, s, old):
         " Helper method to remove a set of substrings from a string. "
         result = str(s)
@@ -132,6 +137,7 @@ class Univariate(Transform):
             result = result.replace(o,'')
         return result
     
+    @classmethod
     def _fixSums(self, s):
         " Helper method to replace consecutive addition/subtraction combos. "
         result = str(s)
@@ -155,21 +161,28 @@ class Univariate(Transform):
         self._variables = (varName,)
         self._references = (reference,)
         
-        self._build()
+        # Keep track of composite polynomials that reference this one:
+        self._usedIn = []
         
+        # Keep track of things that use this polynomial so they can update:
+        self._usedBy = []
+        
+        self._build()
+
+
     def _build(self):
         varName = str(self._variables[0])
-        srcVarName = "x"
         reference = self._references[0]
-        coeffs = self._coeffs
         
         if reference != 0:
             varName = "(%s-%s)" % (varName, reference)
-            srcVarName = "(%s-%s)" % (srcVarName, reference)
+            srcVarName = "(x-%s)" % reference
+        else:
+            srcVarName = 'x'
         
         # f is used to build the lambda
         # strF is used to build the string version
-        coeffs = list(reversed(coeffs))
+        coeffs = list(reversed(self._coeffs))
         f = [coeffs[0]] if coeffs[0] != 0 else []
         strF = f[:]
         coeffs = map(self._floatOrInt, coeffs)
@@ -180,8 +193,8 @@ class Univariate(Transform):
     
             # optimization: v is a whole number, do integer math,
             # then make float by adding 0.0
-            if v != 1 and int(v) == v:
-                v = int(v)
+#             if v != 1 and int(v) == v:
+#                 v = int(v)
     
             # optimization: pow() is more expensive than lots of multiplication
             x = "*".join([srcVarName]*p)
@@ -202,6 +215,19 @@ class Univariate(Transform):
         self._source = self._fixSums(self._source)
         self._function = eval(self._source)
     
+        # For combination transforms: update dependencies 
+        for c in self._usedIn:
+            c._build()
+            
+        for c in self._usedBy:
+            try:
+                c._updateTransform()
+            except AttributeError:
+                pass
+
+
+    def __hash__(self):
+        return hash(self._source)
     
     @property
     def coefficients(self):
@@ -285,6 +311,7 @@ class Bivariate(Univariate):
         self.dataset = dataset
         self._eventlist = None
         self._sessionId = None
+        
         self.channelId, self.subchannelId = channelId, subchannelId
         if channelId is None or subchannelId is None:
             raise ValueError("Bivariate polynomial requires channel and " \
@@ -302,6 +329,9 @@ class Bivariate(Univariate):
         self._references = (float(reference), float(reference2))
         self._coeffs = tuple(map(float,coeffs))
         self._variables = tuple(map(str, varNames))
+        
+        self._usedIn = []
+        self._usedBy = []
         
         self._build()
         
@@ -351,7 +381,16 @@ class Bivariate(Univariate):
         # Optimization: it is possible that the polynomial could exclude Y
         # completely. If that's the case, use a dummy value to speed things up.
         self._noY = (0,1) if 'y' not in src else False 
-            
+        
+        # For combination transforms: update dependencies 
+        for c in self._usedIn:
+            c._build()
+
+        for c in self._usedBy:
+            try:
+                c._updateTransform()
+            except AttributeError:
+                pass
 
 
     def __call__(self, event, session=None):
@@ -382,3 +421,143 @@ class Bivariate(Univariate):
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
             return event
+
+#===============================================================================
+# 
+#===============================================================================
+
+class CombinedPoly(Bivariate):
+    """ Calibration transform that combines multiple polynomials into a single
+        function. Used for combining Channel and Subchannel transforms to make
+        them more efficient.
+        
+        Experimental!
+    """
+    def __init__(self, poly, calId=-1, **kwargs):
+        self.poly = poly
+        self.subpolys = kwargs
+
+        self.dataset = poly.dataset
+        self._eventlist = poly._eventlist
+        self._sessionId = poly._sessionId
+        self.channelId = getattr(poly, 'channelId', None)
+        self.subchannelId = getattr(poly, 'subchannelId', None)
+        self.id = calId
+        self._references = poly._references
+        self._coeffs = poly._coeffs
+        self._variables = poly._variables
+
+        self._usedIn = []
+        self._usedBy = []
+
+        if self not in poly._usedIn:
+            poly._usedIn.append(self)
+        for p in kwargs.itervalues():
+            if self not in p._usedIn:
+                p._usedIn.append(self)
+
+        self._build()
+    
+    @classmethod
+    def _reduce(cls, src):
+        old = None
+        while old != src:
+            old = src
+            src = src.replace('(0+', '(').replace('(0.0+', '(')
+            src = src.replace('(0-', '(-').replace('(0.0-', '(-')
+            src = src.replace('(0*x', '(0').replace('(0.0*x', '(0')
+            src = src.replace('(0*y', '(0').replace('(0.0*y', '(0')
+            src = cls._stremove(src, ('(0*x*y)+', '(0*x)+', '(0*y)+'))
+            src = src.replace("(1*", "(").replace("(1.0*", "(")
+            src = src.replace("(x)", "x").replace("(y)", "y")
+            if src.endswith('+0'):
+                src = src[:-2]
+            src = cls._fixSums(src)
+        return src
+    
+    def _build(self):
+        phead,src = self.poly.source.split(": ")
+        for k,v in self.subpolys.items():
+            s = "(%s)" % v.source.split(": ")[-1].upper()
+            src = self._reduce(src.replace(k, s))
+        src = src.lower()
+        self._str = src
+        self._source = "%s: %s" % (phead, src)
+        self._function = eval(self._source)
+        self._noY = (0,1) if 'y' not in src else False
+
+
+class PolyPoly(CombinedPoly):
+    """ Calibration transform that combines multiple subchannel polynomials 
+        into one single function.
+        
+        Experimental!
+    """
+    def __init__(self, polys, calId=-1):
+        self.polys = polys
+        poly = polys[0]
+        self.dataset = poly.dataset
+        self._eventlist = poly._eventlist
+        self._sessionId = poly._sessionId
+        self.channelId = getattr(poly, 'channelId', None)
+        self.subchannelId = getattr(poly, 'subchannelId', None)
+        self.id = calId
+        self._usedIn = []
+        
+        for p in polys:
+            if self not in p._usedIn:
+                p._usedIn.append(self)
+                
+        self._build()
+
+
+    def _build(self):
+        params = []
+        body = []
+        for n,p in enumerate(self.polys):
+            if self not in p._usedIn:
+                p._usedIn.append(self)
+            params.append('x%d' % n)
+            body.append(p.source.replace('x', 'x%d' % n))
+        if 'y' in body:
+            params.append('y')
+            
+        src = "(%s)" % (', '.join(body))
+        self._str = src
+        self._source = "lambda %s: %s" (','.join(params), src)
+        self.function = eval(self._source)
+        self._noY = (0,1) if 'y' not in src else False
+
+
+    def __call__(self, event, session=None):
+        """ Apply the polynomial to an event. 
+        
+            @param event: The event to process (a time/value tuple or a
+                `Dataset.Event` named tuple).
+            @keyword session: The session containing the event.
+        """
+        session = self.dataset.lastSession if session is None else session
+        sessionId = None if session is None else session.sessionId
+        
+        try:
+            if self._eventlist is None or self._sessionId != sessionId:
+                channel = self.dataset.channels[self.channelId][self.subchannelId]
+                self._eventlist = channel.getSession(session.sessionId)
+                self._sessionId = session.sessionId
+            if len(self._eventlist) == 0:
+                return event
+            
+            x = event[-1]
+            # Optimization: don't check the other channel if Y is unused
+            if self._noY is False:
+                y = self._eventlist.getValueAt(event[-2], outOfRange=True)
+                return event[-2],self._function(*(x + (y[-1],)))
+            else:
+                return event[-2],self._function(*x)
+            
+        except (IndexError, ZeroDivisionError):
+            # In multithreaded environments, there's a rare race condition
+            # in which the main channel can be accessed before the calibration
+            # channel has loaded. This should fix it.
+            return event
+

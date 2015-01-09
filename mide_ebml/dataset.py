@@ -50,7 +50,7 @@ import numpy; numpy=numpy
 from ebml.schema.mide import MideDocument
 # import util
 
-from calibration import Transform
+from calibration import Transform, CombinedPoly
 from parsers import getParserTypes, getParserRanges
 
 
@@ -186,7 +186,11 @@ class Transformable(Cascading):
     @raw.setter
     def raw(self, v):
         # Rather than use conditionals in loops, the transform object (or
-        # function) gets changed. 
+        # function) gets changed.
+        v = v == True
+        if v == self._raw:
+            return
+        
         self._raw = v == True
         if self._raw:
             self._transform, self._mapTransform = self._rawTransforms
@@ -197,6 +201,9 @@ class Transformable(Cascading):
                 self._transform = self.transform or Transform.null 
  
             self._mapTransform = self.transform
+        
+        self._updateTransform()
+        
 
     def getTransforms(self, id_=None, _tlist=None):
         """ Get a list of all transforms applied to the data, from first (the
@@ -688,6 +695,16 @@ class Channel(Transformable):
         else:
             return list(block.parseByIndexWith(self.parser, indices, 
                                                subchannel=subchannel))
+
+    def _updateTransform(self):
+        """
+        """
+        for el in self.sessions.values():
+            if el is not None:
+                el._updateTransform()
+        for c in self.children:
+            if c is not None:
+                c._updateTransform()
 
 #===============================================================================
 
@@ -1927,6 +1944,23 @@ class EventList(Cascading):
         self.removeMean = oldRemoveMean
         self.rollingMeanSpan = oldMeanSpan
         return num+1, datetime.now() - t0
+
+    
+    def _updateTransform(self):
+        """
+        """
+        # TODO: IMPLEMENT THIS. Build a composite polynomial.
+        if not self.hasSubchannels:
+            pTrans = None if self.parent.raw else self.parent.transform
+            gpTrans = None if self.parent.parent.raw else self.parent.parent.transform
+            if pTrans or gpTrans is None:
+                self._transform = None
+            elif pTrans is None:
+                self._transform = gpTrans
+            elif gpTrans is None:
+                self._transform = pTrans
+            else:
+                self._transform = CombinedPoly(gpTrans, x=pTrans)
 
         
 #===============================================================================
