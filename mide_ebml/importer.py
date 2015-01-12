@@ -66,9 +66,9 @@ default_sensors = {
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
                        "parser": parsers.AccelerometerParser(),
-                       "transform": (calibration.AccelTransform(),
-                                     calibration.AccelTransform(),
-                                     calibration.AccelTransform()),
+                       "transform": (0,0,0), #(calibration.AccelTransform(),
+#                                      calibration.AccelTransform(),
+#                                      calibration.AccelTransform()),
                        "subchannels":{0: {"name": "Accelerometer Z", 
                                           "units":('g','g'),
                                           "displayRange": (-100.0,100.0),
@@ -131,7 +131,7 @@ def createDefaultSensors(doc, sensors=default_sensors):
                0x14: (-500, 500),
             }
             rrange = SSX_ACCEL_RANGES.get(rtype & 0xff, 0x10)
-            transform = calibration.AccelTransform(*rrange)
+            transform = calibration.AccelTransform(*rrange, dataset=doc)
             sensors = sensors.copy()
             ch0 = sensors[0x00]['channels'][0x00]
             ch0['transform'] = (transform,)*3

@@ -56,9 +56,15 @@ class AccelTransform(Transform):
     """
     modifiesValue = True
      
-    def __init__(self, amin=-100, amax=100):
+    def __init__(self, amin=-100, amax=100, calId=None, dataset=None):
+        self.calId = calId
+        self.dataset = dataset
         self.range = (amin, amax)
-        self._fun = lambda x: (x / 32767.0) * amax
+        self.source = "lambda x: (x / 32767) * %.1f" % amax
+        self._fun = eval(self.source)
+        
+        self._usedIn = []
+        self._usedBy = []
      
     def __repr__(self):
         return "<%s%r at 0x%08x>" % (self.__class__.__name__, self.range, 
@@ -77,6 +83,7 @@ class AccelTransform100(Transform):
         puts the raw values in the range -32768 to 32767.
     """
     modifiesValue = True
+    source = "lambda x: (x/32767) * 100.0"
     
     def __call__(self, event, session=None):
 #         return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
@@ -91,6 +98,7 @@ class AccelTransform25G(Transform):
         puts the raw values in the range -32768 to 32767.
     """
     modifiesValue = True
+    source = "lambda x: (x/32767) * 25.0"
     def __call__(self, event, session=None):
 #         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
         return event[:-1] + ((event[-1] / 32767) * 25.0,)
@@ -104,6 +112,7 @@ class AccelTransform200G(Transform):
         puts the raw values in the range -32768 to 32767.
     """
     modifiesValue = True
+    source = "lambda x: (x/32767) * 200.0"
     def __call__(self, event, session=None):
 #         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
         return event[:-1] + ((event[-1] / 32767) * 200.0,)
@@ -433,27 +442,38 @@ class CombinedPoly(Bivariate):
         
         Experimental!
     """
-    def __init__(self, poly, calId=-1, **kwargs):
+    def __init__(self, poly, subchannel=None, calId=-1, **kwargs):
         self.poly = poly
         self.subpolys = kwargs
+        
+        if subchannel is not None:
+            self.poly = self.poly[subchannel]
 
-        self.dataset = poly.dataset
-        self._eventlist = poly._eventlist
-        self._sessionId = poly._sessionId
-        self.channelId = getattr(poly, 'channelId', None)
-        self.subchannelId = getattr(poly, 'subchannelId', None)
-        self.id = calId
-        self._references = poly._references
-        self._coeffs = poly._coeffs
-        self._variables = poly._variables
-
+        for attr in ('dataset','_eventlist','_sessionId','channelId','subchannelId', '_references', '_coeffs','_variables', '_usedIn','_usedBy'):
+            try:
+                setattr(self, attr, getattr(poly, attr, None))
+            except AttributeError:
+                pass
+            
+#         self.dataset = poly.dataset
+#         self._eventlist = poly._eventlist
+#         self._sessionId = poly._sessionId
+#         self.channelId = getattr(poly, 'channelId', None)
+#         self.subchannelId = getattr(poly, 'subchannelId', None)
+#         self.id = calId
+#         self._references = poly._references
+#         self._coeffs = poly._coeffs
+#         self._variables = poly._variables
+        self._subchannel = subchannel
+        
         self._usedIn = []
         self._usedBy = []
 
-        if self not in poly._usedIn:
-            poly._usedIn.append(self)
+        if hasattr(poly, '_usedIn'):
+            if self not in poly._usedIn:
+                poly._usedIn.append(self)
         for p in kwargs.itervalues():
-            if self not in p._usedIn:
+            if hasattr(p, '_usedIn') and self not in p._usedIn:
                 p._usedIn.append(self)
 
         self._build()
@@ -481,11 +501,15 @@ class CombinedPoly(Bivariate):
             s = "(%s)" % v.source.split(": ")[-1].upper()
             src = self._reduce(src.replace(k, s))
         src = src.lower()
+
+        if self._subchannel is not None:
+            src = src.replace('x','x[%d]' % self._subchannel)
+        
         self._str = src
         self._source = "%s: %s" % (phead, src)
         self._function = eval(self._source)
         self._noY = (0,1) if 'y' not in src else False
-
+        
 
 class PolyPoly(CombinedPoly):
     """ Calibration transform that combines multiple subchannel polynomials 
@@ -496,16 +520,21 @@ class PolyPoly(CombinedPoly):
     def __init__(self, polys, calId=-1):
         self.polys = polys
         poly = polys[0]
-        self.dataset = poly.dataset
-        self._eventlist = poly._eventlist
-        self._sessionId = poly._sessionId
-        self.channelId = getattr(poly, 'channelId', None)
-        self.subchannelId = getattr(poly, 'subchannelId', None)
+        for attr in ('dataset','_eventlist','_sessionId','channelId','subchannelId'):
+            try:
+                setattr(self, attr, getattr(poly, attr))
+            except AttributeError:
+                pass
+#         self.dataset = getattr(poly, 'dataset', None)
+#         self._eventlist = poly._eventlist
+#         self._sessionId = poly._sessionId
+#         self.channelId = getattr(poly, 'channelId', None)
+#         self.subchannelId = getattr(poly, 'subchannelId', None)
         self.id = calId
         self._usedIn = []
         
         for p in polys:
-            if self not in p._usedIn:
+            if p is not None and self not in p._usedIn:
                 p._usedIn.append(self)
                 
         self._build()
@@ -515,17 +544,19 @@ class PolyPoly(CombinedPoly):
         params = []
         body = []
         for n,p in enumerate(self.polys):
+            if p is None:
+                continue
             if self not in p._usedIn:
                 p._usedIn.append(self)
             params.append('x%d' % n)
-            body.append(p.source.replace('x', 'x%d' % n))
+            body.append(p.source.split(':')[-1].replace('x', 'x%d' % n))
         if 'y' in body:
             params.append('y')
             
         src = "(%s)" % (', '.join(body))
         self._str = src
-        self._source = "lambda %s: %s" (','.join(params), src)
-        self.function = eval(self._source)
+        self._source = "lambda %s: %s" % (','.join(params), src)
+        self._function = eval(self._source)
         self._noY = (0,1) if 'y' not in src else False
 
 
