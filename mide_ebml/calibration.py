@@ -63,8 +63,8 @@ class AccelTransform(Transform):
         self.source = "lambda x: (x / 32767) * %.1f" % amax
         self._fun = eval(self.source)
         
-        self._usedIn = []
-        self._usedBy = []
+#         self._usedIn = []
+#         self._usedBy = []
      
     def __repr__(self):
         return "<%s%r at 0x%08x>" % (self.__class__.__name__, self.range, 
@@ -170,11 +170,11 @@ class Univariate(Transform):
         self._variables = (varName,)
         self._references = (reference,)
         
-        # Keep track of composite polynomials that reference this one:
-        self._usedIn = []
-        
-        # Keep track of things that use this polynomial so they can update:
-        self._usedBy = []
+#         # Keep track of composite polynomials that reference this one:
+#         self._usedIn = []
+#         
+#         # Keep track of things that use this polynomial so they can update:
+#         self._usedBy = []
         
         self._build()
 
@@ -224,15 +224,15 @@ class Univariate(Transform):
         self._source = self._fixSums(self._source)
         self._function = eval(self._source)
     
-        # For combination transforms: update dependencies 
-        for c in self._usedIn:
-            c._build()
-            
-        for c in self._usedBy:
-            try:
-                c._updateTransform()
-            except AttributeError:
-                pass
+#         # For combination transforms: update dependencies 
+#         for c in self._usedIn:
+#             c._build()
+#             
+#         for c in self._usedBy:
+#             try:
+#                 c._updateTransform()
+#             except AttributeError:
+#                 pass
 
 
     def __hash__(self):
@@ -339,9 +339,9 @@ class Bivariate(Univariate):
         self._coeffs = tuple(map(float,coeffs))
         self._variables = tuple(map(str, varNames))
         
-        self._usedIn = []
-        self._usedBy = []
-        
+#         self._usedIn = []
+#         self._usedBy = []
+#         
         self._build()
         
     def _build(self):
@@ -391,15 +391,15 @@ class Bivariate(Univariate):
         # completely. If that's the case, use a dummy value to speed things up.
         self._noY = (0,1) if 'y' not in src else False 
         
-        # For combination transforms: update dependencies 
-        for c in self._usedIn:
-            c._build()
-
-        for c in self._usedBy:
-            try:
-                c._updateTransform()
-            except AttributeError:
-                pass
+#         # For combination transforms: update dependencies 
+#         for c in self._usedIn:
+#             c._build()
+# 
+#         for c in self._usedBy:
+#             try:
+#                 c._updateTransform()
+#             except AttributeError:
+#                 pass
 
 
     def __call__(self, event, session=None):
@@ -466,15 +466,15 @@ class CombinedPoly(Bivariate):
 #         self._variables = poly._variables
         self._subchannel = subchannel
         
-        self._usedIn = []
-        self._usedBy = []
-
-        if hasattr(poly, '_usedIn'):
-            if self not in poly._usedIn:
-                poly._usedIn.append(self)
-        for p in kwargs.itervalues():
-            if hasattr(p, '_usedIn') and self not in p._usedIn:
-                p._usedIn.append(self)
+#         self._usedIn = []
+#         self._usedBy = []
+# 
+#         if hasattr(poly, '_usedIn'):
+#             if self not in poly._usedIn:
+#                 poly._usedIn.append(self)
+#         for p in kwargs.itervalues():
+#             if hasattr(p, '_usedIn') and self not in p._usedIn:
+#                 p._usedIn.append(self)
 
         self._build()
     
@@ -530,12 +530,13 @@ class PolyPoly(CombinedPoly):
 #         self._sessionId = poly._sessionId
 #         self.channelId = getattr(poly, 'channelId', None)
 #         self.subchannelId = getattr(poly, 'subchannelId', None)
-        self.id = calId
-        self._usedIn = []
-        
-        for p in polys:
-            if p is not None and self not in p._usedIn:
-                p._usedIn.append(self)
+
+#         self.id = calId
+#         self._usedIn = []
+#         
+#         for p in polys:
+#             if p is not None and self not in p._usedIn:
+#                 p._usedIn.append(self)
                 
         self._build()
 
@@ -546,8 +547,8 @@ class PolyPoly(CombinedPoly):
         for n,p in enumerate(self.polys):
             if p is None:
                 continue
-            if self not in p._usedIn:
-                p._usedIn.append(self)
+#             if self not in p._usedIn:
+#                 p._usedIn.append(self)
             params.append('x%d' % n)
             body.append(p.source.split(':')[-1].replace('x', 'x%d' % n))
         if 'y' in body:

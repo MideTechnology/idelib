@@ -50,7 +50,7 @@ import numpy; numpy=numpy
 from ebml.schema.mide import MideDocument
 # import util
 
-from calibration import Transform, CombinedPoly, PolyPoly
+from calibration import Transform
 from parsers import getParserTypes, getParserRanges
 
 
@@ -186,11 +186,7 @@ class Transformable(Cascading):
     @raw.setter
     def raw(self, v):
         # Rather than use conditionals in loops, the transform object (or
-        # function) gets changed.
-        v = v == True
-        if v == self._raw:
-            return
-        
+        # function) gets changed. 
         self._raw = v == True
         if self._raw:
             self._transform, self._mapTransform = self._rawTransforms
@@ -201,9 +197,6 @@ class Transformable(Cascading):
                 self._transform = self.transform or Transform.null 
  
             self._mapTransform = self.transform
-        
-        self._updateTransform()
-        
 
     def getTransforms(self, id_=None, _tlist=None):
         """ Get a list of all transforms applied to the data, from first (the
@@ -696,16 +689,6 @@ class Channel(Transformable):
             return list(block.parseByIndexWith(self.parser, indices, 
                                                subchannel=subchannel))
 
-    def _updateTransform(self):
-        """
-        """
-        for el in self.sessions.values():
-            if el is not None:
-                el._updateTransform()
-        for c in self.children:
-            if c is not None:
-                c._updateTransform()
-
 #===============================================================================
 
 class SubChannel(Channel):
@@ -872,8 +855,7 @@ class EventList(Cascading):
         self.removeMean = False
         self.hasMinMeanMax = False
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
-
-        self._updateTransform()
+        
 
     @property
     def units(self):
@@ -1167,18 +1149,16 @@ class EventList(Cascading):
             value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1,
                                            offset=self._getBlockRollingMean(blockIdx))[0]
             
-            return self._transform((timestamp,value))
-#             if self.hasSubchannels:
-#                 
-#                 event=tuple(c._transform(f((timestamp,v),self.session)) for f,c,v in izip(self.parent._transform, self.parent.subchannels, value))
-#                 event=(event[0][0], tuple((e[1] for e in event)))
-#             else:
-#                 event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value),self.session))
+            if self.hasSubchannels:
+                event=tuple(c._transform(f((timestamp,v),self.session)) for f,c,v in izip(self.parent._transform, self.parent.subchannels, value))
+                event=(event[0][0], tuple((e[1] for e in event)))
+            else:
+                event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value),self.session))
             
 #             if self.dataset.useIndices:
 #                 return Event(idx, event[0], event[1])
             
-#             return event
+            return event
 
         elif isinstance(idx, slice):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
@@ -1285,27 +1265,23 @@ class EventList(Cascading):
             values = parent_parseBlock(block, start=subIdx, end=lastSubIdx, 
                                        step=step, offset=_getBlockRollingMean(blockIdx))
 
-#             if hasSubchannels:
-#                 for event in izip(times, values):
-#                     # TODO: Refactor this ugliness
-#                     # This is some nasty stuff to apply nested transforms
-#                     try:
-#                         event=[c._transform(f((event[-2],v),session), session) for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
-#                         event=(event[0][0], tuple((e[1] for e in event)))
-#                         yield event
-#                     except TypeError as err:
-#                         print err
-#                         print "parent transform: %s" % str(parent_transform)
-#                         for c in parent_subchannels:
-#                             print "subchannel %s: %s" % (c.id, c.transform)
-#             else:
-#                 for event in izip(times, values):
-#                     event = parent_transform(parent_parent_transform[parent_id](event, session))
-#                     yield event
-                    
-            for event in izip(times, values):
-                yield self._transform(event)
-                
+            if hasSubchannels:
+                for event in izip(times, values):
+                    # TODO: Refactor this ugliness
+                    # This is some nasty stuff to apply nested transforms
+                    try:
+                        event=[c._transform(f((event[-2],v),session), session) for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
+                        event=(event[0][0], tuple((e[1] for e in event)))
+                        yield event
+                    except TypeError as err:
+                        print err
+                        print "parent transform: %s" % str(parent_transform)
+                        for c in parent_subchannels:
+                            print "subchannel %s: %s" % (c.id, c.transform)
+            else:
+                for event in izip(times, values):
+                    event = parent_transform(parent_parent_transform[parent_id](event, session))
+                    yield event
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
 
@@ -1368,20 +1344,17 @@ class EventList(Cascading):
             values = parent_parseBlockByIndex(block, indices, 
                                                    _getBlockRollingMean(blockIdx))
             
-#             if hasSubchannels:
-#                 for event in izip(times, values):
-#                     # TODO: (post Transform fix) Refactor later
-#                     event=[f((event[-2],v), session) for f,v in izip(parent_transform, event[-1])]
-#                     event=(event[0][0], tuple((e[1] for e in event)))
-#                     yield event
-#             else:
-#                 for event in izip(times, values):
-#                     event = parent_transform(parent_parent_transform[parent_id](event, session), session)
-#                     yield event
+            if hasSubchannels:
+                for event in izip(times, values):
+                    # TODO: (post Transform fix) Refactor later
+                    event=[f((event[-2],v), session) for f,v in izip(parent_transform, event[-1])]
+                    event=(event[0][0], tuple((e[1] for e in event)))
+                    yield event
+            else:
+                for event in izip(times, values):
+                    event = parent_transform(parent_parent_transform[parent_id](event, session), session)
+                    yield event
 
-            for event in izip(times, values):
-                yield self._transform(event)
-                
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
       
@@ -1954,27 +1927,6 @@ class EventList(Cascading):
         self.removeMean = oldRemoveMean
         self.rollingMeanSpan = oldMeanSpan
         return num+1, datetime.now() - t0
-
-    
-    def _updateTransform(self):
-        """
-        """
-        # TODO: IMPLEMENT THIS. Build a composite polynomial.
-        pTrans = None if self.parent.raw else self.parent.transform
-        if not self.hasSubchannels:
-            gpTrans = None if self.parent.parent.raw else self.parent.parent._transform
-            if pTrans is None and gpTrans is None:
-                self._transform = None
-            elif pTrans is None:
-                self._transform = gpTrans
-            elif gpTrans is None:
-                self._transform = pTrans
-            else:
-                self._transform = CombinedPoly(gpTrans, subchannel=self.parent.id, x=pTrans)
-        else:
-            if pTrans is None:
-                pTrans = [None] * len(self.parent.children)
-            self._transform = PolyPoly(pTrans)
 
         
 #===============================================================================
