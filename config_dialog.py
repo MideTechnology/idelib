@@ -1021,6 +1021,10 @@ class OptionsPanel(BaseConfigPanel):
             "the system time when the configuration is applied.")
         self.setTimeCheck.SetValue(self.root.setTime)
         
+        
+        self.addSpacer()
+        self.checkDriftBtn = self.addButton("Check Clock Drift", -1, self.OnCheckDrift, "Read the recorder's clock and compare to the current system time.")
+        
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         self.addButton("Reset to Defaults", wx.ID_DEFAULT, self.OnDefaultsBtn, 
@@ -1044,6 +1048,14 @@ class OptionsPanel(BaseConfigPanel):
         val = int(-time.timezone / 60 / 60) + time.daylight
         self.setField(self.utcCheck, val)
 
+
+    def OnCheckDrift(self, evt):
+        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        times = self.root.device.getTime()
+        drift = times[0] - times[1]
+        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        wx.MessageBox("Clock drift: %.4f seconds" % drift, "Check Clock Drift",
+                      parent=self, style=wx.OK|wx.ICON_INFORMATION)
 
     def getData(self):
         """ Retrieve the values entered in the dialog.

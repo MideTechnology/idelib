@@ -27,13 +27,40 @@ class Transform(object):
     modifiesValue = False
     
     def __init__(self, *args, **kwargs):
+        self._str = "x"
+        self._source = "lambda x: x"
+        self._function = eval(self._source)
+        self._lastSession = None
+        self._timeOffset = 0
         pass
     
-    def __call__(self,  event, session=None):
-        if session is None:
-            return event
-        return event[0] + session.startTime, event[1]
+    def __str__(self):
+        return self._str
+    
+    def __repr__(self):
+        return "<%s (%s)>" % (self.__class__.__name__, self._str)
 
+    @property
+    def function(self):
+        """ The generated polynomial function itself. """
+        return self._function
+
+    @property
+    def source(self):
+        """ The optimized source code of the polynomial. """
+        return self._source
+    
+    def __call__(self, event, session=None):
+        if session != self._lastSession:
+            self._timeOffset = 0 if session.startTime is None else session.startTime
+            self._session = session
+        return event[-2] + self._timeOffset, self._function(event[-1])
+     
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
     @classmethod
     def null(cls, *args, **kwargs):
         return args[0]
@@ -53,57 +80,55 @@ class AccelTransform(Transform):
     """
     modifiesValue = True
      
-    def __init__(self, amin=-100, amax=100):
+    def __init__(self, amin=-100, amax=100, calId=None, dataset=None):
         self.range = (amin, amax)
-        self._fun = lambda x: (x / 32767.0) * amax
+        self._str = "(x * 32767.0) / %.3f" % amax
+        self._source = "lambda x: x * %f" % (amax / 32767.0)
+        self._function = eval(self._source)
+        self._lastSession = None
+        self._timeOffset = 0
      
-    def __repr__(self):
-        return "<%s%r at 0x%08x>" % (self.__class__.__name__, self.range, 
-                                     id(self))
+
      
-    def __call__(self, event, session=None):
-        return event[:-1] + (self._fun(event[-1]),)
-     
-     
-    
-class AccelTransform100(Transform):
-    """ A simple transform to convert accelerometer values (parsed as
-        int16) to floats in the range -100 to 100 G.
-        
-        This assumes that the data was parsed by `AccelerometerParser`, which
-        puts the raw values in the range -32768 to 32767.
-    """
-    modifiesValue = True
-    
-    def __call__(self, event, session=None):
-#         return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
-        return event[:-1] + ((event[-1] / 32767.0) * 100.0,)
-
-
-class AccelTransform25G(Transform):
-    """ A simple transform to convert accelerometer values (parsed as
-        int16) to floats in the range -25 to 25 G.
-        
-        This assumes that the data was parsed by `AccelerometerParser`, which
-        puts the raw values in the range -32768 to 32767.
-    """
-    modifiesValue = True
-    def __call__(self, event, session=None):
-#         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
-        return event[:-1] + ((event[-1] / 32767) * 25.0,)
-
-
-class AccelTransform200G(Transform):
-    """ A simple transform to convert accelerometer values (parsed as
-        int16) to floats in the range -25 to 25 G.
-        
-        This assumes that the data was parsed by `AccelerometerParser`, which
-        puts the raw values in the range -32768 to 32767.
-    """
-    modifiesValue = True
-    def __call__(self, event, session=None):
-#         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
-        return event[:-1] + ((event[-1] / 32767) * 25.0,)
+#     
+# class AccelTransform100(Transform):
+#     """ A simple transform to convert accelerometer values (parsed as
+#         int16) to floats in the range -100 to 100 G.
+#         
+#         This assumes that the data was parsed by `AccelerometerParser`, which
+#         puts the raw values in the range -32768 to 32767.
+#     """
+#     modifiesValue = True
+#     
+#     def __call__(self, event, session=None):
+# #         return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
+#         return event[:-1] + ((event[-1] / 32767.0) * 100.0,)
+# 
+# 
+# class AccelTransform25G(Transform):
+#     """ A simple transform to convert accelerometer values (parsed as
+#         int16) to floats in the range -25 to 25 G.
+#         
+#         This assumes that the data was parsed by `AccelerometerParser`, which
+#         puts the raw values in the range -32768 to 32767.
+#     """
+#     modifiesValue = True
+#     def __call__(self, event, session=None):
+# #         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
+#         return event[:-1] + ((event[-1] / 32767) * 25.0,)
+# 
+# 
+# class AccelTransform200G(Transform):
+#     """ A simple transform to convert accelerometer values (parsed as
+#         int16) to floats in the range -25 to 25 G.
+#         
+#         This assumes that the data was parsed by `AccelerometerParser`, which
+#         puts the raw values in the range -32768 to 32767.
+#     """
+#     modifiesValue = True
+#     def __call__(self, event, session=None):
+# #         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
+#         return event[:-1] + ((event[-1] / 32767) * 25.0,)
 
 
 
@@ -154,6 +179,8 @@ class Univariate(Transform):
         self._coeffs = tuple(coeffs)
         self._variables = (varName,)
         self._references = (reference,)
+        self._session = None
+        self._timeOffset = 0
         
         self._build()
         
@@ -214,11 +241,6 @@ class Univariate(Transform):
         self._build()
         
     @property
-    def source(self):
-        """ The optimized source code of the polynomial. """
-        return self._source
-    
-    @property
     def variables(self):
         """ The name(s) of the variable(s) used in the polynomial. """
         return self._variables
@@ -238,29 +260,18 @@ class Univariate(Transform):
         self._references = val
         self._build()
     
-    @property
-    def function(self):
-        """ The generated polynomial function itself. """
-        return self._function
-    
-    def __str__(self):
-        return self._str
-    
-    def __repr__(self):
-        return "<%s (%s)>" % (self.__class__.__name__, self._str)
 
-
-    def __call__(self, event, session=None):
-        """ Apply the polynomial to an event. 
-        
-            @param event: The event to process (a time/value tuple or a
-                `dataset.Event` named tuple).
-            @keyword session: The session containing the event. Not used in
-                this transform.
-        """
-        result = list(event)
-        result[-1] = self._function(event[-1])
-        return tuple(result)
+#     def __call__(self, event, session=None):
+#         """ Apply the polynomial to an event. 
+#         
+#             @param event: The event to process (a time/value tuple or a
+#                 `dataset.Event` named tuple).
+#             @keyword session: The session containing the event. Not used in
+#                 this transform.
+#         """
+#         result = list(event)
+#         result[-1] = self._function(event[-1])
+#         return tuple(result)
 
 
 class Bivariate(Univariate):
@@ -302,6 +313,9 @@ class Bivariate(Univariate):
         self._references = (float(reference), float(reference2))
         self._coeffs = tuple(map(float,coeffs))
         self._variables = tuple(map(str, varNames))
+        
+        self._session = None
+        self._timeOffset = 0
         
         self._build()
         

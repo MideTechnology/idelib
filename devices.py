@@ -38,6 +38,7 @@ class ConfigVersionError(ConfigError):
 
 if 'win' in sys.platform:
     kernel32 = ctypes.windll.kernel32
+    import win32api, win32con, win32file
 else:
     kernel32 = None
 
@@ -61,6 +62,35 @@ def win_getDriveInfo(dev):
     )
     return (dev, volumeNameBuffer.value, hex(serial_number.value), 
             fileSystemNameBuffer.value, kernel32.GetDriveTypeA(dev))
+
+
+def win_readRecorderClock(dev):
+    root = os.path.abspath(os.path.join(os.path.dirname(dev), '..','..'))
+    unpacker = struct.Struct('i')
+    f1 = win32file.CreateFile( dev,
+                               win32con.GENERIC_READ,
+                               win32con.FILE_SHARE_READ,
+                               None,
+                               win32con.OPEN_EXISTING,
+                               win32con.FILE_FLAG_NO_BUFFERING,
+                               0)
+
+
+    spc, bps, _fc, _tc  = win32file.GetDiskFreeSpace(root)
+    bpc = spc * bps
+
+    _hr, lastTime = win32file.ReadFile( f1, bpc )
+    thisTime = lastTime
+    win32file.SetFilePointer(f1, 0, win32file.FILE_BEGIN)
+    
+    while lastTime == thisTime:
+        sysTime = time.time()
+        _hr, thisTime = win32file.ReadFile( f1, bpc )
+        sysTime = (time.time() + sysTime)/2
+        win32file.SetFilePointer(f1, 0, win32file.FILE_BEGIN)
+
+    win32api.CloseHandle(f1)
+    return sysTime, unpacker.unpack_from(thisTime)[0]
 
 
 def getDriveInfo(dev):
@@ -428,22 +458,26 @@ class SlamStickX(Recorder):
         x = self.getAccelRange()[1]
         return min(x, max(-x, (v * x * 2.0) / 65535 - x))
 
+
     def getTime(self):
         """ Read the date/time from the device. 
-        
-            @note: This is currently unreliable under Windows due to its caching
-                mechanism.
+
     
             @param dev: The path to the recording device.
-            @return: The time, as integer seconds since the epoch ('Unix time').
+            @return: The system time and the device time, as integer seconds 
+                since the epoch ('Unix time').
         """
+        if "win" in sys.platform:
+            return win_readRecorderClock(self.clockFile)
+        t0 = time.time()
         f = open(self.clockFile, 'rb', 0)
         t = f.read(8)
+        t1 = (time.time() + t0) / 2
         f.close()
-        return self.TIME_PARSER.unpack_from(t)
+        return t1, self.TIME_PARSER.unpack_from(t)
     
     
-    def setTime(self, t=None, pause=True):
+    def setTime(self, t=None, pause=True, retries=1):
         """ Set a recorder's date/time. A variety of standard time types are
             accepted. Note that the minimum unit of time is the whole second.
         
@@ -465,13 +499,21 @@ class SlamStickX(Recorder):
             t = calendar.timegm(t)
         else:
             t = int(t)
-            
-        with open(self.clockFile, 'wb') as f:
-            if pause:
-                t0 = int(time.time())
-                while int(t) <= t0:
-                    t = time.time()
-            f.write(self.TIME_PARSER.pack(t))
+        
+        try:
+            with open(self.clockFile, 'wb') as f:
+                if pause:
+                    t0 = int(time.time())
+                    while int(t) <= t0:
+                        t = time.time()
+                f.write(self.TIME_PARSER.pack(t))
+        except IOError as err:
+            if retries > 0:
+                time.sleep(.5)
+                return self.setTime(pause=pause, retries=retries-1)
+            else:
+                raise err
+        
         return t
 
 
@@ -748,7 +790,6 @@ def deviceChanged(recordersOnly=True, types=RECORDER_TYPES):
         the last call to `deviceChanged()`.
     """
     raise NotImplementedError("Only windows version currently implemented!")
-
 
 if "win" in sys.platform:
     getDriveInfo = win_getDriveInfo
