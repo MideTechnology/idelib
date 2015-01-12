@@ -7,10 +7,7 @@ Created on Nov 27, 2013
 
 @author: dstokes
 
-@todo: Use regex to optimize built univariate and bivariate functions, like:
-    re.sub(r'\(0(\.0?)\*([xy]|\(.*\))', '0', src)
-    re.sub(r'\+0(\.0?)\)', '', src)
-
+@todo: Use regex to optimize built univariate and bivariate functions
 '''
 
 # __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
@@ -56,15 +53,9 @@ class AccelTransform(Transform):
     """
     modifiesValue = True
      
-    def __init__(self, amin=-100, amax=100, calId=None, dataset=None):
-        self.calId = calId
-        self.dataset = dataset
+    def __init__(self, amin=-100, amax=100):
         self.range = (amin, amax)
-        self.source = "lambda x: (x / 32767) * %.1f" % amax
-        self._fun = eval(self.source)
-        
-#         self._usedIn = []
-#         self._usedBy = []
+        self._fun = lambda x: (x / 32767.0) * amax
      
     def __repr__(self):
         return "<%s%r at 0x%08x>" % (self.__class__.__name__, self.range, 
@@ -83,7 +74,6 @@ class AccelTransform100(Transform):
         puts the raw values in the range -32768 to 32767.
     """
     modifiesValue = True
-    source = "lambda x: (x/32767) * 100.0"
     
     def __call__(self, event, session=None):
 #         return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
@@ -98,7 +88,6 @@ class AccelTransform25G(Transform):
         puts the raw values in the range -32768 to 32767.
     """
     modifiesValue = True
-    source = "lambda x: (x/32767) * 25.0"
     def __call__(self, event, session=None):
 #         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
         return event[:-1] + ((event[-1] / 32767) * 25.0,)
@@ -112,10 +101,9 @@ class AccelTransform200G(Transform):
         puts the raw values in the range -32768 to 32767.
     """
     modifiesValue = True
-    source = "lambda x: (x/32767) * 200.0"
     def __call__(self, event, session=None):
 #         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
-        return event[:-1] + ((event[-1] / 32767) * 200.0,)
+        return event[:-1] + ((event[-1] / 32767) * 25.0,)
 
 
 
@@ -132,13 +120,11 @@ class Univariate(Transform):
     """
     modifiesValue = True
 
-    @classmethod
     def _floatOrInt(self, v):
         " Helper method to convert floats with no decimal component to ints. "
         iv = int(v)
         return iv if iv == v else v
     
-    @classmethod
     def _stremove(self, s, old):
         " Helper method to remove a set of substrings from a string. "
         result = str(s)
@@ -146,7 +132,6 @@ class Univariate(Transform):
             result = result.replace(o,'')
         return result
     
-    @classmethod
     def _fixSums(self, s):
         " Helper method to replace consecutive addition/subtraction combos. "
         result = str(s)
@@ -170,28 +155,21 @@ class Univariate(Transform):
         self._variables = (varName,)
         self._references = (reference,)
         
-#         # Keep track of composite polynomials that reference this one:
-#         self._usedIn = []
-#         
-#         # Keep track of things that use this polynomial so they can update:
-#         self._usedBy = []
-        
         self._build()
-
-
+        
     def _build(self):
         varName = str(self._variables[0])
+        srcVarName = "x"
         reference = self._references[0]
+        coeffs = self._coeffs
         
         if reference != 0:
             varName = "(%s-%s)" % (varName, reference)
-            srcVarName = "(x-%s)" % reference
-        else:
-            srcVarName = 'x'
+            srcVarName = "(%s-%s)" % (srcVarName, reference)
         
         # f is used to build the lambda
         # strF is used to build the string version
-        coeffs = list(reversed(self._coeffs))
+        coeffs = list(reversed(coeffs))
         f = [coeffs[0]] if coeffs[0] != 0 else []
         strF = f[:]
         coeffs = map(self._floatOrInt, coeffs)
@@ -202,8 +180,8 @@ class Univariate(Transform):
     
             # optimization: v is a whole number, do integer math,
             # then make float by adding 0.0
-#             if v != 1 and int(v) == v:
-#                 v = int(v)
+            if v != 1 and int(v) == v:
+                v = int(v)
     
             # optimization: pow() is more expensive than lots of multiplication
             x = "*".join([srcVarName]*p)
@@ -224,19 +202,6 @@ class Univariate(Transform):
         self._source = self._fixSums(self._source)
         self._function = eval(self._source)
     
-#         # For combination transforms: update dependencies 
-#         for c in self._usedIn:
-#             c._build()
-#             
-#         for c in self._usedBy:
-#             try:
-#                 c._updateTransform()
-#             except AttributeError:
-#                 pass
-
-
-    def __hash__(self):
-        return hash(self._source)
     
     @property
     def coefficients(self):
@@ -320,7 +285,6 @@ class Bivariate(Univariate):
         self.dataset = dataset
         self._eventlist = None
         self._sessionId = None
-        
         self.channelId, self.subchannelId = channelId, subchannelId
         if channelId is None or subchannelId is None:
             raise ValueError("Bivariate polynomial requires channel and " \
@@ -339,9 +303,6 @@ class Bivariate(Univariate):
         self._coeffs = tuple(map(float,coeffs))
         self._variables = tuple(map(str, varNames))
         
-#         self._usedIn = []
-#         self._usedBy = []
-#         
         self._build()
         
     def _build(self):
@@ -390,16 +351,7 @@ class Bivariate(Univariate):
         # Optimization: it is possible that the polynomial could exclude Y
         # completely. If that's the case, use a dummy value to speed things up.
         self._noY = (0,1) if 'y' not in src else False 
-        
-#         # For combination transforms: update dependencies 
-#         for c in self._usedIn:
-#             c._build()
-# 
-#         for c in self._usedBy:
-#             try:
-#                 c._updateTransform()
-#             except AttributeError:
-#                 pass
+            
 
 
     def __call__(self, event, session=None):
@@ -430,6 +382,7 @@ class Bivariate(Univariate):
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
             return event
+
 
 #===============================================================================
 # 
