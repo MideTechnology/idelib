@@ -1021,9 +1021,11 @@ class OptionsPanel(BaseConfigPanel):
             "the system time when the configuration is applied.")
         self.setTimeCheck.SetValue(self.root.setTime)
         
-        
-        self.addSpacer()
-        self.checkDriftBtn = self.addButton("Check Clock Drift", -1, self.OnCheckDrift, "Read the recorder's clock and compare to the current system time.")
+        if wx.GetApp().getPref('showAdvancedOptions', False):
+            self.addSpacer()
+            self.checkDriftBtn = self.addButton("Check Clock Drift", -1, 
+                self.OnCheckDrift, tooltip="Read the recorder's clock and "
+                "compare to the current system time.")
         
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
         sc.SizedPanel(self, -1).SetSizerProps(proportion=1)
@@ -1936,7 +1938,11 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
 #===============================================================================
 
 if __name__ == "__main__":
-    app = wx.App()
+    class TestApp(wx.App):
+        def getPref(self, name, default=None):
+            return default
+            
+    app = TestApp()
     recorderPath = devices.getDeviceList()[-1]
     print "configureRecorder() returned %r" % (configureRecorder(recorderPath, 
                                                                  useUtc=True),)

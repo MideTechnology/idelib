@@ -143,6 +143,10 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.EnumProperty("Locale", "locale", self.LANG_LABELS))
         _add(PG.EnumProperty("Automatic Update Check Interval", "updater.interval", 
                              INTERVALS.values()))
+        _add(PG.BoolProperty("Show Advanced Options", "showAdvancedOptions"),
+             "Show advanced/experimental features. These are not required for "
+             "general use of the app and may cause problems. Use with caution!",
+             UseCheckbox=True)
         
         _add(PG.PropertyCategory("Slam Stick X/WVR Special Preferences"))
         temphelp = ("Accelerometer readings when the temperature (Channel "

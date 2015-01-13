@@ -25,7 +25,11 @@ will need backend support in the mide-ebml library.
 
 Consider implementing a subclass of EventList optimized for channels with
 single-sample data blocks (i.e. pressure/temperature). There's a lot of
-overhead in place for handling the subsamples in the accelerometer data blocks. 
+overhead in place for handling the subsamples in the accelerometer data blocks.
+
+Consider implementing a subclass of EventList for subchannels to get rid of all
+the `if self._hasSubchannels` stuff. This would mean four EventList classes if
+single-sample ones is also implemented, though.
 
 Implement the use of a rolling mean for getting temperature data in calibration.
 The getValueAt() method is a severe bottleneck. This is possibly part of
@@ -46,7 +50,8 @@ are no longer necessary.
 Simplify the transform system. The whole thing with the 'hidden'
 _transform attributes (so Channel.transform always shows the transform, even
 if Channel.raw=True) is kind of nice, but overly complicated. The API is for
-internal use only at this point, anyway. 
+internal use only at this point, anyway. Just remove the whole 'raw' thing
+and do `channel.transform = None` instead.
 
 
 Longer term
