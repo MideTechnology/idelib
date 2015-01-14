@@ -292,7 +292,7 @@ class FFTView(wx.Frame, MenuMixin):
                         colour=self.root.getPlotColor(self.subchannels[i])))
             
         self.lines = PlotGraphics(lines, title=self.GetTitle(), 
-                                    xLabel="Frequency", yLabel="Amplitude")
+                                    xLabel="Frequency (Hz)", yLabel="Amplitude (g)")
         
     
     @classmethod
@@ -883,7 +883,7 @@ class SpectrogramView(FFTView):
  
             self_lines_append(PlotGraphics([PolyLine(points, legend=name)],
                               title=self.subchannels[i].name, #title=self.GetTitle(),
-                              xLabel="Time", yLabel="Frequency"))
+                              xLabel="Time (s)", yLabel="Frequency (Hz)"))
 
     
     @classmethod

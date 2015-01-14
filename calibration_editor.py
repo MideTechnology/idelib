@@ -32,9 +32,8 @@ class CoeffValidator(wx.PyValidator):
 
 
     def Clone(self):
-        """ Standard cloner.
-
-            Note that every validator must implement the Clone() method.
+        """ Standard cloner. Note that every validator must implement the 
+            Clone() method.
         """
         return self.__class__(self.min, self.max, self.root)
 
@@ -141,29 +140,26 @@ class UnivariateDialog(SC.SizedDialog):
         return subpane
         
     def _addicon(self, subpane, ctrl):
-        # Helper helper. Don't use directly.
+        # Helper helper. Adds icon next to fields. Don't use directly.
         icon = wx.StaticBitmap(subpane, -1, self.noBmp)
         icon.SetSizerProps(proportion=0, expand=False, valign="center")
         ctrl.errIcon = icon
         return icon
         
-    def _addtext(self, label, default='', **kwargs):
-        """ Helper method to add a one-line text field. """
+    def _addfield(self, label, default=None, lines=1, **kwargs):
+        """ Helper method to add a text field. """
+        if isinstance(default, (list, tuple)) and lines == 1:
+            lines = len(default)
+            default = self._tostr(default)
+        if lines > 1:
+            kwargs['style'] = kwargs.get('style', 0) | wx.TE_MULTILINE | wx.TE_PROCESS_ENTER
+            kwargs['size'] = (-1, (self.lineHeight * lines)+self.FIELD_PAD)
         wx.StaticText(self.pane, -1, label)
         subpane = self._addsubpane()
         t = wx.TextCtrl(subpane, -1, unicode(default), **kwargs)
         t.SetSizerProps(expand=True, proportion=1)
         self._addicon(subpane, t)
         return t
-    
-    def _addfield(self, label, default=None, lines=1, **kwargs):
-        """ Helper method to add a multi-line text field. """
-        lines = len(default) if default is not None else lines
-        if lines > 1:
-            kwargs['style'] = kwargs.get('style', 0) | wx.TE_MULTILINE | wx.TE_PROCESS_ENTER
-        if 'size' not in kwargs:
-            kwargs['size'] = (-1, (self.lineHeight * lines)+self.FIELD_PAD)
-        return self._addtext(label, default=self._tostr(default), **kwargs)
     
     def _addlist(self, label, items, single=True, selected=None, **kwargs):
         """ Helper method to add a listbox. """
@@ -191,6 +187,7 @@ class UnivariateDialog(SC.SizedDialog):
         return c
 
     def _channelstr(self, c):
+        """ Helper method to create nice string for a (sub)channel's name. """
         if isinstance(c, SubChannel):
             return "%d.%d: %s" % (c.parent.id, c.id, c.name)
         else:
@@ -236,13 +233,13 @@ class UnivariateDialog(SC.SizedDialog):
         self.pane = self.GetContentsPane()
         self.pane.SetSizerType("form")
         
-        self.idField = self._addtext("Calibration ID", default=self.calLabel, style=wx.TE_READONLY)
+        self.idField = self._addfield("Calibration ID", default=self.calLabel, style=wx.TE_READONLY)
         self.channelList = self._addlist("Used By", self.channelNames, selected=self.getChannelsUsing(), single=False)
         self.lineHeight = self.idField.GetTextExtent("yY")[1] 
         
         self.buildUI()
         
-        self.polyText = self._addtext("Polynomial", style=wx.TE_READONLY)
+        self.polyText = self._addfield("Polynomial", style=wx.TE_READONLY)
         self.updatePoly()
         
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
@@ -283,6 +280,8 @@ class UnivariateDialog(SC.SizedDialog):
 
 
     def OnLoseFocus(self, evt):
+        """ Auto-validate fields when moving from one to another. 
+        """
         obj = evt.GetEventObject()
         self.updatePoly(obj.GetValidator().manualValidate(obj, quiet=True))
         evt.Skip()
@@ -309,7 +308,7 @@ class UnivariateDialog(SC.SizedDialog):
 
 
     def getChannelsUsing(self):
-        """
+        """ Get a list of all Channels using the current calibration polynomial.
         """
         result = []
         for n, c in enumerate(self.channels.values()):
@@ -333,7 +332,7 @@ class BivariateDialog(UnivariateDialog):
     """
     CAL_TYPE = calibration.Univariate
     DEFAULT_TITLE = "Edit Bivariate Polynomial"
-    DEFAULT_COEFFS = (-.003, 1, 0, 0)
+    DEFAULT_COEFFS = (1-.003, 1, 0, 0)
     DEFAULT_REFS = (0, 50)
     NUM_COEFFS = (4,4) # (min, max)
     NUM_REFS = (2,2) # (min. max)
@@ -342,9 +341,7 @@ class BivariateDialog(UnivariateDialog):
         chIdx = None
         if self.ebmldoc is not None and self.cal is not None:
             ch = self.ebmldoc.channels[self.cal.channelId][self.cal.subchannelId]
-            print self.cal.channelId, self.cal.subchannelId
             try:
-                print 
                 chIdx = self.channelNames.index(self._channelstr(ch))
             except ValueError:
                 pass

@@ -608,6 +608,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_VIEW_ZOOM_OUT_Y = wx.NewId()
     ID_VIEW_ZOOM_IN_Y = wx.NewId()
     ID_VIEW_ZOOM_FIT_Y = wx.NewId()
+    ID_VIEW_ZOOM_FIT_ALL = wx.NewId()
     ID_VIEW_ANTIALIAS = wx.NewId()
     ID_VIEW_JITTER = wx.NewId()
     ID_VIEW_UTCTIME = wx.NewId()
@@ -799,6 +800,9 @@ class Viewer(wx.Frame, MenuMixin):
                          "Zoom In Y\tAlt+=", '', self.OnZoomInY)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y, 
                         "Zoom to Fit Y\tAlt+0", '', self.OnZoomFitY)
+        # ID_VIEW_ZOOM_FIT_ALL
+        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y, 
+                        "Zoom to Fit All\tAlt+Ctrl+0", '', self.OnZoomFitAll)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, wx.ID_SELECT_COLOR, "Set Plot Color...", "",
                          self.OnSetPlotColor)
@@ -1935,6 +1939,10 @@ class Viewer(wx.Frame, MenuMixin):
         p = self.plotarea.getActivePage()
         if p is not None:
             p.zoomToFit()
+    
+    def OnZoomFitAll(self, evt):
+        self.OnZoomFitX(evt)
+        self.OnZoomFitY(evt)
 
 
     def _postCommandEvent(self, target, evtType, Id):
