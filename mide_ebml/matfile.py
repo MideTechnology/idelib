@@ -208,7 +208,6 @@ class MatStream(object):
             self.newFile(serialize)
         else:
             self.stream = None
-            self.totalSize = 0
         
 
     def newFile(self, serialize=True, offset=None):
@@ -224,7 +223,7 @@ class MatStream(object):
             self.filename = self.basename
         self.stream = open(self.filename, 'wb')
 
-        self.write(struct.pack('116s II H 2s', self.msg, 0, 0, 0x0100, 'IM'))
+        self.stream.write(struct.pack('116s II H 2s', self.msg, 0, 0, 0x0100, 'IM'))
         
         if self._writeInfo:
             self.writeRecorderInfo(self.doc.recorderInfo)
@@ -233,7 +232,6 @@ class MatStream(object):
         if self.startTime:
             self.writeValue('start_time_utc', self.startTime, MP.miINT64)
         
-        self.totalSize = self.stream.tell()
         self._inArray = False
         self.arrayName = None
         self.arrayColNames = None
@@ -245,7 +243,7 @@ class MatStream(object):
             file size; start a new file if it will. Also creates a variable
             for the current array's start time (if provided).
         """
-        if self.next8(self.totalSize + size + pad) >= self.maxFileSize:
+        if self.next8(self.stream.tell() + size + pad) >= self.maxFileSize:
 #             print "checkFileSize"
             inArray = self._inArray
             if inArray:
@@ -270,19 +268,6 @@ class MatStream(object):
 
 
     @classmethod
-    def appendTo(cls, filename, **kwargs):
-        """ Open an existing .MAT file for appending. 
-        """
-        matfile = cls(None, **kwargs)
-        if isinstance(filename, basestring):
-            matfile.stream = open(filename, 'ab')
-            matfile.totalSize = os.path.getsize(filename)
-        else:
-            matfile.stream = filename
-        return matfile
-        
-
-    @classmethod
     def next8(cls, num):
         """ Return the next multiple of 8; elements within a MAT file must be
             aligned to 64 bits.
@@ -290,20 +275,6 @@ class MatStream(object):
         if num % 8 == 0:
             return num
         return 8*(int(num/8)+1)
-
-
-    def write(self, data):
-        """ Used internally.
-        """
-#         print "pos=%d writing %d bytes: %s" % (self.stream.tell(), len(data), hexdump(data))
-        self.stream.write(data)
-
-
-    def seek(self, pos):
-        """ Used internally.
-        """
-#         print "seek: %d" % pos
-        self.stream.seek(pos)
 
 
     def pack(self, fmt, args, dtype=MP.miUINT32):
@@ -316,7 +287,7 @@ class MatStream(object):
         """
         dataSize = struct.calcsize(fmt)
         result = struct.pack('II'+fmt, dtype, dataSize, *args)
-        self.write(result.ljust(self.next8(len(result)),'\0'))
+        self.stream.write(result.ljust(self.next8(len(result)),'\0'))
         return self.next8(dataSize + 8)
 
     
@@ -327,13 +298,12 @@ class MatStream(object):
         string = string[:maxlen]
         n = self.next8(len(string))
         fmt = 'II %ds' % n
-        self.write(struct.pack(fmt, MP.miINT8, len(string), string))
+        self.stream.write(struct.pack(fmt, MP.miINT8, len(string), string))
 
    
     def endArray(self):
         """ End an array, updating all the sizes.
         """
-#         print "got end of %r" % self.arrayBaseName
         if not self._inArray:
             return False
         self._inArray = False
@@ -342,26 +312,25 @@ class MatStream(object):
         arrayEndPos = self.next8(dataEndPos)
         
         # Move back and rewrite the actual total size
-        self.seek(self.dataStartPos-4)
-        self.write(self.intPack.pack(self.next8(dataEndPos-self.dataStartPos)))
+        self.stream.seek(self.dataStartPos-4)
+        self.stream.write(self.intPack.pack(self.next8(dataEndPos-self.dataStartPos)))
         
         # Move back and rewrite the actual number of rows (columns, actually)
-        self.seek(self.rowsPos)
-        self.write(self.intPack.pack(self.numRows))
+        self.stream.seek(self.rowsPos)
+        self.stream.write(self.intPack.pack(self.numRows))
             
         # Move back and write the actual payload size (the 'real' portion only)
-        self.seek(self.prSize)
-        self.write(self.intPack.pack(self.numRows * self.rowFormatter.size))
+        self.stream.seek(self.prSize)
+        self.stream.write(self.intPack.pack(self.numRows * self.rowFormatter.size))
         
         # Go back to the end.
-        self.seek(dataEndPos)
+        self.stream.seek(dataEndPos)
         if dataEndPos < arrayEndPos:
-            self.write('\0' * (arrayEndPos-dataEndPos))
+            self.stream.write('\0' * (arrayEndPos-dataEndPos))
 
         if self.arrayHasTimes and self.arrayNoTimes and self.arrayStartTime is not None:
             self.writeValue('%s_start' % self.arrayBaseName, self.arrayStartTime, MP.miUINT64)
             
-        self.totalSize = self.stream.tell()
         self.arrayMType = None
         self.arrayColNames = None
         self.arrayStartTime = None
@@ -385,9 +354,16 @@ class MatStream(object):
         if self._inArray:
             self.endArray()
 
-        # Calculate size of data, plus final start time value if applicable
-        newSize = 80 + self.next8(len(name)) + (0 if noTimes and hasTimes else 96)
-        self.totalSize = self.stream.tell()
+        # Calculate size of data, plus any applicable 'header' data that needs
+        # to be in the same file as the array (column names, start time offset, 
+        # etc.)
+        headerSize = 0
+        if colNames is not None:
+            headerSize += self.getNamesSize(colNames, '%s_names' % name, noTimes)
+        if noTimes and hasTimes:
+            headerSize += self.getValueSize('%s_start' % self.arrayBaseName, self.arrayStartTime, MP.miUINT64)
+            
+        newSize = 80 + self.next8(len(name)) + headerSize
         self.checkFileSize(newSize)
 
         self._inArray = True
@@ -421,7 +397,7 @@ class MatStream(object):
         self.rowFormatter = struct.Struct(fchar)
         
         # Start of matrix element, initial size of 0 (rewritten at end)
-        self.write(struct.pack("II", MP.miMATRIX, 0)) # Start
+        self.stream.write(struct.pack("II", MP.miMATRIX, 0)) # Start
         self.dataStartPos = self.stream.tell()
         
         # Write flags and matrix type
@@ -437,12 +413,17 @@ class MatStream(object):
         self.packStr(sanitizeName(name))
         
         # Write the start of the 'PR' element; the size will be filled in later.
-        self.write(struct.pack('II', self.arrayDType, self.rowFormatter.size * rows))
+        self.stream.write(struct.pack('II', self.arrayDType, self.rowFormatter.size * rows))
         self.prSize = self.stream.tell() - 4
         
-        self.totalSize = self.stream.tell()
-        
 
+    def getStringArraySize(self, title, strings):
+        """ Get the size of an array of strings before writing it.
+        """
+        textSize = max(map(len, strings))
+        return 40 + self.next8(textSize*len(strings)) + 8 + self.next8(len(title))
+        
+        
     def writeStringArray(self, title, strings):
         """ Write a set of strings as a MATLAB character array.
         """
@@ -450,20 +431,24 @@ class MatStream(object):
         strings = [n.ljust(textSize) for n in strings]
         payload = ''.join([''.join(x) for x in zip(*strings)])
         
-        totalSize = 40 + self.next8(len(title)) + 8 + self.next8(len(payload))
+        totalSize = self.getStringArraySize(title, strings)
         
         # Ensure that this won't exceed the max file size before writing
         self.checkFileSize(totalSize)
         
-        self.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
+        self.stream.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
         self.pack('BBBBBBBB', (0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
         self.pack('II', (len(strings), textSize), dtype=MP.miINT32)
         self.packStr(sanitizeName(title))
-        self.write(struct.pack("II", MP.miUTF8, textSize*len(strings)))
-        self.write(payload.ljust(self.next8(len(payload)), '\0'))
+        self.stream.write(struct.pack("II", MP.miUTF8, textSize*len(strings)))
+        self.stream.write(payload.ljust(self.next8(len(payload)), '\0'))
         
-        self.totalSize = self.stream.tell()
-
+    
+    def getNamesSize(self, names, title="channel_names", noTimes=False):
+        if noTimes:
+            return self.getStringArraySize(title, names)
+        return self.getStringArraySize(['Time']+names)
+    
         
     def writeNames(self, names, title="channel_names", noTimes=False):
         """ Write IDE column names to the MAT file, for easy identification
@@ -471,6 +456,7 @@ class MatStream(object):
             stream).
         """
         if not noTimes:
+            names = names[:]
             names.insert(0, 'Time')
         self.writeStringArray(title, names)
 
@@ -483,7 +469,6 @@ class MatStream(object):
         if self.arrayStartTime is None:
             self.arrayStartTime = event[0]
         self.checkFileSize(self.rowFormatter.size, pad=96)
-        self.totalSize += self.rowFormatter.size
 
         try:
             if self.arrayNoTimes:
@@ -494,9 +479,18 @@ class MatStream(object):
             print "ERROR: %s, formatter=%r, event=%r" % (self.arrayBaseName, self.rowFormatter.format, event)
             raise err
             
-        self.write(data)
+        self.stream.write(data)
         self.numRows += 1
 
+
+    def getValueSize(self, name, val, dtype=MP.miDOUBLE):
+        """ Get the total size of a value as written.
+        """
+        name = sanitizeName(name)
+        fchar = self.typeFormatChars.get(dtype,'d')
+        dsize = struct.calcsize(fchar)
+        return 40 + self.next8(len(name)) + 8 + self.next8(dsize)
+        
 
     def writeValue(self, name, val, dtype=MP.miDOUBLE):
         """ Write a single numeric value to the MAT file. Don't use for strings.
@@ -504,17 +498,16 @@ class MatStream(object):
         name = sanitizeName(name)
         mtype = self.classTypes.get(dtype, MP.mxDOUBLE_CLASS)
         fchar = self.typeFormatChars.get(dtype,'d')
-        dsize = struct.calcsize(fchar)
-        totalSize = 40 + self.next8(len(name)) + 8 + self.next8(dsize)
+        totalSize = self.getValueSize(name, val, dtype)
         
         self.checkFileSize(totalSize)
         
-        self.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
+        self.stream.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
         self.pack('BBBBBBBB', (mtype, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)) #flags
         self.pack('II', (1, 1), dtype=MP.miINT32) # dimensions
         self.packStr(name)
         self.pack(fchar, (val,), dtype=dtype)
-        self.totalSize = self.stream.tell()
+
     
     def writeRecorderInfo(self, info):
         """ Write an IDE file's 'RecorderInfo' data to the MAT as a set of
@@ -662,11 +655,13 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
         names = [events.parent.name]
 
     totalSamples = totalLines * numCols
+    if headers is False:
+        names = None
     
     comments = makeHeader(events.dataset, events.session.sessionId)
-    matfile = MatStream(filename, events.dataset, comments, timeScalar=timeScalar, writeNames=headers)
+    matfile = MatStream(filename, events.dataset, comments, timeScalar=timeScalar)
     
-    matfile.startArray(events.parent.name, numCols, rows=totalLines, colNames=names)
+    matfile.startArray(events.parent.name, numCols, rows=totalLines, colNames=names, noTimes=False)
     
     try:
         for num, evt in enumerate(events.iterSlice(start, stop, step)):
