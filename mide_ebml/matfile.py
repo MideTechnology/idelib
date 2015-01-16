@@ -165,30 +165,34 @@ class MatStream(object):
     intPack = struct.Struct('I')
 
 
-    def __init__(self, filename, msg=DEFAULT_HEADER, serialize=True, 
-                 maxFileSize=MAX_SIZE, timeScalar=1):
+    def __init__(self, filename, doc=None, msg=None, serialize=True, 
+                 maxFileSize=MAX_SIZE, timeScalar=1, writeCal=False,
+                 writeStart=False, writeInfo=False):
         """ Constructor. Create a new .MAT file.
             @param filename: The name of the new file, or `None`.
             @keyword msg: The message string to appear at the start of the
                 MAT file. The first 4 bytes must be non-zero.
         """
+        if msg is None:
+            msg = self.DEFAULT_HEADER if doc is None else makeHeader(doc)
         self.basename = filename
         self.filename = filename
         self.msg = msg.encode('utf8') or self.DEFAULT_HEADER
         self.stream = None
         self.timeScalar = timeScalar
+        self.doc = doc
+        if doc is not None:
+            self._writeCal = writeCal and len(doc.transforms) > 0
+            self._writeInfo = writeInfo
+            self.startTime = writeStart and doc.sessions[0].utcStartTime
+        else:
+            self._writeCal = self._writeInfo = self._writeStart = False
 
         # MATLAB identifies the file as level 4 if the first byte is 0.
         if '\x00' in self.msg[:4]:
             self.msg = self.DEFAULT_HEADER
             
         self.maxFileSize = min(self.MAX_SIZE, self.next8(maxFileSize))
-        
-        if filename is not None:
-            self.newFile(serialize)
-        else:
-            self.stream = None
-            self.totalSize = 0
         
         # Default array parameters. Typically set by startArray().
         self._inArray = False
@@ -197,11 +201,20 @@ class MatStream(object):
         self.arrayDType = MP.miDOUBLE
         self.arrayFlags = 0
         self.arrayNoTimes = False
+        self.arrayHasTimes = False
+        self.arrayColNames = None
+        
+        if filename is not None:
+            self.newFile(serialize)
+        else:
+            self.stream = None
+            self.totalSize = 0
         
 
-    def newFile(self, serialize=True):
+    def newFile(self, serialize=True, offset=None):
         """ Used internally. Wraps file creation.
         """
+#         print "newFile"
         if self.stream is not None:
             self.close()
             
@@ -212,23 +225,43 @@ class MatStream(object):
         self.stream = open(self.filename, 'wb')
 
         self.write(struct.pack('116s II H 2s', self.msg, 0, 0, 0x0100, 'IM'))
-        self.totalSize = self.stream.tell()
         
+        if self._writeInfo:
+            self.writeRecorderInfo(self.doc.recorderInfo)
+        if self._writeCal:
+            self.writeCalibration(self.doc.transforms)
+        if self.startTime:
+            self.writeValue('start_time_utc', self.startTime, MP.miINT64)
+        
+        self.totalSize = self.stream.tell()
         self._inArray = False
         self.arrayName = None
+        self.arrayColNames = None
+        self.arrayStartTime = None
 
 
-    def checkFileSize(self, size):
+    def checkFileSize(self, size, pad=0):
         """ Check if adding data of the given size will exceed the maximum    
-            file size; start a new file if it will.
+            file size; start a new file if it will. Also creates a variable
+            for the current array's start time (if provided).
         """
-        if self.next8(self.totalSize + size) >= self.maxFileSize:
+        if self.next8(self.totalSize + size + pad) >= self.maxFileSize:
+#             print "checkFileSize"
             inArray = self._inArray
+            if inArray:
+                colNames = self.arrayColNames
+                baseName = self.arrayBaseName
+                dtype = self.arrayDType
+                mtype = self.arrayMType
+                noTimes = self.arrayNoTimes
+                hasTimes = self.arrayHasTimes
+                num = self.arrayNumber + 1
+                cols = self.numCols if self.arrayNoTimes else self.numCols - 1
             self.newFile()
             if inArray:
-                arrayNum = self.arrayNumber + 1
-                cols = self.numCols if self.arrayNoTimes else self.numCols - 1
-                self.startArray(self.arrayBaseName, cols, arrayNumber=arrayNum)
+                self.startArray(baseName, cols, arrayNumber=num, 
+                                colNames=colNames, mtype=mtype, dtype=dtype, 
+                                noTimes=noTimes, hasTimes=hasTimes)
 
 
     @property
@@ -300,6 +333,7 @@ class MatStream(object):
     def endArray(self):
         """ End an array, updating all the sizes.
         """
+#         print "got end of %r" % self.arrayBaseName
         if not self._inArray:
             return False
         self._inArray = False
@@ -324,13 +358,20 @@ class MatStream(object):
         if dataEndPos < arrayEndPos:
             self.write('\0' * (arrayEndPos-dataEndPos))
 
+        if self.arrayHasTimes and self.arrayNoTimes and self.arrayStartTime is not None:
+            self.writeValue('%s_start' % self.arrayBaseName, self.arrayStartTime, MP.miUINT64)
+            
         self.totalSize = self.stream.tell()
         self.arrayMType = None
+        self.arrayColNames = None
+        self.arrayStartTime = None
+
         return True
 
 
     def startArray(self, name, cols, rows=1, arrayNumber=0, 
-                   mtype=None, dtype=None, flags=0, noTimes=None):
+                   mtype=None, dtype=MP.miDOUBLE, flags=0, noTimes=True,
+                   hasTimes=True, colNames=None):
         """ Begin a 2D array for storing the recorded data.
         
             @param name: The name of the matrix (array).
@@ -340,27 +381,37 @@ class MatStream(object):
             @keyword mtype: The Matlab matrix type. Defaults to match `dtype`.
             @keyword flags: A set of bit flags for the matrix.
         """
+#         print "got start of %s" % name
         if self._inArray:
             self.endArray()
 
+        # Calculate size of data, plus final start time value if applicable
+        newSize = 80 + self.next8(len(name)) + (0 if noTimes and hasTimes else 96)
         self.totalSize = self.stream.tell()
-        self.checkFileSize(80 + self.next8(len(name)))
+        self.checkFileSize(newSize)
 
-        self.arrayBaseName = name
-        self.arrayNumber = arrayNumber
         self._inArray = True
+        self.arrayBaseName = sanitizeName(name)
+        self.arrayNumber = arrayNumber
         self.numRows = 0
         self.expectedRows = rows
-        self.arrayMType = self.arrayMType if mtype is None else mtype
-        self.arrayDType = self.arrayDType if dtype is None else dtype
-        self.arrayFlags = self.arrayFlags if flags is None else flags
-        self.arrayNoTimes = self.arrayNoTimes if noTimes is None else noTimes
+        self.arrayMType = mtype
+        self.arrayDType = dtype
+        self.arrayFlags = flags
+        self.arrayNoTimes = noTimes
+        self.arrayHasTimes = hasTimes
+        self.arrayColNames = colNames
+        self.arrayStartTime = None
+        
+        if arrayNumber > 0:
+            name = "%s%d" % (self.arrayBaseName, arrayNumber)
+            
+        if self.arrayColNames:
+            self.writeNames(self.arrayColNames, '%s_names' % self.arrayBaseName, self.arrayNoTimes)
         
         if self.arrayMType is None:
             self.arrayMType = self.classTypes[self.arrayDType]
         
-        if arrayNumber > 0:
-            name = "%s%d" % (self.arrayBaseName, arrayNumber)
 
         if self.arrayNoTimes:
             self.numCols = cols
@@ -429,20 +480,19 @@ class MatStream(object):
         
             @param event: The sample, in the format `(time, (v1, v2, ...))`
         """
-        self.checkFileSize(self.rowFormatter.size)
+        if self.arrayStartTime is None:
+            self.arrayStartTime = event[0]
+        self.checkFileSize(self.rowFormatter.size, pad=96)
         self.totalSize += self.rowFormatter.size
 
-        if self.numRows > self.MAX_LENGTH:
-            # May be obsolete; can it ever happen before the file size max?
-            arrayNum = self.arrayNumber + 1
-            cols = self.numCols if self.arrayNoTimes else self.numCols - 1
-            self.endArray()
-            self.startArray(self.arrayBaseName, cols, arrayNumber=arrayNum)
-            
-        if self.arrayNoTimes:
-            data = self.rowFormatter.pack(*event[-1])
-        else:
-            data = self.rowFormatter.pack(event[-2]*self.timeScalar, *event[-1])
+        try:
+            if self.arrayNoTimes:
+                data = self.rowFormatter.pack(*event[-1])
+            else:
+                data = self.rowFormatter.pack(event[-2]*self.timeScalar, *event[-1])
+        except struct.error as err:
+            print "ERROR: %s, formatter=%r, event=%r" % (self.arrayBaseName, self.rowFormatter.format, event)
+            raise err
             
         self.write(data)
         self.numRows += 1
@@ -465,7 +515,6 @@ class MatStream(object):
         self.packStr(name)
         self.pack(fchar, (val,), dtype=dtype)
         self.totalSize = self.stream.tell()
-        
     
     def writeRecorderInfo(self, info):
         """ Write an IDE file's 'RecorderInfo' data to the MAT as a set of
@@ -479,13 +528,14 @@ class MatStream(object):
     def writeCalibration(self, cals):
         """
         """
+#         print "writeCalibration %s" % self.stream.name
         for calId, cal in cals.iteritems():
             vals = cal.references + cal.coefficients
-            self.startArray("calibration%d" % calId, len(vals), dtype=MP.miDOUBLE, noTimes=True)
+            self.startArray("calibration%d" % calId, len(vals), dtype=MP.miDOUBLE, noTimes=True, hasTimes=False)
             self.writeRow((0,vals))
             self.endArray()
-        
-
+    
+    
     def close(self):
         """ Close the file.
         """
@@ -614,12 +664,9 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     totalSamples = totalLines * numCols
     
     comments = makeHeader(events.dataset, events.session.sessionId)
-    matfile = MatStream(filename, comments, timeScalar=timeScalar)
+    matfile = MatStream(filename, events.dataset, comments, timeScalar=timeScalar, writeNames=headers)
     
-    if headers:
-        matfile.writeNames(names)
-        
-    matfile.startArray(events.parent.name, numCols, rows=totalLines)
+    matfile.startArray(events.parent.name, numCols, rows=totalLines, colNames=names)
     
     try:
         for num, evt in enumerate(events.iterSlice(start, stop, step)):

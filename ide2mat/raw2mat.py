@@ -5,6 +5,7 @@ Created on Dec 3, 2014
 '''
 
 from datetime import datetime
+from itertools import izip
 import importlib
 import locale
 import os.path
@@ -34,6 +35,7 @@ from mide_ebml.parsers import MPL3115PressureTempParser, ChannelDataBlock
 class AccelDumper(object):
     """ Parser replacement that dumps accelerometer data as read. """
     maxTimestamp = ChannelDataBlock.maxTimestamp
+    timeScalar = 1000000.0 / 2**15
     
     def __init__(self, numCh, writer=None):
         self.writer = writer
@@ -59,20 +61,25 @@ class AccelDumper(object):
 
 
     def write(self, el):
+        blockStart = self.fixOverflow(el.value[1].value)
+        blockEnd = self.fixOverflow(el.value[2].value)
         if self.firstTime is None:
-            self.firstTime = self.fixOverflow(el.value[1].value)
-        self.lastTime = self.fixOverflow(el.value[2].value)
+            self.firstTime = blockStart
+        self.lastTime = blockEnd
         
         data = el.value[-1].value 
         vals= np.frombuffer(data, np.uint16).reshape((-1,3))
         self.numRows += vals.shape[0]
         self.numSamp += vals.shape[0] * self.numCh
-        for v in vals:
-            self.writer((0,v))
+        times = np.linspace(blockStart, blockEnd, vals.shape[0]) * self.timeScalar
+        for r in zip(times, vals):
+            self.writer(r)
 
 
 class MPL3115Dumper(AccelDumper):
-    """ Parser replacement that dumps temperature/pressure data as read. """
+    """ Parser replacement that dumps temperature/pressure data as read.
+        This accumulates data rather than writing it directly.
+    """
     tempParser = MPL3115PressureTempParser()
     
     def __init__(self, *args, **kwargs):
@@ -171,7 +178,8 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
     """
     
     updater = kwargs.get('updater', nullUpdater)
-    maxSize = max(1024**2*16, min(matfile.MatStream.MAX_SIZE, 1024**2*maxSize))
+#     maxSize = max(1024**2*16, min(matfile.MatStream.MAX_SIZE, 1024**2*maxSize))
+    maxSize =1024*maxSize
     
     if matFilename is None:
         matFilename = os.path.splitext(ideFilename)[0] + ".mat"
@@ -180,11 +188,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
         
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
-        mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), maxFileSize=maxSize)
-        mat.writeNames([c.name for c in doc.channels[0].subchannels], noTimes=noTimes)
-        
-        # Write calibration polynomials as strings
-        mat.writeCalibration(doc.transforms)
+        mat = matfile.MatStream(matFilename, doc, maxFileSize=maxSize,  writeCal=True, writeStart=True, writeInfo=True)
         
         numAccelCh = len(doc.channels[0].subchannels)
         numTempCh = len(doc.channels[1].subchannels)
@@ -193,10 +197,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
         nextUpdate = time.time() + updateInterval
         
         try:
-            mat.writeRecorderInfo(doc.recorderInfo)
-            if doc.sessions[0].utcStartTime:
-                mat.writeValue('start_time_utc', doc.sessions[0].utcStartTime, MP.miINT64)
-            mat.startArray(doc.channels[0].name, numAccelCh, dtype=MP.miUINT16, noTimes=True)
+            mat.startArray(doc.channels[0].name, numAccelCh, dtype=MP.miUINT16, noTimes=True, colNames=[c.name for c in doc.channels[0].subchannels])
     
             dumpers = (AccelDumper(3, mat.writeRow), MPL3115Dumper(2))
             
@@ -234,17 +235,18 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             mat.endArray()
             
             if not accelOnly:
+                d = dumpers[1]
                 mat.startArray(doc.channels[1].name, numTempCh,
                        dtype=MP.miSINGLE, noTimes=True)
-                for r in dumpers[1].data:
-                    mat.writeRow((0,r))
+                for r in izip(np.linspace(d.firstTime, d.lastTime, len(d.data)), d.data):
+                    mat.writeRow(r)
                 mat.endArray()
 
             # Calculate actual sampling rate based on total count and total time
             # TODO: Write this for each MAT file.
             # TODO: Write the time range in each file (reset parser.firstTime)
             sampRates = [1000000.0/(((d.lastTime-d.firstTime)*ChannelDataBlock.timeScalar)/d.numRows) for d in dumpers]
-            mat.startArray("sampling_rates", len(sampRates), dtype=MP.miSINGLE, noTimes=True)
+            mat.startArray("sampling_rates", len(sampRates), dtype=MP.miSINGLE, noTimes=True, hasTimes=False)
             mat.writeRow((0,sampRates))
             mat.endArray()
             
