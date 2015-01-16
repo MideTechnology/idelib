@@ -1,21 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<!-- The list of element parameters for this file seems to be: -->
-<!-- 
-name="MyElement"
-(cppname)="ParentMyElement (arbitrary)"
-level="0"
-id="0x1234"
-type="master, uinteger, integer, binary, string, utf=8, float"
-mandatory="0"
-multiple="0"
-minver="1"
-range="> 0, not 0, 1-30" ... seems to be arbitrary / probably not checked. 
-bytesize="16"
-default="123" or a text value that may or may not be the name of another tag
-
-(webm)
-(divx)
+<!-- The list of element parameters for this file seems to be: 
+	name="MyElement"
+	(cppname)="ParentMyElement (arbitrary)"
+	level="0"
+	id="0x1234"
+	type="master, uinteger, integer, binary, string, utf=8, float"
+	mandatory="0"
+	multiple="0"
+	minver="1"
+	range="> 0, not 0, 1-30" ... seems to be arbitrary / probably not checked. 
+	bytesize="16"
+	default="123" or a text value that may or may not be the name of another tag
+	
+	(webm)
+	(divx)
 -->
 
 <table>
@@ -45,47 +44,44 @@ default="123" or a text value that may or may not be the name of another tag
   <element name="Sync" level="-1" id="0xFA" type="binary" minver="1">Used to provide an arbitrary length sync word (for network / stream framing purposes) at any point in the stream.</element>  
   <!--<element name="Discontinuity" level="-1" id="0xFD" type="binary" minver="1">Probably replaced by a flag in individual datablocks at the Channel level.</element>  -->
   <element name="ElementTag" level="-1" id="0xFC" type="integer" minver="1">Arbitrary tag. Allow for separate opening and closing tags without knowing the length of the enclosed data in advance. I.e. instead of [tag len value=[subtag len... /]/], [tag len=0][subtags and contents][/tag]. Positive value corresponds to the corresponding ElementID as an opening tag; the corresponding negative value as the closing tag. Value -int_max for any int size is reserved.</element> 
-  
-<!-- VR gen3 (Slam Stick / WVR) tags -->
 
-
-<!-- Quick n dirty ElementID convention: -->
-
-<!-- Global tags and data that will be written frequently and during live recording will use Class A IDs (0x80 ~ 0xFF) -->
-<!-- The frequently-written data mainly includes (S)CDBs and any valid children of (S)CDB, such as timecode formats. -->
-<!-- Since the number of IDs is small, we'll make no convention about human-readability whatsoever and allocate fixed blocks of address space for specific types of element. -->
-<!-- Completely made-up convention: For any 16-element master tag reservation, the child tag reservation will begin at (master tag reservation base + 0x10). -->
-<!--     0xFx (0xF0 ~ 0xFF): MIDE-defined global tags, except for SYNC, and reserved value (0xFF). No master tags. -->
-<!--     0xAx (0xA0 ~ 0xAF): Datablock formats (ChannelDataBlock, SimpleChannelDataBlock). Child elements are 0xBX... -->
-<!--     0xBx (0xB0 ~ 0xBE): Datablock child elements (mainly timestamp formats) -->
-<!--     NOTE: 0xEC and 0xBF are defined by the EBML standard, so they don't conform to the above and we can't move them either. -->
-
-
-<!-- Elements NOT written during live recording should use Class B or larger IDs. -->
-<!-- These include the RecordingProperties (data describing the channels and any calibration, etc.), configfile elements, etc. -->
-<!-- Matroska/WebM seem to follow a convention of making these larger IDs correspond to human-readable ASCII codes where possible. The address space is so large, it seems to make more sense than choosing them completely at random. -->
-<!--   Class B (0x40 ~ 0x7F 0xXX) encoded first byte includes all of the alphanumerics (A-Z, a-z); so up to 2-byte readable codes are possible. -->
-
-<!--   Class C (0x20 ~ 0x3F 0xXX 0xXX) encoded first byte is comprised entirely of printable characters, including space and the numerals.  -->
-<!--   Class D (0x10 ~ 0x1F 0xXX 0xXX 0xXX) encoded first byte comprises entirely NON-printable (control) characters. Most hexeditors will print them all as a dot, so the exact choice for the first byte is arbitrary. -->
-
-<!-- TODO: Carve up each address space to prevent overlaps due to limitations in the python-ebml schema format (each ElementID can have only one name, datatype, etc.) -->
-<!--     Class D (4-byte IDs): -->
-<!--         [0x1A xx xx xx]  1A 45 DF A3 is used to contain EBML header -->
-<!--         [0x18 xx xx xx]  18 53 80 67 is used in Matroska/Mide to define the start of a segment/session. Propose reserving [0x18 xx xx xx] for top-level elements within a file (Session, RecordingProperties, ...) -->
-
-
-<!--     Class C (3-byte IDs): -->
-<!--         None used yet? -->
-
-<!--     Class B (2-byte IDs):  -->
-<!--         0x42 0xXX ("B") seem to be used in the EBML header itself. -->
-<!--         0x43 0xXX ("C") we reserve for configuration-file children. -->
-<!--         0x52 0xXX ("R") we reserve for represational data (RecordingProperties children). Leave space after (0x53, etc.) in case we need more than 255. -->
-<!--         0x4B 0xXX ("K") we reserve for calibration elements. -->
-<!--         0x54 0xXX ("T") we reserve for time-related data. -->
-<!-- -->
-  
+  <!-- 
+	VR gen3 (Slam Stick / WVR) tags 
+	===============================
+	
+	Quick n dirty ElementID convention: 
+	
+	* Global tags and data that will be written frequently and during live recording will use Class A IDs (0x80 ~ 0xFF)
+	* The frequently-written data mainly includes (S)CDBs and any valid children of (S)CDB, such as timecode formats. 
+	* Since the number of IDs is small, we'll make no convention about human-readability whatsoever and allocate fixed blocks of address space for specific types of element. 
+	* Completely made-up convention: For any 16-element master tag reservation, the child tag reservation will begin at (master tag reservation base + 0x10). 
+	    0xFx (0xF0 ~ 0xFF): MIDE-defined global tags, except for SYNC, and reserved value (0xFF). No master tags. 
+	    0xAx (0xA0 ~ 0xAF): Datablock formats (ChannelDataBlock, SimpleChannelDataBlock). Child elements are 0xBX... 
+	    0xBx (0xB0 ~ 0xBE): Datablock child elements (mainly timestamp formats) 
+	    NOTE: 0xEC and 0xBF are defined by the EBML standard, so they don't conform to the above and we can't move them either. 
+	
+	
+	Elements NOT written during live recording should use Class B or larger IDs. 
+	These include the RecordingProperties (data describing the channels and any calibration, etc.), configfile elements, etc. 
+	Matroska/WebM seem to follow a convention of making these larger IDs correspond to human-readable ASCII codes where possible. The address space is so large, it seems to make more sense than choosing them completely at random. 
+	  Class B (0x40 ~ 0x7F 0xXX) encoded first byte includes all of the alphanumerics (A-Z, a-z); so up to 2-byte readable codes are possible. 
+	  Class C (0x20 ~ 0x3F 0xXX 0xXX) encoded first byte is comprised entirely of printable characters, including space and the numerals.  
+	  Class D (0x10 ~ 0x1F 0xXX 0xXX 0xXX) encoded first byte comprises entirely NON-printable (control) characters. Most hexeditors will print them all as a dot, so the exact choice for the first byte is arbitrary. 
+	
+	TODO: Carve up each address space to prevent overlaps due to limitations in the python-ebml schema format (each ElementID can have only one name, datatype, etc.) 
+	    Class D (4-byte IDs): 
+	        [0x1A xx xx xx]  1A 45 DF A3 is used to contain EBML header 
+	        [0x18 xx xx xx]  18 53 80 67 is used in Matroska/Mide to define the start of a segment/session. Propose reserving [0x18 xx xx xx] for top-level elements within a file (Session, RecordingProperties, ...) 
+	    Class C (3-byte IDs): 
+	        None used yet? 
+	    Class B (2-byte IDs):  
+	        0x42 0xXX ("B") seem to be used in the EBML header itself. 
+	        0x43 0xXX ("C") we reserve for configuration-file children. 
+	        0x52 0xXX ("R") we reserve for represational data (RecordingProperties children). Leave space after (0x53, etc.) in case we need more than 255. 
+	        0x4B 0xXX ("K") we reserve for calibration elements. 
+	        0x54 0xXX ("T") we reserve for time-related data. 
+	
+   -->
   
   
   <!-- Elements of the RecordingProperties branch (representational/metadata) of the file -->
@@ -102,7 +98,6 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="FwRev" level="2" id="0x5217" type="uinteger" mandatory="0" multiple="0" minver="1">Firmware revision level</element>
 			<element name="PartNumber" level="2" id="0x5218" type="string" mandatory="0" multiple="0" minver="1">Device part .number. (text product identifier e.g. VR002-100-XYZ).</element>
 			<element name="DateOfManufacture" level="2" id="0x5219" type="uinteger" mandatory="0" multiple="0" minver="1">Device .birthdate. (manufacture date) in UTC seconds since the Epoch.</element>
-			
 
         <!-- SensorList and PlotList are optional; there are defaults that will be used. The use of defaults is all-or-nothing; the file should define all sensors or have no SensorList at all. -->
 		<element name="SensorList" level="1" id="0x5240" type="master" mandatory="0" multiple="0" minver="1">Master element for the SensorList items</element>
@@ -143,31 +138,33 @@ default="123" or a text value that may or may not be the name of another tag
 				<element name="PlotRangeMax" level="3" id="0x5299" type="uinteger" mandatory="0" multiple="1" minver="1">Initial value for upper axis bound.</element>
 
 
-	<!-- Calibration entries. Any dynamically-generated data pertaining to plotting or syncing channels will eventually be written here. These are stored top-level to minimize the memory footprint -->
-	<!-- of any device-side reprocessing of these entries. -->
+	<!-- 
+	Calibration entries. Any dynamically-generated data pertaining to plotting or syncing channels will eventually be written here. These are stored top-level to minimize the memory footprint of any device-side reprocessing of these entries. 
 
-	<!-- Each calibration entry in the CalibrationList will be either a UnivariatePolynomial OR a BivariatePolynomial. The level-2 entries below are actually shared between these master types. -->
-	<!-- In the case of a BivariatePolynomial, the BivariateChannelIDRef and BivariateSubChannelIDRef are mandatory.-->
+	Each calibration entry in the CalibrationList will be either a UnivariatePolynomial OR a BivariatePolynomial. The level-2 entries below are actually shared between these master types. 
+	In the case of a BivariatePolynomial, the BivariateChannelIDRef and BivariateSubChannelIDRef are mandatory.
 	
-	<!-- The calibration entry types and their coefficient blocks specify an n-degree univariate or bivariate polynomial, respectively. -->
+	The calibration entry types and their coefficient blocks specify an n-degree univariate or bivariate polynomial, respectively. 
 
-	<!-- Univariate: Evaluated in the form y = sum( A(x-xref)^n ) for all n, where y is the output sample, A is the coefficient, x is the input sample, xref is the reference value, n is the degree of each term and the terms are expressed from highest to lowest degree. -->
-	<!-- Examples: -->
-	<!-- 2 coef block [A B]: y = A(x-xref) + B -->
-	<!-- 4 coef block [A B C D]: y = A(x-xref)^3 + B(x-xref)^2 + C(x-xref) + D -->
+	Univariate: Evaluated in the form y = sum( A(x-xref)^n ) for all n, where y is the output sample, A is the coefficient, x is the input sample, xref is the reference value, n is the degree of each term and the terms are expressed from highest to lowest degree. 
+	Examples: 
+	   2 coef block [A B]: y = A(x-xref) + B 
+	   4 coef block [A B C D]: y = A(x-xref)^3 + B(x-xref)^2 + C(x-xref) + D 
 
-	<!-- Bivariate: Evaluated in the form y = sum( A(x-xref)^m(y-yref)^n ) for all m and n, where: -->
-	<!-- y is the output sample, -->
-	<!-- A is the coefficient, -->
-	<!-- x,y are the input samples for this and the 2nd channel, -->
-	<!-- xref,yref are the reference values for this and the 2nd channel, -->
-	<!-- m,n are the degrees of the x and y terms. -->
-	<!-- Ordering here is a little trickier: for any degree, a term must exist for every permutation the degrees 0~n for x and y, e.g. x^2y^2, x^2y, xy^2, xy, ... -->
-	<!-- Terms are expressed  from highest to lowest total degree (m*n), with terms of equal degree sorted by degree of the 1st channel term (for example, x^2y^1 would come before x^1y^2), assuming the 1st channel term is always expressed first. -->
-	<!-- Due to the permutation, legal coefficient block lengths are those which satisfy the number of permuted terms, or generally, nCoefs=(degree+1)^2 . (FIXME: CHECKME: Valid up to 2nd order; have not checked further...) -->
-	<!-- Examples: -->
-	<!-- degree 0: 1 coef block [A] (trivial case for completeness): y = A(x-xref)^0(y-yref)^0 = A -->
-	<!-- degree 1: 4 coef block [A B C D]: A(x-xref)(y-yref) + B(x-xref) + C(y-yref) + D  -->
+	Bivariate: Evaluated in the form y = sum( A(x-xref)^m(y-yref)^n ) for all m and n, where: 
+	y is the output sample, 
+	A is the coefficient, 
+	x,y are the input samples for this and the 2nd channel, 
+	xref,yref are the reference values for this and the 2nd channel, 
+	m,n are the degrees of the x and y terms. 
+	Ordering here is a little trickier: for any degree, a term must exist for every permutation the degrees 0~n for x and y, e.g. x^2y^2, x^2y, xy^2, xy, ... 
+	Terms are expressed  from highest to lowest total degree (m*n), with terms of equal degree sorted by degree of the 1st channel term (for example, x^2y^1 would come before x^1y^2), assuming the 1st channel term is always expressed first. 
+	Due to the permutation, legal coefficient block lengths are those which satisfy the number of permuted terms, or generally, nCoefs=(degree+1)^2 . (FIXME: CHECKME: Valid up to 2nd order; have not checked further...) 
+	
+	Examples: 
+	   degree 0: 1 coef block [A] (trivial case for completeness): y = A(x-xref)^0(y-yref)^0 = A 
+	   degree 1: 4 coef block [A B C D]: A(x-xref)(y-yref) + B(x-xref) + C(y-yref) + D  
+	-->
 	
 	<!-- Rules: This should appear after the Recording properties element (more specifically, after SensorList and PlotList), if one exists and the Bivariate polynomials reference non-default (sub)channels. -->
 	
@@ -183,7 +180,6 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="BivariateChannelIDRef" level="2" id="0x4B06" type="uinteger" mandatory="0" multiple="0" minver="1">Channel ID of the channel to be used as the 2nd parameter for bivariate compensation</element>
 			<element name="BivariateSubChannelIDRef" level="2" id="0x4B07" type="uinteger" mandatory="0" multiple="0" minver="1">SubChannel ID of the subchannel to be used as the 2nd parameter for bivariate compensation</element>
 			<element name="PolynomialCoef" level="2" id="0x4B08" type="float" mandatory="0" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</element>			
-
 		<element name="CalibrationDate" level="1" id="0x4B20" type="uinteger" mandatory="0" multiple="1" minver="1">Date of factory calibration, in UTC seconds</element>
 		<element name="CalibrationExpiry" level="1" id="0x4B21" type="uinteger" mandatory="0" multiple="1" minver="1">Date of factory calibration expiration, in UTC seconds</element>
 		<element name="CalibrationSerialNumber" level="1" id="0x4B21" type="uinteger" mandatory="0" multiple="1" minver="1">Mide-assigned serial # for a specific (re)calibration procedure. Can be used to lookup calibration conditions and exact facility / test stand used, etc.</element>
@@ -196,7 +192,6 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="AAFilterCornerFreq" level="2" id="0x4311" type="uinteger" mandatory="0" multiple="0" minver="1">Antialias filter corner frequency for the high speed channel(s) in Hz. Omit to let the device choose based on the sampling rate. Enter 0 to disable (bypass) AA filter. (Beware: diagnostic usage only; calibration will be invalid in this state.)</element>
 			<element name="OSR" level="2" id="0x4312" type="uinteger" mandatory="0" multiple="0" minver="1">Oversampling ratio. Allowed values are 1 or power-of-2 integer in the range from 16 to 4096. Omit to let the device choose based on the sampling rate.</element>
 			<element name="UTCOffset" level="2" id="0x4313" type="integer" mandatory="0" multiple="0" minver="1">UTC offset in seconds. May be used for entering local timezone offset. Sign follows the normal convention for specifying timezone offsets, e.g. "UTC-5" (-5*3600) to display the local time as 5 hours earlier than UTC. This value is only used to convert the internal UTC time to local time to generate the FAT16/32 file timestamp, which is expected to be in local time (sans any DST offset, which is added by the host system). If the device clock is directly set in local time for any reason, this field should be 0.</element>
-			
 	    <element name="SSXTriggerConfiguration" level="1" id="0x4340" type="master" mandatory="0" multiple="0" minver="1">Master element for SSX trigger configuration.</element>
 			<element name="WakeTimeUTC" level="2" id="0x4350" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute, calendar time in UTC at which to arm/start the recorder. WakeTimeUTC and PreRecordDelay are mutually exclusive.</element>
 			<element name="PreRecordDelay" level="2" id="0x4351" type="uinteger" mandatory="0" multiple="0" minver="1">Delay in seconds before the start of recording (or trigger arming). WakeTimeUTC and PreRecordDelay are mutually exclusive.</element>
@@ -212,72 +207,64 @@ default="123" or a text value that may or may not be the name of another tag
             <element name="RecorderName" level="2" id="0x43F1" type="utf-8" mandatory="0" multiple="0" minver="1">The user-defined name of the recorder</element>
             <element name="RecorderDesc" level="2" id="0x43F2" type="utf-8" mandatory="0" multiple="0" minver="1">The user-defined description of/notes on the recorder</element>
 
-
-
   <!-- Elements of the actual recording(s) (Session branch(es) of the file) -->
   
   <element name="Session" level="0" id="0x18538067" type="master" multiple="1" minver="1">This element contains all other top-level (level 1) elements. A session basically comprises one 'recording' and may contain any number of individual channels. A typical file should consist of one segment (mostly because we won't really know its length in advance).</element>
 
+  <!-- 
+    Children of Session. However, since we may implement Session tags as being completely optional / nonexistent / polite suggestion on the reader side, take 'Level' with a grain of salt...
 
-
-<!-- Children of Session. However, since we may implement Session tags as being completely optional / nonexistent / polite suggestion on the reader side, take 'Level' with a grain of salt...-->
-
-<!-- Some notes on timecode stuff -->
-<!-- Timecoding is vitally important to most data acquisition, so it's OK if these proliferate a bit... -->
-<!-- TimecodeScales should be set *per channel*, and may use the default value ONLY if none declared for the channel! -->
-<!-- For WVR / Slam Stick we'll use TimeBaseUTC, TimeCodeAbs, TimeCodeAbsMod. Any other timecode formats effectively don't exist until we need them... -->
-<!-- TimeBase: A base time (Unix time stamp in seconds) applied in the Session. All future session timecodes are an offset from the last known TimeBase. Most likely a file will contain only a single TimeBase element at the start of the session. -->
-<!-- TimeCode: Offset from the TimeBase; its scale is defined by a TimeCodeScale element on a per-channel basis (with 32768 ticks/sec as a default). The possible permutations are... -->
-<!--     Start/End: The TimeCode may correspond to the first sample in the block (start) or the last sample in the block (end). -->
-<!--     Abs/AbsMod/(Relative): The TimeCode may be absolute, modulo, or relative (not implemented). Absolute shall increase monotonically for the duration of the session and must be sized large enough to express any reasonably expected session length. Modulo timecodes are allowed to roll over at the UINT_MAX for a given number of octets. -->
-<!-- In a typical application, the Session would start with a single TimeBase (probably overflows of a device's internal high-res clock, in seconds), immediately followed by a Session-level TimeCodeAbs(Mod) with the sub-second count from the same oscillator, captured at the same time as the seconds (to avoid any possible unhandled rollovers between the TimeBase and the first sample from individual channels), or a dummy zero-length *ChannelDataBlock for each channel if Session-level TimeCodes not allowed.  -->
-
-
-
-<!-- Rules for generated files / streams -->
-
-	<!-- General -->
-		<!-- The file/stream MAY contain tags not recognized by the viewer (e.g. for internal debugging or defined after a given viewer / schema version was released). The viewer is expected to skip the unrecognized data without crashing. The viewer MAY inform the user that unrecognized data is present, but isn't required to. -->
-		<!-- Files may contain any global tag defined by the EBML standard, including VOID tags, at any document level. -->
-		<!-- Length-encoded EBML data may encode length data using any number of bytes equal or greater than the minimum required to encode the value. For example, a length of 1 may be encoded as 0x81 or 0x4001 or 0x200001, etc. ("Gassy" encodings may be used by the device to enforce memory alignment or consume slack bytes in a fixed buffer allocation, etc.) -->
-		<!-- If the Schema or RecorderProperties are unavailable for any reason, the reader MAY substitute its best guess for this data, such as a default copy based on some signal (device ID, etc.). No guaranteees can be made about the ability of a given reader to parse a given file if these data are not present in the file. In the case of a Stream, the reader is free to ignore/discard all data received before both a SYNC tag and a reference to a valid Schema/RecordingProperties are received. (Really, there are no guarantees about anyone receiving or parsing the streamed data, period.) -->
-		<!-- For the time being, devices SHALL NOT write files consisting of multiple sessions, and must assume any representation of sessions in the file may be ignored. For the time being (forseeable future), the reader MAY define child elements of Session (datablocks, etc.) to actually be siblings. -->
-
-<!-- Rules for channels -->
-
-	<!-- General -->
-		<!-- Although expressed as a signed type, channels written by the device must be positive. Negative channel numbers are reserved (may be used by the reader for e.g. virtual channels consisting of processed data). -->
-		<!-- Channel numbering is arbitrary and is not necessarily consecutive. -->
-		<!-- The device MAY list channels in its RecorderProperties that have no datablocks associated with them. (The channel information may be hardcoded and channels may appear for sensors that are disabled in the current configuration or aren't populated on the device.) -->
-		<!-- The device SHOULD NOT generate datablocks for channels that do not have a corresponding entry in RecorderProperties. The behavior of the reader upon encountering such channels is undefined. (A nice response would be to silently ignore them, but it could just crash, and it's your own damn fault, dear firmware writer.) -->
-
-
-<!-- Rules for datablocks -->
-
-	<!-- General -->
-		<!-- The device MAY (and often will) use different block types for different channels. Most commonly, full CDBs for data taken at high rates and/or precise timing requirements, and a 'Simple' blocktype (e.g. SCDB) for low-rate channels consisting of only a few or single samples. The device MAY mix block types in a single channel. (It probably won't, but is not expressly forbidden from doing so.) -->
-		<!-- As a point of clarification, if the device mixes blocktypes in a channel, the types MAY use different timecode formats, and modulo timecodes may have different moduli. The usual rules below still apply - the device may not 'lose' rollovers. -->
-
-	<!-- Datablock timecoding rules: -->
-		<!-- General -->
-			<!-- The timecode scale, representation and modulus is allowed to differ between channnels, so accounting for rollovers in modulo timestamps should be handled per-channel. -->
-			<!-- Where modulo timestamps are used, the device MUST NOT allow more than one rollover period to elapse between blocks in a given channel. In the case of long gaps between datablocks in a channel, the device MUST either write a datablock using a timecode format large enough to correctly represent the time elapsed, OR write one or more dummy (zero-sample) datablocks such that all rollovers are "caught up" before the next datablock sample. -->
-			<!-- If a Start and End timecode are provided, the Start timecode is the time of the first sample in the block; the End timecode is the time of the last sample in the block. For formats that provide only a single timecode, it corresponds to the first sample in the block. -->
-
-		<!-- Modulo timecodes and mixing of timecodes -->
-			<!-- The modulus is defined as the exact value *at* which a given value is equal to zero. In other words, it is one more than the maximum possible remainder value. For example, a 16-bit timecode with a maximum legal value of 0xFFFF has a modulus of 0x10000. -->
-			<!-- A modulo timecode has rolled over if the current value is LESS THAN the previous value. Given two consecutive datablocks with identical modulo timecode 'n', no time has elapsed between them. Given two blocks with timecodes n and n-1, respectively, the maximum allowable time for the timecode's modulus has elapsed. -->
-
-		<!-- Timecode ordering -->
-			<!-- Timecodes in the datablocks written for a given channel MUST be monotonically increasing. That is, the device MUST NOT write a datablock for a given channel with an earlier timecode than an already written datablock for that channel. It can be safely assumed that a decrease in any modulo timecode represents a rollover, and any decrease in a non-modulo absolute timecode is an error condition. (This is a litter stricter than Matroska, which allows out-of-order timecodes as long as elements referencing another element's timecode come after said referenced element. The monotonicity requirement is to allow random-access seeking time ranges within the files.) -->
-			<!-- However, datablocks are NOT required to be monotonically increasing ACROSS channels. -->
-			<!-- In other words, given an output such as: <datablock1 ch=1> <datablock2 ch=2> <datablock3 ch=1>, datablock2 may have an earlier timecode than datablock1 (because they are different channels), but datablock3 may not (same channel). -->
-
-
+	 Some notes on timecode stuff
+	 
+		 Timecoding is vitally important to most data acquisition, so it's OK if these proliferate a bit... 
+		 TimecodeScales should be set *per channel*, and may use the default value ONLY if none declared for the channel! 
+		 For WVR / Slam Stick we'll use TimeBaseUTC, TimeCodeAbs, TimeCodeAbsMod. Any other timecode formats effectively don't exist until we need them... 
+		 TimeBase: A base time (Unix time stamp in seconds) applied in the Session. All future session timecodes are an offset from the last known TimeBase. Most likely a file will contain only a single TimeBase element at the start of the session. 
+		 TimeCode: Offset from the TimeBase; its scale is defined by a TimeCodeScale element on a per-channel basis (with 32768 ticks/sec as a default). The possible permutations are... 
+		     Start/End: The TimeCode may correspond to the first sample in the block (start) or the last sample in the block (end). 
+		     Abs/AbsMod/(Relative): The TimeCode may be absolute, modulo, or relative (not implemented). Absolute shall increase monotonically for the duration of the session and must be sized large enough to express any reasonably expected session length. Modulo timecodes are allowed to roll over at the UINT_MAX for a given number of octets. 
+		 In a typical application, the Session would start with a single TimeBase (probably overflows of a device's internal high-res clock, in seconds), immediately followed by a Session-level TimeCodeAbs(Mod) with the sub-second count from the same oscillator, captured at the same time as the seconds (to avoid any possible unhandled rollovers between the TimeBase and the first sample from individual channels), or a dummy zero-length *ChannelDataBlock for each channel if Session-level TimeCodes not allowed.  
+	
+	 Rules for generated files / streams 
+	 
+		 General 
+			 The file/stream MAY contain tags not recognized by the viewer (e.g. for internal debugging or defined after a given viewer / schema version was released). The viewer is expected to skip the unrecognized data without crashing. The viewer MAY inform the user that unrecognized data is present, but isn't required to. 
+			 Files may contain any global tag defined by the EBML standard, including VOID tags, at any document level. 
+			 Length-encoded EBML data may encode length data using any number of bytes equal or greater than the minimum required to encode the value. For example, a length of 1 may be encoded as 0x81 or 0x4001 or 0x200001, etc. ("Gassy" encodings may be used by the device to enforce memory alignment or consume slack bytes in a fixed buffer allocation, etc.) 
+			 If the Schema or RecorderProperties are unavailable for any reason, the reader MAY substitute its best guess for this data, such as a default copy based on some signal (device ID, etc.). No guaranteees can be made about the ability of a given reader to parse a given file if these data are not present in the file. In the case of a Stream, the reader is free to ignore/discard all data received before both a SYNC tag and a reference to a valid Schema/RecordingProperties are received. (Really, there are no guarantees about anyone receiving or parsing the streamed data, period.) 
+			 For the time being, devices SHALL NOT write files consisting of multiple sessions, and must assume any representation of sessions in the file may be ignored. For the time being (forseeable future), the reader MAY define child elements of Session (datablocks, etc.) to actually be siblings. 
+	
+	 Rules for channels 
+	 
+		 General 
+			 Although expressed as a signed type, channels written by the device must be positive. Negative channel numbers are reserved (may be used by the reader for e.g. virtual channels consisting of processed data). 
+			 Channel numbering is arbitrary and is not necessarily consecutive. 
+			 The device MAY list channels in its RecorderProperties that have no datablocks associated with them. (The channel information may be hardcoded and channels may appear for sensors that are disabled in the current configuration or aren't populated on the device.) 
+			 The device SHOULD NOT generate datablocks for channels that do not have a corresponding entry in RecorderProperties. The behavior of the reader upon encountering such channels is undefined. (A nice response would be to silently ignore them, but it could just crash, and it's your own damn fault, dear firmware writer.) 
+	
+	 Rules for datablocks 
+	
+		 General 
+			 The device MAY (and often will) use different block types for different channels. Most commonly, full CDBs for data taken at high rates and/or precise timing requirements, and a 'Simple' blocktype (e.g. SCDB) for low-rate channels consisting of only a few or single samples. The device MAY mix block types in a single channel. (It probably won't, but is not expressly forbidden from doing so.) 
+			 As a point of clarification, if the device mixes blocktypes in a channel, the types MAY use different timecode formats, and modulo timecodes may have different moduli. The usual rules below still apply - the device may not 'lose' rollovers. 
+	
+		 Datablock timecoding rules: 
+			 General 
+				 The timecode scale, representation and modulus is allowed to differ between channnels, so accounting for rollovers in modulo timestamps should be handled per-channel. 
+				 Where modulo timestamps are used, the device MUST NOT allow more than one rollover period to elapse between blocks in a given channel. In the case of long gaps between datablocks in a channel, the device MUST either write a datablock using a timecode format large enough to correctly represent the time elapsed, OR write one or more dummy (zero-sample) datablocks such that all rollovers are "caught up" before the next datablock sample. 
+				 If a Start and End timecode are provided, the Start timecode is the time of the first sample in the block; the End timecode is the time of the last sample in the block. For formats that provide only a single timecode, it corresponds to the first sample in the block. 
+	
+			 Modulo timecodes and mixing of timecodes 
+				 The modulus is defined as the exact value *at* which a given value is equal to zero. In other words, it is one more than the maximum possible remainder value. For example, a 16-bit timecode with a maximum legal value of 0xFFFF has a modulus of 0x10000. 
+				 A modulo timecode has rolled over if the current value is LESS THAN the previous value. Given two consecutive datablocks with identical modulo timecode 'n', no time has elapsed between them. Given two blocks with timecodes n and n-1, respectively, the maximum allowable time for the timecode's modulus has elapsed. 
+	
+			 Timecode ordering 
+				 Timecodes in the datablocks written for a given channel MUST be monotonically increasing. That is, the device MUST NOT write a datablock for a given channel with an earlier timecode than an already written datablock for that channel. It can be safely assumed that a decrease in any modulo timecode represents a rollover, and any decrease in a non-modulo absolute timecode is an error condition. (This is a litter stricter than Matroska, which allows out-of-order timecodes as long as elements referencing another element's timecode come after said referenced element. The monotonicity requirement is to allow random-access seeking time ranges within the files.) 
+				 However, datablocks are NOT required to be monotonically increasing ACROSS channels. 
+				 In other words, given an output such as: <datablock1 ch=1> <datablock2 ch=2> <datablock3 ch=1>, datablock2 may have an earlier timecode than datablock1 (because they are different channels), but datablock3 may not (same channel). 
+	-->
 
   <element name="TimeBaseUTC" level="0" id="0x5462" type="uinteger" mandatory="0" multiple="1" minver="1">Session time base value in Unix Time. If present, used as the base for all future timecodes in the session.</element>
-  
-
 
   <element name="SimpleChannelDataBlock" level="0" id="0xA0" type="binary" multiple="1" minver="1">This element contains potentially-channelized instrumentation data in a minimalist format. Its mandatory, fixed-length header includes a 2-byte modulo timecode (scaled to the channel's TimecodeScale, default of 1/32768 sec) and a 1-byte integer ChannelID.</element>
 
@@ -290,9 +277,4 @@ default="123" or a text value that may or may not be the name of another tag
 	  <element name="StartTimeCodeAbsMod" level="1" id="0xBA" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from session TimeBase mod (n_octets). Allows for a short, rolling-over (but still absolute) code.</element>
 	  <element name="EndTimeCodeAbsMod" level="1" id="0xBB" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from session TimeBase mod (n_octets). Allows for a short, rolling-over (but still absolute) code.</element>
 	  <element name="ChannelDataMinMeanMax" level="1" id="0xBC" type="binary" multiple="0" minver="1">Child of ChannelDataBlock: structure indicating the min, mean (average) and max value, in that order, for each subchannel in this datablock. Values will have the same format and representation as the subchannel payloads themselves.</element>
-
-
-
-
-  
 </table>

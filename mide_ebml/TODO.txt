@@ -10,6 +10,10 @@ Major items
 Unit testing FTW. Some should be created prior to the refactoring-related items
 listed below.
 
+Use calibration.CombinedPoly and calibration.PolyPoly to create single
+transform functions for individual EventLists. This will greatly simplify
+things. 
+
 Refactor everything to use Numpy for parsing data. Early experiments with this
 ran into a bottleneck somewhere, probably implicit casting of Numpy arrays to 
 Python lists, so just changing the parser isn't enough.
@@ -39,7 +43,7 @@ the single sample subclass mentioned above.
 Minor items
 -----------
 The mix-in classes used in dataset.py are over-engineered. Identify the
-required functionality and simplify.
+required functionality and simplify. Very little of Cascading is used.
 
 Get rid of the vestigial remains of the 'with index' functionality in the 
 EventLists. This was used for testing, but is no longer used by anything.
