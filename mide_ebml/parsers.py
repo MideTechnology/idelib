@@ -845,7 +845,8 @@ class SensorListParser(ElementHandler):
 
 
 class PlotParser(ElementHandler):
-    """
+    """ Handle a `Plot` element (a Subchannel-like wrapper for rendering
+        data derived from another source). Not currently implemented.
     """
     elementName = "Plot"
     isSubElement = True
@@ -859,7 +860,7 @@ class PlotParser(ElementHandler):
 
 
 class PlotListParser(ElementHandler):
-    """
+    """ Handle the parent of all `Plot` elements. Not currently implemented.
     """
     elementName = "PlotList"
     isSubElement = True
