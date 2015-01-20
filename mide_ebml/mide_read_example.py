@@ -2,21 +2,25 @@
 ========================
 Example MIDE File Reader
 ========================
+(c) 2015 Mide Technology Corp.
 
-THIS CODE IS PROVIDED ONLY AS AN EXAMPLE. USE AT YOUR OWN RISK. 
+The Mide Instrumentation Data Exchange (MIDE) format is based on EBML,
+a structured binary format. This script will parse data from an IDE file 
+recorded by a Slam Stick X. Some modification will be required to parse data 
+from another source.
 
-This script will parse data from an IDE file recorded by a Slam Stick X. Some
-modification will be required to parse data from another source.
 
 Requirements
 ------------
+Python 2.7.* 
 python-ebml (https://github.com/jspiros/python-ebml)
-Numpy
+Numpy (http://www.numpy.org/)
 
 
 Getting Started
 ---------------
-1. Install the Numpy module as normal, if not already installed.
+1. Install the Numpy module as normal, if not already installed. The specifics
+    vary by platform.
 2. Download the python-ebml library and place it the same directory as this
     script (or elsewhere in your PYTHONPATH). 
 3. Copy the files `mide.py` and `mide.xml` to the library's schema directory
@@ -24,19 +28,23 @@ Getting Started
     `matroska.xml`.
 
 
+Disclaimer
+----------
+THIS CODE IS PROVIDED ONLY AS AN EXAMPLE. USE AT YOUR OWN RISK. MIDE TECHNOLOGY
+CORPORATION DISCLAIMS ANY AND ALL WARRANTIES, EXPRESSED OR IMPLIED. 
 
 Created on Jan 16, 2015
-
 @author: dstokes
 '''
+import sys
+if sys.version_info.major != 2 and sys.version_info.minor != 7:
+    raise RuntimeError("This demo requires Python 2.7!")
 
 from collections import Counter, OrderedDict, Sequence
 import csv
 from datetime import datetime
 import os.path
-import pprint
 import struct
-import sys
 
 try:
     import ebml.schema.base
@@ -47,7 +55,7 @@ except ImportError as err:
     raise ImportError(msg)
 
 #===============================================================================
-# Low-level EBML parsing functions
+# Low-level EBML parsing and utility functions, not specific to IDE data
 #===============================================================================
 
 def iter_roots(document):
@@ -101,46 +109,51 @@ def parse_ebml(elements, ordered=True):
     return result
             
 
-def dump_ebml(el, stream=None, indent=0, tabsize=4):
-    """ Testing: Crawl an EBML Document and dump its contents, showing the 
-        stream offset, name, and value of each child element. 
+def dump_ebml(el, indent=0, tabsize=4, index=None):
+    """ Recursively crawl an EBML 'container' element and dump its contents, 
+        showing the name and value of each child element. Nicer than `pprint`.
     """
     if el.name == "Void":
-        return
-    
-    if stream is None:
-        stream = sys.stdout
+        # 'Void' elements are used for padding, so structures can have
+        # consistent sizes, even though EBML compresses values.
+        return el
     
     if indent == 0:
-        stream.write("\nRead element %s: " % el.name)
+        # Parent element
+        print ("\nRead element %s:" % el.name),
     else:
-        stream.write("%s%-28s" % (" "*indent, el.name+": "))
-    if not el.children:
-        stream.write("%r\n" % el.value)
-    else:
-        stream.write("\n")
-        for child in el.value:
-            dump_ebml(child, stream, indent+tabsize, tabsize) 
-    if indent == 0:
-        stream.write("\n")
-    stream.flush()
+        # Child element
+        print ("%s%-28s" % (" "*indent, el.name+":")),
 
-  
+    # 'children' in this case is a list of possible sub-element classes that
+    # could be sub-elements of an element, not actual instances of things.        
+    if not el.children:
+        # No 'children' means element is not a container. Just print value.
+        print el.value
+    else:
+        print
+        for child in el.value:
+            dump_ebml(child, indent=indent+tabsize, tabsize=tabsize)
+    
+    if indent == 0:
+        print
+    return el
 
 #===============================================================================
 # Data payload parsers
 #===============================================================================
 
-def parseAccelData(data, startTime, endTime):
+def parseAccelData(data, startTime, endTime, scalar=1):
     """ Parse accelerometer data from a `ChannelDataBlock` payload. The raw
         data consists of sets of 3 uint16 values, ordered Z, Y, X.
     
         @param data: The payload's binary data (string or bytearray)
         @param startTime: The block's start time
         @param endTime: The block's end time
-        @return: A 2D array of times and normalized accelerometer values.
-            Multiply by accelerometer max to get actual 'g' values.
-            Note that the data is in the order Z,Y,X!
+        @keyword scalar: A scalar value for the data, i.e. the accelerometer's
+            maximum g-level.
+        @return: A 2D array of times and accelerometer values. Note that the 
+            data is in the order Z,Y,X!
     """
     # A full buffer of accelerometer data is always 1360*3 values. A truncated
     # buffer may occur at the end of the recording, but the timing is the same.
@@ -149,14 +162,14 @@ def parseAccelData(data, startTime, endTime):
     d = np.frombuffer(data, np.uint16)
     d = np.hstack((d, np.zeros(3*numSamples - d.shape[0]))).reshape((-1,3))
     # Normalize the values. Multiply by accelerometer max later.
-    d = (d.astype(float) - 32767.0) / 32767.0
+    d = ((d.astype(float) - 32767.0) / 32767.0) * scalar
     # Generate the timestamps for each subsample
     t = np.linspace(startTime, endTime, numSamples).reshape((-1,1))
     # Append the time to the start of each 'row'
     return np.hstack((t, d))
 
 
-def parsePressureTempData(data, startTime, endTime):
+def parsePressureTempData(data, startTime, endTime, scalar=1):
     """ Parse temperature/pressure data from a `ChannelDataBlock` payload. The
         data is in the native format generated by the MPL3115 Pressure/
         Temperature sensor, 5 bytes in total:
@@ -173,6 +186,7 @@ def parsePressureTempData(data, startTime, endTime):
         @param data: The payload's binary data (string or bytearray)
         @param startTime: The block's start time
         @param endTime: The block's end time
+        @keyword scalar: A scalar value for the data. Unused by this function. 
         @return: A one-row 2D array of the time, pressure (Pa) and temperature
             (degrees C).
     """
@@ -182,15 +196,20 @@ def parsePressureTempData(data, startTime, endTime):
     fractemp = (fractemp >> 4) * 0.0625
 
     return [(startTime, rawpressure + fracpressure, rawtemp + fractemp)]
-    
+
+
 #===============================================================================
-# 
+# Complex data handlers
 #===============================================================================
 
 class ChannelDataBlockHandler(object):
-    """ A simple handler for `ChannelDataBlock` elements, which calls the
-        appropriate parser and handler for the payload based on element's 
-        channel ID.
+    """ A rudimentary handler for `ChannelDataBlock` elements, which calls the
+        appropriate parser and data handler for the payload based on the 
+        element's channel ID. Because some state need to be maintained (e.g. 
+        the timestamp modulus correction), this is a class rather than a simple
+        function. This class is function-like, however, in that you can use an
+        instance like a function, making it congruous with the other element
+        handling functions.  
     """
     maxTimestamp = 2**16
     timeScalar = 1000000.0 / 2**15
@@ -203,6 +222,8 @@ class ChannelDataBlockHandler(object):
         self.lastTime = 0
         self.timestampOffset = 0
         self.lastStamp = 0
+        
+        self.accelScalar = 100
     
 
     def fixOverflow(self, timestamp):
@@ -220,7 +241,8 @@ class ChannelDataBlockHandler(object):
 
 
     def __call__(self, element):
-        """
+        """ Process a ChannelDataBlock element. Use an instance of this class
+            like a function.
         """
         # Sanity check: make sure this is actually a ChannelDataBlock
         assert element.name == "ChannelDataBlock"
@@ -244,30 +266,67 @@ class ChannelDataBlockHandler(object):
         # Parse the payload data and send it through the handler for this
         # element's channel ID.
         payload = data['ChannelDataPayload']
-        data = self.parsers[channelId](payload, start, end)
+        data = self.parsers[channelId](payload, start, end, self.accelScalar)
         self.handlers[channelId](data)
         
 
     def close(self):
         for handler in self.handlers.values():
             handler.close()
-            
+
 #===============================================================================
-# 
+# Simpler element-handling functions
 #===============================================================================
+
+def handleRecordingProperties(el):
+    """ Called when a `RecordingProperties` element is read.
+    """
+    # The contents are fairly straight-forward and human-readable after being
+    # read from the EBML.
+    return dump_ebml(el)
+
 
 def handleCalibration(el):
-    dump_ebml(el)
+    """ Called when a `CalibrationList` element is read.
+    """
+    return dump_ebml(el)
+
 
 def handleTimeBase(el):
-    print "Read element %s: %d (%s UTC)" % (el.name, el.value, 
+    """ Called when a `TimeBaseUTC` element is read.
+    """
+    # The date/time is stored as a standard *NIX 'epoch' time: seconds since
+    # midnight, January 1, 1970 UTC.
+    print "Read element %s: %d (%s UTC)\n" % (el.name, el.value, 
                                             datetime.utcfromtimestamp(el.value))    
+    return el
+
+
+def handleElementTag(el):
+    """ Called when an `ElementTag` element is read.
+        Not currently in use.
+    """
+    # ElementTags form a sort of meta-parent around the otherwise flat data
+    # in an IDE file. It doesn't encode the size like a real EBML parent, so
+    # the file can be closed abnormally (e.g. the battery dies) without damage.
+    # The tag is not currently in use. Ignore it.
+    return el
+
+
+def handleSync(el):
+    """ Called when a 'Sync' element is read.
+    """
+    # Sync tags occur periodically, intended for future use in streamed data or
+    # in repairing a damaged file. They can be ignored.
+    return el
 
 #===============================================================================
-# 
+# Output.
 #===============================================================================
 
 class Writer(object):
+    """ Simple wrapper for CSV output.
+    """
     def __init__(self, filename):
         self.numRows = 0
         self.stream = open(filename, 'wb')
@@ -281,21 +340,23 @@ class Writer(object):
         self.numRows += len(rows)
 
 
-def printElement(el):
-    if el.children:
-        print "Read element %s:" % el.name
-        pprint.pprint(parse_ebml(el.value, ordered=False))
-    else:
-        print "Read element %s = %r" % (el.name, el.value)
-
-
 #===============================================================================
 # 
 #===============================================================================
 
+def getRecorderRange(typeId):
+    """ Get the recorder's accelerometer range based on its type ID. 
+    """
+    return { 0x10:  25.0,
+             0x12: 100.0,
+             0x13: 200.0,
+             0x14: 500.0 }.get(typeId & 0xff, 100)
+             
 
 def parseIdeFile(filename, savePath=None, updateInterval=25):
-    """
+    """ Open an IDE file and iterate over its contents, writing recorded data
+        to a pair of CSV files, one for each sensor channel (accelerometer and
+        pressure/temperature).
     """
     if not savePath:
         savePath = os.path.dirname(filename)
@@ -305,24 +366,40 @@ def parseIdeFile(filename, savePath=None, updateInterval=25):
     pressTempFile = os.path.join(savePath, "%s_ch1_press_temp.csv" % rootname)
     dataBlockHandler = ChannelDataBlockHandler({0: Writer(accelFile),
                                                 1: Writer(pressTempFile)})
+    
+    # Handlers: functions (or function-like objects) that take an element as
+    # an argument. In a dictionary keyed by element name for easy access. 
+    # 
     handlers = {
-        "ChannelDataBlock": dataBlockHandler,
-        "CalibrationList": handleCalibration, #CalibrationHandler(),
+        "RecordingProperties": handleRecordingProperties,
+        "CalibrationList": handleCalibration, 
         "TimeBaseUTC": handleTimeBase,
-        # Un-comment these lines to see additional data. Warning: Sync and Void 
-        #    may occur extremely often!
-#         "Sync": pprint.pprint,
-#         "Void": pprint.pprint,
-#         "ElementTag": pprint.pprint,
+        "ChannelDataBlock": dataBlockHandler,
+        "Sync": handleSync,
+        "ElementTag": handleElementTag,
     }
     
+    # Keep track of the number of elements processed
     processed = Counter()
+    
     with open(filename, 'rb') as f:
         doc = MideDocument(f)
         for n, el in enumerate(iter_roots(doc)):
             processed[el.name] += 1
             if el.name in handlers:
+
                 handlers[el.name](el)
+                
+                # Special case: get the accelerometer max based on the
+                # recorder's type ID. This is a special case because it has to
+                # modify something outside of the handler's scope.
+                if el.name == "RecordingProperties":
+                    try:
+                        info = parse_ebml(el.value)['RecorderInfo']
+                        recType = info['RecorderTypeUID']
+                        dataBlockHandler.accelScalar = getRecorderRange(recType)
+                    except KeyError:
+                        pass
             
             # Updater, to provide a visualization of progress
             if updateInterval > 0 and n % updateInterval == 0:
