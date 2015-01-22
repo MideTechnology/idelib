@@ -2,6 +2,7 @@
 Dialog for selecting recording devices.
 
 """
+import random
 
 import struct
 import sys
@@ -74,11 +75,17 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.list = self.DeviceListCtrl(pane, -1, 
              style=(wx.LC_REPORT | wx.BORDER_SUNKEN | wx.LC_SORT_ASCENDING
                     | wx.LC_VRULES | wx.LC_HRULES | wx.LC_SINGLE_SEL))
+
+        images = wx.ImageList(16, 16)
+        for i in (wx.ART_INFORMATION, wx.ART_WARNING, wx.ART_ERROR):
+            images.Add(wx.ArtProvider.GetBitmap(i, wx.ART_CMN_DIALOG, (16,16)))
+        self.list.AssignImageList(images, wx.IMAGE_LIST_SMALL)
         
         self.list.SetSizerProps(expand=True, proportion=1)
 
-#         self.infoText = wx.StaticText(pane, -1, "Selected device info here.")
-#         self.infoText.SetSizerProps(expand=True)
+        # Selected device info
+        self.infoText = wx.StaticText(pane, -1, "")
+        self.infoText.SetSizerProps(expand=True)
 
         buttonpane = sc.SizedPanel(pane, -1)
         buttonpane.SetSizerType("horizontal")
@@ -113,7 +120,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.OnItemDeselected, self.list)
         self.list.Bind(wx.EVT_LEFT_DCLICK, self.OnItemDoubleClick)
         self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.list)
-                   
+        
+        self.lastToolTipItem = -1
+        self.list.Bind(wx.EVT_MOTION, self.OnListMouseMotion)
+        
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.TimerHandler)
         
@@ -140,6 +150,13 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             self.list.InsertColumn(i, c[0])
 
 
+    def setItemIcon(self, index, dev):
+        # TODO: Make this actually display a useful message (expired cal, etc.)
+        if "Classic" in dev.productName:
+            self.listToolTips[index] = "This is a classic"
+            self.list.SetItemImage(index, 0)
+
+
     def populateList(self):
         """ Find recorders and add them to the list.
         """
@@ -150,13 +167,18 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             except TypeError:
                 return col.default
         
-        pathWidth = self.GetTextExtent(" Path ")[0]+8
+        widths = [self.list.GetTextExtent(p)[0] for p in self.recorderPaths]
+        pathWidth = max(self.GetTextExtent(" Path ")[0], *widths) + 24
                 
         self.recorders = {}
         self.itemDataMap = {} # required by ColumnSorterMixin
+        
+        # This is to provide tool tips for individual list rows
+        self.listToolTips = [None] * len(self.recorderPaths)
 
         self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
             # Reuse the list of paths to get the list of Recorder objects
+        
         for dev in getDevices(self.recorderPaths):
             try:
                 path = dev.path
@@ -173,11 +195,15 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 self.list.SetItemData(index, index)
                 self.itemDataMap[index] = [getattr(dev, c.propName, c.default) \
                                            for c in self.COLUMNS]
+
+                self.setItemIcon(index, dev)
+                
             except:
-                wx.MessageBox("An error occurred while trying to access a recorder (%s)."
-                              "\n\nThe device's configuration data may be damaged. "
-                              "Try disconnecting and reconnecting the device." % dev.path, 
-                              "Device Error", parent=self)
+                wx.MessageBox(
+                    "An error occurred while trying to access a recorder (%s)."
+                    "\n\nThe device's configuration data may be damaged. "
+                    "Try disconnecting and reconnecting the device." % dev.path, 
+                    "Device Error", parent=self)
                 self.list.DeleteItem(index)
 
         if self.firstDrawing:
@@ -199,12 +225,15 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
     def OnItemSelected(self,evt):
         self.selected = self.list.GetItemData(evt.m_item.GetId())
+        if self.listToolTips[self.selected] is not None:
+            self.infoText.SetLabel(self.listToolTips[self.selected])
         self.okButton.Enable(True)
         evt.Skip()
 
     def OnItemDeselected(self, evt):
         self.selected = None
         self.okButton.Enable(False)
+        self.infoText.SetLabel("")
         evt.Skip()
 
 
@@ -214,6 +243,20 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             self.EndModal(wx.ID_OK)
         evt.Skip()
 
+
+    def OnListMouseMotion(self, evt):
+        # This determines the list item under the mouse and shows the
+        # appropriate tool tip, if any
+        index, _ = self.list.HitTest(evt.GetPosition())
+        if index != -1 and index != self.lastToolTipItem:
+            item = self.list.GetItemData(index)
+            if self.listToolTips[item] is not None:
+                self.list.SetToolTipString(self.listToolTips[item])
+            else:
+                self.list.UnsetToolTip()
+            self.lastToolTipItem = index
+        evt.Skip()
+        
 
     def setClocks(self, evt=None):
         butts = self.okButton, self.cancelButton, self.setClockButton
@@ -225,6 +268,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         for b in butts:
             b.Enable(True)
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+
 
 #===============================================================================
 # 

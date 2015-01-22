@@ -96,6 +96,7 @@ class FFTView(wx.Frame, MenuMixin):
     ID_DATA_LOG_FREQ = wx.NewId()
     ID_VIEW_SHOWTITLE = wx.NewId()
     ID_VIEW_SHOWLEGEND = wx.NewId()
+    ID_VIEW_SHOWGRID = wx.NewId()
     ID_VIEW_ANTIALIAS = wx.NewId()
     ID_VIEW_CHANGETITLE = wx.NewId()
     
@@ -131,6 +132,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.SetMinSize((640,480))
         self.showTitle = self.root.app.getPref('fft.showTitle', True)
         self.showLegend = self.root.app.getPref('fft.showLegend', True)
+        self.showGrid = self.root.app.getPref('fft.showGrid', True)
         self.timeScalar = getattr(self.root, "timeScalar", 1.0/(6**10))
         self.statusBar = StatusBar(self)
         self.statusBar.stopProgress()
@@ -176,6 +178,8 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.SetEnableTitle(self.showTitle)
         self.canvas.SetEnableZoom(True)
         self.canvas.SetShowScrollbars(True)
+#         self.canvas.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
+        self.canvas.SetEnableGrid(self.showGrid)
 #         self.content.Fit()
         self.Fit()
 
@@ -241,11 +245,15 @@ class FFTView(wx.Frame, MenuMixin):
                          self.OnMenuViewReset)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_SHOWLEGEND, 
-                         "Show Legend\tCtr+L", "", self.OnMenuViewLegend, 
+                         "Show Legend\tCtrl+L", "", self.OnMenuViewLegend, 
                          kind=wx.ITEM_CHECK, checked=self.showLegend)
         self.addMenuItem(viewMenu, self.ID_VIEW_SHOWTITLE, 
                          "Show Title\tCtrl+T", "", self.OnMenuViewTitle, 
                          kind=wx.ITEM_CHECK, checked=self.showTitle)
+        self.addMenuItem(viewMenu, self.ID_VIEW_SHOWGRID, 
+                         "Show Grid\tCtrl+G", "", self.OnMenuViewGrid, 
+                         kind=wx.ITEM_CHECK, checked=self.showGrid)
+
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_CHANGETITLE,
                          "Edit Title...", "", self.OnViewChangeTitle)
@@ -542,6 +550,14 @@ class FFTView(wx.Frame, MenuMixin):
         self.showTitle = evt.IsChecked()
         self.canvas.SetEnableTitle(self.showTitle)
         self.canvas.Redraw()
+
+    def OnMenuViewGrid(self, evt):
+        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+        self.showGrid = evt.IsChecked()
+        self.canvas.SetEnableGrid(self.showGrid)
+        self.root.app.setPref('fft.showGrid', self.showGrid)
+        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+#         self.canvas.Redraw()
 
     def OnViewChangeTitle(self, evt):
         dlg = wx.TextEntryDialog(self, 'New Plot Title:', 'Change Title', 

@@ -8,17 +8,13 @@ Created on Sep 30, 2014
 from collections import OrderedDict
 from datetime import datetime
 import os.path
-from StringIO import StringIO
-import struct
 import sys
 import time
 
 import numpy as np
 
-
 from mide_ebml import util as ebml_util
 from mide_ebml.importer import importFile
-
 import devices
 
 #===============================================================================
@@ -119,19 +115,20 @@ class SSXCalFile(object):
         return result
     
     @classmethod
-    def getFirstIndex(cls, a, fun, col):
+    def getFirstIndex(cls, a, col):
         """ Return the index of the first item in the given column that passes 
             the given test.
         """
         it = np.nditer(a[:,col], flags=['f_index'])
         while not it.finished:
-            if fun(it[0]):
+            if it[0] > cls.ACCEL_THRESH:
                 return it.index
             it.iternext()
         return 0
     
     @classmethod
     def rms(cls, data, axis=None):
+        """ Calculate the Root Mean Square. """
         return np.sqrt(np.mean(data**2, axis=axis))
     
     @classmethod
@@ -158,15 +155,12 @@ class SSXCalFile(object):
         data = self.flattened(a, len(a))
         
         _print("%d samples imported. " % len(data)) 
-        times = data[:,0] * .000001
     
-        gt = lambda(x): x > self.ACCEL_THRESH
-        
         _print("getting indices... ")
         indices = XYZ(
-            self.getFirstIndex(data, gt, 3),
-            self.getFirstIndex(data, gt, 2),
-            self.getFirstIndex(data, gt, 1)
+            self.getFirstIndex(data, 3),
+            self.getFirstIndex(data, 2),
+            self.getFirstIndex(data, 1)
         )
         
         if indices.x == indices.y == 0:
@@ -179,9 +173,6 @@ class SSXCalFile(object):
         self.accel = XYZ(data[indices.x+start:indices.x+stop,3],
                          data[indices.y+start:indices.y+stop,2],
                          data[indices.z+start:indices.z+stop,1])
-        self.times = XYZ(times[indices.x+start:indices.x+stop],
-                         times[indices.y+start:indices.y+stop],
-                         times[indices.z+start:indices.z+stop])
     
         _print("computing RMS...")
         self.rms = XYZ(self.rms(self.accel.x), 
@@ -209,6 +200,7 @@ class SSXCalibrator(object):
     
     def __init__(self, devPath=None):
         self.devPath = devPath
+        self.device = devices.SlamStickX(devPath)
         self.productSerialNum = None
         self.certNum = 0
         self.originalCal = None
@@ -219,50 +211,24 @@ class SSXCalibrator(object):
 
         if devPath is not None:
             self.device = devices.SlamStickX(devPath)
-            _, self.originalCal = self.readManifest()
+            _, self.originalCal = self.device.readManifest()
             
 
-    def getFiles(self, path=None):
+    def getFiles(self, path=None, maxSize=16*1024*1024):
         """ Get the filenames from the first recording directory with 3 IDE
             files. These are presumably the shaker recordings.
         """
         path = self.devPath if path is None else path
         ides = []
         for root, dirs, files in os.walk(os.path.join(path, 'DATA')):
-            ides.extend(map(lambda x: os.path.join(root, x), filter(lambda x: x.upper().endswith('.IDE'), files)))
+            files = filter(lambda x: x.upper().endswith('.IDE'), files)
+            files = map(lambda x: os.path.join(root, x), files)
+            files = filter(lambda x: os.path.getsize(x) <= maxSize, files)
+            ides.extend(files)
             for d in dirs:
                 if d.startswith('.'):
                     dirs.remove(d)
         return ides[:3]
-
-
-    def readManifest(self, devPath=None):
-        """ Read the user page containing the manifest and (possibly)
-            calibration data.
-            
-        """
-        devPath = self.devPath if devPath is None else self.devPath
-        ssx = devices.SlamStickX(devPath)
-        
-        manifest, calibration = ssx.readManifest()
-        systemInfo = manifest['DeviceManifest']['SystemInfo']
-        sensorInfo = manifest['DeviceManifest']['AnalogSensorInfo']
-        self.accelSerial = sensorInfo['AnalogSensorSerialNumber']
-        
-        # Firmware revision number is in the DEVINFO file
-        devInfo = ssx.getInfo()
-        self.productFwRev = devInfo.get('FwRev',1)
-        self.productHwRev = devInfo.get('HwRev',1)
-        self.productSerialNumInt = devInfo['SerialNumber']
-        self.productManTimestamp = devInfo['DateOfManufacture']
-        self.productName = devInfo['ProductName']
-        self.productPartNum = devInfo['PartNumber']
-        systemInfo['FwRev'] = self.productFwRev
-        
-        self.productManDate = datetime.utcfromtimestamp(self.productManTimestamp).strftime("%m/%d/%Y")
-        self.productSerialNum = "SSX%07d" % self.productSerialNumInt
-        
-        return manifest, calibration
 
     
     def calculate(self, filenames=None, prev_cal=(1,1,1)):
@@ -285,7 +251,7 @@ class SSXCalibrator(object):
         
         basenames = map(os.path.basename, filenames)
         if self.cal_vals is None:
-            self.cal_vals = [SSXCalFile(f, self.productSerialNum) for f in filenames]
+            self.cal_vals = map(SSXCalFile, filenames)
         cal_vals = self.cal_vals
         
         self.cal = XYZ()
@@ -331,6 +297,9 @@ class SSXCalibrator(object):
                 if f in bad:
                     bad.remove(f)
             raise CalibrationError("Calibration could not be computed from file(s): %s" % ', '.join(bad))
+        
+        self.coeffs = XYZ([(c*-0.003, c, 0.0, 0.0) for c in self.cal])
+        self.refs = XYZ([(0.0, c) for c in self.cal_temps])
         
 
     def createEbml(self, template=None):

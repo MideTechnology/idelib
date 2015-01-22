@@ -155,8 +155,10 @@ def parseAccelData(data, startTime, endTime, scalar=1):
         @return: A 2D array of times and accelerometer values. Note that the 
             data is in the order Z,Y,X!
     """
-    # A full buffer of accelerometer data is always 1360*3 values. A truncated
-    # buffer may occur at the end of the recording, but the timing is the same.
+    # On a Slam Stick X, a full buffer of accelerometer data is 1360*3 uint16 
+    # values. A truncated buffer may be written at the end of the recording,
+    # but the end time recorded will be for the entire buffer, not just the
+    # portion that was written.
     numSamples = 1360
     # Parse the values and create a 1360x3 2D array, padding if needed.
     d = np.frombuffer(data, np.uint16)
@@ -211,18 +213,32 @@ class ChannelDataBlockHandler(object):
         instance like a function, making it congruous with the other element
         handling functions.  
     """
+    # Timestamps are uint16 values, and can be expected 'roll over' in a file. 
     maxTimestamp = 2**16
+    # Scalar to convert from timestamp units (clock ticks) to microseconds
     timeScalar = 1000000.0 / 2**15
 
     def __init__(self, channelHandlers):
+        # Handlers: the output generators. In this case, CSV writers.
         self.handlers = channelHandlers
+        
+        # Parsers, in a dictionary keyed by channel ID. On a Slam Stick X,
+        # Channel 0 is the accelerometer, Channel 1 is the combined pressure/
+        # temperature sensor. Some early versions of the SSX firmware may 
+        # generate data in other Channels, but they are for diagnostic purposes 
+        # and can be ignored.
         self.parsers = {0: parseAccelData,
                         1: parsePressureTempData}
-        self.firstTime = None
-        self.lastTime = 0
+        
+        # Variables for correcting the modulus
         self.timestampOffset = 0
         self.lastStamp = 0
         
+        # Scalar for the accelerometer. Accelerometer raw data is always
+        # 0 to 65535, relative to the accelerometer's minimum and maximum
+        # values (i.e. -100 to 100 on a 100 g accelerometer). This gets set
+        # between this class being instantiated and when it is first used,
+        # based on the recorder info read from the file.
         self.accelScalar = 100
     
 
@@ -358,18 +374,23 @@ def parseIdeFile(filename, savePath=None, updateInterval=25):
         to a pair of CSV files, one for each sensor channel (accelerometer and
         pressure/temperature).
     """
+    # Generate the filenames of the output CSVs
     if not savePath:
         savePath = os.path.dirname(filename)
     rootname = os.path.splitext(os.path.basename(filename))[0]
-    
     accelFile = os.path.join(savePath, "%s_ch0_accel.csv" % rootname)
     pressTempFile = os.path.join(savePath, "%s_ch1_press_temp.csv" % rootname)
+    
+    # Create the handler for ChannelDataBlock elements, providing a dictionary
+    # of output-writing functions (or, in this case, function-like objects)
+    # keyed by Channel ID. As previously noted, a Slam Stick X writes two
+    # channels, corresponding to its two sensors: Channel 0, the accelerometer; 
+    # and Channel 1, the combined pressure/temperature
     dataBlockHandler = ChannelDataBlockHandler({0: Writer(accelFile),
                                                 1: Writer(pressTempFile)})
     
     # Handlers: functions (or function-like objects) that take an element as
     # an argument. In a dictionary keyed by element name for easy access. 
-    # 
     handlers = {
         "RecordingProperties": handleRecordingProperties,
         "CalibrationList": handleCalibration, 
@@ -385,9 +406,11 @@ def parseIdeFile(filename, savePath=None, updateInterval=25):
     with open(filename, 'rb') as f:
         doc = MideDocument(f)
         for n, el in enumerate(iter_roots(doc)):
-            processed[el.name] += 1
             if el.name in handlers:
 
+                # Each handler is a function (or function-like object) that
+                # takes an element as an argument, so they all get called the
+                # same way: 
                 handlers[el.name](el)
                 
                 # Special case: get the accelerometer max based on the
@@ -401,11 +424,15 @@ def parseIdeFile(filename, savePath=None, updateInterval=25):
                     except KeyError:
                         pass
             
-            # Updater, to provide a visualization of progress
+            # Updater, to provide a visualization of progress.
             if updateInterval > 0 and n % updateInterval == 0:
                 msg = ('Read %s elements...      ' % n)
+                # Write the message with a bunch of backspaces, so each update
+                # will overwrite the previous one.
                 sys.stdout.write('%s%s' % (msg, '\x08'*len(msg)))
                 sys.stdout.flush()
+                
+            processed[el.name] += 1
             
     dataBlockHandler.close()
     return processed

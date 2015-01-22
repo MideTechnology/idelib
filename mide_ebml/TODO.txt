@@ -42,11 +42,12 @@ the single sample subclass mentioned above.
 
 Minor items
 -----------
+Roll multi_importer into importer. The former module's openFile and readData
+functions are better than the original's. Unsure how much will need to be 
+refactored elsewhere, though.
+
 The mix-in classes used in dataset.py are over-engineered. Identify the
 required functionality and simplify. Very little of Cascading is used.
-
-Get rid of the vestigial remains of the 'with index' functionality in the 
-EventLists. This was used for testing, but is no longer used by anything.
 
 Identify stubs of functionality that were left over from early designs and
 are no longer necessary.
@@ -57,6 +58,8 @@ if Channel.raw=True) is kind of nice, but overly complicated. The API is for
 internal use only at this point, anyway. Just remove the whole 'raw' thing
 and do `channel.transform = None` instead.
 
+Consider a rewrite the whole updater/callback system to make it compatible with
+the wxPython progress dialog. 
 
 Longer term
 -----------
