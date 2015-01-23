@@ -149,7 +149,7 @@ elementParserTypes = [ChannelDataBlockParser]
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
 
-def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10, 
+def splitDoc(doc, savePath=None, basename=None, startTime=-1, maxSize=1024*1024*10, 
               numDigits=3, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
               parserTypes=elementParserTypes):
     """ Import the data from a file into a Dataset.
@@ -174,6 +174,7 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
             `numUpdates`.
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
     """
+    startTime *= 1000000.0
     try:
         if basename is None:
             basename = doc.stream.file.name
@@ -210,6 +211,7 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
     wroteFirst={}
     fileWrites = 0
     fs = None
+    blockStart = 0
     try:
         while True:
             if fs is None or fs.closed:
@@ -221,9 +223,10 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
                 fileWrites = 0
             
             raw = None
+        
+            elementCount += 1
             if el.name in ('TimeBaseUTC', 'Sync','SimpleChannelDataBlock'):
                 el = i.next()
-                elementCount += 1
                 continue
             elif el.name == 'ChannelDataBlock' and el.value[0].value in wroteFirst:
                 pass
@@ -233,14 +236,23 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
                     block = parser.parse(el)
                     if not block:
                         el = i.next()
-                        elementCount += 1
                         continue
+                    
+                    blockStart = max(blockStart, block.startTime)
+                    if blockStart < startTime:
+                        el = i.next()
+                        continue
+                    
                     if num > 1 and not wroteFirst.setdefault(block.channel, False):
                         wroteFirst[block.channel] = True
                         data = util.parse_ebml(el)[el.name][0]
-                        data['StartTimeCodeAbsMod'] = int(block.startTime / parser.timeScalar)
+#                         blockStart = int(block.startTime / parser.timeScalar)
+                        data['StartTimeCodeAbsMod'] = int(blockStart/ parser.timeScalar)
                         if getattr(block, 'endTime', None):
-                            data['EndTimeCodeAbsMod'] = int(block.endTime / parser.timeScalar)
+                            blockEnd = int(block.endTime / parser.timeScalar)
+                            data['EndTimeCodeAbsMod'] = blockEnd
+                        else:
+                            blockEnd = None
                         raw = util.build_ebml(el.name, data)
                 except parsers.ParsingError as err:
                     logger.error("Parsing error during import: %s" % err)
@@ -257,7 +269,6 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
                 updater(count=num)
 
             el = i.next()
-            elementCount += 1
             
             # XXX: EXPERIMENTAL
             # NOTE: This is messing with internals of python_ebml. May change!
@@ -279,13 +290,14 @@ def splitDoc(doc, savePath=None, basename=None, maxSize=1024*1024*10,
     except (AttributeError, ValueError, IOError):
         pass
         
+    print startTime, blockStart
     oldFile.close()
     updater(done=True)
     return num
 
 
 def splitFile(filename=testFile, savePath='temp/', basename=None, numDigits=3,
-              maxSize=1024*1024*10, updater=nullUpdater, numUpdates=500, 
+              startTime=-1, maxSize=1024*1024*10, updater=nullUpdater, numUpdates=500, 
               updateInterval=1.0, parserTypes=elementParserTypes):
     """ Wrapper function to split a file based on filename.
     
@@ -313,7 +325,7 @@ def splitFile(filename=testFile, savePath='temp/', basename=None, numDigits=3,
     with open(filename, 'rb') as fp:
         doc = MideDocument(fp)
         return  splitDoc(doc, savePath=savePath, basename=basename, 
-                         numDigits=numDigits, maxSize=maxSize, updater=updater, 
+                         numDigits=numDigits, startTime=startTime, maxSize=maxSize, updater=updater, 
                          numUpdates=numUpdates, updateInterval=updateInterval, 
                          parserTypes=parserTypes)
  
@@ -325,6 +337,9 @@ if __name__ == '__main__':
     argparser.add_argument('-s', '--size', type=int, help="The maximum size of each generated file, in MB.", default=16)
     argparser.add_argument('-n', '--numSplits', type=int, help="The number of files to generate (overrides '--size').")
     argparser.add_argument('-o', '--output', help="The output path to which to save the split files. Defaults to the same as the source file.")
+    argparser.add_argument('-t', '--startTime', type=int, help="The start of the time span to export (seconds from the beginning of the recording).", default=-1)
+    argparser.add_argument('-e', '--endTime', type=int, help="The end of the time span to export (seconds from the beginning of the recording).", default=-1)
+    argparser.add_argument('-d', '--duration', type=int, help="The length of time to export, relative to the --startTime. Overrides the specified --endTime")
     argparser.add_argument('source', help="The source .IDE file to split.")
 
     args = argparser.parse_args()
@@ -349,5 +364,5 @@ if __name__ == '__main__':
     
     t0 = datetime.now()
     print "Splitting %s into %d files..." % (os.path.basename(sourceFile), numSplits)
-    splitFile(sourceFile, savePath=savePath, maxSize=maxSize, numDigits=numDigits, updater=SimpleUpdater())
+    splitFile(sourceFile, savePath=savePath, startTime=args.startTime, maxSize=maxSize, numDigits=numDigits, updater=SimpleUpdater())
     print "Finished splitting in %s" % (datetime.now() - t0)
