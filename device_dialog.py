@@ -26,6 +26,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     """
 
     ID_SET_TIME = wx.NewId()
+    ICON_INFO, ICON_WARN, ICON_ERROR = range(3)
 
     ColumnInfo = namedtuple("ColumnInfo", 
                             ['name','propName','formatter','default'])
@@ -152,7 +153,15 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
     def setItemIcon(self, index, dev):
         # TODO: Make this actually display a useful message (expired cal, etc.)
-        pass
+        try:
+            life = dev.getEstLife()
+            if life is None:
+                return
+            if life < 0:
+                self.listToolTips[index] = ""
+                self.list.SetItemImage(index, self.ICON_WARN)
+        except:
+            pass
 #         if "Classic" in dev.productName:
 #             self.listToolTips[index] = "This is a classic"
 #             self.list.SetItemImage(index, 0)
