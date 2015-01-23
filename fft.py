@@ -61,6 +61,7 @@ from build_info import DEBUG
 #===============================================================================
 
 class FFTPlotCanvas(PlotCanvas):
+        
     def _Draw(self, graphics, xAxis = None, yAxis = None, dc = None):
         """ Zoom on the plot
             Centers on the X,Y coords given in Center
@@ -79,7 +80,87 @@ class FFTPlotCanvas(PlotCanvas):
             # XXX: THIS IS A HACK TO GET AROUND SPORADIC 'FLOAT INFINITY' ISSUE
             pass
 
+    def _drawAxes(self, dc, p1, p2, scale, shift, xticks, yticks):
+        # Standard PlotCanvas uses same color for grid, ticks and border.
+        # This will now always draw the border in black, with black ticks
+        # if the grid is disabled. This also uses DrawLineList, which
+        # should be slightly more efficient.
 
+        # increases thickness for printing only
+        penWidth = self.printerScale * self._pointSize[0]
+        
+        gridPen = wx.Pen(self._gridColour, penWidth)
+        blackPen = wx.Pen(wx.NamedColour("BLACK"), penWidth)
+        
+        lines = []
+        # set length of tick marks--long ones make grid
+        if self._gridEnabled is not False:
+            x, y, width, height = self._point2ClientCoord(p1, p2)
+            if self._gridEnabled == 'Horizontal':
+                yTickLength = (width / 2.0 + 1) * self._pointSize[1]
+                xTickLength = 3 * self.printerScale * self._pointSize[0]
+            elif self._gridEnabled == 'Vertical':
+                yTickLength = 3 * self.printerScale * self._pointSize[1]
+                xTickLength = (height / 2.0 + 1) * self._pointSize[0]
+            else:
+                yTickLength = (width / 2.0 + 1) * self._pointSize[1]
+                xTickLength = (height / 2.0 + 1) * self._pointSize[0]
+            dc.SetPen(gridPen)
+        else:
+            # lengthens lines for printing
+            yTickLength = 3 * self.printerScale * self._pointSize[1]
+            xTickLength = 3 * self.printerScale * self._pointSize[0]
+            dc.SetPen(blackPen)
+
+        if self._xSpec is not 'none':
+            lower, upper = p1[0], p2[0]
+            text = 1
+            # miny, maxy and tick lengths
+            for y, d in [(p1[1], -xTickLength), (p2[1], xTickLength)]:
+                for x, label in xticks:
+                    pt = scale * np.array([x, y]) + shift
+                    # draws tick mark d units
+                    lines.append((pt[0], pt[1], pt[0], pt[1] + d))
+                    if text:
+                        dc.DrawText(label, pt[0], 
+                                    pt[1] + 2 * self._pointSize[1])
+                a1 = scale * np.array([lower, y]) + shift
+                a2 = scale * np.array([upper, y]) + shift
+                # draws upper and lower axis line
+                lines.append((a1[0], a1[1], a2[0], a2[1]))
+                text = 0  # axis values not drawn on top side
+
+        if self._ySpec is not 'none':
+            lower, upper = p1[1], p2[1]
+            text = 1
+            h = dc.GetCharHeight()
+            for x, d in ((p1[0], -yTickLength), (p2[0], yTickLength)):
+                for y, label in yticks:
+                    pt = scale * np.array([x, y]) + shift
+                    lines.append((pt[0], pt[1], pt[0] - d, pt[1]))
+                    if text:
+                        dc.DrawText(label, 
+                                    pt[0] - dc.GetTextExtent(label)[0] - 3 * self._pointSize[0],
+                                    pt[1] - 0.75 * h)
+                a1 = scale * np.array([x, lower]) + shift
+                a2 = scale * np.array([x, upper]) + shift
+                lines.append((a1[0], a1[1], a2[0], a2[1]))
+                text = 0    # axis values not drawn on right side
+
+        dc.DrawLineList(lines)
+        
+        # Always draw border in black
+        if self._gridEnabled is not False:
+            y1 = scale[1] * p1[1] + shift[1]
+            y2 = scale[1] * p2[1] + shift[1]
+            x1 = scale[0] * p1[0] + shift[0]
+            x2 = scale[0] * p2[0] + shift[0]
+    
+            dc.DrawLineList([(x1, y1, x2, y1),(x1, y2, x2, y2),
+                             (x1, y1, x1, y2),(x2, y1, x2, y2)],
+                             blackPen)        
+
+        
 #===============================================================================
 # 
 #===============================================================================
@@ -178,7 +259,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.SetEnableTitle(self.showTitle)
         self.canvas.SetEnableZoom(True)
         self.canvas.SetShowScrollbars(True)
-#         self.canvas.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
+        self.canvas.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
         self.canvas.SetEnableGrid(self.showGrid)
 #         self.content.Fit()
         self.Fit()
@@ -1103,6 +1184,7 @@ class SpectrogramView(FFTView):
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=False, enabled=False)
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[2])
         self.setMenuItem(self.viewMenu, self.ID_VIEW_SHOWLEGEND, checked=False, enabled=False)
+        self.setMenuItem(self.viewMenu, self.ID_VIEW_SHOWGRID, checked=False, enabled=False)
         
         self.dataMenu.AppendSeparator()
         

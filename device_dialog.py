@@ -152,9 +152,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
     def setItemIcon(self, index, dev):
         # TODO: Make this actually display a useful message (expired cal, etc.)
-        if "Classic" in dev.productName:
-            self.listToolTips[index] = "This is a classic"
-            self.list.SetItemImage(index, 0)
+        pass
+#         if "Classic" in dev.productName:
+#             self.listToolTips[index] = "This is a classic"
+#             self.list.SetItemImage(index, 0)
 
 
     def populateList(self):

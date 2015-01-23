@@ -322,6 +322,8 @@ class SlamStickX(Recorder):
     CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
     TIME_PARSER = struct.Struct("<L")
 
+    LIFESPAN = 31 #3 * 365
+
     TYPE_RANGES = {
        0x10: (-25,25),
        0x12: (-100,100),
@@ -517,10 +519,16 @@ class SlamStickX(Recorder):
         return t
 
 
-
-    def readManifest(self):
-        """ Read the device's manifest and calibration data.
+    def getManifest(self, refresh=False):
+        """ Read the device's manifest data. The data is a superset of the
+            information returned by `getInfo()`.
         """
+        if refresh is True:
+            self._manifest = None
+        
+        if self._manifest is not None:
+            return self._manifest
+        
         # Recombine all the 'user page' files
         systemPath = os.path.join(self.path, 'SYSTEM', 'DEV')
         data = []
@@ -533,11 +541,44 @@ class SlamStickX(Recorder):
         manOffset, manSize, calOffset, calSize = struct.unpack_from("<HHHH", data)
         manData = StringIO(data[manOffset:manOffset+manSize])
         calData = StringIO(data[calOffset:calOffset+calSize])
-        manifest = util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
-        calibration = util.read_ebml(calData, schema='mide_ebml.ebml.schema.mide')
+        self._manifest = util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
+        self._calibration = util.read_ebml(calData, schema='mide_ebml.ebml.schema.mide')
         
-        return manifest, calibration
+        return self._manifest
+
+
+    def getCalibration(self, refresh=False):
+        """ Get the recorder's factory calibration information.
+        """
+        self.getManifest(refresh=refresh)
+        return self._calibration
+
+
+    def getAge(self, refresh=False):
+        try:
+            birth = self.getInfo(refresh=refresh)['DateOfManufacture']
+            return (time.time() - birth) / (60 * 60 * 24) 
+        except (AttributeError, KeyError):
+            return None
         
+
+    def getEstLife(self, refresh=False):
+        """ Get the recorder's estimated remaining life span in days. This is
+            (currently) only a very basic approximation based on days since 
+            the device's recorded date of manufacture.
+            
+            @return: The estimated days of life remaining. Negative values
+                indicate the device is past its estimated life span. `None`
+                is returned if no estimation could be made.
+        """
+        try:
+            birth = self.getInfo(refresh=refresh)['DateOfManufacture']
+            age = (time.time() - birth) / (60 * 60 * 24) 
+            return int(0.5 + self.LIFESPAN - age)
+        except (AttributeError, KeyError):
+            return None
+
+
 #===============================================================================
 
 class SlamStickClassic(Recorder):
@@ -682,7 +723,7 @@ class SlamStickClassic(Recorder):
         return self.getConfig(refresh=True).get('RTCC_TIME', None)
    
     
-    def setTime(self, t=None, pause=True):
+    def setTime(self, t=None, pause=True, retries=1):
         """ Set a recorder's date/time. A variety of standard time types are
             accepted.
         
@@ -694,19 +735,37 @@ class SlamStickClassic(Recorder):
             @return: The time that was set, as integer seconds since the epoch.
         """
         conf = self.getConfig(refresh=True)
+        pause = False if t is None else pause
         
         if t is None:
-            t = datetime.now()
-        elif isinstance(t, (float, int)):
-            t = datetime.fromtimestamp(t)
+            t = int(time.time())
+        elif isinstance(t, datetime):
+            t = calendar.timegm(t.timetuple())
         elif isinstance(t, (time.struct_time, tuple)):
-            t = datetime(*t[:6])
+            t = calendar.timegm(t)
+        else:
+            t = int(t)
         
         conf['RTCC_TIME'] = t
         conf['WR_RTCC'] = 0x5A
-        self.saveConfig(conf)
+        
+        try:
+            with open(self.configFile, 'wb') as f:
+                if pause:
+                    t0 = int(time.time())
+                    while int(t) <= t0:
+                        t = time.time()
+                conf['RTCC_TIME'] = t
+                classic_config.writeConfig(f, conf)
+        except IOError as err:
+            if retries > 0:
+                time.sleep(.5)
+                return self.setTime(pause=pause, retries=retries-1)
+            else:
+                raise err
         
         return t
+
 
 
     def getAccelRange(self):
@@ -716,6 +775,23 @@ class SlamStickClassic(Recorder):
         return (-16,16) 
  
  
+    def getCalibration(self, refresh=False):
+        """ Get the recorder's calibration information. On a Slam Stick Classic,
+            this is just a subset of the data returned by `getInfo()`.
+        """
+        self.getInfo(refresh=refresh)
+        cal = {}
+        for a in ('CALOFFSX', 'CALOFFSY', 'CALOFFSZ', 'CALGAINX', 'CALGAINY', 'CALGAINZ'):
+            cal[a] = self._getInfoAttr(a)
+        return cal
+        
+ 
+    def getEstLife(self):
+        """
+        """
+        return None
+    
+    
 #===============================================================================
 # 
 #===============================================================================
