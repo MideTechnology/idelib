@@ -8,30 +8,9 @@ import sys
 import time
 
 
-# HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
-HOME_DIR = os.getcwd()
-
 startTime = datetime.now()
-
 logging.logger.setLevel(logging.WARN)
-
-
-# HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
 HOME_DIR = os.getcwd()
-
-#===============================================================================
-# 
-#===============================================================================
-
-def writeInfo(version, debug, buildNum, buildTime, buildMachine):
-    with open('build_info.py', 'wb') as f:
-        f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
-        f.write('VERSION = %s\n' % str(version))
-        f.write('DEBUG = %s\n' % debug)
-        f.write('\n# AUTOMATICALLY-GENERATED CONTENT FOLLOWS; DO NOT EDIT MANUALLY!\n')
-        f.write('BUILD_NUMBER = %d\n' % buildNum)
-        f.write('BUILD_TIME = %d\n' % buildTime)
-        f.write('BUILD_MACHINE = %r\n' % buildMachine)
 
 #===============================================================================
 # 
@@ -43,8 +22,6 @@ try:
     sys.path.append(HOME_DIR)
     from build_info import BUILD_NUMBER, DEBUG, VERSION
     versionString = '.'.join(map(str,VERSION))
-    BUILD_NUMBER += 1
-    writeInfo(VERSION, DEBUG, int(time.time()), socket.gethostname())
 except Exception:
     BUILD_NUMBER = versionString = VERSION = "Unknown"
     DEBUG = True
