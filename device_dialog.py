@@ -6,6 +6,7 @@ import random
 
 import struct
 import sys
+import time
 from collections import namedtuple
 
 import wx; wx=wx
@@ -85,7 +86,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.list.SetSizerProps(expand=True, proportion=1)
 
         # Selected device info
-        self.infoText = wx.StaticText(pane, -1, "")
+        self.infoText = wx.StaticText(pane, -1, "\n")
         self.infoText.SetSizerProps(expand=True)
 
         buttonpane = sc.SizedPanel(pane, -1)
@@ -105,7 +106,6 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         
         # call deviceChanged() to set the initial state
         deviceChanged(recordersOnly=True)
-        self.addColumns()
         self.populateList()
         listmix.ColumnSorterMixin.__init__(self, len(self.ColumnInfo._fields))
 
@@ -122,6 +122,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.list.Bind(wx.EVT_LEFT_DCLICK, self.OnItemDoubleClick)
         self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.list)
         
+        # For doing per-item tool tips in the list
         self.lastToolTipItem = -1
         self.list.Bind(wx.EVT_MOTION, self.OnListMouseMotion)
         
@@ -140,31 +141,35 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
                 return
             self.recorderPaths = newPaths
-            self.list.ClearAll()
-            self.addColumns()
             self.populateList()
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
 
-    def addColumns(self):
-        for i, c in enumerate(self.COLUMNS):
-            self.list.InsertColumn(i, c[0])
-
 
     def setItemIcon(self, index, dev):
+        """ Set the warning icon and tool tips for recorders with problems.
+        """
         # TODO: Make this actually display a useful message (expired cal, etc.)
+        tips = []
+        icon = None
         try:
             life = dev.getEstLife()
             if life is None:
                 return
             if life < 0:
-                self.listToolTips[index] = ""
-                self.list.SetItemImage(index, self.ICON_WARN)
-        except:
+                tips.append("This devices is %d days old; battery life may be limited." % dev.getAge())
+                icon = self.ICON_WARN
+            if dev.getCalExpiration() < time.time():
+                tips.append("This device's calibration has expired.")
+                icon = self.ICON_WARN
+        except (AttributeError, KeyError):
             pass
-#         if "Classic" in dev.productName:
-#             self.listToolTips[index] = "This is a classic"
-#             self.list.SetItemImage(index, 0)
+        
+        if icon is not None:
+            self.list.SetItemImage(index, icon)
+
+        self.listToolTips[index] = '\n'.join(tips)
+        self.listMsgs[index] = '\n'.join([u'\u2022 %s' %s for s in tips]) 
 
 
     def populateList(self):
@@ -176,7 +181,11 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 return col.formatter(getattr(dev, col.propName, col.default))
             except TypeError:
                 return col.default
-        
+
+        self.list.ClearAll()
+        for i, c in enumerate(self.COLUMNS):
+            self.list.InsertColumn(i, c[0])
+
         widths = [self.list.GetTextExtent(p)[0] for p in self.recorderPaths]
         pathWidth = max(self.GetTextExtent(" Path ")[0], *widths) + 24
                 
@@ -185,6 +194,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         
         # This is to provide tool tips for individual list rows
         self.listToolTips = [None] * len(self.recorderPaths)
+        self.listMsgs = [None] * len(self.recorderPaths)
 
         self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
             # Reuse the list of paths to get the list of Recorder objects
@@ -208,7 +218,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
                 self.setItemIcon(index, dev)
                 
-            except:
+            except IOError:
                 wx.MessageBox(
                     "An error occurred while trying to access a recorder (%s)."
                     "\n\nThe device's configuration data may be damaged. "
@@ -235,8 +245,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
     def OnItemSelected(self,evt):
         self.selected = self.list.GetItemData(evt.m_item.GetId())
-        if self.listToolTips[self.selected] is not None:
-            self.infoText.SetLabel(self.listToolTips[self.selected])
+        if self.listMsgs[self.selected] is not None:
+            self.infoText.SetLabel(self.listMsgs[self.selected])
         self.okButton.Enable(True)
         evt.Skip()
 

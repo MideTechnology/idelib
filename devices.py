@@ -323,6 +323,7 @@ class SlamStickX(Recorder):
     TIME_PARSER = struct.Struct("<L")
 
     LIFESPAN = 31 #3 * 365
+    CAL_LIFESPAN = 31
 
     TYPE_RANGES = {
        0x10: (-25,25),
@@ -340,6 +341,7 @@ class SlamStickX(Recorder):
 
     def __init__(self, path):
         super(SlamStickX, self).__init__(path)
+        self._manifest = None
         self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
 
     @classmethod
@@ -541,8 +543,12 @@ class SlamStickX(Recorder):
         manOffset, manSize, calOffset, calSize = struct.unpack_from("<HHHH", data)
         manData = StringIO(data[manOffset:manOffset+manSize])
         calData = StringIO(data[calOffset:calOffset+calSize])
-        self._manifest = util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
-        self._calibration = util.read_ebml(calData, schema='mide_ebml.ebml.schema.mide')
+        
+        try:
+            self._manifest = util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest').get('DeviceManifest', None)
+            self._calibration = util.read_ebml(calData, schema='mide_ebml.ebml.schema.mide').get('CalibrationList', None)
+        except (AttributeError, KeyError):
+            pass
         
         return self._manifest
 
@@ -555,6 +561,8 @@ class SlamStickX(Recorder):
 
 
     def getAge(self, refresh=False):
+        """ Get the number of days since the recorder's date of manufacture.
+        """
         try:
             birth = self.getInfo(refresh=refresh)['DateOfManufacture']
             return (time.time() - birth) / (60 * 60 * 24) 
@@ -578,6 +586,22 @@ class SlamStickX(Recorder):
         except (AttributeError, KeyError):
             return None
 
+
+    def getCalExpiration(self, refresh=False):
+        """ Get the expiration date of the recorder's factory calibration.
+        """
+        self.getCalibration(refresh=refresh)
+        caldate = self._calibration.get('CalibrationDate', None)
+        calexp = self._calibration.get('CalibrationExpiry', None)
+        
+        if caldate is None and calexp is None:
+            return None
+        
+        if isinstance(calexp, int) and calexp > caldate:
+            return calexp
+        
+        return  caldate + self.CAL_LIFESPAN
+    
 
 #===============================================================================
 

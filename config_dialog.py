@@ -34,6 +34,7 @@ import wx; wx = wx
 
 from mide_ebml import util
 from mide_ebml.parsers import PolynomialParser
+from mide_ebml.ebml.schema.mide import MideDocument
 from common import makeWxDateTime, DateTimeCtrl, cleanUnicode
 import devices
 
@@ -1116,7 +1117,9 @@ class InfoPanel(HtmlWindow):
                    'Hardware Revision': str,
                    'Firmware Revision': str,
                    'Config. Format Version': str,
-                   'Recorder Serial': lambda x: "SSX%07d" % x
+                   'Recorder Serial': lambda x: "SSX%07d" % x,
+                   'Calibration Date': datetime.fromtimestamp,
+                   'Calibration Expiration Date': datetime.fromtimestamp
                    }
 
     column_widths = (50,50)
@@ -1197,6 +1200,17 @@ class InfoPanel(HtmlWindow):
         for k,v in self.info.iteritems():
             self.data[self.field_names.get(k, self._fromCamelCase(k))] = v
 
+    def buildHeader(self):
+        """ Called after the HTML document is started but before the dictionary 
+            items are written. Override to add custom stuff.
+        """
+        return
+
+    def buildFooter(self):
+        """ Called after the dictionary items are written but before the HTML 
+            document is closed. Override to add custom stuff.
+        """
+        return
 
     def buildUI(self):
         """ Create the UI elements within the page. Every subclass should
@@ -1204,6 +1218,8 @@ class InfoPanel(HtmlWindow):
         """
         self.getDeviceData()
         self.html = [u"<html><body>"]
+        self.buildHeader()
+        
         if isinstance(self.data, dict):
             items = self.data.iteritems()
         else:
@@ -1230,6 +1246,9 @@ class InfoPanel(HtmlWindow):
             
         if self._inTable:
             self.html.append(u"</table>")
+        
+        self.buildFooter()
+        
         self.html.append(u'</body></html>')
         self.SetPage(u''.join(self.html))
 
@@ -1263,6 +1282,31 @@ class InfoPanel(HtmlWindow):
 #===============================================================================
 # 
 #===============================================================================
+
+class SSXInfoPanel(InfoPanel):
+    """
+    """
+    def buildFooter(self):
+        warnings = []
+        life = self.root.device.getEstLife()
+        calExp = self.root.device.getCalExpiration()
+        
+        if life < 0:
+            warnings.append("Recorder is %d days old; battery life may be limited." % self.root.device.getAge())
+        if calExp is not None and calExp < time.time():
+            warnings.append("Recorder's factory calibration has expired; it may require recalibration.")
+        
+        if len(warnings) > 0:
+            warnings = ["<li><font color='red'>%s</font></li>" %w for w in warnings]
+            warnings.insert(0, "<hr><ul>")
+            warnings.append('</ul></font>')
+            self.html.extend(warnings)
+        
+
+#===============================================================================
+# 
+#===============================================================================
+
 
 class CalibrationPanel(InfoPanel):
     """ Panel for displaying SSX calibration polynomials. Read-only.
@@ -1722,9 +1766,17 @@ class ConfigDialog(sc.SizedDialog):
     ID_EXPORT = wx.NewId()
     
     def buildUI_SSX(self):
+        try:
+            cal = self.device.getCalibration()
+            self.deviceInfo['CalibrationDate'] = cal['CalibrationDate']
+            self.deviceInfo['CalibrationExpirationDate'] = self.device.getCalExpiration()
+        except (AttributeError, KeyError):
+            pass
+        
         self.triggers = SSXTriggerConfigPanel(self.notebook, -1, root=self)
         self.options = OptionsPanel(self.notebook, -1, root=self)
-        info = InfoPanel(self.notebook, -1, root=self, info=self.deviceInfo)
+        info = SSXInfoPanel(self.notebook, -1, root=self, info=self.deviceInfo)
+        
         self.notebook.AddPage(self.options, "General")
         self.notebook.AddPage(self.triggers, "Triggers")
         self.notebook.AddPage(info, "Device Info")

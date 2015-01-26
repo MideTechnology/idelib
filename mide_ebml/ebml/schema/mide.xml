@@ -180,9 +180,9 @@
 			<element name="BivariateChannelIDRef" level="2" id="0x4B06" type="uinteger" mandatory="0" multiple="0" minver="1">Channel ID of the channel to be used as the 2nd parameter for bivariate compensation</element>
 			<element name="BivariateSubChannelIDRef" level="2" id="0x4B07" type="uinteger" mandatory="0" multiple="0" minver="1">SubChannel ID of the subchannel to be used as the 2nd parameter for bivariate compensation</element>
 			<element name="PolynomialCoef" level="2" id="0x4B08" type="float" mandatory="0" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</element>			
-		<element name="CalibrationDate" level="1" id="0x4B20" type="uinteger" mandatory="0" multiple="1" minver="1">Date of factory calibration, in UTC seconds</element>
-		<element name="CalibrationExpiry" level="1" id="0x4B21" type="uinteger" mandatory="0" multiple="1" minver="1">Date of factory calibration expiration, in UTC seconds</element>
-		<element name="CalibrationSerialNumber" level="1" id="0x4B21" type="uinteger" mandatory="0" multiple="1" minver="1">Mide-assigned serial # for a specific (re)calibration procedure. Can be used to lookup calibration conditions and exact facility / test stand used, etc.</element>
+		<element name="CalibrationDate" level="1" id="0x4B20" type="uinteger" mandatory="0" multiple="0" minver="1">Date of factory calibration, in UTC seconds</element>
+		<element name="CalibrationExpiry" level="1" id="0x4B21" type="uinteger" mandatory="0" multiple="0" minver="1">Date of factory calibration expiration, in UTC seconds</element>
+		<element name="CalibrationSerialNumber" level="1" id="0x4B21" type="uinteger" mandatory="0" multiple="0" minver="1">Mide-assigned serial # for a specific (re)calibration procedure. Can be used to lookup calibration conditions and exact facility / test stand used, etc.</element>
 
   <!-- Elements of a configuration file -->
     <!-- This is stuck into the main schema for convenience, but really it has no relation. If the configfile were to be attached to a recording as metadata, it would be as a binary blob - the 'Level's need not be consistent with the recording file. -->
