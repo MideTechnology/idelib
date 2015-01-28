@@ -734,7 +734,7 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnFileOpenMenu)
 #         self.addMenuItem(fileMenu, self.ID_FILE_MULTI, "Open Multiple...", "",
 #                          self.OnFileOpenMulti)
-        self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCrtl-.", "", 
+        self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCtrl-.", "", 
                          self.cancelOperation, enabled=False)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_EXPORT, 
