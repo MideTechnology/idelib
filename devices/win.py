@@ -1,16 +1,25 @@
 '''
+Windows-specific functions; primarily filesystem-related.
+
 Created on Jan 27, 2015
 
 @author: stokes
 '''
 
 
+from collections import namedtuple
 import ctypes
 import os
 import string
 import struct
 import sys
 import time
+
+#===============================================================================
+# 
+#===============================================================================
+
+Drive = namedtuple("Drive", ("path","label","sn","fs","type"))
 
 #===============================================================================
 # Platform specific version of functions: Windows
@@ -40,21 +49,21 @@ def getDriveInfo(dev):
         fileSystemNameBuffer,
         ctypes.sizeof(fileSystemNameBuffer)
     )
-    return (dev, volumeNameBuffer.value, hex(serial_number.value), 
+    return Drive(dev, volumeNameBuffer.value, hex(serial_number.value), 
             fileSystemNameBuffer.value, kernel32.GetDriveTypeA(dev))
 
 
 def readRecorderClock(dev):
+    """ Read a (SSX) clock file, circumventing the disk cache. Returns the
+        system time and the encoded device time.
+    """
     root = os.path.abspath(os.path.join(os.path.dirname(dev), '..','..'))
-    unpacker = struct.Struct('i')
-    f1 = win32file.CreateFile( dev,
-                               win32con.GENERIC_READ,
-                               win32con.FILE_SHARE_READ,
-                               None,
-                               win32con.OPEN_EXISTING,
-                               win32con.FILE_FLAG_NO_BUFFERING,
-                               0)
-
+    f1 = win32file.CreateFile(dev, win32con.GENERIC_READ, 
+                              win32con.FILE_SHARE_READ,
+                              None,
+                              win32con.OPEN_EXISTING,
+                              win32con.FILE_FLAG_NO_BUFFERING,
+                              0)
 
     spc, bps, _fc, _tc  = win32file.GetDiskFreeSpace(root)
     bpc = spc * bps
@@ -70,7 +79,7 @@ def readRecorderClock(dev):
         win32file.SetFilePointer(f1, 0, win32file.FILE_BEGIN)
 
     win32api.CloseHandle(f1)
-    return sysTime, unpacker.unpack_from(thisTime)[0]
+    return sysTime, thisTime
 
 
 def getDeviceList(types):

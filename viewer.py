@@ -1385,6 +1385,18 @@ class Viewer(wx.Frame, MenuMixin):
         self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(title))
         loader.start()
+
+        # Expired calibration warning
+        try:
+            if time.time() > newDoc.recorderInfo['CalibrationDate'] + 31536000:
+                self.ask("This file was recorded with expired calibration.",
+                         "Expired Calibration Warning", wx.OK, wx.ICON_INFORMATION,
+                         pref="expiredCal",
+                         extendedMessage="Values recorded in this file may be inaccurate."
+                         )
+        except (KeyError, AttributeError):
+            pass
+        
         self.enableMenus(True)
         return True
     

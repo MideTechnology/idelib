@@ -2,12 +2,12 @@
 Dialog for selecting recording devices.
 
 """
+from collections import namedtuple
+from datetime import datetime
 import random
-
 import struct
 import sys
 import time
-from collections import namedtuple
 
 import wx; wx=wx
 import wx.lib.sized_controls as sc
@@ -151,23 +151,32 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         """
         # TODO: Make this actually display a useful message (expired cal, etc.)
         tips = []
-        icon = None
+        icon = -1
         try:
             life = dev.getEstLife()
-            if life is None:
-                return
-            if life < 0:
+            calExp = dev.getCalExpiration()
+            if life is not None and life < 0:
                 tips.append("This devices is %d days old; battery life may be limited." % dev.getAge())
-                icon = self.ICON_WARN
-            if dev.getCalExpiration() < time.time():
-                tips.append("This device's calibration has expired.")
-                icon = self.ICON_WARN
+                icon = max(icon, self.ICON_WARN)
+            if calExp:
+                calExpDate = datetime.fromtimestamp(calExp).date()
+                if calExp < time.time():
+                    tips.append("This device's calibration has expired on %s." % calExpDate)
+                    icon = max(icon, self.ICON_WARN)
+                elif calExp < time.time() - 8035200:
+                    tips.append("This device's calibration will expire on %s." % calExpDate)
+                    icon = max(icon, self.ICON_INFO)
+            
         except (AttributeError, KeyError):
             pass
-        
-        if icon is not None:
-            self.list.SetItemImage(index, icon)
 
+        if len(tips) == 0:
+            self.listToolTips[index] = None
+            self.listMsgs[index] = None
+            return 
+            
+        if icon != -1:
+            self.list.SetItemImage(index, icon)
         self.listToolTips[index] = '\n'.join(tips)
         self.listMsgs[index] = '\n'.join([u'\u2022 %s' %s for s in tips]) 
 
@@ -187,7 +196,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             self.list.InsertColumn(i, c[0])
 
         widths = [self.list.GetTextExtent(p)[0] for p in self.recorderPaths]
-        pathWidth = max(self.GetTextExtent(" Path ")[0], *widths) + 24
+        pathWidth = max(16, self.GetTextExtent(" Path ")[0], *widths) + 24
                 
         self.recorders = {}
         self.itemDataMap = {} # required by ColumnSorterMixin

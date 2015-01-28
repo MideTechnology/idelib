@@ -4,16 +4,29 @@ Created on Jan 27, 2015
 @author: stokes
 '''
 
+from collections import namedtuple
 import os
-import sys
+import time
+
+Drive = namedtuple("Drive", ("path","label","sn","fs","type"))
+
+#===============================================================================
+# 
+#===============================================================================
 
 def getDriveInfo(dev):
     # XXX: Total hack.
     return dev, os.path.basename(dev), None, 'fat', None
     
 
-def readRecorderClock(dev):
-    pass
+def readRecorderClock(clockfile):
+    t0 = time.time()
+    f = open(clockfile, 'rb', 0)
+    t = f.read(8)
+    t1 = (time.time() + t0) / 2
+    f.close()
+    return t1, t
+
 
 def getDeviceList(types, paths=None):
     """ Get a list of data recorders, as their respective drive letter.

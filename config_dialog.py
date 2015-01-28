@@ -34,7 +34,7 @@ import wx; wx = wx
 
 from mide_ebml import util
 from mide_ebml.parsers import PolynomialParser
-from mide_ebml.ebml.schema.mide import MideDocument
+# from mide_ebml.ebml.schema.mide import MideDocument
 from common import makeWxDateTime, DateTimeCtrl, cleanUnicode
 import devices
 
@@ -532,6 +532,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         self.device = kwargs.pop('device', None)
         super(BaseConfigPanel, self).__init__(*args, **kwargs)
         
+        self.tabIcon = -1
         self.data = None
         self.fieldSize = (-1,-1)
         self.SetSizerType("form", {'hgap':10, 'vgap':10})
@@ -1125,6 +1126,7 @@ class InfoPanel(HtmlWindow):
     column_widths = (50,50)
 
     def __init__(self, *args, **kwargs):
+        self.tabIcon = None
         self.info = kwargs.pop('info', {})
         self.root = kwargs.pop('root', None)
         super(InfoPanel, self).__init__(*args, **kwargs)
@@ -1237,12 +1239,10 @@ class InfoPanel(HtmlWindow):
                     v = self.field_types[k](v)
                 elif isinstance(v, (int, long)):
                     v = u"0x%08X" % v
-                else:
-                    v = cleanUnicode(v)
             except TypeError:
-                v = cleanUnicode(v)
+                pass
 
-            self.addItem(k,v)
+            self.addItem(k,cleanUnicode(v))
             
         if self._inTable:
             self.html.append(u"</table>")
@@ -1272,7 +1272,9 @@ class InfoPanel(HtmlWindow):
             chid, subchid = base.split('.')
             print "Viewer link: %r %s %s" % (chid, subchid, t)
         elif href.startswith("http"):
-            # Launch external web browser
+            # Launch external web browser if the URL goes to Mide.
+            if "://" not in href:
+                return
             wx.LaunchDefaultBrowser(href)
         else:
             # Show in same window (file, etc.)
@@ -1284,22 +1286,58 @@ class InfoPanel(HtmlWindow):
 #===============================================================================
 
 class SSXInfoPanel(InfoPanel):
+    """ Specialized InfoPanel that adds special formatting and content based
+        on conditions of the recorder.
     """
-    """
+    
+    ICONS = ('/ABOUT/info.png', '/ABOUT/warn.png', '/ABOUT/error.png')
+
+    def buildUI(self):
+        self.life = self.root.device.getEstLife()
+        self.lifeIcon = None
+        self.lifeMsg = None
+        self.calExp = self.root.device.getCalExpiration()
+        self.calIcon = None
+        self.calMsg = None
+        
+        if self.life is not None:
+            if self.life < 0:
+                self.lifeIcon = self.root.ICON_WARN
+                self.lifeMsg = "This devices is %d days old; battery life may be limited." % self.root.device.getAge()
+        
+        if self.calExp is not None:
+            calExpDate = datetime.fromtimestamp(self.calExp).date()
+            if self.calExp < time.time():
+                self.calIcon = self.root.ICON_ERROR
+                self.calMsg = "This device's calibration expired on %s; it may require recalibration." % calExpDate
+            elif self.calExp < time.time() - 8035200:
+                self.calIcon = self.root.ICON_WARN
+                self.calMsg = "This device's calibration will expire on %s." % calExpDate
+
+        self.tabIcon = max(self.calIcon, self.lifeIcon, self.tabIcon)
+        super(SSXInfoPanel, self).buildUI()
+
+
+    def addItem(self, k, v, escape=True):
+        if self.lifeIcon > 0 and k == 'Date of Manufacture':
+            k = "<font color='red'>%s</font>" % k
+            v = "<font color='red'>%s</font>&nbsp;&nbsp;<img src='%s' align=bottom>" % (v, self.ICONS[self.lifeIcon])
+            escape = False
+        elif self.calIcon > 0 and k == 'Calibration Expiration Date':
+            k = "<font color='red'>%s</font>" % k
+            v = "<font color='red'>%s</font>&nbsp;&nbsp;<img src='%s' align=top>" % (v, self.ICONS[self.calIcon])
+            escape = False
+
+        super(SSXInfoPanel, self).addItem(k, v, escape=escape)
+        
     def buildFooter(self):
-        warnings = []
-        life = self.root.device.getEstLife()
-        calExp = self.root.device.getCalExpiration()
-        
-        if life < 0:
-            warnings.append("Recorder is %d days old; battery life may be limited." % self.root.device.getAge())
-        if calExp is not None and calExp < time.time():
-            warnings.append("Recorder's factory calibration has expired; it may require recalibration.")
-        
+        warnings = filter(None, (self.lifeMsg, self.calMsg))
         if len(warnings) > 0:
-            warnings = ["<li><font color='red'>%s</font></li>" %w for w in warnings]
+            warnings = ["<li><font color='red'>%s</font></li>" % w for w in warnings]
             warnings.insert(0, "<hr><ul>")
             warnings.append('</ul></font>')
+            if self.root.device.homepage is not None:
+                warnings.append("<p>Please visit the <a href='%s'>product's home page</a> for more information.</p>" % self.root.device.homepage)
             self.html.extend(warnings)
         
 
@@ -1765,6 +1803,10 @@ class ConfigDialog(sc.SizedDialog):
     ID_IMPORT = wx.NewId()
     ID_EXPORT = wx.NewId()
     
+    ICON_INFO = 0
+    ICON_WARN = 1
+    ICON_ERROR = 2
+    
     def buildUI_SSX(self):
         try:
             cal = self.device.getCalibration()
@@ -1815,13 +1857,28 @@ class ConfigDialog(sc.SizedDialog):
         
         pane = self.GetContentsPane()
         self.notebook = wx.Notebook(pane, -1)
+        self.pages = []
         
+        # Add pages per device
         if isinstance(self.device, devices.SlamStickX):
             self.buildUI_SSX()
         elif isinstance(self.device, devices.SlamStickClassic):
             self.buildUI_Classic()
         else:
             raise TypeError("Unknown recorder type: %r" % self.device)
+        
+        # Tab icon stuff
+        images = wx.ImageList(16, 16)
+        imageIndices = []
+        for n,i in enumerate((wx.ART_INFORMATION, wx.ART_WARNING, wx.ART_ERROR)):
+            images.Add(wx.ArtProvider.GetBitmap(i, wx.ART_CMN_DIALOG, (16,16)))
+            imageIndices.append(n)
+        self.notebook.AssignImageList(images)
+
+        for i in xrange(self.notebook.GetPageCount()):
+            icon = self.notebook.GetPage(i).tabIcon
+            if icon > -1:
+                self.notebook.SetPageImage(i, imageIndices[icon])
         
         self.notebook.SetSizerProps(expand=True, proportion=-1)
 
