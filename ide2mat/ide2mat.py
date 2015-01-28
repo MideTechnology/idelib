@@ -24,9 +24,7 @@ except ImportError:
     
 from mide_ebml import matfile
 from mide_ebml.matfile import MP
-from mide_ebml.importer import nullUpdater
-import mide_ebml.multi_importer as importer
-
+from mide_ebml import importer
 
 
 class StreamedEventList(object):
@@ -230,7 +228,7 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
         _mtype = MP.mxDOUBLE_CLASS 
         _dtype = MP.miDOUBLE
     
-    updater = kwargs.get('updater', nullUpdater)
+    updater = kwargs.get('updater', importer.nullUpdater)
     
     if matFilename is None:
         matFilename = os.path.splitext(ideFilename)[0] + ".mat"
@@ -260,7 +258,7 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             ideIterator(doc, mat.writeRow, **kwargs)
             mat.endArray()
             
-            if updater is not nullUpdater:
+            if updater is not importer.nullUpdater:
                 print updater.lastMsg, " " * 10
             
             if not accelOnly:
@@ -279,7 +277,7 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                         updater(count=i*numSubCh, percent=i/numSamples)
                 mat.endArray()
             
-                if updater is not nullUpdater:
+                if updater is not importer.nullUpdater:
                     print updater.lastMsg, " " * 10
             
             mat.close()

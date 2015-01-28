@@ -229,7 +229,7 @@ def importFile(filename=testFile, updater=nullUpdater, numUpdates=500,
     return doc
 
 
-def openFile(stream, parserTypes=elementParserTypes, 
+def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,  
              defaultSensors=default_sensors, name=None, quiet=False):
     """ Create a `Dataset` instance and read the header data (i.e. non-sample-
         data). When called by a GUI, this function should be considered 'modal,' 
@@ -250,21 +250,47 @@ def openFile(stream, parserTypes=elementParserTypes,
         @keyword quiet: If `True`, non-fatal errors (e.g. schema/file
             version mismatches) are suppressed. 
     """
-    # Just a stub (for the moment). In the future, this function will read the
-    # 'header' information (i.e. non-sample-data) and catalog the sessions.
+    if isinstance(stream, basestring):
+        stream = open(stream, 'rb')
     doc = Dataset(stream, name=name, quiet=quiet)
+    doc.addSession()
+
+    parsers = dict([(f.elementName, f(doc)) for f in parserTypes])
+        
+    try:
+        for r in doc.ebmldoc.iterroots():
+            if getattr(updater, "cancelled", False):
+                doc.loadCancelled = True
+                break
+            if r.name not in parsers:
+                continue
+            parser = parsers[r.name]
+            if parser.makesData():
+                break
+            parser.parse(r) 
+            
+    except IOError as e:
+        if e.errno is None:
+            # The EBML library raises an empty IOError if it hits EOF.
+            # TODO: Handle other cases of empty IOError (lots in python-ebml)
+            doc.fileDamaged = True
+        else:
+            updater(error=e)
+        
+    if not doc.sensors:
+        # Got data before the recording props; use defaults.
+        if defaultSensors is not None:
+            createDefaultSensors(doc, defaultSensors)
     return doc
 
 
-def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
-             parserTypes=elementParserTypes, defaultSensors=default_sensors,
-             sessionId=-1):
+def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterval=.1,
+             total=None, bytesRead=0, samplesRead=0, parserTypes=elementParserTypes,
+             sessionId=0, onlyChannel=None, **kwargs):
     """ Import the data from a file into a Dataset.
     
-        @todo: Remove the metadata-reading parts and put them in `openFile()`.
-            Also move the defaultSensors there as well.
-    
         @param doc: The Dataset document into which to import the data.
+        @param source: An alternate Dataset to merge into the main one.
         @keyword updater: A function (or function-like object) to notify as 
             work is done. It should take four keyword arguments: `count` (the 
             current line number), `total` (the total number of samples), `error` 
@@ -278,28 +304,38 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
         @keyword updateInterval: The maximum number of seconds between calls to 
             the updater. More updates will be made if indicated by the specified
             `numUpdates`.
+        @keyword total: The total number of bytes in the file(s) being imported.
+            Defaults to the size of the current file, but can be used to
+            display an overall progress when merging multiple recordings.
+        @keyword bytesRead: The number of bytes already imported. Mainly for
+            merging multiple recordings.
+        @keyword samplesRead: The total number of samples imported. Mainly for
+            merging multiple recordings.
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
         @keyword defaultSensors: A nested dictionary containing a default set 
             of sensors, channels, and subchannels. These will only be used if
-            the dataset contains no sensor/channel/subchannel definitions. 
+            the dataset contains no sensor/channel/subchannel definitions.
+            
+        @keyword onlyChannel: If a number, only the channel specified will
+            be imported. Kind of a hack, to be redone later.
     """
     
-    elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
-
-    doc.addSession()
+    parsers = dict([(f.elementName, f(doc)) for f in parserTypes])
 
     elementCount = 0
     eventsRead = 0
     
     # Progress display stuff
-    filesize = doc.ebmldoc.stream.size
-    dataSize = filesize
+    if total is None:
+        total = doc.ebmldoc.stream.size + bytesRead
+        
+    dataSize = total
     
     if numUpdates > 0:
-        ticSize = filesize / numUpdates 
+        ticSize = total / numUpdates 
     else:
         # An unreachable file position effectively disables the updates.
-        ticSize = filesize+1
+        ticSize = total+1
     
     if updateInterval > 0:
         nextUpdateTime = time_time() + updateInterval
@@ -308,67 +344,61 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
         nextUpdateTime = time_time() + 5184000
     
     firstDataPos = 0
-    nextUpdatePos = ticSize
+    nextUpdatePos = bytesRead + ticSize
     
-    readRecordingProperties = False
-    readingData = False
+    timeOffset = 0
     
+    # Actual importing ---------------------------------------------------------
+    if source is None:
+        source = doc
     try:    
-        for r in doc.ebmldoc.iterroots():
-            if getattr(updater, "cancelled", False):
-                doc.loadCancelled = True
+        # This just skips 'header' elements. It could be more efficient, but
+        # the size of the header isn't significantly large; savings are minimal.
+        for r in source.ebmldoc.iterroots():
+            doc.loadCancelled = getattr(updater, "cancelled", False)
+            if doc.loadCancelled:
                 break
             
-            # OPTIMIZATION: local variables
-            r_name = r.name
-            r_stream_offset = r.stream.offset
-            
-            if r_name in elementParsers:
-                try:
-                    readRecordingProperties = (readRecordingProperties or 
-                                               r_name == "RecordingProperties") 
-                    parser = elementParsers[r_name]
-                    
-                    if not readingData and parser.makesData():
-                        # The first data has been read. Notify the updater!
-                        updater(0)
-                        if not doc.sensors:
-                            # Got data before the recording props; use defaults.
-                            if defaultSensors is not None:
-                                createDefaultSensors(doc, defaultSensors)
-                            readRecordingProperties = True
-                        firstDataPos = r_stream_offset
-                        dataSize = filesize - firstDataPos + 0.0
-                        readingData = True
-                
-                    added = parser.parse(r)
-                    if isinstance(added, int):
-                        eventsRead += added
-                        
-                except parsers.ParsingError as err:
-                    # TODO: Error messages
-                    logger.error("Parsing error during import: %s" % err)
-                    continue
-
-            else:
-                # Unknown block type
-                logger.warning("unknown block %r (ID 0x%02x) @%d" % \
-                               (r.name, r.id, r_stream_offset))
+            if r.name not in parsers:
+                # Unknown block type, but probably okay.
+                logger.info("unknown block %r (ID 0x%02x) @%d" % \
+                            (r.name, r.id, r.stream.offset))
                 continue
             
-            # More progress display stuff
+            # HACK: Not the best implementation. Should be moved somewhere.
+            if onlyChannel is not None and r.name == "ChannelDataBlock":
+                if r.value[0].value != onlyChannel:
+                    continue 
+            
+            if source != doc and r.name == "TimeBaseUTC":
+                timeOffset = (r.value - doc.lastSession.utcStartTime) * 1000000.0
+                continue
+                
+            try:
+                parser = parsers[r.name]
+                if not parser.isHeader:
+                    added = parser.parse(r, timeOffset=timeOffset)
+                    if isinstance(added, int):
+                        eventsRead += added
+                    
+            except parsers.ParsingError as err:
+                # TODO: Error messages
+                logger.error("Parsing error during import: %s" % err)
+                continue
+
+            elementCount += 1
+            
+            # More progress display stuff -------------------------------------
             # FUTURE: Possibly do the update check every nth elements; that
             # would have slightly less work per cycle.
-            thisOffset = r_stream_offset
+            thisOffset = r.stream.offset + bytesRead
             thisTime = time_time()
             if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:
                 # Update progress bar
-                updater(count=eventsRead,
-                        percent=(thisOffset-firstDataPos)/dataSize)
+                updater(count=eventsRead+samplesRead,
+                        percent=(thisOffset-firstDataPos+0.0)/dataSize)
                 nextUpdatePos = thisOffset + ticSize
                 nextUpdateTime = thisTime + updateInterval
-             
-            elementCount += 1
             
     except IOError as e:
         if e.errno is None:
@@ -378,9 +408,7 @@ def readData(doc, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
         else:
             updater(error=e)
         
-    # finish progress bar
-    updater(done=True, total=eventsRead)
-        
     doc.loading = False
-    return doc
+    return eventsRead
+
 

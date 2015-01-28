@@ -25,6 +25,7 @@ profiling/*
 assembly/*.jpg
 assembly/firmware
 assembly/temp
+ide2mat/???2mat?v*
 
 build
 dist

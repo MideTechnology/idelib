@@ -22,9 +22,8 @@ except ImportError:
     sys.path.append('..')
     
 from mide_ebml import matfile
+from mide_ebml import importer
 from mide_ebml.matfile import MP
-from mide_ebml.importer import nullUpdater
-import mide_ebml.multi_importer as importer
 from mide_ebml.parsers import MPL3115PressureTempParser, ChannelDataBlock
 
 #===============================================================================
@@ -177,7 +176,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
     """ The main function that handles generating MAT files from an IDE file.
     """
     
-    updater = kwargs.get('updater', nullUpdater)
+    updater = kwargs.get('updater', importer.nullUpdater)
 #     maxSize = max(1024**2*16, min(matfile.MatStream.MAX_SIZE, 1024**2*maxSize))
     maxSize =1024*maxSize
     

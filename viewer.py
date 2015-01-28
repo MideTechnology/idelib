@@ -1365,12 +1365,13 @@ class Viewer(wx.Frame, MenuMixin):
                      extendedMessage=badMsg)
             stream.closeAll()
             return False
+        
         except Exception as err:
             # Catch-all for unanticipated errors
             if stream is not None:
                 stream.closeAll()
             self.handleError(err, what="importing the file %s" % filename,
-                                 closeFile=True)
+                             closeFile=True)
             return False
         
         self.dataset = newDoc
