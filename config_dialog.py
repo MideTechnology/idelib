@@ -1272,9 +1272,7 @@ class InfoPanel(HtmlWindow):
             chid, subchid = base.split('.')
             print "Viewer link: %r %s %s" % (chid, subchid, t)
         elif href.startswith("http"):
-            # Launch external web browser if the URL goes to Mide.
-            if "://" not in href:
-                return
+            # Launch external web browser
             wx.LaunchDefaultBrowser(href)
         else:
             # Show in same window (file, etc.)
@@ -1303,29 +1301,31 @@ class SSXInfoPanel(InfoPanel):
         if self.life is not None:
             if self.life < 0:
                 self.lifeIcon = self.root.ICON_WARN
-                self.lifeMsg = "This devices is %d days old; battery life may be limited." % self.root.device.getAge()
+                self.lifeMsg = self.ICONS[self.lifeIcon],"This devices is %d days old; battery life may be limited." % self.root.device.getAge()
         
         if self.calExp is not None:
             calExpDate = datetime.fromtimestamp(self.calExp).date()
             if self.calExp < time.time():
                 self.calIcon = self.root.ICON_ERROR
-                self.calMsg = "This device's calibration expired on %s; it may require recalibration." % calExpDate
+                self.calMsg = self.ICONS[self.calIcon],"This device's calibration expired on %s; it may require recalibration." % calExpDate
             elif self.calExp < time.time() - 8035200:
                 self.calIcon = self.root.ICON_WARN
-                self.calMsg = "This device's calibration will expire on %s." % calExpDate
+                self.calMsg = self.ICONS[self.calIcon],"This device's calibration will expire on %s." % calExpDate
 
         self.tabIcon = max(self.calIcon, self.lifeIcon, self.tabIcon)
         super(SSXInfoPanel, self).buildUI()
 
 
     def addItem(self, k, v, escape=True):
+        """ Custom adder that highlights problem items.
+        """
         if self.lifeIcon > 0 and k == 'Date of Manufacture':
             k = "<font color='red'>%s</font>" % k
-            v = "<font color='red'>%s</font>&nbsp;&nbsp;<img src='%s' align=bottom>" % (v, self.ICONS[self.lifeIcon])
+            v = "<font color='red'>%s</font>" % v
             escape = False
         elif self.calIcon > 0 and k == 'Calibration Expiration Date':
             k = "<font color='red'>%s</font>" % k
-            v = "<font color='red'>%s</font>&nbsp;&nbsp;<img src='%s' align=top>" % (v, self.ICONS[self.calIcon])
+            v = "<font color='red'>%s</font>" % v
             escape = False
 
         super(SSXInfoPanel, self).addItem(k, v, escape=escape)
@@ -1333,13 +1333,15 @@ class SSXInfoPanel(InfoPanel):
     def buildFooter(self):
         warnings = filter(None, (self.lifeMsg, self.calMsg))
         if len(warnings) > 0:
-            warnings = ["<li><font color='red'>%s</font></li>" % w for w in warnings]
-            warnings.insert(0, "<hr><ul>")
-            warnings.append('</ul></font>')
+            warnings = ["<tr valign=center><td><img src='%s'></td><td><font color='red'>%s</font></td></tr>" % w for w in warnings]
+            warnings.insert(0, "<hr><center><table>")
+            warnings.append('</table>')
             if self.root.device.homepage is not None:
                 warnings.append("<p>Please visit the <a href='%s'>product's home page</a> for more information.</p>" % self.root.device.homepage)
+            warnings.append('</center>')
             self.html.extend(warnings)
         
+
 
 #===============================================================================
 # 
@@ -1896,7 +1898,7 @@ class ConfigDialog(sc.SizedDialog):
         self.SetAffirmativeId(wx.ID_APPLY)
         self.okButton = self.FindWindowById(wx.ID_APPLY)
         
-        self.SetMinSize((436, 520))
+        self.SetMinSize((480, 520))
         self.Fit()
         
         
