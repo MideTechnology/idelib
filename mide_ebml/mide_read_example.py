@@ -163,7 +163,7 @@ def parseAccelData(data, startTime, endTime, scalar=1):
     # Parse the values and create a 1360x3 2D array, padding if needed.
     d = np.frombuffer(data, np.uint16)
     d = np.hstack((d, np.zeros(3*numSamples - d.shape[0]))).reshape((-1,3))
-    # Normalize the values. Multiply by accelerometer max later.
+    # Normalize the values. Multiply by accelerometer max.
     d = ((d.astype(float) - 32767.0) / 32767.0) * scalar
     # Generate the timestamps for each subsample
     t = np.linspace(startTime, endTime, numSamples).reshape((-1,1))

@@ -7,6 +7,7 @@ Created on Oct 22, 2014
 '''
 
 from datetime import datetime
+from importlib import import_module 
 from itertools import izip
 import locale
 import os.path
@@ -18,7 +19,7 @@ import sys
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
-    import mide_ebml
+    _ = import_module('mide_ebml')
 except ImportError:
     sys.path.append('..')
     

@@ -902,6 +902,7 @@ class ElementTagParser(ElementHandler):
     """ Dummy handler of ElementBlock elements. 
         @cvar elementName: The name of the element handled by this parser
     """
+    isHeader = True
     elementName = "ElementTag"
 
 
@@ -913,6 +914,7 @@ class SessionParser(ElementHandler):
     """ Stub for Session element handler.
         @cvar elementName: The name of the element handled by this parser
     """
+    isHeader = True
     elementName = "Session"
 
 
@@ -925,6 +927,7 @@ class TimeBaseUTCParser(ElementHandler):
         current Session.
     """
     elementName = "TimeBaseUTC"
+    isHeader = True
     
     def parse(self, element, **kwargs):
         val = element.value

@@ -6,6 +6,7 @@ Module/utility for splitting an .IDE file into more manageable pieces.
 '''
 
 from datetime import datetime
+from importlib import import_module
 import math
 import os.path
 import struct
@@ -14,7 +15,7 @@ import sys
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
-    import mide_ebml
+    _ = import_module('mide_ebml')
 except ImportError:
     sys.path.append('..')
     
@@ -149,7 +150,7 @@ elementParserTypes = [ChannelDataBlockParser]
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
 
-def splitDoc(doc, savePath=None, basename=None, startTime=-1, maxSize=1024*1024*10, 
+def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSize=1024*1024*10, 
               numDigits=3, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
               parserTypes=elementParserTypes):
     """ Import the data from a file into a Dataset.
@@ -175,6 +176,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=-1, maxSize=1024*1024*
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
     """
     startTime *= 1000000.0
+    endTime = sys.maxint if endTime is None else endTime * 1000000.0
     try:
         if basename is None:
             basename = doc.stream.file.name
@@ -243,6 +245,9 @@ def splitDoc(doc, savePath=None, basename=None, startTime=-1, maxSize=1024*1024*
                         el = i.next()
                         continue
                     
+                    if blockStart > endTime:
+                        return
+                    
                     if num > 1 and not wroteFirst.setdefault(block.channel, False):
                         wroteFirst[block.channel] = True
                         data = util.parse_ebml(el)[el.name][0]
@@ -297,7 +302,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=-1, maxSize=1024*1024*
 
 
 def splitFile(filename=testFile, savePath='temp/', basename=None, numDigits=3,
-              startTime=-1, maxSize=1024*1024*10, updater=nullUpdater, numUpdates=500, 
+              startTime=0, endTime=None, maxSize=1024*1024*10, updater=nullUpdater, numUpdates=500, 
               updateInterval=1.0, parserTypes=elementParserTypes):
     """ Wrapper function to split a file based on filename.
     
@@ -325,7 +330,7 @@ def splitFile(filename=testFile, savePath='temp/', basename=None, numDigits=3,
     with open(filename, 'rb') as fp:
         doc = MideDocument(fp)
         return  splitDoc(doc, savePath=savePath, basename=basename, 
-                         numDigits=numDigits, startTime=startTime, maxSize=maxSize, updater=updater, 
+                         numDigits=numDigits, startTime=startTime, endTime=endTime, maxSize=maxSize, updater=updater, 
                          numUpdates=numUpdates, updateInterval=updateInterval, 
                          parserTypes=parserTypes)
  
@@ -337,14 +342,14 @@ if __name__ == '__main__':
     argparser.add_argument('-s', '--size', type=int, help="The maximum size of each generated file, in MB.", default=16)
     argparser.add_argument('-n', '--numSplits', type=int, help="The number of files to generate (overrides '--size').")
     argparser.add_argument('-o', '--output', help="The output path to which to save the split files. Defaults to the same as the source file.")
-    argparser.add_argument('-t', '--startTime', type=int, help="The start of the time span to export (seconds from the beginning of the recording).", default=-1)
-    argparser.add_argument('-e', '--endTime', type=int, help="The end of the time span to export (seconds from the beginning of the recording).", default=-1)
+    argparser.add_argument('-t', '--startTime', type=int, help="The start of the time span to export (seconds from the beginning of the recording).", default=0)
+    argparser.add_argument('-e', '--endTime', type=int, help="The end of the time span to export (seconds from the beginning of the recording).")
     argparser.add_argument('-d', '--duration', type=int, help="The length of time to export, relative to the --startTime. Overrides the specified --endTime")
     argparser.add_argument('source', help="The source .IDE file to split.")
 
     args = argparser.parse_args()
     sourceFile = os.path.abspath(args.source)
-    
+
     if not os.path.isfile(args.source):
         sys.stderr.write("File '%s' does not exist!\n" % sourceFile)
         sys.exit(1)
@@ -360,9 +365,18 @@ if __name__ == '__main__':
     else:
         savePath = os.path.dirname(sourceFile)
     
+    if args.duration:
+        endTime = args.startTime + args.duration
+    else:
+        endTime = args.endTime
+    
     numDigits = max(2, len(str(numSplits)))
     
     t0 = datetime.now()
-    print "Splitting %s into %d files..." % (os.path.basename(sourceFile), numSplits)
-    splitFile(sourceFile, savePath=savePath, startTime=args.startTime, maxSize=maxSize, numDigits=numDigits, updater=SimpleUpdater())
+    if args.startTime or args.endTime:
+        # Can't estimate the size of a slice of time
+        print "Splitting %s..." % os.path.basename(sourceFile)
+    else:
+        print "Splitting %s into %d files..." % (os.path.basename(sourceFile), numSplits)
+    splitFile(sourceFile, savePath=savePath, startTime=args.startTime, endTime=endTime, maxSize=maxSize, numDigits=numDigits, updater=SimpleUpdater())
     print "Finished splitting in %s" % (datetime.now() - t0)

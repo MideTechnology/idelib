@@ -1098,19 +1098,26 @@ class EventList(Cascading):
         else:
             firstBlock = lastBlock = None
         
-        block._rollingMean = rollingMean = numpy.median(
-                        [b.mean for b in self._data[firstBlock:lastBlock]], 0)
-        block._rollingMeanSpan = rollingMeanSpan = span
-        block._rollingMeanLen = rollingMeanLen = len(self._data)
+        try:
+            block._rollingMean = rollingMean = numpy.median(
+                            [b.mean for b in self._data[firstBlock:lastBlock]], 0)
+            block._rollingMeanSpan = rollingMeanSpan = span
+            block._rollingMeanLen = rollingMeanLen = len(self._data)
         
-        if span == -1:
-            # Set-wide median/mean removal; same across all blocks.
-            for b in self._data:
-                b._rollingMean = rollingMean
-                b._rollingMeanSpan = rollingMeanSpan
-                b._rollingMeanLen = rollingMeanLen
+            if span == -1:
+                # Set-wide median/mean removal; same across all blocks.
+                for b in self._data:
+                    b._rollingMean = rollingMean
+                    b._rollingMeanSpan = rollingMeanSpan
+                    b._rollingMeanLen = rollingMeanLen
+            
+            return block._rollingMean
         
-        return block._rollingMean
+        except TypeError:
+            # XXX: HACK! b.mean can occasionally be a tuple at very start.
+            # Occurs very rarely in multithreaded loading. Find and fix cause.
+#             print "Type error!"
+            return None
     
 
     def __getitem__(self, idx):
@@ -1476,6 +1483,12 @@ class EventList(Cascading):
 #             if block.endTime is not None:
 #                 t = (t + block.endTime)/2
             m = _getBlockRollingMean(block.blockIndex)
+            
+            # XXX: HACK! Multithreaded loading can (very rarely) fail at start.
+            # The problem is almost instantly resolved, though. Find root cause.
+            while m is None:
+                m = _getBlockRollingMean(block.blockIndex)
+            
             result = []
             result_append = result.append
             

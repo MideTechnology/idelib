@@ -222,7 +222,8 @@ def importFile(filename=testFile, updater=nullUpdater, numUpdates=500,
         @see: `readData()`
     """
     stream = open(filename, "rb")
-    doc = Dataset(stream, name=name, quiet=quiet)
+    doc = openFile(stream, updater=updater, name=name, parserTypes=parserTypes,
+                   defaultSensors=defaultSensors, quiet=quiet)
     readData(doc, updater=updater, numUpdates=numUpdates, 
              updateInterval=updateInterval, parserTypes=parserTypes, 
              defaultSensors=defaultSensors)
@@ -255,16 +256,16 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
     doc = Dataset(stream, name=name, quiet=quiet)
     doc.addSession()
 
-    parsers = dict([(f.elementName, f(doc)) for f in parserTypes])
+    elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
         
     try:
         for r in doc.ebmldoc.iterroots():
             if getattr(updater, "cancelled", False):
                 doc.loadCancelled = True
                 break
-            if r.name not in parsers:
+            if r.name not in elementParsers:
                 continue
-            parser = parsers[r.name]
+            parser = elementParsers[r.name]
             if parser.makesData():
                 break
             parser.parse(r) 
@@ -320,7 +321,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             be imported. Kind of a hack, to be redone later.
     """
     
-    parsers = dict([(f.elementName, f(doc)) for f in parserTypes])
+    elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
 
     elementCount = 0
     eventsRead = 0
@@ -359,7 +360,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             if doc.loadCancelled:
                 break
             
-            if r.name not in parsers:
+            if r.name not in elementParsers:
                 # Unknown block type, but probably okay.
                 logger.info("unknown block %r (ID 0x%02x) @%d" % \
                             (r.name, r.id, r.stream.offset))
@@ -375,7 +376,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
                 continue
                 
             try:
-                parser = parsers[r.name]
+                parser = elementParsers[r.name]
                 if not parser.isHeader:
                     added = parser.parse(r, timeOffset=timeOffset)
                     if isinstance(added, int):
