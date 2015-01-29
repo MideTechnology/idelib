@@ -18,6 +18,7 @@ From Slam Stick X: 0:06:47.506000
 '''
 
 from datetime import datetime
+import os.path
 import sys
 from time import time as time_time
 
@@ -412,4 +413,42 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     doc.loading = False
     return eventsRead
 
+#===============================================================================
+# 
+#===============================================================================
 
+def estimateLength(filename=testFile, numSamples=50000, channel=0,
+                   parserTypes=elementParserTypes, defaultSensors=default_sensors):
+    """ Open and read enough of a file to get a rough estimate of its complete
+        time range. 
+    """
+    
+    # Fake updater that just quits after some number of samples.
+    class DummyUpdater(object):
+        cancelled = False
+        def __init__(self, numSamples):
+            self.numSamples = numSamples
+        def __call__(self, count, **kwargs):
+            if count > self.numSamples:
+                self.cancelled = True
+                
+    updater = DummyUpdater(numSamples)
+    
+    with open(filename, "rb") as stream:
+        doc = openFile(stream, parserTypes=parserTypes,
+                       defaultSensors=defaultSensors, quiet=True)
+        dataStart = stream.tell()
+        totalSize = os.path.getsize(filename) - dataStart
+        
+        # read a portion of the recording
+        readData(doc, updater=updater, parserTypes=parserTypes, 
+                 defaultSensors=defaultSensors)
+        chunkSize = stream.tell() - dataStart
+        
+        events = doc.channels[channel].getSession()
+        start, end = events[0][0], events[-1][0]
+        
+        chunkTime = end - start
+        
+    return start, start + (totalSize / chunkSize * chunkTime) 
+    

@@ -13,6 +13,7 @@ import importlib
 import pkgutil
 from StringIO import StringIO
 import sys
+import types
 import xml.dom.minidom
 
 import ebml
@@ -107,10 +108,12 @@ PYTHONTYPES = {
 def getSchemaModule(schema=DEFAULT_SCHEMA):
     """ Import a schema module.
     
-        @keyword schema: The full module name of the EBML schema. If the module
-            cannot be found as specified, a path relative to the current
-            module is used.
+        @keyword schema: The schema module, or the full module name of the 
+            EBML schema. If the module cannot be found as specified, a path 
+            relative to the current module is used.
     """
+    if isinstance(schema, types.ModuleType):
+        return schema
     schema = str(schema).strip()
     try:
         return importlib.import_module(schema)

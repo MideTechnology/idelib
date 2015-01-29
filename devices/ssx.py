@@ -14,6 +14,8 @@ from mide_ebml import util
 from mide_ebml.parsers import CalibrationListParser #PolynomialParser
 from mide_ebml.ebml.schema.mide import MideDocument
 
+import mide_ebml.ebml.schema.manifest as schema_manifest
+
 from base import Recorder, os_specific
 # from base import ConfigError, ConfigVersionError
 
@@ -257,9 +259,9 @@ class SlamStickX(Recorder):
         
         try:
             self._manifest = util.read_ebml(manData, 
-                schema='mide_ebml.ebml.schema.manifest').get('DeviceManifest', None)
+                schema=schema_manifest).get('DeviceManifest', None)
             self._calibration = util.read_ebml(self._calData, 
-               schema='mide_ebml.ebml.schema.mide').get('CalibrationList', None)
+               ).get('CalibrationList', None)
         except (AttributeError, KeyError):
             pass
         

@@ -30,19 +30,20 @@ from mide_ebml.parsers import MPL3115PressureTempParser, ChannelDataBlock
 # 
 #===============================================================================
 
-
 class AccelDumper(object):
     """ Parser replacement that dumps accelerometer data as read. """
     maxTimestamp = ChannelDataBlock.maxTimestamp
     timeScalar = 1000000.0 / 2**15
     
-    def __init__(self, numCh, writer=None):
+    def __init__(self, numCh, writer=None, startTime=0, endTime=None):
         self.writer = writer
         self.numCh = numCh
         self.numRows = 0
         self.numSamp = 0
         self.firstTime = None
         self.lastTime = 0
+        self.startTime = startTime * 2**15
+        self.endTime = None if endTime is None else (endTime * 2**15)
     
         self.timestampOffset = 0
         self.lastStamp = 0
@@ -60,11 +61,23 @@ class AccelDumper(object):
 
 
     def write(self, el):
+        """ Parse the element and write the data.
+            @param el: DataBlock element
+            @return: `True` if data was written, `False` if not. Data will not
+                be written if the block is outside of the specified start
+                and end times.
+        """
         blockStart = self.fixOverflow(el.value[1].value)
         blockEnd = self.fixOverflow(el.value[2].value)
         if self.firstTime is None:
             self.firstTime = blockStart
         self.lastTime = blockEnd
+
+        if blockStart < self.startTime:
+            return False
+        
+        if self.endTime is not None and blockStart > self.endTime:
+            raise StopIteration
         
         data = el.value[-1].value 
         vals= np.frombuffer(data, np.uint16).reshape((-1,3))
@@ -73,6 +86,7 @@ class AccelDumper(object):
         times = np.linspace(blockStart, blockEnd, vals.shape[0]) * self.timeScalar
         for r in zip(times, vals):
             self.writer(r)
+            return True
 
 
 class MPL3115Dumper(AccelDumper):
@@ -90,10 +104,13 @@ class MPL3115Dumper(AccelDumper):
         if self.firstTime is None:
             self.firstTime = self.lastTime
         
+        if self.lastTime < self.startTime:
+            return False
+        
         self.numRows += 1
         self.numSamp += self.numCh
         self.data.append(self.tempParser.unpack_from(el.value[-1].value))
-
+        return True
 
 #===============================================================================
 # 
@@ -171,8 +188,8 @@ class SimpleUpdater(object):
 
 def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1, 
             dtype="double", nocal=False, raw=False, accelOnly=True,
-            noTimes=False, maxSize=matfile.MatStream.MAX_SIZE, 
-            updateInterval=1.5, **kwargs):
+            noTimes=False, startTime=0, endTime=None, 
+            maxSize=matfile.MatStream.MAX_SIZE, updateInterval=1.5, **kwargs):
     """ The main function that handles generating MAT files from an IDE file.
     """
     
@@ -198,10 +215,13 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
         try:
             mat.startArray(doc.channels[0].name, numAccelCh, dtype=MP.miUINT16, noTimes=True, colNames=[c.name for c in doc.channels[0].subchannels])
     
-            dumpers = (AccelDumper(3, mat.writeRow), MPL3115Dumper(2))
+            dumpers = (AccelDumper(3, mat.writeRow, startTime, endTime), 
+                       MPL3115Dumper(2, None, startTime, endTime))
             
             lastMat = ''
             writeMsg = '' 
+            isWriting = False
+            offset = 0
             
             try:
                 for i, el in enumerate(doc.ebmldoc.iterroots()):
@@ -215,11 +235,17 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                     if el.name == "ChannelDataBlock":
                         chId = el.value[0].value
                         if chId < 2:
-                            dumpers[chId].write(el)
+                            wroteData = dumpers[chId].write(el)
+                            
+                            # First block written; base the 
+                            if wroteData and not isWriting:
+                                offset = stream.tell()
+                                totalSize -= offset
+                                isWriting = True
                             
                     if i % 250 == 0 or time.time() > nextUpdate:
                         count = sum((x.numSamp for x in dumpers))
-                        updater(count=count, total=None, percent=(stream.tell()/totalSize))
+                        updater(count=count, total=None, percent=((stream.tell()-offset)/totalSize))
                         nextUpdate = time.time() + updateInterval
 
                     # Remove per-element substreams. Saves memory; a large
@@ -228,7 +254,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                     doc.ebmldoc.stream.substreams.clear()
                     del el
                     
-            except IOError:
+            except (IOError, StopIteration):
                 pass
                 
             mat.endArray()
@@ -271,6 +297,9 @@ if __name__ == "__main__":
     argparser.add_argument('-o', '--output', help="The output path to which to save the .MAT files. Defaults to the same as the source file.")
     argparser.add_argument('-a', '--accelOnly', action='store_true', help="Export only accelerometer data.")
     argparser.add_argument('-m', '--maxSize', type=int, default=matfile.MatStream.MAX_SIZE, help="The maximum MAT file size in bytes. Must be less than 2GB.")
+    argparser.add_argument('-t', '--startTime', type=float, help="The start of the time span to export (seconds from the beginning of the recording).", default=0)
+    argparser.add_argument('-e', '--endTime', type=float, help="The end of the time span to export (seconds from the beginning of the recording).")
+    argparser.add_argument('-d', '--duration', type=float, help="The length of time to export, relative to the --startTime. Overrides the specified --endTime")
     argparser.add_argument('source', nargs="+", help="The source .IDE file(s) to convert.")
 
     args = argparser.parse_args()
@@ -293,6 +322,16 @@ if __name__ == "__main__":
             print "Specified output is not a directory: %s" % args.output
             sys.exit(1)
     
+    if args.duration:
+        endTime = args.startTime + args.duration
+    else:
+        endTime = args.endTime
+
+    if isinstance(endTime, float) and endTime <= args.startTime:
+        print "Specified end time (%s) occurs at or before start time (%s). " % (endTime, args.startTime)
+        print "(Did you mean to use the --duration argument instead of --endTime?)"
+        sys.exit(1)
+    
     try:
         totalSamples = 0
         t0 = datetime.now()
@@ -302,14 +341,16 @@ if __name__ == "__main__":
             updater.precision = max(0, min(2, (len(str(os.path.getsize(f)))/2)-1))
             updater(starting=True)
             totalSamples += raw2mat(f, matFilename=args.output, 
-                accelOnly=args.accelOnly, maxSize=args.maxSize, 
+                accelOnly=args.accelOnly, maxSize=args.maxSize,
+                startTime=args.startTime, endTime=endTime, 
                 updater=updater)
             updater(done=True)
     
         totalTime = datetime.now() - t0
         tstr = str(totalTime).rstrip('0.')
         sampSec = locale.format("%d", totalSamples/totalTime.total_seconds(), grouping=True)
-        print "Conversion complete! Total time: %s (%s samples/sec.)" % (tstr, sampSec)
+        totSamp = locale.format("%d", totalSamples, grouping=True)
+        print "Conversion complete! Exported %s samples in %s (%s samples/sec.)" % (totSamp, tstr, sampSec)
     except KeyboardInterrupt:
         print "\n*** Conversion canceled! MAT version(s) of %s may be incomplete." % f
 #     except IOError as err: #Exception as err:

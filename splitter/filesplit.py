@@ -176,7 +176,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
     """
     startTime *= 1000000.0
-    endTime = sys.maxint if endTime is None else endTime * 1000000.0
+    endTime = None if endTime is None else endTime * 1000000.0
     try:
         if basename is None:
             basename = doc.stream.file.name
@@ -245,7 +245,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
                         el = i.next()
                         continue
                     
-                    if blockStart > endTime:
+                    if endTime is not None and blockStart > endTime:
                         return
                     
                     if num > 1 and not wroteFirst.setdefault(block.channel, False):
@@ -295,15 +295,15 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
     except (AttributeError, ValueError, IOError):
         pass
         
-    print startTime, blockStart
     oldFile.close()
     updater(done=True)
     return num
 
 
-def splitFile(filename=testFile, savePath='temp/', basename=None, numDigits=3,
-              startTime=0, endTime=None, maxSize=1024*1024*10, updater=nullUpdater, numUpdates=500, 
-              updateInterval=1.0, parserTypes=elementParserTypes):
+def splitFile(filename=testFile, savePath=None, basename=None, numDigits=3,
+              startTime=0, endTime=None, maxSize=1024*1024*10, 
+              updater=nullUpdater, numUpdates=500, updateInterval=1.0, 
+              parserTypes=elementParserTypes):
     """ Wrapper function to split a file based on filename.
     
         @param filename: The name of the IDE file to split.
@@ -329,10 +329,11 @@ def splitFile(filename=testFile, savePath='temp/', basename=None, numDigits=3,
     
     with open(filename, 'rb') as fp:
         doc = MideDocument(fp)
-        return  splitDoc(doc, savePath=savePath, basename=basename, 
-                         numDigits=numDigits, startTime=startTime, endTime=endTime, maxSize=maxSize, updater=updater, 
-                         numUpdates=numUpdates, updateInterval=updateInterval, 
-                         parserTypes=parserTypes)
+        return splitDoc(doc, savePath=savePath, basename=basename, 
+                        numDigits=numDigits, startTime=startTime, 
+                        endTime=endTime, maxSize=maxSize, updater=updater, 
+                        numUpdates=numUpdates, updateInterval=updateInterval, 
+                        parserTypes=parserTypes)
  
  
 if __name__ == '__main__':
@@ -369,7 +370,12 @@ if __name__ == '__main__':
         endTime = args.startTime + args.duration
     else:
         endTime = args.endTime
-    
+
+    if isinstance(endTime, float) and endTime <= args.startTime:
+        print "Specified end time (%ss) occurs at or before start time (%ss). " % (endTime, args.startTime)
+        print "(Did you mean to use the --duration argument instead of --endTime?)"
+        sys.exit(1)
+        
     numDigits = max(2, len(str(numSplits)))
     
     t0 = datetime.now()
