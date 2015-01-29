@@ -1801,7 +1801,8 @@ class Viewer(wx.Frame, MenuMixin):
         """
         if self.dataset:
             self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
-            RecorderInfoDialog.showRecorderInfo(self.dataset)
+            RecorderInfoDialog.showRecorderInfo(self.dataset, 
+                        showAll=self.app.getPref("showAdvancedOptions", False))
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         
         

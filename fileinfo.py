@@ -150,6 +150,7 @@ class RecorderInfoDialog(SC.SizedDialog):
 
     def __init__(self, *args, **kwargs):
         self.root = kwargs.pop('root', None)
+        showAll = kwargs.pop('showAll', False)
         kwargs.setdefault("style", 
             wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.SYSTEM_MENU)
         
@@ -182,7 +183,7 @@ class RecorderInfoDialog(SC.SizedDialog):
             calPanel = RecordingCalibrationPanel(notebook, -1, root=self.root)
             notebook.AddPage(calPanel, "Calibration")
         
-        if ebmlInfo is not None:
+        if showAll and ebmlInfo is not None:
             ebmlPanel = InfoPanel(notebook, -1, root=self, info=ebmlInfo)
             notebook.AddPage(ebmlPanel, "EBML Headers")
 
@@ -194,13 +195,13 @@ class RecorderInfoDialog(SC.SizedDialog):
 
 
     @classmethod
-    def showRecorderInfo(cls, ebmldoc):
+    def showRecorderInfo(cls, ebmldoc, showAll=False):
         """ Display information about the device that made a recording.
             @param root: The `mide_ebml.dataset.Dataset` with info to show
         """
         
         dlg = cls(None, -1, "%s Recording Properties" % ebmldoc.filename, 
-                  root=ebmldoc)
+                  root=ebmldoc, showAll=showAll)
         dlg.ShowModal()
         dlg.Destroy()
         
@@ -230,4 +231,4 @@ if __name__ == "__main__":
             self.filename=data.filename
             
 #     doc.loading = True
-    RecorderInfoDialog.showRecorderInfo(doc)
+    RecorderInfoDialog.showRecorderInfo(doc, True)
