@@ -4,36 +4,35 @@ Created on Jan 28, 2015
 @author: dstokes
 '''
 import calendar
-from collections import OrderedDict
-import ctypes
-from datetime import datetime
-import json
+from datetime import datetime, timedelta
 import os
-import string
 from StringIO import StringIO
 import struct
-import sys
 import time
 
-# from mide_ebml import devices
 from mide_ebml import util
-from mide_ebml.classic import config as classic_config
+from mide_ebml.parsers import CalibrationListParser #PolynomialParser
+from mide_ebml.ebml.schema.mide import MideDocument
 
-from base import Recorder, ConfigError, ConfigVersionError, os_specific
+from base import Recorder, os_specific
+# from base import ConfigError, ConfigVersionError
 
-
+#===============================================================================
+# 
+#===============================================================================
 
 class SlamStickX(Recorder):
+    """ A Slam Stick X data recorder from Mide Technology Corporation. 
     """
-    """
+    
     SYSTEM_PATH = "SYSTEM"
     INFO_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVINFO")
     CLOCK_FILE = os.path.join(SYSTEM_PATH, "DEV", "CLOCK")
     CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
     TIME_PARSER = struct.Struct("<L")
 
-    LIFESPAN = 31 #3 * 365
-    CAL_LIFESPAN = 31
+    LIFESPAN = timedelta(2 * 365)
+    CAL_LIFESPAN = timedelta(365)
 
     TYPE_RANGES = {
        0x10: (-25,25),
@@ -48,11 +47,15 @@ class SlamStickX(Recorder):
                         """    3. Press the "X" button """)
 
     baseName = "Slam Stick X"
+    manufacturer = u"Mid\xe9 Technology Corp."
     homepage = "http://www.mide.com/products/slamstick/slam-stick-x-vibration-temperature-pressure-data-logger.php"
 
     def __init__(self, path):
         super(SlamStickX, self).__init__(path)
         self._manifest = None
+        self._calibration = None
+        self._calData = None
+        self._calPolys = None
         self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
 
     @classmethod
@@ -198,6 +201,8 @@ class SlamStickX(Recorder):
             @keyword pause: If `True` (default), the system waits until a
                 whole-numbered second before setting the clock. This may
                 improve accuracy across multiple recorders.
+            @keyword retries: The number of attempts to make, should the first
+                fail. Random filesystem things can potentially cause hiccups.
             @return: The time that was set, as integer seconds since the epoch.
         """
         if t is None:
@@ -248,11 +253,13 @@ class SlamStickX(Recorder):
         
         manOffset, manSize, calOffset, calSize = struct.unpack_from("<HHHH", data)
         manData = StringIO(data[manOffset:manOffset+manSize])
-        calData = StringIO(data[calOffset:calOffset+calSize])
+        self._calData = StringIO(data[calOffset:calOffset+calSize])
         
         try:
-            self._manifest = util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest').get('DeviceManifest', None)
-            self._calibration = util.read_ebml(calData, schema='mide_ebml.ebml.schema.mide').get('CalibrationList', None)
+            self._manifest = util.read_ebml(manData, 
+                schema='mide_ebml.ebml.schema.manifest').get('DeviceManifest', None)
+            self._calibration = util.read_ebml(self._calData, 
+               schema='mide_ebml.ebml.schema.mide').get('CalibrationList', None)
         except (AttributeError, KeyError):
             pass
         
@@ -265,6 +272,24 @@ class SlamStickX(Recorder):
         self.getManifest(refresh=refresh)
         return self._calibration
 
+
+    def getCalPolynomials(self, refresh=False):
+        """ Get the constructed Polynomial objects created from the device's
+            calibration data.
+        """
+        self.getManifest(refresh=refresh)
+        if self._calPolys is None:
+            try:
+                PP = CalibrationListParser(None)
+                self._calData.seek(0)
+                cal = MideDocument(self._calData)
+                self._calPolys = filter(None, PP.parse(cal.roots[0]))
+                return self._calPolys
+            except (KeyError, IndexError, ValueError):
+                pass
+        
+        return self._calPolys
+            
 
     def getAge(self, refresh=False):
         """ Get the number of days since the recorder's date of manufacture.
@@ -288,7 +313,7 @@ class SlamStickX(Recorder):
         try:
             birth = self.getInfo(refresh=refresh)['DateOfManufacture']
             age = (time.time() - birth) / (60 * 60 * 24) 
-            return int(0.5 + self.LIFESPAN - age)
+            return int(0.5 + self.LIFESPAN.total_seconds() - age)
         except (AttributeError, KeyError):
             return None
 
@@ -306,5 +331,5 @@ class SlamStickX(Recorder):
         if isinstance(calexp, int) and calexp > caldate:
             return calexp
         
-        return  caldate + self.CAL_LIFESPAN
+        return  caldate + self.CAL_LIFESPAN.total_seconds()
     

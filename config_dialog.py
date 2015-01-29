@@ -1102,7 +1102,7 @@ class OptionsPanel(BaseConfigPanel):
         
 class InfoPanel(HtmlWindow):
     """ A generic configuration dialog page showing various read-only properties
-        of a recorder.
+        of a recorder. Displays HTML.
         
         @cvar field_types: A dictionary pairing field names with a function to
             prepare the value for display.
@@ -1119,8 +1119,9 @@ class InfoPanel(HtmlWindow):
                    'Firmware Revision': str,
                    'Config. Format Version': str,
                    'Recorder Serial': lambda x: "SSX%07d" % x,
-                   'Calibration Date': datetime.fromtimestamp,
-                   'Calibration Expiration Date': datetime.fromtimestamp
+                    'Calibration Date': datetime.fromtimestamp,
+                    'Calibration Expiration Date': datetime.fromtimestamp,
+                   'Calibration Serial Number': lambda x: "C%05d" % x
                    }
 
     column_widths = (50,50)
@@ -1130,6 +1131,7 @@ class InfoPanel(HtmlWindow):
         self.info = kwargs.pop('info', {})
         self.root = kwargs.pop('root', None)
         super(InfoPanel, self).__init__(*args, **kwargs)
+        self.data = OrderedDict()
         self.html = []
         self._inTable = False
         self.buildUI()
@@ -1194,11 +1196,10 @@ class InfoPanel(HtmlWindow):
             lastChar = c
         # Hack to fix certain acronyms. Should really be done by checking text.
         result = ''.join(result).replace("ID", "ID ").replace("EBML", "EBML ")
-        return result.replace(" Of ", " of ")
+        return result.replace("UTC", "UTC ").replace(" Of ", " of ")
 
 
     def getDeviceData(self):
-        self.data = OrderedDict()
         for k,v in self.info.iteritems():
             self.data[self.field_names.get(k, self._fromCamelCase(k))] = v
 
@@ -1289,6 +1290,12 @@ class SSXInfoPanel(InfoPanel):
     """
     
     ICONS = ('/ABOUT/info.png', '/ABOUT/warn.png', '/ABOUT/error.png')
+
+    def getDeviceData(self):
+        man = self.root.device.manufacturer
+        if man:
+            self.data['Manufacturer'] = man
+        super(SSXInfoPanel, self).getDeviceData()
 
     def buildUI(self):
         self.life = self.root.device.getEstLife()
@@ -1812,6 +1819,7 @@ class ConfigDialog(sc.SizedDialog):
     def buildUI_SSX(self):
         try:
             cal = self.device.getCalibration()
+            self.deviceInfo['CalibrationSerialNumber'] = cal['CalibrationSerialNumber']
             self.deviceInfo['CalibrationDate'] = cal['CalibrationDate']
             self.deviceInfo['CalibrationExpirationDate'] = self.device.getCalExpiration()
         except (AttributeError, KeyError):
@@ -1898,8 +1906,9 @@ class ConfigDialog(sc.SizedDialog):
         self.SetAffirmativeId(wx.ID_APPLY)
         self.okButton = self.FindWindowById(wx.ID_APPLY)
         
-        self.SetMinSize((480, 520))
+        self.SetMinSize((400, 500))
         self.Fit()
+        self.SetSize((480,540))
         
         
     def getData(self, schema=util.DEFAULT_SCHEMA):

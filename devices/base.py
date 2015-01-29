@@ -52,6 +52,7 @@ class Recorder(object):
     POST_CONFIG_MSG = None
     productName = "Generic Recorder"
     baseName = productName
+    manufacturer = None
     homepage = None
     
     @classmethod
@@ -83,6 +84,7 @@ class Recorder(object):
         """ Basic test whether a path points to a recorder. """
         if strict is False:
             return True
+
         try:
             return "fat" in os_specific.getDriveInfo(dev).fs.lower()
         except (TypeError, IndexError):
@@ -90,6 +92,7 @@ class Recorder(object):
     
 
     def _getInfoAttr(self, name, default=None):
+        """ Helper method to make getting an info value tidy. """
         info = self.getInfo()
         if info is None:
             return default

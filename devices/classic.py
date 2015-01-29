@@ -1,35 +1,36 @@
 '''
+Class defintion and supporting items for Mide Slam Stick Classic data recorders.
+
+@todo: Move everything from mide_ebml.classic.config into this module. It is 
+    more appropriate here.
+
 Created on Jan 28, 2015
 
 @author: dstokes
 '''
+
 import calendar
-from collections import OrderedDict
-import ctypes
 from datetime import datetime
-import json
 import os
-import string
-from StringIO import StringIO
-import struct
-import sys
 import time
 
-# from mide_ebml import devices
-from mide_ebml import util
 from mide_ebml.classic import config as classic_config
+from base import Recorder
 
-from base import Recorder, ConfigError, ConfigVersionError, os_specific
-
+#===============================================================================
+# 
+#===============================================================================
 
 class SlamStickClassic(Recorder):
+    """ A Slam Stick Classic data recorder.
     """
-    """
+    
     CONFIG_FILE = "config.dat"
     INFO_FILE = "config.dat"
     DATA_FILE = "data.dat"
 
     baseName = "Slam Stick Classic"
+    manufacturer = u"Mid\xe9 Technology Corp."
     homepage = "http://www.mide.com/products/slamstick/slamstick-vibration-data-logger.php"
 
     @classmethod

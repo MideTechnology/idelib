@@ -670,7 +670,8 @@ class RecorderPropertyParser(ElementHandler):
     isSubElement = True
     
     def parse(self, element, **kwargs):
-        self.doc.recorderInfo[self.elementName] = element.value
+        if self.doc is not None:
+            self.doc.recorderInfo[self.elementName] = element.value
         
 
 class PolynomialParser(ElementHandler):
