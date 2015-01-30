@@ -86,7 +86,8 @@ class AccelDumper(object):
         times = np.linspace(blockStart, blockEnd, vals.shape[0]) * self.timeScalar
         for r in zip(times, vals):
             self.writer(r)
-            return True
+            
+        return True
 
 
 class MPL3115Dumper(AccelDumper):
