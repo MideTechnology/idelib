@@ -508,7 +508,7 @@ class Channel(Transformable):
     
     def __init__(self, sensor, channelId, parser, name=None, units=('',''), 
                  transform=None, displayRange=None, interpolators=None,
-                 cache=False):
+                 cache=False, singleSample=False):
         """ Constructor.
         
             @param sensor: The parent sensor.
@@ -527,6 +527,7 @@ class Channel(Transformable):
         self.parent = sensor
         self.dataset = sensor.dataset
         self.cache = cache
+        self.singleSample = singleSample
         
         if name is None:
             name = "%s:%02d" % (sensor.name, channelId) 
@@ -729,6 +730,7 @@ class SubChannel(Channel):
             self.displayRange = displayRange
             
         self.removeMean = False
+        self.singleSample = parent.singleSample
             
 
     @property
@@ -830,6 +832,7 @@ class EventList(Cascading):
         self.dataset = parent.dataset
         self.hasSubchannels = len(self.parent.types) > 1
         self._firstTime = self._lastTime = None
+        self._singleSample = parent.singleSample
 
         # Optimization: Keep track of indices in blocks (per 10000)
         # The first is the earliest block with the index,
@@ -932,6 +935,13 @@ class EventList(Cascading):
             self.hasMinMeanMax = True
         else:
             self.hasMinMeanMax = False
+        
+        # HACK (somewhat): Single-sample-per-block channels get min/mean/max
+        # which is just the same as the value of the sample. Set the values,
+        # but don't set hasMinMeanMax.
+        if self._singleSample and not self.hasMinMeanMax:
+            block.minMeanMax = block.payload*3
+            block.parseMinMeanMax(self.parent.parser)
         
     
     def getInterval(self):
@@ -1066,7 +1076,7 @@ class EventList(Cascading):
                                        start, stop)
         
 
-    def _getBlockRollingMean(self, blockIdx):
+    def _getBlockRollingMean(self, blockIdx, force=False):
         """ Get the mean of a block and its neighbors within a given time span.
             Note: Values are taken pre-calibration, and all subchannels are
             returned.
@@ -1074,7 +1084,8 @@ class EventList(Cascading):
             @param blockIdx: The index of the block to check.
             @return: An array containing the mean values of each subchannel. 
         """
-        if self.removeMean is False:
+        # XXX: I don't remember why I do this.
+        if force is False and self.removeMean is False:
             return None
         
         block = self._data[blockIdx]
@@ -1161,10 +1172,6 @@ class EventList(Cascading):
                 event=(event[0][0], tuple((e[1] for e in event)))
             else:
                 event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value),self.session))
-            
-#             if self.dataset.useIndices:
-#                 return Event(idx, event[0], event[1])
-            
             return event
 
         elif isinstance(idx, slice):
@@ -1208,7 +1215,6 @@ class EventList(Cascading):
         else:
             for v in self.iterSlice(start, end, step):
                 yield v[-1]
-        
 
 
     def iterSlice(self, start=0, end=-1, step=1):
@@ -1798,18 +1804,21 @@ class EventList(Cascading):
                 v1 = startEvt[-1][i]
                 v2 = endEvt[-1][i]
                 result[i] = v1 + (percent * (v2 - v1))
-#                 result[i] = self.parent.interpolators[i](self, startIdx, startIdx+1, percent)
-#                 result[i] = self.parent.types[i](result[i])
             result = tuple(result)
         else:
             v1 = startEvt[-1]
             v2 = endEvt[-1]
             result = v1 + (percent * (v2 - v1))
-#             result = self.parent.types[0](self.parent.interpolators[0](self, startIdx, startIdx+1, percent))
-#         if self.dataset.useIndices:
-#             return None, at, result
         return at, result
     
+
+    def getMeanNear(self, t, outOfRange=False):
+        """
+        """
+        return self._getBlockRollingMean(self._getBlockIndexWithTime(t), force=True)
+            
+            
+        
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
                            jitter=0):
@@ -1939,6 +1948,8 @@ class EventList(Cascading):
         # Restore old removeMean        
         self.removeMean = oldRemoveMean
         self.rollingMeanSpan = oldMeanSpan
+        
+#         print datetime.now() - t0
         return num+1, datetime.now() - t0
 
         

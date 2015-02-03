@@ -26,6 +26,7 @@ assembly/*.jpg
 assembly/firmware
 assembly/temp
 ide2mat/???2mat?v*
+splitter/ide_split?v*
 
 build
 dist

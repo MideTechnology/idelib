@@ -55,7 +55,8 @@ elementParserTypes = parsers.getElementHandlers()
 #===============================================================================
 
 # XXX: Remove me before production.
-testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\test_recordings\\Calibrated_Z_Tape.IDE"
+# testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\test_recordings\\Calibrated_Z_Tape.IDE"
+testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\test_recordings\\shocks.IDE"
 
 # from parsers import AccelerometerParser
 
@@ -99,6 +100,7 @@ default_sensors = {
                                            }
                                        },
                        "cache": True,
+                       "singleSample": True,
                        },
                 },
            },
@@ -142,13 +144,15 @@ def createDefaultSensors(doc, sensors=default_sensors):
     for sensorId, sensorInfo in sensors.iteritems():
         sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
         for chId, chInfo in sensorInfo['channels'].iteritems():
-            channel = sensor.addChannel(chId, chInfo['parser'],
-                                        name=chInfo.get('name',None),
-                                        transform=chInfo.get('transform',None),
-                                        cache=chInfo.get('cache', False))
-            if 'subchannels' not in chInfo:
+            subchannels = chInfo.pop('subchannels', None)
+            channel = sensor.addChannel(chId, **chInfo)
+#             channel = sensor.addChannel(chId, chInfo['parser'],
+#                                         name=chInfo.get('name',None),
+#                                         transform=chInfo.get('transform',None),
+#                                         cache=chInfo.get('cache', False))
+            if subchannels is None:
                 continue
-            for subChId, subChInfo in chInfo['subchannels'].iteritems():
+            for subChId, subChInfo in subchannels.iteritems():
                 channel.addSubChannel(subChId, **subChInfo)
     
 

@@ -319,6 +319,7 @@ class Bivariate(Univariate):
         
         self._build()
         
+        
     def _build(self):
         coeffs = self._coeffs
         reference, reference2 = self._references
@@ -365,7 +366,6 @@ class Bivariate(Univariate):
         # Optimization: it is possible that the polynomial could exclude Y
         # completely. If that's the case, use a dummy value to speed things up.
         self._noY = (0,1) if 'y' not in src else False 
-            
 
 
     def __call__(self, event, session=None):
@@ -388,8 +388,9 @@ class Bivariate(Univariate):
             
             x = event[-1]
             # Optimization: don't check the other channel if Y is unused
-            y = self._noY or self._eventlist.getValueAt(event[-2], 
-                                                         outOfRange=True)
+#             y = self._noY or self._eventlist.getValueAt(event[-2], 
+#                                                          outOfRange=True)
+            y = self._noY or self._eventlist.getMeanNear(event[-2])
             return event[-2],self._function(x,y[-1])
         except (IndexError, ZeroDivisionError):
             # In multithreaded environments, there's a rare race condition
@@ -416,33 +417,14 @@ class CombinedPoly(Bivariate):
         if subchannel is not None:
             self.poly = self.poly[subchannel]
 
-        for attr in ('dataset','_eventlist','_sessionId','channelId','subchannelId', '_references', '_coeffs','_variables', '_usedIn','_usedBy'):
+        for attr in ('dataset','_eventlist','_sessionId','channelId',
+                     'subchannelId', '_references', '_coeffs','_variables'):
             try:
-                setattr(self, attr, getattr(poly, attr, None))
+                setattr(self, attr, getattr(poly, attr))
             except AttributeError:
                 pass
             
-#         self.dataset = poly.dataset
-#         self._eventlist = poly._eventlist
-#         self._sessionId = poly._sessionId
-#         self.channelId = getattr(poly, 'channelId', None)
-#         self.subchannelId = getattr(poly, 'subchannelId', None)
-#         self.id = calId
-#         self._references = poly._references
-#         self._coeffs = poly._coeffs
-#         self._variables = poly._variables
         self._subchannel = subchannel
-        
-#         self._usedIn = []
-#         self._usedBy = []
-# 
-#         if hasattr(poly, '_usedIn'):
-#             if self not in poly._usedIn:
-#                 poly._usedIn.append(self)
-#         for p in kwargs.itervalues():
-#             if hasattr(p, '_usedIn') and self not in p._usedIn:
-#                 p._usedIn.append(self)
-
         self._build()
     
     @classmethod
@@ -492,18 +474,6 @@ class PolyPoly(CombinedPoly):
                 setattr(self, attr, getattr(poly, attr))
             except AttributeError:
                 pass
-#         self.dataset = getattr(poly, 'dataset', None)
-#         self._eventlist = poly._eventlist
-#         self._sessionId = poly._sessionId
-#         self.channelId = getattr(poly, 'channelId', None)
-#         self.subchannelId = getattr(poly, 'subchannelId', None)
-
-#         self.id = calId
-#         self._usedIn = []
-#         
-#         for p in polys:
-#             if p is not None and self not in p._usedIn:
-#                 p._usedIn.append(self)
                 
         self._build()
 
