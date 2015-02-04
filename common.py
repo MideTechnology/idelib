@@ -153,7 +153,18 @@ def parseTime(val):
             return None
         mult *= 60
     return result
-        
+
+
+def wordJoin(words, conj="and"):
+    """ Function to do an English joining of list items.
+    """
+    if len(words) < 2:
+        return words
+    result = '%s %s %s' % (words[-2], conj, words[-1])
+    if len(words) > 2:
+        result = "%s, %s" % (', '.join(words[:-2]), result)
+    return result
+    
 #===============================================================================
 # Field validators
 #===============================================================================

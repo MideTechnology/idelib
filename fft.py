@@ -230,23 +230,22 @@ class FFTView(wx.Frame, MenuMixin):
         if DEBUG:
             drawStart = time.time()
 #         self.source.parent.raw=True
-#         self.source.removeMean = False
+
+        subevents = [self.source.dataset.channels[self.source.parent.id][ch.id].getSession().removeMean for ch in self.subchannels]
+        oldRemoveMean = self.source.removeMean
+        self.source.removeMean = any(subevents)
         
         self.draw()
+        self.source.removeMean = oldRemoveMean
 
         # XXX: TESTING
         if DEBUG:
-            print "Elapsed time (%s): %s" % (self.FULLNAME, time.time() - drawStart)
+            print "Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart)
 
 
     def initPlot(self):
         """
         """
-#         self.content = PlotPanel(self)
-#         self.canvas = FFTPlotCanvas(self.content)
-#         self.content.canvas.Add(self.canvas, 1, wx.EXPAND)
-
-#         self.canvas = P.PlotCanvas(self)
         self.canvas = FFTPlotCanvas(self)
         self.canvas.SetEnableAntiAliasing(True)
         self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
@@ -261,8 +260,8 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.SetShowScrollbars(True)
         self.canvas.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
         self.canvas.SetEnableGrid(self.showGrid)
-#         self.content.Fit()
         self.Fit()
+
 
     def draw(self):
         """
@@ -342,12 +341,12 @@ class FFTView(wx.Frame, MenuMixin):
         self.viewMenu = viewMenu
         
         dataMenu = wx.Menu()
-        self.logAmp = self.addMenuItem(dataMenu, self.ID_DATA_LOG_AMP, 
-                         "Amplitude: Logarithmic Scale", "", self.OnMenuDataLog,
-                         kind=wx.ITEM_CHECK, checked=self.logarithmic[1])
         self.logFreq = self.addMenuItem(dataMenu, self.ID_DATA_LOG_FREQ, 
                          "Frequency: Logarithmic Scale", "", self.OnMenuDataLog,
                          kind=wx.ITEM_CHECK, checked=self.logarithmic[0])
+        self.logAmp = self.addMenuItem(dataMenu, self.ID_DATA_LOG_AMP, 
+                         "Amplitude: Logarithmic Scale", "", self.OnMenuDataLog,
+                         kind=wx.ITEM_CHECK, checked=self.logarithmic[1])
         self.menubar.Append(dataMenu, "Data")
         self.dataMenu = dataMenu
         
@@ -380,8 +379,10 @@ class FFTView(wx.Frame, MenuMixin):
             lines.append(PolyLine(points, legend=name, 
                         colour=self.root.getPlotColor(self.subchannels[i])))
             
+        yUnits = self.subchannels[0].units[0]
+        yUnits = (" (%s)" % yUnits) if yUnits else ""
         self.lines = PlotGraphics(lines, title=self.GetTitle(), 
-                                    xLabel="Frequency (Hz)", yLabel="Amplitude (g)")
+                                    xLabel="Frequency (Hz)", yLabel="Amplitude%s" % yUnits)
         
     
     @classmethod
@@ -612,15 +613,18 @@ class FFTView(wx.Frame, MenuMixin):
         self.zoomPlot(self.canvas, -.1)
     
     def OnMenuViewReset(self, evt):
+        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
         self.canvas.Reset()
+        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
     def OnMenuDataLog(self, evt):
         """
         """
+        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
         self.logarithmic = (self.logFreq.IsChecked(), self.logAmp.IsChecked())
-#         self.canvas.setLogScale((False, evt.IsChecked()))
         self.canvas.setLogScale(self.logarithmic)
         self.canvas.Redraw()
+        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
     def OnMenuViewLegend(self, evt):
         self.showLegend = evt.IsChecked()

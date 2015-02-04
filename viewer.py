@@ -19,6 +19,7 @@ if DEBUG:
     import socket
     if socket.gethostname() == 'DEDHAM':
         try:
+            # TODO: Make sure this doesn't make it into PyInstaller build
             import yappi
             yappi.start()
             logger.info('yappi profiler started.')
@@ -45,7 +46,7 @@ import images
 
 # Custom controls, events and base classes
 from base import ViewerPanel, MenuMixin
-from common import StatusBar, cleanUnicode
+from common import StatusBar, cleanUnicode, wordJoin
 import events
 from timeline import TimelineCtrl, TimeNavigatorCtrl
 
@@ -1391,8 +1392,8 @@ class Viewer(wx.Frame, MenuMixin):
             if time.time() > newDoc.recorderInfo['CalibrationDate'] + 31536000:
                 self.ask("This file was recorded with expired calibration.",
                          "Expired Calibration Warning", wx.OK, wx.ICON_INFORMATION,
-                         pref="expiredCal",
-                         extendedMessage="Values recorded in this file may be inaccurate."
+                         pref="expiredCal", extendedMessage=\
+                         "The display of values recorded in this file may be inaccurate."
                          )
         except (KeyError, AttributeError):
             pass
@@ -1470,15 +1471,19 @@ class Viewer(wx.Frame, MenuMixin):
         if self.plotarea[0].source.removeMean:
             noMean = 2 if self.plotarea[0].source.rollingMeanSpan == -1 else 1
 
-        filename = self.getSaveFile("Export Data...")
-        if filename is None:
-            return
+        validTypes = ('CSV', 'MAT')
 
-        exportType = os.path.splitext(filename)[-1].upper().strip('.')
-
-        if exportType not in ('CSV', 'MAT'):
-            # TODO: report bad file type
-            return
+        exportType = None
+        while exportType not in validTypes:
+            filename = self.getSaveFile("Export Data...")
+            if filename is None:
+                return
+    
+            exportType = os.path.splitext(filename)[-1].upper().strip('.')
+            if exportType not in validTypes:
+                wx.MessageBox("Unknown export type: %s\n\n"
+                  "Recognized types are %s." % (exportType, wordJoin(validTypes)),
+                  "Export Error", wx.OK, self)
         
         settings = xd.CSVExportDialog.getExport(root=self, removeMean=noMean,
                                                 exportType=exportType, 
@@ -1570,9 +1575,14 @@ class Viewer(wx.Frame, MenuMixin):
         startTime, stopTime = settings['timeRange']
         sliceSize = settings.get('windowSize', 2**16)
         
-        title = "FFT: %s (%ss to %ss)" % (
-                      ", ".join([c.name for c in subchannels]), 
-                      self._formatTime(startTime), self._formatTime(stopTime)) 
+        # Smart plot naming: use parent channel name if all children plotted.
+        if len(subchannels) != len(source.parent.subchannels):
+            title = ", ".join([c.name for c in subchannels])
+        else:
+            title = source.parent.name 
+        title = "FFT: %s (%ss to %ss)" % \
+            (title, self._formatTime(startTime), self._formatTime(stopTime))
+             
         viewId = wx.NewId()
         size = self.GetSize()
         
@@ -1606,9 +1616,14 @@ class Viewer(wx.Frame, MenuMixin):
 #         sliceSize = settings['windowSize']
         slicesPerSec = settings['slices']
         
-        title = "Spectrogram: %s (%ss to %ss)" % (
-                      ", ".join([c.name for c in subchannels]), 
-                      self._formatTime(startTime), self._formatTime(stopTime)) 
+        # Smart plot naming: use parent channel name if all children plotted.
+        if len(subchannels) != len(source.parent.subchannels):
+            title = ", ".join([c.name for c in subchannels])
+        else:
+            title = source.parent.name 
+        title = "Spectrogram: %s (%ss to %ss)" % \
+            (title, self._formatTime(startTime), self._formatTime(stopTime))
+             
         viewId = wx.NewId()
         size = self.GetSize()
 
@@ -1642,7 +1657,7 @@ class Viewer(wx.Frame, MenuMixin):
         source = settings.get('source', None)
         subchannels = settings['channels']
         startTime, stopTime = settings['timeRange']
-        removeMeanType = settings.get('removeMean', 0)
+        removeMeanType = settings.get('removeMean', 2)
         
         removeMean = removeMeanType > 0
         if removeMeanType == 1:
@@ -1650,7 +1665,11 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             meanSpan = -1
         
-        title = ", ".join([c.name for c in subchannels]) 
+        # Smart plot naming: use parent channel name if all children plotted.
+        if len(subchannels) != len(source.parent.subchannels):
+            title = ", ".join([c.name for c in subchannels])
+        else:
+            title = source.parent.name 
 
         viewId = wx.NewId()
         
@@ -1668,7 +1687,6 @@ class Viewer(wx.Frame, MenuMixin):
          
         except ex as e:
             self.handleError(e, what="rendering a plot view")
-
 
 
     #===========================================================================

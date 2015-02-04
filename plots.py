@@ -1219,7 +1219,7 @@ class PlotSet(aui.AuiNotebook):
                                    | aui.AUI_NB_TAB_SPLIT 
                                    | aui.AUI_NB_TAB_MOVE  
                                    | aui.AUI_NB_SCROLL_BUTTONS 
-#                                    | aui.AUI_NB_WINDOWLIST_BUTTON
+                                    | aui.AUI_NB_WINDOWLIST_BUTTON
                                    )
         super(PlotSet, self).__init__(*args, **kwargs)
         

@@ -47,5 +47,8 @@ project.
 
 'Wish List' items ("it would be nice if...")
 --------------------------------------------
+Move all of the preference-related stuff into a single module. Possibly use a
+single source (nested list/dict) to define the preferences and their editing
+widget at the same time. 
 
 

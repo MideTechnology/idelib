@@ -44,6 +44,7 @@ from numbers import Number
 import os.path
 import random
 import sys
+import time
 
 import numpy; numpy=numpy
 
@@ -507,7 +508,7 @@ class Channel(Transformable):
     """
     
     def __init__(self, sensor, channelId, parser, name=None, units=('',''), 
-                 transform=None, displayRange=None, interpolators=None,
+                 transform=None, displayRange=None, 
                  cache=False, singleSample=False):
         """ Constructor.
         
@@ -519,6 +520,13 @@ class Channel(Transformable):
                 are not explicitly indicated in the Channel's SubChannels.
             @keyword transform: A Transform object for adjusting sensor
                 readings at the Channel level. 
+            @keyword displayRange: A 'hint' to the minimum and maximum values
+                of data in this channel.
+            @keyword cache: If `True`, this channel's data will be kept in
+                memory rather than lazy-loaded.
+            @keyword singleSample: A 'hint' that the data blocks for this
+                channel each contain only a single sample (e.g. temperature/
+                pressure on an SSX).
         """
         self.id = channelId
         self.sensor = sensor
@@ -542,12 +550,6 @@ class Channel(Transformable):
         
         # Channels have 1 or more subchannels
         self.subchannels = [None] * len(self.types)
-        
-#         if interpolators is None:
-#             # Note: all interpolators will reference the same object by
-#             # default.
-#             interpolators = tuple([Lerp()] * len(self.types))
-#         self.interpolators = interpolators
         
         # A set of session EventLists. Populated dynamically with
         # each call to getSession(). 
@@ -701,6 +703,17 @@ class SubChannel(Channel):
     def __init__(self, parent, subChannelId, name=None, units=('',''), 
                  transform=None, displayRange=None):
         """ Constructor.
+        
+            @param sensor: The parent sensor.
+            @param channelId: The channel's ID, unique within the file.
+            @param parser: The channel's EBML data parser.
+            @keyword name: A custom name for this channel.
+            @keyword units: The units measured in this channel, used if units
+                are not explicitly indicated in the Channel's SubChannels.
+            @keyword transform: A Transform object for adjusting sensor
+                readings at the Channel level. 
+            @keyword displayRange: A 'hint' to the minimum and maximum values
+                of data in this channel.
         """
         self.id = subChannelId
         self.parent = parent
@@ -802,11 +815,11 @@ class SubChannel(Channel):
     
     
     def addSubChannel(self, *args, **kwargs):
-        raise NotImplementedError("SubChannels have no SubChannels")
+        raise AttributeError("SubChannels have no SubChannels")
 
 
     def getSubChannel(self, *args, **kwargs):
-        raise NotImplementedError("SubChannels have no SubChannels")
+        raise AttributeError("SubChannels have no SubChannels")
 
 
 #===============================================================================
@@ -1492,7 +1505,8 @@ class EventList(Cascading):
             
             # XXX: HACK! Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
-            while m is None:
+            if m is None:
+                time.sleep(0.01)
                 m = _getBlockRollingMean(block.blockIndex)
             
             result = []

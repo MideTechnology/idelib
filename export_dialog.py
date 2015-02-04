@@ -67,7 +67,7 @@ class ExportDialog(sc.SizedDialog):
     RB_RANGE_VIS = wx.NewId()
     RB_RANGE_CUSTOM = wx.NewId()
     
-    DEFAULT_TITLE = "Export..."
+    DEFAULT_TITLE = "Export Data"
     DEFAULT_UNITS = ("seconds", "s")
     WHAT = "exporting"
     
@@ -88,7 +88,7 @@ class ExportDialog(sc.SizedDialog):
         kwargs.setdefault('title', self.DEFAULT_TITLE)
         self.units = kwargs.pop("units", self.DEFAULT_UNITS)
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
-        self.removeMean = kwargs.pop("removeMean", 0)
+        self.removeMean = kwargs.pop("removeMean", 2)
 
         super(ExportDialog, self).__init__(*args, **kwargs)
         
@@ -167,10 +167,9 @@ class ExportDialog(sc.SizedDialog):
         wx.StaticText(rangeFieldPane, -1, self.units[1])
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
-        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
-        self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
-             self.removeMean, tooltip="Subtract a the mean from the data. "
-                                      "Not applicable to all channels.")
+#         self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
+#              self.removeMean, tooltip="Subtract a the mean from the data. "
+#                                       "Not applicable to all channels.")
 
         self.buildSpecialUI()
 
@@ -365,7 +364,7 @@ class ExportDialog(sc.SizedDialog):
                 'indexRange': indexRange,
                 'channels': channels,
                 'numRows': indexRange[1]-indexRange[0],
-                'removeMean': self.removeMeanList.GetSelection(),
+#                 'removeMean': self.removeMeanList.GetSelection(),
                 'source': source}
     
 
@@ -517,7 +516,7 @@ class ExportDialog(sc.SizedDialog):
             @keyword sortChannels: If `True`, sort channels by name.
             @return: A dictionary of settings or `None`
         """
-        title = kwargs.setdefault('title', cls.DEFAULT_TITLE)
+#         title = kwargs.setdefault('title', cls.DEFAULT_TITLE)
         root = kwargs['root']
         parent = root if isinstance(root, wx.Window) else None
         warnSlow = kwargs.pop('warnSlow', True)
@@ -566,12 +565,19 @@ class CSVExportDialog(ExportDialog):
         self._isoTime = kwargs.pop('useIsoFormat', False)
         self.exportType = kwargs.pop('exportType', 'csv').lower()
         
+        self.DEFAULT_TITLE = "Export %s" % self.exportType.upper()
+        kwargs.setdefault('title', self.DEFAULT_TITLE)
+        print kwargs
         super(CSVExportDialog, self).__init__(*args, **kwargs)
 
 
     def buildSpecialUI(self):
         """ Called before the buttons are added.
         """
+        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
+        self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
+             self.removeMean, tooltip="Subtract a the mean from the data. "
+                                      "Not applicable to all channels.")
         self.headerCheck, subpane = self._addCheck("Include Column Headers",
                                      default=self._addHeaders)
         self.utcCheck, _ = self._addCheck("Use Absolute UTC Timestamps",
@@ -778,6 +784,7 @@ class SpectrogramExportDialog(FFTExportDialog):
 #             choices=self.WINDOW_SIZES, default=self.windowSize, 
 #             tooltip="The size of the 'window' used in Welch's method")
         
+        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
         subpane = None
         self.resList, _parent = self._addChoice("Slices per Second:", 
             choices=self.SLICES, default=self.slicesPerSec,
@@ -824,13 +831,6 @@ class SpectrogramExportDialog(FFTExportDialog):
 if __name__ == '__main__':# or True:
     locale.setlocale(locale.LC_ALL, 'English_United States.1252')
     
-    DIALOGS_TO_SHOW = (
-        ExportDialog,
-        CSVExportDialog,
-        FFTExportDialog,
-        SpectrogramExportDialog,
-    )
-    
     from pprint import pprint
     from mide_ebml import importer
     doc=importer.importFile(updater=importer.SimpleUpdater(0.01))
@@ -847,11 +847,21 @@ if __name__ == '__main__':# or True:
         
         def getTimeRange(self):
             return self.timerange
+        
+    root=FakeViewer()
+    
+    DIALOGS_TO_SHOW = (
+        (ExportDialog, {'root': root}),
+        (CSVExportDialog, {'root': root, 'exportType':'CSV'}),
+        (CSVExportDialog, {'root': root, 'exportType':'MAT'}),
+        (FFTExportDialog, {'root': root}),
+        (SpectrogramExportDialog, {'root': root}),
+    )
     
     app = wx.App()
-    for dialogClass in DIALOGS_TO_SHOW:
+    for dialogClass, kwargs in DIALOGS_TO_SHOW:
         title = "Testing %s" % dialogClass.__name__
-        results = dialogClass.getExport(root=FakeViewer())#, title=title)
+        results = dialogClass.getExport(**kwargs)#, title=title)
 
         print ("*"*5), title, ("*"*5)
         pprint(results)
