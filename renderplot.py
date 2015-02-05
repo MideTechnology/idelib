@@ -50,7 +50,7 @@ class PlotView(FFTView):
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[1], label="Y Axis: Logarithmic Scale")
 
 
-    def draw(self):
+    def _draw(self, abortEvent=None):
         """
         """
         self.lines = None
@@ -67,6 +67,8 @@ class PlotView(FFTView):
             points = [np.zeros(shape=(rows,2), dtype=float) for _ in self.subchannels]
             for row, evt in enumerate(self.source.iterSlice(start, stop)):
                 for col, ch in enumerate(self.subchannels):
+                    if abortEvent is not None and abortEvent():
+                        return
                     pts = points[col]
                     pts[row,0] = evt[0]*timeScalar
                     pts[row,1] = evt[1][ch.id]
@@ -74,7 +76,7 @@ class PlotView(FFTView):
             lines = [None]*len(self.subchannels)
             for col, ch in enumerate(self.subchannels):
                 lines[col] = PolyLine(points[col], legend=ch.name, colour=self.root.getPlotColor(ch))
-            yUnits = self.subchannels[0].units[0]
+            yUnits = "%s (%s)" % self.subchannels[0].units
             self.lines = PlotGraphics(lines, title=self.GetTitle(), 
                                     xLabel="Time (s)", yLabel=yUnits)
                             

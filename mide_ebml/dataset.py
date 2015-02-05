@@ -1300,10 +1300,11 @@ class EventList(Cascading):
                         event=(event[0][0], tuple((e[1] for e in event)))
                         yield event
                     except TypeError as err:
-                        print err
-                        print "parent transform: %s" % str(parent_transform)
-                        for c in parent_subchannels:
-                            print "subchannel %s: %s" % (c.id, c.transform)
+                        if __DEBUG__:
+                            print err
+                            print "parent transform: %s" % str(parent_transform)
+                            for c in parent_subchannels:
+                                print "subchannel %s: %s" % (c.id, c.transform)
             else:
                 for event in izip(times, values):
                     event = parent_transform(parent_parent_transform[parent_id](event, session))

@@ -118,7 +118,7 @@ def detrend_linear(y):
 #psd, csd, and spectrogram.  It is *NOT* meant to be used outside of mlab
 def _spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
         window=window_hanning, noverlap=0, pad_to=None, sides='default',
-        scale_by_freq=None):
+        scale_by_freq=None, abortEvent=None):
     #The checks for if y is x are so that we can use the same function to
     #implement the core of psd(), csd(), and spectrogram() without doing
     #extra calculations.  We return the unaveraged Pxy, freqs, and t.
@@ -178,6 +178,9 @@ def _spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
 
     # do the ffts of the slices
     for i in range(n):
+        if abortEvent is not None and abortEvent():
+            return None, None, None
+        
         thisX = x[ind[i]:ind[i]+NFFT]
         thisX = windowVals * detrend(thisX)
         fx = np.fft.fft(thisX, n=pad_to)
@@ -224,7 +227,8 @@ def _spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
 
 # renamed from 'psd' because it is not the PSD anymore...
 def welch(x, NFFT=256, Fs=2, detrend=detrend_none, window=window_hanning,
-        noverlap=0, pad_to=None, sides='default', scale_by_freq=None):
+        noverlap=0, pad_to=None, sides='default', scale_by_freq=None,
+        abortEvent=None):
     """
     The power spectral density by Welch's average periodogram method.
     The vector *x* is divided into *NFFT* length blocks.  Each block
@@ -249,7 +253,7 @@ def welch(x, NFFT=256, Fs=2, detrend=detrend_none, window=window_hanning,
 
     """
     Pxx,freqs = csd(x, x, NFFT, Fs, detrend, window, noverlap, pad_to, sides,
-        scale_by_freq)
+        scale_by_freq, abortEvent=abortEvent)
     return Pxx.real,freqs
 
 

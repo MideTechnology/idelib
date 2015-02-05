@@ -67,7 +67,7 @@ class LegendArea(ViewerPanel):
                                             "values in displayed interval")
         
         # Vertical axis label
-        self.unitLabel = wx.StaticText(self, -1, self.Parent.yUnits[0], 
+        self.unitLabel = wx.StaticText(self, -1, self.Parent.yUnits[1], 
                                        style=wx.ALIGN_CENTER)
         self.unitLabel.SetFont(wx.Font(16, wx.SWISS, wx.NORMAL, wx.NORMAL))
         subsizer.Add(self.unitLabel, 1, wx.EXPAND)

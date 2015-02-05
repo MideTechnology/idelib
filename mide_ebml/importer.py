@@ -72,17 +72,17 @@ default_sensors = {
                                      calibration.AccelTransform(),
                                      calibration.AccelTransform()),
                        "subchannels":{0: {"name": "Accelerometer Z", 
-                                          "units":('g','g'),
+                                          "units":('Acceleration','g'),
                                           "displayRange": (-100.0,100.0),
                                           "transform": 3,
                                          },
                                       1: {"name": "Accelerometer Y", 
-                                          "units":('g','g'),
+                                          "units":('Acceleration','g'),
                                           "displayRange": (-100.0,100.0),
                                           "transform": 2,
                                           },
                                       2: {"name": "Accelerometer X", 
-                                          "units":('g','g'),
+                                          "units":('Acceleration','g'),
                                           "displayRange": (-100.0,100.0),
                                           "transform": 1,
                                           },
@@ -91,11 +91,11 @@ default_sensors = {
                 0x01: {"name": "Pressure/Temperature",
                        "parser": parsers.MPL3115PressureTempParser(),
                        "subchannels": {0: {"name": "Pressure", 
-                                           "units":('Pa','Pa'),
+                                           "units":('Pressure','Pa'),
                                            "displayRange": (0.0,120000.0),
                                            },
                                        1: {"name": "Temperature", 
-                                           "units":(u'\xb0C',u'\xb0C'),
+                                           "units":(u'Temperature',u'\xb0C'),
                                            "displayRange": (-40.0,80.0),
                                            }
                                        },
@@ -122,6 +122,7 @@ def createDefaultSensors(doc, sensors=default_sensors):
         more sensors, instantiate those sensors and add them to the dataset
         document.
     """
+    sensors = sensors.copy()
     if doc.recorderInfo:
         # TODO: Move device-specific stuff out of the main importer
         rtype = doc.recorderInfo.get('RecorderTypeUID', 0x10)
@@ -135,7 +136,6 @@ def createDefaultSensors(doc, sensors=default_sensors):
             }
             rrange = SSX_ACCEL_RANGES.get(rtype & 0xff, 0x10)
             transform = calibration.AccelTransform(*rrange)
-            sensors = sensors.copy()
             ch0 = sensors[0x00]['channels'][0x00]
             ch0['transform'] = (transform,)*3
             for i in range(3):
@@ -144,8 +144,9 @@ def createDefaultSensors(doc, sensors=default_sensors):
     for sensorId, sensorInfo in sensors.iteritems():
         sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
         for chId, chInfo in sensorInfo['channels'].iteritems():
-            subchannels = chInfo.pop('subchannels', None)
-            channel = sensor.addChannel(chId, **chInfo)
+            chArgs = chInfo.copy()
+            subchannels = chArgs.pop('subchannels', None)
+            channel = sensor.addChannel(chId, **chArgs)
 #             channel = sensor.addChannel(chId, chInfo['parser'],
 #                                         name=chInfo.get('name',None),
 #                                         transform=chInfo.get('transform',None),

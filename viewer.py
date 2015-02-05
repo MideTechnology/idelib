@@ -641,7 +641,7 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword app: The viewer's parent application.
         """
         self.app = kwargs.pop('app', None)
-        self.units = kwargs.pop('units',('seconds','s'))
+        self.units = kwargs.pop('units',('Time','s'))
         self.drawingSuspended = False
         
         filename = kwargs.pop('filename', None)

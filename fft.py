@@ -23,6 +23,7 @@ from numpy.core import hstack, vstack
 from wx_lib_plot import PolyLine, PlotGraphics, PlotCanvas
 from wx import aui
 import wx; wx = wx 
+import wx.lib.delayedresult as delayedresult
 
 import spectrum as spec
 
@@ -210,6 +211,8 @@ class FFTView(wx.Frame, MenuMixin):
         
         super(FFTView, self).__init__(*args, **kwargs)
         
+        self.abortEvent = delayedresult.AbortEvent()
+        
         self.SetMinSize((640,480))
         self.showTitle = self.root.app.getPref('fft.showTitle', True)
         self.showLegend = self.root.app.getPref('fft.showLegend', True)
@@ -221,26 +224,13 @@ class FFTView(wx.Frame, MenuMixin):
         
         self.initMenus()
         self.initPlot()
-        
-        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+
         self.Show(True)
         self.Update()
 
-        # XXX: TESTING
-        if DEBUG:
-            drawStart = time.time()
-#         self.source.parent.raw=True
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
 
-        subevents = [self.source.dataset.channels[self.source.parent.id][ch.id].getSession().removeMean for ch in self.subchannels]
-        oldRemoveMean = self.source.removeMean
-        self.source.removeMean = any(subevents)
-        
         self.draw()
-        self.source.removeMean = oldRemoveMean
-
-        # XXX: TESTING
-        if DEBUG:
-            print "Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart)
 
 
     def initPlot(self):
@@ -263,28 +253,65 @@ class FFTView(wx.Frame, MenuMixin):
         self.Fit()
 
 
+    def finishDraw(self, arg):
+        try:
+            self.source.removeMean = self.oldRemoveMean
+            self.statusBar.stopProgress()
+            for i in range(4):
+                self.menubar.EnableTop(i, True)
+            self.Update()
+            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        except wx.PyDeadObjectError:
+            pass
+
+
     def draw(self):
         """
         """
-        self.lines = None
-        if self.subchannels is not None:
-            subchannelIds = [c.id for c in self.subchannels]
-            start, stop = self.source.getRangeIndices(*self.range)
-            data = self.source.itervalues(start, stop, subchannels=subchannelIds)
-            # BUG: Calculation of actual sample rate is wrong. Investigate.
-#             fs = (channel[stop][-2]-channel[start][-2]) / ((stop-start) + 0.0)
-            fs = self.source.getSampleRate()
-            self.data = self.generateData(data, rows=stop-start, 
-                                          cols=len(self.subchannels), fs=fs, 
-                                          sliceSize=self.sliceSize)
+        subevents = [self.source.dataset.channels[self.source.parent.id][ch.id].getSession().removeMean for ch in self.subchannels]
+        self.oldRemoveMean = self.source.removeMean
+        self.source.removeMean = any(subevents)
+        
+        for i in range(4):
+            self.menubar.EnableTop(i, False)
+        self.statusBar.startProgress(label="Calculating...", initialVal=-1, cancellable=False, delay=100)
+        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+        t = delayedresult.startWorker(self.finishDraw, self._draw, daemon=True)
+        t.setName("%sThread" % self.NAME)
+        
+
+    def _draw(self):
+        """
+        """
+        if DEBUG:
+            drawStart = time.time()
             
-        if self.data is not None:
-            self.makeLineList()
-
-        if self.lines is not None:
-            self.canvas.Draw(self.lines)
-
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        try:
+            self.lines = None
+            if self.subchannels is not None:
+                subchannelIds = [c.id for c in self.subchannels]
+                start, stop = self.source.getRangeIndices(*self.range)
+                data = self.source.itervalues(start, stop, subchannels=subchannelIds)
+                # BUG: Calculation of actual sample rate is wrong. Investigate.
+    #             fs = (channel[stop][-2]-channel[start][-2]) / ((stop-start) + 0.0)
+                fs = self.source.getSampleRate()
+                self.data = self.generateData(data, rows=stop-start, 
+                                              cols=len(self.subchannels), fs=fs, 
+                                              sliceSize=self.sliceSize)
+                
+            if self.data is not None:
+                self.makeLineList()
+    
+            if self.lines is not None:
+                self.canvas.Draw(self.lines)
+    
+            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+            
+            if DEBUG:
+                print "Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart)
+                
+        except wx.PyDeadObjectError:
+            pass
         
     
     def initMenus(self):
@@ -307,7 +334,7 @@ class FFTView(wx.Frame, MenuMixin):
                          self.OnFilePageSetup)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_CLOSE, "Close &Window\tCtrl+W", "", 
-                         self.OnClose)
+                         self.OnMenuFileClose)
         self.menubar.Append(fileMenu, "File")
         
         editMenu = wx.Menu()
@@ -359,6 +386,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.SetMenuBar(self.menubar)
     
     
+    
     #===========================================================================
     # 
     #===========================================================================
@@ -366,6 +394,9 @@ class FFTView(wx.Frame, MenuMixin):
     def makeLineList(self):
         """ Turn each column of data into its own line plot.
         """
+        if self.data is None:
+            return
+        
         lines = []
         cols = self.data.shape[-1]-1
         
@@ -379,14 +410,14 @@ class FFTView(wx.Frame, MenuMixin):
             lines.append(PolyLine(points, legend=name, 
                         colour=self.root.getPlotColor(self.subchannels[i])))
             
-        yUnits = self.subchannels[0].units[0]
+        yUnits = self.subchannels[0].units[1]
         yUnits = (" (%s)" % yUnits) if yUnits else ""
         self.lines = PlotGraphics(lines, title=self.GetTitle(), 
                                     xLabel="Frequency (Hz)", yLabel="Amplitude%s" % yUnits)
         
     
     @classmethod
-    def from2diter(cls, data, rows=None, cols=1):
+    def from2diter(cls, data, rows=None, cols=1, abortEvent=None):
         """ Build a 2D `numpy.ndarray` from an iterator (e.g. what's produced by 
             `EventList.itervalues`). 
             
@@ -409,6 +440,8 @@ class FFTView(wx.Frame, MenuMixin):
         points[0,:] = row1
         
         for i, row in enumerate(dataIter,1):
+            if abortEvent is not None and abortEvent():
+                break
             # XXX: HACK. Spectrogram generation fails here. Find real cause.
             try:
                 points[i,:] = row
@@ -498,7 +531,8 @@ class FFTView(wx.Frame, MenuMixin):
 #         return fftData
 
     @classmethod
-    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16):
+    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
+                     abortEvent=None):
         """ Compute 1D FFT from one or more channels of data.
         
             @note: This is the implementation from the old viewer and does not
@@ -515,7 +549,7 @@ class FFTView(wx.Frame, MenuMixin):
             @return: A multidimensional array, with the first column the 
                 frequency.
         """
-        points = cls.from2diter(data, rows, cols)
+        points = cls.from2diter(data, rows, cols, abortEvent=abortEvent)
         rows, cols = points.shape
         NFFT = nextPow2(rows)
         
@@ -525,6 +559,9 @@ class FFTView(wx.Frame, MenuMixin):
         
 #         print "rows: %s\tNFFT=%s" % (rows, NFFT)
         for i in xrange(cols):
+            if abortEvent is not None and abortEvent():
+                return 
+            
             tmp_fft = 2*abs(np.fft.fft(points[:,i], NFFT)/rows)[:NFFT/2+1]
             fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
             
@@ -654,8 +691,12 @@ class FFTView(wx.Frame, MenuMixin):
 
         dlg.Destroy()
 
-    def OnClose(self, evt):
+    def OnMenuFileClose(self):
         self.Close()
+
+    def OnClose(self, evt):
+        self.abortEvent.set()
+        evt.Skip()
 
     def OnFilePageSetup(self, event):
         self.canvas.PageSetup()
@@ -970,6 +1011,9 @@ class SpectrogramView(FFTView):
         # The "line list" is really sort of a hack, just containing a single
         # line from min/min to max/max in order to make the plot's scale
         # draw correctly.
+        if self.data is None:
+            return
+        
         start = self.source[0][-2] * self.timeScalar
         end = self.source[-1][-2] * self.timeScalar
         self.lines = []
@@ -1042,45 +1086,58 @@ class SpectrogramView(FFTView):
         return images
 
 
-    def draw(self):
+    def finishDraw(self, *args):
         """
         """
-        # self.canvas is the plot canvas
-        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
-
-        if self.subchannels is not None:
-            start, stop = self.source.getRangeIndices(*self.range)
-            recordingTime = self.source[-1][-2] - self.source[0][-2]
-            recordingTime *= self.timeScalar
-            fs = self.source.getSampleRate()
-            subchIds = [c.id for c in self.subchannels]
-            data = self.source.itervalues(start, stop, subchannels=subchIds)
-            self.data = self.generateData(data, rows=stop-start,
-                                          cols=len(self.subchannels), fs=fs, 
-                                          sliceSize=self.sliceSize,
-                                          slicesPerSec=self.slicesPerSec, 
-                                          recordingTime=recordingTime)
-
-#             self.data = self.generateData(self.source, rows=stop-start, 
-#                                           start=start, stop=stop,
-#                                           cols=len(self.subchannels), 
-#                                           timerange=self.range, fs=fs, 
-#                                           sliceSize=self.sliceSize*8,
-#                                           slicesPerSec=self.slicesPerSec, 
-#                                           recordingTime=recordingTime)
-            
-            self.images = self.makePlots(self.data, self.logarithmic, 
-                                         self.colorizer)
-            self.makeLineList()
+        try:
+            super(SpectrogramView, self).finishDraw(*args)
             for i in range(len(self.subchannels)):#ch in subchIds:
                 self.addPlot(i)
+        except TypeError:
+            # occurs if the view is dead
+            pass
 
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+
+    def _draw(self, abortEvent=None):
+        """
+        """
+        try:
+            # self.canvas is the plot canvas
+            if self.subchannels is not None:
+                start, stop = self.source.getRangeIndices(*self.range)
+                recordingTime = self.source[-1][-2] - self.source[0][-2]
+                recordingTime *= self.timeScalar
+                fs = self.source.getSampleRate()
+                subchIds = [c.id for c in self.subchannels]
+                data = self.source.itervalues(start, stop, subchannels=subchIds)
+                self.data = self.generateData(data, rows=stop-start,
+                                              cols=len(self.subchannels), fs=fs, 
+                                              sliceSize=self.sliceSize,
+                                              slicesPerSec=self.slicesPerSec, 
+                                              recordingTime=recordingTime,
+                                              abortEvent=abortEvent)
+    
+#                 self.data = self.generateData(self.source, rows=stop-start, 
+#                                               start=start, stop=stop,
+#                                               cols=len(self.subchannels), 
+#                                               timerange=self.range, fs=fs, 
+#                                               sliceSize=self.sliceSize*8,
+#                                               slicesPerSec=self.slicesPerSec, 
+#                                               recordingTime=recordingTime)
+                
+                self.images = self.makePlots(self.data, self.logarithmic, 
+                                             self.colorizer)
+                self.makeLineList()
+#                 for i in range(len(self.subchannels)):#ch in subchIds:
+#                     self.addPlot(i)
+            
+        except wx.PyDeadObjectError:
+            pass
 
 
     @classmethod
     def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
-                     slicesPerSec=4.0, recordingTime=None):
+                     slicesPerSec=4.0, recordingTime=None, abortEvent=None):
         """ Compute 2D FFT from one or more channels of data.
          
             @note: This is the implementation from the old viewer and does not
@@ -1098,7 +1155,7 @@ class SpectrogramView(FFTView):
             @return: A multidimensional array, with the first column the 
                 frequency.
         """
-        points = cls.from2diter(data, rows, cols)
+        points = cls.from2diter(data, rows, cols, abortEvent=abortEvent)
         rows, cols = points.shape
 #         points.resize((max(nextPow2(rows),sliceSize), cols))
          
@@ -1115,7 +1172,12 @@ class SpectrogramView(FFTView):
             Pxx, freqs, bins = spec._spectral_helper(pts, pts, 
                 NFFT=specgram_nfft, Fs=fs, detrend=spec.detrend_none, 
                 window=spec.window_hanning, noverlap=specgram_nfft/2, 
-                pad_to=None, sides='onesided', scale_by_freq=None)
+                pad_to=None, sides='onesided', scale_by_freq=None,
+                abortEvent=abortEvent)
+            
+            if Pxx is None:
+                break
+            
             Pxx = Pxx.real
      
             specData.append((Pxx[1:,:], freqs[1:], bins))
