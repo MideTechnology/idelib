@@ -1008,8 +1008,9 @@ class OptionsPanel(BaseConfigPanel):
             tooltip="If checked and a value is provided, the input low-pass "
             "filter cutoff will be set to this value.")
 
-        self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
-            tooltip="If checked, data recorder will not apply oversampling.")
+        if wx.GetApp().getPref('showAdvancedOptions', False):
+            self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
+             tooltip="If checked, data recorder will not apply oversampling.")
         
         self.utcCheck = self.addIntField("Local UTC Offset:", "UTCOffset", 
             "Hours", str(-time.timezone/60/60), minmax=(-24,24), 
