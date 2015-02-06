@@ -240,7 +240,8 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
                         el = i.next()
                         continue
                     
-                    blockStart = max(blockStart, block.startTime)
+#                     blockStart = max(blockStart, block.startTime)
+                    blockStart = block.startTime
                     if blockStart < startTime:
                         el = i.next()
                         continue
