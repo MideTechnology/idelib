@@ -48,6 +48,8 @@ class PlotView(FFTView):
         super(PlotView, self).initMenus()
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=False, enabled=False, label="X Axis: Logarithmic Scale")
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[1], label="Y Axis: Logarithmic Scale")
+        # Temporary(?) hack: just disable CSV export (it's in the main views already)
+        self.setMenuItem(self.fileMenu, self.ID_EXPORT_CSV, enabled=False)
 
 
     def _draw(self, abortEvent=None):

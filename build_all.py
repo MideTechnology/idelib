@@ -102,6 +102,8 @@ if bad == len(builds):
     writeInfo(VERSION, DEBUG, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE)
 else:
     print "Version: %s, build %s, DEBUG=%s" % (versionString, thisBuildNumber, thisDebug)
+    # Reset the DEBUG variable in the info file (local runs are always DEBUG)
+    writeInfo(thisVersion, True, thisBuildNumber, thisTime, socket.gethostname())
 
 if args.release and bad == 0:
     print "*"*78

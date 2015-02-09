@@ -320,7 +320,7 @@ class FFTView(wx.Frame, MenuMixin):
 #         helpText = "%s Help" % self.FULLNAME
         
         self.menubar = wx.MenuBar()
-        fileMenu = wx.Menu()
+        fileMenu = self.fileMenu = wx.Menu()
         self.addMenuItem(fileMenu, self.ID_EXPORT_CSV, "&Export CSV...", "", 
                          self.OnExportCsv)
         self.addMenuItem(fileMenu, self.ID_EXPORT_IMG, "&Save Image...\tCtrl+S", "", 
@@ -580,6 +580,7 @@ class FFTView(wx.Frame, MenuMixin):
     #===========================================================================
 
     def OnExportCsv(self, evt):
+        ex = None if DEBUG else Exception
         filename = None
         dlg = wx.FileDialog(self, 
             message="Export CSV...", 
@@ -601,13 +602,14 @@ class FFTView(wx.Frame, MenuMixin):
 #             writer.writerows(self.data)
 #             out.close()
             return True
-        except Exception as err:
+        except ex as err:
             what = "exporting %s as CSV" % self.NAME
             self.root.handleError(err, what=what)
             return False
         
     
     def OnExportImage(self, event):
+        ex = None if DEBUG else Exception
         filename = None
         dlg = wx.FileDialog(self, 
             message="Export Image...", 
@@ -623,7 +625,7 @@ class FFTView(wx.Frame, MenuMixin):
         
         try:
             return self.canvas.SaveFile(filename)
-        except Exception as err:
+        except ex as err:
             what = "exporting %s as an image" % self.NAME
             self.root.handleError(err, what=what)
             return False
@@ -1285,6 +1287,7 @@ class SpectrogramView(FFTView):
     #===========================================================================
 
     def OnExportCsv(self, evt):
+        ex = None if DEBUG else Exception
         dataFormat = "%%.%df" % self.exportPrecision
         exportChannels = []
         if len(self.subchannels) > 1:
@@ -1350,7 +1353,7 @@ class SpectrogramView(FFTView):
 # #                 writer = csv.writer(out)
 # #                 writer.writerows(data)
 #                 out.close()
-            except Exception as err:
+            except ex as err:
                 what = "exporting %s as CSV %s" % (self.NAME, filename)
                 self.root.handleError(err, what=what)
                 return False

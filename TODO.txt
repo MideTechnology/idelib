@@ -15,14 +15,11 @@ wxPython and not easily corrected. Future releases of wxPython may look better.
 
 Minor items
 -----------
-Calculate FFT/Spectrograms in another thread or with wx.lib.delayedresult to
-prevent the app from being labeled "(Not Responding)" by the OS. This bugs me,
-a lot, but it's hard to get it bumped in priority.
-
 Multi-threaded plot drawing, so the app won't appear to hang and drawing can 
 be interrupted (e.g. by scrolling during redraw).
 
 Calibration editing dialog. Also (possibly) import and export of calibration.
+Editor (mostly) implemented, but not yet hooked up.
 
 
 Very Minor Items
@@ -39,6 +36,7 @@ Clean up the 'background operation' system. It's overly complex.
 
 Clean up lots of things that are overengineered.
 
+
 Longer term
 -----------
 Re-implement the underlying mide_ebml library. See separate TODO list in that
@@ -51,4 +49,6 @@ Move all of the preference-related stuff into a single module. Possibly use a
 single source (nested list/dict) to define the preferences and their editing
 widget at the same time. 
 
-
+Move configuration dialog stuff to the `devices` module, making it more
+modular. Possibly build UI from some sort of template that the recorder
+class itself defines.

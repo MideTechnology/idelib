@@ -1395,7 +1395,7 @@ class Viewer(wx.Frame, MenuMixin):
                          pref="expiredCal", extendedMessage=\
                          "The display of values recorded in this file may be inaccurate."
                          )
-        except (KeyError, AttributeError):
+        except (TypeError, KeyError, AttributeError):
             pass
         
         self.enableMenus(True)
