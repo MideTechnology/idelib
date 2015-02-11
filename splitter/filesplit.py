@@ -97,7 +97,7 @@ class ChannelDataBlockParser(parsers.ChannelDataBlockParser):
         channel = block.getHeader()[1]
         timestamp += self.timestampOffset.setdefault(channel, 0)
         # NOTE: This might need to just be '<' (for discontinuities)
-        if timestamp <= self.lastStamp.get(channel,0):
+        while timestamp <= self.lastStamp.get(channel,0):
             timestamp += block.maxTimestamp
             self.timestampOffset[channel] += block.maxTimestamp
         self.lastStamp[channel] = timestamp
@@ -142,13 +142,14 @@ class ChannelDataBlockParser(parsers.ChannelDataBlockParser):
 
 # Parser importer. These are taken from the module by type. We may want to 
 # create the list of parser types 'manually' prior to release; it's marginally 
-# safer.
+# safer. 
 elementParserTypes = [ChannelDataBlockParser]
 
 
 #===============================================================================
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
+
 
 def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSize=1024*1024*10, 
               numDigits=3, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
@@ -214,6 +215,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
     fileWrites = 0
     fs = None
     blockStart = 0
+
     try:
         while True:
             if fs is None or fs.closed:
@@ -221,16 +223,17 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
                 fs = open(filename % num, 'wb')
                 fs.write(header)
                 filesize = len(header)
-                wroteFirst.clear()
                 fileWrites = 0
             
             raw = None
         
             elementCount += 1
             if el.name in ('TimeBaseUTC', 'Sync','SimpleChannelDataBlock'):
+                # Totally skip these
                 el = i.next()
                 continue
             elif el.name == 'ChannelDataBlock' and el.value[0].value in wroteFirst:
+                # Don't bother parsing additional blocks, just copy verbatim
                 pass
             elif el.name in elementParsers:
                 try:
@@ -240,7 +243,6 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
                         el = i.next()
                         continue
                     
-#                     blockStart = max(blockStart, block.startTime)
                     blockStart = block.startTime
                     if blockStart < startTime:
                         el = i.next()
@@ -249,10 +251,10 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
                     if endTime is not None and blockStart > endTime:
                         return
                     
-                    if num > 1 and not wroteFirst.setdefault(block.channel, False):
+#                     if (startTime > 0 or num > 1) and not wroteFirst.get(block.channel, False):
+                    if not wroteFirst.get(block.channel, False):
                         wroteFirst[block.channel] = True
                         data = util.parse_ebml(el)[el.name][0]
-#                         blockStart = int(block.startTime / parser.timeScalar)
                         data['StartTimeCodeAbsMod'] = int(blockStart/ parser.timeScalar)
                         if getattr(block, 'endTime', None):
                             blockEnd = int(block.endTime / parser.timeScalar)
@@ -272,6 +274,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
             
             if filesize >= maxSize:
                 fs.close()
+                wroteFirst.clear()
                 updater(count=num)
 
             el = i.next()
