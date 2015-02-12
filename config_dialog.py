@@ -2061,6 +2061,8 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
 if __name__ == "__main__":
     class TestApp(wx.App):
         def getPref(self, name, default=None):
+            if name == 'showAdvancedOptions':
+                return True
             return default
             
     app = TestApp()

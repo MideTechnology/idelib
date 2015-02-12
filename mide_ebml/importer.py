@@ -106,14 +106,27 @@ default_sensors = {
            },
 }
 
-
-# if __DEBUG__:
-#     default_sensors[0x00]["channels"].update({
-#                     0x43: {"name": "DEBUG Crystal Drift",
-#                            "parser": struct.Struct(">II")},
-#                     0x45: {"name": "DEBUG Gain/Offset",
-#                            "parser": struct.Struct("<i")},
-#     })
+if False:#__DEBUG__:
+    import struct
+    default_sensors[0x00]["channels"].update({
+        0x02: {'name': "Low-G Accelerometer XYZ",
+               'parser': struct.Struct(">III"),
+               "subchannels":{0: {"name": "Low-g Z", 
+                                  "units":('Acceleration','g'),
+                                 },
+                              1: {"name": "Low-g Y", 
+                                  "units":('Acceleration','g'),
+                                  },
+                              2: {"name": "Low-g X", 
+                                  "units":('Acceleration','g'),
+                                  },
+                            },
+               },
+#         0x43: {"name": "DEBUG Crystal Drift",
+#                "parser": struct.Struct(">II")},
+#         0x45: {"name": "DEBUG Gain/Offset",
+#                "parser": struct.Struct("<i")},
+    })
 
 
 
@@ -133,6 +146,7 @@ def createDefaultSensors(doc, sensors=default_sensors):
                0x12: (-100,100),
                0x13: (-200,200),
                0x14: (-500, 500),
+               0x15: (-2000, 2000),
             }
             rrange = SSX_ACCEL_RANGES.get(rtype & 0xff, 0x10)
             transform = calibration.AccelTransform(*rrange)
@@ -431,11 +445,10 @@ def estimateLength(filename=testFile, numSamples=50000, channel=0,
     # Fake updater that just quits after some number of samples.
     class DummyUpdater(object):
         cancelled = False
-        def __init__(self, numSamples):
-            self.numSamples = numSamples
+        def __init__(self, n):
+            self.numSamples = n
         def __call__(self, count, **kwargs):
-            if count > self.numSamples:
-                self.cancelled = True
+            self.cancelled = count > self.numSamples
                 
     updater = DummyUpdater(numSamples)
     
@@ -450,10 +463,17 @@ def estimateLength(filename=testFile, numSamples=50000, channel=0,
                  defaultSensors=defaultSensors)
         chunkSize = stream.tell() - dataStart
         
-        events = doc.channels[channel].getSession()
-        start, end = events[0][0], events[-1][0]
+        start = sys.maxint
+        end = -1
+        numEvents = 0.0
+        for ch in doc.channels.itervalues():
+            events = ch.getSession()
+            if len(events) > 0:
+                start = min(start, events[0][0])
+                end = max(end, events[-1][0])
+                numEvents += (len(events) * len(ch.subchannels))
         
         chunkTime = end - start
         
-    return start, start + (totalSize / chunkSize * chunkTime) 
+    return start, start + (totalSize / chunkSize * chunkTime), numEvents/chunkTime
     

@@ -41,6 +41,7 @@ class SlamStickX(Recorder):
        0x12: (-100,100),
        0x13: (-200,200),
        0x14: (-500, 500),
+       0x15: (-2000, 2000)
     }
 
     POST_CONFIG_MSG  = ("""When ready...\n"""
@@ -188,7 +189,7 @@ class SlamStickX(Recorder):
                 since the epoch ('Unix time').
         """
         sysTime, devTime = os_specific.readRecorderClock(self.clockFile)
-        return sysTime, self.TIME_PARSER.unpack_from(devTime)
+        return sysTime, self.TIME_PARSER.unpack_from(devTime)[0]
     
     
     def setTime(self, t=None, pause=True, retries=1):

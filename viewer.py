@@ -6,7 +6,7 @@ loggers.
 
 '''
 
-from build_info import VERSION, DEBUG, BUILD_NUMBER, BUILD_TIME
+from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME
 from logger import logger
 
 # VERSION = (1, 0, 0)
@@ -14,8 +14,9 @@ APPNAME = u"Slam\u2022Stick Lab"
 __version__= '.'.join(map(str, VERSION)) #"0.1"
 __copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
 
+if DEBUG or BETA:
+    __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
 if DEBUG:
-    __version__ = '%s.%04d' % (__version__, BUILD_NUMBER)
     import socket
     if socket.gethostname() == 'DEDHAM':
         try:
@@ -2705,7 +2706,7 @@ class ViewerApp(wx.App):
         self.locale = wx.Locale(getattr(wx, localeName, wx.LANGUAGE_ENGLISH_US))
         self.createNewView(filename=self.initialFilename)
         
-        if DEBUG:
+        if DEBUG or BETA:
             self.showBetaWarning()
 
         # Automatic Update Check
@@ -2718,8 +2719,7 @@ class ViewerApp(wx.App):
     def createNewView(self, filename=None, title=None):
         """ Create a new viewer window.
         """
-        if title is None:
-            title = u'%s v%s' % (APPNAME, __version__)
+        title = self.fullAppName if title is None else title
         viewer = Viewer(None, title=title, app=self, filename=filename)
         self.viewers.append(viewer)
         viewer.Show()
@@ -2744,7 +2744,7 @@ class ViewerApp(wx.App):
     def getWindowTitle(self, filename=None):
         """ Generate a unique viewer window title.
         """
-        basetitle = u'%s v%s' % (APPNAME, __version__)
+        basetitle = self.fullAppName
         if filename:
             if self.getPref('showFullPath', False):
                 # Abbreviate path if it's really long (ellipsis in center)

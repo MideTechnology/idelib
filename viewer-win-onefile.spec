@@ -3,6 +3,7 @@
 from datetime import datetime
 import glob
 import os
+import platform
 import sys
 
 # HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
@@ -74,7 +75,7 @@ exe = EXE(pyz,
           a.datas,
           schemas,
           exclude_binaries=False,
-          name='Slam Stick Lab.exe',
+          name='Slam Stick Lab %s (%s).exe' % (versionString, platform.architecture()[0][:3]),
           icon='ssl.ico',
           debug=DEBUG,
           strip=None,

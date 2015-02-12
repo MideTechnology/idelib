@@ -23,11 +23,12 @@ builds = (
 # 
 #===============================================================================
 
-def writeInfo(version, debug, buildNum, buildTime, buildMachine):
+def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine):
     with open('build_info.py', 'wb') as f:
         f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
         f.write('VERSION = %s\n' % str(version))
         f.write('DEBUG = %s\n' % debug)
+        f.write('BETA = %s\n' % beta)
         f.write('\n# AUTOMATICALLY-GENERATED CONTENT FOLLOWS; DO NOT EDIT MANUALLY!\n')
         f.write('BUILD_NUMBER = %d\n' % buildNum)
         f.write('BUILD_TIME = %d\n' % buildTime)
@@ -40,6 +41,8 @@ def writeInfo(version, debug, buildNum, buildTime, buildMachine):
 parser = argparse.ArgumentParser(description="Multi-Target Builder")
 parser.add_argument('-v', '--version',  
                     help="A new version number, as 'x.y.z'.")
+parser.add_argument('-b', '--beta', action='store_true',
+                    help="Builds a 'beta' release; sets BETA flag.")
 parser.add_argument('-r', '--release', action="store_true",
                     help="Builds are for release; build without DEBUG.")
 parser.add_argument('-n', '--noincrement', action="store_true",
@@ -55,7 +58,7 @@ t0 = datetime.now()
 
 try:
     sys.path.append(HOME_DIR)
-    from build_info import BUILD_NUMBER, DEBUG, VERSION, BUILD_TIME, BUILD_MACHINE
+    from build_info import BUILD_NUMBER, DEBUG, BETA, VERSION, BUILD_TIME, BUILD_MACHINE
     
     if args.version is not None:
         thisVersion = map(int, filter(len, args.version.split('.')))
@@ -64,10 +67,11 @@ try:
         thisVersion = VERSION
     
     thisBuildNumber = BUILD_NUMBER if args.noincrement else BUILD_NUMBER + 1
-    thisDebug = not args.release
+    thisBeta = args.beta is True
+    thisDebug = not (args.release or thisBeta)
     thisTime = time.time()
     
-    writeInfo(thisVersion, thisDebug, thisBuildNumber, thisTime, socket.gethostname())
+    writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname())
     versionString = '.'.join(map(str,thisVersion))
 
 except ImportError:
@@ -81,12 +85,22 @@ print "*"*78
 print ("*** Building Version %s, Build number %d," % (versionString,thisBuildNumber)),
 if thisDebug:
     print "DEBUG version"
+elif thisBeta:
+    print "BETA version"
 else:
     print "Release version"
 
+buildType = ''
+if thisDebug:
+    buildType = ' experimental'
+elif thisBeta:
+    buildType = ' beta'
+    
 buildArgs = {
-    'dist_32': 'Slam Stick Lab v%s.%04d (32 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
-    'dist_64': 'Slam Stick Lab v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
+#     'dist_32': 'Slam Stick Lab v%s.%04d (32 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
+#     'dist_64': 'Slam Stick Lab v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
+    'dist_32': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
+    'dist_64': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
 }
 
 bad = 0
@@ -99,11 +113,11 @@ print "Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now
 
 if bad == len(builds):
     print "Everything failed; restoring old build_info."
-    writeInfo(VERSION, DEBUG, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE)
+    writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE)
 else:
-    print "Version: %s, build %s, DEBUG=%s" % (versionString, thisBuildNumber, thisDebug)
+    print "Version: %s, build %s, DEBUG=%s, BETA=%s" % (versionString, thisBuildNumber, thisDebug, thisBeta)
     # Reset the DEBUG variable in the info file (local runs are always DEBUG)
-    writeInfo(thisVersion, True, thisBuildNumber, thisTime, socket.gethostname())
+    writeInfo(thisVersion, True, True, thisBuildNumber, thisTime, socket.gethostname())
 
 if args.release and bad == 0:
     print "*"*78
