@@ -315,7 +315,7 @@ class SlamStickX(Recorder):
         """
         try:
             birth = self.getInfo(refresh=refresh)['DateOfManufacture']
-            age = (time.time() - birth) / (60 * 60 * 24) 
+            age = (time.time() - birth) 
             return int(0.5 + self.LIFESPAN.total_seconds() - age)
         except (AttributeError, KeyError):
             return None
