@@ -37,8 +37,6 @@ class PlotView(FFTView):
         self.canvas.SetYSpec('auto')
         self.canvas.SetEnableLegend(self.showLegend)
         self.canvas.SetEnableTitle(self.showTitle)
-        self.canvas.SetEnableZoom(True)
-        self.canvas.SetShowScrollbars(True)
         self.canvas.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
         self.canvas.SetEnableGrid(self.showGrid)
         self.Fit()
@@ -91,6 +89,8 @@ class PlotView(FFTView):
 
         if self.lines is not None:
             self.canvas.Draw(self.lines)
+            self.canvas.SetEnableZoom(True)
+            self.canvas.SetShowScrollbars(True)
 
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 

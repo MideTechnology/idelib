@@ -526,6 +526,7 @@ class ExportDialog(sc.SizedDialog):
         result = dialog.ShowModal()
         settings = dialog.getSettings()
         numRows = dialog.getEventCount()
+        title = dialog.GetTitle()
         dialog.Destroy()
         
         if result == wx.ID_CANCEL or settings is None:
@@ -538,8 +539,9 @@ class ExportDialog(sc.SizedDialog):
 
         if warnSlow and root.dataset.loading:
             x = root.ask("A dataset is currently being loaded. This will "
-                         "make %s slow. Export anyway?" % cls.WHAT, title)
-            if x != wx.ID_OK:
+                         "make %s slow. \n\nDo you want to continue?" % cls.WHAT, 
+                         title)
+            if x != wx.ID_YES:
                 return None
         
         if sortChannels:

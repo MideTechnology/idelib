@@ -71,9 +71,13 @@ class FFTPlotCanvas(PlotCanvas):
         if xAxis is not None:
             x_range = self.GetXMaxRange()
             xAxis = (max(x_range[0], xAxis[0]), min(x_range[1], xAxis[1]))
+            if xAxis[1]-xAxis[0] < 0.00001:
+                xAxis= self.last_draw[1]
         if yAxis is not None:
             y_range = self.GetYMaxRange()
             yAxis = (max(y_range[0], yAxis[0]), min(y_range[1], yAxis[1]))
+            if yAxis[1]-yAxis[0] < 0.00001:
+                yAxis= self.last_draw[2]
         
         try:
             super(FFTPlotCanvas, self)._Draw(graphics, xAxis, yAxis, dc)
@@ -246,8 +250,6 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.SetYSpec('auto')
         self.canvas.SetEnableLegend(self.showLegend)
         self.canvas.SetEnableTitle(self.showTitle)
-        self.canvas.SetEnableZoom(True)
-        self.canvas.SetShowScrollbars(True)
         self.canvas.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
         self.canvas.SetEnableGrid(self.showGrid)
         self.Fit()
@@ -305,6 +307,9 @@ class FFTView(wx.Frame, MenuMixin):
             if self.lines is not None:
                 self.canvas.Draw(self.lines)
     
+            self.canvas.SetEnableZoom(True)
+            self.canvas.SetShowScrollbars(True)
+
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
             
             if DEBUG:
@@ -1001,9 +1006,6 @@ class SpectrogramView(FFTView):
         p.outOfRangeColor = self.outOfRangeColor
         p.SetEnableZoom(True)
         p.SetShowScrollbars(True)
-        # XXX: REMOVE xAxis AND yAxis
-#         p.Draw(self.lines[channelIdx], yAxis=(0,2000))
-#         p.Draw(self.lines[channelIdx], xAxis=(0,6), yAxis=(400,2000))
         p.Draw(self.lines[channelIdx])
 
 
