@@ -178,6 +178,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
     """
     startTime *= 1000000.0
     endTime = None if endTime is None else endTime * 1000000.0
+
     try:
         if basename is None:
             basename = doc.stream.file.name
@@ -215,6 +216,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
     fileWrites = 0
     fs = None
     blockStart = 0
+    writing = False
 
     try:
         while True:
@@ -226,14 +228,15 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
                 fileWrites = 0
             
             raw = None
-        
+            
             elementCount += 1
             if el.name in ('TimeBaseUTC', 'Sync','SimpleChannelDataBlock'):
                 # Totally skip these
                 el = i.next()
                 continue
-            elif el.name == 'ChannelDataBlock' and el.value[0].value in wroteFirst:
+            elif startTime is None and el.name == 'ChannelDataBlock' and el.value[0].value in wroteFirst:
                 # Don't bother parsing additional blocks, just copy verbatim
+                # (but only if we're not looking for the stop time)
                 pass
             elif el.name in elementParsers:
                 try:
@@ -244,12 +247,15 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
                         continue
                     
                     blockStart = block.startTime
-                    if blockStart < startTime:
+                    writing = writing or blockStart >= startTime
+                    if not writing:
                         el = i.next()
                         continue
                     
                     if endTime is not None and blockStart > endTime:
-                        return
+                        raise StopIteration
+#                         fs.close()
+#                         return
                     
 #                     if (startTime > 0 or num > 1) and not wroteFirst.get(block.channel, False):
                     if not wroteFirst.get(block.channel, False):
@@ -284,7 +290,8 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
             doc.stream.substreams.clear()
 
     
-    except IOError as e:
+#     except IOError as e:
+    except None as e:
         if e.errno is None:
             # The EBML library raises an empty IOError if it hits EOF.
             # TODO: Handle other cases of empty IOError (lots in python-ebml)
