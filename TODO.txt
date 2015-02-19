@@ -5,6 +5,14 @@ Slam Stick Lab To-Do List
 noted in the code ("TODO:" in comments, "@todo" in doc strings. This list 
 includes some of the latter, but not all.
 
+
+Bugs to Fix (short-term)
+------------------------
+Add zoom limit to main plot view, similar to that recently added to the FFT
+view. Zooming in too far doesn't cause the computer to explode, but it does
+raise an exception.
+
+
 Major items
 -----------
 Mac OS port. The bulk of the code will 'just work,' but there are a couple of
@@ -24,6 +32,8 @@ Editor (mostly) implemented, but not yet hooked up.
 
 Very Minor Items
 ----------------
+Double-click in main view to reset zoom. Zoom all?
+
 Scroll wheel support (vertical), maybe middle-click drag as well.
 
 Revamp the zooming and navigation to be event-driven, handled as far up the 
