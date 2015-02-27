@@ -61,8 +61,8 @@ from parsers import getParserTypes, getParserRanges
 
 __DEBUG__ = False
 
-# import socket
-# __DEBUG__ = socket.gethostname() in ('DEDHAM',)
+import socket
+__DEBUG__ = socket.gethostname() in ('DEDHAM',)
     
 # if __DEBUG__:
 #     import ebml
@@ -507,7 +507,7 @@ class Channel(Transformable):
             values recorded in the file!
     """
     
-    def __init__(self, sensor, channelId, parser, name=None, units=('',''), 
+    def __init__(self, sensor=None, channelId=None, parser=None, name=None, units=('',''), 
                  transform=None, displayRange=None, 
                  cache=False, singleSample=False):
         """ Constructor.
@@ -700,7 +700,7 @@ class SubChannel(Channel):
         like a 'real' channel.
     """
     
-    def __init__(self, parent, subChannelId, name=None, units=('',''), 
+    def __init__(self, parent, subchannelId, name=None, units=('',''), 
                  transform=None, displayRange=None):
         """ Constructor.
         
@@ -715,18 +715,18 @@ class SubChannel(Channel):
             @keyword displayRange: A 'hint' to the minimum and maximum values
                 of data in this channel.
         """
-        self.id = subChannelId
+        self.id = subchannelId
         self.parent = parent
         self.cache = self.parent.cache
         if name is None:
-            self.name = "%s:%02d" % (parent.name, subChannelId)
+            self.name = "%s:%02d" % (parent.name, subchannelId)
         else:
             self.name = name
         self.units = units
     
         self.dataset = parent.dataset
         self.sensor = parent.sensor
-        self.types = (parent.types[subChannelId], )
+        self.types = (parent.types[subchannelId], )
 #         self.interpolators = (parent.interpolators[subChannelId], )
         
         self._sessions = None

@@ -9,10 +9,12 @@ Created on Dec 10, 2013
 '''
 
 from collections import Sequence, OrderedDict
+import datetime
 import importlib
 import pkgutil
 from StringIO import StringIO
 import sys
+import time
 import types
 import xml.dom.minidom
 
@@ -385,6 +387,67 @@ def verify(data, schema=DEFAULT_SCHEMA):
     doc = docclass(StringIO(data))
     parse_ebml(doc.roots)
     return True
+
+#===============================================================================
+# 
+#===============================================================================
+
+def decode_attributes(data, withTypes=False):
+    """
+    """
+    result = OrderedDict()
+    for atts in data:
+        k = atts.pop('AttributeName', None)
+        if k is None:
+            continue
+        t,v = atts.items()[0]
+        if withTypes:
+            result[k] = (v, t)
+        else:
+            result[k] = v
+    return result
+
+    
+def build_attributes(data):
+    """ Construct a set of `Attribute` elements from a dictionary or list of
+        tuples/lists. Each value should be either a simple data type or a 
+    """
+    datetimeTypes = (datetime.datetime, datetime.date)
+    attTypes = ((unicode,'UnicodeAttribute'),
+                (basestring, 'StringAttribute'),
+                (float, 'FloatAttribute'),
+                (int, 'IntAttribute'),
+                (time.struct_time, 'DateAttribute'),
+                (datetimeTypes, 'DateAttribute'))
+    
+    if isinstance(data, dict):
+        data = data.items()
+    
+    result = []
+    for d in data:
+        if isinstance(d[1], (tuple, list)):
+            print d
+            k = d[0]
+            v, elementType = d[1]
+        else:
+            k,v = d
+            for t, elementType in attTypes:
+                if isinstance(v, t):
+                    break
+                elementType = 'BinaryAttribute'
+        
+        if elementType == 'DateAttribute':
+            if isinstance(v, (int, float)):
+                v = int(v)
+            elif isinstance(data, datetimeTypes):
+                v = int(time.mktime(data.timetuple()))
+            elif isinstance(data, time.struct_time):
+                v = int(time.mktime(v))
+                
+        result.append({'AttributeName': k, elementType: v})
+
+    return build_ebml('Attribute', result)
+    
 
 #===============================================================================
 # 

@@ -880,6 +880,8 @@ class Viewer(wx.Frame, MenuMixin):
                              lambda(evt): self.app.saveAllPrefs())
             self.addMenuItem(debugMenu, self.ID_DEBUG0, "Open Multiple...", "",
                              self.OnFileOpenMulti)
+            self.addMenuItem(debugMenu, self.ID_DEBUG1, "Add Altitude Plot", "",
+                             self.OnDebugAddAlt)
             helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
             
         self.menubar.Append(helpMenu, '&Help')
@@ -1095,8 +1097,9 @@ class Viewer(wx.Frame, MenuMixin):
                 
         for d in self.dataset.getPlots(debug=self.showDebugChannels):
             el = d.getSession(self.session.sessionId)
+            
             p = self.plotarea.addPlot(el, title=d.name)
-            if meanSpan is not None:
+            if p is not None and meanSpan is not None:
                 p.removeMean(True, meanSpan)
         
         self.enableChildren(True)
@@ -2365,7 +2368,11 @@ class Viewer(wx.Frame, MenuMixin):
         if closeFile:
             self.closeFile()
          
-    
+
+    def OnDebugAddAlt(self, evt):
+        import altplot
+        altplot.addAltPlot(self)
+        
 #===============================================================================
 # 
 #===============================================================================

@@ -106,7 +106,8 @@ default_sensors = {
            },
 }
 
-if False:#__DEBUG__:
+if __DEBUG__:
+    print "Adding low g channels"
     import struct
     default_sensors[0x00]["channels"].update({
         0x02: {'name': "Low-G Accelerometer XYZ",

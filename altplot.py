@@ -1,6 +1,6 @@
 '''
 Hack to generate a virtual data channel with the altitude, computed from 
-the temperature and air pressure (ch 1).
+the temperature and air pressure (channel 1).
 
 EXPERIMENTAL.
 
@@ -17,10 +17,15 @@ from mide_ebml.parsers import MPL3115PressureTempParser
 class MPL3115AltitudeParser(MPL3115PressureTempParser):
     DEFAULT_SEALEVEL = 101325.0
 
+
+    def __init__(self, sealevel=DEFAULT_SEALEVEL):
+        self.sealevel = sealevel
+        
+
     def unpack_from(self, data, offset=0):
         """ Special-case parsing of a temperature data block.
         """
-        sealevel = self.DEFAULT_SEALEVEL
+        sealevel = self.sealevel
 #         M = 0.0289644 # [kg/mol] molar mass of Earth's air
 #         g = 9.80665   # [m/s^2] gravitational acceleration constant
 #         R = 8.31432   # [(N*m)/(mol*k)] universal gas constant
@@ -44,40 +49,57 @@ class MPL3115AltitudeParser(MPL3115PressureTempParser):
 #             h_2 = (R*T_2*(math.log(press/sealevel)))/(-g*M)
 #             h_1 = ((R*T_2*(math.log(101325/22632.1)))/(-g*M))+11000
             h_2 = (8.31432*T_2*(math.log(press/sealevel)))/-338.5759760257419
-            h_1 = ((T_2*12.462865699354536)/-338.5759760257419)+11000
+#             h_1 = ((T_2*12.462865699354536)/-338.5759760257419)+11000
+            h_1 = (T_2*-0.03680965745309403)+11000
             return (h_1+h_2,)
         
         return (0,) # Is this okay?
 
 
-def addAltChannel(doc, chId=128, subChId=0, sessionId=None):
+def addAltChannel(doc, chId=128, subChId=0, sessionId=None, sourceId=1):
     """ Create a new sensor channel using the altitude parser, which uses the
         existing Channel 1 data.
         
         For some reason, the copy isn't getting the _data.
     """
+    if sessionId is None:
+        sessionId = doc.lastSession.sessionId
+    if chId in doc.channels:
+        return doc.channels[chId][subChId].getSession(sessionId)
     ch = doc.sensors[0].addChannel(name="Computed Altitude", channelId=chId, 
                                    parser=MPL3115AltitudeParser(),
                                    cache=True, singleSample=True)
     ch.addSubChannel(subChId, name="Altitude", units=("Altitude","m"),
                      displayRange=(0,20000))
     
-    sourceEl = doc.channels[1].getSession(sessionId)
+    sourceEl = doc.channels[sourceId].getSession(sessionId)
     el = sourceEl.copy(ch)
     el._data = sourceEl._data
     ch.sessions[sessionId] = el
-    return el
+#     return el
+    return doc.channels[chId][subChId].getSession(sessionId)
+
+
+def updateAltChannel(doc, chId=128, subChId=0, sessionId=None, sourceId=1):
+    """ Update the 
+    """
+    sourceEl = doc.channels[sourceId].getSession(sessionId)
+    doc.channels[chId].getSession(sessionId)._data = sourceEl._data
+    doc.channels[chId][subChId].getSession(sessionId)._data = sourceEl._data
 
 
 def addAltPlot(view, chId=128, subChId=0):
+    """ Adds a temp/pressure-as-altitude plot to the viewer.
+    """
     if chId not in view.dataset.channels:
         el = addAltChannel(view.dataset, chId, subChId)
-        p = view.plotarea.addPlot(el, el.parent.name)
-        for d in view.dataset.getPlots(debug=view.showDebugChannels):
-            el = d.getSession(view.session.sessionId)
-            p = view.plotarea.addPlot(el, title=d.name)
+        p = view.plotarea.addPlot(el, title=el.parent.name)
+#         for d in view.dataset.getPlots(debug=view.showDebugChannels):
+#             el = d.getSession(view.session.sessionId)
+#             p = view.plotarea.addPlot(el, title=d.name)
          
         view.enableChildren(True)
         # enabling plot-specific menu items happens on page select; do manually
         view.plotarea.getActivePage().enableMenus()
+        return p
     

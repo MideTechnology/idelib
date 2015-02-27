@@ -1219,10 +1219,10 @@ class PlotSet(aui.AuiNotebook):
                                    | aui.AUI_NB_TAB_SPLIT 
                                    | aui.AUI_NB_TAB_MOVE  
                                    | aui.AUI_NB_SCROLL_BUTTONS 
-                                    | aui.AUI_NB_WINDOWLIST_BUTTON
+                                   | aui.AUI_NB_WINDOWLIST_BUTTON
                                    )
         super(PlotSet, self).__init__(*args, **kwargs)
-        
+
         if self.root is None:
             self.root = self.GetParent().root
         
@@ -1263,7 +1263,7 @@ class PlotSet(aui.AuiNotebook):
         
         
     def addPlot(self, source, title=None, name=None, color=None, 
-                units=None):
+                units=None, allowEmpty=False):
         """ Add a new Plot to the display.
         
             @param source: The source of data for the plot (i.e. a
@@ -1273,6 +1273,9 @@ class PlotSet(aui.AuiNotebook):
         """
         
         # NOTE: Hard-coded warning range is for WVR hardware! Modify later.
+#         if len(source) == 0:
+#             return None
+        
         try:
             warningRange = mide_ebml.dataset.WarningRange(
                 source.dataset.channels[1][1].getSession(), 
