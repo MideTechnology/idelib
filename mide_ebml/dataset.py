@@ -259,6 +259,7 @@ class Dataset(Cascading):
         self.sessions = []
         self.sensors = {}
         self.channels = {}
+        self.warningRanges = {}
         self.plots = {}
         self.transforms = {}
         self.parent = None
@@ -368,6 +369,16 @@ class Dataset(Cascading):
             raise ValueError("Added transform did not have an ID")
         
         self.transforms[transform.id] = transform
+    
+    
+    def addWarning(self, warningId=None, channelId=None, subchannelId=None, 
+                   low=None, high=None):
+        """
+        """
+        w = WarningRange(self, warningId=None, channelId=channelId, 
+                         subchannelId=subchannelId, low=low, high=high)
+        self.warningRanges[warningId] = w
+        return w
         
 
     def path(self):
@@ -2060,30 +2071,56 @@ class WarningRange(object):
     """
     
     def __repr__(self):
-        return "<%s (%s<%s<%s)>" % (self.__class__.__name__, self.low, 
-                                    self.source.parent.name, self.high)
+        return "<%s %d (%s<%s<%s)>" % (self.__class__.__name__, self.id,
+            self.low, self.source.name, self.high)
     
-    def __init__(self, source, low=None, high=None):
+    def __init__(self, dataset, warningId=None, 
+                 channelId=None, subchannelId=None, low=None, high=None):
         """
         """
+        self.dataset = dataset
+        self.id = warningId
+        self.channelId = channelId
+        self.subchannelId = subchannelId
         self.high = high
         self.low = low
-        self.source = source
-        self.valid = lambda x: x > low and x < high
         
+        self.source = dataset.channels[channelId][subchannelId]
+        self._sessions = {}
         
-    def getRange(self, start=None, end=None):
+        if low is None:
+            self.valid = lambda x: x < high
+        elif high is None:
+            self.valid = lambda x: x > low
+        else:
+            self.valid = lambda x: x > low and x < high
+        
+    
+    def _getSessionSource(self, sessionId=None):
+        """ 
+        """
+        try:
+            return self._sessions[sessionId]
+        except KeyError:
+            s = self.source.getSession(sessionId)
+            self._sessions[sessionId] = s
+            return s
+        
+    
+    def getRange(self, start=None, end=None, sessionId=None):
         """ Retrieve the invalid periods within a given range of events.
             
             @return: A list of invalid periods' [start, end] times.
         """
+        source = self._getSessionSource(sessionId)
+
         if start is None:
-            start = self.source[0][-2]
+            start = source[0][-2]
         if end is None:
-            end = self.source[-1][-2]
+            end = source[-1][-2]
             
         result = []
-        v = self.getValueAt(start)
+        v = self.getValueAt(start, source=source)
         if v is None:
             return result
         
@@ -2092,7 +2129,7 @@ class WarningRange(object):
         if outOfRange:
             result = [[start,start]]
         
-        for t,v in self.source.iterRange(start, end):
+        for t,v in source.iterRange(start, end):
             if self.valid(v):
                 if outOfRange:
                     result[-1][1] = t
@@ -2109,13 +2146,12 @@ class WarningRange(object):
         return result
     
     
-    def getValueAt(self, at):
+    def getValueAt(self, at, sessionId=None, source=None):
         """ Retrieve the value at a specific time. 
         """
-        t = max(min(at, self.source[0][-2]),self.source[1][-2])
-#         if at < self.source[0][-2] or at > self.source[-1][-2]:
-#             return None
-        val = self.source.getValueAt(t, outOfRange=True)
+        source = self._getSessionSource(sessionId) if source is None else source
+        t = max(min(at, source[0][-2]),source[1][-2])
+        val = source.getValueAt(t, outOfRange=True)
         return at, self.valid(val[-1])
 
 

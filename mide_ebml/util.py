@@ -393,7 +393,9 @@ def verify(data, schema=DEFAULT_SCHEMA):
 #===============================================================================
 
 def decode_attributes(data, withTypes=False):
-    """
+    """ Convert a set of Attributes (as a list of dictionaries containing an
+        `AttributeName` and one of the Attribute value elements (`IntAttribute`,
+        `FloatAttribute`, etc.) to a proper dictionary.
     """
     result = OrderedDict()
     for atts in data:
@@ -408,9 +410,12 @@ def decode_attributes(data, withTypes=False):
     return result
 
     
-def build_attributes(data):
-    """ Construct a set of `Attribute` elements from a dictionary or list of
-        tuples/lists. Each value should be either a simple data type or a 
+def encode_attributes(data):
+    """ Construct a set of `Attribute` dicts from a dictionary or list of
+        tuples/lists. Each value should be either a simple data type or a
+        tuple containing the value and the specific value element name
+        (IntAttribute, FloatAttribute, etc.). The value element type will 
+        otherwise be inferred.
     """
     datetimeTypes = (datetime.datetime, datetime.date)
     attTypes = ((unicode,'UnicodeAttribute'),
@@ -446,8 +451,17 @@ def build_attributes(data):
                 
         result.append({'AttributeName': k, elementType: v})
 
-    return build_ebml('Attribute', result)
+    return result
     
+
+def build_attributes(data):
+    """ Construct `Attribute` EBML from dictionary or list of key/value pairs. 
+        Each value should be either a simple data type or a tuple containing 
+        the value and the specific value element name (`IntAttribute`, 
+        `FloatAttribute`, etc.). The value element type will otherwise be 
+        inferred.
+    """
+    return build_ebml('Attribute', encode_attributes(data))
 
 #===============================================================================
 # 

@@ -40,7 +40,7 @@ import sys
 import types
 
 import calibration
-from util import parse_ebml
+from util import parse_ebml, decode_attributes
 
 #===============================================================================
 # 
@@ -789,21 +789,16 @@ class SensorListParser(ElementHandler):
         "SensorID": "sensorId",
         "SensorName": "name", 
         "TraceabilityData": "traceData",
-        "SensorCalibrationIDRef": "transform",
+        "SensorSerialNumber": "serialNum"
     }
     
-    def getXForm(self, d):
-        if "transform" in d:
-            d['transform'] = self.doc.transforms[d['transform']]
-        
     def parse(self, element, **kwargs):
         """ Parse a SensorList 
         """
         data = renameKeys(parse_ebml(element.value), self.parameterNames)
         if "sensors" in data:
             for sensor in data['sensors']:
-                self.getXForm(sensor)
-                return self.doc.addSensor(**sensor)
+                self.doc.addSensor(**sensor)
     
 
 #===============================================================================
@@ -811,7 +806,8 @@ class SensorListParser(ElementHandler):
 #===============================================================================
 
 class ChannelParser(ElementHandler):
-    """ Handle individual 
+    """ Handle individual Channel elements. Separate from ChannelList so it can
+        be subclassed for Plots. 
     """
     elementName = "Channel"
     isSubElement = True
@@ -834,6 +830,7 @@ class ChannelParser(ElementHandler):
         "SubChannelRangeMin": "rangeMin",
         "SubChannelRangeMax": "rangeMax",
         "SubChannelSensorRef": "sensorId",
+        "SubChannelWarningRef": "warningRange",
         
         "TimeCodeScale": "timeScalar",
         "TimeCodeModulus": "timeMod"
@@ -842,6 +839,8 @@ class ChannelParser(ElementHandler):
     def getXForm(self, d):
         if "transform" in d:
             d['transform'] = self.doc.transforms.get(d['transform'], None)
+        if "warningRange" in d:
+            d['warningRange'] = self.doc.warningRanges.get(d['warningRange'], None)
     
     def parse(self, element, **kwargs):
         raw = parse_ebml(element.value)
@@ -875,6 +874,7 @@ class PlotListParser(ChannelParser):
     elementName = "PlotList"
     isSubElement = True
 
+    # Most Plot parameters are the same as those of Subchannel. 
     parameterNames = {
         'PlotSource': 'sources',
         'PlotChannelRef': 'channelId',
@@ -899,6 +899,35 @@ class ChannelListParser(ElementHandler):
     isHeader = True
     children = (ChannelParser,) #PlotListParser)
 
+#===============================================================================
+# 
+#===============================================================================
+
+class WarningListParser(ElementHandler):
+    """ Handle `WarningList` elements and their children (`Warning`).
+    """
+    elementName = "WarningList"
+    isSubElement = True
+    isHeader = True
+    
+    # Note: Includes child `Warning` parameters.
+    parameterNames = {
+        "Warning": "warnings",
+        "WarningID": "warningId",
+        "WarningChannelRef": "channelId",
+        "WarningSubChannelRef": "subchannelId",
+        "WarningRangeMin" : "rangeMin",
+        "WarningRangeMax": "rangeMax"
+    }
+    
+    def parse(self, element, **kwargs):
+        raw = parse_ebml(element.value)
+        data = renameKeys(raw, self.parameterNames)
+        
+        if 'warnings' in data:
+            for w in data['warnings']:
+                self.doc.addWarning(**w)
+    
 #===============================================================================
 # RecordingProperties: RecorderInfo
 #===============================================================================
@@ -929,7 +958,7 @@ class RecordingPropertiesParser(ElementHandler):
     elementName = "RecordingProperties"
     isSubElement = False
     isHeader = True
-    children = (RecorderInfoParser, SensorListParser, ChannelListParser)
+    children = (RecorderInfoParser, SensorListParser, ChannelListParser, WarningListParser)
 
 
 ################################################################################

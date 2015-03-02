@@ -42,15 +42,6 @@ else:
     logger.setLevel(logging.ERROR)
 
 #===============================================================================
-# Parsers/Element Handlers
-#===============================================================================
-
-# Parser importer. These are taken from the module by type. We may want to 
-# create the list of parser types 'manually' prior to release; it's marginally 
-# safer.
-elementParserTypes = parsers.getElementHandlers()
-
-#===============================================================================
 # Defaults
 #===============================================================================
 
@@ -173,6 +164,32 @@ def createDefaultSensors(doc, sensors=default_sensors):
     
 
 #===============================================================================
+# Parsers/Element Handlers
+#===============================================================================
+
+# Parser importer. These are taken from the module by type. We may want to 
+# create the list of parser types 'manually' prior to release; it's marginally 
+# safer.
+elementParserTypes = parsers.getElementHandlers()
+
+
+def instantiateParsers(doc, parserTypes=elementParserTypes):
+    """ Create a dictionary of element parser objects keyed by the name of the
+        element they handle. Handlers that handle multiple elements have
+        individual keys for each element name.
+    """
+    elementParsers = {}
+    for t in parserTypes:
+        p = t(doc)
+        if isinstance(t.elementName, basestring):
+            elementParsers[t.elementName] = p
+        else:
+            for name in t.elementName:
+                elementParsers[name] = p
+    return elementParsers
+
+
+#===============================================================================
 # Updater callbacks
 #===============================================================================
 
@@ -277,8 +294,8 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
     doc = Dataset(stream, name=name, quiet=quiet)
     doc.addSession()
 
-    elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
-        
+    elementParsers = instantiateParsers(doc, parserTypes)
+    
     try:
         for r in doc.ebmldoc.iterroots():
             if getattr(updater, "cancelled", False):
@@ -342,7 +359,8 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             be imported. Kind of a hack, to be redone later.
     """
     
-    elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
+#     elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
+    elementParsers = instantiateParsers(doc, parserTypes)
 
     elementCount = 0
     eventsRead = 0
