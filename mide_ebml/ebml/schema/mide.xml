@@ -126,6 +126,7 @@
                     <element name="SubChannelRangeMin" level="4" id="0x5268" type="uinteger" mandatory="0" multiple="0" minver="1">Minimum valid sensor value.</element>
                     <element name="SubChannelRangeMax" level="4" id="0x5269" type="uinteger" mandatory="0" multiple="0" minver="1">Maximum valid sensor value.</element>
                     <element name="SubChannelSensorRef" level="4" id="0x5270" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a Sensor ID.</element>
+                    <element name="SubChannelWarningRef" level="4" id="0x5270" type="uinteger" mandatory="0" multiple="1" minver="1">Reference to a warning range, i.e. another sensor measuring something that affects the results of this one</element>
 
             <element name="PlotList" level="2" id="0x5280" type="master" mandatory="0" multiple="0" minver="1">Master element for the PlotList items. It works like a virtual Channel, with Plots being its Subchannels.</element>
                 <element name="Plot" level="3" id="0x5281" type="master" mandatory="0" multiple="1" minver="1">Master element for a Plot entry</element>
@@ -138,10 +139,23 @@
                     <element name="SubChannelUnitsXRef" level="4" id="0x5267" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a numbered, standardized SI unit.</element>
                     <element name="SubChannelRangeMin" level="4" id="0x5268" type="uinteger" mandatory="0" multiple="0" minver="1">Minimum valid sensor value.</element>
                     <element name="SubChannelRangeMax" level="4" id="0x5269" type="uinteger" mandatory="0" multiple="0" minver="1">Maximum valid sensor value.</element>
+                    <element name="SubChannelWarningRef" level="4" id="0x5270" type="uinteger" mandatory="0" multiple="1" minver="1">Reference to a warning range, i.e. another sensor measuring something that affects the results of this one</element>
                     <element name="PlotSource" level="4" id="0x5291" type="master" mandatory="0" multiple="1" minver="1">List of channels/subchannels used by this Plot</element>
                         <element name="PlotChannelRef" level="5" id="0x5292" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
                         <element name="PlotSubChannelRef" level="5" id="0x5293" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
-
+                        
+            <element name="WarningList" level="2" id="0x5350" type="master" mandatory="0" multiple="0" minver="1"> "Idiot Light" warnings for sensors that are inaccurate in certain conditions </element>
+                <element name="Warning" level="3" id="0x5351" type="master" mandatory="0" multiple="1" minver="1"> </element>
+                    <element name="WarningID" level="4" id="0x5352" type="integer" mandatory="0" multiple="0" minver="1">Warning ID, referenced by Subchannels. </element>
+                    <element name="WarningChannelRef" level="4" id="0x5353" type="integer" mandatory="0" multiple="0" minver="1">ChannelID</element>
+                    <element name="WarningSubChannelRef" level="4" id="0x5354" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
+                    <element name="WarningRangeMin" level="4" id="0x5355" type="float" mandatory="0" multiple="0" minver="1">Minimum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
+                    <element name="WarningRangeMax" level="4" id="0x5356" type="float" mandatory="0" multiple="0" minver="1">Maximum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
+    
+    <!-- 
+    Attributes: a way to insert an arbitrary key/value into a structure, without revising (and potentially bloating) the schema itself. This data is typically non-critical.
+    Strictly speaking, this may be considered an abuse of EBML, but it is flexible and moderately clean.
+    -->
     <element name="Attribute" level="-1" id="0x6110" type="master" mandatory="0" multiple="1" minver="1"> Container For arbitrary name/value attributes, allowing additional data without revising (and bloating) the schema. All of these elements are level -1, allowing an AttributeList to occur at any level, but should always be used at the relative levels implied below. </element>
         <element name="AttributeName" level="1" id="0x612f" type="string" mandatory="0" multiple="0" minver="1"> Attribute name. Should always be child of Atrribute. </element>
         <element name="IntAttribute" level="1" id="0x6120" type="integer" mandatory="0" multiple="0" minver="1"> Integer Attribute. Should always be child of Atrribute. </element>
