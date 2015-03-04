@@ -17,7 +17,7 @@ from timeline import VerticalScaleCtrl
 from logger import logger
 
 # The actual data-related stuff
-import mide_ebml
+from mide_ebml.dataset import WarningRange 
 
 from build_info import DEBUG
 
@@ -1149,17 +1149,19 @@ class WarningRangeIndicator(object):
         were outside a specific range.
     """
     
-    def __init__(self, source, color="PINK", style=wx.BDIAGONAL_HATCH):
+    def __init__(self, source, sessionId=None, color="PINK", style=wx.BDIAGONAL_HATCH):
         """ 
             @type source: `mide_ebml.dataset.WarningRange`
             @keyword color: The warning area drawing color.
             @keyword style: The warning area fill style.
         """
         self.source = source
+        self.sessionId = sessionId
         self.brush = wx.Brush(color, style=style)
         self.pen = wx.Pen(color, style=wx.TRANSPARENT)
         self.oldDraw = None
         self.rects = None
+        self.sourceList = source.getSessionSource(sessionId)
         
         
     def draw(self, dc, hRange, hScale, scale=1.0, size=None):
@@ -1171,7 +1173,7 @@ class WarningRangeIndicator(object):
             
             @param dc: TThe drawing context (a `wx.DC` subclass). 
         """
-        if len(self.source.source) < 2:
+        if len(self.sourceList) < 2:
             return
         
         oldPen = dc.GetPen()
@@ -1184,7 +1186,7 @@ class WarningRangeIndicator(object):
         if thisDraw != self.oldDraw or not self.rects:
             self.oldDraw = thisDraw
             self.rects = []
-            for r in self.source.getRange(*hRange):
+            for r in self.source.getRange(*hRange, sessionId=self.sessionId):
                 # TODO: Apply transforms to DC in PlotCanvas.OnPaint() before
                 # calling WarningRangeIndicator.draw(), eliminating these
                 # offsets and scalars. May break rubber-band zooming, though.
@@ -1234,6 +1236,8 @@ class PlotSet(aui.AuiNotebook):
     def loadPrefs(self):
         """
         """
+        # TODO: Remove this when the full ChannelList is implemented.
+        # The default RecorderInfo will contain these defaults.
         self.warnLow = self.root.app.getPref("tempMin", -20.0, section="wvr")
         self.warnHigh = self.root.app.getPref("tempMax", 60.0, section="wvr")
         for p in self:
@@ -1272,22 +1276,25 @@ class PlotSet(aui.AuiNotebook):
                 (defaults to 'Plot #')
         """
         
-        # NOTE: Hard-coded warning range is for WVR hardware! Modify later.
 #         if len(source) == 0:
 #             return None
         
+        # For debugging: catch no exceptions
+        Ex = None if DEBUG else Exception
+        
+        # TODO: Use the warning referenced by the subchannel in the file's
+        # ChannelList element.
         try:
-            warningRange = mide_ebml.dataset.WarningRange(
-                source.dataset.channels[1][1].getSession(), 
-                self.warnLow, self.warnHigh)
-            warnings = [WarningRangeIndicator(warningRange)]
+            warningRange = WarningRange(source.dataset, warningId=0, 
+              channelId=1, subchannelId=1, low=self.warnLow, high=self.warnHigh)
+            warnings = [WarningRangeIndicator(warningRange, source.session.sessionId)]
         except (IndexError, KeyError):
             # Dataset had no data for channel and/or subchannel.
             # Should not normally occur, but not fatal.
             warnings = []
-        except Exception as err:
+        except Ex as err:
             self.handleError(err, 
-                                 what="creating a plot view warning indicator")
+                             what="creating a plot view warning indicator")
 
         title = source.name or title
         title = "Plot %s" % len(self) if title is None else title
@@ -1385,3 +1392,14 @@ class PlotSet(aui.AuiNotebook):
         for p in self:
             p.plot.setAntialias(aa)
         self.redraw()
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+# XXX: REMOVE THIS LATER. Makes running this module run the 'main' viewer.
+if __name__ == "__main__":
+    import viewer
+    app = viewer.ViewerApp(loadLastFile=True)
+    app.MainLoop()

@@ -361,6 +361,27 @@ class Dataset(Cascading):
         return sensor
 
 
+    def addChannel(self, channelId=None, parser=None, **kwargs):
+        """ Add a Channel to a Sensor. 
+        
+            @param channelId: An unique ID number for the channel.
+            @param parser: The Channel's data parser
+        """
+        if channelId is None or parser is None:
+            raise TypeError("addChannel() requires a channel ID")
+        if parser is None:
+            raise TypeError("addChannel() requires a parser")
+        
+        channelClass = kwargs.pop('channelClass', Channel)
+        
+        if channelId in self.channels:
+            return self.channels[channelId]
+        channel = channelClass(self, channelId, parser, **kwargs)
+        self.channels[channelId] = channel
+            
+        return channel
+
+
     def addTransform(self, transform):
         """ Add a transform (calibration, etc.) to the dataset. Various child
             objects will reference them by ID.
@@ -474,7 +495,7 @@ class Sensor(Cascading):
         self.channels = {}
         self.traceData = traceData
 
-
+    # XXX: MOVED TO dataset - FIX ALL REFERENCES AND REMOVE THIS
     def addChannel(self, channelId=None, parser=None, **kwargs):
         """ Add a Channel to a Sensor. 
         
@@ -518,8 +539,8 @@ class Channel(Transformable):
             values recorded in the file!
     """
     
-    def __init__(self, sensor=None, channelId=None, parser=None, name=None, units=('',''), 
-                 transform=None, displayRange=None, 
+    def __init__(self, sensor=None, channelId=None, parser=None, name=None, 
+                 units=None, transform=None, displayRange=None, sampleRate=None, 
                  cache=False, singleSample=False):
         """ Constructor.
         
@@ -542,14 +563,20 @@ class Channel(Transformable):
         self.id = channelId
         self.sensor = sensor
         self.parser = parser
-        self.units = units
+        self.units = units or ('','')
         self.parent = sensor
         self.dataset = sensor.dataset
+        self.sampleRate = sampleRate
         self.cache = cache
         self.singleSample = singleSample
+
+        if sensor is not None:
+            sensor.channels[channelId] = self
+            sensorname = sensor.name
         
         if name is None:
-            name = "%s:%02d" % (sensor.name, channelId) 
+            sensorname = sensor.name if sensor is not None else "Unknown Sensor"
+            name = "%s:%02d" % (sensorname, channelId) 
         self.name = name
         
         # Custom parsers will define `types`, otherwise generate it.
@@ -712,7 +739,8 @@ class SubChannel(Channel):
     """
     
     def __init__(self, parent, subchannelId, name=None, units=('',''), 
-                 transform=None, displayRange=None):
+                 transform=None, displayRange=None, sensorId=None, 
+                 warningId=None):
         """ Constructor.
         
             @param sensor: The parent sensor.
@@ -728,6 +756,7 @@ class SubChannel(Channel):
         """
         self.id = subchannelId
         self.parent = parent
+        self.warningId = warningId
         self.cache = self.parent.cache
         if name is None:
             self.name = "%s:%02d" % (parent.name, subchannelId)
@@ -736,9 +765,8 @@ class SubChannel(Channel):
         self.units = units
     
         self.dataset = parent.dataset
-        self.sensor = parent.sensor
+        self.sensor = self.dataset.sensors.get(sensorId, None) or parent.sensor
         self.types = (parent.types[subchannelId], )
-#         self.interpolators = (parent.interpolators[subChannelId], )
         
         self._sessions = None
         
@@ -2074,8 +2102,8 @@ class WarningRange(object):
         return "<%s %d (%s<%s<%s)>" % (self.__class__.__name__, self.id,
             self.low, self.source.name, self.high)
     
-    def __init__(self, dataset, warningId=None, 
-                 channelId=None, subchannelId=None, low=None, high=None):
+    def __init__(self, dataset, warningId=None, channelId=None, 
+                 subchannelId=None, low=None, high=None):
         """
         """
         self.dataset = dataset
@@ -2096,7 +2124,7 @@ class WarningRange(object):
             self.valid = lambda x: x > low and x < high
         
     
-    def _getSessionSource(self, sessionId=None):
+    def getSessionSource(self, sessionId=None):
         """ 
         """
         try:
@@ -2112,7 +2140,7 @@ class WarningRange(object):
             
             @return: A list of invalid periods' [start, end] times.
         """
-        source = self._getSessionSource(sessionId)
+        source = self.getSessionSource(sessionId)
 
         if start is None:
             start = source[0][-2]
@@ -2149,7 +2177,7 @@ class WarningRange(object):
     def getValueAt(self, at, sessionId=None, source=None):
         """ Retrieve the value at a specific time. 
         """
-        source = self._getSessionSource(sessionId) if source is None else source
+        source = self.getSessionSource(sessionId) if source is None else source
         t = max(min(at, source[0][-2]),source[1][-2])
         val = source.getValueAt(t, outOfRange=True)
         return at, self.valid(val[-1])

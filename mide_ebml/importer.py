@@ -97,6 +97,8 @@ default_sensors = {
            },
 }
 
+
+
 if __DEBUG__:
     print "Adding low g channels"
     import struct
