@@ -22,6 +22,8 @@ import os.path
 import sys
 from time import time as time_time
 
+import struct
+
 import calibration
 from dataset import Dataset
 import parsers
@@ -58,10 +60,10 @@ default_sensors = {
     0x00: {"name": "SlamStick X Combined Sensor", 
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
-                       "parser": parsers.AccelerometerParser(),
-                       "transform": (calibration.AccelTransform(),
-                                     calibration.AccelTransform(),
-                                     calibration.AccelTransform()),
+#                        "parser": struct.Struct("<HHH"), 
+#                         "transform": 0, #calibration.AccelTransform(),
+                        "parser": parsers.AccelerometerParser(),
+                        "transform": calibration.AccelTransform(-500,500),
                        "subchannels":{0: {"name": "Accelerometer Z", 
                                           "units":('Acceleration','g'),
                                           "displayRange": (-100.0,100.0),
@@ -101,7 +103,6 @@ default_sensors = {
 
 if __DEBUG__:
     print "Adding low g channels"
-    import struct
     default_sensors[0x00]["channels"].update({
         0x02: {'name': "Low-G Accelerometer XYZ",
                'parser': struct.Struct(">III"),
@@ -121,7 +122,6 @@ if __DEBUG__:
 #         0x45: {"name": "DEBUG Gain/Offset",
 #                "parser": struct.Struct("<i")},
     })
-
 
 
 def createDefaultSensors(doc, sensors=default_sensors):
@@ -145,7 +145,7 @@ def createDefaultSensors(doc, sensors=default_sensors):
             rrange = SSX_ACCEL_RANGES.get(rtype & 0xff, 0x10)
             transform = calibration.AccelTransform(*rrange)
             ch0 = sensors[0x00]['channels'][0x00]
-            ch0['transform'] = (transform,)*3
+            ch0['transform'] = transform
             for i in range(3):
                 ch0['subchannels'][i]['displayRange'] = rrange
 
@@ -155,10 +155,6 @@ def createDefaultSensors(doc, sensors=default_sensors):
             chArgs = chInfo.copy()
             subchannels = chArgs.pop('subchannels', None)
             channel = sensor.addChannel(chId, **chArgs)
-#             channel = sensor.addChannel(chId, chInfo['parser'],
-#                                         name=chInfo.get('name',None),
-#                                         transform=chInfo.get('transform',None),
-#                                         cache=chInfo.get('cache', False))
             if subchannels is None:
                 continue
             for subChId, subChInfo in subchannels.iteritems():
@@ -322,6 +318,7 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
         # Got data before the recording props; use defaults.
         if defaultSensors is not None:
             createDefaultSensors(doc, defaultSensors)
+    doc.updateTransforms()
     return doc
 
 

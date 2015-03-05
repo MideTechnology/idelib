@@ -309,7 +309,7 @@ class AccelerometerParser(object):
         self.format = self.parser.format
         self.size = self.parser.size
         self.ranges = ((-32768, 32767),) * 3
-        
+
 #         self.adjustment = lambda v: \
 #             (v - inMin + 0.0) * (outMax - outMin) / (inMax - inMin) + outMin
     @classmethod
@@ -317,8 +317,10 @@ class AccelerometerParser(object):
         return v-32767
 
     def unpack_from(self, data, offset=0):
-        z, y, x = map(self.adjustment, self.parser.unpack_from(data, offset))
-        return -z,y,x
+#         z, y, x = map(self.adjustment, self.parser.unpack_from(data, offset))
+#         return -z,y,x
+        z, y, x = self.parser.unpack_from(data, offset)
+        return 32767-z,y-32767,x-32767
     
 
 ################################################################################
@@ -893,17 +895,10 @@ class ChannelParser(ElementHandler):
         "TimeCodeModulus": "timeMod"
     }
     
-    # XXX: THIS ELEMENT WILL PROBABLY BE PARSED BEFORE CALIBRATION! FIX!
-    def getXForm(self, d):
-        if "transform" in d:
-            d['transform'] = self.doc.transforms.get(d['transform'], None)
-        if "warningRange" in d:
-            d['warningRange'] = self.doc.warningRanges.get(d['warningRange'], None)
     
     def parse(self, element, **kwargs):
         raw = parse_ebml(element.value)
         data = renameKeys(raw, self.parameterNames)
-        self.getXForm(data)
         
         if 'parser' in data:
             # get known parser names
@@ -936,7 +931,6 @@ class ChannelParser(ElementHandler):
                 
                 # SubChannel(parent, subChannelId, name=None, units=('',''), 
                 # transform=None, displayRange=None):
-                self.getXForm(subData)
                 ch.addSubChannel(ch, subChId, **subData)
         return ch
 

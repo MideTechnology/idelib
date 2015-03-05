@@ -67,32 +67,17 @@ class StreamedEventList(object):
         times = (block.startTime + (i * sampleTime) for i in xrange(len(values)))
         events = zip(times, values)
         
-        # In this case, there are always subchannels
-        if self.parent.raw:
-            map(self_writer, events)
-            event = events[-1]
-        elif self.parent.children[0].raw:
-            # In this case, if one subchannel is raw, they all are
-            parent_transform = self.parent._transform # optimization
-            for event in events:
-                # TODO: Refactor this ugliness
-                event=[f((event[-2],v),self_session) 
-                       for f,v in izip(parent_transform, event[-1])]
-                event=(event[0][0], tuple((e[1] for e in event)))
-                if self_writer is not None:
-                    self_writer(event)
-        else:
-            # optimization: local variables for speed in loop
-            parent_transform = self.parent._transform
-            parent_subchannels = self.parent.subchannels
-            for event in events:
-                # TODO: Refactor this ugliness
-                # This is some nasty stuff to apply nested transforms
-                event=[c._transform(f((event[-2],v),self_session), self_session) 
-                       for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
-                event=(event[0][0], tuple((e[1] for e in event)))
-                if self_writer is not None:
-                    self_writer(event)
+        # optimization: local variables for speed in loop
+        parent_transform = self.parent._transform
+        parent_subchannels = self.parent.subchannels
+        for event in events:
+            # TODO: Refactor this ugliness
+            # This is some nasty stuff to apply nested transforms
+            event=[c._transform(f((event[-2],v),self_session), self_session) 
+                   for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
+            event=(event[0][0], tuple((e[1] for e in event)))
+            if self_writer is not None:
+                self_writer(event)
                 
         self.lastEvent = event
 
@@ -239,9 +224,11 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
         for c in doc.channels.itervalues():
-            c.raw = raw
-            for sc in c.subchannels:
-                sc.raw = raw or nocal
+            if raw:
+                c.setTransform(None)
+            if raw or nocal:
+                for sc in c.subchannels:
+                    sc.setTransform(None)
         
         mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), maxFileSize=maxSize)
         mat.writeNames([c.name for c in doc.channels[0].subchannels])

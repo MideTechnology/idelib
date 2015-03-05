@@ -148,7 +148,7 @@ class SSXCalFile(object):
         self.doc = doc = importFile(self.filename)
         # Turn off existing per-channel calibration (if any)
         for c in doc.channels[0].children:
-            c.raw = True
+            c.setTransform(None)
         a = doc.channels[0].getSession()
         a.removeMean = True
         a.rollingMeanSpan = -1

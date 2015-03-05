@@ -162,42 +162,23 @@ class Transformable(Cascading):
             value of `raw`, however; the new transform will not be applied
             unless it is `True`.
         """
-        raw = getattr(self, '_raw', False)
         self.transform = transform
-        # `None` can be applied via map, but not directly applied as a function.
-        # itertools.imap() also handles None differently than normal map().
-        if isinstance(transform, Iterable):
-            # Channels have transforms for each subchannel. Build
-            # non-transforms for them.
-            self._rawTransforms = ((Transform.null,) * len(transform),
-                                   (None,) * len(transform))
-            self._transform = tuple([Transform.null if t is None \
-                                     else t for t in transform])
+        if transform is None:
+            self._transform = Transform.null
         else:
-            self._transform = Transform.null if self.transform is None \
-                                else self.transform
-        self._mapTransform = self.transform
-        self._raw = raw
+            self._transform = transform
+            
 
-    @property
-    def raw(self):
-        """ If `True`, the transform will not be applied. """
-        return getattr(self, '_raw', False)
- 
-    @raw.setter
-    def raw(self, v):
-        # Rather than use conditionals in loops, the transform object (or
-        # function) gets changed. 
-        self._raw = v == True
-        if self._raw:
-            self._transform, self._mapTransform = self._rawTransforms
-        else:
-            if isinstance(self.transform, Iterable):
-                self._transform = [t or Transform.null for t in self.transform]
-            else:
-                self._transform = self.transform or Transform.null 
- 
-            self._mapTransform = self.transform
+    def updateTransforms(self):
+        """
+        """
+        # Convert ID references (as will be in a fresh import) to the
+        # actual Transform objects
+        if isinstance(self.transform, int):
+            self.setTransform(self.dataset.transforms.get(self.transform, None))
+        for c in self.children:
+            c.updateTransforms()
+            
 
     def getTransforms(self, id_=None, _tlist=None):
         """ Get a list of all transforms applied to the data, from first (the
@@ -450,6 +431,13 @@ class Dataset(Cascading):
             result.sort(key=lambda x: x.name)
         return result
             
+
+    def updateTransforms(self):
+        """ Update the transforms (e.g. the calibration functions) in this
+            dataset. This should be called before utilizing data in the set.
+        """
+        for ch in self.channels.values():
+            ch.updateTransforms()
         
 #===============================================================================
 # 
@@ -595,10 +583,10 @@ class Channel(Transformable):
         
         self.subsampleCount = [0,sys.maxint]
 
-        if transform is None:
-            transform = (None,) * len(self.subchannels)
-        else:
-            transform = [self.dataset.transforms.get(i, None) if isinstance(i, int) else i for i in transform]
+#         if transform is None:
+#             transform = (None,) * len(self.subchannels)
+#         else:
+#             transform = [self.dataset.transforms.get(i, None) if isinstance(i, int) else i for i in transform]
             
         self.setTransform(transform)
         
@@ -770,8 +758,8 @@ class SubChannel(Channel):
         
         self._sessions = None
         
-        transform = self.dataset.transforms.get(transform, None) \
-            if isinstance(transform, Number) else transform
+#         transform = self.dataset.transforms.get(transform, None) \
+#             if isinstance(transform, Number) else transform
         self.setTransform(transform)
         
         if displayRange is None:
@@ -1220,10 +1208,10 @@ class EventList(Cascading):
                                            offset=self._getBlockRollingMean(blockIdx))[0]
             
             if self.hasSubchannels:
-                event=tuple(c._transform(f((timestamp,v),self.session)) for f,c,v in izip(self.parent._transform, self.parent.subchannels, value))
+                event=tuple(c._transform(self.parent._transform((timestamp,v),self.session)) for c,v in izip(self.parent.subchannels, value))
                 event=(event[0][0], tuple((e[1] for e in event)))
             else:
-                event=self.parent._transform(self.parent.parent._transform[self.parent.id]((timestamp, value),self.session))
+                event=self.parent._transform(self.parent.parent._transform((timestamp, value),self.session), self.session)
             return event
 
         elif isinstance(idx, slice):
@@ -1307,18 +1295,17 @@ class EventList(Cascading):
 
         # OPTIMIZATION: making local variables for faster access
         parent = self.parent
-        parent_transform = self.parent._transform
-        parent_id = self.parent.id
+        parent_transform = parent._transform
         parent_parseBlock = parent.parseBlock
         session = self.session
         hasSubchannels = self.hasSubchannels
         _data = self._data
         _getBlockSampleTime = self._getBlockSampleTime
         _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
-            parent_parent_transform = parent.parent._transform
-        else:
+        if hasSubchannels:
             parent_subchannels = parent.subchannels
+        else:
+            parent_parent_transform = parent.parent._transform
 
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
@@ -1335,7 +1322,7 @@ class EventList(Cascading):
                     # TODO: Refactor this ugliness
                     # This is some nasty stuff to apply nested transforms
                     try:
-                        event=[c._transform(f((event[-2],v),session), session) for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
+                        event=[c._transform(parent_transform((event[-2],v),session), session) for c,v in izip(parent_subchannels, event[-1])]
                         event=(event[0][0], tuple((e[1] for e in event)))
                         yield event
                     except TypeError as err:
@@ -1346,7 +1333,7 @@ class EventList(Cascading):
                                 print "subchannel %s: %s" % (c.id, c.transform)
             else:
                 for event in izip(times, values):
-                    event = parent_transform(parent_parent_transform[parent_id](event, session))
+                    event = parent_transform(parent_parent_transform(event, session), session)
                     yield event
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1380,18 +1367,18 @@ class EventList(Cascading):
 
         # OPTIMIZATION: making local variables for faster access
         parent = self.parent
-        parent_transform = self.parent._transform
-        parent_id = self.parent.id
+        parent_transform = parent._transform
         parent_parseBlockByIndex = parent.parseBlockByIndex
         session = self.session
         hasSubchannels = self.hasSubchannels
         _data = self._data
         _getBlockSampleTime = self._getBlockSampleTime
         _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
+        
+        if hasSubchannels:
+            parent_subchannels = parent.subchannels
+        else:
             parent_parent_transform = parent.parent._transform
-#         else:
-#             parent_subchannels = parent.subchannels
 
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
@@ -1413,12 +1400,13 @@ class EventList(Cascading):
             if hasSubchannels:
                 for event in izip(times, values):
                     # TODO: (post Transform fix) Refactor later
-                    event=[f((event[-2],v), session) for f,v in izip(parent_transform, event[-1])]
+                    event=[c._transform(parent_transform((event[-2],v),session),session) for c,v in izip(parent_subchannels, event[-1])]
+#                     event=[f((event[-2],v), session) for f,v in izip(parent_transform, event[-1])]
                     event=(event[0][0], tuple((e[1] for e in event)))
                     yield event
             else:
                 for event in izip(times, values):
-                    event = parent_transform(parent_parent_transform[parent_id](event, session), session)
+                    event = parent_transform(parent_parent_transform(event, session), session)
                     yield event
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
@@ -1555,7 +1543,7 @@ class EventList(Cascading):
             if hasSubchannels:
                 m = 0 if m is None else m
                 for val in (block.min, block.mean, block.max):
-                    event=[f((t,v-m), session) for f,v in izip(parent_transform, val)]
+                    event=[parent_transform((t,v-m), session) for v in val]
                     event=(event[0][0], tuple((e[1] for e in event)))
                     result_append(event)
             else:
@@ -1564,7 +1552,7 @@ class EventList(Cascading):
                         val = val[parent_id]-m[parent_id]
                     else:
                         val = val[parent_id]
-                    event = parent_transform(parent_parent_transform[parent_id]((t,val), session), session)
+                    event = parent_transform(parent_parent_transform((t,val), session), session)
                     result_append(event)
                 
             if times:

@@ -180,6 +180,7 @@ class Univariate(Transform):
         self._variables = (varName,)
         self._references = (reference,)
         self._session = None
+        self._lastSession = None
         self._timeOffset = 0
         
         self._build()
