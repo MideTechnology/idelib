@@ -50,12 +50,14 @@ from util import parse_ebml, decode_attributes
 DATA_PARSERS = {}
 
 def dataParser(cls):
+    """ Decorator. Used to register classes as parsers of data payloads. 
+    """
     global DATA_PARSERS
     DATA_PARSERS[cls.__name__] = cls
     return cls
 
 #===============================================================================
-# 
+# Utility Functions
 #===============================================================================            
     
 def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
@@ -70,6 +72,11 @@ def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
             copied to the new dictionary.
         @keyword recurse: If `True`, the renaming operates over all nested
             dictionaries.
+        @keyword ordered: If `True`, the results are returned as an
+            `OrderedDict` rather than a standard dictionary.
+        @keyword mergeAttributes: If `True`, any `Attribute` elements are
+            processed into a standard key/values and merged into the main
+            dictionary.
         @return: A new dictionary, a deep copy of the original, with different
             keys.
     """
@@ -312,9 +319,9 @@ class AccelerometerParser(object):
 
 #         self.adjustment = lambda v: \
 #             (v - inMin + 0.0) * (outMax - outMin) / (inMax - inMin) + outMin
-    @classmethod
-    def adjustment(cls, v):
-        return v-32767
+#     @classmethod
+#     def adjustment(cls, v):
+#         return v-32767
 
     def unpack_from(self, data, offset=0):
 #         z, y, x = map(self.adjustment, self.parser.unpack_from(data, offset))
@@ -897,6 +904,8 @@ class ChannelParser(ElementHandler):
     
     
     def parse(self, element, **kwargs):
+        """
+        """
         raw = parse_ebml(element.value)
         data = renameKeys(raw, self.parameterNames)
         
@@ -907,11 +916,18 @@ class ChannelParser(ElementHandler):
             # build struct instead.
             # TODO (future): Handle special characters
             data['parser'] = struct.Struct(data.pop('format'))
+
+        if 'sampleRate' in data:
+            data['sampleRate'] = valEval(data['sampleRate'])
         
         # TODO: Handle time code stuff
         # TODO: Handle sample rate stuff
         timeScale = data.pop('timeScale', None)
+        if timeScale is not None:
+            timeScale = valEval(timeScale)
+            
         timeModulus = data.pop('timeModulus', None)
+        
         
         subchannels = data.pop('subchannels', None)
         
