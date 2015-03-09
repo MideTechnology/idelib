@@ -68,16 +68,19 @@ default_sensors = {
                                           "units":('Acceleration','g'),
                                           "displayRange": (-100.0,100.0),
                                           "transform": 3,
+                                          "warningId": 0,
                                          },
                                       1: {"name": "Accelerometer Y", 
                                           "units":('Acceleration','g'),
                                           "displayRange": (-100.0,100.0),
                                           "transform": 2,
+                                          "warningId": 0,
                                           },
                                       2: {"name": "Accelerometer X", 
                                           "units":('Acceleration','g'),
                                           "displayRange": (-100.0,100.0),
                                           "transform": 1,
+                                          "warningId": 0,
                                           },
                                     },
                        },
@@ -105,7 +108,7 @@ if __DEBUG__:
     print "Adding low g channels"
     default_sensors[0x00]["channels"].update({
         0x02: {'name': "Low-G Accelerometer XYZ",
-               'parser': struct.Struct(">III"),
+               'parser': struct.Struct(">hhh"),
                "subchannels":{0: {"name": "Low-g Z", 
                                   "units":('Acceleration','g'),
                                  },
@@ -292,7 +295,10 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
     doc = Dataset(stream, name=name, quiet=quiet)
     doc.addSession()
 
-    elementParsers = instantiateParsers(doc, parserTypes)
+    if doc._parsers is None:
+        doc._parsers = instantiateParsers(doc, parserTypes)
+    
+    elementParsers = doc._parsers
     
     try:
         for r in doc.ebmldoc.iterroots():
@@ -359,7 +365,10 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     """
     
 #     elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
-    elementParsers = instantiateParsers(doc, parserTypes)
+    if doc._parsers is None:
+        doc._parsers = instantiateParsers(doc, parserTypes)
+    
+    elementParsers = doc._parsers
 
     elementCount = 0
     eventsRead = 0

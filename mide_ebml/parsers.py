@@ -56,6 +56,7 @@ def dataParser(cls):
     DATA_PARSERS[cls.__name__] = cls
     return cls
 
+
 #===============================================================================
 # Utility Functions
 #===============================================================================            
@@ -229,8 +230,6 @@ def getElementHandlers(module=None, subElements=False):
     return elementParserTypes
 
 
-
-
 #===============================================================================
 # EXCEPTIONS
 #===============================================================================
@@ -317,15 +316,10 @@ class AccelerometerParser(object):
         self.size = self.parser.size
         self.ranges = ((-32768, 32767),) * 3
 
-#         self.adjustment = lambda v: \
-#             (v - inMin + 0.0) * (outMax - outMin) / (inMax - inMin) + outMin
-#     @classmethod
-#     def adjustment(cls, v):
-#         return v-32767
 
     def unpack_from(self, data, offset=0):
-#         z, y, x = map(self.adjustment, self.parser.unpack_from(data, offset))
-#         return -z,y,x
+        # This parser converts to signed ints to avoid some problems with the
+        # inverted 'z' axis.
         z, y, x = self.parser.unpack_from(data, offset)
         return 32767-z,y-32767,x-32767
     
@@ -422,7 +416,7 @@ class BaseDataBlock(object):
     maxTimestamp = 2**16
     timeScalar = 1000000.0 / 2**15
     
-    def __init__(self, element):
+    def __init__(self, element, maxTimestamp=maxTimestamp, timeScalar=timeScalar):
         self.element = element
         
         # This stuff will vary based on parser:
@@ -444,6 +438,9 @@ class BaseDataBlock(object):
         self._rollingMean = None
         self._rollingMeanSpan = 5000000
         self._rollingMeanLen = None  # length of set at last rolling mean
+        
+        self.maxTimestamp = maxTimestamp
+        self.timeScalar = timeScalar
         
 
     def __repr__(self):
@@ -552,7 +549,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
     headerParser = struct.Struct(">HB")
     headerSize = headerParser.size
 
-    def __init__(self, element):
+    def __init__(self, element, ):
         super(SimpleChannelDataBlock, self).__init__(element)
         self.element = element
         self.startTime, self.channel = self.getHeader()
@@ -595,11 +592,14 @@ class SimpleChannelDataBlockParser(ElementHandler):
    
     def __init__(self, doc, **kwargs):
         super(SimpleChannelDataBlockParser, self).__init__(doc, **kwargs)
-        
+
+        # Timestamp conversion/correction is done per channel        
         self.timestampOffset = {}
         self.stampRollover = {}
         self.lastStamp = {}
-    
+        self.timeScalars = {}
+        self.timeModulus = {}
+
 
     def fixOverflow(self, block, timestamp):
         """ Return an adjusted, scaled time from a low-resolution timestamp.
@@ -734,7 +734,7 @@ class ChannelDataBlockParser(SimpleChannelDataBlockParser):
         self.timestampOffset = {}
         self.stampRollover = {}
         self.lastStamp = {}
-
+        
 
 ################################################################################
 #===============================================================================
@@ -878,6 +878,7 @@ class ChannelParser(ElementHandler):
     isHeader = True
 
     parameterNames = {
+        # Parent `Channel parameters.
         "ChannelID": "channelId",
         "ChannelName": "name", 
         "TimeCodeScale": "timeScale",
@@ -886,8 +887,11 @@ class ChannelParser(ElementHandler):
         "ChannelParser": "parser",
         "ChannelFormat": "format",
         "ChannelCalibrationIDRef": "transform",
+        "TimeCodeScale": "timeScalar",
+        "TimeCodeModulus": "timeMod",
         "SubChannel": "subchannels", # Multiple, so it will parse into a list
 
+        # Child SubChannel parameters; `renameKeys` operates recursively.
         "SubChannelID": "subchannelId",
         "SubChannelName": "name",
         "SubChannelCalibrationIDRef": "transform",
@@ -897,17 +901,16 @@ class ChannelParser(ElementHandler):
         "SubChannelRangeMax": "rangeMax",
         "SubChannelSensorRef": "sensorId",
         "SubChannelWarningRef": "warningId",
-        
-        "TimeCodeScale": "timeScalar",
-        "TimeCodeModulus": "timeMod"
     }
     
     
     def parse(self, element, **kwargs):
+        """ Create the `dataset.Channel` object and its `dataset.SubChannel` 
+            children elements from a `Channel` element of the `ChannelList`.
         """
-        """
-        raw = parse_ebml(element.value)
-        data = renameKeys(raw, self.parameterNames)
+        data = renameKeys(parse_ebml(element.value), self.parameterNames)
+        
+        channelId = data['channelId']
         
         if 'parser' in data:
             # get known parser names
@@ -920,15 +923,17 @@ class ChannelParser(ElementHandler):
         if 'sampleRate' in data:
             data['sampleRate'] = valEval(data['sampleRate'])
         
-        # TODO: Handle time code stuff
-        # TODO: Handle sample rate stuff
+        # Channel timestamp correction stuff.
         timeScale = data.pop('timeScale', None)
-        if timeScale is not None:
-            timeScale = valEval(timeScale)
-            
         timeModulus = data.pop('timeModulus', None)
         
+        for p in filter(lambda x: x.makesData(), self.doc._parsers.items()):
+            if timeModulus is not None:
+                p.timeModulus[channelId] = timeModulus
+            if timeScale is not None:
+                p.timeScalars = valEval(timeScale)
         
+        # Pop off the subchannels; create them in a second pass.
         subchannels = data.pop('subchannels', None)
         
         # Channel(sensor, channelId, parser, name, units, transform, 
@@ -939,6 +944,7 @@ class ChannelParser(ElementHandler):
             for subData in subchannels:
                 subChId = subData.pop('subchannelId', None)
                 if subChId is None:
+                    # Generally shouldn't happen, but not prohibited.
                     continue
                 displayRange = subData.pop("rangeMin", None), subData.pop("rangeMax", None)
                 subData['displayRange'] = None if None in displayRange else displayRange
@@ -952,7 +958,8 @@ class ChannelParser(ElementHandler):
 
 
 class PlotListParser(ChannelParser):
-    """ Handle the parent of all `Plot` elements. Not currently implemented.
+    """ Handle the parent of all `Plot` elements. 
+        Note: Not currently implemented.
     """
     elementName = "PlotList"
     isSubElement = True
@@ -978,7 +985,7 @@ class PlotListParser(ChannelParser):
 
 class ChannelListParser(ElementHandler):
     """ Handle `ChannelList` elements and their children. Just wraps the
-        subelement parsers.
+        sub-element parsers.
     """
     elementName = "ChannelList"
     isSubElement = True
@@ -1028,7 +1035,10 @@ class RecorderInfoParser(ElementHandler):
         """
         """
         # This one is simple; it just sticks the data into the Dataset.
-        self.doc.recorderInfo.update(parse_ebml(element.value)) 
+        val = parse_ebml(element.value)
+        if 'Attribute' in val:
+            self.doc.recorderInfo.update(decode_attributes(val.pop('Attribute')))
+        self.doc.recorderInfo.update(val)
         return self.doc.recorderInfo  
 
 #===============================================================================
@@ -1044,7 +1054,10 @@ class RecordingPropertiesParser(ElementHandler):
     elementName = "RecordingProperties"
     isSubElement = False
     isHeader = True
-    children = (RecorderInfoParser, SensorListParser, ChannelListParser, WarningListParser)
+    children = (RecorderInfoParser, 
+                SensorListParser, 
+                ChannelListParser, 
+                WarningListParser)
 
 
 ################################################################################
@@ -1071,7 +1084,9 @@ class TimeBaseUTCParser(ElementHandler):
 #===============================================================================
 
 class NullParser(ElementHandler):
-    """ Dummy handler for all elements we know of but don't care about.
+    """ Dummy handler for all root level elements we know of but don't care 
+        about (at least for now). Note that this includes the `EBML` element,
+        because the EBML library itself has already handled it.
     """
     elementName = ('EBML', 
                    'ElementTag', 

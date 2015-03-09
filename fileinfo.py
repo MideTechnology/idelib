@@ -70,15 +70,19 @@ class ChannelInfoPanel(InfoPanel):
                 
                 # Hack for channels with no data.
                 if len(events) > 0:
-                    srate = ("%.3f" % events.getSampleRate()).rstrip('0')
-                    srate = srate + '0' if srate.endswith('.') else srate
-                    self.addItem("Nominal Sample Rate:", "%s Hz" % srate)
-                    self.addItem("Minimum Value:", 
-                                 self.plotLink(cid, subcid, *events.getMin()),
-                                 escape=False)
-                    self.addItem("Maximum Value:", 
-                                 self.plotLink(cid, subcid, *events.getMax()),
-                                 escape=False)
+                    try:
+                        srate = ("%.3f" % events.getSampleRate()).rstrip('0')
+                        srate = srate + '0' if srate.endswith('.') else srate
+                        self.addItem("Nominal Sample Rate:", "%s Hz" % srate)
+                        self.addItem("Minimum Value:", 
+                                     self.plotLink(cid, subcid, *events.getMin()),
+                                     escape=False)
+                        self.addItem("Maximum Value:", 
+                                     self.plotLink(cid, subcid, *events.getMax()),
+                                     escape=False)
+                    except (IndexError, AttributeError):
+                        # These can occur in partially damaged files.
+                        pass
                     
 #                 mmm = events.getRangeMinMeanMax()
 #                 if mmm:

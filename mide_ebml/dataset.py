@@ -43,6 +43,7 @@ from itertools import imap, izip
 from numbers import Number
 import os.path
 import random
+import struct
 import sys
 import time
 
@@ -247,7 +248,8 @@ class Dataset(Cascading):
         self.currentSession = None
         self.recorderInfo = {}
         
-#         self.useIndices = False
+        # For keeping track of element parsers in import.
+        self._parsers = None
         
         self.fileDamaged = False
         self.loadCancelled = False
@@ -511,6 +513,7 @@ class Sensor(Cascading):
     def children(self):
         return self.channels.values()
 
+
 #===============================================================================
 # Channels
 #===============================================================================
@@ -555,8 +558,9 @@ class Channel(Transformable):
         self.parent = sensor
         self.dataset = sensor.dataset
         self.sampleRate = sampleRate
-        self.cache = cache
-        self.singleSample = singleSample
+       
+        self.cache = bool(cache)
+        self.singleSample = bool(singleSample)
 
         if sensor is not None:
             sensor.channels[channelId] = self
@@ -583,11 +587,6 @@ class Channel(Transformable):
         
         self.subsampleCount = [0,sys.maxint]
 
-#         if transform is None:
-#             transform = (None,) * len(self.subchannels)
-#         else:
-#             transform = [self.dataset.transforms.get(i, None) if isinstance(i, int) else i for i in transform]
-            
         self.setTransform(transform)
         
         # Optimization. Memoization-like cache of the last block parsed.
@@ -1395,7 +1394,7 @@ class EventList(Cascading):
                 
             times = (block.startTime + sampleTime * t for t in indices)
             values = parent_parseBlockByIndex(block, indices, 
-                                                   _getBlockRollingMean(blockIdx))
+                                              _getBlockRollingMean(blockIdx))
             
             if hasSubchannels:
                 for event in izip(times, values):
@@ -1687,32 +1686,38 @@ class EventList(Cascading):
         else:
             parseBlock = self.parent.parent.parseBlock
         
-        for block in self._data:
-            if not (block.min is None or block.mean is None or block.max is None):
-                continue
-            block_min = []
-            block_mean = []
-            block_max = []
-            vals = numpy.array(parseBlock(block))
-            for i in range(vals.shape[1]):
-                block_min.append(vals[:,i].min())
-                block_mean.append(vals[:,i].mean())
-                block_max.append(vals[:,i].max())
-            block.min = tuple(block_min)
-            block.mean = tuple(block_mean)
-            block.max = tuple(block_max)
-        
-            self.hasMinMeanMax = True
+        Ex = None if __DEBUG__ else struct.error
+        try:
+            for block in self._data:
+                if not (block.min is None or block.mean is None or block.max is None):
+                    continue
+                block_min = []
+                block_mean = []
+                block_max = []
+                vals = numpy.array(parseBlock(block))
+                for i in range(vals.shape[1]):
+                    block_min.append(vals[:,i].min())
+                    block_mean.append(vals[:,i].mean())
+                    block_max.append(vals[:,i].max())
+                block.min = tuple(block_min)
+                block.mean = tuple(block_mean)
+                block.max = tuple(block_max)
             
-            # Channels and subchannels use same blocks; mark them as having
-            # min/mean/max data
-            sessionId = getattr(self.session, 'sessionId', None)
-            if sessionId is not None:
-                if self.hasSubchannels:
-                    for c in self.parent.parent.children:
-                        c.getSession(sessionId).hasMinMeanMax=True
-                else:
-                    self.parent.parent.getSession(sessionId).hasMinMeanMax=True
+                self.hasMinMeanMax = True
+                
+                # Channels and subchannels use same blocks; mark them as having
+                # min/mean/max data
+                sessionId = getattr(self.session, 'sessionId', None)
+                if sessionId is not None:
+                    if self.hasSubchannels:
+                        for c in self.parent.parent.children:
+                            c.getSession(sessionId).hasMinMeanMax=True
+                    else:
+                        self.parent.parent.getSession(sessionId).hasMinMeanMax=True
+        except Ex:
+            if __DEBUG__:
+                print "Struct error: %r" % (block.indexRange,)
+            pass
             
 
     def _getBlockSampleTime(self, blockIdx=0):
