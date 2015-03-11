@@ -147,11 +147,11 @@ def dumpXml(ebmldoc, indent=0, tabsize=2):
         converted back to EBML. 
     """
     docname = ebmldoc.__class__.__name__
-    result = ['<?xml version="1.0" encoding="utf-8"?>\n<%s>' % docname]
+    result = [u'<?xml version="1.0" encoding="utf-8"?>\n<%s>' % docname]
     for child in ebmldoc.roots:
         result.append(dumpXmlElement(child, indent=1))
-    result.append('</%s>' % docname)
-    return "\n".join(result)
+    result.append(u'</%s>' % docname)
+    return u"\n".join(result)
 
 
 def readEbml(data, schema=DEFAULT_SCHEMA):

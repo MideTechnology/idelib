@@ -27,6 +27,7 @@ class Transform(object):
     modifiesValue = False
     
     def __init__(self, *args, **kwargs):
+        self.id = None
         self._str = "x"
         self._source = "lambda x: x"
         self._function = eval(self._source)
@@ -38,7 +39,9 @@ class Transform(object):
         return self._str
     
     def __repr__(self):
-        return "<%s (%s)>" % (self.__class__.__name__, self._str)
+        if self.id is None:
+            return "<%s: (%s)>" % (self.__class__.__name__, self._str)
+        return "<%s (ID %d): (%s)>" % (self.__class__.__name__, self.id, self._str)
 
     @property
     def function(self):
@@ -64,6 +67,7 @@ class Transform(object):
     @classmethod
     def null(cls, *args, **kwargs):
         return args[0]
+    
 
 
 #===============================================================================
@@ -144,12 +148,14 @@ class Univariate(Transform):
         reading.
     """
     modifiesValue = True
-
+    
+    @classmethod
     def _floatOrInt(self, v):
         " Helper method to convert floats with no decimal component to ints. "
         iv = int(v)
         return iv if iv == v else v
     
+    @classmethod
     def _stremove(self, s, old):
         " Helper method to remove a set of substrings from a string. "
         result = str(s)
@@ -157,6 +163,7 @@ class Univariate(Transform):
             result = result.replace(o,'')
         return result
     
+    @classmethod
     def _fixSums(self, s):
         " Helper method to replace consecutive addition/subtraction combos. "
         result = str(s)
@@ -393,6 +400,7 @@ class Bivariate(Univariate):
 #                                                          outOfRange=True)
             y = self._noY or self._eventlist.getMeanNear(event[-2])
             return event[-2],self._function(x,y[-1])
+        
         except (IndexError, ZeroDivisionError):
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
@@ -411,7 +419,8 @@ class CombinedPoly(Bivariate):
         
         Experimental!
     """
-    def __init__(self, poly, subchannel=None, calId=-1, **kwargs):
+    def __init__(self, poly, subchannel=None, calId=None, **kwargs):
+        self.id = calId
         self.poly = poly
         self.subpolys = kwargs
         
@@ -446,9 +455,17 @@ class CombinedPoly(Bivariate):
         return src
     
     def _build(self):
-        phead,src = self.poly.source.split(": ")
+        if self.poly is None:
+            phead, src= "lambda x", "x"
+        else:
+            phead,src = self.poly.source.split(": ")
+            
         for k,v in self.subpolys.items():
-            s = "(%s)" % v.source.split(": ")[-1].upper()
+            if v is None:
+                ssrc = "lambda x: x"
+            else:
+                ssrc = v.source 
+            s = "(%s)" % ssrc.split(": ")[-1].upper()
             src = self._reduce(src.replace(k, s))
         src = src.lower()
 
@@ -467,15 +484,17 @@ class PolyPoly(CombinedPoly):
         
         Experimental!
     """
-    def __init__(self, polys, calId=-1):
+    def __init__(self, polys, calId=None):
+        self.id = calId
         self.polys = polys
         poly = polys[0]
         for attr in ('dataset','_eventlist','_sessionId','channelId','subchannelId'):
             try:
-                setattr(self, attr, getattr(poly, attr))
+                setattr(self, attr, getattr(poly, attr, None))
             except AttributeError:
-                pass
-                
+                continue
+        
+        self._eventlist = None
         self._build()
 
 
@@ -489,14 +508,18 @@ class PolyPoly(CombinedPoly):
 #                 p._usedIn.append(self)
             params.append('x%d' % n)
             body.append(p.source.split(':')[-1].replace('x', 'x%d' % n))
-        if 'y' in body:
-            params.append('y')
             
         src = "(%s)" % (', '.join(body))
         self._str = src
+
+        if 'y' in src:
+            params.insert(0,'y')
+            self._noY = False
+        else:
+            self._noY = (0,1)
+            
         self._source = "lambda %s: %s" % (','.join(params), src)
         self._function = eval(self._source)
-        self._noY = (0,1) if 'y' not in src else False
 
 
     def __call__(self, event, session=None):
@@ -510,18 +533,18 @@ class PolyPoly(CombinedPoly):
         sessionId = None if session is None else session.sessionId
         
         try:
-            if self._eventlist is None or self._sessionId != sessionId:
-                channel = self.dataset.channels[self.channelId][self.subchannelId]
-                self._eventlist = channel.getSession(session.sessionId)
-                self._sessionId = session.sessionId
-            if len(self._eventlist) == 0:
-                return event
-            
             x = event[-1]
             # Optimization: don't check the other channel if Y is unused
             if self._noY is False:
+                if self._eventlist is None or self._sessionId != sessionId:
+                    channel = self.dataset.channels[self.channelId][self.subchannelId]
+                    self._eventlist = channel.getSession(session.sessionId)
+                    self._sessionId = session.sessionId
+                if len(self._eventlist) == 0:
+                    return event
                 y = self._eventlist.getValueAt(event[-2], outOfRange=True)
-                return event[-2],self._function(*(x + (y[-1],)))
+                return event[-2],self._function(y[-1], *x)
+            
             else:
                 return event[-2],self._function(*x)
             

@@ -30,29 +30,20 @@ Created on Sep 26, 2013
 #     blocks are single-sample, instantiate simpler Channel subclass (possibly
 #     also a specialized, simpler class of EventList, too). This will improve
 #     temperature calibrated SSX data.
-#     
-# TODO: Decide if dataset.useIndices is worth it, remove it if it isn't.
-#     Removing it may save a trivial amount of time/memory (one fewer 
-#     conditional in event-getting methods). Lowest priority.
 
-
-# from collections import namedtuple
 from collections import Iterable
 from datetime import datetime
 from itertools import imap, izip
-from numbers import Number
 import os.path
 import random
 import struct
 import sys
 import time
 
-import numpy; numpy=numpy
+import numpy
 
 from ebml.schema.mide import MideDocument
-# import util
-
-from calibration import Transform
+from calibration import Transform, CombinedPoly, PolyPoly
 from parsers import getParserTypes, getParserRanges
 
 
@@ -60,22 +51,15 @@ from parsers import getParserTypes, getParserRanges
 # DEBUGGING: XXX: Remove later!
 #===============================================================================
 
-__DEBUG__ = False
+# __DEBUG__ = False
 
 import socket
 __DEBUG__ = socket.gethostname() in ('DEDHAM',)
     
-# if __DEBUG__:
-#     import ebml
-#     print "*** Loaded python-ebml from", os.path.abspath(ebml.__file__)
+if __DEBUG__:
+    import ebml
+    print "*** Loaded python-ebml from", os.path.abspath(ebml.__file__)
     
-#===============================================================================
-# 
-#===============================================================================
-
-# A 'named tuple' class, mainly for debugging purposes.
-# Event = namedtuple("Event", ('index','time','value'))
-
 
 #===============================================================================
 # Mix-In Classes
@@ -155,10 +139,7 @@ class Transformable(Cascading):
             just be ignored.
     """
 
-    # The 'null' transforms applied if displaying raw data. 
-    _rawTransforms = Transform.null, None
-
-    def setTransform(self, transform):
+    def setTransform(self, transform, update=True):
         """ Set the transforming function/object. This does not change the
             value of `raw`, however; the new transform will not be applied
             unless it is `True`.
@@ -168,6 +149,8 @@ class Transformable(Cascading):
             self._transform = Transform.null
         else:
             self._transform = transform
+        if update:
+            self.updateTransforms()
             
 
     def updateTransforms(self):
@@ -355,11 +338,9 @@ class Dataset(Cascading):
         if parser is None:
             raise TypeError("addChannel() requires a parser")
         
-        channelClass = kwargs.pop('channelClass', Channel)
-        
         if channelId in self.channels:
             return self.channels[channelId]
-        channel = channelClass(self, channelId, parser, **kwargs)
+        channel = Channel(self, channelId, parser, **kwargs)
         self.channels[channelId] = channel
             
         return channel
@@ -530,10 +511,11 @@ class Channel(Transformable):
             values recorded in the file!
     """
     
-    def __init__(self, sensor=None, channelId=None, parser=None, name=None, 
-                 units=None, transform=None, displayRange=None, sampleRate=None, 
-                 cache=False, singleSample=False):
-        """ Constructor.
+    def __init__(self, dataset, channelId=None, parser=None, sensor=None, 
+                 name=None, units=None, transform=None, displayRange=None, 
+                 sampleRate=None, cache=False, singleSample=False):
+        """ Constructor. This should generally be done indirectly via
+            `Dataset.addChannel()`.
         
             @param sensor: The parent sensor.
             @param channelId: The channel's ID, unique within the file.
@@ -556,7 +538,7 @@ class Channel(Transformable):
         self.parser = parser
         self.units = units or ('','')
         self.parent = sensor
-        self.dataset = sensor.dataset
+        self.dataset = dataset
         self.sampleRate = sampleRate
        
         self.cache = bool(cache)
@@ -587,7 +569,7 @@ class Channel(Transformable):
         
         self.subsampleCount = [0,sys.maxint]
 
-        self.setTransform(transform)
+        self.setTransform(transform, update=False)
         
         # Optimization. Memoization-like cache of the last block parsed.
         self._lastParsed = (None, None)
@@ -627,11 +609,10 @@ class Channel(Transformable):
                 "Channel's parser only generates %d subchannels" % \
                  len(self.subchannels))
         else:
-            channelClass = kwargs.pop('channelClass', SubChannel)
             sc = self.subchannels[subchannelId]
             if sc is not None:
                 return self.subchannels[subchannelId]
-            sc = channelClass(self, subchannelId, **kwargs)
+            sc = SubChannel(self, subchannelId, **kwargs)
             self.subchannels[subchannelId] = sc
             return sc
         
@@ -717,6 +698,12 @@ class Channel(Transformable):
             return list(block.parseByIndexWith(self.parser, indices, 
                                                subchannel=subchannel))
 
+    def updateTransforms(self):
+        super(Channel, self).updateTransforms()
+        if self.sessions is not None:
+            for s in self.sessions.values():
+                s.updateTransforms()
+
 #===============================================================================
 
 class SubChannel(Channel):
@@ -728,14 +715,17 @@ class SubChannel(Channel):
     def __init__(self, parent, subchannelId, name=None, units=('',''), 
                  transform=None, displayRange=None, sensorId=None, 
                  warningId=None):
-        """ Constructor.
+        """ Constructor. This should generally be done indirectly via
+            `Channel.addSubChannel()`.
         
             @param sensor: The parent sensor.
             @param channelId: The channel's ID, unique within the file.
-            @param parser: The channel's EBML data parser.
+            @param parser: The channel's payload data parser.
             @keyword name: A custom name for this channel.
             @keyword units: The units measured in this channel, used if units
-                are not explicitly indicated in the Channel's SubChannels.
+                are not explicitly indicated in the Channel's SubChannels. A
+                tuple containing the 'axis name' (e.g. 'Acceleration') and the
+                unit symbol ('g').
             @keyword transform: A Transform object for adjusting sensor
                 readings at the Channel level. 
             @keyword displayRange: A 'hint' to the minimum and maximum values
@@ -759,7 +749,7 @@ class SubChannel(Channel):
         
 #         transform = self.dataset.transforms.get(transform, None) \
 #             if isinstance(transform, Number) else transform
-        self.setTransform(transform)
+        self.setTransform(transform, update=False)
         
         if displayRange is None:
             self.displayRange = self.parent.displayRange[self.id]
@@ -776,6 +766,9 @@ class SubChannel(Channel):
     def children(self):
         return []
 
+    @property
+    def sampleRate(self):
+        return self.parent.sampleRate
 
     def __repr__(self):
         return '<%s 0x%02x.%x: %r>' % (self.__class__.__name__, 
@@ -864,6 +857,9 @@ class EventList(Cascading):
     DEFAULT_MEAN_SPAN = 5000000
 
     def __init__(self, parent, session=None):
+        """ Constructor. This should almost always be done indirectly via
+            the `getSession()` method of `Channel` and `SubChannel` objects.
+        """
         self.parent = parent
         self.session = session
         self._data = []
@@ -897,7 +893,18 @@ class EventList(Cascading):
         self.removeMean = False
         self.hasMinMeanMax = False
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
-        
+
+        self.updateTransforms()
+    
+    
+    def updateTransforms(self):
+        self._comboXform = None
+        if self.hasSubchannels:
+            self._comboXform = PolyPoly([self.parent.transform]*len(self.parent.types))
+        else:
+            xs = [CombinedPoly(c.transform, x=self.parent.parent.transform) for c in self.parent.parent.subchannels]
+            self._comboXform = PolyPoly(xs)
+
 
     @property
     def units(self):
@@ -1205,13 +1212,22 @@ class EventList(Cascading):
             timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
             value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1,
                                            offset=self._getBlockRollingMean(blockIdx))[0]
+                                           
+            offset = self._getBlockRollingMean(blockIdx)
             
-            if self.hasSubchannels:
-                event=tuple(c._transform(self.parent._transform((timestamp,v),self.session)) for c,v in izip(self.parent.subchannels, value))
-                event=(event[0][0], tuple((e[1] for e in event)))
+#             if self.hasSubchannels:
+#                 event=tuple(c._transform(self.parent._transform((timestamp,v),self.session)) for c,v in izip(self.parent.subchannels, value))
+#                 event=(event[0][0], tuple((e[1] for e in event)))
+#             else:
+#                 event=self.parent._transform(self.parent.parent._transform((timestamp, value),self.session), self.session)
+#             return event
+            
+            event = self._comboXform((timestamp, value))
+            if not self.hasSubchannels:
+                # Doesn't quite work; transform dataset attribute not set?
+                return (event[-2], event[-1][self.parent.id])
             else:
-                event=self.parent._transform(self.parent.parent._transform((timestamp, value),self.session), self.session)
-            return event
+                return event
 
         elif isinstance(idx, slice):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
@@ -1267,14 +1283,14 @@ class EventList(Cascading):
         if start is None:
             start = 0
         elif start < 0:
-            start += len(self)
+            start = max(0, start + len(self))
         elif start >= len(self):
             start = len(self)-1
             
         if end is None:
             end = len(self)
         elif end < 0:
-            end += len(self) + 1
+            end = max(0, end + len(self) + 1)
         else:
             end = min(end, len(self))
         
@@ -1389,7 +1405,6 @@ class EventList(Cascading):
             indices = range(subIdx, lastSubIdx, step)
             if step > 1:
                 for x in xrange(2, len(indices)-1):
-#                     indices[x] = random.randint(indices[x-1],indices[x+1])
                     indices[x] = int(indices[x] + (((random.random()*2)-1) * jitter * step))
                 
             times = (block.startTime + sampleTime * t for t in indices)
@@ -1398,9 +1413,7 @@ class EventList(Cascading):
             
             if hasSubchannels:
                 for event in izip(times, values):
-                    # TODO: (post Transform fix) Refactor later
                     event=[c._transform(parent_transform((event[-2],v),session),session) for c,v in izip(parent_subchannels, event[-1])]
-#                     event=[f((event[-2],v), session) for f,v in izip(parent_transform, event[-1])]
                     event=(event[0][0], tuple((e[1] for e in event)))
                     yield event
             else:
@@ -1789,7 +1802,7 @@ class EventList(Cascading):
         return self._data[blockIdx].sampleRate
 
 
-    def getSampleTime(self, idx=0):
+    def getSampleTime(self, idx=None):
         """ Get the time between samples.
             
             @keyword idx: Because it is possible for sample rates to vary
@@ -1798,10 +1811,15 @@ class EventList(Cascading):
                 returned.
             @return: The time between samples (us)
         """
+        sr = self.parent.sampleRate
+        if idx is None and sr is not None:
+            return 1.0 / sr
+        else:
+            idx = 0
         return self._getBlockSampleTime(self._getBlockIndexWithIndex(idx))
     
     
-    def getSampleRate(self, idx=0):
+    def getSampleRate(self, idx=None):
         """ Get the channel's sample rate. This is either supplied as part of
             the channel definition or calculated from the actual data and
             cached.
@@ -1811,6 +1829,11 @@ class EventList(Cascading):
                 rate for that event and its siblings will be returned.
             @return: The sample rate, as samples per second (float)
         """
+        sr = self.parent.sampleRate
+        if idx is None and sr is not None:
+            return sr
+        else:
+            idx = 0
         return self._getBlockSampleRate(self._getBlockIndexWithIndex(idx))
     
 
@@ -1863,8 +1886,6 @@ class EventList(Cascading):
         """
         """
         return self._getBlockRollingMean(self._getBlockIndexWithTime(t), force=True)
-            
-            
         
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
@@ -1884,8 +1905,6 @@ class EventList(Cascading):
         if jitter != 0:
             return self.iterJitterySlice(startIdx, stopIdx, step, jitter)
         return self.iterSlice(startIdx, stopIdx, step)
-        
-
 
 
     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
@@ -2018,7 +2037,7 @@ class Plot(Transformable):
         self.dataset = source.dataset
         self.name = source.path() if name is None else name
         self.units = source.units if units is None else units
-        self.setTransform(transform)
+        self.setTransform(transform, update=False)
     
     
     def __len__(self):
@@ -2067,16 +2086,6 @@ class Plot(Transformable):
         # itertools.imap(None, x) works differently than map(None,x)!
         return imap(self._transform, self.source.iterSlice(start, end, step))
     
-
-#===============================================================================
-
-class CompositePlot(Plot):
-    """ A set of processed data derived from multiple sources.
-    """
-    
-    # TODO: Implement this or remove it!
-
-
 
 #===============================================================================
 # 

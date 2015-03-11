@@ -132,6 +132,7 @@ def createDefaultSensors(doc, sensors=default_sensors):
         more sensors, instantiate those sensors and add them to the dataset
         document.
     """
+    logger.info("creating default sensors")
     sensors = sensors.copy()
     if doc.recorderInfo:
         # TODO: Move device-specific stuff out of the main importer
@@ -156,8 +157,9 @@ def createDefaultSensors(doc, sensors=default_sensors):
         sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
         for chId, chInfo in sensorInfo['channels'].iteritems():
             chArgs = chInfo.copy()
+            chArgs['sensor'] = sensor
             subchannels = chArgs.pop('subchannels', None)
-            channel = sensor.addChannel(chId, **chArgs)
+            channel = doc.addChannel(chId, **chArgs)
             if subchannels is None:
                 continue
             for subChId, subChInfo in subchannels.iteritems():
@@ -324,6 +326,14 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
         # Got data before the recording props; use defaults.
         if defaultSensors is not None:
             createDefaultSensors(doc, defaultSensors)
+            
+    # XXX: REMOVE THIS
+    doc.channels[0].parser = struct.Struct('<HHH')
+    doc.channels[0].setTransform(0)
+    doc.channels[0][0].setTransform(3)
+    doc.channels[0][1].setTransform(2)
+    doc.channels[0][2].setTransform(1)
+    
     doc.updateTransforms()
     return doc
 

@@ -81,9 +81,11 @@ def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
         @return: A new dictionary, a deep copy of the original, with different
             keys.
     """
-    if isinstance(d, Sequence):
-        return [renameKeys(i, renamed, exclude, recurse) for i in d]
-    if not isinstance(d, dict):
+    if isinstance(d, basestring):
+        return d
+    elif isinstance(d, Sequence):
+        return [renameKeys(i, renamed, exclude, recurse, ordered, mergeAttributes) for i in d]
+    elif not isinstance(d, dict):
         return d
     
     if ordered:
@@ -889,6 +891,8 @@ class ChannelParser(ElementHandler):
         "ChannelCalibrationIDRef": "transform",
         "TimeCodeScale": "timeScalar",
         "TimeCodeModulus": "timeMod",
+        "cache": "cache",
+        "singleSample": "singleSample",
         "SubChannel": "subchannels", # Multiple, so it will parse into a list
 
         # Child SubChannel parameters; `renameKeys` operates recursively.
@@ -910,10 +914,14 @@ class ChannelParser(ElementHandler):
         """
         data = renameKeys(parse_ebml(element.value), self.parameterNames)
         
+        # Pop off the subchannels; create them in a second pass.
+        subchannels = data.pop('subchannels', None)
+        
         channelId = data['channelId']
         
         if 'parser' in data:
             # get known parser names
+            data.pop('format', None)
             data['parser'] = DATA_PARSERS[data['parser']]()
         elif 'format' in data:
             # build struct instead.
@@ -924,36 +932,25 @@ class ChannelParser(ElementHandler):
             data['sampleRate'] = valEval(data['sampleRate'])
         
         # Channel timestamp correction stuff.
-        timeScale = data.pop('timeScale', None)
-        timeModulus = data.pop('timeModulus', None)
+        timeScale = data.pop('timeScalar', None)
+        timeModulus = data.pop('timeMod', None)
         
-        for p in filter(lambda x: x.makesData(), self.doc._parsers.items()):
+        for p in filter(lambda x: x.makesData(), self.doc._parsers.values()):
             if timeModulus is not None:
                 p.timeModulus[channelId] = timeModulus
             if timeScale is not None:
                 p.timeScalars = valEval(timeScale)
         
-        # Pop off the subchannels; create them in a second pass.
-        subchannels = data.pop('subchannels', None)
-        
-        # Channel(sensor, channelId, parser, name, units, transform, 
-        # displayRange, cache=False, singleSample=False):         
         ch = self.doc.addChannel(**data)
         
         if subchannels is not None:
             for subData in subchannels:
-                subChId = subData.pop('subchannelId', None)
-                if subChId is None:
-                    # Generally shouldn't happen, but not prohibited.
-                    continue
                 displayRange = subData.pop("rangeMin", None), subData.pop("rangeMax", None)
                 subData['displayRange'] = None if None in displayRange else displayRange
                 units = subData.pop('label', None), subData.pop('units', None)
                 subData['units'] = None if None in units else units
                 
-                # SubChannel(parent, subChannelId, name=None, units=('',''), 
-                # transform=None, displayRange=None):
-                ch.addSubChannel(ch, subChId, **subData)
+                ch.addSubChannel(**subData)
         return ch
 
 
