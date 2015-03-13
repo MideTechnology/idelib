@@ -246,6 +246,9 @@ class CalFile(object):
         
         _print("%d samples imported. " % len(data)) 
         times = data[:,0] * .000001
+        
+        # HACK: Some  devices have a longer delay before Z settles.
+        data = data[5000:]
     
         gt = lambda(x): x > thres
         
