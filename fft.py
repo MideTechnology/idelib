@@ -31,7 +31,11 @@ from base import MenuMixin
 from common import mapRange, StatusBar, nextPow2, sanitizeFilename
 
 from build_info import DEBUG
+from logger import logger
 
+if DEBUG:
+    import logging
+    logger.setLevel(logging.INFO)
 #===============================================================================
 # 
 #===============================================================================
@@ -270,6 +274,7 @@ class FFTView(wx.Frame, MenuMixin):
     def draw(self):
         """
         """
+        self.drawStart = time.time()
         subevents = [self.source.dataset.channels[self.source.parent.id][ch.id].getSession().removeMean for ch in self.subchannels]
         self.oldRemoveMean = self.source.removeMean
         self.source.removeMean = any(subevents)
@@ -285,8 +290,8 @@ class FFTView(wx.Frame, MenuMixin):
     def _draw(self):
         """
         """
-        if DEBUG:
-            drawStart = time.time()
+        logger.info( "Starting %s._draw()" % self.__class__.__name__ )
+        drawStart = time.time()
             
         try:
             self.lines = None
@@ -303,28 +308,29 @@ class FFTView(wx.Frame, MenuMixin):
                 
             if self.data is not None:
                 self.makeLineList()
+
+            logger.info("%d samples x%d columns calculated. Elapsed time (%s): %0.6f s." % (stop-start, len(self.subchannels), self.FULLNAME, time.time() - drawStart))
     
             if self.lines is not None:
                 self.canvas.Draw(self.lines)
+
+            logger.info("Completed drawing. Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart))
     
             self.canvas.SetEnableZoom(True)
             self.canvas.SetShowScrollbars(True)
 
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
             
-            if DEBUG:
-                print "Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart)
-                
         except wx.PyDeadObjectError:
             pass
+
         
     
     def initMenus(self):
         """ Install and set up the main menu.
         """
-#         helpText = "%s Help" % self.FULLNAME
-        
         self.menubar = wx.MenuBar()
+        
         fileMenu = self.fileMenu = wx.Menu()
         self.addMenuItem(fileMenu, self.ID_EXPORT_CSV, "&Export CSV...", "", 
                          self.OnExportCsv)
@@ -418,7 +424,8 @@ class FFTView(wx.Frame, MenuMixin):
         yUnits = self.subchannels[0].units[1]
         yUnits = (" (%s)" % yUnits) if yUnits else ""
         self.lines = PlotGraphics(lines, title=self.GetTitle(), 
-                                    xLabel="Frequency (Hz)", yLabel="Amplitude%s" % yUnits)
+                                  xLabel="Frequency (Hz)", 
+                                  yLabel="Amplitude%s" % yUnits)
         
     
     @classmethod

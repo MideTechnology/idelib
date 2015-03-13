@@ -36,12 +36,6 @@ from dataset import __DEBUG__
 
 import logging
 logger = logging.getLogger('mide_ebml')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
-
-if __DEBUG__:
-    logger.setLevel(logging.INFO)
-else:
-    logger.setLevel(logging.ERROR)
 
 #===============================================================================
 # Defaults
@@ -56,67 +50,80 @@ testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\test_recordings\\shocks.ID
 # Hard-coded sensor/channel mapping. Will eventually be read from EBML file,
 # but these should be default for the standard Slam Stick X.
 # TODO: Base default sensors on the device type UID.
-default_sensors = {
-    0x00: {"name": "SlamStick X Combined Sensor", 
-           "channels": {
-                0x00: {"name": "Accelerometer XYZ",
-#                        "parser": struct.Struct("<HHH"), 
-#                         "transform": 0, #calibration.AccelTransform(),
-                        "parser": parsers.AccelerometerParser(),
-                        "transform": calibration.AccelTransform(-500,500),
-                       "subchannels":{0: {"name": "Accelerometer Z", 
-                                          "units":('Acceleration','g'),
-                                          "displayRange": (-100.0,100.0),
-                                          "transform": 3,
-                                          "warningId": 0,
-                                         },
-                                      1: {"name": "Accelerometer Y", 
-                                          "units":('Acceleration','g'),
-                                          "displayRange": (-100.0,100.0),
-                                          "transform": 2,
-                                          "warningId": 0,
-                                          },
-                                      2: {"name": "Accelerometer X", 
-                                          "units":('Acceleration','g'),
-                                          "displayRange": (-100.0,100.0),
-                                          "transform": 1,
-                                          "warningId": 0,
-                                          },
-                                    },
-                       },
-                0x01: {"name": "Pressure/Temperature",
-                       "parser": parsers.MPL3115PressureTempParser(),
-                       "subchannels": {0: {"name": "Pressure", 
-                                           "units":('Pressure','Pa'),
-                                           "displayRange": (0.0,120000.0),
-                                           },
-                                       1: {"name": "Temperature", 
-                                           "units":(u'Temperature',u'\xb0C'),
-                                           "displayRange": (-40.0,80.0),
-                                           }
-                                       },
-                       "cache": True,
-                       "singleSample": True,
-                       },
-                },
-           },
+DEFAULTS = {
+            "sensors": {
+    0x00: {"name": "832M1 Accelerometer"},
+    0x01: {"name": "MPL3115 Temperature/Pressure"}
+},
+
+"channels": {
+        0x00: {"name": "Accelerometer XYZ",
+#                 "parser": struct.Struct("<HHH"), 
+#                 "transform": 0, #calibration.AccelTransform(),
+                "parser": parsers.AccelerometerParser(),
+                "transform": calibration.AccelTransform(-500,500),
+                "subchannels":{0: {"name": "Accelerometer Z", 
+                                  "units":('Acceleration','g'),
+                                  "displayRange": (-100.0,100.0),
+                                  "transform": 3,
+                                  "warningId": 0,
+                                  "sensorId": 0,
+                                 },
+                              1: {"name": "Accelerometer Y", 
+                                  "units":('Acceleration','g'),
+                                  "displayRange": (-100.0,100.0),
+                                  "transform": 2,
+                                  "warningId": 0,
+                                  "sensorId": 0,
+                                  },
+                              2: {"name": "Accelerometer X", 
+                                  "units":('Acceleration','g'),
+                                  "displayRange": (-100.0,100.0),
+                                  "transform": 1,
+                                  "warningId": 0,
+                                  "sensorId": 0,
+                                  },
+                            },
+               },
+        0x01: {"name": "Pressure/Temperature",
+               "parser": parsers.MPL3115PressureTempParser(),
+               "subchannels": {0: {"name": "Pressure", 
+                                   "units":('Pressure','Pa'),
+                                   "displayRange": (0.0,120000.0),
+                                  "sensorId": 1,
+                                   },
+                               1: {"name": "Temperature", 
+                                   "units":(u'Temperature',u'\xb0C'),
+                                   "displayRange": (-40.0,80.0),
+                                  "sensorId": 1,
+                                   }
+                               },
+               "cache": True,
+               "singleSample": True,
+               },
+}
 }
 
 
-
 if __DEBUG__:
-    print "Adding low g channels"
-    default_sensors[0x00]["channels"].update({
+    logger.info("Adding low g channels")
+    DEFAULTS['sensors'][0x02] = {
+         'name': "Low-G Accelerometer"
+    }
+    DEFAULTS['channels'].update({
         0x02: {'name': "Low-G Accelerometer XYZ",
                'parser': struct.Struct(">hhh"),
                "subchannels":{0: {"name": "Low-g Z", 
                                   "units":('Acceleration','g'),
+                                  "sensorId": 2,
                                  },
                               1: {"name": "Low-g Y", 
                                   "units":('Acceleration','g'),
+                                  "sensorId": 2,
                                   },
                               2: {"name": "Low-g X", 
                                   "units":('Acceleration','g'),
+                                  "sensorId": 2,
                                   },
                             },
                },
@@ -127,13 +134,15 @@ if __DEBUG__:
     })
 
 
-def createDefaultSensors(doc, sensors=default_sensors):
+def createDefaultSensors(doc, defaults=DEFAULTS):
     """ Given a nested set of dictionaries containing the definition of one or
         more sensors, instantiate those sensors and add them to the dataset
         document.
     """
     logger.info("creating default sensors")
-    sensors = sensors.copy()
+    sensors = defaults['sensors'].copy()
+    channels = defaults['channels'].copy()
+    
     if doc.recorderInfo:
         # TODO: Move device-specific stuff out of the main importer
         rtype = doc.recorderInfo.get('RecorderTypeUID', 0x10)
@@ -148,22 +157,23 @@ def createDefaultSensors(doc, sensors=default_sensors):
             }
             rrange = SSX_ACCEL_RANGES.get(rtype & 0xff, 0x10)
             transform = calibration.AccelTransform(*rrange)
-            ch0 = sensors[0x00]['channels'][0x00]
+            ch0 = channels[0x00]
             ch0['transform'] = transform
             for i in range(3):
                 ch0['subchannels'][i]['displayRange'] = rrange
 
     for sensorId, sensorInfo in sensors.iteritems():
-        sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
-        for chId, chInfo in sensorInfo['channels'].iteritems():
-            chArgs = chInfo.copy()
-            chArgs['sensor'] = sensor
-            subchannels = chArgs.pop('subchannels', None)
-            channel = doc.addChannel(chId, **chArgs)
-            if subchannels is None:
-                continue
-            for subChId, subChInfo in subchannels.iteritems():
-                channel.addSubChannel(subChId, **subChInfo)
+        doc.addSensor(sensorId, sensorInfo.get("name", None))
+        
+    for chId, chInfo in channels.iteritems():
+        chArgs = chInfo.copy()
+#         chArgs['sensor'] = sensor
+        subchannels = chArgs.pop('subchannels', None)
+        channel = doc.addChannel(chId, **chArgs)
+        if subchannels is None:
+            continue
+        for subChId, subChInfo in subchannels.iteritems():
+            channel.addSubChannel(subChId, **subChInfo)
     
 
 #===============================================================================
@@ -255,7 +265,7 @@ class SimpleUpdater(object):
 
 def importFile(filename=testFile, updater=nullUpdater, numUpdates=500, 
                updateInterval=1.0, parserTypes=elementParserTypes, 
-               defaultSensors=default_sensors, name=None, quiet=False):
+               defaults=DEFAULTS, name=None, quiet=False):
     """ Create a new Dataset object and import the data from a MIDE file. 
         Primarily for testing purposes. The GUI does the file creation and 
         data loading in two discrete steps, as it will need a reference to 
@@ -264,15 +274,15 @@ def importFile(filename=testFile, updater=nullUpdater, numUpdates=500,
     """
     stream = open(filename, "rb")
     doc = openFile(stream, updater=updater, name=name, parserTypes=parserTypes,
-                   defaultSensors=defaultSensors, quiet=quiet)
+                   defaults=defaults, quiet=quiet)
     readData(doc, updater=updater, numUpdates=numUpdates, 
              updateInterval=updateInterval, parserTypes=parserTypes, 
-             defaultSensors=defaultSensors)
+             defaults=defaults)
     return doc
 
 
 def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,  
-             defaultSensors=default_sensors, name=None, quiet=False):
+             defaults=DEFAULTS, name=None, quiet=False):
     """ Create a `Dataset` instance and read the header data (i.e. non-sample-
         data). When called by a GUI, this function should be considered 'modal,' 
         in that it shouldn't run in a background thread, unlike `readData()`. 
@@ -324,15 +334,15 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
         
     if not doc.sensors:
         # Got data before the recording props; use defaults.
-        if defaultSensors is not None:
-            createDefaultSensors(doc, defaultSensors)
+        if defaults is not None:
+            createDefaultSensors(doc, defaults)
             
     # XXX: REMOVE THIS
     doc.channels[0].parser = struct.Struct('<HHH')
-    doc.channels[0].setTransform(0)
-    doc.channels[0][0].setTransform(3)
-    doc.channels[0][1].setTransform(2)
-    doc.channels[0][2].setTransform(1)
+    doc.channels[0].setTransform(0, update=False)
+    doc.channels[0][0].setTransform(3, update=False)
+    doc.channels[0][1].setTransform(2, update=False)
+    doc.channels[0][2].setTransform(1, update=False)
     
     doc.updateTransforms()
     return doc
@@ -474,7 +484,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
 #===============================================================================
 
 def estimateLength(filename=testFile, numSamples=50000, channel=0,
-                   parserTypes=elementParserTypes, defaultSensors=default_sensors):
+                   parserTypes=elementParserTypes, defaults=DEFAULTS):
     """ Open and read enough of a file to get a rough estimate of its complete
         time range. 
     """
@@ -491,13 +501,13 @@ def estimateLength(filename=testFile, numSamples=50000, channel=0,
     
     with open(filename, "rb") as stream:
         doc = openFile(stream, parserTypes=parserTypes,
-                       defaultSensors=defaultSensors, quiet=True)
+                       defaults=defaults, quiet=True)
         dataStart = stream.tell()
         totalSize = os.path.getsize(filename) - dataStart
         
         # read a portion of the recording
         readData(doc, updater=updater, parserTypes=parserTypes, 
-                 defaultSensors=defaultSensors)
+                 defaults=defaults)
         chunkSize = stream.tell() - dataStart
         
         start = sys.maxint

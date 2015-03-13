@@ -11,7 +11,7 @@ import parsers
 # Hard-coded sensor/channel mapping for the Slam Stick Classic.
 # TODO: Base default sensors on the device type UID.
 default_sensors = {
-    0x00: {"name": "SlamStick Classic Combined Sensor", 
+    0x00: {"name": "ADXL345 Accelerometer", 
            "channels": {
                 0x00: {"name": "Accelerometer XYZ",
                        "parser": parsers.AccelerometerParser(),
@@ -42,13 +42,14 @@ def createDefaultSensors(doc, sensors=default_sensors):
     for sensorId, sensorInfo in sensors.iteritems():
         sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
         for chId, chInfo in sensorInfo['channels'].iteritems():
-            channel = sensor.addChannel(chId, chInfo['parser'],
+            channel = doc.addChannel(chId, chInfo['parser'],
                                         name=chInfo.get('name',None),
                                         channelClass=dataset.Channel)
             if 'subchannels' not in chInfo:
                 continue
             for subChId, subChInfo in chInfo['subchannels'].iteritems():
                 channel.addSubChannel(subChId, channelClass=dataset.SubChannel,
+                                      sensorId=sensorId,
                                       **subChInfo)
 
 

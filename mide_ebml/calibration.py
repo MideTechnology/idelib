@@ -86,54 +86,12 @@ class AccelTransform(Transform):
      
     def __init__(self, amin=-100, amax=100, calId=None, dataset=None):
         self.range = (amin, amax)
-        self._str = "(x * 32767.0) / %.3f" % amax
+        self._str = "(x / 32767.0) * %.3f" % amax
         self._source = "lambda x: x * %f" % (amax / 32767.0)
         self._function = eval(self._source)
         self._lastSession = None
         self._timeOffset = 0
      
-
-     
-#     
-# class AccelTransform100(Transform):
-#     """ A simple transform to convert accelerometer values (parsed as
-#         int16) to floats in the range -100 to 100 G.
-#         
-#         This assumes that the data was parsed by `AccelerometerParser`, which
-#         puts the raw values in the range -32768 to 32767.
-#     """
-#     modifiesValue = True
-#     
-#     def __call__(self, event, session=None):
-# #         return event[:-1] + ((event[-1] * 200.0) / 65535 - 100,)
-#         return event[:-1] + ((event[-1] / 32767.0) * 100.0,)
-# 
-# 
-# class AccelTransform25G(Transform):
-#     """ A simple transform to convert accelerometer values (parsed as
-#         int16) to floats in the range -25 to 25 G.
-#         
-#         This assumes that the data was parsed by `AccelerometerParser`, which
-#         puts the raw values in the range -32768 to 32767.
-#     """
-#     modifiesValue = True
-#     def __call__(self, event, session=None):
-# #         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
-#         return event[:-1] + ((event[-1] / 32767) * 25.0,)
-# 
-# 
-# class AccelTransform200G(Transform):
-#     """ A simple transform to convert accelerometer values (parsed as
-#         int16) to floats in the range -25 to 25 G.
-#         
-#         This assumes that the data was parsed by `AccelerometerParser`, which
-#         puts the raw values in the range -32768 to 32767.
-#     """
-#     modifiesValue = True
-#     def __call__(self, event, session=None):
-# #         return event[:-1] + ((event[-1] * 50.0) / 65535 - 25,)
-#         return event[:-1] + ((event[-1] / 32767) * 25.0,)
-
 
 
 #===============================================================================
@@ -269,18 +227,9 @@ class Univariate(Transform):
         self._build()
     
 
-#     def __call__(self, event, session=None):
-#         """ Apply the polynomial to an event. 
-#         
-#             @param event: The event to process (a time/value tuple or a
-#                 `dataset.Event` named tuple).
-#             @keyword session: The session containing the event. Not used in
-#                 this transform.
-#         """
-#         result = list(event)
-#         result[-1] = self._function(event[-1])
-#         return tuple(result)
-
+#===============================================================================
+# 
+#===============================================================================
 
 class Bivariate(Univariate):
     """ A two-variable polynomial in the general form
@@ -419,7 +368,8 @@ class CombinedPoly(Bivariate):
         
         Experimental!
     """
-    def __init__(self, poly, subchannel=None, calId=None, **kwargs):
+    def __init__(self, poly, subchannel=None, calId=None, dataset=None, 
+                 **kwargs):
         self.id = calId
         self.poly = poly
         self.subpolys = kwargs
@@ -429,11 +379,10 @@ class CombinedPoly(Bivariate):
 
         for attr in ('dataset','_eventlist','_sessionId','channelId',
                      'subchannelId', '_references', '_coeffs','_variables'):
-            try:
-                setattr(self, attr, getattr(poly, attr))
-            except AttributeError:
-                pass
-            
+#             print "CombinedPoly.__init__: %s = %r" % (attr, getattr(poly,attr,"missing"))
+            setattr(self, attr, getattr(poly, attr, None))
+        
+        self.dataset = self.dataset or dataset
         self._subchannel = subchannel
         self._build()
     
@@ -442,6 +391,7 @@ class CombinedPoly(Bivariate):
         old = None
         while old != src:
             old = src
+            src = src.replace(' ','')
             src = src.replace('(0+', '(').replace('(0.0+', '(')
             src = src.replace('(0-', '(-').replace('(0.0-', '(-')
             src = src.replace('(0*x', '(0').replace('(0.0*x', '(0')
@@ -484,16 +434,15 @@ class PolyPoly(CombinedPoly):
         
         Experimental!
     """
-    def __init__(self, polys, calId=None):
+    def __init__(self, polys, calId=None, dataset=None):
         self.id = calId
         self.polys = polys
         poly = polys[0]
         for attr in ('dataset','_eventlist','_sessionId','channelId','subchannelId'):
-            try:
-                setattr(self, attr, getattr(poly, attr, None))
-            except AttributeError:
-                continue
+#             print "PolyPoly.__init__: %s = %r" % (attr, getattr(poly, attr, None))
+            setattr(self, attr, getattr(poly, attr, None))
         
+        self.dataset = self.dataset or dataset
         self._eventlist = None
         self._build()
 
@@ -502,14 +451,14 @@ class PolyPoly(CombinedPoly):
         params = []
         body = []
         for n,p in enumerate(self.polys):
-            if p is None:
-                continue
-#             if self not in p._usedIn:
-#                 p._usedIn.append(self)
             params.append('x%d' % n)
-            body.append(p.source.split(':')[-1].replace('x', 'x%d' % n))
-            
-        src = "(%s)" % (', '.join(body))
+            if p is None:
+                body.append('x%d' % n)
+            else:
+                body.append(p.source.split(':')[-1].replace('x', 'x%d' % n))
+        
+        # ends with a comma to ensure a tuple is returned
+        src = "(%s,)" % (', '.join(body))
         self._str = src
 
         if 'y' in src:
@@ -520,6 +469,7 @@ class PolyPoly(CombinedPoly):
             
         self._source = "lambda %s: %s" % (','.join(params), src)
         self._function = eval(self._source)
+        self._variables = params
 
 
     def __call__(self, event, session=None):
@@ -529,28 +479,33 @@ class PolyPoly(CombinedPoly):
                 `Dataset.Event` named tuple).
             @keyword session: The session containing the event.
         """
-        session = self.dataset.lastSession if session is None else session
-        sessionId = None if session is None else session.sessionId
-        
         try:
             x = event[-1]
             # Optimization: don't check the other channel if Y is unused
             if self._noY is False:
+                session = self.dataset.lastSession if session is None else session
+                sessionId = None if session is None else session.sessionId
+                
                 if self._eventlist is None or self._sessionId != sessionId:
                     channel = self.dataset.channels[self.channelId][self.subchannelId]
                     self._eventlist = channel.getSession(session.sessionId)
                     self._sessionId = session.sessionId
                 if len(self._eventlist) == 0:
                     return event
-                y = self._eventlist.getValueAt(event[-2], outOfRange=True)
+#                 y = self._eventlist.getValueAt(event[-2], outOfRange=True)
+                y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
                 return event[-2],self._function(y[-1], *x)
             
             else:
                 return event[-2],self._function(*x)
             
-        except (IndexError, ZeroDivisionError):
+        except None:#(IndexError, ZeroDivisionError):
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
             return event
+        
+#         except TypeError:
+#             print "type error: event=%r, y=%r" % (event, y)
+#             return event
 

@@ -15,6 +15,8 @@ from mide_ebml.parsers import MPL3115PressureTempParser
 
 
 class MPL3115AltitudeParser(MPL3115PressureTempParser):
+    types = (float,)
+    ranges = ((-2**20,2**20),)
     DEFAULT_SEALEVEL = 101325.0
 
 
@@ -66,14 +68,16 @@ def addAltChannel(doc, chId=128, subChId=0, sessionId=None, sourceId=1):
         sessionId = doc.lastSession.sessionId
     if chId in doc.channels:
         return doc.channels[chId][subChId].getSession(sessionId)
-    ch = doc.sensors[0].addChannel(name="Computed Altitude", channelId=chId, 
+    ch = doc.addChannel(name="Computed Altitude", channelId=chId, 
                                    parser=MPL3115AltitudeParser(),
+                                   sensor=doc.sensors[0],
                                    cache=True, singleSample=True)
     ch.addSubChannel(subChId, name="Altitude", units=("Altitude","m"),
                      displayRange=(0,20000))
     
     sourceEl = doc.channels[sourceId].getSession(sessionId)
     el = sourceEl.copy(ch)
+    print el, el._parentList
     el._data = sourceEl._data
     ch.sessions[sessionId] = el
 #     return el

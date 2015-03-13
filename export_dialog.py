@@ -176,7 +176,7 @@ class ExportDialog(sc.SizedDialog):
         warnPane = sc.SizedPanel(pane,-1)
         warnPane.SetSizerType("horizontal")
         self.warningIcon = wx.StaticBitmap(warnPane, -1, self.noBmp)
-        self.warningMsg = wx.StaticText(warnPane,-1,"")
+        self.warningMsg = wx.StaticText(warnPane,-1,"?")
         self.warningMsg.SetForegroundColour("RED")
         self.warningMsg.SetSizerProps(valign="center")
         warnPane.SetSizerProps(expand=True)
@@ -195,9 +195,8 @@ class ExportDialog(sc.SizedDialog):
         """ Set up and display actual data in the dialog.
         """
         self.treeRoot = self.tree.AddRoot(self.root.dataset.name)
-        for sensor in self.root.dataset.sensors.itervalues():
-            self._addTreeItems(self.treeRoot, sensor, types=(CT.TREE_ITEMTYPE_RADIO,
-                                                   CT.TREE_ITEMTYPE_RADIO,
+        for channel in self.root.dataset.channels.itervalues():
+            self._addTreeItems(self.treeRoot, channel, types=(CT.TREE_ITEMTYPE_RADIO,
                                                    CT.TREE_ITEMTYPE_CHECK))
         self.tree.Expand(self.treeRoot)
         
@@ -387,6 +386,7 @@ class ExportDialog(sc.SizedDialog):
         if msg is None:
             if num == 0:
                 num = self.getEventCount()
+            num = max(0, num)
             countStr = locale.format("%d", num, grouping=True)
             msg = "Selected time range contains %s samples" % countStr
         self.rangeMsg.SetLabel(msg)
@@ -411,8 +411,9 @@ class ExportDialog(sc.SizedDialog):
         """ Hide the export range warning.
         """
         self.warningMsg.SetLabel("")
-        self.warningIcon.Hide()
-        self.warningMsg.Hide()
+        self.warningIcon.SetBitmap(self.noBmp)
+#         self.warningIcon.Hide()
+#         self.warningMsg.Hide()
 
 
     def updateMessages(self, event=None, treeItem=None):
@@ -655,7 +656,7 @@ class FFTExportDialog(ExportDialog):
     DEFAULT_WINDOW_SIZE = 2**16
     
     # These will be removed later, once memory usage is accurately computed.
-    manyEvents = 20**6
+    manyEvents = 10**7
     maxEvents = manyEvents * 4
     
     DEFAULT_TITLE = "Render FFT"
@@ -853,9 +854,9 @@ if __name__ == '__main__':# or True:
     root=FakeViewer()
     
     DIALOGS_TO_SHOW = (
-        (ExportDialog, {'root': root}),
-        (CSVExportDialog, {'root': root, 'exportType':'CSV'}),
-        (CSVExportDialog, {'root': root, 'exportType':'MAT'}),
+#         (ExportDialog, {'root': root}),
+#         (CSVExportDialog, {'root': root, 'exportType':'CSV'}),
+#         (CSVExportDialog, {'root': root, 'exportType':'MAT'}),
         (FFTExportDialog, {'root': root}),
         (SpectrogramExportDialog, {'root': root}),
     )

@@ -28,7 +28,7 @@ RESAMPLING_JITTER = 0.125
 # 
 #===============================================================================
 
-class LegendArea(ViewerPanel):
+class VerticalScale(ViewerPanel):
     """ The vertical axis of the plot. Contains the scale and the vertical
         zoom buttons.
     """
@@ -40,7 +40,7 @@ class LegendArea(ViewerPanel):
             @keyword root: The viewer's 'root' window.
         """
         kwargs.setdefault('style',wx.NO_BORDER)
-        super(LegendArea, self).__init__(*args, **kwargs)
+        super(VerticalScale, self).__init__(*args, **kwargs)
         
         self.highlightColor = wx.Colour(255,255,255)
 
@@ -877,7 +877,7 @@ class Plot(ViewerPanel):
         if hasattr(self.source, 'hasDisplayRange'):
             self.range = self.source.displayRange
         
-        self.legend = LegendArea(self, -1, 
+        self.legend = VerticalScale(self, -1, 
                                  visibleRange=(max(*self.range),min(*self.range)))
         self.plot = PlotCanvas(self, -1, color=color)
         self.scrollbar = wx.ScrollBar(self, -1, style=wx.SB_VERTICAL)
@@ -1196,7 +1196,7 @@ class WarningRangeIndicator(object):
                 h = size[1] * scale
                 rect = int(x),int(y),int(w),int(h)
                 self.rects.append(rect)
-            
+        
         dc.DrawRectangleList(self.rects)
         
         dc.SetPen(oldPen)

@@ -64,9 +64,10 @@ class ChannelInfoPanel(InfoPanel):
                 events = subc.getSession()
                 self.html.append("<li><b>Subchannel %02x.%d: %s</b></li>" % \
                                  (cid, subcid, subc.name))
-                
+                if subc.sensor is not None:
+                    self.addItem("Sensor:", subc.sensor.name)
                 self.addItem("Sensor Range:", "%s to %s %s" % 
-                   (subc.displayRange[0], subc.displayRange[1], subc.units[0]))
+                   (subc.displayRange[0], subc.displayRange[1], subc.units[1]))
                 
                 # Hack for channels with no data.
                 if len(events) > 0:
@@ -92,6 +93,31 @@ class ChannelInfoPanel(InfoPanel):
                 self.closeTable() 
                 
             self.html.append("</ul></p>")
+        self.html.append("</body></html>")
+        self.SetPage(''.join(self.html))
+
+#===============================================================================
+# 
+#===============================================================================
+
+class SensorInfoPanel(InfoPanel):
+    """
+    """
+    field_names = {}
+    
+    def buildUI(self):
+        """ Build and display the contents. This dialog's layout differs from
+            other InfoPanels, so it does more work here.
+        """
+        self.html = ["<html><body>"]
+        for sid, s in self.info.sensors.iteritems():
+            self.html.append("<p><b>Sensor %02x: %s</b><ul>" % (sid, s.name))
+            if s.traceData is not None:
+                for k,v in s.traceData.items():
+                    self.addItem(self.field_names.get(k, self._fromCamelCase(k)),v)
+
+            self.closeTable() 
+            
         self.html.append("</body></html>")
         self.SetPage(''.join(self.html))
 
@@ -174,9 +200,11 @@ class RecorderInfoDialog(SC.SizedDialog):
         notebook = wx.Notebook(pane, -1)
         filePanel = InfoPanel(notebook, -1, root=self, info=fileInfo)
         recordingPanel = InfoPanel(notebook, -1, root=self, info=recordingInfo)
+        sensorPanel = SensorInfoPanel(notebook, -1, root=self, info=self.root)
         infoPanel = ChannelInfoPanel(notebook, -1, root=self, info=self.root)
         notebook.AddPage(filePanel, "File Properties")
         notebook.AddPage(recordingPanel, "Recording Properties")
+        notebook.AddPage(sensorPanel, "Sensor Info")
         notebook.AddPage(infoPanel, "Channel Info")
         
         if recorderInfo:
@@ -235,4 +263,4 @@ if __name__ == "__main__":
             self.filename=data.filename
             
 #     doc.loading = True
-    RecorderInfoDialog.showRecorderInfo(doc, True)
+    RecorderInfoDialog.showRecorderInfo(doc, showAll=False)
