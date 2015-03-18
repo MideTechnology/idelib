@@ -19,8 +19,6 @@ class PlotView(FFTView):
     FULLNAME = "Rendered Plot"
     
     def __init__(self, *args, **kwargs):
-        self.removeMean = kwargs.pop('removeMean', False)
-        self.meanSpan = kwargs.pop('meanSpan', -1)
         super(PlotView, self).__init__(*args, **kwargs)
     
 

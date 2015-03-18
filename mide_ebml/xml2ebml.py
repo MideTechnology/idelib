@@ -123,19 +123,19 @@ def dumpXmlElement(el, indent=0, tabsize=4):
         payload. These are for reference only, and are ignored in any XML
         converted back to EBML. 
     """
-    tab = " " * tabsize * indent
+    tab = u" " * tabsize * indent
     if el.children:
-        results = ['%s<%s offset="%d" body_size="%s">' % \
+        results = [u'%s<%s offset="%d" body_size="%s">' % \
                    (tab, el.name, el.stream.offset, el.size)]
         for child in el.value:
             results.append(dumpXmlElement(child, indent+1, tabsize))
-        results.append('%s</%s>' % (tab, el.name))
-        return "\n".join(results)
+        results.append(u'%s</%s>' % (tab, el.name))
+        return u"\n".join(results)
     
     if el.name == 'Void':
-        return '%s<%s offset="%d" size="%s" />' % \
+        return u'%s<%s offset="%d" size="%s" />' % \
             (tab, el.name, el.stream.offset, el.size)
-    return '%s<%s offset="%d" size="%s" value="%s" />' % \
+    return u'%s<%s offset="%d" size="%s" value="%s" />' % \
         (tab, el.name, el.stream.offset, el.size, el.value)
 
 

@@ -258,7 +258,8 @@ def welch(x, NFFT=256, Fs=2, detrend=detrend_none, window=window_hanning,
 
 
 def csd(x, y, NFFT=256, Fs=2, detrend=detrend_none, window=window_hanning,
-        noverlap=0, pad_to=None, sides='default', scale_by_freq=None):
+        noverlap=0, pad_to=None, sides='default', scale_by_freq=None,
+        abortEvent=None):
     """
     The cross power spectral density by Welch's average periodogram
     method.  The vectors *x* and *y* are divided into *NFFT* length

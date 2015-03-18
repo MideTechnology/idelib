@@ -106,7 +106,7 @@ DEFAULTS = {
 
 
 if __DEBUG__:
-    logger.info("Adding low g channels")
+    logger.info("Adding low g channels to defaults")
     DEFAULTS['sensors'][0x02] = {
          'name': "Low-G Accelerometer"
     }
@@ -338,11 +338,13 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
             createDefaultSensors(doc, defaults)
             
     # XXX: REMOVE THIS
-    doc.channels[0].parser = struct.Struct('<HHH')
-    doc.channels[0].setTransform(0, update=False)
-    doc.channels[0][0].setTransform(3, update=False)
-    doc.channels[0][1].setTransform(2, update=False)
-    doc.channels[0][2].setTransform(1, update=False)
+    if "ChannelList" in doc.filename:
+        logger.info('Modifying test file transforms...')
+        doc.channels[0].parser = struct.Struct('<HHH')
+        doc.channels[0].setTransform(0, update=False)
+        doc.channels[0][0].setTransform(3, update=False)
+        doc.channels[0][1].setTransform(2, update=False)
+        doc.channels[0][2].setTransform(1, update=False)
     
     doc.updateTransforms()
     return doc

@@ -179,6 +179,8 @@ class FFTView(wx.Frame, MenuMixin):
     """
     NAME = "FFT"
     FULLNAME = "FFT View"
+    xLabel = "Frequency"
+    yLabel = "Amplitude"
     
     ID_EXPORT_CSV = wx.NewId()
     ID_EXPORT_IMG = wx.NewId()
@@ -209,14 +211,23 @@ class FFTView(wx.Frame, MenuMixin):
         self.subchannels = kwargs.pop("subchannels", None)
         self.range = (kwargs.pop("start",0), kwargs.pop("end",-1))
         self.data = kwargs.pop("data",None)
-        self.sliceSize = kwargs.pop("sliceSize", 2**16)
+        self.sliceSize = kwargs.pop("windowSize", 2**16)
+        self.removeMean = kwargs.pop('removeMean', False)
+        self.meanSpan = kwargs.pop('meanSpan', -1)
         self.logarithmic = kwargs.pop('logarithmic', (False, False))
         self.exportPrecision = kwargs.pop('exportPrecision', 6)
+        self.yUnits = kwargs.pop('yUnits', self.subchannels[0].units[1])
+        
+        self.indexRange = kwargs.pop('indexRange', None)
+        self.numRows = kwargs.pop('numRows')
         
         if self.source is None and self.subchannels is not None:
             self.source = self.subchannels[0].parent.getSession(
                                                     self.root.session.sessionId)
         
+        self.yUnits = (" (%s)" % self.yUnits) if self.yUnits else ""
+
+        print kwargs.keys()
         super(FFTView, self).__init__(*args, **kwargs)
         
         self.abortEvent = delayedresult.AbortEvent()
@@ -317,7 +328,7 @@ class FFTView(wx.Frame, MenuMixin):
             logger.info("Completed drawing. Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart))
     
             self.canvas.SetEnableZoom(True)
-            self.canvas.SetShowScrollbars(True)
+#             self.canvas.SetShowScrollbars(True)
 
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
             
@@ -380,10 +391,10 @@ class FFTView(wx.Frame, MenuMixin):
         
         dataMenu = wx.Menu()
         self.logFreq = self.addMenuItem(dataMenu, self.ID_DATA_LOG_FREQ, 
-                         "Frequency: Logarithmic Scale", "", self.OnMenuDataLog,
+                         "%s: Logarithmic Scale" % self.xLabel, "", self.OnMenuDataLog,
                          kind=wx.ITEM_CHECK, checked=self.logarithmic[0])
         self.logAmp = self.addMenuItem(dataMenu, self.ID_DATA_LOG_AMP, 
-                         "Amplitude: Logarithmic Scale", "", self.OnMenuDataLog,
+                         "%s: Logarithmic Scale" % self.yLabel, "", self.OnMenuDataLog,
                          kind=wx.ITEM_CHECK, checked=self.logarithmic[1])
         self.menubar.Append(dataMenu, "Data")
         self.dataMenu = dataMenu
@@ -421,11 +432,9 @@ class FFTView(wx.Frame, MenuMixin):
             lines.append(PolyLine(points, legend=name, 
                         colour=self.root.getPlotColor(self.subchannels[i])))
             
-        yUnits = self.subchannels[0].units[1]
-        yUnits = (" (%s)" % yUnits) if yUnits else ""
         self.lines = PlotGraphics(lines, title=self.GetTitle(), 
                                   xLabel="Frequency (Hz)", 
-                                  yLabel="Amplitude%s" % yUnits)
+                                  yLabel="%s%s" % (self.yLabel, self.yUnits))
         
     
     @classmethod
@@ -609,10 +618,6 @@ class FFTView(wx.Frame, MenuMixin):
         
         try:
             np.savetxt(filename, self.data, fmt='%.6f', delimiter=', ')
-#             out = open(filename, "wb")
-#             writer = csv.writer(out)
-#             writer.writerows(self.data)
-#             out.close()
             return True
         except ex as err:
             what = "exporting %s as CSV" % self.NAME
@@ -961,6 +966,8 @@ class SpectrogramView(FFTView):
     """
     NAME = "Spectrogram"
     FULLNAME = "Spectrogram View"
+    xLabel = "Time"
+    yLabel = "Amplitude"
     
     ID_COLOR_SPECTRUM = wx.NewId()
     ID_COLOR_GRAY = wx.NewId()
@@ -1127,20 +1134,10 @@ class SpectrogramView(FFTView):
                                               slicesPerSec=self.slicesPerSec, 
                                               recordingTime=recordingTime,
                                               abortEvent=abortEvent)
-    
-#                 self.data = self.generateData(self.source, rows=stop-start, 
-#                                               start=start, stop=stop,
-#                                               cols=len(self.subchannels), 
-#                                               timerange=self.range, fs=fs, 
-#                                               sliceSize=self.sliceSize*8,
-#                                               slicesPerSec=self.slicesPerSec, 
-#                                               recordingTime=recordingTime)
-                
+
                 self.images = self.makePlots(self.data, self.logarithmic, 
                                              self.colorizer)
                 self.makeLineList()
-#                 for i in range(len(self.subchannels)):#ch in subchIds:
-#                     self.addPlot(i)
             
         except wx.PyDeadObjectError:
             pass
@@ -1440,6 +1437,78 @@ class SpectrogramView(FFTView):
             what = "exporting %s as an image" % self.NAME
             self.root.handleError(err, what=what)
             return False
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class PSDView(FFTView):
+    """
+    """
+    NAME = "PSD"
+    FULLNAME = "PSD View"
+    yLabel = "Power/Frequency"
+    yUnits = "dB/Hz"
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('logarithmic', (True, True))
+        kwargs.setdefault('yUnits', self.yUnits)
+        super(PSDView, self).__init__(*args, **kwargs)
+        
+        sourceUnits = self.subchannels[0].units[1]
+        if sourceUnits:
+            self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits
+        else:
+            self.yUnits = " (dB/Hz)"
+        
+#     def draw(self, *args, **kwargs):
+#         self._draw(*args, **kwargs)
+
+    @classmethod
+    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
+                     abortEvent=None):
+        """ Compute 1D FFT from one or more channels of data.
+        
+            @note: This is the implementation from the old viewer and does not
+                scale well to massive datasets. This *will* run of of memory; 
+                the exact number of samples/RAM has yet to be determined.
+                
+            @param data: An iterable collection of event values (no times!). The
+                data can have one or more channels (e.g. accelerometer X or XYZ
+                together). This can be an iterator, generator, or array.
+            @keyword rows: The number of rows (samples) in the set, if known.
+            @keyword cols: The number of columns (channels) in the set; a 
+                default if the dataset does not contain multiple columns.
+            @keyword fs: Frequency of sample, i.e. the sample rate (Hz)
+            @return: A multidimensional array, with the first column the 
+                frequency.
+        """
+        points = cls.from2diter(data, rows, cols, abortEvent=abortEvent)
+        rows, cols = points.shape
+        NFFT = nextPow2(sliceSize)
+        logger.info("PSD calculation: NFFT = %s" % NFFT)
+        
+        fftData = None
+        
+        for i in xrange(cols):
+            if abortEvent is not None and abortEvent():
+                return 
+            
+            tmp_fft, freqs = spec.welch(points[:,i], NFFT, fs)
+            if fftData is None: 
+                fftData = freqs.reshape(-1,1)
+            fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
+            
+            # Remove huge DC component from displayed data; so data of interest 
+            # can be seen after auto axis fitting
+            thisCol = i+1
+            fftData[0,thisCol] = 0.0
+            fftData[1,thisCol] = 0.0
+            fftData[2,thisCol] = 0.0
+        
+        return fftData
+
 
 #===============================================================================
 # 

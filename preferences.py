@@ -105,9 +105,11 @@ class Preferences(object):
     }
 
 
-    def __init__(self, filename=None):
+    def __init__(self, filename=None, clean=False):
         self.prefsFile = filename or self.defaultPrefsFile
-        self.loadPrefs()
+        self.prefs = {}
+        if not clean:
+            self.loadPrefs(filename)
 
 
     def loadPrefs(self, filename=None):
@@ -279,7 +281,7 @@ class Preferences(object):
             self.prefs.pop(k, None)
         return len(keys)
 
-
+    
     def editPrefs(self, evt=None):
         """ Launch the Preferences editor.
             
@@ -291,9 +293,23 @@ class Preferences(object):
             self.prefs = newPrefs
             self.savePrefs()
             
-            for v in self.viewers:
-                v.loadPrefs()
+
+    def setdefault(self, k, v):
+        return self.prefs.setdefault(k,v)
+
+    def __getitem__(self, k):
+        return self.getPref(k)
     
+    def __setitem__(self, k, v):
+        return self.setPref(k,v)
+    
+    def __contains__(self, k):
+        return self.hasPref(k)
+
+    def __delitem__(self, k):
+        return self.deletePref(k)
+        
+
 #===============================================================================
 # 
 #===============================================================================

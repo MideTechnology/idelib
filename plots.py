@@ -248,6 +248,7 @@ class PlotCanvas(wx.ScrolledWindow):
     def loadPrefs(self):
         """
         """
+        self.condensedThreshold = self.root.app.getPref('condensedPlotThreshold', 2.0)#1.75)
         self.showWarningRange = self.root.app.getPref('showWarningRange', True,
                                                       section="wvr")
         self.SetBackgroundColour(self.root.app.getPref('plotBgColor', 'white'))
@@ -387,11 +388,16 @@ class PlotCanvas(wx.ScrolledWindow):
             view's timeline. Used internally.
         """
         rect = self.GetScreenRect()
-        trect = self.root.timeline.GetScreenRect()
+        trect = self.root.timeline.timebar.GetScreenRect()
         
         p1 = rect[0] - trect[0]
         p2 = p1 + self.GetSize()[0]
 
+        # XXX:
+#         p1 = 0
+#         p2 = self.GetSize()[0]
+#         print "XXX: getRelRange: size=%r, rect=%r, trect=%r, p1=%r, p2=%r" % (self.GetSize(),rect, trect, p1, p2)
+        
         result = (int(self.root.timeline.getValueAt(p1)),
                   int(self.root.timeline.getValueAt(p2)))
         
@@ -412,12 +418,15 @@ class PlotCanvas(wx.ScrolledWindow):
             thisV = int((pt[-1] - vRange[0]) * vScale) 
             lines.append((0, thisV, thisT, thisV))
         
-        def _makeline(lines, pt):
-            lastT = lines[-1][2]
-            lastV = lines[-1][3]
+        def _makeline(lines, pt, fun):
+            l = lines[-1]
+            lastT = l[2]
+            lastV = l[3]
             thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
             thisV = int((pt[-1] - vRange[0]) * vScale)
-            if thisT != lastT:
+            if False:#thisT == lastT:
+                lines[-1] = l[0], l[1], l[2], fun(lastV, thisV)
+            else:
                 lines.append((lastT, lastV, thisT, lastV))
                 lines.append((thisT, lastV, thisT, thisV))
         
@@ -426,28 +435,36 @@ class PlotCanvas(wx.ScrolledWindow):
             v = lines[-1][3]
             lines.append((t, v, width, v))
 
+        # XXX: REMOVE
+        vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1)
+        vals = list(vals)
+#         print "XXX: hRange: %r, minMeanMax vals length: %r" % (hRange, len(vals))
+        
         vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1)
         minPts = []
         meanPts = []
         maxPts = []
         # XXX: Test
 #         bufferMarks = []
+        i=0
 
         pMin, pMean, pMax = vals.next()
         _startline(minPts, pMin)
         _startline(meanPts, pMean)
         _startline(maxPts, pMax)
         for pMin, pMean, pMax in vals:
-            _makeline(minPts, pMin)
-            _makeline(meanPts, pMean)
-            _makeline(maxPts, pMax)
+            _makeline(minPts, pMin, min)
+            _makeline(meanPts, pMean, lambda x,y: (x+y)*0.5)
+            _makeline(maxPts, pMax, max)
             # XXX: TEST
 #             x = (int(min(max(0, (pMin[0] - hRange[0])) * hScale, width)))
 #             bufferMarks.append((x,vRange[1]*vScale,x,vRange[0]*vScale))
+            i+=1
         _finishline(minPts)
         _finishline(meanPts)
         _finishline(maxPts)
         
+#         print "XXX: iterations: %r, length minPts=%r, maxPts=%r" % (i, len(minPts), len(maxPts))
         self.minMeanMaxLines = (minPts[1:], meanPts, maxPts[1:])
         # XXX: TEST
 #         self.bufferMarks = bufferMarks
@@ -584,7 +601,7 @@ class PlotCanvas(wx.ScrolledWindow):
         if self.Parent.source.hasMinMeanMax:
             if self.minMeanMaxLines is None:
                 self.makeMinMeanMaxLines(hRange, vRange, hScale, vScale)
-            drawCondensed = len(self.minMeanMaxLines[0]) >= size[0] * 1.75
+            drawCondensed = len(self.minMeanMaxLines[0]) >= size[0] * self.condensedThreshold
             if drawCondensed:
                 if self.lines is None:
                 # More buffers than (virtual) pixels; draw vertical lines
@@ -597,6 +614,8 @@ class PlotCanvas(wx.ScrolledWindow):
                         self.lines.append((lastPt[0],lastPt[1],a[0],a[1]))
                         self.lines.append((a[0],a[1],b[0],b[1]))
                         lastPt = b[:2]
+#                     print "condensed mode plotting %r lines" % len(self.lines)
+#                     print "source buffer count: %r" % len(self.Parent.source._data)
             else:
                 if self.root.drawMinMax:
                     dc.DrawLineList(self.minMeanMaxLines[0], self.minRangePen)

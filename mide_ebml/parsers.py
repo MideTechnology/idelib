@@ -681,9 +681,9 @@ class ChannelDataBlock(BaseDataBlock):
             elif el.name == "EndTimeCodeAbs":
                 # FUTURE: Support this. Not currently generated (2014.04.23)
                 self.endTime = el.value
+                self._timestamp = el.value
             elif el.name == "StartTimeCodeAbsMod":
                 self.startTime = el.value
-                # TODO: Correct start time for modulus (?)
                 self._timestamp = el.value
             elif el.name == "EndTimeCodeAbsMod":
                 self.endTime = el.value
@@ -948,6 +948,8 @@ class ChannelParser(ElementHandler):
                 displayRange = subData.pop("rangeMin", None), subData.pop("rangeMax", None)
                 subData['displayRange'] = None if None in displayRange else displayRange
                 units = subData.pop('label', None), subData.pop('units', None)
+                if units[0] is None:
+                    units = units[1],units[1]
                 subData['units'] = None if None in units else units
                 
                 ch.addSubChannel(**subData)

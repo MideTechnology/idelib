@@ -13,6 +13,7 @@ Created on Nov 27, 2013
 # __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
 #            'Univariate', 'Bivariate']
 
+from time import sleep
 
 #===============================================================================
 # 
@@ -85,6 +86,7 @@ class AccelTransform(Transform):
     modifiesValue = True
      
     def __init__(self, amin=-100, amax=100, calId=None, dataset=None):
+        self.id = calId
         self.range = (amin, amax)
         self._str = "(x / 32767.0) * %.3f" % amax
         self._source = "lambda x: x * %f" % (amax / 32767.0)
@@ -354,7 +356,8 @@ class Bivariate(Univariate):
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
-            return event
+            return None
+#             return event
 
 
 #===============================================================================
@@ -490,8 +493,17 @@ class PolyPoly(CombinedPoly):
                     channel = self.dataset.channels[self.channelId][self.subchannelId]
                     self._eventlist = channel.getSession(session.sessionId)
                     self._sessionId = session.sessionId
+                    
+                # XXX: Hack! Eventlist length can be 0 if a thread is running.
+                # This almost immediately gets fixed. Find real cause.
                 if len(self._eventlist) == 0:
-                    return event
+#                     print "eventlist length 0 (try 1): %r %x" % (self._eventlist, id(self._eventlist))
+                    sleep(0.001)
+                    if len(self._eventlist) == 0:
+#                     return event
+#                         print "eventlist length 0 (try 2): %r %x" % (self._eventlist, id(self._eventlist))
+                        return None
+                    
 #                 y = self._eventlist.getValueAt(event[-2], outOfRange=True)
                 y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
                 return event[-2],self._function(y[-1], *x)
@@ -499,11 +511,12 @@ class PolyPoly(CombinedPoly):
             else:
                 return event[-2],self._function(*x)
             
-        except None:#(IndexError, ZeroDivisionError):
+        except (TypeError, IndexError, ZeroDivisionError):
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
-            return event
+#             return event
+            return None
         
 #         except TypeError:
 #             print "type error: event=%r, y=%r" % (event, y)

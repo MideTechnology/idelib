@@ -57,10 +57,10 @@ import config_dialog
 from device_dialog import selectDevice
 import export_dialog as xd
 from fileinfo import RecorderInfoDialog
-from fft import FFTView, SpectrogramView
+from fft import FFTView, SpectrogramView, PSDView
 from loader import Loader
 from plots import PlotSet
-from preference_dialog import PrefsDialog
+from preferences import PrefsDialog
 from range_dialog import RangeDialog
 from renderplot import PlotView
 from memorydialog import MemoryDialog
@@ -114,7 +114,8 @@ class Timeline(ViewerPanel):
         self.barClickPos = None
         self.scrolling = False
         self.highlightColor = wx.Colour(255,255,255)
-                
+
+#         outerSizer = wx.BoxSizer(wx.HORIZONTAL)                
         sizer = wx.BoxSizer(wx.VERTICAL)
         
         self.timebar = TimelineCtrl(self, -1, orient=wx.HORIZONTAL, 
@@ -127,6 +128,10 @@ class Timeline(ViewerPanel):
         
         self.scrollbar = wx.ScrollBar(self, -1, style=wx.SB_HORIZONTAL)
         sizer.Add(self.scrollbar, 0, wx.EXPAND|wx.ALIGN_BOTTOM)
+        
+#         outerSizer.Add(sizer, 1, wx.EXPAND)
+#         outerSizer.Add(wx.Panel(self, -1, size=(self.scrollbar.GetSize().y,16)),0)
+#         self.SetSizer(outerSizer)
         self.SetSizer(sizer)
 
         self._bindScrollEvents(self.scrollbar, self.OnScroll, 
@@ -599,7 +604,9 @@ class Viewer(wx.Frame, MenuMixin):
     # Custom menu IDs
     ID_RECENTFILES = wx.NewId()
     ID_EXPORT = wx.NewId()
+    ID_RENDER = wx.NewId()
     ID_RENDER_FFT = wx.NewId()
+    ID_RENDER_PSD = wx.NewId()
     ID_RENDER_SPEC = wx.NewId()
     ID_RENDER_PLOTS = wx.NewId()
     ID_FILE_PROPERTIES = wx.NewId()
@@ -741,21 +748,28 @@ class Viewer(wx.Frame, MenuMixin):
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_EXPORT, 
                          "&Export Data...\tCtrl+S", "", self.OnFileExportMenu)
-        fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, self.ID_RENDER_PLOTS, "Render Plots...", '',
-                         self.renderPlot)
-        self.addMenuItem(fileMenu, self.ID_RENDER_FFT, 
+#         fileMenu.AppendSeparator()
+        
+        renderMenu = wx.Menu()
+        self.addMenuItem(renderMenu, self.ID_RENDER_PLOTS, 
+                         "Render Plots...", '',
+                         self.renderFFT)
+        self.addMenuItem(renderMenu, self.ID_RENDER_FFT, 
                          "Render &FFT...\tCtrl+F", "", 
                          self.renderFFT)
-        self.addMenuItem(fileMenu, self.ID_RENDER_SPEC, 
+        self.addMenuItem(renderMenu, self.ID_RENDER_PSD,
+                         "Render &PSD...\tCtrl+P", "",
+                         self.renderFFT)
+        self.addMenuItem(renderMenu, self.ID_RENDER_SPEC, 
                          "Render Spectro&gram (2D FFT)...\tCtrl+G", "", 
-                         self.renderSpectrogram)
+                         self.renderFFT)
+        fileMenu.AppendMenu(self.ID_RENDER, "Render", renderMenu)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES, 
                          "Recording Properties...\tCtrl+I", "", 
                          self.OnFileProperties)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...\tCtrl+P", "", 
+        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", 
                          enabled=False)
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
                          enabled=False)
@@ -1497,7 +1511,7 @@ class Viewer(wx.Frame, MenuMixin):
             return
         
         source = settings['source']
-        subchannels = settings['channels']
+        subchannels = settings['subchannels']
         subchannelIds = [c.id for c in subchannels]
         start, stop = settings['indexRange']
         addHeaders = settings.get('addHeaders', False)
@@ -1563,134 +1577,71 @@ class Viewer(wx.Frame, MenuMixin):
         return ("%%.%df" % places) % (t * self.timeScalar)
 
 
-    def renderFFT(self, evt=None):
-        """ Create a 1D FFT plot after getting input from the user (range,
-            window size, etc.).
+    def renderFFT(self, evt=None, plotType=ID_RENDER_FFT):
+        """ Create a plot showing multiple subchannels, an FFT, a PSD, or
+            a Spectrogram after getting input from the user (range,
+            window size, etc.). This method can be used as an event handler
+            or called normally. If called normally, you must include the
+            menu item ID for the type of plot to render.
             
-            @keyword evt: An event (not actually used), making this method
-                compatible with event handlers.
         """
-        settings = xd.FFTExportDialog.getExport(root=self)
-        if settings is None:
-            return
-        
-        source = settings.get('source', None)
-        subchannels = settings['channels']
-        startTime, stopTime = settings['timeRange']
-        sliceSize = settings.get('windowSize', 2**16)
-        
-        # Smart plot naming: use parent channel name if all children plotted.
-        if len(subchannels) != len(source.parent.subchannels):
-            title = ", ".join([c.name for c in subchannels])
+        evtId = plotType if evt is None else evt.GetId()
+        if evtId == self.ID_RENDER_PSD:
+            viewClass = PSDView
+            errMsg = "rendering a PSD plot"
+            settings = xd.PSDExportDialog.getExport(root=self)
+        elif evtId == self.ID_RENDER_SPEC:
+            viewClass = SpectrogramView
+            errMsg = "rendering a Spectrogram"
+            settings = xd.SpectrogramExportDialog.getExport(root=self)
+        elif evtId == self.ID_RENDER_PLOTS:
+            viewClass = PlotView
+            errMsg = "rendering a Plot view"
+            settings = xd.ExportDialog.getExport(root=self, title="Render Plot")
         else:
-            title = source.parent.name 
-        title = "FFT: %s (%ss to %ss)" % \
-            (title, self._formatTime(startTime), self._formatTime(stopTime))
-             
-        viewId = wx.NewId()
-        size = self.GetSize()
-        
-        # Catch no exceptions if not in debug.
-        ex = None if DEBUG else Exception
-
-        try:
-            view = FFTView(self, viewId, title=title, size=size, root=self, 
-                   source=source, subchannels=subchannels, start=startTime, 
-                   end=stopTime, sliceSize=sliceSize)
-            self.childViews[viewId] = view
-        
-        except ex as e:
-            self.handleError(e, what="generating FFT")
-
-
-    def renderSpectrogram(self, evt=None):
-        """ Create a 2D FFT/Time plot.
+            viewClass = FFTView
+            errMsg = "rendering an FFT plot"
+            settings = xd.FFTExportDialog.getExport(root=self)
             
-            @keyword evt: An event (not actually used), making this method
-                compatible with event handlers.
-        """
-        # TODO: Much of this is identical to FFT rendering; refactor to share.
-        settings = xd.SpectrogramExportDialog.getExport(root=self)
         if settings is None:
             return
         
+        plotType = viewClass.NAME
         source = settings.get('source', None)
-        subchannels = settings['channels']
-        startTime, stopTime = settings['timeRange']
-#         sliceSize = settings['windowSize']
-        slicesPerSec = settings['slices']
-        
-        # Smart plot naming: use parent channel name if all children plotted.
-        if len(subchannels) != len(source.parent.subchannels):
-            title = ", ".join([c.name for c in subchannels])
-        else:
-            title = source.parent.name 
-        title = "Spectrogram: %s (%ss to %ss)" % \
-            (title, self._formatTime(startTime), self._formatTime(stopTime))
-             
-        viewId = wx.NewId()
-        size = self.GetSize()
-
-        # Catch no exceptions if not in debug.
-        ex = None if DEBUG else Exception
-
-        try:
-            view = SpectrogramView(self, viewId, title=title, size=size, 
-                   root=self, source=source, subchannels=subchannels, 
-                   start=startTime, end=stopTime, slicesPerSec=slicesPerSec,)
-                    #sliceSize=sliceSize)
-            self.childViews[viewId] = view
-            
-        except ex as e: #Exception as e:
-            self.handleError(e, what="generating Spectrogram")
-
-
-    def renderPlot(self, evt=None):
-        """ Render multiple subchannels in a single image.
-        
-            @todo: This will eventually be obsolete.
-                Remove once plots have bee refactored to show multiple channels.
-            
-            @keyword evt: An event (not actually used), making this method
-                compatible with event handlers.
-        """
-        settings = xd.ExportDialog.getExport(root=self, title="Render Plot")
-        if settings is None:
-            return
-        
-        source = settings.get('source', None)
-        subchannels = settings['channels']
-        startTime, stopTime = settings['timeRange']
+        subchannels = settings['subchannels']
+        startTime = settings['start']
+        stopTime = settings['end']
         removeMeanType = settings.get('removeMean', 2)
         
-        removeMean = removeMeanType > 0
+        settings['removeMean'] = removeMeanType > 0
         if removeMeanType == 1:
-            meanSpan = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+            settings['meanSpan'] = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
         else:
-            meanSpan = -1
+            settings['meanSpan'] = -1
         
         # Smart plot naming: use parent channel name if all children plotted.
         if len(subchannels) != len(source.parent.subchannels):
             title = ", ".join([c.name for c in subchannels])
         else:
             title = source.parent.name 
-
+        title = "%s: %s (%ss to %ss)" % (plotType, title, 
+                                         self._formatTime(startTime), 
+                                         self._formatTime(stopTime))
+             
         viewId = wx.NewId()
-        
         size = self.GetSize()
         
         # Catch no exceptions if not in debug.
         ex = None if DEBUG else Exception
 
         try:
-            view = PlotView(self, viewId, title=title, size=size, root=self, 
-                   source=source, subchannels=subchannels, start=startTime, 
-                   end=stopTime, removeMean=removeMean, meanSpan=meanSpan)
+            view = viewClass(self, viewId, title=title, size=size, root=self, 
+                             **settings)
 
             self.childViews[viewId] = view
-         
+        
         except ex as e:
-            self.handleError(e, what="rendering a plot view")
+            self.handleError(e, what=errMsg)
 
 
     #===========================================================================

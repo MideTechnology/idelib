@@ -176,7 +176,7 @@ class ExportDialog(sc.SizedDialog):
         warnPane = sc.SizedPanel(pane,-1)
         warnPane.SetSizerType("horizontal")
         self.warningIcon = wx.StaticBitmap(warnPane, -1, self.noBmp)
-        self.warningMsg = wx.StaticText(warnPane,-1,"?")
+        self.warningMsg = wx.StaticText(warnPane,-1," ")
         self.warningMsg.SetForegroundColour("RED")
         self.warningMsg.SetSizerProps(valign="center")
         warnPane.SetSizerProps(expand=True)
@@ -355,13 +355,14 @@ class ExportDialog(sc.SizedDialog):
             # This should never happen, but just in case:
             return None
         
-        timeRange = self.getExportRange()
+        startTime, stopTime = self.getExportRange()
         source = channels[0].parent.getSession(self.root.session.sessionId)
-        indexRange = source.getRangeIndices(*timeRange)
+        indexRange = source.getRangeIndices(startTime, stopTime)
 
-        return {'timeRange': timeRange,
+        return {'start': startTime,
+                'end': stopTime,
                 'indexRange': indexRange,
-                'channels': channels,
+                'subchannels': channels,
                 'numRows': indexRange[1]-indexRange[0],
 #                 'removeMean': self.removeMeanList.GetSelection(),
                 'source': source}
@@ -540,13 +541,14 @@ class ExportDialog(sc.SizedDialog):
 
         if warnSlow and root.dataset.loading:
             x = root.ask("A dataset is currently being loaded. This will "
-                         "make %s slow. \n\nDo you want to continue?" % cls.WHAT, 
+                         "make %s slow and may produce inconsistencies in the "
+                         "data. \n\nDo you want to continue?" % cls.WHAT, 
                          title)
             if x != wx.ID_YES:
                 return None
         
         if sortChannels:
-            settings['channels'].sort(key=lambda x: x.name)
+            settings['subchannels'].sort(key=lambda x: x.name)
 
         return settings
 
@@ -570,7 +572,6 @@ class CSVExportDialog(ExportDialog):
         
         self.DEFAULT_TITLE = "Export %s" % self.exportType.upper()
         kwargs.setdefault('title', self.DEFAULT_TITLE)
-        print kwargs
         super(CSVExportDialog, self).__init__(*args, **kwargs)
 
 
@@ -757,6 +758,56 @@ class FFTExportDialog(ExportDialog):
 #         result['samplingOrder'] = self.orderList.GetSelection()
         return result
 
+
+#===============================================================================
+# 
+#===============================================================================
+
+
+class PSDExportDialog(FFTExportDialog):
+    DEFAULT_TITLE = "Render PSD"
+    WHAT = "rendering"
+    
+    def buildSpecialUI(self):
+        """ Called before the OK/Cancel buttons are added.
+        """
+        # TODO: Fix windowed FFT calculation, re-enable window size UI
+        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
+        self.sizeList, _subpane = self._addChoice("Sampling Window Size:",
+            choices=self.WINDOW_SIZES, default=self.windowSize, 
+            tooltip="The size of the 'window' used in Welch's method")
+        
+#         self.orderList, _ = self._addChoice("Sampling Order:",
+#             choices=self.SAMPLE_ORDER, default=self._samplingOrder,
+#             parent = subpane)        
+
+    def getSettings(self):
+        """ Retrieve the settings specified in the dialog as a dictionary. The
+            dictionary contains the following keys:
+            
+                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * indexRange: The first and last event index in the specified
+                    interval of time.
+                * numRows: The number of samples in the given channel in the
+                    specified interval.
+                * source: The `mide_ebml.dataset.EventList` for the parent
+                    channel in the current session.
+                * timeRange: The specified interval's start and end times.
+                * windowSize: The specified window (a/k/a slice) size for use
+                    with Welch's Method.
+
+            @return: A dictionary of settings or `None` if there's a problem
+                (e.g. no channels have been selected).
+        """
+        result = super(FFTExportDialog, self).getSettings()
+        if result is None:
+            return None
+        
+        windowSize = int(self.sizeList.GetString(self.sizeList.GetSelection()))
+        result['windowSize'] = windowSize
+#         result['samplingOrder'] = self.orderList.GetSelection()
+        return result
+
 #===============================================================================
 # 
 #===============================================================================
@@ -821,7 +872,7 @@ class SpectrogramExportDialog(FFTExportDialog):
             return None
         
         slices = int(self.resList.GetString(self.resList.GetSelection()))
-        result['slices'] = slices
+        result['slicesPerSec'] = slices
         return result
 
 
@@ -858,6 +909,7 @@ if __name__ == '__main__':# or True:
 #         (CSVExportDialog, {'root': root, 'exportType':'CSV'}),
 #         (CSVExportDialog, {'root': root, 'exportType':'MAT'}),
         (FFTExportDialog, {'root': root}),
+        (PSDExportDialog, {'root': root}),
         (SpectrogramExportDialog, {'root': root}),
     )
     
