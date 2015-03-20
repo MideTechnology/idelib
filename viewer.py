@@ -74,6 +74,7 @@ import mide_ebml; mide_ebml = mide_ebml # Workaround for Eclipse code comp.
 import mide_ebml.classic.importer
 import mide_ebml.multi_importer
 import mide_ebml.matfile
+import mide_ebml.unit_conversion
 
 # XXX: FOR TESTING; REMOVE LATER
 
@@ -632,6 +633,8 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_NOMEAN_ALL = wx.NewId()
     ID_DATA_NOMEAN_NONE = wx.NewId()
     ID_DATA_WARNINGS = wx.NewId()
+    ID_DATA_DISPLAY = wx.NewId()
+    ID_DATA_DISPLAY_NATIVE = wx.NewId()
     ID_HELP_CHECK_UPDATES = wx.NewId()
 
     ID_DEBUG_SUBMENU = wx.NewId()
@@ -753,16 +756,16 @@ class Viewer(wx.Frame, MenuMixin):
         renderMenu = wx.Menu()
         self.addMenuItem(renderMenu, self.ID_RENDER_PLOTS, 
                          "Render Plots...", '',
-                         self.renderFFT)
+                         self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_FFT, 
                          "Render &FFT...\tCtrl+F", "", 
-                         self.renderFFT)
+                         self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_PSD,
                          "Render &PSD...\tCtrl+P", "",
-                         self.renderFFT)
+                         self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_SPEC, 
                          "Render Spectro&gram (2D FFT)...\tCtrl+G", "", 
-                         self.renderFFT)
+                         self.renderPlot)
         fileMenu.AppendMenu(self.ID_RENDER, "Render", renderMenu)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES, 
@@ -868,6 +871,12 @@ class Viewer(wx.Frame, MenuMixin):
                          "Remove Total Mean from Data", "",
                          self.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
         dataMenu.AppendMenu(self.ID_DATA_MEAN_SUBMENU, "Remove Mean", meanMenu)
+        
+        self.displayMenu = wx.Menu()
+        self.addMenuItem(self.displayMenu, self.ID_DATA_DISPLAY_NATIVE,
+                         "Native Units", "", self.OnConversionPicked, 
+                         kind=wx.ITEM_RADIO)
+        dataMenu.AppendMenu(self.ID_DATA_DISPLAY, "Display", self.displayMenu)
         
         self.addMenuItem(dataMenu, self.ID_DATA_WARNINGS,
                           "Show Temperature Range Warnings", "", 
@@ -993,6 +1002,26 @@ class Viewer(wx.Frame, MenuMixin):
         for c in self.Children:
             c.Enable(enabled)
 
+
+    def enableDisplayMenu(self):
+        """
+        """
+        for mi in self.displayMenu.GetMenuItems():
+            if mi.GetId() == self.ID_DATA_DISPLAY_NATIVE:
+                continue
+            self.displayMenu.RemoveItem(mi)
+        if self.dataset is None:
+            self.displayMenu.Enable(False)
+            return
+        self.unitConverters = {}
+        cons = mide_ebml.unit_conversion.getApplicableConverters(self.dataset)
+        cons.sort(key=lambda x: x.conversion[1])
+        for c in cons:
+            cid = wx.NewId()
+            self.unitConverters[cid] = c
+            self.addMenuItem(self.displayMenu, cid, "Display %s as %s" % c.conversion[1], "", self.OnConversionPicked, kind=wx.ITEM_RADIO)
+
+        
 
     #===========================================================================
     # 
@@ -1394,6 +1423,7 @@ class Viewer(wx.Frame, MenuMixin):
             return False
         
         self.dataset = newDoc
+        self.enableDisplayMenu()
         title = filename #self.dataset.name
         if len(newDoc.sessions) > 1:
             if not self.selectSession():
@@ -1577,7 +1607,7 @@ class Viewer(wx.Frame, MenuMixin):
         return ("%%.%df" % places) % (t * self.timeScalar)
 
 
-    def renderFFT(self, evt=None, plotType=ID_RENDER_FFT):
+    def renderPlot(self, evt=None, plotType=ID_RENDER_FFT):
         """ Create a plot showing multiple subchannels, an FFT, a PSD, or
             a Spectrogram after getting input from the user (range,
             window size, etc.). This method can be used as an event handler
@@ -1589,7 +1619,12 @@ class Viewer(wx.Frame, MenuMixin):
         if evtId == self.ID_RENDER_PSD:
             viewClass = PSDView
             errMsg = "rendering a PSD plot"
-            settings = xd.PSDExportDialog.getExport(root=self)
+            # XXX: TEMPORARY TEST. REMOVE LATER.
+            if wx.GetKeyState(wx.WXK_CONTROL):
+                settings = xd.PSDExportDialog.getExport(root=self, title="Render PSD (Welch's Method)")
+                settings['useWelch'] = True
+            else:
+                settings = xd.FFTExportDialog.getExport(root=self, title="Render PSD")
         elif evtId == self.ID_RENDER_SPEC:
             viewClass = SpectrogramView
             errMsg = "rendering a Spectrogram"
@@ -1606,7 +1641,9 @@ class Viewer(wx.Frame, MenuMixin):
         if settings is None:
             return
         
-        plotType = viewClass.NAME
+        # Get items from the export dialog's results for setting up the views.
+        # Not all views use all parameters, but their __init__ methods will
+        # accept them.
         source = settings.get('source', None)
         subchannels = settings['subchannels']
         startTime = settings['start']
@@ -1624,21 +1661,19 @@ class Viewer(wx.Frame, MenuMixin):
             title = ", ".join([c.name for c in subchannels])
         else:
             title = source.parent.name 
-        title = "%s: %s (%ss to %ss)" % (plotType, title, 
+        title = "%s: %s (%ss to %ss)" % (viewClass.NAME, title, 
                                          self._formatTime(startTime), 
                                          self._formatTime(stopTime))
              
         viewId = wx.NewId()
         size = self.GetSize()
         
-        # Catch no exceptions if not in debug.
+        # Catch no exceptions if in debug.
         ex = None if DEBUG else Exception
 
         try:
-            view = viewClass(self, viewId, title=title, size=size, root=self, 
-                             **settings)
-
-            self.childViews[viewId] = view
+            self.childViews[viewId] = viewClass(self, viewId, title=title, 
+                                                size=size, root=self, **settings)
         
         except ex as e:
             self.handleError(e, what=errMsg)
@@ -2323,7 +2358,23 @@ class Viewer(wx.Frame, MenuMixin):
     def OnDebugAddAlt(self, evt):
         import altplot
         altplot.addAltPlot(self)
+
+
+    def updateConversionMenu(self):
+        p = self.plotarea.getActivePage()
+        if p is None:
+            return
+        for mi in self.displayMenu.GetMenuItems():
+            mid = mi.GetId()
+            if mid == self.ID_DATA_DISPLAY_NATIVE:
+                continue
+            mi.Enable(self.unitConverters[mid].isApplicable(p.source))
+                
+
         
+    def OnConversionPicked(self, evt):
+        pass
+    
 #===============================================================================
 # 
 #===============================================================================

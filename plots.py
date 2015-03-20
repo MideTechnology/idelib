@@ -1126,7 +1126,9 @@ class Plot(ViewerPanel):
                        checked=self.root.drawMean)
         
         rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME,
-                       enabled=rt.session.utcStartTime is not None)                      
+                       enabled=rt.session.utcStartTime is not None)
+        
+        rt.updateConversionMenu()                
             
 
     #===========================================================================

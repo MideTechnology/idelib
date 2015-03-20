@@ -15,6 +15,9 @@ Created on Nov 27, 2013
 
 from time import sleep
 
+import logging
+logger = logging.getLogger('mide_ebml')
+
 #===============================================================================
 # 
 #===============================================================================
@@ -352,10 +355,11 @@ class Bivariate(Univariate):
             y = self._noY or self._eventlist.getMeanNear(event[-2])
             return event[-2],self._function(x,y[-1])
         
-        except (IndexError, ZeroDivisionError):
+        except (IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
+            logger.warning("%s occurred in Bivariate polynomial %r" % err.__class__.__name__, self.id)
             return None
 #             return event
 
@@ -511,11 +515,12 @@ class PolyPoly(CombinedPoly):
             else:
                 return event[-2],self._function(*x)
             
-        except (TypeError, IndexError, ZeroDivisionError):
+        except (TypeError, IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
 #             return event
+            logger.warning("%s occurred in combined polynomial %r" % err.__class__.__name__, self.id)
             return None
         
 #         except TypeError:

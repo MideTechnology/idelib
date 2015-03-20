@@ -592,6 +592,8 @@ class SimpleChannelDataBlockParser(ElementHandler):
     elementName = product.__name__
     isHeader = False
    
+    timeScalar = 1000000.0 / 2**15
+
     def __init__(self, doc, **kwargs):
         super(SimpleChannelDataBlockParser, self).__init__(doc, **kwargs)
 
@@ -614,7 +616,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
             timestamp += block.maxTimestamp
             self.timestampOffset[channel] += block.maxTimestamp
         self.lastStamp[channel] = timestamp
-        return timestamp * block.timeScalar
+        return timestamp * self.timeScalars.get(channel, self.timeScalar)
     
    
     def parse(self, element, sessionId=None, timeOffset=0):
@@ -678,10 +680,10 @@ class ChannelDataBlock(BaseDataBlock):
             elif el.name == "StartTimeCodeAbs":
                 # FUTURE: Support this. Not currently generated (2014.04.23)
                 self.startTime = el.value
+                self._timestamp = el.value
             elif el.name == "EndTimeCodeAbs":
                 # FUTURE: Support this. Not currently generated (2014.04.23)
                 self.endTime = el.value
-                self._timestamp = el.value
             elif el.name == "StartTimeCodeAbsMod":
                 self.startTime = el.value
                 self._timestamp = el.value
@@ -693,8 +695,10 @@ class ChannelDataBlock(BaseDataBlock):
         
         # Single-sample blocks have a total time of 0.
         # Set endTime to None, so the end times will be computed.
-        if self.startTime == self.endTime:
-            self.endTime = None
+#         if self.startTime == self.endTime:
+#             self.endTime = None
+        if self.endTime is None:
+            self.endTime = self.startTime
     
     
     @property
@@ -939,7 +943,7 @@ class ChannelParser(ElementHandler):
             if timeModulus is not None:
                 p.timeModulus[channelId] = timeModulus
             if timeScale is not None:
-                p.timeScalars = valEval(timeScale)
+                p.timeScalars[channelId] = valEval(timeScale)
         
         ch = self.doc.addChannel(**data)
         

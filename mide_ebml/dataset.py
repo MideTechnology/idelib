@@ -981,7 +981,7 @@ class EventList(Cascading):
             self.session.firstTime = block.startTime
         else:
             self.session.firstTime = min(self.session.firstTime, block.startTime)
-            
+
         if self.session.lastTime is None:
             self.session.lastTime = block.endTime
         else:
@@ -1248,7 +1248,7 @@ class EventList(Cascading):
             
             event = xform((timestamp, value), session=self.session)
             if event is None:
-                print "XXX: %s: bad transform @%s" % (self.parent.name,timestamp)
+                print "XXX: %s: bad transform %r %r" % (self.parent.name,timestamp, value)
                 sleep(0.001)
                 event = xform((timestamp, value), session=self.session)
                 
@@ -1975,7 +1975,10 @@ class EventList(Cascading):
     def getMeanNear(self, t, outOfRange=False):
         """
         """
-        return self._getBlockRollingMean(self._getBlockIndexWithTime(t), force=True)
+        b = self._getBlockIndexWithTime(t)
+        if outOfRange:
+            b = min(len(self._data)-1,b)
+        return self._getBlockRollingMean(b, force=True)
         
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,

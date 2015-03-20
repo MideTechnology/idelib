@@ -36,6 +36,9 @@ from logger import logger
 if DEBUG:
     import logging
     logger.setLevel(logging.INFO)
+    
+FOREGROUND = False #True
+
 #===============================================================================
 # 
 #===============================================================================
@@ -197,13 +200,24 @@ class FFTView(wx.Frame, MenuMixin):
                      "Portable Network Graphics (*.png)|*.png" 
     
     def __init__(self, *args, **kwargs):
-        """ FFT view main panel. Takes standard wx.Window arguments plus:
+        """ FFT view main panel. Takes standard wx.Window arguments plus
+            additional keyword arguments. Note that the FFT view doesn't use
+            them all; some are applicable only to FFTView subclasses.
         
             @keyword root: The parent viewer window
             @keyword source: 
             @keyword subchannels: A list of subchannels
             @keyword start: The start of the time interval to render
             @keyword end: The end of the time interval to render
+            @keyword windowSize: 
+            @keyword removeMean: 
+            @keyword meanSpan: 
+            @keyword logarithmic: 
+            @keyword param: 
+            @keyword exportPrecision: 
+            @keyword yUnits: 
+            @keyword indexRange: 
+            @keyword numRows: 
         """
         kwargs.setdefault("title", self.FULLNAME)
         self.root = kwargs.pop("root", None)
@@ -224,10 +238,11 @@ class FFTView(wx.Frame, MenuMixin):
         if self.source is None and self.subchannels is not None:
             self.source = self.subchannels[0].parent.getSession(
                                                     self.root.session.sessionId)
-        
-        self.yUnits = (" (%s)" % self.yUnits) if self.yUnits else ""
 
-        print kwargs.keys()
+        self.yUnits = (" (%s)" % self.yUnits) if self.yUnits else ""
+        
+        self.formatter = "%%.%df" % self.exportPrecision
+
         super(FFTView, self).__init__(*args, **kwargs)
         
         self.abortEvent = delayedresult.AbortEvent()
@@ -253,7 +268,7 @@ class FFTView(wx.Frame, MenuMixin):
 
 
     def initPlot(self):
-        """
+        """ Set up the drawing area.
         """
         self.canvas = FFTPlotCanvas(self)
         self.canvas.SetEnableAntiAliasing(True)
@@ -271,6 +286,8 @@ class FFTView(wx.Frame, MenuMixin):
 
 
     def finishDraw(self, arg):
+        """ Callback executed when the background drawing thread completes.
+        """
         try:
             self.source.removeMean = self.oldRemoveMean
             self.statusBar.stopProgress()
@@ -283,7 +300,7 @@ class FFTView(wx.Frame, MenuMixin):
 
 
     def draw(self):
-        """
+        """ Initiates the background calculation/drawing thread.
         """
         self.drawStart = time.time()
         subevents = [self.source.dataset.channels[self.source.parent.id][ch.id].getSession().removeMean for ch in self.subchannels]
@@ -292,6 +309,11 @@ class FFTView(wx.Frame, MenuMixin):
         
         for i in range(4):
             self.menubar.EnableTop(i, False)
+            
+        if FOREGROUND:
+            self._draw()
+            return self.finishDraw(None)
+
         self.statusBar.startProgress(label="Calculating...", initialVal=-1, cancellable=False, delay=100)
         self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
         t = delayedresult.startWorker(self.finishDraw, self._draw, daemon=True)
@@ -425,7 +447,6 @@ class FFTView(wx.Frame, MenuMixin):
         freqs = self.data[:,0].reshape(-1,1)
 
         for i in range(cols):
-#             print "i=%s" % i
             points = (hstack((freqs, self.data[:,i+1].reshape(-1,1))))
             name = self.subchannels[i].name
 
@@ -435,7 +456,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.lines = PlotGraphics(lines, title=self.GetTitle(), 
                                   xLabel="Frequency (Hz)", 
                                   yLabel="%s%s" % (self.yLabel, self.yUnits))
-        
+
     
     @classmethod
     def from2diter(cls, data, rows=None, cols=1, abortEvent=None):
@@ -603,6 +624,7 @@ class FFTView(wx.Frame, MenuMixin):
     def OnExportCsv(self, evt):
         ex = None if DEBUG else Exception
         filename = None
+        
         dlg = wx.FileDialog(self, 
             message="Export CSV...", 
 #             defaultDir=defaultDir,  defaultFile=defaultFile, 
@@ -617,7 +639,7 @@ class FFTView(wx.Frame, MenuMixin):
             return False
         
         try:
-            np.savetxt(filename, self.data, fmt='%.6f', delimiter=', ')
+            np.savetxt(filename, self.data, fmt=self.formatter, delimiter=', ')
             return True
         except ex as err:
             what = "exporting %s as CSV" % self.NAME
@@ -652,10 +674,9 @@ class FFTView(wx.Frame, MenuMixin):
         fullY = plot.GetYMaxRange()
         oldX = plot.GetXCurrentRange()
         oldY = plot.GetYCurrentRange()
-#         print "Before: x=%s y=%s" % (oldX, oldY)
         newX = (max(fullX[0], (1.0-amount) * oldX[0]), min(fullX[1], (1.0+amount) * oldX[1]))
         newY = (max(fullY[0], (1.0-amount) * oldY[0]), min(fullY[1], (1.0+amount) * oldY[1]))
-#         print "After: x=%s y=%s" % (newX, newY)
+
         if newX[0] > newX[1]:
             newX = tuple(oldX)
         if newY[0] > newY[1]:
@@ -1032,8 +1053,8 @@ class SpectrogramView(FFTView):
         if self.data is None:
             return
         
-        start = self.source[0][-2] * self.timeScalar
-        end = self.source[-1][-2] * self.timeScalar
+        start = self.source[self.indexRange[0]][-2] * self.timeScalar
+        end = self.source[self.indexRange[1]][-2] * self.timeScalar
         self.lines = []
         self.ranges = []
 
@@ -1122,7 +1143,7 @@ class SpectrogramView(FFTView):
         try:
             # self.canvas is the plot canvas
             if self.subchannels is not None:
-                start, stop = self.source.getRangeIndices(*self.range)
+                start, stop = self.indexRange #self.source.getRangeIndices(*self.range)
                 recordingTime = self.source[-1][-2] - self.source[0][-2]
                 recordingTime *= self.timeScalar
                 fs = self.source.getSampleRate()
@@ -1177,11 +1198,12 @@ class SpectrogramView(FFTView):
             pts = points[:,i]
             # This is basically what matplotlib.mlab.specgram does.
             # Parameters cribbed from matplotlib and the old viewer
-            Pxx, freqs, bins = spec._spectral_helper(pts, pts, 
+            Pxx, freqs, bins = spec.x_spectral_helper(pts, pts, 
                 NFFT=specgram_nfft, Fs=fs, detrend=spec.detrend_none, 
                 window=spec.window_hanning, noverlap=specgram_nfft/2, 
                 pad_to=None, sides='onesided', scale_by_freq=None,
-                abortEvent=abortEvent)
+#                 abortEvent=abortEvent
+                )
             
             if Pxx is None:
                 break
@@ -1294,7 +1316,6 @@ class SpectrogramView(FFTView):
 
     def OnExportCsv(self, evt):
         ex = None if DEBUG else Exception
-        dataFormat = "%%.%df" % self.exportPrecision
         exportChannels = []
         if len(self.subchannels) > 1:
             channelNames = [c.name for c in self.subchannels]
@@ -1350,7 +1371,7 @@ class SpectrogramView(FFTView):
                 data, freqs, times  = self.data[num]
                 freqs = np.reshape(hstack((np.array((-1,)),freqs)), (-1,1))
                 data = hstack((freqs, vstack((np.reshape(times, (1,-1)), data))))
-                np.savetxt(filename, data, fmt=dataFormat, delimiter=', ')
+                np.savetxt(filename, data, fmt=self.formatter, delimiter=', ')
 
 #                 out = open(filename, "wb")
 #                 for d in data:
@@ -1454,6 +1475,10 @@ class PSDView(FFTView):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('logarithmic', (True, True))
         kwargs.setdefault('yUnits', self.yUnits)
+        
+        # XXX: TEST
+        self.useWelch = kwargs.pop('useWelch', False)
+        
         super(PSDView, self).__init__(*args, **kwargs)
         
         sourceUnits = self.subchannels[0].units[1]
@@ -1461,12 +1486,11 @@ class PSDView(FFTView):
             self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits
         else:
             self.yUnits = " (dB/Hz)"
-        
-#     def draw(self, *args, **kwargs):
-#         self._draw(*args, **kwargs)
+            
+        self.formatter = '%E'
 
-    @classmethod
-    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
+
+    def generateData(self, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
                      abortEvent=None):
         """ Compute 1D FFT from one or more channels of data.
         
@@ -1484,31 +1508,40 @@ class PSDView(FFTView):
             @return: A multidimensional array, with the first column the 
                 frequency.
         """
-        points = cls.from2diter(data, rows, cols, abortEvent=abortEvent)
-        rows, cols = points.shape
-        NFFT = nextPow2(sliceSize)
-        logger.info("PSD calculation: NFFT = %s" % NFFT)
-        
-        fftData = None
-        
-        for i in xrange(cols):
-            if abortEvent is not None and abortEvent():
-                return 
-            
-            tmp_fft, freqs = spec.welch(points[:,i], NFFT, fs)
-            if fftData is None: 
-                fftData = freqs.reshape(-1,1)
-            fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
-            
-            # Remove huge DC component from displayed data; so data of interest 
-            # can be seen after auto axis fitting
-            thisCol = i+1
-            fftData[0,thisCol] = 0.0
-            fftData[1,thisCol] = 0.0
-            fftData[2,thisCol] = 0.0
-        
-        return fftData
+        # XXX: TEST
+        if self.useWelch:
+            logger.info("Calculating PSD using Welch's Method")
+            points = self.from2diter(data, rows, cols, abortEvent=abortEvent)
+            rows, cols = points.shape
+            NFFT = nextPow2(sliceSize)
+            logger.info("PSD calculation: NFFT = %s" % NFFT)
+               
+            fftData = None
+            for i in xrange(cols):
+                if abortEvent is not None and abortEvent():
+                    return 
+                   
+                tmp_fft, freqs = spec.welch(points[:,i], NFFT, fs, scale_by_freq=True)#, detrend=spec.demean)
+                if fftData is None: 
+                    fftData = freqs.reshape(-1,1)
+                fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
+                   
+                # Remove huge DC component from displayed data; so data of interest 
+                # can be seen after auto axis fitting
+                thisCol = i+1
+                fftData[0,thisCol] = 0.0
+                fftData[1,thisCol] = 0.0
+                fftData[2,thisCol] = 0.0
+              
+            return fftData
 
+        logger.info("Calculating PSD using regular FFT function")
+
+        fftData = FFTView.generateData(data, rows=rows, cols=cols, fs=fs, sliceSize=sliceSize, 
+                     abortEvent=abortEvent)
+        fftData[:,1:] = np.square(fftData[:,1:])/fftData[1,0]
+        return fftData
+        
 
 #===============================================================================
 # 
