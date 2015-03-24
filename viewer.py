@@ -1013,13 +1013,13 @@ class Viewer(wx.Frame, MenuMixin):
         if self.dataset is None:
             self.displayMenu.Enable(False)
             return
-        self.unitConverters = {}
+        self.unitConverters = {self.ID_DATA_DISPLAY_NATIVE: None}
         cons = mide_ebml.unit_conversion.getApplicableConverters(self.dataset)
-        cons.sort(key=lambda x: x.conversion[1])
+        cons.sort(key=lambda x: x.units)
         for c in cons:
             cid = wx.NewId()
-            self.unitConverters[cid] = c
-            self.addMenuItem(self.displayMenu, cid, "Display %s as %s" % c.conversion[1], "", self.OnConversionPicked, kind=wx.ITEM_RADIO)
+            self.unitConverters[cid] = c(dataset=self.dataset)
+            self.addMenuItem(self.displayMenu, cid, "Display %s as %s" % c.units, "", self.OnConversionPicked, kind=wx.ITEM_RADIO)
 
         
 
@@ -1423,7 +1423,6 @@ class Viewer(wx.Frame, MenuMixin):
             return False
         
         self.dataset = newDoc
-        self.enableDisplayMenu()
         title = filename #self.dataset.name
         if len(newDoc.sessions) > 1:
             if not self.selectSession():
@@ -1434,6 +1433,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(title))
         loader.start()
+
+        self.enableDisplayMenu()
 
         # Expired calibration warning
         try:
@@ -2367,14 +2368,19 @@ class Viewer(wx.Frame, MenuMixin):
         for mi in self.displayMenu.GetMenuItems():
             mid = mi.GetId()
             if mid == self.ID_DATA_DISPLAY_NATIVE:
-                continue
-            mi.Enable(self.unitConverters[mid].isApplicable(p.source))
-                
+                mi.SetText("Native Units (%s as %s)" % p.source.parent.units)
+            else:
+                mi.Enable(self.unitConverters[mid].isApplicable(p.source))
+            if p.source.transform == self.unitConverters[mid]:
+                self.setMenuItem(self.displayMenu, mid, checked=True)
 
-        
+
     def OnConversionPicked(self, evt):
-        pass
-    
+        p = self.plotarea.getActivePage()
+        if p is None:
+            return
+        p.setUnitConverter(self.unitConverters.get(evt.GetId(), None))
+        
 #===============================================================================
 # 
 #===============================================================================

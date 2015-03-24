@@ -894,6 +894,7 @@ class EventList(Cascading):
         self._firstTime = self._lastTime = None
         self._singleSample = parentChannel.singleSample
         self._parentList = parentList
+        self._childLists = []
 
         # Optimization: Keep track of indices in blocks (per 10000)
         # The first is the earliest block with the index,
@@ -920,24 +921,58 @@ class EventList(Cascading):
         self.hasMinMeanMax = False
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
 
+        self.transform = None
         self.useAllTransforms = True
-        self.updateTransforms()
+        self.updateTransforms(recurse=False)
     
     
-    def updateTransforms(self):
+    def setTransform(self, xform, update=True):
         """
         """
-        self._comboXform = self._fullXform = None
+        self.transform = xform
+        if update:
+            self.updateTransforms()
+
+        
+    def updateTransforms(self, recurse=True):
+        """ (Re-)Build and (re-)apply the transformation functions.
+        """
+        # _comboXform is the channel's transform, with as many parameters as
+        # subchannels. _fullXform is the channel's transform plus the 
+        # subchannel's transform. Subchannels will always use the latter. Parent
+        # channels can use either.
+        self._comboXform = self._fullXform = self._displayXform = None
         if self.hasSubchannels:
             self._comboXform = PolyPoly([self.parent.transform]*len(self.parent.types))
             xs = [c.transform if c is not None else None for c in self.parent.subchannels]
-            self._fullXform = PolyPoly([CombinedPoly(t, x=self.parent.transform) for t in xs])
+            xs = [CombinedPoly(t, x=self.parent.transform, dataset=self.dataset) for t in xs]
+            self._fullXform = PolyPoly(xs, dataset=self.dataset)
+            
+            if recurse:
+                sessionId = self.session.sessionId if self.session is not None else None
+                dispX = []
+                for x,sc in zip(xs,self.parent.subchannels):
+                    if sessionId in sc.sessions:
+                        cl = sc.sessions[sessionId]
+                        if cl.transform is None:
+                            dispX.append(x)
+                        else:
+                            dispX.append(CombinedPoly(cl.transform, x=x, dataset=self.dataset))
+                        
+                    else:
+                        dispX.append(x)
+                        
+                self._displayXform = PolyPoly(dispX, dataset=self.dataset)
         else:
+            self._parentList.updateTransforms()#(recurse=False)
             self._comboXform = self._fullXform = self._parentList._fullXform
+            self._displayXform = self._parentList._displayXform
 
 
     @property
     def units(self):
+        if self.transform is not None:
+            return self.transform.units or self.parent.units
         return self.parent.units
 
 
@@ -1207,7 +1242,7 @@ class EventList(Cascading):
             return None
     
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, display=False):
         """ Get a specific data point by index.
         
             @param idx: An index, a `slice`, or a tuple of one or both
@@ -1227,6 +1262,8 @@ class EventList(Cascading):
 #             return result
         if self.useAllTransforms:
             xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
         else:
             xform = self._comboXform
             
@@ -1248,7 +1285,7 @@ class EventList(Cascading):
             
             event = xform((timestamp, value), session=self.session)
             if event is None:
-                print "XXX: %s: bad transform %r %r" % (self.parent.name,timestamp, value)
+                logger.info( "XXX: %s: bad transform %r %r" % (self.parent.name,timestamp, value))
                 sleep(0.001)
                 event = xform((timestamp, value), session=self.session)
                 
@@ -1256,7 +1293,7 @@ class EventList(Cascading):
             if offset is not None:
                 offsetx = xform((timestamp, offset), session=self.session)
                 if offsetx is None:
-                    print "XXX: %s: bad offset @%s" % (self.parent.name,timestamp)
+                    logger.info( "XXX: %s: bad offset @%s" % (self.parent.name,timestamp))
                     sleep(0.001)
                     offsetx = xform((timestamp, offset), session=self.session)
                 event = (timestamp, tuple(numpy.array(event[-1])-offsetx[-1]))
@@ -1295,7 +1332,7 @@ class EventList(Cascading):
             return 0
 
 
-    def itervalues(self, start=0, end=-1, step=1, subchannels=True):
+    def itervalues(self, start=0, end=-1, step=1, subchannels=True, display=False):
         """ Iterate all values in the list.
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
@@ -1303,14 +1340,14 @@ class EventList(Cascading):
             # Create a function instead of chewing the subchannels every time
             fun = eval("lambda x: (%s)" % \
                        ",".join([("x[%d]" % c) for c in subchannels]))
-            for v in self.iterSlice(start, end, step):
+            for v in self.iterSlice(start, end, step, display):
                 yield fun(v[-1])
         else:
-            for v in self.iterSlice(start, end, step):
+            for v in self.iterSlice(start, end, step, display):
                 yield v[-1]
 
 
-    def iterSlice(self, start=0, end=-1, step=1):
+    def iterSlice(self, start=0, end=-1, step=1, display=False):
         """ Create an iterator producing events for a range indices.
         """
         if isinstance (start, slice):
@@ -1362,6 +1399,8 @@ class EventList(Cascading):
 
         if self.useAllTransforms:
             xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
         else:
             xform = self._comboXform
 
@@ -1377,12 +1416,12 @@ class EventList(Cascading):
             if removeMean:
                 offset = _getBlockRollingMean(blockIdx)
                 if offset is None:
-                    print "XXX: %s: bad offset (1) @%s" % (self.parent.name,block.startTime)
+                    logger.info( "XXX: %s: bad offset (1) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
                 offsetx = xform((block.startTime,offset), session=session)
                 if offsetx is None:
-                    print "XXX: %s: bad offset(2) @%s" % (self.parent.name,block.startTime)
+                    logger.info( "XXX: %s: bad offset(2) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
                     offsetx = xform((block.startTime,offset), session=session)
                 offset = numpy_array(offsetx[-1])
@@ -1390,7 +1429,7 @@ class EventList(Cascading):
             for event in izip(times, values):
                 eventx = xform(event, session=session)
                 if eventx is None:
-                    print "XXX: %s: bad transform @%s" % (self.parent.name,event[0])
+                    logger.info( "XXX: %s: bad transform @%s" % (self.parent.name,event[0]))
                     sleep(0.001)
                     eventx = xform(event, session=session)
                 event = eventx
@@ -1405,7 +1444,7 @@ class EventList(Cascading):
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
 
-    def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5):
+    def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5, display=False):
         """ Create an iterator producing events for a range indices.
         """
         if start is None:
@@ -1447,6 +1486,8 @@ class EventList(Cascading):
         
         if self.useAllTransforms:
             xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
         else:
             xform = self._comboXform
         
@@ -1589,7 +1630,7 @@ class EventList(Cascading):
 
 
     def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                       times=True):
+                       times=True, display=False):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
             
@@ -1612,6 +1653,8 @@ class EventList(Cascading):
 
         if self.useAllTransforms:
             xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
         else:
             xform = self._comboXform
                 
@@ -1665,7 +1708,7 @@ class EventList(Cascading):
     
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                      times=True):
+                      times=True, display=False):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
             
@@ -1676,10 +1719,12 @@ class EventList(Cascading):
             @return: A list of sets of three events (min, mean, and max, 
                 respectively).
         """
-        return list(self.iterMinMeanMax(startTime, endTime, padding, times))
+        return list(self.iterMinMeanMax(startTime, endTime, padding, times, 
+                                        display=display))
     
     
-    def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None):
+    def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
+                           display=False):
         """ Get the single minimum, mean, and maximum value for blocks within a
             specified interval. Note: Using this with a parent channel without
             specifying a subchannel number can produce meaningless data if the
@@ -1695,7 +1740,7 @@ class EventList(Cascading):
         """
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
-        mmm = numpy.array(self.getMinMeanMax(startTime, endTime, times=False))
+        mmm = numpy.array(self.getMinMeanMax(startTime, endTime, times=False, display=display))
         if mmm.size == 0:
             return None
         if self.hasSubchannels and subchannel is not None:
@@ -1982,7 +2027,7 @@ class EventList(Cascading):
         
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
-                           jitter=0):
+                           jitter=0, display=False):
         """ Retrieve the events occurring within a given interval,
             undersampled as to not exceed a given length (e.g. the size of
             the data viewer's screen width).
@@ -1996,8 +2041,9 @@ class EventList(Cascading):
         stopIdx = min(stopIdx+padding, len(self))
         step = max(int(numPoints / maxPoints),1)
         if jitter != 0:
-            return self.iterJitterySlice(startIdx, stopIdx, step, jitter)
-        return self.iterSlice(startIdx, stopIdx, step)
+            return self.iterJitterySlice(startIdx, stopIdx, step, jitter,
+                                         display=display)
+        return self.iterSlice(startIdx, stopIdx, step, display=display)
 
 
     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,

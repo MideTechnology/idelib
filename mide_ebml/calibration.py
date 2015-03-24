@@ -13,6 +13,7 @@ Created on Nov 27, 2013
 # __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
 #            'Univariate', 'Bivariate']
 
+import math
 from time import sleep
 
 import logging
@@ -29,12 +30,13 @@ class Transform(object):
     """
     modifiesTime = False
     modifiesValue = False
+    units = None
     
     def __init__(self, *args, **kwargs):
         self.id = None
         self._str = "x"
         self._source = "lambda x: x"
-        self._function = eval(self._source)
+        self._function = eval(self._source, {'math': math})
         self._lastSession = None
         self._timeOffset = 0
         pass
@@ -46,6 +48,12 @@ class Transform(object):
         if self.id is None:
             return "<%s: (%s)>" % (self.__class__.__name__, self._str)
         return "<%s (ID %d): (%s)>" % (self.__class__.__name__, self.id, self._str)
+
+    def updateGlobals(self, *dicts):
+        result = dict(math=math)
+        for d in dicts:
+            result.update(d)
+        return result
 
     @property
     def function(self):
@@ -93,7 +101,7 @@ class AccelTransform(Transform):
         self.range = (amin, amax)
         self._str = "(x / 32767.0) * %.3f" % amax
         self._source = "lambda x: x * %f" % (amax / 32767.0)
-        self._function = eval(self._source)
+        self._function = eval(self._source, {'math': math})
         self._lastSession = None
         self._timeOffset = 0
      
@@ -125,6 +133,12 @@ class Univariate(Transform):
         for o in old:
             result = result.replace(o,'')
         return result
+    
+    @classmethod
+    def _streplace(cls, s, *args):
+        for old,new in args:
+            s = s.replace(old, new)
+        return s
     
     @classmethod
     def _fixSums(self, s):
@@ -198,7 +212,7 @@ class Univariate(Transform):
         if '.' not in self._source:
             self._source ="%s+0.0" % self._source
         self._source = self._fixSums(self._source)
-        self._function = eval(self._source)
+        self._function = eval(self._source, {'math': math})
     
     
     @property
@@ -323,7 +337,7 @@ class Bivariate(Univariate):
             src = "+".join([src, "0.0"])
         
         self._source = 'lambda x,y: %s' % self._fixSums(src)
-        self._function = eval(self._source)
+        self._function = eval(self._source, {'math': math})
         
         # Optimization: it is possible that the polynomial could exclude Y
         # completely. If that's the case, use a dummy value to speed things up.
@@ -384,11 +398,12 @@ class CombinedPoly(Bivariate):
         if subchannel is not None:
             self.poly = self.poly[subchannel]
 
+        p = kwargs.values()[0]
         for attr in ('dataset','_eventlist','_sessionId','channelId',
                      'subchannelId', '_references', '_coeffs','_variables'):
-#             print "CombinedPoly.__init__: %s = %r" % (attr, getattr(poly,attr,"missing"))
-            setattr(self, attr, getattr(poly, attr, None))
-        
+            setattr(self, attr, getattr(poly, attr, getattr(p, attr, None)))
+#             setattr(self, attr, getattr(poly, attr, None))
+                    
         self.dataset = self.dataset or dataset
         self._subchannel = subchannel
         self._build()
@@ -398,7 +413,7 @@ class CombinedPoly(Bivariate):
         old = None
         while old != src:
             old = src
-            src = src.replace(' ','')
+#             src = src.replace(' ','')
             src = src.replace('(0+', '(').replace('(0.0+', '(')
             src = src.replace('(0-', '(-').replace('(0.0-', '(-')
             src = src.replace('(0*x', '(0').replace('(0.0*x', '(0')
@@ -413,6 +428,16 @@ class CombinedPoly(Bivariate):
     
     def _build(self):
         if self.poly is None:
+            if len(self.subpolys) == 1:
+                p = self.subpolys.values()[0]
+                if p is not None:
+                    for attr in ('_str', '_source', '_function', '_noY'):
+                        setattr(self, attr, getattr(p, attr, None))
+#                     self._str = p._str
+#                     self._source = p._source
+#                     self._function = p._function
+#                     self._noY = p._noY
+                    return
             phead, src= "lambda x", "x"
         else:
             phead,src = self.poly.source.split(": ")
@@ -429,9 +454,16 @@ class CombinedPoly(Bivariate):
         if self._subchannel is not None:
             src = src.replace('x','x[%d]' % self._subchannel)
         
+        evalGlobals = {'math': math}
+        if self.poly is not None: 
+            evalGlobals.update(self.poly._function.func_globals)
+        for p in self.subpolys.itervalues():
+            if p is not None:
+                evalGlobals.update(p._function.func_globals)
+        
         self._str = src
         self._source = "%s: %s" % (phead, src)
-        self._function = eval(self._source)
+        self._function = eval(self._source, evalGlobals)
         self._noY = (0,1) if 'y' not in src else False
         
 
@@ -474,8 +506,13 @@ class PolyPoly(CombinedPoly):
         else:
             self._noY = (0,1)
             
+        evalGlobals = {'math': math}
+        for p in self.polys:
+            if p is not None:
+                evalGlobals.update(p._function.func_globals)
+        
         self._source = "lambda %s: %s" % (','.join(params), src)
-        self._function = eval(self._source)
+        self._function = eval(self._source, evalGlobals)
         self._variables = params
 
 
@@ -520,7 +557,7 @@ class PolyPoly(CombinedPoly):
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
 #             return event
-            logger.warning("%s occurred in combined polynomial %r" % err.__class__.__name__, self.id)
+            logger.warning("%s occurred in combined polynomial %r" % (err.__class__.__name__, self))
             return None
         
 #         except TypeError:

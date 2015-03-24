@@ -140,7 +140,13 @@ class VerticalScale(ViewerPanel):
         """ Get the value corresponding to a given vertical pixel location.
         """
         return self.visibleRange[1] - (vpos * self.unitsPerPixel)
+
         
+    def setUnits(self, units):
+        """
+        """
+        self.unitLabel.SetLabel(units)
+
 
     def zoom(self, percent=zoomAmount, tracking=True, useKeyboard=False):
         """ Increase or decrease the size of the visible range.
@@ -435,12 +441,7 @@ class PlotCanvas(wx.ScrolledWindow):
             v = lines[-1][3]
             lines.append((t, v, width, v))
 
-        # XXX: REMOVE
-        vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1)
-        vals = list(vals)
-#         print "XXX: hRange: %r, minMeanMax vals length: %r" % (hRange, len(vals))
-        
-        vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1)
+        vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1, display=True)
         minPts = []
         meanPts = []
         maxPts = []
@@ -549,7 +550,7 @@ class PlotCanvas(wx.ScrolledWindow):
         # Auto-zoom the first drawing of the plot, using the source's 
         # minimum and maximum data if available. 
         if self.Parent.source.hasMinMeanMax:
-            mmm = self.Parent.source.getRangeMinMeanMax(hRange[0], hRange[1])
+            mmm = self.Parent.source.getRangeMinMeanMax(hRange[0], hRange[1], display=True)
             self.Parent.visibleValueRange = [mmm[0], mmm[2]]
             if self.Parent.firstPlot: 
                 self.Parent.firstPlot = False
@@ -637,7 +638,7 @@ class PlotCanvas(wx.ScrolledWindow):
             
             events = self.Parent.source.iterResampledRange(hRange[0], hRange[1],
                 size[0]*self.oversampling, padding=1, 
-                jitter=self.root.noisyResample)
+                jitter=self.root.noisyResample, display=True)
 
             try:
                 event = events.next()
@@ -947,6 +948,42 @@ class Plot(ViewerPanel):
         
         self.scrollUnitsPerUnit = self._sbMax / (start - end)
 
+
+    def setTabText(self, s):
+        """ Set the name displayed on the plot's tab.
+        """
+        try:
+            i = self.Parent.GetPageIndex(self)
+            self.Parent.SetPageText(i, s)
+        except AttributeError:
+            # Can occur if the plot isn't in a tab; just in case.
+            self.SetTitle(s)
+            
+
+    def setUnitConverter(self, con):
+        """ Apply (or remove) a unit conversion function.
+        """
+        oldUnits = self.source.units[0]
+        
+        self.source.setTransform(con, update=False)
+        self.source.dataset.updateTransforms()
+        self.yUnits = self.source.units
+        self.legend.setUnits(self.source.units[-1])
+        if con is None:
+            self.setTabText(self.source.parent.name)
+            self.zoomToFit(self)
+        else:
+            t,b = self.legend.getValueRange()
+            try:
+                t = con.convert(t)
+                b = con.convert(b)
+            except ValueError:
+                pass
+            if oldUnits != con.units[0]:
+                self.setTabText(con.units[0])
+            self.legend.setValueRange(t,b)
+        self.redraw()
+        
 
     def setValueRange(self, start=None, end=None, instigator=None, 
                       tracking=False):

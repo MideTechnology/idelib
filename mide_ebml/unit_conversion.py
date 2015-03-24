@@ -42,17 +42,18 @@ class UnitConverter(object):
             sourceUnits = obj.units
         else:
             sourceUnits = obj.parent.units
-        fromUnits = cls.conversion[0]
+        fromUnits = cls.convertsFrom
         if sourceUnits is None:
             return False
         if sourceUnits == fromUnits:
             return True
-        if None not in cls.conversion[0]:
+        if None not in cls.convertsFrom:
             return False
         units = (fromUnits[0] or sourceUnits[0], fromUnits[1] or sourceUnits[1])
         return units == sourceUnits
     
-    
+    def convert(self, v):
+        return self.function(v)
 
 #===============================================================================
 # Simple converters
@@ -62,21 +63,21 @@ class UnitConverter(object):
 class Celsius2Fahrenheit(UnitConverter, Univariate):
     """ Convert degrees Celsius to Fahrenheit. 
     """
-    conversion = ((u'Temperature',u'\xb0C'),
-                  (u'Temperature',u'\xb0F'))
+    convertsFrom = (u'Temperature',u'\xb0C')
+    units = (u'Temperature',u'\xb0F')
     
     def __init__(self, calId=None, dataset=None, varName="x"):
         """
         """
-        super(Celsius2Fahrenheit, self).__init__((57.5999999, 32), calId=calId,
+        super(Celsius2Fahrenheit, self).__init__((1.8, 32), calId=calId,
                                                  dataset=dataset, varName=varName)
 
 @registerConverter
 class Gravity2MPerSec2(UnitConverter, Univariate):
     """ Convert acceleration from g to m/s^2.
     """
-    conversion = ((u'Acceleration',u'g'),
-                  (u'Acceleration',u'm/s\u00b2'))
+    convertsFrom = (u'Acceleration',u'g')
+    units = (u'Acceleration',u'm/s\u00b2')
     
     def __init__(self, calId=None, dataset=None, varName='x'):
         super(Gravity2MPerSec2, self).__init__((9.806649999788,0), calId=calId,
@@ -88,8 +89,8 @@ class Meters2Feet(UnitConverter, Univariate):
     """
     modifiesValue = True
     parameters = None
-    conversion = (('Altitude', 'm'),
-                  ('Altitude', 'ft'))
+    convertsFrom = ('Altitude', 'm')
+    units = ('Altitude', 'ft')
     
     def __init__(self, calId=None, dataset=None, varName='x'):
         super(Meters2Feet, self).__init__((3.2808399, 0), calId=calId, 
@@ -106,13 +107,13 @@ class Pressure2Meters(UnitConverter, Transform):
     """
     modifiesValue = True
     
-    conversion = (('Pressure','Pa'),
-                  ('Altitude', 'm'))
+    convertsFrom = ('Pressure','Pa')
+    units = ('Altitude', 'm')
     
     parameters = (('temp', 'Temperature at sea level', float),
                   ('sealevel', 'Pressure at sea level', float))
     
-    def __init__(self, calId, dataset=None, temp=20.0, sealevel=101325.0):
+    def __init__(self, calId=None, dataset=None, temp=20.0, sealevel=101325.0):
         """
         """
         self._sealevel = sealevel
@@ -123,13 +124,17 @@ class Pressure2Meters(UnitConverter, Transform):
         self._build()
 
     def _build(self):
-
+        self._str = "pa2m.convert(x)"
+        self._source = "lambda x: %s" % self._str
+        self._function = eval(self._source, {'pa2m': self, 'math': math})
+        return
+    
         self.T_2 = self.temp - 71.5
-        self.h_1 = (self.T_2*-0.03680965745309403)+11000
+        self.h_1 = (self.T_2*-0.0368096575)+11000
         
         params = dict(sealevel=self._sealevel,
                     temp=self._temp,
-                    T_2=self._temp - 71.5,
+                    T_2=self.T_2,
                     L_b=-0.0065, # [K/m] temperature lapse rate
                     h_b = 0.0,  # [m] height above sea level (differing altitudes have differing time lapse rates
                     T_2a = 8.31432*self.T_2,
@@ -166,7 +171,7 @@ class Pressure2Meters(UnitConverter, Transform):
         self._build()
 
 
-    def _function(self, press):
+    def function(self, press):
         if ((self._sealevel/press) < 4.47704808656731):
             L_b = -0.0065 # [K/m] temperature lapse rate
             h_b = 0.0  # [m] height above sea level (differing altitudes have differing time lapse rates
@@ -184,16 +189,17 @@ class Pressure2Meters(UnitConverter, Transform):
 class Pressure2Feet(Pressure2Meters):
     """ Convert pressure in Pascals to an altitude in feet.
     """
-    conversion = (('Pressure','Pa'),
-                  ('Altitude', 'ft'))
+    convertsFrom = ('Pressure','Pa')
+    units = ('Altitude', 'ft')
     
     def _build(self):
         super(Pressure2Feet, self)._build()
         self._str = "3.2808399*(%s)" % self._str
         self._source = "lambda x: %s" % self._str
 
-    def _function(self, press):
-        return 3.2808399*Pressure2Meters._function(self, press)
+    def function(self, press):
+        print "Pressure2Feet(%r)" % press
+        return 3.2808399*Pressure2Meters.function(self, press)
 
 
 #===============================================================================
