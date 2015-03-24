@@ -49,12 +49,6 @@ class Transform(object):
             return "<%s: (%s)>" % (self.__class__.__name__, self._str)
         return "<%s (ID %d): (%s)>" % (self.__class__.__name__, self.id, self._str)
 
-    def updateGlobals(self, *dicts):
-        result = dict(math=math)
-        for d in dicts:
-            result.update(d)
-        return result
-
     @property
     def function(self):
         """ The generated polynomial function itself. """
@@ -420,7 +414,7 @@ class CombinedPoly(Bivariate):
             src = src.replace('(0*y', '(0').replace('(0.0*y', '(0')
             src = cls._stremove(src, ('(0*x*y)+', '(0*x)+', '(0*y)+'))
             src = src.replace("(1*", "(").replace("(1.0*", "(")
-            src = src.replace("(x)", "x").replace("(y)", "y")
+#             src = src.replace("(x)", "x").replace("(y)", "y")
             if src.endswith('+0'):
                 src = src[:-2]
             src = cls._fixSums(src)
@@ -447,13 +441,14 @@ class CombinedPoly(Bivariate):
                 ssrc = "lambda x: x"
             else:
                 ssrc = v.source 
-            s = "(%s)" % ssrc.split(": ")[-1].upper()
+            s = "(%s)" % ssrc.split(": ")[-1]
             src = self._reduce(src.replace(k, s))
-        src = src.lower()
 
         if self._subchannel is not None:
             src = src.replace('x','x[%d]' % self._subchannel)
         
+        # Merge in all function globals, in case components use additional
+        # libraries (e.g. math). 
         evalGlobals = {'math': math}
         if self.poly is not None: 
             evalGlobals.update(self.poly._function.func_globals)
@@ -505,7 +500,9 @@ class PolyPoly(CombinedPoly):
             self._noY = False
         else:
             self._noY = (0,1)
-            
+        
+        # Merge in all function globals, in case components use additional
+        # libraries (e.g. math). 
         evalGlobals = {'math': math}
         for p in self.polys:
             if p is not None:

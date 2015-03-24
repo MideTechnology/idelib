@@ -591,7 +591,8 @@ class SimpleChannelDataBlockParser(ElementHandler):
     product = SimpleChannelDataBlock
     elementName = product.__name__
     isHeader = False
-   
+
+    # The default block time scalar.
     timeScalar = 1000000.0 / 2**15
 
     def __init__(self, doc, **kwargs):
@@ -943,7 +944,7 @@ class ChannelParser(ElementHandler):
             if timeModulus is not None:
                 p.timeModulus[channelId] = timeModulus
             if timeScale is not None:
-                p.timeScalars[channelId] = valEval(timeScale)
+                p.timeScalars[channelId] = valEval(timeScale) * 1000000.0
         
         ch = self.doc.addChannel(**data)
         

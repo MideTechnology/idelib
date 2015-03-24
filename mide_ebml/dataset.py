@@ -7,7 +7,12 @@ Created on Sep 26, 2013
 @author: dstokes
 
 '''
-
+# TODO: The new, cached EventList transforms save the combined transforms on
+#    the parent EventList. This should probably be revised to have the cached
+#    transforms saved on the children; this will allow multiple copies of
+#    EventLists to have different transforms, simplifying the whole regular
+#    versus 'display' things and make 'useAllTransforms' unnecessary. 
+#
 # TODO: Handle files with channels containing a single sample better. Right now,
 #    they are ignored, causing problems with other calculations.
 #
@@ -563,6 +568,7 @@ class Channel(Transformable):
             sensorname = sensor.name if sensor is not None else "Unknown Sensor"
             name = "%s:%02d" % (sensorname, channelId) 
         self.name = name
+        self.displayName = self.name
         
         # Custom parsers will define `types`, otherwise generate it.
         self.types = getParserTypes(parser)
@@ -757,7 +763,15 @@ class SubChannel(Channel):
         else:
             self.name = name
         self.units = units
-    
+
+        if self.units[0]:
+            if name is None:
+                self.displayName = units[0]
+            else:
+                self.displayName = u"%s: %s" % (units[0], self.name)
+        else:
+            self.displayName = self.name
+
         if isinstance(sensorId, int):
             self.sensor = self.dataset.sensors.get(sensorId, None)
         elif sensorId is None:
@@ -772,8 +786,7 @@ class SubChannel(Channel):
         
         self._sessions = None
         
-#         transform = self.dataset.transforms.get(transform, None) \
-#             if isinstance(transform, Number) else transform
+        # Set the transform, but don't immediately update. It might be an index.
         self.setTransform(transform, update=False)
         
         if displayRange is None:
@@ -895,6 +908,7 @@ class EventList(Cascading):
         self._singleSample = parentChannel.singleSample
         self._parentList = parentList
         self._childLists = []
+
 
         # Optimization: Keep track of indices in blocks (per 10000)
         # The first is the earliest block with the index,
@@ -1334,6 +1348,15 @@ class EventList(Cascading):
 
     def itervalues(self, start=0, end=-1, step=1, subchannels=True, display=False):
         """ Iterate all values in the list.
+        
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword subchannels: A list of subchannel IDs or Boolean. `True`
+                will return all subchannels in native order.
+            @keyword display: If `True`, the `EventList` transform (i.e. the 
+                'display' transform) will be applied to the data.
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
         if self.hasSubchannels and subchannels != True:
@@ -1349,6 +1372,13 @@ class EventList(Cascading):
 
     def iterSlice(self, start=0, end=-1, step=1, display=False):
         """ Create an iterator producing events for a range indices.
+        
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword display: If `True`, the `EventList` transform (i.e. the 
+                'display' transform) will be applied to the data.
         """
         if isinstance (start, slice):
             step = start.step
@@ -1446,6 +1476,15 @@ class EventList(Cascading):
 
     def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5, display=False):
         """ Create an iterator producing events for a range indices.
+        
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword jitter: The amount to vary the sample time, as a normalized
+                percent of the regular time between samples.
+            @keyword display: If `True`, the `EventList` transform (i.e. the 
+                'display' transform) will be applied to the data.
         """
         if start is None:
             start = 0
@@ -1606,7 +1645,7 @@ class EventList(Cascading):
         return startIdx, endIdx
     
 
-    def getRange(self, startTime=None, endTime=None):
+    def getRange(self, startTime=None, endTime=None, display=False):
         """ Get a set of data occurring in a given interval.
         
             @keyword startTime: The first time (in microseconds by default),
@@ -1614,10 +1653,10 @@ class EventList(Cascading):
             @keyword endTime: The second time, or `None` to use the end of
                 the session.
         """
-        return list(self.iterRange(startTime, endTime))
+        return list(self.iterRange(startTime, endTime, display=display))
 
 
-    def iterRange(self, startTime=None, endTime=None, step=1):
+    def iterRange(self, startTime=None, endTime=None, step=1, display=False):
         """ Get a set of data occurring in a given interval.
         
             @keyword startTime: The first time (in microseconds by default),
@@ -1626,7 +1665,7 @@ class EventList(Cascading):
                 the session.
         """
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
-        return self.iterSlice(startIdx,endIdx,step)        
+        return self.iterSlice(startIdx,endIdx,step,display=display)        
 
 
     def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
@@ -1767,7 +1806,7 @@ class EventList(Cascading):
         return startBlockIdx, endBlockIdx
     
     
-    def getMax(self, startTime=None, endTime=None):
+    def getMax(self, startTime=None, endTime=None, display=False):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, the maximum of all Subchannels is
             returned.
@@ -1782,13 +1821,13 @@ class EventList(Cascading):
         blocks = self._data[startBlockIdx:endBlockIdx]
         if self.hasSubchannels:
             block = max(blocks, key=lambda x: max(x.max))
-            return max(self.iterSlice(*block.indexRange), key=lambda x: max(x[-1]))
+            return max(self.iterSlice(*block.indexRange, display=display), key=lambda x: max(x[-1]))
         else:
             block = max(blocks, key=lambda x: x.max[self.parent.id])
-            return max(self.iterSlice(*block.indexRange), key=lambda x: x[-1])
+            return max(self.iterSlice(*block.indexRange, display=display), key=lambda x: x[-1])
 
 
-    def getMin(self, startTime=None, endTime=None):
+    def getMin(self, startTime=None, endTime=None, display=False):
         """ Get the event with the minimum value, optionally within a specified
             time range. For Channels, the minimum of all Subchannels is
             returned.
@@ -1803,10 +1842,10 @@ class EventList(Cascading):
         blocks = self._data[startBlockIdx:endBlockIdx]
         if self.hasSubchannels:
             block = min(blocks, key=lambda x: min(x.min))
-            return min(self.iterSlice(*block.indexRange), key=lambda x: min(x[-1]))
+            return min(self.iterSlice(*block.indexRange, display=display), key=lambda x: min(x[-1]))
         else:
             block = min(blocks, key=lambda x: x.min[self.parent.id])
-            return min(self.iterSlice(*block.indexRange), key=lambda x: x[-1])
+            return min(self.iterSlice(*block.indexRange, display=display), key=lambda x: x[-1])
 
 
 #     def getMean(self, startTime=None, endTime=None):
@@ -1972,7 +2011,7 @@ class EventList(Cascading):
         return self._getBlockSampleRate(self._getBlockIndexWithIndex(idx))
     
 
-    def getValueAt(self, at, outOfRange=False):
+    def getValueAt(self, at, outOfRange=False, display=False):
         """ Retrieve the value at a specific time, interpolating between
             existing events.
             
@@ -1985,21 +2024,25 @@ class EventList(Cascading):
         """
         startIdx = self.getEventIndexBefore(at)
         if startIdx < 0:
-            if self[0][-2] == at:
-                return self[0]
+            first = self.__getitem__(0, display=display)
+            if first[-2] == at:
+                return first
             # TODO: How best to handle times before first event?
             if outOfRange:
-                return self[0]
-            raise IndexError("Specified time occurs before first event (%d)" % self[0][-2])
+                return first
+            raise IndexError("Specified time occurs before first event (%d)" % first[-2])
         elif startIdx >= len(self) - 1:
-            if self[-1][-2] == at:
-                return self[-1]
+            last = self.__getitem__(-1, display=display)
+            if last[-2] == at:
+                return last
             if outOfRange:
-                return self[-1]
+                return last
             # TODO How best to handle times after last event?
-            raise IndexError("Specified time occurs after last event (%d)" % self[startIdx][-2])
+            raise IndexError("Specified time occurs after last event (%d)" % last[-2])
         
-        startEvt, endEvt = self[startIdx:startIdx+2]
+#         startEvt, endEvt = self[startIdx:startIdx+2]
+        startEvt = self.__getitem__(startIdx, display=display)
+        endEvt = self.__getitem__(startIdx+1, display=display)
         relAt = at - startEvt[-2]
         endTime = endEvt[-2] - startEvt[-2] + 0.0
         percent = relAt/endTime
@@ -2050,7 +2093,7 @@ class EventList(Cascading):
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", useUtcTime=False,
                   useIsoFormat=False, headers=False, removeMean=None,
-                  meanSpan=None):
+                  meanSpan=None, display=False):
         """ Export events as CSV to a stream (e.g. a file).
         
             @param stream: The stream object to which to write CSV data.
@@ -2138,7 +2181,7 @@ class EventList(Cascading):
         if headers:
             stream.write('"Time",%s\n' % ','.join(['"%s"' % n for n in names]))
         try:
-            for num, evt in enumerate(self.iterSlice(start, stop, step)):
+            for num, evt in enumerate(self.iterSlice(start, stop, step, display=display)):
                 stream.write("%s\n" % formatter(evt))
                 if callback is not None:
                     if getattr(callback, 'cancelled', False):

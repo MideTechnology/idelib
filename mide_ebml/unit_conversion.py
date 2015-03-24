@@ -87,15 +87,35 @@ class Gravity2MPerSec2(UnitConverter, Univariate):
 class Meters2Feet(UnitConverter, Univariate):
     """ Convert meters to feet.
     """
-    modifiesValue = True
-    parameters = None
-    convertsFrom = ('Altitude', 'm')
-    units = ('Altitude', 'ft')
+    convertsFrom = (None, 'm')
+    units = (None, 'ft')
     
     def __init__(self, calId=None, dataset=None, varName='x'):
         super(Meters2Feet, self).__init__((3.2808399, 0), calId=calId, 
                                           dataset=dataset, varName=varName)
 
+@registerConverter
+class Pa2PSI(UnitConverter, Univariate):
+    """
+    """
+    convertsFrom = ('Pressure','Pa')
+    units = ('Pressure', 'psi')
+    
+    def __init__(self, calId=None, dataset=None, varName='x'):
+        super(Pa2PSI, self).__init__((0.000145037738, 0), calId=calId,
+                                     dataset=dataset, varName=varName)
+
+@registerConverter
+class Pa2atm(UnitConverter, Univariate):
+    """
+    """
+    convertsFrom = ('Pressure','Pa')
+    units = ('Pressure', 'atm')
+    # 9.86923266716e-06
+    
+    def __init__(self, calId=None, dataset=None, varName='x'):
+        super(Pa2atm, self).__init__((9.86923266716e-06, 0), calId=calId,
+                                     dataset=dataset, varName=varName)
 
 #===============================================================================
 # More complex conversion
@@ -110,8 +130,8 @@ class Pressure2Meters(UnitConverter, Transform):
     convertsFrom = ('Pressure','Pa')
     units = ('Altitude', 'm')
     
-    parameters = (('temp', 'Temperature at sea level', float),
-                  ('sealevel', 'Pressure at sea level', float))
+    parameters = (('temp', u'Temperature at sea level (\xb0C)', float, (-100,100), 20.0),
+                  ('sealevel', u'Pressure at sea level (Pa)', int, (0,150000), 101325.0))
     
     def __init__(self, calId=None, dataset=None, temp=20.0, sealevel=101325.0):
         """
@@ -124,33 +144,15 @@ class Pressure2Meters(UnitConverter, Transform):
         self._build()
 
     def _build(self):
-        self._str = "pa2m.convert(x)"
+        # This is sort of a special case; the function is too complex to
+        # nicely represent as a lambda, so the 'source' calls the object itself.
+        # The _function is never actually called; function is overridden.
+        self._str = "Pressure2Meters.convert(x)"
         self._source = "lambda x: %s" % self._str
-        self._function = eval(self._source, {'pa2m': self, 'math': math})
+        self._function = eval(self._source, 
+                              {'Pressure2Meters': self, 'math': math})
         return
     
-        self.T_2 = self.temp - 71.5
-        self.h_1 = (self.T_2*-0.0368096575)+11000
-        
-        params = dict(sealevel=self._sealevel,
-                    temp=self._temp,
-                    T_2=self.T_2,
-                    L_b=-0.0065, # [K/m] temperature lapse rate
-                    h_b = 0.0,  # [m] height above sea level (differing altitudes have differing time lapse rates
-                    T_2a = 8.31432*self.T_2,
-                    T_2b = (self.T_2*-0.03680966)+11000,
-                    v1 = 4.477048/self._sealevel,
-                    v2 = 18.507221/self._sealevel
-                    )
-#         self._str = ("(%(h_b)s+(x*((1.0/math.pow(x/%(sealevel)s, -1.865845))-1.0))/%(L_b)s) if %(sealevel)s/x < 4.477048 " \
-#                      "else ((8.31432*%(T_2)s*(math.log(x/%(sealevel)s)))/-338.575976)+(%(T_2)s*-0.03680966)+11000 if %(sealevel)s/x < 18.507221 " \
-#                      "else 0.0" % params)
-        self._str = ("(%(h_b)s+(x*((1.0/math.pow(x/%(sealevel)s, -1.865845))-1.0))/%(L_b)s) if %(sealevel)s/x < 4.477048 " \
-                     "else (((%(T_2a)s*(math.log(x/%(sealevel)s)))/-338.575976)+%(T_2b)s) if %(sealevel)s/x < 18.507221 " \
-                     "else 0.0" % params).replace('(0.0+', '(').replace('+0.0)', ')')
-        
-        self._source = "lambda x: %s" % self._str
-#         self._function = eval(self._source)
         
     @property
     def sealevel(self):
@@ -198,7 +200,6 @@ class Pressure2Feet(Pressure2Meters):
         self._source = "lambda x: %s" % self._str
 
     def function(self, press):
-        print "Pressure2Feet(%r)" % press
         return 3.2808399*Pressure2Meters.function(self, press)
 
 

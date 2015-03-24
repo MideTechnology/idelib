@@ -105,7 +105,7 @@ DEFAULTS = {
 }
 
 
-if __DEBUG__:
+if False: #__DEBUG__:
     logger.info("Adding low g channels to defaults")
     DEFAULTS['sensors'][0x02] = {
          'name': "Low-G Accelerometer"

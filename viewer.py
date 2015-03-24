@@ -635,6 +635,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_WARNINGS = wx.NewId()
     ID_DATA_DISPLAY = wx.NewId()
     ID_DATA_DISPLAY_NATIVE = wx.NewId()
+    ID_DATA_DISPLAY_CONFIG = wx.NewId()
     ID_HELP_CHECK_UPDATES = wx.NewId()
 
     ID_DEBUG_SUBMENU = wx.NewId()
@@ -1009,6 +1010,8 @@ class Viewer(wx.Frame, MenuMixin):
         for mi in self.displayMenu.GetMenuItems():
             if mi.GetId() == self.ID_DATA_DISPLAY_NATIVE:
                 continue
+            if mi.GetKind() == wx.ITEM_SEPARATOR:
+                continue
             self.displayMenu.RemoveItem(mi)
         if self.dataset is None:
             self.displayMenu.Enable(False)
@@ -1020,6 +1023,8 @@ class Viewer(wx.Frame, MenuMixin):
             cid = wx.NewId()
             self.unitConverters[cid] = c(dataset=self.dataset)
             self.addMenuItem(self.displayMenu, cid, "Display %s as %s" % c.units, "", self.OnConversionPicked, kind=wx.ITEM_RADIO)
+        self.displayMenu.AppendSeparator()
+        self.addMenuItem(self.displayMenu, self.ID_DATA_DISPLAY_CONFIG, "Configure Unit Conversion...", "", None)
 
         
 
@@ -1141,7 +1146,7 @@ class Viewer(wx.Frame, MenuMixin):
         for d in self.dataset.getPlots(debug=self.showDebugChannels):
             el = d.getSession(self.session.sessionId)
             
-            p = self.plotarea.addPlot(el, title=d.name)
+            p = self.plotarea.addPlot(el, title=d.displayName)
             if p is not None and meanSpan is not None:
                 p.removeMean(True, meanSpan)
         
@@ -2367,7 +2372,12 @@ class Viewer(wx.Frame, MenuMixin):
             return
         for mi in self.displayMenu.GetMenuItems():
             mid = mi.GetId()
-            if mid == self.ID_DATA_DISPLAY_NATIVE:
+            if mi.GetKind() == wx.ITEM_SEPARATOR:
+                continue
+            elif mid == self.ID_DATA_DISPLAY_CONFIG:
+                mi.Enable(p.source.transform is not None and p.source.transform.parameters is not None)
+                continue
+            elif mid == self.ID_DATA_DISPLAY_NATIVE:
                 mi.SetText("Native Units (%s as %s)" % p.source.parent.units)
             else:
                 mi.Enable(self.unitConverters[mid].isApplicable(p.source))
@@ -2380,6 +2390,7 @@ class Viewer(wx.Frame, MenuMixin):
         if p is None:
             return
         p.setUnitConverter(self.unitConverters.get(evt.GetId(), None))
+        self.updateConversionMenu()
         
 #===============================================================================
 # 
