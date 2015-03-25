@@ -33,7 +33,10 @@ def registerConverter(cls):
 #===============================================================================
 
 class UnitConverter(object):
+    """ Mix-in class for unit conversion transforms.
+    """
     modifiesValue = True
+    modifiesTime = False
     parameters = None
     
     @classmethod
@@ -73,6 +76,18 @@ class Celsius2Fahrenheit(UnitConverter, Univariate):
                                                  dataset=dataset, varName=varName)
 
 @registerConverter
+class Celsius2Kelvin(Celsius2Fahrenheit):
+    """ Convert degrees Celsius to Kelvin. 
+    """
+    units = (u'Temperature',u'\xb0K')
+
+    def __init__(self, calId=None, dataset=None, varName="x"):
+        """
+        """
+        super(Celsius2Kelvin, self).__init__((1, 273.15), calId=calId,
+                                             dataset=dataset, varName=varName)    
+
+@registerConverter
 class Gravity2MPerSec2(UnitConverter, Univariate):
     """ Convert acceleration from g to m/s^2.
     """
@@ -96,7 +111,7 @@ class Meters2Feet(UnitConverter, Univariate):
 
 @registerConverter
 class Pa2PSI(UnitConverter, Univariate):
-    """
+    """ Convert air pressure from Pascals to pounds per square inch.
     """
     convertsFrom = ('Pressure','Pa')
     units = ('Pressure', 'psi')
@@ -107,7 +122,7 @@ class Pa2PSI(UnitConverter, Univariate):
 
 @registerConverter
 class Pa2atm(UnitConverter, Univariate):
-    """
+    """ Convert air pressure from Pascals to atmospheres.
     """
     convertsFrom = ('Pressure','Pa')
     units = ('Pressure', 'atm')
@@ -125,16 +140,19 @@ class Pa2atm(UnitConverter, Univariate):
 class Pressure2Meters(UnitConverter, Transform):
     """ Convert pressure in Pascals to an altitude in meters.
     """
-    modifiesValue = True
-    
     convertsFrom = ('Pressure','Pa')
     units = ('Altitude', 'm')
     
+    # Parameters: name, description, type, range, and default value.
+    # The names must match keyword arguments in __init__ and object attributes.
     parameters = (('temp', u'Temperature at sea level (\xb0C)', float, (-100,100), 20.0),
                   ('sealevel', u'Pressure at sea level (Pa)', int, (0,150000), 101325.0))
     
     def __init__(self, calId=None, dataset=None, temp=20.0, sealevel=101325.0):
-        """
+        """ Constructor.
+            @keyword dataset: The `Dataset` to which this applies. 
+            @keyword temp: Temperature at sea level (degrees C)
+            @keyword sealevel: Air pressure at sea level (Pascals)
         """
         self._sealevel = sealevel
         self._temp = temp
@@ -146,12 +164,12 @@ class Pressure2Meters(UnitConverter, Transform):
     def _build(self):
         # This is sort of a special case; the function is too complex to
         # nicely represent as a lambda, so the 'source' calls the object itself.
-        # The _function is never actually called; function is overridden.
+        # This is so the polynomial combination/reduction will work.
+        # `_function` is never actually called; `function` is overridden.
         self._str = "Pressure2Meters.convert(x)"
         self._source = "lambda x: %s" % self._str
         self._function = eval(self._source, 
                               {'Pressure2Meters': self, 'math': math})
-        return
     
         
     @property
@@ -209,6 +227,9 @@ class Pressure2Feet(Pressure2Meters):
 
 def getApplicableConverters(doc):
     """ Get all unit converters applicable to any part of the given Dataset.
+    
+        @param doc: a `Dataset` instance.
+        @return: A list of `UnitConverter` classes.
     """
     global CONVERTERS
     results = {}

@@ -54,6 +54,7 @@ from timeline import TimelineCtrl, TimeNavigatorCtrl
 # Views, dialogs and such
 from aboutbox import AboutBox
 import config_dialog
+from converter_editor import ConverterEditor
 from device_dialog import selectDevice
 import export_dialog as xd
 from fileinfo import RecorderInfoDialog
@@ -1004,8 +1005,8 @@ class Viewer(wx.Frame, MenuMixin):
             c.Enable(enabled)
 
 
-    def enableDisplayMenu(self):
-        """
+    def buildDisplayMenu(self):
+        """ Populate the Data->Display menu with applicable unit converters.
         """
         for mi in self.displayMenu.GetMenuItems():
             if mi.GetId() == self.ID_DATA_DISPLAY_NATIVE:
@@ -1018,13 +1019,22 @@ class Viewer(wx.Frame, MenuMixin):
             return
         self.unitConverters = {self.ID_DATA_DISPLAY_NATIVE: None}
         cons = mide_ebml.unit_conversion.getApplicableConverters(self.dataset)
-        cons.sort(key=lambda x: x.units)
-        for c in cons:
+        
+        for c in sorted(cons, key=lambda x: x.units):
+            params = {}
+            if c.parameters is not None:
+                for p in c.parameters:
+                    params[p[0]] = self.app.getPref(p[0], p[-1], section=c.__name__)
             cid = wx.NewId()
-            self.unitConverters[cid] = c(dataset=self.dataset)
-            self.addMenuItem(self.displayMenu, cid, "Display %s as %s" % c.units, "", self.OnConversionPicked, kind=wx.ITEM_RADIO)
+            self.unitConverters[cid] = c(dataset=self.dataset, **params)
+            self.addMenuItem(self.displayMenu, cid, 
+                             "Display %s as %s" % c.units, "", 
+                             self.OnConversionPicked, kind=wx.ITEM_RADIO)
+            
         self.displayMenu.AppendSeparator()
-        self.addMenuItem(self.displayMenu, self.ID_DATA_DISPLAY_CONFIG, "Configure Unit Conversion...", "", None)
+        self.addMenuItem(self.displayMenu, self.ID_DATA_DISPLAY_CONFIG, 
+                         "Configure Unit Conversion...", "", 
+                         self.OnConversionConfig)
 
         
 
@@ -1439,7 +1449,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.SetTitle(self.app.getWindowTitle(title))
         loader.start()
 
-        self.enableDisplayMenu()
+        self.buildDisplayMenu()
 
         # Expired calibration warning
         try:
@@ -2367,6 +2377,8 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def updateConversionMenu(self):
+        """
+        """
         p = self.plotarea.getActivePage()
         if p is None:
             return
@@ -2385,7 +2397,20 @@ class Viewer(wx.Frame, MenuMixin):
                 self.setMenuItem(self.displayMenu, mid, checked=True)
 
 
+    def OnConversionConfig(self, evt):
+        """
+        """
+        p = self.plotarea.getActivePage()
+        result = ConverterEditor.edit(p.source.transform, self)
+        if result == wx.ID_OK:
+            print "updating transforms"
+        self.dataset.updateTransforms()
+        p.redraw()
+        
+
     def OnConversionPicked(self, evt):
+        """
+        """
         p = self.plotarea.getActivePage()
         if p is None:
             return

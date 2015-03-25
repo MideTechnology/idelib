@@ -425,7 +425,7 @@ class Dataset(Cascading):
                     if test(subc):
                         result.append(subc)
         if sort:
-            result.sort(key=lambda x: x.name)
+            result.sort(key=lambda x: x.displayName)
         return result
             
 
