@@ -8,6 +8,7 @@ Created on Nov 21, 2013
 '''
 
 import locale
+# import sys
 
 import wx.lib.agw.customtreectrl as CT
 import wx; wx=wx
@@ -268,7 +269,8 @@ class ExportDialog(sc.SizedDialog):
             parent = sc.SizedPanel(self.GetContentsPane(),-1)
             parent.SetSizerType("form")
             parent.SetSizerProps(expand=True)
-        wx.StaticText(parent, -1, label).SetSizerProps(valign="center")
+        l = wx.StaticText(parent, -1, label)
+        l.SetSizerProps(valign="center")
         ctrl = wx.Choice(parent, -1, choices=choices)
         if tooltip:
             ctrl.SetToolTipString(tooltip)
@@ -277,6 +279,7 @@ class ExportDialog(sc.SizedDialog):
             ctrl.Select(choices.index(default))
         elif isinstance(default, int):
             ctrl.Select(default)
+        ctrl._label = l
         return ctrl, parent
 
 
@@ -657,7 +660,7 @@ class FFTExportDialog(ExportDialog):
     DEFAULT_WINDOW_SIZE = 2**16
     
     # These will be removed later, once memory usage is accurately computed.
-    manyEvents = 10**7
+    manyEvents = 10**6
     maxEvents = manyEvents * 4
     
     DEFAULT_TITLE = "Render FFT"
@@ -765,21 +768,56 @@ class FFTExportDialog(ExportDialog):
 
 
 class PSDExportDialog(FFTExportDialog):
+    """ A subclass of the standard `ExportDialog`, featuring options
+        applicable only to a PSD.
+    """
+    
     DEFAULT_TITLE = "Render PSD"
     WHAT = "rendering"
+    
+    def __init__(self, *args, **kwargs):
+        # Keep separate many/max values for standard and windowed calculation.
+        # The windowed version is less memory intensive, but the total number
+        # of samples still counts. 
+        self.fftMany = self.manyEvents, self.maxEvents
+        self.welchMany = self.manyEvents*8, self.maxEvents*8
+        self.useWelch = kwargs.pop('useWelch', False)
+        
+        super(PSDExportDialog, self).__init__(*args, **kwargs)
+        self.OnWelchChecked(self.useWelch)
     
     def buildSpecialUI(self):
         """ Called before the OK/Cancel buttons are added.
         """
         # TODO: Fix windowed FFT calculation, re-enable window size UI
         wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
-        self.sizeList, _subpane = self._addChoice("Sampling Window Size:",
+        self.welchCheck, _ = self._addCheck("Use windowed method", self.useWelch,
+            tooltip="If checked, Welch's method is used to calculate the PSD; output will be in dB/Hz.")
+        self.sizeList, _ = self._addChoice("Sampling Window Size:",
             choices=self.WINDOW_SIZES, default=self.windowSize, 
-            tooltip="The size of the 'window' used in Welch's method")
+            tooltip="The size of the 'window' (in samples) used in Welch's method")
+        self.welchCheck.Bind(wx.EVT_CHECKBOX, self.OnWelchChecked)
+
         
-#         self.orderList, _ = self._addChoice("Sampling Order:",
-#             choices=self.SAMPLE_ORDER, default=self._samplingOrder,
-#             parent = subpane)        
+    def OnWelchChecked(self, evt):
+        """ Handle the 'use windowed' checkbox changing. Can also be called
+            manually with either `True` or `False` to explicitly enable/disable
+            the related UI elements.
+        """
+        if isinstance(evt, bool):
+            checked = evt
+        else:
+            checked = evt.Checked()
+        self.sizeList.Enable(checked)
+        self.sizeList._label.Enable(checked)
+        
+        if checked:
+            self.manyEvents, self.maxEvents = self.welchMany
+        else:
+            self.manyEvents, self.maxEvents = self.fftMany
+            
+        self.updateMessages()
+
 
     def getSettings(self):
         """ Retrieve the settings specified in the dialog as a dictionary. The
@@ -805,7 +843,8 @@ class PSDExportDialog(FFTExportDialog):
         
         windowSize = int(self.sizeList.GetString(self.sizeList.GetSelection()))
         result['windowSize'] = windowSize
-#         result['samplingOrder'] = self.orderList.GetSelection()
+        result['useWelch'] = self.welchCheck.GetValue()
+        
         return result
 
 #===============================================================================
@@ -813,7 +852,8 @@ class PSDExportDialog(FFTExportDialog):
 #===============================================================================
 
 class SpectrogramExportDialog(FFTExportDialog):
-    """
+    """ A subclass of the standard `ExportDialog`, featuring options
+        applicable only to a Spectrogram.
     """
     
     DEFAULT_TITLE = "Render Spectrogram"
@@ -821,6 +861,9 @@ class SpectrogramExportDialog(FFTExportDialog):
     
     SLICES = map(str, [2**x for x in xrange(9)])
     DEFAULT_SLICES = "4"
+    
+    manyEvents = FFTExportDialog.manyEvents * 4
+    maxEvents = FFTExportDialog.maxEvents * 4
     
     def __init__(self, *args, **kwargs):
         """
@@ -844,6 +887,16 @@ class SpectrogramExportDialog(FFTExportDialog):
             choices=self.SLICES, default=self.slicesPerSec,
             tooltip="The granularity of the horizontal axis", 
             parent = subpane)
+
+
+    def getSampleRate(self):
+        """ Get the sample rate of the selected subchannels.
+        """
+        subchannels = self.getSelectedChannels()
+        if len(subchannels) == 0:
+            return None
+        events = subchannels[0].getSession(self.root.session.sessionId)
+        return events.getSampleRate()
 
 
     def getSettings(self):
@@ -908,9 +961,9 @@ if __name__ == '__main__':# or True:
 #         (ExportDialog, {'root': root}),
 #         (CSVExportDialog, {'root': root, 'exportType':'CSV'}),
 #         (CSVExportDialog, {'root': root, 'exportType':'MAT'}),
-        (FFTExportDialog, {'root': root}),
+#         (FFTExportDialog, {'root': root}),
         (PSDExportDialog, {'root': root}),
-        (SpectrogramExportDialog, {'root': root}),
+#         (SpectrogramExportDialog, {'root': root}),
     )
     
     app = wx.App()

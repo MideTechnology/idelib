@@ -765,7 +765,7 @@ class SubChannel(Channel):
         self.units = units
 
         if self.units[0]:
-            if name is None:
+            if name is None or units[0] == self.name:
                 self.displayName = units[0]
             else:
                 self.displayName = u"%s: %s" % (units[0], self.name)

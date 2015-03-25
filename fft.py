@@ -1481,11 +1481,10 @@ class PSDView(FFTView):
         
         super(PSDView, self).__init__(*args, **kwargs)
         
-        sourceUnits = self.subchannels[0].units[1]
-        if sourceUnits:
-            self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits
-        else:
-            self.yUnits = " (dB/Hz)"
+        if not self.useWelch:
+            sourceUnits = self.subchannels[0].units[1]
+            if sourceUnits:
+                self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits
             
         self.formatter = '%E'
 

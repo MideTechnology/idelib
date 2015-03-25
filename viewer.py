@@ -1007,6 +1007,7 @@ class Viewer(wx.Frame, MenuMixin):
 
     def buildDisplayMenu(self):
         """ Populate the Data->Display menu with applicable unit converters.
+            Only those that match channels in the dataset are shown.
         """
         for mi in self.displayMenu.GetMenuItems():
             if mi.GetId() == self.ID_DATA_DISPLAY_NATIVE:
@@ -1027,8 +1028,14 @@ class Viewer(wx.Frame, MenuMixin):
                     params[p[0]] = self.app.getPref(p[0], p[-1], section=c.__name__)
             cid = wx.NewId()
             self.unitConverters[cid] = c(dataset=self.dataset, **params)
-            self.addMenuItem(self.displayMenu, cid, 
-                             "Display %s as %s" % c.units, "", 
+            
+            if c.units[0] is None:
+                # Unit converters are generic, and can have 'None' as units[0]
+                label = "Display as %s" % c.units[1]
+            else:
+                label = "Display %s as %s" % c.units
+                
+            self.addMenuItem(self.displayMenu, cid, label, "", 
                              self.OnConversionPicked, kind=wx.ITEM_RADIO)
             
         self.displayMenu.AppendSeparator()
@@ -1634,24 +1641,20 @@ class Viewer(wx.Frame, MenuMixin):
         evtId = plotType if evt is None else evt.GetId()
         if evtId == self.ID_RENDER_PSD:
             viewClass = PSDView
-            errMsg = "rendering a PSD plot"
-            # XXX: TEMPORARY TEST. REMOVE LATER.
-            if wx.GetKeyState(wx.WXK_CONTROL):
-                settings = xd.PSDExportDialog.getExport(root=self, title="Render PSD (Welch's Method)")
-                settings['useWelch'] = True
-            else:
-                settings = xd.FFTExportDialog.getExport(root=self, title="Render PSD")
+            settings = xd.PSDExportDialog.getExport(root=self, 
+                useWelch=self.app.getPref('psd.useWelch', False), 
+                windowSize=self.app.getPref('psd.windowSize', 2**16))
+            if settings is not None:
+                self.app.setPref('psd.useWelch', settings['useWelch'])
+                self.app.setPref('psd.windowSize', settings['windowSize'])
         elif evtId == self.ID_RENDER_SPEC:
             viewClass = SpectrogramView
-            errMsg = "rendering a Spectrogram"
             settings = xd.SpectrogramExportDialog.getExport(root=self)
         elif evtId == self.ID_RENDER_PLOTS:
             viewClass = PlotView
-            errMsg = "rendering a Plot view"
             settings = xd.ExportDialog.getExport(root=self, title="Render Plot")
         else:
             viewClass = FFTView
-            errMsg = "rendering an FFT plot"
             settings = xd.FFTExportDialog.getExport(root=self)
             
         if settings is None:
@@ -1692,7 +1695,7 @@ class Viewer(wx.Frame, MenuMixin):
                                                 size=size, root=self, **settings)
         
         except ex as e:
-            self.handleError(e, what=errMsg)
+            self.handleError(e, what="rendering the %s" % viewClass.FULLNAME)
 
 
     #===========================================================================

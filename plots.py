@@ -964,25 +964,38 @@ class Plot(ViewerPanel):
         """ Apply (or remove) a unit conversion function.
         """
         oldUnits = self.source.units[0]
+        oldXform = self.source.transform
         
         self.source.setTransform(con, update=False)
         self.source.dataset.updateTransforms()
         self.yUnits = self.source.units
         self.legend.setUnits(self.source.units[-1])
+        t,b = self.legend.getValueRange()
+        
+        if oldXform is not None:
+            nt = oldXform.revert(t)
+            nb = oldXform.revert(b) 
+            t = nt if nt is not None else t
+            b = nb if nb is not None else b
+        
         if con is None:
-            self.setTabText(self.source.parent.name)
-            self.zoomToFit(self)
+            self.setTabText(self.source.parent.displayName)
         else:
-            t,b = self.legend.getValueRange()
             try:
-                t = con.convert(t)
-                b = con.convert(b)
+                nt = con.convert(t)
+                nb = con.convert(b)
+                t = nt if nt is not None else t
+                b = nb if nb is not None else b
             except ValueError:
+                logger.debug("Value error adjusting vertical range %r" % con)
                 pass
+            
             if oldUnits != con.units[0]:
                 self.setTabText(con.units[0])
-            self.legend.setValueRange(t,b)
+        
+        self.legend.setValueRange(*sorted((t,b)))
         self.redraw()
+        print self.source._displayXform
         
 
     def setValueRange(self, start=None, end=None, instigator=None, 
