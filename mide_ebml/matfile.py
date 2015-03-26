@@ -574,7 +574,7 @@ def makeHeader(doc, session=-1, prefix="MATLAB 5.0 MAT-file"):
 def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
               callback=None, callbackInterval=0.01, timeScalar=1,
               raiseExceptions=False, useUtcTime=False, headers=True, 
-              removeMean=None, meanSpan=None):
+              removeMean=None, meanSpan=None, **kwargs):
     """ Export a `dataset.EventList` as a Matlab .MAT file. Works in a manner
         similar to the standard `EventList.exportCsv()` method.
     

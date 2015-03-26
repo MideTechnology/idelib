@@ -49,6 +49,12 @@ class Transform(object):
             return "<%s: (%s)>" % (self.__class__.__name__, self._str)
         return "<%s (ID %d): (%s)>" % (self.__class__.__name__, self.id, self._str)
 
+    def __hash__(self):
+        return hash(self._str)
+
+    def __eq__(self, other):
+        return hash(self) == hash(other)
+
     @property
     def function(self):
         """ The generated polynomial function itself. """

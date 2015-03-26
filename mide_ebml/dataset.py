@@ -85,37 +85,6 @@ class Cascading(object):
     parent = None
     name = ""
 
-    def getAttribute(self, attname, default=NotImplemented, 
-                     last=None, ignore=(None,)):
-        """ Retrieve an object's attribute. If it doesn't have the attribute
-            (or the attribute is equal to `ignore`), the request is sent to
-            the object's parent.
-            
-            @param attname: The name of the attribute
-            @keyword default: A default value to return if the attribute
-                isn't found. If a default is not supplied, an 
-                `AttributeError` is raised at the end of the chain.
-            @keyword last: The final object in the chain, to keep searches
-                from crawling too far back.
-            @keyword ignore: A set of values that will be treated as if
-                the object does not have the attribute.
-        """
-        if hasattr(self, attname):
-            v = getattr(self, attname, default)
-            if v not in ignore:
-                return self, v
-        if self == last or self.parent is None:
-            # A bit of a hack; NotImplemented is used as the default for
-            # `default`, rather than complicate the method's argument handling.
-            # the argument parsing.
-            if default is NotImplemented:
-                raise AttributeError("%r not found in chain ending with %r" % \
-                                     (attname, self))
-            return None, default
-        
-        return self.parent.getAttribute(attname, default, ignore)
-
-
     def path(self):
         """ Get the combined names of all the object's parents/grandparents.
         """
@@ -190,7 +159,7 @@ class Transformable(Cascading):
                 x = self._transform
             if x != Transform.null:
                 _tlist.insert(0, x)
-        if isinstance(self.parent, Cascading):
+        if isinstance(self.parent, Transformable):
             subchannelId = getattr(self, "id", None)
             self.parent.getTransforms(subchannelId, _tlist)
         return _tlist
@@ -598,7 +567,7 @@ class Channel(Transformable):
 
 
     def __repr__(self):
-        return '<%s 0x%02x: %r>' % (self.__class__.__name__, 
+        return '<%s %d: %r>' % (self.__class__.__name__, 
                                     self.id, self.path())
 
 
@@ -809,7 +778,7 @@ class SubChannel(Channel):
         return self.parent.sampleRate
 
     def __repr__(self):
-        return '<%s 0x%02x.%x: %r>' % (self.__class__.__name__, 
+        return '<%s %d.%d: %r>' % (self.__class__.__name__, 
                                        self.parent.id, self.id, self.path())
 
 
@@ -883,7 +852,7 @@ class SubChannel(Channel):
 # 
 #===============================================================================
 
-class EventList(Cascading):
+class EventList(Transformable):
     """ A list-like object containing discrete time/value pairs. Data is 
         dynamically read from the underlying EBML file. 
         

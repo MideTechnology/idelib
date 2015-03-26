@@ -973,6 +973,7 @@ class Plot(ViewerPanel):
         t,b = self.legend.getValueRange()
         
         if oldXform is not None:
+            # Convert vertical range to original units
             nt = oldXform.revert(t)
             nb = oldXform.revert(b) 
             t = nt if nt is not None else t
@@ -995,7 +996,6 @@ class Plot(ViewerPanel):
         
         self.legend.setValueRange(*sorted((t,b)))
         self.redraw()
-        print self.source._displayXform
         
 
     def setValueRange(self, start=None, end=None, instigator=None, 

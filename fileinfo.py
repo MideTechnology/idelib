@@ -14,7 +14,6 @@ import wx.lib.sized_controls as SC
 from config_dialog import InfoPanel, CalibrationPanel
 from mide_ebml import util
 
-
 #===============================================================================
 # 
 #===============================================================================
@@ -38,11 +37,16 @@ class ChannelInfoPanel(InfoPanel):
         """ Create a link to a channel and a time. 
             Just makes text until linking to viewer channel/time implemented.
         """
+        units = self.info.channels[channelId][subchannelId].units
+        if units and units[1]:
+            units = "%s " % units[1]
+        else:
+            units = ""
         if msg is None:
             if val is None:
                 msg = "%.4f" % time
             else:
-                msg = "%.4f @ %.4f" % (val, time*self.timeScalar)
+                msg = "%.4f %s@ %.4f" % (val, units, time*self.timeScalar)
 #         return '<b><a href="viewer:%s.%s@%s">%s</a></b>' % \
 #             (channelId, subchannelId, time, msg)
         return '<b>%s</b>' % msg
@@ -59,15 +63,18 @@ class ChannelInfoPanel(InfoPanel):
                           "values will not reflect the entire data set. ",
                           warning=True)
         for cid, c in self.info.channels.iteritems():
-            self.html.append("<p><b>Channel %02x: %s</b><ul>" % (cid, c.name))
+            self.html.append("<p><b>Channel %d: %s</b><ul>" % (cid, c.displayName))
             for subcid, subc in enumerate(c.subchannels):
                 events = subc.getSession()
-                self.html.append("<li><b>Subchannel %02x.%d: %s</b></li>" % \
-                                 (cid, subcid, subc.name))
+                self.html.append("<li><b>Subchannel %d.%d: %s</b></li>" % \
+                                 (cid, subcid, subc.displayName))
                 if subc.sensor is not None:
-                    self.addItem("Sensor:", subc.sensor.name)
-                self.addItem("Sensor Range:", "%s to %s %s" % 
-                   (subc.displayRange[0], subc.displayRange[1], subc.units[1]))
+                    self.addItem("Sensor:", "%s (ID:%d)" % (subc.sensor.name, subc.sensor.id))
+                if subc.units and subc.units[0]:
+                    self.addItem("Data Type:", "%s in %s" % (subc.units))
+                if subc.hasDisplayRange:
+                    self.addItem("Range:", "%s to %s %s" % 
+                                 (subc.displayRange[0], subc.displayRange[1], subc.units[1]))
                 
                 # Hack for channels with no data.
                 if len(events) > 0:
@@ -103,15 +110,17 @@ class ChannelInfoPanel(InfoPanel):
 class SensorInfoPanel(InfoPanel):
     """
     """
-    field_names = {}
+    field_names = {'serialNum': 'Serial Number'}
     
     def buildUI(self):
         """ Build and display the contents. This dialog's layout differs from
             other InfoPanels, so it does more work here.
         """
         self.html = ["<html><body>"]
-        for sid, s in self.info.sensors.iteritems():
-            self.html.append("<p><b>Sensor %02x: %s</b><ul>" % (sid, s.name))
+        sensors = sorted(self.info.sensors.items(), key=lambda x: x[0])
+        for sid, s in sensors:
+            self.html.append("<p><b>Sensor ID: %d</b><ul>" % sid)
+            self.addItem("Sensor Type", s.name)
             if s.traceData is not None:
                 for k,v in s.traceData.items():
                     self.addItem(self.field_names.get(k, self._fromCamelCase(k)),v)

@@ -1530,7 +1530,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.enableChildren(False)
         self.enableMenus(False)
 
-        
+
     def OnFileExportMenu(self, evt=None):
         """ Export the active plot view's data as CSV. after getting input from
             the user (range, window size, etc.).
@@ -1570,6 +1570,8 @@ class Viewer(wx.Frame, MenuMixin):
         addHeaders = settings.get('addHeaders', False)
         removeMeanType = settings.get('removeMean', 0)
         
+        print subchannels
+        
         removeMean = removeMeanType > 0
         if removeMeanType == 1:
             meanSpan = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
@@ -1583,43 +1585,28 @@ class Viewer(wx.Frame, MenuMixin):
         dlg = xd.ModalExportProgress("Exporting %s" % exportType, 
                                      msg, maximum=numRows*len(subchannels), 
                                      parent=self)
-        if exportType == 'CSV':
-            try:
-                stream = open(filename, 'w')
-            
-                source.exportCsv(stream, start=start, stop=stop, 
-                                 subchannels=subchannelIds, 
-                                 timeScalar=self.timeScalar, 
-                                 callback=dlg, callbackInterval=0.0005, 
-                                 raiseExceptions=True,
-                                 useIsoFormat=settings['useIsoFormat'],
-                                 useUtcTime=settings['useUtcTime'],
-                                 headers=addHeaders,
-                                 removeMean=removeMean,
-                                 meanSpan=meanSpan)
+        
+        params = dict(start=start, stop=stop, 
+                      subchannels=subchannelIds, 
+                      timeScalar=self.timeScalar, 
+                      callback=dlg, callbackInterval=0.0005, 
+                      raiseExceptions=True,
+                      useIsoFormat=settings.get('useIsoFormat', False),
+                      useUtcTime=settings.get('useUtcTime', False),
+                      headers=addHeaders,
+                      removeMean=removeMean,
+                      meanSpan=meanSpan)
+        
+        try:
+            if exportType == 'CSV':
+                with open(filename, 'w') as stream:
+                    source.exportCsv(stream, **params)
                 
-                stream.close()
-            
-            except Exception as err:
-                self.handleError(err, what="exporting CSV")
-            
-        elif exportType == 'MAT':
-            try:
-                mide_ebml.matfile.exportMat(source, 
-                             filename, start=start, stop=stop, 
-                             subchannels=subchannelIds, 
-                             timeScalar=self.timeScalar, 
-                             callback=dlg, 
-                             callbackInterval=0.0005, 
-                             raiseExceptions=True,
-                             useUtcTime=settings['useUtcTime'],
-                             headers=addHeaders,
-                             removeMean=removeMean,
-                             meanSpan=meanSpan)
-            
-#             except Exception as err:
-            except None as err:
-                self.handleError(err, what="exporting MAT")
+            elif exportType == 'MAT':
+                mide_ebml.matfile.exportMat(source, filename, **params)
+                
+        except Exception as err:
+            self.handleError(err, what="exporting %s" % exportType)
             
         dlg.Destroy()
         self.drawingSuspended = False
@@ -2091,7 +2078,29 @@ class Viewer(wx.Frame, MenuMixin):
         p = self.plotarea.getActivePage()
         if p:
             p.setPlotColor(evt)
-    
+
+
+    def OnConversionConfig(self, evt):
+        """ Handle selection of the unit converter configuration menu item.
+        """
+        p = self.plotarea.getActivePage()
+        result = ConverterEditor.edit(p.source.transform, self)
+        if result == wx.ID_OK:
+            print "updating transforms"
+        self.dataset.updateTransforms()
+        p.redraw()
+        
+
+    def OnConversionPicked(self, evt):
+        """ Handle selection of a unit converter menu item.
+        """
+        p = self.plotarea.getActivePage()
+        if p is None:
+            return
+        p.setUnitConverter(self.unitConverters.get(evt.GetId(), None))
+        self.updateConversionMenu()
+        
+            
     #===========================================================================
     # Custom Events
     #===========================================================================
@@ -2378,7 +2387,10 @@ class Viewer(wx.Frame, MenuMixin):
         import altplot
         altplot.addAltPlot(self)
 
-
+    #===========================================================================
+    # Unit conversion/transform-related stuff
+    #===========================================================================
+    
     def updateConversionMenu(self):
         """
         """
@@ -2390,7 +2402,7 @@ class Viewer(wx.Frame, MenuMixin):
             if mi.GetKind() == wx.ITEM_SEPARATOR:
                 continue
             elif mid == self.ID_DATA_DISPLAY_CONFIG:
-                mi.Enable(p.source.transform is not None and p.source.transform.parameters is not None)
+                mi.Enable(hasattr(p.source.transform, 'parameters'))
                 continue
             elif mid == self.ID_DATA_DISPLAY_NATIVE:
                 mi.SetText("Native Units (%s as %s)" % p.source.parent.units)
@@ -2400,26 +2412,39 @@ class Viewer(wx.Frame, MenuMixin):
                 self.setMenuItem(self.displayMenu, mid, checked=True)
 
 
-    def OnConversionConfig(self, evt):
+    def checkUnits(self, subchannels):
         """
         """
-        p = self.plotarea.getActivePage()
-        result = ConverterEditor.edit(p.source.transform, self)
-        if result == wx.ID_OK:
-            print "updating transforms"
-        self.dataset.updateTransforms()
-        p.redraw()
-        
+        if len(subchannels) == 0:
+            return False
+        x = subchannels[0].transform
+        xs = [c.transform for c in subchannels[1:] if c.transform != x]
+        if not xs:
+            return True
+        # TODO: this
 
-    def OnConversionPicked(self, evt):
+    
+    def replaceTransforms(self, subchannels, xform=None):
+        """ Helper method to change all the transforms on a set of subchannels.
+            @return: A list of the previous transforms
         """
+        xforms = [c.transform for c in subchannels]
+        for c in subchannels:
+            if xform is None or xform.isApplicable(c):
+                c.setTransform(xform, update=False)
+        self.dataset.updateTransforms()
+        return xforms
+
+    
+    def applyTransforms(self, subchannels, xforms):
+        """ Helper method to restore all the transforms on a set of subchannels.
         """
-        p = self.plotarea.getActivePage()
-        if p is None:
-            return
-        p.setUnitConverter(self.unitConverters.get(evt.GetId(), None))
-        self.updateConversionMenu()
-        
+        for c,x in zip(subchannels, xforms):
+            c.setTransform(x, update=False)
+        self.dataset.updateTransforms()
+
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -2471,11 +2496,21 @@ class ViewerApp(wx.App):
         'meanRangeColor': wx.Colour(255,255,150),
         'plotBgColor': wx.Colour(255,255,255),
         # Plot colors, stored by channel:subchannel IDs.
-        'plotColors': {"00.0": "BLUE",
-                       "00.1": "GREEN",
-                       "00.2": "RED",
-                       "01.0": "DARK GREEN",
-                       "01.1": "VIOLET"
+        'plotColors': {# SSX v1
+                       "00.0": "BLUE",       # Acceleration Z
+                       "00.1": "GREEN",      # Acceleration Y
+                       "00.2": "RED",        # Acceleration X
+                       "01.0": "DARK GREEN", # Pressure
+                       "01.1": "VIOLET",     # Temperature
+                       # SSX v2
+                       "08.0": "BLUE",                 # Acceleration Z
+                       "08.1": "GREEN",                # Acceleration Y
+                       "08.2": "RED",                  # Acceleration X
+                       "20.0": wx.Colour(255,100,100), # Acceleration X (DC)
+                       "20.1": wx.Colour(100,255,100), # Acceleration Y (DC)
+                       "20.2": wx.Colour(100,100,255), # Acceleration Z (DC)
+                       "24.0": "DARK GREEN",           # Pressure
+                       "24.1": "VIOLET"                # Temperature
         },
         # default colors: used for subchannel plots not in plotColors
         'defaultColors': ["DARK GREEN",

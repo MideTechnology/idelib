@@ -32,7 +32,7 @@ import parsers
 # 
 #===============================================================================
 
-from dataset import __DEBUG__
+# from dataset import __DEBUG__
 
 import logging
 logger = logging.getLogger('mide_ebml')

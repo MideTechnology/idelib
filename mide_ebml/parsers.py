@@ -181,7 +181,7 @@ def getParserTypes(parser):
     return tuple([type(x) for x in parser.unpack_from(chr(255)*parser.size)])
 
 
-def getParserRanges(parser):
+def getParserRanges(parser, useDefaults=True):
     """ Get the range of values created by a parser. If the parser doesn't
         explicitly define them in a `ranges` attribute, the theoretical 
         minimum and maximum values of the resulting data type are returned.
@@ -193,6 +193,8 @@ def getParserRanges(parser):
     """
     if hasattr(parser, "ranges"):
         return parser.ranges
+    if not useDefaults:
+        return None
     ranges = []
     for c in parser.format:
         if c in RANGES:
@@ -446,7 +448,7 @@ class BaseDataBlock(object):
         
 
     def __repr__(self):
-        return "<%s Channel: 0x%02x>" % (self.__class__.__name__, self.getHeader()[1])
+        return "<%s Channel: %d>" % (self.__class__.__name__, self.getHeader()[1])
 
 
     def parseWith(self, parser, start=0, end=-1, step=1, subchannel=None):
@@ -632,7 +634,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
             block = self.product(element)
             timestamp, channel = block.getHeader()
         except struct.error, e:
-            raise ParsingError("Element would not parse: %s (ID %02x) @%d (%s)" % 
+            raise ParsingError("Element would not parse: %s (ID %d) @%d (%s)" % 
                                (element.name, element.id, element.stream.offset, e))
         
         block.startTime = timeOffset + int(self.fixOverflow(block, timestamp))

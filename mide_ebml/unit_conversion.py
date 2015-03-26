@@ -11,7 +11,8 @@ Data type conversion. Each class contains two special attributes:
 
 import math
 
-from calibration import Transform, Univariate
+# from calibration import Transform
+from calibration import Univariate
 from dataset import Channel
 
 #===============================================================================
@@ -62,7 +63,7 @@ class UnitConverter(Univariate):
         """ Convert a value back to the original units. Primarily for display
             purposes.
         """
-        # TODO: Make this work on Univariates with more than 2.
+        # TODO: Make this work on Univariates with more than 2 coefficients.
         # May never be needed.
         a,b = self.coefficients
         ref = self.references[0]
@@ -174,6 +175,9 @@ class Pressure2Meters(UnitConverter):
         self._lastSession = None
         self._timeOffset = 0
         self._build()
+
+    def __hash__(self):
+        return hash((self.__class__, self._temp, self._sealevel))
 
     def _build(self):
         # This is sort of a special case; the function is too complex to
