@@ -133,14 +133,17 @@ class Transformable(Cascading):
         if update:
             self.updateTransforms()
             
+    def _updateXformIds(self):
+        if isinstance(self.transform, int):
+            self.transform = self.dataset.transforms.get(self.transform, 
+                                                         self.transform)
 
     def updateTransforms(self):
         """
         """
         # Convert ID references (as will be in a fresh import) to the
         # actual Transform objects
-        if isinstance(self.transform, int):
-            self.setTransform(self.dataset.transforms.get(self.transform, None))
+        self._updateXformIds()
         for c in self.children:
             c.updateTransforms()
             
@@ -163,7 +166,6 @@ class Transformable(Cascading):
             subchannelId = getattr(self, "id", None)
             self.parent.getTransforms(subchannelId, _tlist)
         return _tlist
-
 
 
 #===============================================================================
@@ -622,6 +624,7 @@ class Channel(Transformable):
     def getSession(self, sessionId=None):
         """ Retrieve a session 
         """
+        self._updateXformIds()
         if sessionId is None:
             session = self.dataset.lastSession
             sessionId = session.sessionId
@@ -830,6 +833,7 @@ class SubChannel(Channel):
         """ Retrieve a session by ID. If none is provided, the last session in
             the Dataset is returned.
         """
+        self._updateXformIds()
         if self._sessions is None:
             self._sessions = {}
         elif sessionId in self._sessions:
@@ -901,7 +905,7 @@ class EventList(Transformable):
         self.displayRange = self.parent.displayRange
 
         self.removeMean = False
-        self.hasMinMeanMax = False
+        self.hasMinMeanMax = True #False
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
 
         self.transform = None
@@ -1023,7 +1027,7 @@ class EventList(Transformable):
         self._blockTimeTable[1][tableTime] = block.blockIndex
         
         self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
-        
+
         if block.minMeanMax is not None:
             block.parseMinMeanMax(self.parent.parser)
             self.hasMinMeanMax = True
@@ -1036,7 +1040,7 @@ class EventList(Transformable):
         if self._singleSample and not self.hasMinMeanMax:
             block.minMeanMax = block.payload*3
             block.parseMinMeanMax(self.parent.parser)
-        
+            
     
     def getInterval(self):
         """ Get the first and last event times in the set.
@@ -1393,7 +1397,7 @@ class EventList(Transformable):
         _getBlockSampleTime = self._getBlockSampleTime
         _getBlockRollingMean = self._getBlockRollingMean
         numpy_array = numpy.array
-        removeMean = self.removeMean
+        removeMean = self.removeMean and self.hasMinMeanMax
         offset = None
 
         if self.useAllTransforms:
@@ -1872,9 +1876,7 @@ class EventList(Transformable):
                     else:
                         self.parent.parent.getSession(sessionId).hasMinMeanMax=True
         except Ex:
-            if __DEBUG__:
-                print "Struct error: %r" % (block.indexRange,)
-            pass
+            logger.warning("_computeMinMeanMax struct error: %r" % (block.indexRange,))
             
 
     def _getBlockSampleTime(self, blockIdx=0):
@@ -2166,7 +2168,6 @@ class EventList(Transformable):
         self.removeMean = oldRemoveMean
         self.rollingMeanSpan = oldMeanSpan
         
-#         print datetime.now() - t0
         return num+1, datetime.now() - t0
 
         

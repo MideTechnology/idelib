@@ -243,8 +243,8 @@ class ExportDialog(sc.SizedDialog):
         else:
             ct_type = defaultType
             
-        childItem = self.tree.AppendItem(parentItem, obj.name, ct_type=ct_type, 
-                                         data=obj)
+        childItem = self.tree.AppendItem(parentItem, obj.displayName, 
+                                         ct_type=ct_type, data=obj)
         if ct_type == CT.TREE_ITEMTYPE_CHECK or self.tree.GetPrevSibling(childItem) is None:
             childItem.Set3StateValue(wx.CHK_CHECKED)
         for c in obj.children:

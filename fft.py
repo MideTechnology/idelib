@@ -37,7 +37,8 @@ if DEBUG:
     import logging
     logger.setLevel(logging.INFO)
     
-FOREGROUND = False #True
+FOREGROUND = True
+# FOREGROUND = False
 
 #===============================================================================
 # 
@@ -198,7 +199,37 @@ class FFTView(wx.Frame, MenuMixin):
     IMAGE_FORMATS = "Windows Bitmap (*.bmp)|*.bmp|" \
                      "JPEG (*.jpg)|*.jpg|" \
                      "Portable Network Graphics (*.png)|*.png" 
-    
+
+
+    def makeTitle(self):
+        """ Helper method to generate a nice-looking title.
+        """
+        try:
+            timeScalar = self.root.timeScalar
+            places = wx.GetApp().getPref("precisionX", 4)
+        except AttributeError:
+            timeScalar = 1.0/(10**6)
+            places = 4
+        
+        start = ("%%.%df" % places) % (self.range[0] * timeScalar)
+        end = ("%%.%df" % places) % (self.range[1] * timeScalar)
+
+        # Smart plot naming: use parent channel name if all children plotted.
+        events = [c.getSession(self.root.session.sessionId) for c in self.subchannels]
+        units = [el.units[0] for el in events if el.units[0] != events[0].units[0]]
+        if len(units) == 0:
+            title = "%s %s" % (events[0].units[0], ', '.join([c.name for c in self.subchannels]))
+        else:
+            title = ", ".join([c.displayName for c in self.subchannels])
+
+#         if len(self.subchannels) != len(self.source.parent.subchannels):
+#             title = ", ".join([c.name for c in self.subchannels])
+#         else:
+#             title = self.source.parent.name
+             
+        return "%s: %s (%ss to %ss)" % (self.NAME, title, start, end)
+
+
     def __init__(self, *args, **kwargs):
         """ FFT view main panel. Takes standard wx.Window arguments plus
             additional keyword arguments. Note that the FFT view doesn't use
@@ -219,7 +250,6 @@ class FFTView(wx.Frame, MenuMixin):
             @keyword indexRange: 
             @keyword numRows: 
         """
-        kwargs.setdefault("title", self.FULLNAME)
         self.root = kwargs.pop("root", None)
         self.source = kwargs.pop("source", None)
         self.subchannels = kwargs.pop("subchannels", None)
@@ -239,15 +269,14 @@ class FFTView(wx.Frame, MenuMixin):
             self.source = self.subchannels[0].parent.getSession(
                                                     self.root.session.sessionId)
 
-        self.yUnits = (" (%s)" % self.yUnits) if self.yUnits else ""
-        
-        self.formatter = "%%.%df" % self.exportPrecision
-
+        kwargs.setdefault('title', self.makeTitle())
         super(FFTView, self).__init__(*args, **kwargs)
         
         self.abortEvent = delayedresult.AbortEvent()
         
         self.SetMinSize((640,480))
+        self.yUnits = (" (%s)" % self.yUnits) if self.yUnits else ""
+        self.formatter = "%%.%df" % self.exportPrecision
         self.showTitle = self.root.app.getPref('fft.showTitle', True)
         self.showLegend = self.root.app.getPref('fft.showLegend', True)
         self.showGrid = self.root.app.getPref('fft.showGrid', True)

@@ -905,8 +905,6 @@ class Viewer(wx.Frame, MenuMixin):
                              lambda(evt): self.app.saveAllPrefs())
             self.addMenuItem(debugMenu, self.ID_DEBUG0, "Open Multiple...", "",
                              self.OnFileOpenMulti)
-            self.addMenuItem(debugMenu, self.ID_DEBUG1, "Add Altitude Plot", "",
-                             self.OnDebugAddAlt)
             helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
             
         self.menubar.Append(helpMenu, '&Help')
@@ -1567,10 +1565,7 @@ class Viewer(wx.Frame, MenuMixin):
         subchannels = settings['subchannels']
         subchannelIds = [c.id for c in subchannels]
         start, stop = settings['indexRange']
-        addHeaders = settings.get('addHeaders', False)
         removeMeanType = settings.get('removeMean', 0)
-        
-        print subchannels
         
         removeMean = removeMeanType > 0
         if removeMeanType == 1:
@@ -1593,9 +1588,10 @@ class Viewer(wx.Frame, MenuMixin):
                       raiseExceptions=True,
                       useIsoFormat=settings.get('useIsoFormat', False),
                       useUtcTime=settings.get('useUtcTime', False),
-                      headers=addHeaders,
+                      headers=settings.get('addHeaders', False),
                       removeMean=removeMean,
-                      meanSpan=meanSpan)
+                      meanSpan=meanSpan,
+                      display=settings.get('useConvertedUnits', True))
         
         try:
             if exportType == 'CSV':
@@ -1650,10 +1646,6 @@ class Viewer(wx.Frame, MenuMixin):
         # Get items from the export dialog's results for setting up the views.
         # Not all views use all parameters, but their __init__ methods will
         # accept them.
-        source = settings.get('source', None)
-        subchannels = settings['subchannels']
-        startTime = settings['start']
-        stopTime = settings['end']
         removeMeanType = settings.get('removeMean', 2)
         
         settings['removeMean'] = removeMeanType > 0
@@ -1662,15 +1654,6 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             settings['meanSpan'] = -1
         
-        # Smart plot naming: use parent channel name if all children plotted.
-        if len(subchannels) != len(source.parent.subchannels):
-            title = ", ".join([c.name for c in subchannels])
-        else:
-            title = source.parent.name 
-        title = "%s: %s (%ss to %ss)" % (viewClass.NAME, title, 
-                                         self._formatTime(startTime), 
-                                         self._formatTime(stopTime))
-             
         viewId = wx.NewId()
         size = self.GetSize()
         
@@ -1678,9 +1661,8 @@ class Viewer(wx.Frame, MenuMixin):
         ex = None if DEBUG else Exception
 
         try:
-            self.childViews[viewId] = viewClass(self, viewId, title=title, 
-                                                size=size, root=self, **settings)
-        
+            self.childViews[viewId] = viewClass(self, viewId, size=size, 
+                                                root=self, **settings)
         except ex as e:
             self.handleError(e, what="rendering the %s" % viewClass.FULLNAME)
 
@@ -2094,11 +2076,18 @@ class Viewer(wx.Frame, MenuMixin):
     def OnConversionPicked(self, evt):
         """ Handle selection of a unit converter menu item.
         """
-        p = self.plotarea.getActivePage()
-        if p is None:
-            return
-        p.setUnitConverter(self.unitConverters.get(evt.GetId(), None))
+        units = self.plotarea.getActivePage().source.parent.units
+        conv = self.unitConverters.get(evt.GetId(), None)
+        for p in self.plotarea:
+            if p is None:
+                continue
+            if p.source.parent.units == units:
+                p.setUnitConverter(conv)
+                print p.source, p.source.transform, p.source._displayXform
         self.updateConversionMenu()
+#         p = self.plotarea.getActivePage()
+#         p.setUnitConverter(self.unitConverters.get(evt.GetId(), None))
+#         self.updateConversionMenu()
         
             
     #===========================================================================
@@ -2383,16 +2372,12 @@ class Viewer(wx.Frame, MenuMixin):
             self.closeFile()
          
 
-    def OnDebugAddAlt(self, evt):
-        import altplot
-        altplot.addAltPlot(self)
-
     #===========================================================================
     # Unit conversion/transform-related stuff
     #===========================================================================
     
     def updateConversionMenu(self):
-        """
+        """ Update the enabled and checked items in the Data->Display menu.
         """
         p = self.plotarea.getActivePage()
         if p is None:
@@ -2413,7 +2398,8 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def checkUnits(self, subchannels):
-        """
+        """ Check that all unit conversion transforms on a set of subchannels
+            are the same.
         """
         if len(subchannels) == 0:
             return False
