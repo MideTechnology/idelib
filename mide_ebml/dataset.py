@@ -799,6 +799,7 @@ class SubChannel(Channel):
     def sessions(self):
         # TODO: Caching the parent's sessions may cause trouble with dynamic loading
         if self._sessions is None:
+            self._sessions = {}
             for s in self.parent.sessions:
                 self._sessions[s] = self.getSession(s)
         return self._sessions
@@ -923,7 +924,6 @@ class EventList(Transformable):
 #     def setTransform(self, xform, update=True):
 #         """
 #         """
-#         print "setTransform %r %r %r" % (self, xform, update)
 #         self.transform = xform
 #         self._transform = Transform.null if xform is None else xform
 #         if update:
@@ -1240,7 +1240,7 @@ class EventList(Transformable):
         except TypeError:
             # XXX: HACK! b.mean can occasionally be a tuple at very start.
             # Occurs very rarely in multithreaded loading. Find and fix cause.
-#             print "Type error!"
+#             logger.info( "Type error!")
             return None
     
 

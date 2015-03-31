@@ -33,13 +33,16 @@ from common import mapRange, StatusBar, nextPow2, sanitizeFilename
 from build_info import DEBUG
 from logger import logger
 
+FOREGROUND = False
+
 if DEBUG:
     import logging
     logger.setLevel(logging.INFO)
-    
-FOREGROUND = True
-# FOREGROUND = False
 
+    import socket
+    if socket.gethostname() == 'DEDHAM':
+        FOREGROUND = True
+    
 #===============================================================================
 # 
 #===============================================================================
@@ -181,7 +184,7 @@ class FFTPlotCanvas(PlotCanvas):
 class FFTView(wx.Frame, MenuMixin):
     """
     """
-    NAME = "FFT"
+    NAME = TITLE_NAME = "FFT"
     FULLNAME = "FFT View"
     xLabel = "Frequency"
     yLabel = "Amplitude"
@@ -226,8 +229,10 @@ class FFTView(wx.Frame, MenuMixin):
 #             title = ", ".join([c.name for c in self.subchannels])
 #         else:
 #             title = self.source.parent.name
-             
-        return "%s: %s (%ss to %ss)" % (self.NAME, title, start, end)
+        
+        if self.TITLE_NAME:
+            return "%s: %s (%ss to %ss)" % (self.NAME, title, start, end)
+        return "%s (%ss to %ss)" % (title, start, end)
 
 
     def __init__(self, *args, **kwargs):
@@ -260,14 +265,22 @@ class FFTView(wx.Frame, MenuMixin):
         self.meanSpan = kwargs.pop('meanSpan', -1)
         self.logarithmic = kwargs.pop('logarithmic', (False, False))
         self.exportPrecision = kwargs.pop('exportPrecision', 6)
-        self.yUnits = kwargs.pop('yUnits', self.subchannels[0].units[1])
+        self.useConvertedUnits = kwargs.pop('useConvertedUnits', True)
+        self.yUnits = kwargs.pop('yUnits', None)#self.subchannels[0].units[1])
+        
+        sessionId = self.root.session.sessionId
+        
+        if self.yUnits is None:
+            if self.useConvertedUnits:
+                self.yLabel, self.yUnits = self.subchannels[0].getSession(sessionId).units
+            else:
+                self.yLabel, self.yUnits = self.subchannels[0].units
         
         self.indexRange = kwargs.pop('indexRange', None)
         self.numRows = kwargs.pop('numRows')
         
         if self.source is None and self.subchannels is not None:
-            self.source = self.subchannels[0].parent.getSession(
-                                                    self.root.session.sessionId)
+            self.source = self.subchannels[0].parent.getSession(sessionId)
 
         kwargs.setdefault('title', self.makeTitle())
         super(FFTView, self).__init__(*args, **kwargs)
@@ -360,7 +373,7 @@ class FFTView(wx.Frame, MenuMixin):
             if self.subchannels is not None:
                 subchannelIds = [c.id for c in self.subchannels]
                 start, stop = self.source.getRangeIndices(*self.range)
-                data = self.source.itervalues(start, stop, subchannels=subchannelIds)
+                data = self.source.itervalues(start, stop, subchannels=subchannelIds, display=self.useConvertedUnits)
                 # BUG: Calculation of actual sample rate is wrong. Investigate.
     #             fs = (channel[stop][-2]-channel[start][-2]) / ((stop-start) + 0.0)
                 fs = self.source.getSampleRate()
@@ -1014,7 +1027,7 @@ class SpectrogramPlot(FFTPlotCanvas):
 class SpectrogramView(FFTView):
     """
     """
-    NAME = "Spectrogram"
+    NAME = TITLE_NAME = "Spectrogram"
     FULLNAME = "Spectrogram View"
     xLabel = "Time"
     yLabel = "Amplitude"
@@ -1063,7 +1076,7 @@ class SpectrogramView(FFTView):
         p.setLogScale((False,False))
         p.SetXSpec('min')
         p.SetYSpec('auto')
-        self.canvas.AddPage(p, self.subchannels[channelIdx].name)
+        self.canvas.AddPage(p, self.subchannels[channelIdx].displayName)
         p.SetEnableTitle(self.showTitle)
 
         p.image = self.images[channelIdx]
@@ -1092,10 +1105,10 @@ class SpectrogramView(FFTView):
             d = self.data[i]
             points = ((start, d[1][0]), 
                       (end, d[1][-1]))
-            name = self.subchannels[i-1].name
+            name = self.subchannels[i-1].displayName
  
             self_lines_append(PlotGraphics([PolyLine(points, legend=name)],
-                              title=self.subchannels[i].name, #title=self.GetTitle(),
+                              title=self.subchannels[i].displayName, #title=self.GetTitle(),
                               xLabel="Time (s)", yLabel="Frequency (Hz)"))
 
     
@@ -1177,7 +1190,7 @@ class SpectrogramView(FFTView):
                 recordingTime *= self.timeScalar
                 fs = self.source.getSampleRate()
                 subchIds = [c.id for c in self.subchannels]
-                data = self.source.itervalues(start, stop, subchannels=subchIds)
+                data = self.source.itervalues(start, stop, subchannels=subchIds, display=self.useConvertedUnits)
                 self.data = self.generateData(data, rows=stop-start,
                                               cols=len(self.subchannels), fs=fs, 
                                               sliceSize=self.sliceSize,
@@ -1496,7 +1509,7 @@ class SpectrogramView(FFTView):
 class PSDView(FFTView):
     """
     """
-    NAME = "PSD"
+    NAME = TITLE_NAME = "PSD"
     FULLNAME = "PSD View"
     yLabel = "Power/Frequency"
     yUnits = "dB/Hz"

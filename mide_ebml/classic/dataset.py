@@ -14,7 +14,7 @@ import random
 import numpy
 
 from mide_ebml import dataset as DS
-from mide_ebml.calibration import Transform
+from mide_ebml.calibration import Transform, CombinedPoly, PolyPoly
 
 #===============================================================================
 # 
@@ -166,9 +166,10 @@ class SubChannel(DS.SubChannel):
             # This session doesn't exist for the subchannel, so create a new
             # EventList from the parent Channel's data.
             oldList = self.parent.getSession(sessionId)
-            newList = EventList(self, session)
-            newList.setData([(x[-2],x[-1][self.id]) for x in oldList._data],
-                            stamped=True)
+            newList = EventList(self, session, oldList)
+#             newList.setData([(x[-2],x[-1][self.id]) for x in oldList._data],
+#                             stamped=True)
+            newList.setData(oldList._data, stamped=True)
             self._sessions[sessionId] = newList
         return self._sessions[sessionId]
 
@@ -183,9 +184,10 @@ class EventList(DS.EventList):
         recording is 16MB total.
     """
 
-    def __init__(self, parent, session=None):
+    def __init__(self, parent, session=None, parentList=None):
         self.parent = parent
         self.session = session
+        self._parentList = parentList
         self._data = []
         self._length = 0
         self._firstTime = 0
@@ -217,19 +219,19 @@ class EventList(DS.EventList):
             self._data = [(int(i*sampleTime), d) for i,d in enumerate(data)]
 
 
-    def updateTransforms(self, recurse=True):
-        self._comboXform = self._fullXform = Transform.null
-        if self.transform is not None:
-            self._displayXform = self.transform
-        else:
-            self._displayXform = self._comboXform
+#     def updateTransforms(self, recurse=True):
+#         self._comboXform = self._fullXform = Transform.null
+#         if self.transform is not None:
+#             self._displayXform = self.transform
+#         else:
+#             self._displayXform = self._comboXform
             
 
     def copy(self, newParent=None):
         """ Create a shallow copy of the event list.
         """
         parent = self.parent if newParent is None else newParent
-        newList = EventList(parent, self.session)
+        newList = EventList(parent, self.session, self)
         newList._data = self._data
         newList._length = self._length
         newList.dataset = self.dataset
@@ -253,7 +255,15 @@ class EventList(DS.EventList):
             @return: For single results, a tuple containing (time, value).
                 For multiple results, a list of (time, value) tuples.
         """
-        return self._data[idx]
+        xform = self._displayXform if display else self._comboXform
+        if isinstance(idx, slice):
+            vals = self.iterSlice(idx.start, idx.stop, idx.step, display=display)
+            return list(vals)
+
+        result = xform(self._data[idx])
+        if self.hasSubchannels:
+            return result
+        return (result[0], result[1][self.parent.id])
  
 
 
@@ -279,16 +289,17 @@ class EventList(DS.EventList):
             # Create a function instead of chewing the subchannels every time
             fun = eval("lambda x: (%s)" % \
                        ",".join([("x[%d]" % c) for c in subchannels]))
-            for v in self.iterSlice(start, end, step):
+            for v in self.iterSlice(start, end, step, display):
                 yield fun(v[-1])
         else:
-            for v in self.iterSlice(start, end, step):
+            for v in self.iterSlice(start, end, step, display):
                 yield v[-1]
         
 
     def iterSlice(self, start=0, end=-1, step=1, display=False):
         """ Create an iterator producing events for a range indices.
         """
+        xform = self._displayXform if display else self._comboXform
         if isinstance (start, slice):
             s = slice
         else:
@@ -306,15 +317,21 @@ class EventList(DS.EventList):
                 step = 1
     
             s = slice(start, end, step)
-            
-        return iter(self._data[s])
+        
+        if self.hasSubchannels:
+            for i in iter(self._data[s]):
+                yield xform(i)
+        else:
+            for i in iter(self._data[s]):
+                t,v = xform(i)
+                yield t,v[self.parent.id]
 
 
     def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5, 
                          display=False):
         """ Create an iterator producing events for a range indices.
         """
-        for evt in self.iterSlice(start, end, step):
+        for evt in self.iterSlice(start, end, step, display=display):
             yield (evt[-2] + (((random.random()*2)-1) * jitter * step), evt[-1])
 
       
@@ -367,7 +384,7 @@ class EventList(DS.EventList):
             @keyword endTime: The second time, or `None` to use the end of
                 the session.
         """
-        return list(self.iterRange(startTime, endTime))
+        return list(self.iterRange(startTime, endTime, display=display))
 
 
     def iterRange(self, startTime=None, endTime=None, step=1, display=False):
@@ -386,7 +403,7 @@ class EventList(DS.EventList):
             endIdx = None
         else:
             endIdx = min(self._data[-1][0], int(endTime * self.getSampleTime))
-        return self.iterSlice(startIdx,endIdx,step)
+        return self.iterSlice(startIdx,endIdx,step,display)
 
 
     def getSampleTime(self, idx=0):
@@ -426,17 +443,22 @@ class EventList(DS.EventList):
         stopIdx = min(stopIdx+padding, len(self))
         step = max(int(numPoints / maxPoints),1)
         if jitter != 0:
-            return self.iterJitterySlice(startIdx, stopIdx, step, jitter)
+            return self.iterJitterySlice(startIdx, stopIdx, step, jitter, display)
         else:
-            return self.iterSlice(startIdx, stopIdx, step)
+            return self.iterSlice(startIdx, stopIdx, step, display)
 
 
     def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
                            display=False):
         """
         """
+        xform = self._displayXform if display else self._comboXform
+        
         t = (startTime, endTime)
         if t == self._mmm[0]:
+            if self.transform is None:
+                return self._mmm[1]
+            # TODO: transform
             return self._mmm[1]
         
         mmm = numpy.array(list(self.itervalues(startTime, endTime)))
@@ -447,7 +469,7 @@ class EventList(DS.EventList):
         else:
             self._mmm = (t, (mmm.min(), numpy.median(mmm), mmm.max()))
         
-        return self._mmm[1]
+        return xform(self._mmm)[1]
         
 
     def getMax(self, startTime=None, endTime=None, display=False):

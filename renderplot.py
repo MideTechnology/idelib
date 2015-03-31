@@ -17,6 +17,7 @@ class PlotView(FFTView):
     
     NAME = "Plot"
     FULLNAME = "Rendered Plot"
+    TITLE_NAME = None
     
     def __init__(self, *args, **kwargs):
         super(PlotView, self).__init__(*args, **kwargs)
@@ -63,7 +64,7 @@ class PlotView(FFTView):
             rows = min(len(self.source), stop-start)
             
             points = [np.zeros(shape=(rows,2), dtype=float) for _ in self.subchannels]
-            for row, evt in enumerate(self.source.iterSlice(start, stop)):
+            for row, evt in enumerate(self.source.iterSlice(start, stop, display=self.useConvertedUnits)):
                 for col, ch in enumerate(self.subchannels):
                     if abortEvent is not None and abortEvent():
                         return
@@ -73,8 +74,8 @@ class PlotView(FFTView):
             
             lines = [None]*len(self.subchannels)
             for col, ch in enumerate(self.subchannels):
-                lines[col] = PolyLine(points[col], legend=ch.name, colour=self.root.getPlotColor(ch))
-            yUnits = "%s (%s)" % self.subchannels[0].units
+                lines[col] = PolyLine(points[col], legend=ch.displayName, colour=self.root.getPlotColor(ch))
+            yUnits = "%s%s" % (self.yLabel, self.yUnits)
             self.lines = PlotGraphics(lines, title=self.GetTitle(), 
                                     xLabel="Time (s)", yLabel=yUnits)
                             

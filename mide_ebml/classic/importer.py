@@ -40,7 +40,7 @@ def createDefaultSensors(doc, sensors=default_sensors):
         document.
     """
     for sensorId, sensorInfo in sensors.iteritems():
-        sensor = doc.addSensor(sensorId, sensorInfo.get("name", None))
+        doc.addSensor(sensorId, sensorInfo.get("name", None))
         for chId, chInfo in sensorInfo['channels'].iteritems():
             channel = doc.addChannel(chId, chInfo['parser'],
                                         name=chInfo.get('name',None),
@@ -53,25 +53,9 @@ def createDefaultSensors(doc, sensors=default_sensors):
                                       **subChInfo)
 
 
-def importFile(f, defaultSensors=default_sensors):
-    """ Create a new Dataset object and import the data from a Classic file. 
-        Primarily for testing purposes. The GUI does the file creation and 
-        data loading in two discrete steps, as it will need a reference to 
-        the new document before the loading starts.
-        @see: `openFile()` and `readData()`
-    """
-    if isinstance(f, basestring):
-        f = open(f, 'rb')
-    doc = dataset.Dataset(f)
-    if defaultSensors is not None:
-        createDefaultSensors(doc, defaultSensors)
-    parser = parsers.RecordingParser(doc)
-    parser.parse()
-    return doc
 
-
-def openFile(stream, parserTypes=None, 
-             defaultSensors=default_sensors, name=None, quiet=False):
+def openFile(stream, parserTypes=None, defaultSensors=default_sensors, 
+             name=None, quiet=False):
     """ Create a `Dataset` instance and read the header data (i.e. non-sample-
         data). When called by a GUI, this function should be considered 'modal,' 
         in that it shouldn't run in a background thread, unlike `readData()`. 
@@ -132,4 +116,18 @@ def readData(doc, updater=importer.nullUpdater, numUpdates=500,
     updater(count=numSamples, percent=1.0)
     updater(done=True)#, total=eventsRead)
     doc.loading = False
+    return doc
+
+
+def importFile(f, defaultSensors=default_sensors):
+    """ Create a new Dataset object and import the data from a Classic file. 
+        Primarily for testing purposes. The GUI does the file creation and 
+        data loading in two discrete steps, as it will need a reference to 
+        the new document before the loading starts.
+        @see: `openFile()` and `readData()`
+    """
+    if isinstance(f, basestring):
+        f = open(f, 'rb')
+    doc = openFile(f, defaultSensors=defaultSensors)
+    readData(doc, defaultSensors=defaultSensors)
     return doc
