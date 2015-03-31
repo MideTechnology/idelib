@@ -2083,7 +2083,7 @@ class Viewer(wx.Frame, MenuMixin):
                 continue
             if p.source.parent.units == units:
                 p.setUnitConverter(conv)
-                print p.source, p.source.transform, p.source._displayXform
+#                 logger.info(" ".join(map(str, ( p.source, p.source.transform, p.source._displayXform))))
         self.updateConversionMenu()
 #         p = self.plotarea.getActivePage()
 #         p.setUnitConverter(self.unitConverters.get(evt.GetId(), None))
@@ -2395,40 +2395,6 @@ class Viewer(wx.Frame, MenuMixin):
                 mi.Enable(self.unitConverters[mid].isApplicable(p.source))
             if p.source.transform == self.unitConverters[mid]:
                 self.setMenuItem(self.displayMenu, mid, checked=True)
-
-
-    def checkUnits(self, subchannels):
-        """ Check that all unit conversion transforms on a set of subchannels
-            are the same.
-        """
-        if len(subchannels) == 0:
-            return False
-        x = subchannels[0].transform
-        xs = [c.transform for c in subchannels[1:] if c.transform != x]
-        if not xs:
-            return True
-        # TODO: this
-
-    
-    def replaceTransforms(self, subchannels, xform=None):
-        """ Helper method to change all the transforms on a set of subchannels.
-            @return: A list of the previous transforms
-        """
-        xforms = [c.transform for c in subchannels]
-        for c in subchannels:
-            if xform is None or xform.isApplicable(c):
-                c.setTransform(xform, update=False)
-        self.dataset.updateTransforms()
-        return xforms
-
-    
-    def applyTransforms(self, subchannels, xforms):
-        """ Helper method to restore all the transforms on a set of subchannels.
-        """
-        for c,x in zip(subchannels, xforms):
-            c.setTransform(x, update=False)
-        self.dataset.updateTransforms()
-
 
 
 #===============================================================================

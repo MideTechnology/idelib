@@ -966,8 +966,8 @@ class Plot(ViewerPanel):
         oldUnits = self.source.units[0]
         oldXform = self.source.transform
         
-        self.source.setTransform(con, update=False)
-        self.source.dataset.updateTransforms()
+        self.source.setTransform(con) #, update=False)
+#         self.source.dataset.updateTransforms()
         self.yUnits = self.source.units
         self.legend.setUnits(self.source.units[-1])
         t,b = self.legend.getValueRange()

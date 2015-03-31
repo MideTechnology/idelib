@@ -107,7 +107,8 @@ class Cascading(object):
         return result
 
     def __repr__(self):
-        return "<%s %r>" % (self.__class__.__name__, self.path())
+#         return "<%s %r>" % (self.__class__.__name__, self.path())
+        return "<%s %r at 0x%08x>" % (self.__class__.__name__, self.path(), id(self))
     
     
 class Transformable(Cascading):
@@ -569,8 +570,10 @@ class Channel(Transformable):
 
 
     def __repr__(self):
-        return '<%s %d: %r>' % (self.__class__.__name__, 
-                                    self.id, self.path())
+#         return '<%s %d: %r>' % (self.__class__.__name__, 
+#                                     self.id, self.path())
+        return '<%s %d: %r at 0x%08x>' % (self.__class__.__name__, 
+                                    self.id, self.path(), id(self))
 
 
     def __getitem__(self, idx):
@@ -781,8 +784,10 @@ class SubChannel(Channel):
         return self.parent.sampleRate
 
     def __repr__(self):
-        return '<%s %d.%d: %r>' % (self.__class__.__name__, 
-                                       self.parent.id, self.id, self.path())
+#         return '<%s %d.%d: %r>' % (self.__class__.__name__, 
+#                                        self.parent.id, self.id, self.path())
+        return '<%s %d.%d: %r at 0x%08x>' % (self.__class__.__name__, 
+                                       self.parent.id, self.id, self.path(), id(self))
 
 
     @property
@@ -834,6 +839,8 @@ class SubChannel(Channel):
             the Dataset is returned.
         """
         self._updateXformIds()
+        if sessionId is None:
+            sessionId = self.dataset.lastSession.sessionId
         if self._sessions is None:
             self._sessions = {}
         elif sessionId in self._sessions:
@@ -913,12 +920,14 @@ class EventList(Transformable):
         self.updateTransforms(recurse=False)
     
     
-    def setTransform(self, xform, update=True):
-        """
-        """
-        self.transform = xform
-        if update:
-            self.updateTransforms()
+#     def setTransform(self, xform, update=True):
+#         """
+#         """
+#         print "setTransform %r %r %r" % (self, xform, update)
+#         self.transform = xform
+#         self._transform = Transform.null if xform is None else xform
+#         if update:
+#             self.updateTransforms()
 
         
     def updateTransforms(self, recurse=True):
@@ -927,7 +936,7 @@ class EventList(Transformable):
         # _comboXform is the channel's transform, with as many parameters as
         # subchannels. _fullXform is the channel's transform plus the 
         # subchannel's transform. Subchannels will always use the latter. Parent
-        # channels can use either.
+        # channels can use either (see useAllTransforms).
         self._comboXform = self._fullXform = self._displayXform = None
         if self.hasSubchannels:
             self._comboXform = PolyPoly([self.parent.transform]*len(self.parent.types))
@@ -937,6 +946,7 @@ class EventList(Transformable):
             
             if recurse:
                 sessionId = self.session.sessionId if self.session is not None else None
+                children = []
                 dispX = []
                 for x,sc in zip(xs,self.parent.subchannels):
                     if sessionId in sc.sessions:
@@ -945,13 +955,18 @@ class EventList(Transformable):
                             dispX.append(x)
                         else:
                             dispX.append(CombinedPoly(cl.transform, x=x, dataset=self.dataset))
-                        
+                        children.append(cl)
                     else:
                         dispX.append(x)
                         
                 self._displayXform = PolyPoly(dispX, dataset=self.dataset)
+                for el in children:
+                    el._comboXform = el._fullXform = self._fullXform
+                    el._displayXform = self._displayXform
+                    
         else:
             self._parentList.updateTransforms()#(recurse=False)
+            # FIXME: These cached combination transforms *should* already be set
             self._comboXform = self._fullXform = self._parentList._fullXform
             self._displayXform = self._parentList._displayXform
 

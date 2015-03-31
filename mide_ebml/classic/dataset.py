@@ -14,6 +14,7 @@ import random
 import numpy
 
 from mide_ebml import dataset as DS
+from mide_ebml.calibration import Transform
 
 #===============================================================================
 # 
@@ -200,6 +201,10 @@ class EventList(DS.EventList):
         self.hasMinMeanMax = False
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
         self._mmm = (None, None)
+        
+        self._comboXform = self._fullXform = self._displayXform = None
+#         self.transform = None
+        self.setTransform(None)
 
 
     def setData(self, data, stamped=False):
@@ -211,6 +216,14 @@ class EventList(DS.EventList):
             sampleTime = 1000000.0 / self.getSampleRate()
             self._data = [(int(i*sampleTime), d) for i,d in enumerate(data)]
 
+
+    def updateTransforms(self, recurse=True):
+        self._comboXform = self._fullXform = Transform.null
+        if self.transform is not None:
+            self._displayXform = self.transform
+        else:
+            self._displayXform = self._comboXform
+            
 
     def copy(self, newParent=None):
         """ Create a shallow copy of the event list.
@@ -233,7 +246,7 @@ class EventList(DS.EventList):
         return self._firstTime, self._lastTime
 
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx, display=False):
         """ Get a specific data point by index.
         
             @param idx: An index, a `slice`, or a tuple of one or both
@@ -257,7 +270,8 @@ class EventList(DS.EventList):
         return len(self._data)
 
 
-    def itervalues(self, start=0, end=-1, step=1, subchannels=True):
+    def itervalues(self, start=0, end=-1, step=1, subchannels=True, 
+                   display=False):
         """ Iterate all values in the list.
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
@@ -272,7 +286,7 @@ class EventList(DS.EventList):
                 yield v[-1]
         
 
-    def iterSlice(self, start=0, end=-1, step=1):
+    def iterSlice(self, start=0, end=-1, step=1, display=False):
         """ Create an iterator producing events for a range indices.
         """
         if isinstance (start, slice):
@@ -296,7 +310,8 @@ class EventList(DS.EventList):
         return iter(self._data[s])
 
 
-    def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5):
+    def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5, 
+                         display=False):
         """ Create an iterator producing events for a range indices.
         """
         for evt in self.iterSlice(start, end, step):
@@ -344,7 +359,7 @@ class EventList(DS.EventList):
                 self.getEventIndexNear(endTime)+1)
     
 
-    def getRange(self, startTime=None, endTime=None):
+    def getRange(self, startTime=None, endTime=None, display=False):
         """ Get a set of data occurring in a given interval.
         
             @keyword startTime: The first time (in microseconds by default),
@@ -355,7 +370,7 @@ class EventList(DS.EventList):
         return list(self.iterRange(startTime, endTime))
 
 
-    def iterRange(self, startTime=None, endTime=None, step=1):
+    def iterRange(self, startTime=None, endTime=None, step=1, display=False):
         """ Get a set of data occurring in a given interval.
         
             @keyword startTime: The first time (in microseconds by default),
@@ -400,7 +415,7 @@ class EventList(DS.EventList):
 
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
-                           jitter=0):
+                           jitter=0, display=False):
         """ Retrieve the events occurring within a given interval,
             undersampled as to not exceed a given length (e.g. the size of
             the data viewer's screen width).
@@ -416,7 +431,8 @@ class EventList(DS.EventList):
             return self.iterSlice(startIdx, stopIdx, step)
 
 
-    def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None):
+    def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
+                           display=False):
         """
         """
         t = (startTime, endTime)
@@ -434,7 +450,7 @@ class EventList(DS.EventList):
         return self._mmm[1]
         
 
-    def getMax(self, startTime=None, endTime=None):
+    def getMax(self, startTime=None, endTime=None, display=False):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, the maximum of all Subchannels is
             returned.
@@ -449,7 +465,7 @@ class EventList(DS.EventList):
         return max(vals, key=lambda x: x[-1])
 
     
-    def getMin(self, startTime=None, endTime=None):
+    def getMin(self, startTime=None, endTime=None, display=False):
         """ Get the event with the minimum value, optionally within a specified
             time range. For Channels, the minimum of all Subchannels is
             returned.
