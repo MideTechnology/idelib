@@ -18,7 +18,7 @@ if DEBUG or BETA:
     __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
 if DEBUG:
     import socket
-    if socket.gethostname() == 'DEDHAM':
+    if socket.gethostname() in ('DEDHAM',):
         try:
             # TODO: Make sure this doesn't make it into PyInstaller build
             import yappi
@@ -905,6 +905,8 @@ class Viewer(wx.Frame, MenuMixin):
                              lambda(evt): self.app.saveAllPrefs())
             self.addMenuItem(debugMenu, self.ID_DEBUG0, "Open Multiple...", "",
                              self.OnFileOpenMulti)
+            self.addMenuItem(debugMenu, self.ID_DEBUG1, "Render Plots/FFTs/etc. in foreground", "",
+                             self.OnForegroundRender, kind=wx.ITEM_CHECK)
             helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
             
         self.menubar.Append(helpMenu, '&Help')
@@ -924,7 +926,9 @@ class Viewer(wx.Frame, MenuMixin):
         self.SetMenuBar(self.menubar)
         self.enableMenus(False)
 
-
+    def OnForegroundRender(self, evt):
+        import fft
+        fft.FOREGROUND=evt.Checked()
     
     def buildUI(self):
         """ Construct and configure all the viewer window's panels. Called once

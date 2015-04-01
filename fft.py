@@ -39,9 +39,9 @@ if DEBUG:
     import logging
     logger.setLevel(logging.INFO)
 
-    import socket
-    if socket.gethostname() == 'DEDHAM':
-        FOREGROUND = True
+#     import socket
+#     if socket.gethostname() == 'DEDHAM':
+#         FOREGROUND = True
     
 #===============================================================================
 # 
@@ -365,7 +365,10 @@ class FFTView(wx.Frame, MenuMixin):
     def _draw(self):
         """
         """
-        logger.info( "Starting %s._draw()" % self.__class__.__name__ )
+        if FOREGROUND:
+            logger.info( "Starting %s._draw() in foreground process." % self.__class__.__name__ )
+        else:
+            logger.info( "Starting threaded %s._draw() in threaded process." % self.__class__.__name__ )
         drawStart = time.time()
             
         try:
