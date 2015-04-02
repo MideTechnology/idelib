@@ -32,6 +32,8 @@ class VerticalScale(ViewerPanel):
     """ The vertical axis of the plot. Contains the scale and the vertical
         zoom buttons.
     """
+    MIN_LABEL_PT_SIZE = 9
+    
     zoomAmount = 0.25
     
     def __init__(self, *args, **kwargs):
@@ -67,9 +69,10 @@ class VerticalScale(ViewerPanel):
                                             "values in displayed interval")
         
         # Vertical axis label
+        self.defaultFont = wx.Font(16, wx.SWISS, wx.NORMAL, wx.NORMAL)
         self.unitLabel = wx.StaticText(self, -1, self.Parent.yUnits[1], 
-                                       style=wx.ALIGN_CENTER)
-        self.unitLabel.SetFont(wx.Font(16, wx.SWISS, wx.NORMAL, wx.NORMAL))
+                                       style=wx.ALIGN_CENTER|wx.ST_NO_AUTORESIZE)
+        self.unitLabel.SetFont(self.defaultFont)
         subsizer.Add(self.unitLabel, 1, wx.EXPAND)
 
         # Vertical scale 
@@ -93,6 +96,9 @@ class VerticalScale(ViewerPanel):
         self.scale.Bind(wx.EVT_LEFT_DOWN, self.OnScaleClick)
         self.scale.Bind(wx.EVT_LEFT_UP, self.OnScaleRelease)
         self.scale.Bind(wx.EVT_LEAVE_WINDOW, self.OnMouseExit)
+
+        # Just in case the initial units are too long to fit
+        self.setUnits(self.Parent.yUnits[1])
 
     #===========================================================================
     # 
@@ -142,9 +148,21 @@ class VerticalScale(ViewerPanel):
         return self.visibleRange[1] - (vpos * self.unitsPerPixel)
 
         
-    def setUnits(self, units):
+    def setUnits(self, units, setSize=True):
+        """ Set the unit label display, adjusting the size if necessary.
         """
-        """
+        if setSize:
+            w = self.unitLabel.GetTextExtent(units)[0]
+            bw = self.zoomInButton.GetSizeTuple()[0]
+            if w > bw:
+                scaledFont = self.defaultFont.Scaled(bw/(w+0.0))
+                if scaledFont.GetPointSize() < self.MIN_LABEL_PT_SIZE:
+                    scaledFont.SetPointSize(self.MIN_LABEL_PT_SIZE)
+                self.unitLabel.SetFont(scaledFont)
+            elif self.unitLabel.GetFont() != self.defaultFont:
+                self.unitLabel.SetFont(self.defaultFont)
+        else:
+            self.unitLabel.SetFont(self.defaultFont)
         self.unitLabel.SetLabel(units)
 
 

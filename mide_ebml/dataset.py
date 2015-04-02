@@ -1630,7 +1630,7 @@ class EventList(Transformable):
             endIdx = 0
         else:
             endIdx = self.getEventIndexBefore(endTime)
-        return startIdx, endIdx
+        return max(0,startIdx), min(endIdx, len(self)-1)
     
 
     def getRange(self, startTime=None, endTime=None, display=False):

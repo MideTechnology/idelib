@@ -1014,9 +1014,8 @@ class Viewer(wx.Frame, MenuMixin):
         for mi in self.displayMenu.GetMenuItems():
             if mi.GetId() == self.ID_DATA_DISPLAY_NATIVE:
                 continue
-            if mi.GetKind() == wx.ITEM_SEPARATOR:
-                continue
-            self.displayMenu.RemoveItem(mi)
+#             self.displayMenu.RemoveItem(mi)
+            self.displayMenu.DestroyItem(mi)
         if self.dataset is None:
             self.displayMenu.Enable(False)
             return
@@ -2863,11 +2862,13 @@ class ViewerApp(wx.App):
         if not evt.newVersion:
             self.setPref('updater.lastCheck', time.time())
             if not evt.quiet:
+                msg = "Your copy of %s is up to date." % self.GetAppDisplayName()
+                if BETA or DEBUG:
+                    msg = "%s\n\nNOTE: You are using a pre-release beta version. The automatic\n" \
+                        "update notification system may not recognize it. Check manually." % msg
                 # User-initiated checks show a dialog if there's no new version
-                wx.MessageBox(
-                    "Your copy of %s is up to date." % self.GetAppDisplayName(), 
-                    "Update Check", parent=topWindow, 
-                    style=wx.ICON_INFORMATION | wx.OK)
+                wx.MessageBox(msg, "Update Check", parent=topWindow, 
+                              style=wx.ICON_INFORMATION | wx.OK)
             return
         
         dlg = updater.UpdateDialog(topWindow, -1, updaterEvent=evt)

@@ -43,9 +43,13 @@ import wx.lib.sized_controls as SC
 import wx.html
 
 from logger import logger
-from build_info import DEBUG
-
+from build_info import DEBUG, BETA
 from events import EvtUpdateAvailable
+
+if DEBUG:
+    import logging
+    logger.setLevel(logging.INFO)
+
 
 #===============================================================================
 # 
@@ -56,6 +60,14 @@ UPDATER_BASE = "http://www.mide.com/software/updates/"
 UPDATER_URL = os.path.join(UPDATER_BASE, "slam_stick_lab.json")
 CHANGELOG_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_changelog.html")
 DOWNLOAD_URL = "http://www.mide.com/products/slamstick/slam-stick-lab-software.php?utm_source=Slam-Stick-X-Data-Logger&utm_medium=Device&utm_content=Link-to-software-page-from-Device-About-Us&utm_campaign=Slam-Stick-X"
+
+# BETA_UPDATER_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_beta.json")
+# BETA_CHANGELOG_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_beta_changelog.html")
+# BETA_DOWNLOAD_URL = DOWNLOAD_URL
+
+BETA_UPDATER_URL = UPDATER_URL
+BETA_CHANGELOG_URL = CHANGELOG_URL
+BETA_DOWNLOAD_URL = DOWNLOAD_URL
 
 INTERVALS = OrderedDict(enumerate(("Never check automatically",
                                    "Monthly",
@@ -78,6 +90,8 @@ def isSafeUrl(url):
         return True
     
     prot, addr = urllib.splittype(url)
+    if not (prot and addr):
+        return False
     if not prot.lower().startswith(('http','ftp')):
         return False
     host, _path = urllib.splithost(addr)
@@ -129,6 +143,7 @@ class SaferHtmlWindow(wx.html.HtmlWindow):
 #===============================================================================
 # 
 #===============================================================================
+
 class UpdateDialog(SC.SizedDialog):
     """ Dialog that appears when there is a new version of the software
         available to download. It handles getting and displaying the a change
@@ -304,7 +319,7 @@ def getLatestVersion(url=UPDATER_URL):
 
 
 def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL, 
-                 downloadUrl=DOWNLOAD_URL):
+                 downloadUrl=DOWNLOAD_URL, checkBeta=BETA):
     """ Wrapper for the whole version checking system, to be called by the 
         main app instance.
         
@@ -313,13 +328,21 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL,
             regardless of the update interval and the `updater.version`
             preference. The viewer will also be prompted to display a message if
             the software is up to date.
+        @keyword quiet: If `True`, the recipient of the update event will
+            show a message box. This is just passed verbatim; this function
+            doesn't actually do anything with it.
         @keyword url: The URL of the JSON file/feed containing the latest
             version number
+        @keyword downloadUrl: The URL of the download page.
+        @keyword checkBeta: If `True`, the default beta updater URLs are
+            checked if the main one. Beta software will be a later version than
+            the official release. 
     """
     lastUpdate = app.getPref('updater.lastCheck', 0)
     interval = app.getPref('updater.interval', 3)
     currentVersion = app.getPref('updater.version', None)
     
+    # Add version as GET parameter to the URL
 #     url = url + "?version=%s" % ('.'.join(map(str,app.buildVersion)))
     
     # Helper function to create and post the event.
@@ -332,17 +355,26 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL,
         currentVersion = app.buildVersion
 
     if force or isTimeToCheck(lastUpdate, interval):
+        logger.info("Checking %r for updates to version %r..." % (url, currentVersion,))
         responseCode, responseContent = getLatestVersion(url)
         if responseContent:
             newVersion= responseContent.get('version', (0,0,0))
             changelog = responseContent.get('changelog', CHANGELOG_URL)
             updateDate = responseContent.get('date', None)
             if isNewer(newVersion, currentVersion):
+                logger.info("Updater found new version %r" % (newVersion,))
                 sendUpdateEvt(newVersion, updateDate, changelog)
+            elif checkBeta:
+                checkUpdates(app, force, quiet, BETA_UPDATER_URL,
+                             BETA_DOWNLOAD_URL, checkBeta=False)
             else:
+                logger.info("App is up to date.")
                 sendUpdateEvt(False, updateDate)
         else:
-            sendUpdateEvt(False, err=True, response=responseCode)
+            logger.warning("Update check failed (code %r)!" % (responseCode,))
+            if not BETA:
+                # updater failure suppressed in beta versions
+                sendUpdateEvt(False, err=True, response=responseCode)
 
 
 def startCheckUpdatesThread(*args, **kwargs):
@@ -362,44 +394,44 @@ def startCheckUpdatesThread(*args, **kwargs):
     t.start()
 
 
-#  
-#  
-# if __name__ == '__main__':
-#          
-#     class FakeApp(wx.App):
-#         PREFS = {
-#                  }
-#         version = (0,1,10)
-#         versionString = '.'.join(map(str, version))
-#         buildVersion = version + (1234,)
-#         def getPref(self, v, default):
-#             return self.PREFS.get(v, default)
-#         def setPref(self, v, val):
-#             self.PREFS[v] = val
-#         def editPrefs(self, evt=None):
-#             print "edit prefs"
-#         
-#     app = FakeApp()
-#         
-#     code, response = getLatestVersion()
-#     print "app.version = %r" % (app.version,)
-#     print "getLatestVersion returned code %r, version %r" % (code, response)
-#     if response is None:
-#         print "Error occurred; aborting"
-#         exit(1)
-#     
-#     vers = response.get('version', None)
-#     changeUrl = response.get('changelog', None)
-#     print "zipped: %r" % (zip(app.version, vers),)
-#     t = 1406471411.0
-#     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t,2))
-#     t = time.time()
-#     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
-#     print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
-#         
-#     evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
-#         
-# #     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
-#     dlg = UpdateDialog(None, -1, updaterEvent=evt)
-#     dlg.ShowModal()
-#     dlg.Destroy()
+  
+  
+if __name__ == '__main__':
+          
+    class FakeApp(wx.App):
+        PREFS = {
+                 }
+        version = (0,1,10)
+        versionString = '.'.join(map(str, version))
+        buildVersion = version + (1234,)
+        def getPref(self, v, default):
+            return self.PREFS.get(v, default)
+        def setPref(self, v, val):
+            self.PREFS[v] = val
+        def editPrefs(self, evt=None):
+            print "edit prefs"
+         
+    app = FakeApp()
+         
+    code, response = getLatestVersion()
+    print "app.version = %r" % (app.version,)
+    print "getLatestVersion returned code %r, version %r" % (code, response)
+    if response is None:
+        print "Error occurred; aborting"
+        exit(1)
+     
+    vers = response.get('version', None)
+    changeUrl = response.get('changelog', None)
+    print "zipped: %r" % (zip(app.version, vers),)
+    t = 1406471411.0
+    print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t,2))
+    t = time.time()
+    print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
+    print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
+         
+    evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
+         
+#     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
+    dlg = UpdateDialog(None, -1, updaterEvent=evt)
+    dlg.ShowModal()
+    dlg.Destroy()
