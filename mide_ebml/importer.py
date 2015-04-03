@@ -154,6 +154,7 @@ def createDefaultSensors(doc, defaults=DEFAULTS):
                0x13: (-200,200),
                0x14: (-500, 500),
                0x15: (-2000, 2000),
+               0x16: (-6000, 6000)
             }
             rrange = SSX_ACCEL_RANGES.get(rtype & 0xff, 0x10)
             transform = calibration.AccelTransform(*rrange)

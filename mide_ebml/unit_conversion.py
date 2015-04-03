@@ -159,10 +159,10 @@ class Pressure2Meters(UnitConverter):
     
     # Parameters: name, description, type, range, and default value.
     # The names must match keyword arguments in __init__ and object attributes.
-    parameters = (('temp', u'Temperature at sea level (\xb0C)', float, (-100,100), 20.0),
+    parameters = (('temp', u'Temperature at sea level (\xb0C)', float, (-100,100), 15.0),
                   ('sealevel', u'Pressure at sea level (Pa)', int, (0,150000), 101325.0))
     
-    def __init__(self, calId=None, dataset=None, temp=20.0, sealevel=101325.0):
+    def __init__(self, calId=None, dataset=None, temp=15.0, sealevel=101325.0):
         """ Constructor.
             @keyword dataset: The `Dataset` to which this applies. 
             @keyword temp: Temperature at sea level (degrees C)
