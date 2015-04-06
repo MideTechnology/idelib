@@ -926,10 +926,12 @@ class Viewer(wx.Frame, MenuMixin):
         self.SetMenuBar(self.menubar)
         self.enableMenus(False)
 
+
     def OnForegroundRender(self, evt):
         import fft
         fft.FOREGROUND=evt.Checked()
-    
+
+
     def buildUI(self):
         """ Construct and configure all the viewer window's panels. Called once
             by the constructor. Used internally.
@@ -2437,6 +2439,8 @@ class ViewerApp(wx.App):
         'antialiasingMultiplier': ANTIALIASING_MULTIPLIER,
         'resamplingJitter': False,
         'resamplingJitterAmount': RESAMPLING_JITTER,
+        'oversampling': 2.0,
+        'condensedPlotThreshold': 2.0,
         'drawMajorHLines': True,
         'drawMinorHLines': True, #False,
         'drawMinMax': False,

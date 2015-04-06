@@ -272,13 +272,14 @@ class PlotCanvas(wx.ScrolledWindow):
     def loadPrefs(self):
         """
         """
-        self.condensedThreshold = self.root.app.getPref('condensedPlotThreshold', 2.0)#1.75)
-        self.showWarningRange = self.root.app.getPref('showWarningRange', True,
-                                                      section="wvr")
-        self.SetBackgroundColour(self.root.app.getPref('plotBgColor', 'white'))
-        self.drawPoints = self.root.app.getPref("drawPoints", True)
-        self.pointSize = self.root.app.getPref('pointSize', 2)
-        self.weight = self.root.app.getPref('plotLineWidth', 1)
+        app = self.root.app
+        self.condensedThreshold = app.getPref('condensedPlotThreshold', 2.0)
+        self.showWarningRange = app.getPref('showWarningRange', True,
+                                            section="wvr")
+        self.SetBackgroundColour(app.getPref('plotBgColor', 'white'))
+        self.drawPoints = app.getPref("drawPoints", True)
+        self.pointSize = app.getPref('pointSize', 2)
+        self.weight = app.getPref('plotLineWidth', 1)
         self.setPlotPen()
 
         self.originHLinePen = self.loadPen(*self.GRID_ORIGIN_STYLE)
@@ -287,6 +288,8 @@ class PlotCanvas(wx.ScrolledWindow):
         self.minRangePen = self.loadPen(*self.RANGE_MIN_STYLE)
         self.maxRangePen = self.loadPen(*self.RANGE_MAX_STYLE)
         self.meanRangePen = self.loadPen(*self.RANGE_MEAN_STYLE)
+
+        self.setAntialias(self.antialias)
 
 
     def __init__(self, *args, **kwargs):
@@ -298,7 +301,6 @@ class PlotCanvas(wx.ScrolledWindow):
         """
         self.root = kwargs.pop('root',None)
         self.color = kwargs.pop('color', 'BLUE')
-        self.weight = kwargs.pop('weight', 1)
         
         kwargs.setdefault('style',wx.VSCROLL|wx.BORDER_SUNKEN|wx.WANTS_CHARS)
         super(PlotCanvas, self).__init__(*args, **kwargs)
@@ -306,8 +308,8 @@ class PlotCanvas(wx.ScrolledWindow):
         if self.root is None:
             self.root = self.GetParent().root
         
+        self.antialias = False
         self.loadPrefs()
-        self.setAntialias(False)
         
         self.lines = None
         self.points = None
@@ -699,6 +701,12 @@ class PlotCanvas(wx.ScrolledWindow):
             # No change in displayed range; Use cached lines.
             dc.DrawLineList(self.lines)
         
+        if DEBUG and self.lines:
+            if drawCondensed:
+                logger.info("Plotted %d lines (condensed mode) for %r" % (len(self.lines), self.Parent.source.parent.displayName))
+            else:
+                logger.info("Plotted %d lines for %r" % (len(self.lines), self.Parent.source.parent.displayName))
+        
         if self.Parent.firstPlot:
             # First time the plot was drawn. Don't draw; scale to fit.
             self.Parent.zoomToFit(self)
@@ -752,13 +760,12 @@ class PlotCanvas(wx.ScrolledWindow):
         if aa:
             self.viewScale = self.root.aaMultiplier
             self.oversampling = self.viewScale * 1.33
-            gridScale = self.viewScale
-            rangeScale = self.viewScale
         else:
             self.viewScale = 1.0
-            self.oversampling = 2.0 #3.33 # XXX: Clean this up!
-            gridScale = self.viewScale
-            rangeScale = self.viewScale
+            self.oversampling = wx.GetApp().getPref('oversampling',2.0) #3.33 
+            
+        gridScale = self.viewScale
+        rangeScale = self.viewScale
             
         self.userScale = 1.0/self.viewScale
         self.minorHLinePen.SetWidth(self.GRID_MINOR_STYLE[2]*gridScale)

@@ -49,6 +49,7 @@ class Preferences(object):
         'antialiasingMultiplier': 3.33,
         'resamplingJitter': False,
         'resamplingJitterAmount': 0.125,
+        'condensedPlotThreshold': 2.0,
         'drawMajorHLines': True,
         'drawMinorHLines': True, #False,
         'drawMinMax': False,
@@ -63,11 +64,21 @@ class Preferences(object):
         'meanRangeColor': wx.Colour(255,255,150),
         'plotBgColor': wx.Colour(255,255,255),
         # Plot colors, stored by channel:subchannel IDs.
-        'plotColors': {"00.0": "BLUE",
-                       "00.1": "GREEN",
-                       "00.2": "RED",
-                       "01.0": "DARK GREEN",
-                       "01.1": "VIOLET"
+        'plotColors': {# SSX v1
+                       "00.0": "BLUE",       # Acceleration Z
+                       "00.1": "GREEN",      # Acceleration Y
+                       "00.2": "RED",        # Acceleration X
+                       "01.0": "DARK GREEN", # Pressure
+                       "01.1": "VIOLET",     # Temperature
+                       # SSX v2
+                       "08.0": "BLUE",                 # Acceleration Z
+                       "08.1": "GREEN",                # Acceleration Y
+                       "08.2": "RED",                  # Acceleration X
+                       "20.0": wx.Colour(255,100,100), # Acceleration X (DC)
+                       "20.1": wx.Colour(100,255,100), # Acceleration Y (DC)
+                       "20.2": wx.Colour(100,100,255), # Acceleration Z (DC)
+                       "24.0": "DARK GREEN",           # Pressure
+                       "24.1": "VIOLET"                # Temperature
         },
         # default colors: used for subchannel plots not in plotColors
         'defaultColors': ["DARK GREEN",
@@ -106,7 +117,17 @@ class Preferences(object):
 
 
     def __init__(self, filename=None, clean=False):
-        self.prefsFile = filename or self.defaultPrefsFile
+        
+        if filename is None:
+            if wx.GetApp() is not None:
+                # wx.StandardPaths fails if called outside of an App.
+                prefPath = wx.StandardPaths.Get().GetUserDataDir()
+            else:
+                prefPath = ''
+            self.prefsFile = os.path.join(prefPath, self.defaultPrefsFile)
+        else:
+            self.prefsFile = filename
+
         self.prefs = {}
         if not clean:
             self.loadPrefs(filename)
@@ -282,34 +303,78 @@ class Preferences(object):
         return len(keys)
 
     
-    def editPrefs(self, evt=None):
+    def editPrefs(self, parent=None):
         """ Launch the Preferences editor.
-            
-            @param evt: Unused; a placeholder to allow this method to be used
-                as an event handler.
+
         """
-        newPrefs = PrefsDialog.editPrefs(None, self.prefs, self.defaultPrefs)
+        newPrefs = PrefsDialog.editPrefs(parent, self.prefs, self.defaultPrefs)
         if newPrefs is not None:
             self.prefs = newPrefs
             self.savePrefs()
-            
-
-    def setdefault(self, k, v):
-        return self.prefs.setdefault(k,v)
-
-    def __getitem__(self, k):
-        return self.getPref(k)
+            return True
+        return False
     
-    def __setitem__(self, k, v):
-        return self.setPref(k,v)
+
+    #===========================================================================
+    # Dictionary work-alike methods 
+    #===========================================================================
     
     def __contains__(self, k):
         return self.hasPref(k)
 
     def __delitem__(self, k):
-        return self.deletePref(k)
-        
+        if self.hasPref(k):
+            return self.deletePref(k)
+        raise KeyError(k)
 
+    def __getitem__(self, k):
+        if self.hasPref(k):
+            return self.getPref(k)
+        raise KeyError(k)
+    
+    def __setitem__(self, k, v):
+        return self.setPref(k,v)
+    
+    def get(self, *args, **kwargs):
+        return self.getPref(*args, **kwargs)
+    
+    def items(self):
+        return self.prefs.items()
+    
+    def iteritems(self):
+        return self.prefs.iteritems()
+    
+    def iterkeys(self):
+        return self.prefs.iterkeys()
+    
+    def itervalues(self):
+        return self.prefs.itervalues()
+    
+    def keys(self):
+        return self.prefs.keys()
+    
+    def pop(self, *args):
+        if len(args) == 0:
+            raise TypeError("pop expected at least 1 arguments, got 0")
+        elif len(args) > 2:
+            raise TypeError("pop expected at most 2 arguments, got %d" % len(args))
+        elif len(args) == 1:
+            if not self.hasPref(args[0]):
+                raise KeyError(args[0])
+        p = self.getPref(*args)
+        self.deletePref(args[0])
+        return p        
+    
+    def setdefault(self, k, v):
+        return self.prefs.setdefault(k,v)
+
+    def values(self):
+        return self.prefs.values()
+                
+            
+        
+    
+        
 #===============================================================================
 # 
 #===============================================================================
@@ -424,10 +489,16 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.FloatProperty("Antialiasing Scaling", "antialiasingMultiplier"),
              "A multiplier of screen resolution used when drawing antialiased "
              "graphics.")
-        _add(PG.FloatProperty("Noisy Resampling Jitter", 
-                              "resamplingJitterAmount"), 
+        _add(PG.FloatProperty("Noisy Resampling Jitter", "resamplingJitterAmount"), 
              "The size of X axis variation when 'Noise Resampling' is on, "
              "as a normalized percent.")
+        _add(PG.FloatProperty("Oversampling Multiplier", 'oversampling'),
+             "The maximum number of points sampled for plotting; a multiple of "
+             "the width of the plot in pixels.")
+        _add(PG.FloatProperty("Condensed Plot Threshold", 'condensedPlotThreshold'),
+             "When the number of points on screen exceeds the number of pixels "
+             "by this multiple, use the 'condensed' drawing mode. A multiple "
+             "of the Oversampling Multiplier.")
         
         _add(PG.PropertyCategory("Miscellaneous"))
         _add(PG.BoolProperty("Show Full Path in Title Bar", "showFullPath"),
