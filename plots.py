@@ -2,6 +2,7 @@
 # from itertools import izip
 # import math
 import sys
+import time
 
 from wx import aui
 import wx; wx = wx # Workaround for Eclipse code comprehension
@@ -526,6 +527,7 @@ class PlotCanvas(wx.ScrolledWindow):
             @todo: Refactor and modularize this monster. Separate the line-list
                 generation so multiple plots on the same canvas will be easy.
         """
+        t0 = time.time()
         if self.Parent.source is None:
             return
         if self.root.drawingSuspended:
@@ -702,10 +704,11 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.DrawLineList(self.lines)
         
         if DEBUG and self.lines:
+            dt = time.time() - t0
             if drawCondensed:
-                logger.info("Plotted %d lines (condensed mode) for %r" % (len(self.lines), self.Parent.source.parent.displayName))
+                logger.info("Plotted %d lines (condensed mode) in %.4fs for %r" % (len(self.lines), dt, self.Parent.source.parent.displayName))
             else:
-                logger.info("Plotted %d lines for %r" % (len(self.lines), self.Parent.source.parent.displayName))
+                logger.info("Plotted %d lines in %.4fs for %r" % (len(self.lines), dt, self.Parent.source.parent.displayName))
         
         if self.Parent.firstPlot:
             # First time the plot was drawn. Don't draw; scale to fit.

@@ -61,7 +61,7 @@ from fileinfo import RecorderInfoDialog
 from fft import FFTView, SpectrogramView, PSDView
 from loader import Loader
 from plots import PlotSet
-from preferences import PrefsDialog
+from preferences import Preferences, PrefsDialog
 from range_dialog import RangeDialog
 from renderplot import PlotView
 from memorydialog import MemoryDialog
@@ -1406,7 +1406,7 @@ class Viewer(wx.Frame, MenuMixin):
         try:
             stream = ThreadAwareFile(filename, 'rb')
             newDoc = importer(stream, quiet=True)
-            self.app.addRecentFile(filename, 'import')
+            self.app.prefs.addRecentFile(filename, 'import')
             
             # SSX: Check EBML schema version
             if newDoc.schemaVersion is not None and newDoc.schemaVersion < newDoc.ebmldoc.version:
@@ -1715,7 +1715,7 @@ class Viewer(wx.Frame, MenuMixin):
                 evt.Veto()
             return False
             
-        self.app.savePrefs()
+        self.app.prefs.savePrefs()
 
         # Kill all background processes
         self.cancelAllOperations()
@@ -1810,7 +1810,7 @@ class Viewer(wx.Frame, MenuMixin):
 #     def OnPickRecentFile(self, evt):
 #         idx = evt.GetId() - wx.ID_FILE1
 #         if idx > 0:
-#             files = self.app.getRecentFiles()
+#             files = self.app.prefs.getRecentFiles()
 #             if idx <= len(files):
 #                 filename = files[idx]
 #                 if self.dataset and filename != self.dataset.filename:
@@ -2415,282 +2415,24 @@ class ViewerApp(wx.App):
     versionString = __version__
     buildVersion = VERSION + (BUILD_NUMBER,)
     
-    # Preferences format version: change if a change renders old ones unusable.
-    PREFS_VERSION = 0
-    defaultPrefsFile = 'ss_lab.cfg'
-    
-    # Default settings. Any user-changed preferences override these.
-    defaultPrefs = {
-        'defaultFilename': '', #'data.dat',
-        'fileHistory': {},
-        'fileHistorySize': 10,
-        
-        # Precision display of numbers
-        'precisionX': 4,
-        'precisionY': 4,
-        
-        # Data modifications
-        'removeMean': True,
-        'removeRollingMean': False,
-        'rollingMeanSpan': 5.0, # In seconds
-        
-        # Rendering
-        'antialiasing': False,
-        'antialiasingMultiplier': ANTIALIASING_MULTIPLIER,
-        'resamplingJitter': False,
-        'resamplingJitterAmount': RESAMPLING_JITTER,
-        'oversampling': 2.0,
-        'condensedPlotThreshold': 2.0,
-        'drawMajorHLines': True,
-        'drawMinorHLines': True, #False,
-        'drawMinMax': False,
-        'drawMean': False,
-        'drawPoints': True,
-        'plotLineWidth': 1,
-        'originHLineColor': wx.Colour(200,200,200),
-        'majorHLineColor': wx.Colour(240,240,240),
-        'minorHLineColor': wx.Colour(240,240,240),
-        'minRangeColor': wx.Colour(190,190,255),
-        'maxRangeColor': wx.Colour(255,190,190),
-        'meanRangeColor': wx.Colour(255,255,150),
-        'plotBgColor': wx.Colour(255,255,255),
-        # Plot colors, stored by channel:subchannel IDs.
-        'plotColors': {# SSX v1
-                       "00.0": "BLUE",       # Acceleration Z
-                       "00.1": "GREEN",      # Acceleration Y
-                       "00.2": "RED",        # Acceleration X
-                       "01.0": "DARK GREEN", # Pressure
-                       "01.1": "VIOLET",     # Temperature
-                       # SSX v2
-                       "08.0": "BLUE",                 # Acceleration Z
-                       "08.1": "GREEN",                # Acceleration Y
-                       "08.2": "RED",                  # Acceleration X
-                       "20.0": wx.Colour(255,100,100), # Acceleration X (DC)
-                       "20.1": wx.Colour(100,255,100), # Acceleration Y (DC)
-                       "20.2": wx.Colour(100,100,255), # Acceleration Z (DC)
-                       "24.0": "DARK GREEN",           # Pressure
-                       "24.1": "VIOLET"                # Temperature
-        },
-        # default colors: used for subchannel plots not in plotColors
-        'defaultColors': ["DARK GREEN",
-                          "VIOLET",
-                          "GREY",
-                          "YELLOW",
-                          "MAGENTA",
-                          "NAVY",
-                          "PINK",
-                          "SKY BLUE",
-                          "BROWN",
-                          "CYAN",
-                          "DARK GREY",
-                          "GOLD",
-                          "BLACK",
-                          "BLUE VIOLET"],
 
-#         'locale': 'English_United States.1252', # Python's locale name string
-        'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
-        'loader': dict(numUpdates=100, updateInterval=1.0),
-        'openOnStart': True,
-        'showDebugChannels': DEBUG,
-        'showFullPath': True,#False,
-        'showUtcTime': True,
-        'titleLength': 80,
-
-        # Automatic update checking
-        'updater.interval': 3, # see updater.INTERVALS
-        'updater.lastCheck': 0, # Unix timestamp of the last version check
-        'updater.version': VERSION, # The last version check
-
-        # WVR/SSX-specific parameters: the hard-coded warning range.        
-        'wvr.tempMin': -20.0,
-        'wvr.tempMax': 60.0,
-    }
-
-
-    def loadPrefs(self, filename=None):
-        """ Load saved preferences from file.
-        """
-        def tuple2color(c):
-            if isinstance(c, list):
-                return wx.Colour(*c)
-            return c
-        
-#         self.fileHistory = wx.FileHistory()
-        filename = filename or self.prefsFile
-        if not filename:
-            return {}
-        
-        filename = os.path.realpath(os.path.expanduser(filename))
-        logger.debug(u"Loading preferences from %r" % filename)
-
-        prefs = {}
-        if not os.path.exists(filename):
-            # No preferences file; probably the first run for this machine/user
-            return {}
-        try:
-            with open(filename) as f:
-                prefs = json.load(f)
-                if isinstance(prefs, dict):
-                    vers = prefs.get('prefsVersion', self.PREFS_VERSION)
-                    if vers != self.PREFS_VERSION:
-                        # Mismatched preferences version!
-                        # FUTURE: Possibly translate old prefs to new format
-                        n = "n older" if vers < self.PREFS_VERSION else " newer"
-                        wx.MessageBox("The preferences file appears to use a%s "
-                            "format than expected;\ndefaults will be used." % n,
-                            "Preferences Version Mismatch")
-                        return {}
-                    # De-serialize *Color attributes (single colors)
-                    for k in fnmatch.filter(prefs.keys(), "*Color"):
-                        prefs[k] = tuple2color(prefs[k])
-                    # De-serialize *Colors attributes (lists of colors)
-                    for k in fnmatch.filter(prefs.keys(), "*Colors"):
-                        if isinstance(prefs[k], list):
-                            for i in xrange(len(prefs[k])):
-                                prefs[k][i] = tuple2color(prefs[k][i])
-        except (ValueError, IOError):# as err:
-            # Import problem. Bad file will raise IOError; bad JSON, ValueError.
-            wx.MessageBox("An error occurred while trying to read the "
-                          "preferences file.\nDefault settings will be used.",
-                          "Preferences File Error")
-            return {}
-        
-        # Load recent file history
-#         hist = prefs.setdefault('fileHistory', {}).setdefault('import', [])
-#         map(self.fileHistory.AddFileToHistory, hist)
-#         self.fileHistory.UseMenu(self.recentFilesMenu)
-#         self.fileHistory.AddFilesToMenu()
-            
-        return prefs
-
-
-    def savePrefs(self, filename=None):
-        """ Write custom preferences to a file.
-        """
-        def _fix(d):
-            if isinstance(d, (list,tuple)):
-                d = [_fix(x) for x in d]
-            elif isinstance(d, dict):
-                for k,v in d.iteritems():
-                    d[k] = _fix(v)
-            elif isinstance(d, wx.Colour):
-                d = tuple(d)
-            return d
-        
-        prefs = self.prefs.copy()
-        prefs['prefsVersion'] = self.PREFS_VERSION
-        filename = filename or self.prefsFile
-        
-        try:
-            path = os.path.split(filename)[0]
-            if not os.path.exists(path):
-                os.makedirs(path)
-            with open(filename, 'w') as f:
-                json.dump(_fix(prefs), f, indent=2, sort_keys=True)
-        except IOError:# as err:
-            # TODO: Report a problem, or just ignore?
-            pass
-        
-    
     def saveAllPrefs(self, filename=None, hideFile=None):
-        """ Save all preferences, including defaults, to the config file.
-            Primarily for debugging.
-        """
-        prefs = self.defaultPrefs.copy()
-        prefs.update(self.prefs)
-        self.prefs = prefs
-        self.savePrefs(filename, hideFile)
-
-    
-    def addRecentFile(self, filename, category="import"):
-        """ Add a file to a history list. If the list is at capacity, the
-            oldest file is removed.
-        """
-        self.changedFiles = True
-        allFiles = self.prefs.setdefault('fileHistory', {})
-        files = allFiles.setdefault(category, [])
-        if filename:
-            if filename in files:
-                files.remove(filename)
-            files.insert(0,filename)
-        allFiles[category] = files[:(self.getPref('fileHistorySize'))]
-
-
-    def getRecentFiles(self, category="import"):
-        """ Retrieve the list of recent files within a category.
-        """
-        hist = self.prefs.setdefault('fileHistory', {})
-        return hist.setdefault(category, [])
-
+        self.prefs.saveAllPrefs(filename, hideFile)
 
     def getPref(self, name, default=None, section=None):
-        """ Retrieve a value from the preferences.
-            @param prefName: The name of the preference to retrieve.
-            @keyword default: An optional default value to return if the
-                preference is not found.
-            @keyword section: An optional "section" name from which to
-                delete. Currently a prefix in this implementation.
-        """
-        if section is not None:
-            name = "%s.%s" % (section, name)
-        return self.prefs.get(name, self.defaultPrefs.get(name, default))
-
+        return self.prefs.getPref(name, default, section)
 
     def setPref(self, name, val, section=None, persistent=True):
-        """ Set the value of a preference. Returns the value set as a
-            convenience.
-        """
-        if section is not None:
-            name = "%s.%s" % (section, name)
-        prefs = self.prefs if persistent else self.defaultPrefs
-        prefs[name] = val
-        return val
-
+        return self.prefs.setPref(name, val, section, persistent)
 
     def hasPref(self, name, section=None, defaults=False):
-        """ Check to see if a preference exists, in either the user-defined
-            preferences or the defaults.
-        """
-        if section is not None:
-            name = "%s.%s" % (section, name)
-        if defaults:
-            return (name in self.prefs) or (name in self.defaultPrefs)
-        return name in self.prefs
-    
-    
-    def deletePref(self, name=None, section=None):
-        """ Delete one or more preferences. Glob-style wildcards are allowed.
-        
-            @keyword name: The name of the preference to delete. Optional if
-                `section` is supplied
-            @keyword section: An optional section name, limiting the scope.
-            @return: The number of deleted preferences.
-        """
-        if section is not None:
-            name = name if name is not None else "*"
-            name = "%s.%s" % (section, name)
-        if name is None:
-            return
-        keys = fnmatch.filter(self.prefs.keys(), name)
-        for k in keys:
-            self.prefs.pop(k, None)
-        return len(keys)
-
+        return self.prefs.hasPref(name, section, defaults)
 
     def editPrefs(self, evt=None):
-        """ Launch the Preferences editor.
-            
-            @param evt: Unused; a placeholder to allow this method to be used
-                as an event handler.
-        """
-        newPrefs = PrefsDialog.editPrefs(None, self.prefs, self.defaultPrefs)
-        if newPrefs is not None:
-            self.prefs = newPrefs
-            self.savePrefs()
-            
+        if self.prefs.editPrefs():
             for v in self.viewers:
                 v.loadPrefs()
-    
+                
     #===========================================================================
     # 
     #===========================================================================
@@ -2734,18 +2476,11 @@ class ViewerApp(wx.App):
         self.changedFiles = True
         self.stdPaths = wx.StandardPaths.Get()
         
-        if self.prefsFile is None:
-            self.prefsFile = os.path.join(self.stdPaths.GetUserDataDir(),
-                                         self.defaultPrefsFile)
-
-        if not clean:
-            self.prefs = self.loadPrefs(self.prefsFile)
-        else:
-            self.prefs = {}
+        self.prefs = Preferences(self.prefsFile, clean=clean)
 
         if loadLast and self.initialFilename is None:
             try:
-                self.initialFilename = self.getRecentFiles()[0]
+                self.initialFilename = self.prefs.getRecentFiles()[0]
             except KeyError:
                 pass
             
@@ -2830,7 +2565,7 @@ class ViewerApp(wx.App):
         if len(self.viewers) > 0:
             evt.Veto()
             return
-        self.savePrefs(self.prefsFile)
+        self.prefs.savePrefs()
 
 
     def OnUpdateAvailable(self, evt):

@@ -49,10 +49,11 @@ class Preferences(object):
         'antialiasingMultiplier': 3.33,
         'resamplingJitter': False,
         'resamplingJitterAmount': 0.125,
+        'oversampling': 25.0,
         'condensedPlotThreshold': 2.0,
         'drawMajorHLines': True,
         'drawMinorHLines': True, #False,
-        'drawMinMax': False,
+        'drawMinMax': True,
         'drawMean': False,
         'drawPoints': True,
         'plotLineWidth': 1,
@@ -117,7 +118,7 @@ class Preferences(object):
 
 
     def __init__(self, filename=None, clean=False):
-        
+#         logger.info("Preferences.__init__(filename=%r, clean=%r)" % (filename, clean))
         if filename is None:
             if wx.GetApp() is not None:
                 # wx.StandardPaths fails if called outside of an App.
@@ -130,7 +131,7 @@ class Preferences(object):
 
         self.prefs = {}
         if not clean:
-            self.loadPrefs(filename)
+            self.loadPrefs()
 
 
     def loadPrefs(self, filename=None):
@@ -142,17 +143,18 @@ class Preferences(object):
             return c
         
 #         self.fileHistory = wx.FileHistory()
+        self.prefs = {}
         filename = filename or self.prefsFile
+        logger.info("Loading prefs file %r (exists=%r)" % (filename,os.path.exists(filename)))
         if not filename:
-            return {}
+            return self.prefs
         
         filename = os.path.realpath(os.path.expanduser(filename))
-        logger.debug(u"Loading preferences from %r" % filename)
 
         prefs = {}
         if not os.path.exists(filename):
             # No preferences file; probably the first run for this machine/user
-            return {}
+            return self.prefs
         try:
             with open(filename) as f:
                 prefs = json.load(f)
@@ -165,7 +167,7 @@ class Preferences(object):
                         wx.MessageBox("The preferences file appears to use a%s "
                             "format than expected;\ndefaults will be used." % n,
                             "Preferences Version Mismatch")
-                        return {}
+                        return self.prefs
                     # De-serialize *Color attributes (single colors)
                     for k in fnmatch.filter(prefs.keys(), "*Color"):
                         prefs[k] = tuple2color(prefs[k])
@@ -179,15 +181,15 @@ class Preferences(object):
             wx.MessageBox("An error occurred while trying to read the "
                           "preferences file.\nDefault settings will be used.",
                           "Preferences File Error")
-            return {}
         
         # Load recent file history
 #         hist = prefs.setdefault('fileHistory', {}).setdefault('import', [])
 #         map(self.fileHistory.AddFileToHistory, hist)
 #         self.fileHistory.UseMenu(self.recentFilesMenu)
 #         self.fileHistory.AddFilesToMenu()
-            
-        return prefs
+        
+        self.prefs = prefs
+        return self.prefs
 
 
     def savePrefs(self, filename=None):
