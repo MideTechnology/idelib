@@ -46,10 +46,6 @@ Clean up the 'background operation' system. It's overly complex.
 
 Clean up lots of things that are over-engineered.
 
-Consider making FFT/Spectrogram rendering modal, since performance in the
-main view is really hurt while it renders (lots of random disk access). Maybe
-a dialog with a 'work in background' button, like Eclipse updating.
-
 
 Longer term
 -----------
@@ -61,10 +57,10 @@ Improve memory management. The hog is really the python-ebml library, though.
 
 'Wish List' items ("it would be nice if...")
 --------------------------------------------
-Move all of the preference-related stuff into a single module. Possibly use a
-single source (nested list/dict) to define the preferences and their editing
-widget at the same time. 
-
 Move configuration dialog stuff to the `devices` module, making it more
 modular. Possibly build UI from some sort of template that the recorder
 class itself defines.
+
+Possibly move `devices` to the mide_ebml library; the importer sometimes uses
+some of the same information, and it would be better to have it implemented only
+once.

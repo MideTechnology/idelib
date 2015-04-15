@@ -28,14 +28,14 @@ if DEBUG:
             logger.info('Could not import profiler (yappi), continuing...')
             pass
 
+# The feedback form URL. Will show up as an item in the Help menu if provided.
+FEEDBACK_URL = "https://www.surveymonkey.com/s/slam-stick-x"
 
 #===============================================================================
 # 
 #===============================================================================
 
 from datetime import datetime
-import fnmatch
-import json
 import os
 import time
 
@@ -61,7 +61,7 @@ from fileinfo import RecorderInfoDialog
 from fft import FFTView, SpectrogramView, PSDView
 from loader import Loader
 from plots import PlotSet
-from preferences import Preferences, PrefsDialog
+from preferences import Preferences
 from range_dialog import RangeDialog
 from renderplot import PlotView
 from memorydialog import MemoryDialog
@@ -638,6 +638,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_DISPLAY_NATIVE = wx.NewId()
     ID_DATA_DISPLAY_CONFIG = wx.NewId()
     ID_HELP_CHECK_UPDATES = wx.NewId()
+    ID_HELP_FEEDBACK = wx.NewId()
 
     ID_DEBUG_SUBMENU = wx.NewId()
     ID_DEBUG_SAVEPREFS = wx.NewId()
@@ -897,6 +898,11 @@ class Viewer(wx.Frame, MenuMixin):
         helpMenu.AppendSeparator()
         self.addMenuItem(helpMenu, self.ID_HELP_CHECK_UPDATES,
                          "Check for Updates", "", self.OnHelpCheckUpdates)
+        
+        if FEEDBACK_URL:
+            self.addMenuItem(helpMenu, self.ID_HELP_FEEDBACK,
+                             "Send Feedback", "", self.OnHelpFeedback)
+            
         if DEBUG:
             helpMenu.AppendSeparator()
             debugMenu = wx.Menu()
@@ -908,7 +914,7 @@ class Viewer(wx.Frame, MenuMixin):
             self.addMenuItem(debugMenu, self.ID_DEBUG1, "Render Plots/FFTs/etc. in foreground", "",
                              self.OnForegroundRender, kind=wx.ITEM_CHECK)
             helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
-            
+
         self.menubar.Append(helpMenu, '&Help')
 
         #=======================================================================
@@ -981,7 +987,7 @@ class Viewer(wx.Frame, MenuMixin):
         # There are fewer of them than menus that are disabled.
         menus = (wx.ID_NEW, wx.ID_OPEN, wx.ID_CLOSE, wx.ID_EXIT, 
                  self.ID_DEVICE_CONFIG, wx.ID_ABOUT, wx.ID_PREFERENCES,
-                 self.ID_HELP_CHECK_UPDATES,
+                 self.ID_HELP_CHECK_UPDATES, self.ID_HELP_FEEDBACK,
                  self.ID_FILE_MULTI,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, self.ID_DEBUG0,
                  self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
@@ -1871,7 +1877,12 @@ class Viewer(wx.Frame, MenuMixin):
         """
         self.app.setPref('updater.version', self.app.version)
         updater.startCheckUpdatesThread(self.app, force=True, quiet=False)
-        
+
+
+    def OnHelpFeedback(self, evt):
+        """
+        """
+        wx.LaunchDefaultBrowser(FEEDBACK_URL)
 
     def OnDontRemoveMeanCheck(self, evt):
         """

@@ -1149,7 +1149,7 @@ class InfoPanel(HtmlWindow):
             self.html.append(u"<table width='100%'>")
             self._inTable = True
         if escape:
-            k = self.escape(k)
+            k = self.escape(k).replace(' ','&nbsp;')
             v = self.escape(v)
         else:
             k = cleanUnicode(k)

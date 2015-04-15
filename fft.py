@@ -368,7 +368,7 @@ class FFTView(wx.Frame, MenuMixin):
         if FOREGROUND:
             logger.info( "Starting %s._draw() in foreground process." % self.__class__.__name__ )
         else:
-            logger.info( "Starting threaded %s._draw() in threaded process." % self.__class__.__name__ )
+            logger.info( "Starting %s._draw() in new thread." % self.__class__.__name__ )
         drawStart = time.time()
             
         try:
@@ -386,13 +386,18 @@ class FFTView(wx.Frame, MenuMixin):
                 
             if self.data is not None:
                 self.makeLineList()
+            else:
+                logger.info("No data for %s!" % self.FULLNAME)
+                self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+                return
 
             logger.info("%d samples x%d columns calculated. Elapsed time (%s): %0.6f s." % (stop-start, len(self.subchannels), self.FULLNAME, time.time() - drawStart))
     
             if self.lines is not None:
                 self.canvas.Draw(self.lines)
-
-            logger.info("Completed drawing. Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart))
+                logger.info("Completed drawing %d lines. Elapsed time (%s): %0.6f s." % (self.data.shape[0]*self.data.shape[1], self.FULLNAME, time.time() - drawStart))
+            else:
+                logger.info("No lines to draw!. Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart))
     
             self.canvas.SetEnableZoom(True)
 #             self.canvas.SetShowScrollbars(True)
@@ -1552,7 +1557,6 @@ class PSDView(FFTView):
             @return: A multidimensional array, with the first column the 
                 frequency.
         """
-        # XXX: TEST
         if self.useWelch:
             logger.info("Calculating PSD using Welch's Method")
             points = self.from2diter(data, rows, cols, abortEvent=abortEvent)
