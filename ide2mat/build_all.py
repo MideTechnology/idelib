@@ -83,7 +83,7 @@ else:
 
 buildArgs = {
     'dist_32': 'raw2mat v%s.%04d (32 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
-    'dist_64': 'raw2mat_v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
+    'dist_64': 'raw2mat v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
 }
 
 bad = 0

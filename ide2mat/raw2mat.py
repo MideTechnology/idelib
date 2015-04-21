@@ -20,11 +20,15 @@ try:
     _ = importlib.import_module('mide_ebml')
 except ImportError:
     sys.path.append('..')
-    
+
+from mide_ebml import __version__ as ebml_version    
 from mide_ebml import matfile
 from mide_ebml import importer
 from mide_ebml.matfile import MP
 from mide_ebml.parsers import MPL3115PressureTempParser, ChannelDataBlock
+
+from build_info import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME
+__version__ = VERSION
 
 #===============================================================================
 # 
@@ -294,16 +298,28 @@ if __name__ == "__main__":
     import argparse
     from glob import glob
     
-    argparser = argparse.ArgumentParser(description="Mide Raw .IDE to .MAT Converter - Copyright (c) %d Mide Technology" % datetime.now().year)
+    argparser = argparse.ArgumentParser(description="Mide Raw .IDE to .MAT Converter v%d.%d.%d - Copyright (c) %d Mide Technology" % (VERSION+(datetime.now().year,)))
     argparser.add_argument('-o', '--output', help="The output path to which to save the .MAT files. Defaults to the same as the source file.")
     argparser.add_argument('-a', '--accelOnly', action='store_true', help="Export only accelerometer data.")
     argparser.add_argument('-m', '--maxSize', type=int, default=matfile.MatStream.MAX_SIZE, help="The maximum MAT file size in bytes. Must be less than 2GB.")
     argparser.add_argument('-t', '--startTime', type=float, help="The start of the time span to export (seconds from the beginning of the recording).", default=0)
     argparser.add_argument('-e', '--endTime', type=float, help="The end of the time span to export (seconds from the beginning of the recording).")
     argparser.add_argument('-d', '--duration', type=float, help="The length of time to export, relative to the --startTime. Overrides the specified --endTime")
-    argparser.add_argument('source', nargs="+", help="The source .IDE file(s) to convert.")
+    argparser.add_argument('-v', '--version', action='store_true', help="Show detailed version information and exit.")
+    argparser.add_argument('source', nargs="*", help="The source .IDE file(s) to convert.")
 
     args = argparser.parse_args()
+    if args.version is True:
+        import platform
+        print argparser.description
+        print "Converter version %d.%d.%d (build %d) %s, %s" % (VERSION + (BUILD_NUMBER, platform.architecture()[0], datetime.fromtimestamp(BUILD_TIME)))
+        print "MIDE EBML library version %d.%d.%d" % ebml_version
+        exit(0)
+    
+    if len(args.source) == 0:
+        print "Error: No source file(s) specified!"
+        exit(1)
+    
     sourceFiles = []
     for f in args.source:
         sourceFiles.extend(glob(f))
