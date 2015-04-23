@@ -389,6 +389,16 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     with open(utils.changeFilename(calXmlFile, ext="ebml"), 'wb') as f:
         f.write(calEbml)
 
+    propXmlFile = os.path.join(chipDirName, 'recprop.xml')
+    firmware.makeRecPropXml(TEMPLATE_PATH, partNum, hwRev, accelSerialNum, propXmlFile)
+    if os.path.exists(propXmlFile):
+        propEbml = xml2ebml.readXml(propXmlFile, schema='mide_ebml.ebml.schema.mide') 
+        with open(utils.changeFilename(propXmlFile, ext="ebml"), 'wb') as f:
+            f.write(propEbml)
+    else:
+        print "No recording properties template found, skipping."
+        propEbml = bytearray()
+
     # Copy template as 'current' (original script did this).
     curCalXmlFile = os.path.join(chipDirName, 'cal.current.xml')
     if not os.path.exists(curCalXmlFile):
@@ -400,7 +410,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     print "Uploading firmware version %s..." % fwRev
     ssxboot.send_app(getFirmwareFile(partNum, fwRev))
     print "Uploading manifest and generic calibration data..."
-    ssxboot.sendUserpage(manEbml, calEbml)
+    ssxboot.sendUserpage(manEbml, calEbml, propEbml)
     
     # 9. Update birth log
     print "Updating birthing logs and serial number..."

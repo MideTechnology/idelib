@@ -178,31 +178,38 @@ class ssx_bootloadable_device(object):
     #===========================================================================
 
     @classmethod
-    def makeUserpage(self, manifest, caldata):
+    def makeUserpage(self, manifest, caldata, recprops=''):
         """ Combine a binary Manifest and Cal into a unified, correctly 
             formatted userpage block.
     
             USERPAGE memory map:
                 0x0000 (2): Offset of manifest, LE
                 0x0002 (2): Length of manifest, LE
-                0x0004 (2): Offset of calibration, LE
-                0x0006 (2): Length of calibration, LE
-                0x0008 ~ 0x000F: (RESERVED)
-                0x0010: Manifest data
-                0x0400: Factory Calibration data
+                0x0004 (2): Offset of factory calibration, LE
+                0x0006 (2): Length of factory calibration, LE
+                0x0008 (2): Offset of recorder properties, LE
+                0x000A (2): Length of recorder properties, LE
+                0x000C ~ 0x000F: (RESERVED)
+                0x0010: Data (Manifest, calibration, recorder properties)
+                0x07FF: End of userpage data (2048 bytes total)
         """
     
         PAGE_SIZE = 2048
-    #     USERPAGE_OFFSET = 0x0000
-        MANIFEST_OFFSET = 0x0010 # 16 byte offset from start
-        CALDATA_OFFSET =  0x0400 # 1k offset from start
-    
         manSize = len(manifest)
         calSize = len(caldata)
-        data = bytearray(struct.pack("<HHHH2040x", MANIFEST_OFFSET, manSize, 
-                                                    CALDATA_OFFSET, calSize))
+        propsSize = len(recprops)
+        MANIFEST_OFFSET = 0x0010 # 16 byte offset from start
+        CALDATA_OFFSET =  MANIFEST_OFFSET + manSize #0x0400 # 1k offset from start
+        RECPROPS_OFFSET = CALDATA_OFFSET + calSize
+    
+        data = struct.pack("<HHHHHH", 
+                           MANIFEST_OFFSET, manSize, 
+                           CALDATA_OFFSET, calSize,
+                           RECPROPS_OFFSET, propsSize)
+        data = bytearray(data.ljust(PAGE_SIZE, '\x00'))
         data[MANIFEST_OFFSET:MANIFEST_OFFSET+manSize] = manifest
         data[CALDATA_OFFSET:CALDATA_OFFSET+calSize] = caldata
+        data[RECPROPS_OFFSET:RECPROPS_OFFSET+propsSize] = recprops
         
         if len(data) != PAGE_SIZE:
             raise ValueError("Userpage block was %d bytes; should be %d" % \
@@ -211,8 +218,8 @@ class ssx_bootloadable_device(object):
         return data
 
 
-    def sendUserpage(self, manifest, caldata):
-        return self.send_userpage_payload(self.makeUserpage(manifest, caldata))
+    def sendUserpage(self, manifest, caldata, recprops=''):
+        return self.send_userpage_payload(self.makeUserpage(manifest, caldata, recprops))
     
     
     def getVersionAndId(self):
@@ -244,20 +251,25 @@ def readUserPage(devPath):
             data.append(fs.read())
     data = ''.join(data)
     
-    manOffset, manSize, calOffset, calSize = struct.unpack_from("<HHHH", data)
+    manOffset, manSize, calOffset, calSize, propOffset, propSize = struct.unpack_from("<HHHHHH", data)
     manData = StringIO(data[manOffset:manOffset+manSize])
     calData = StringIO(data[calOffset:calOffset+calSize])
+    if propOffset > 0:
+        propData = StringIO(data[propOffset:propOffset+propSize])
+        props = ebml_util.read_ebml(propData)
+    else:
+        props = None
     manifest = ebml_util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
     calibration = ebml_util.read_ebml(calData)
     
-    return manifest, calibration
+    return manifest, calibration, props
 
 #===============================================================================
 # 
 #===============================================================================
 
 def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, dest):
-    """
+    """ Create the device manifest XML file.
     """
     filename = os.path.join(templatePath, partNum, str(hwRev), "manifest.template.xml")
     xmltree = ET.parse(filename)
@@ -274,6 +286,27 @@ def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, de
     xmltree.write(dest)
     return xmlroot
 
+
+def makeRecPropXml(templatePath, partNum, hwRev, device_accel_sn, dest):
+    """ Create the XML for the RecordingProperties of a device.
+    """
+    filename = os.path.join(templatePath, partNum, str(hwRev), "recprop.template.xml")
+    if not os.path.exists(filename):
+        return None
+    
+    xmltree = ET.parse(filename)
+    xmlroot = xmltree.getroot()
+
+    # Update just the High-G Accelerometer. 
+    # TODO: Make this more generic. Maybe string replacement in raw XML?
+    for sensor in xmlroot.findall('./SensorList/Sensor'):
+        nameEl = sensor.find('SensorName')
+        if nameEl is not None and nameEl.get('value') == '832M1 High-G Accelerometer':
+            ssEl = sensor.find('TraceabilityData/SensorSerialNumber')
+            if ssEl is not None:
+                ssEl.set('value', str(device_accel_sn))
+    xmltree.write(dest)
+    return xmlroot
 
 #===============================================================================
 # 

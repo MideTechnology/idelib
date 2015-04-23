@@ -155,22 +155,22 @@
                         <element name="PlotChannelRef" level="5" id="0x5221" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
                         <element name="PlotSubChannelRef" level="5" id="0x5222" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
                         
-            <element name="WarningList" level="2" id="0x5360" type="master" mandatory="0" multiple="0" minver="1"> "Idiot Light" warnings for sensors that are inaccurate in certain conditions </element>
-                <element name="Warning" level="3" id="0x5361" type="master" mandatory="0" multiple="1" minver="1"> </element>
-                    <element name="WarningID" level="4" id="0x5362" type="integer" mandatory="0" multiple="0" minver="1">Warning ID, referenced by Subchannels. </element>
-                    <element name="WarningChannelRef" level="4" id="0x5363" type="integer" mandatory="0" multiple="0" minver="1">ChannelID</element>
-                    <element name="WarningSubChannelRef" level="4" id="0x5364" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
-                    <element name="WarningRangeMin" level="4" id="0x5365" type="float" mandatory="0" multiple="0" minver="1">Minimum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
-                    <element name="WarningRangeMax" level="4" id="0x5366" type="float" mandatory="0" multiple="0" minver="1">Maximum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
+            <element name="WarningList" level="1" id="0x5360" type="master" mandatory="0" multiple="0" minver="1"> "Idiot Light" warnings for sensors that are inaccurate in certain conditions </element>
+                <element name="Warning" level="2" id="0x5361" type="master" mandatory="0" multiple="1" minver="1"> </element>
+                    <element name="WarningID" level="3" id="0x5362" type="integer" mandatory="0" multiple="0" minver="1">Warning ID, referenced by Subchannels. </element>
+                    <element name="WarningChannelRef" level="3" id="0x5363" type="integer" mandatory="0" multiple="0" minver="1">ChannelID</element>
+                    <element name="WarningSubChannelRef" level="3" id="0x5364" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
+                    <element name="WarningRangeMin" level="3" id="0x5365" type="float" mandatory="0" multiple="0" minver="1">Minimum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
+                    <element name="WarningRangeMax" level="3" id="0x5366" type="float" mandatory="0" multiple="0" minver="1">Maximum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
 
-            <element name="BwLimitList" level="2" id="0x5380" type="master" mandatory="0" multiple="0" minver="1"> List of bandwidth constraints on sensors and data channels. These will (on a Sensor) provide the intrinsic sensor limits if known, or (on a data channel) provide information about any user-configured limits, e.g. AA filter cutoffs. This data is mandatory for sensor fusion, otherwise optional.</element>
-                <element name="BwLimit" level="3" id="0x5381" type="master" mandatory="0" multiple="1" minver="1"> </element>
-                    <element name="BwLimitID" level="4" id="0x5382" type="integer" mandatory="0" multiple="0" minver="1">Limit entry ID, referenced by Sensors or (Sub)channels. </element>
-                    <element name="LowerCutoff" level="4" id="0x5383" type="string" mandatory="0" multiple="0" minver="1">Lower cutoff frequency.</element>
-                    <element name="LowerRolloff" level="4" id="0x5384" type="string" mandatory="0" multiple="0" minver="1">Lower rolloff, in dB/decade.</element>
-                    <element name="UpperCutoff" level="4" id="0x5385" type="string" mandatory="0" multiple="0" minver="1">Upper cutoff frequency.</element>
-                    <element name="UpperRolloff" level="4" id="0x5386" type="string" mandatory="0" multiple="0" minver="1">Upper rolloff, in dB/decade.</element>
-                    <element name="GroupDelay" level="4" id="0x5387" type="string" mandatory="0" multiple="0" minver="1">Group delay, in channel ticks (channels/subchannels only).</element>
+            <element name="BwLimitList" level="1" id="0x5380" type="master" mandatory="0" multiple="0" minver="1"> List of bandwidth constraints on sensors and data channels. These will (on a Sensor) provide the intrinsic sensor limits if known, or (on a data channel) provide information about any user-configured limits, e.g. AA filter cutoffs. This data is mandatory for sensor fusion, otherwise optional.</element>
+                <element name="BwLimit" level="2" id="0x5381" type="master" mandatory="0" multiple="1" minver="1"> </element>
+                    <element name="BwLimitID" level="3" id="0x5382" type="integer" mandatory="0" multiple="0" minver="1">Limit entry ID, referenced by Sensors or (Sub)channels. </element>
+                    <element name="LowerCutoff" level="3" id="0x5383" type="string" mandatory="0" multiple="0" minver="1">Lower cutoff frequency.</element>
+                    <element name="LowerRolloff" level="3" id="0x5384" type="string" mandatory="0" multiple="0" minver="1">Lower rolloff, in dB/decade.</element>
+                    <element name="UpperCutoff" level="3" id="0x5385" type="string" mandatory="0" multiple="0" minver="1">Upper cutoff frequency.</element>
+                    <element name="UpperRolloff" level="3" id="0x5386" type="string" mandatory="0" multiple="0" minver="1">Upper rolloff, in dB/decade.</element>
+                    <element name="GroupDelay" level="3" id="0x5387" type="string" mandatory="0" multiple="0" minver="1">Group delay, in channel ticks (channels/subchannels only).</element>
                     
     <!-- 
     Attributes: a way to insert an arbitrary key/value into a structure, without revising (and potentially bloating) the schema itself. This data is typically non-critical.
