@@ -3,11 +3,16 @@ Created on Apr 15, 2015
 
 @author: dstokes
 '''
+from datetime import datetime
+import os
+import sys
+import textwrap
+
 from ebml.core import encode_element_id
 from ebml.schema.base import INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
 from ebml.schema.mide import MideDocument
 
-from util import getSchemaDocument
+from util import getSchemaModule, getSchemaDocument
 
 types = {INT:       'SINT',
          UINT:      'UINT',
@@ -36,19 +41,27 @@ def crawlSchema(el, depth=0, results=None, written=None):
         crawlSchema(ch, depth+1, results, written)
     return results
 
-def dumpSchema(schema=MideDocument):
-    results = ['#include "ebml-schema.h"','','static const EbmlSchemaEntry ebml_schema_mide[] = {']
+
+def dumpSchema(schemaDoc=MideDocument):
+    """ Create the C source for an EBML schema. This is the function that does
+        all the real work.
+    """
+    name = schemaDoc.type.upper()
+    entry = ['static const EbmlSchemaEntry ebml_schema_%s[] = {' % schemaDoc.type.lower()]
     els = []
     ids = {}
-    crawlSchema(schema, 0, els, ids)
+    crawlSchema(schemaDoc, 0, els, ids)
     
     els.sort()
-    results.extend(els)
-    results[-1] = results[-1].replace('},','}')
-    results.append('};')
+    entry.extend(els)
+    entry[-1] = entry[-1].replace('},','}')
+    entry.append('};')
     
-    incs = []
-    name = schema.type.upper()
+    incs = ['#ifndef EBML_SCHEMA_%s_H_' % name,
+            '#define EBML_SCHEMA_%s_H_' % name,
+            '',
+            '#include "ebml-schema.h"',
+            '']
     namelen = max([len(x) for x,_ in ids.items()]) + len(name) + 15
     for n,i in sorted(ids.items(), key=lambda x: x[-1]):
         n = n.upper()
@@ -57,8 +70,35 @@ def dumpSchema(schema=MideDocument):
         incs.append('%s %d' % ((inc+'_LEN').ljust(namelen), len(encode_element_id(i))))
     
     incs.append('')
-    incs.extend(results)
+    incs.extend(entry)
+    incs.extend(['','#endif /* EBML_SCHEMA_%s_H_ */' % name])
     return '\n'.join(incs)
+
+
+def makeHeaderComment(schemaMod, schemaDoc):
+    stars = '*' * 76
+    xmlfile = os.path.splitext(os.path.realpath(schemaMod.__file__))[0] + ".xml"
+    return textwrap.dedent("""
+        /*%s
+         *
+         * EBML schema dump of %s
+         * Source: %s
+         * Auto-generated %s by %s on %s
+         *        
+         * To recreate:
+         * python %s
+         *
+         %s*/
+        
+    """.lstrip('\n') % (stars, 
+                        schemaDoc.__name__, 
+                        xmlfile, 
+                        str(datetime.now()).rsplit('.',1)[0],
+                        os.environ.get('USERNAME', '(unknown user)'),
+                        os.environ.get('COMPUTERNAME', '(unknown computer'), 
+                        ' '.join(sys.argv), 
+                        stars))
+
 
 if __name__ == '__main__':
     import argparse
@@ -70,10 +110,15 @@ if __name__ == '__main__':
     args = parser.parse_args()
     
     if args.schema:
-        schema = getSchemaDocument(args.schema)
+        schemaDoc = getSchemaDocument(args.schema)
+        schemaMod = getSchemaModule(args.schema)
     else:
-        schema = MideDocument
-    result = dumpSchema(schema)
-    with open('%s.c' % schema.__name__, 'wb') as f:
-        f.write("/* EBML schema dump of %s */\n\n" % schema.__name__)
+        schemaDoc = MideDocument
+        schemaMod = getSchemaModule()
+        
+    result = dumpSchema(schemaDoc)
+    with open('%s.c' % schemaDoc.__name__, 'wb') as f:
+        f.write(makeHeaderComment(schemaMod, schemaDoc))
+#         f.write("/* EBML schema dump of %s */\n\n" % schema.__name__)
         f.write(result)
+        
