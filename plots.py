@@ -470,23 +470,26 @@ class PlotCanvas(wx.ScrolledWindow):
 #         bufferMarks = []
         i=0
 
-        pMin, pMean, pMax = vals.next()
-        _startline(minPts, pMin)
-        _startline(meanPts, pMean)
-        _startline(maxPts, pMax)
-        for pMin, pMean, pMax in vals:
-            _makeline(minPts, pMin, min)
-            _makeline(meanPts, pMean, lambda x,y: (x+y)*0.5)
-            _makeline(maxPts, pMax, max)
-            # XXX: TEST
-#             x = (int(min(max(0, (pMin[0] - hRange[0])) * hScale, width)))
-#             bufferMarks.append((x,vRange[1]*vScale,x,vRange[0]*vScale))
-            i+=1
-        _finishline(minPts)
-        _finishline(meanPts)
-        _finishline(maxPts)
+        try:
+            pMin, pMean, pMax = vals.next()
+            _startline(minPts, pMin)
+            _startline(meanPts, pMean)
+            _startline(maxPts, pMax)
+            for pMin, pMean, pMax in vals:
+                _makeline(minPts, pMin, min)
+                _makeline(meanPts, pMean, lambda x,y: (x+y)*0.5)
+                _makeline(maxPts, pMax, max)
+                # XXX: TEST
+#                 x = (int(min(max(0, (pMin[0] - hRange[0])) * hScale, width)))
+#                 bufferMarks.append((x,vRange[1]*vScale,x,vRange[0]*vScale))
+                i+=1
+            _finishline(minPts)
+            _finishline(meanPts)
+            _finishline(maxPts)
+        except StopIteration:
+            # No min/mean/max in the given range. Generally shouldn't happen.
+            pass
         
-#         print "XXX: iterations: %r, length minPts=%r, maxPts=%r" % (i, len(minPts), len(maxPts))
         self.minMeanMaxLines = (minPts[1:], meanPts, maxPts[1:])
         # XXX: TEST
 #         self.bufferMarks = bufferMarks
@@ -527,6 +530,7 @@ class PlotCanvas(wx.ScrolledWindow):
             @todo: Refactor and modularize this monster. Separate the line-list
                 generation so multiple plots on the same canvas will be easy.
         """
+#         logger.info("XXX: %s hasMinMeanMax==%s" % (self.Parent.source.parent.displayName, self.Parent.source.hasMinMeanMax))
         t0 = time.time()
         if self.Parent.source is None:
             return
@@ -637,8 +641,6 @@ class PlotCanvas(wx.ScrolledWindow):
                         self.lines.append((lastPt[0],lastPt[1],a[0],a[1]))
                         self.lines.append((a[0],a[1],b[0],b[1]))
                         lastPt = b[:2]
-#                     print "condensed mode plotting %r lines" % len(self.lines)
-#                     print "source buffer count: %r" % len(self.Parent.source._data)
             else:
                 if self.root.drawMinMax:
                     dc.DrawLineList(self.minMeanMaxLines[0], self.minRangePen)

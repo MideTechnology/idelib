@@ -913,7 +913,7 @@ class EventList(Transformable):
         self.displayRange = self.parent.displayRange
 
         self.removeMean = False
-        self.hasMinMeanMax = True #False
+        self.hasMinMeanMax = False #True
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
 
         self.transform = None
@@ -1879,17 +1879,17 @@ class EventList(Transformable):
                 block.mean = tuple(block_mean)
                 block.max = tuple(block_max)
             
-                self.hasMinMeanMax = True
+#                 self.hasMinMeanMax = True
                 
                 # Channels and subchannels use same blocks; mark them as having
                 # min/mean/max data
-                sessionId = getattr(self.session, 'sessionId', None)
-                if sessionId is not None:
-                    if self.hasSubchannels:
-                        for c in self.parent.parent.children:
-                            c.getSession(sessionId).hasMinMeanMax=True
-                    else:
-                        self.parent.parent.getSession(sessionId).hasMinMeanMax=True
+#                 sessionId = getattr(self.session, 'sessionId', None)
+#                 if sessionId is not None:
+#                     if self.hasSubchannels:
+#                         for c in self.parent.parent.children:
+#                             c.getSession(sessionId).hasMinMeanMax=True
+#                     else:
+#                         self.parent.parent.getSession(sessionId).hasMinMeanMax=True
         except Ex:
             logger.warning("_computeMinMeanMax struct error: %r" % (block.indexRange,))
             
