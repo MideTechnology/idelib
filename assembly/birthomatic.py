@@ -272,11 +272,16 @@ def copyContent(devPath):
 # 
 #===============================================================================
 
-def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=None):
+def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=None,
+          fwFile=None):
     """ Perform initial configuration of a Slam Stick X.
     """
     rebirth = serialNum is not None
     accelSerialNum = None
+    
+    if fwFile and not os.path.exists(fwFile):
+        print "Could not find firmware file %s!" % fwFile
+        exit(1)
     
     print "*" * 60
     print "Starting Slam Stick X Auto-Birther."
@@ -407,8 +412,12 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     # 8. Upload firmware, user page data (firmware.ssx_bootloadable_device)
     print "Uploading bootloader version %s..." % bootRev
     ssxboot.send_bootloader(getBootloaderFile(partNum, fwRev))
-    print "Uploading firmware version %s..." % fwRev
-    ssxboot.send_app(getFirmwareFile(partNum, fwRev))
+    if not fwFile:
+        print "Uploading firmware version %s..." % fwRev
+        ssxboot.send_app(getFirmwareFile(partNum, fwRev))
+    else:
+        print "Uploading firmware %s..." % fwFile
+        ssxboot.send_app(fwFile)
     print "Uploading manifest and generic calibration data..."
     ssxboot.sendUserpage(manEbml, calEbml, propEbml)
     
@@ -716,11 +725,12 @@ if __name__ == "__main__":
 #     parser.add_argument("--hwRev", "-w", help="Hardware revision to birth.")
 #     parser.add_argument("--fwRev", "-f", help="Firmware revision to birth.")
 #     parser.add_argument("--accelSerialNum", "-a", help="Accelerometer serial number to birth.")
+    parser.add_argument("--binfile", "-b", help="An alternate firmware file to upload in birth mode.", default=None)
     args = parser.parse_args()
     
     try:
         if args.mode == "birth":
-            birth(serialNum=args.serialNum)
+            birth(serialNum=args.serialNum, fwFile=args.binfile)
         elif args.mode.startswith("cal"):
             calibrate()
     except KeyboardInterrupt:
