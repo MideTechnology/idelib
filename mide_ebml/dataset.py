@@ -913,7 +913,7 @@ class EventList(Transformable):
         self.displayRange = self.parent.displayRange
 
         self.removeMean = False
-        self.hasMinMeanMax = False #True
+        self.hasMinMeanMax = True # False
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
 
         self.transform = None

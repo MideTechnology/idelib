@@ -10,10 +10,6 @@ Major items
 Unit testing FTW. Some should be created prior to the refactoring-related items
 listed below.
 
-Use calibration.CombinedPoly and calibration.PolyPoly to create single
-transform functions for individual EventLists. This will greatly simplify
-things. 
-
 Refactor everything to use Numpy for parsing data. Early experiments with this
 ran into a bottleneck somewhere, probably implicit casting of Numpy arrays to 
 Python lists, so just changing the parser isn't enough.
@@ -33,7 +29,8 @@ overhead in place for handling the subsamples in the accelerometer data blocks.
 
 Consider implementing a subclass of EventList for subchannels to get rid of all
 the `if self._hasSubchannels` stuff. This would mean four EventList classes if
-single-sample ones is also implemented, though.
+single-sample ones is also implemented, though. This is slightly less critical
+now that the CombinedPoly and PolyPoly are being used.
 
 Implement the use of a rolling mean for getting temperature data in calibration.
 The getValueAt() method is a severe bottleneck. This is possibly part of
@@ -61,10 +58,9 @@ and do `channel.transform = None` instead.
 Consider a rewrite the whole updater/callback system to make it compatible with
 the wxPython progress dialog. 
 
+
 Longer term
 -----------
-Read sensor description data, rather than rely upon hard-coded values based on
-the device type UID.
 
 Support for streaming data.
 

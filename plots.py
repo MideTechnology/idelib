@@ -577,11 +577,12 @@ class PlotCanvas(wx.ScrolledWindow):
         # minimum and maximum data if available. 
         if self.Parent.source.hasMinMeanMax:
             mmm = self.Parent.source.getRangeMinMeanMax(hRange[0], hRange[1], display=True)
-            self.Parent.visibleValueRange = [mmm[0], mmm[2]]
-            if self.Parent.firstPlot: 
-                self.Parent.firstPlot = False
-                self.Parent.zoomToFit(self)
-                return
+            if mmm is not None:
+                self.Parent.visibleValueRange = [mmm[0], mmm[2]]
+                if self.Parent.firstPlot: 
+                    self.Parent.firstPlot = False
+                    self.Parent.zoomToFit(self)
+                    return
 
         hScale = (size.x + 0.0) / (hRange[1]-hRange[0]) * self.viewScale
         if vRange[0] != vRange[1]:

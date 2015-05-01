@@ -64,3 +64,10 @@ class itself defines.
 Possibly move `devices` to the mide_ebml library; the importer sometimes uses
 some of the same information, and it would be better to have it implemented only
 once.
+
+Rework the rulerctrl.TimeFormat mode for Timelines so that it will draw more
+labels. Automatically adjust precision based on total time length: trim
+fractional seconds, seconds, minutes, etc.
+
+Draw gray blocks in out-of-range times. Useful when one channel's data
+starts after or ends before another, leaving 'dead air.' 
