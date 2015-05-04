@@ -599,6 +599,28 @@ class PlotCanvas(wx.ScrolledWindow):
             self.majorHLines = None
             self.lastRange = thisRange
         drawCondensed = False
+
+        # Draw gray over out-of-range times (if visible)
+        sourceFirst, sourceLast = self.Parent.source.getInterval()
+        if sourceFirst > hRange[0]:
+            oldPen = dc.GetPen()
+            oldBrush = dc.GetBrush()
+            dc.SetPen(wx.Pen("WHITE", style=wx.TRANSPARENT))
+            dc.SetBrush(wx.Brush(wx.Colour(240,240,240)))
+            w = int((sourceFirst-hRange[0])*hScale)
+            dc.DrawRectangle(0, 0, w, int(size[1]))
+            dc.SetPen(oldPen)
+            dc.SetBrush(oldBrush)
+        
+        if sourceLast < hRange[1]:
+            oldPen = dc.GetPen()
+            oldBrush = dc.GetBrush()
+            dc.SetPen(wx.Pen("WHITE", style=wx.TRANSPARENT))
+            dc.SetBrush(wx.Brush(wx.Colour(240,240,240)))
+            x = int((sourceLast-hRange[0])*hScale)
+            dc.DrawRectangle(x, 0, int(size[0]-x), int(size[1]))
+            dc.SetPen(oldPen)
+            dc.SetBrush(oldBrush)       
         
         if self.showWarningRange:
             for r in self.Parent.warningRange:
@@ -650,7 +672,6 @@ class PlotCanvas(wx.ScrolledWindow):
                     dc.DrawLineList(self.minMeanMaxLines[1], self.meanRangePen)
                 # XXX: TEST
 #                 dc.DrawLineList(self.bufferMarks, self.meanRangePen)
-
         
         dc.SetPen(self._pen)
         if self.lines is None:

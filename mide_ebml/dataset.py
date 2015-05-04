@@ -1023,6 +1023,10 @@ class EventList(Transformable):
             self.session.lastTime = block.endTime
         else:
             self.session.lastTime = max(self.session.lastTime, block.endTime)
+
+        if self._firstTime is None:
+            self._firstTime = block.startTime
+        self._lastTime = block.endTime
             
         # Cache the index range for faster searching
         if self._blockIdxTableSize is None:
@@ -1063,11 +1067,11 @@ class EventList(Transformable):
         if len(self._data) == 0:
             return None
         if self._firstTime is None:
-            self._firstTime = self[0][-2]
-#             self._firstTime = self._getBlockTimeRange(0)[0]
+            self._firstTime = self._data[0].startTime
+        if self.dataset.loading:
+            return self._firstTime, self._data[-1].endTime
         if self._lastTime is None:
-            self._lastTime = self[-1][-2]
-#             self._lastTime = self._getBlockTimeRange(-1)[1]
+            self._lastTime = self._data[-1].endTime
         return self._firstTime, self._lastTime
     
 

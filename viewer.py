@@ -417,7 +417,7 @@ class TimeNavigator(ViewerPanel):
         if newStart < self.timerange[0]:
             newEnd += self.timerange[0] - newStart
         elif newEnd > self.timerange[1]:
-            newStart -= self.timerange[1] - newEnd
+            newStart -= newEnd - self.timerange[1]
             
         v1 = max(self.timerange[0], newStart) 
         v2 = min(self.timerange[1], newEnd)#max(v1+10000, newEnd)) # Buffer
