@@ -12,6 +12,10 @@ Add zoom limit to main plot view, similar to that recently added to the FFT
 view. Zooming in too far doesn't cause the computer to explode, but it does
 raise an exception.
 
+Fix how lines get drawn between points that are off-screen. The pressure/temp
+channels look sort of strange when zoomed in, and will look stranger once the
+new firmware reduces the recording sample rate.
+
 
 Major items
 -----------
@@ -69,5 +73,3 @@ Rework the rulerctrl.TimeFormat mode for Timelines so that it will draw more
 labels. Automatically adjust precision based on total time length: trim
 fractional seconds, seconds, minutes, etc.
 
-Draw gray blocks in out-of-range times. Useful when one channel's data
-starts after or ends before another, leaving 'dead air.' 

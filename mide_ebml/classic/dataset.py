@@ -191,6 +191,7 @@ class EventList(DS.EventList):
         self._data = []
         self._length = 0
         self._firstTime = 0
+        self._lastTime = None
         self.dataset = parent.dataset
         self.hasSubchannels = len(self.parent.types) > 1
 
@@ -509,8 +510,4 @@ Classic.register(Dataset)
 Classic.register(Channel)
 Classic.register(SubChannel)
 Classic.register(EventList)
-
-# HACK to work around the fact that the `register` method doesn't show up
-# in `dir()`, which creates an error display in PyLint/PyDev/etc. 
-_Iterable_register = getattr(Iterable, "register")
-_Iterable_register(EventList)
+Iterable.register(EventList) #@UndefinedVariable (PyLint doesn't see `register`)
