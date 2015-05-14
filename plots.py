@@ -29,6 +29,15 @@ RESAMPLING_JITTER = 0.125
 # 
 #===============================================================================
 
+def constrainInt(val):
+    """ Helper function to prevent an `OverflowError` when plotting at extreme
+        magnification.
+    """
+    return max(-2147483648L, min(2147483647L, val))
+
+#===============================================================================
+# 
+#===============================================================================
 class VerticalScale(ViewerPanel):
     """ The vertical axis of the plot. Contains the scale and the vertical
         zoom buttons.
@@ -442,7 +451,7 @@ class PlotCanvas(wx.ScrolledWindow):
         
         def _startline(lines, pt):
             thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
-            thisV = int((pt[-1] - vRange[0]) * vScale) 
+            thisV = constrainInt(int((pt[-1] - vRange[0]) * vScale)) 
             lines.append((0, thisV, thisT, thisV))
         
         def _makeline(lines, pt, fun):
@@ -450,7 +459,7 @@ class PlotCanvas(wx.ScrolledWindow):
             lastT = l[2]
             lastV = l[3]
             thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
-            thisV = int((pt[-1] - vRange[0]) * vScale)
+            thisV = constrainInt(int((pt[-1] - vRange[0]) * vScale))
             if False:#thisT == lastT:
                 lines[-1] = l[0], l[1], l[2], fun(lastV, thisV)
             else:
@@ -692,12 +701,12 @@ class PlotCanvas(wx.ScrolledWindow):
                     self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
                     expandRange(self.Parent.visibleValueRange, event[-1])
                 lastPt = ((event[-2] - hRange[0]) * hScale, 
-                          (event[-1] - vRange[0]) * vScale)
+                          constrainInt((event[-1] - vRange[0]) * vScale))
                 
                 for i, event in enumerate(events,1):
                     # Using negative indices here in case doc.useIndices is True
                     pt = ((event[-2] - hRange[0]) * hScale, 
-                          (event[-1] - vRange[0]) * vScale)
+                          constrainInt((event[-1] - vRange[0]) * vScale))
                     self.points.append(pt)
                     
                     # A value of None is a discontinuity; don't draw a line.

@@ -149,7 +149,7 @@ def valEval(value, allowedChars="+-/*01234567890abcdefx.,() ;\t\n_"):
 # Used to provide an initial range, which is later corrected for actual
 # values. Note that floats default to the normalized range of (-1.0, 1.0).
 RANGES = {'c': None,
-          'b': (-127,126),
+          'b': (-128,127),
           'B': (0,255),
           '?': (0,1),
           'h': (-(2**(8*2))/2, (2**(8*2))/2-1),

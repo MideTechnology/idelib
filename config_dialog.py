@@ -1004,7 +1004,7 @@ class OptionsPanel(BaseConfigPanel):
 
         self.aaCornerCheck = self.addIntField(
             "Override Antialiasing Filter Cutoff:", "AAFilterCornerFreq", "Hz",
-            minmax=(100,20000), value=1000, 
+            minmax=(1,20000), value=1000, 
             tooltip="If checked and a value is provided, the input low-pass "
             "filter cutoff will be set to this value.")
 

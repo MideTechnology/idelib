@@ -2628,7 +2628,7 @@ class ViewerApp(wx.App):
         if response != wx.CANCEL:
             self.setPref('updater.lastCheck', time.time())
             if response == dlg.ID_SKIP:
-                self.setPref('updater.version', evt.version)
+                self.setPref('updater.version', evt.newVersion)
         
         dlg.Destroy()
 
