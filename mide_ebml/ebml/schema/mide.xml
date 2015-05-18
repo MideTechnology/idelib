@@ -24,7 +24,7 @@
   <element name="EBMLReadVersion" level="1" id="0x42F7" type="uinteger" mandatory="1" default="1" minver="1">The minimum EBML version a parser has to support to read this file.</element>
   <element name="EBMLMaxIDLength" level="1" id="0x42F2" type="uinteger" mandatory="1" default="4" minver="1">The maximum length of the IDs you'll find in this file (4 or less in Matroska).</element>
   <element name="EBMLMaxSizeLength" level="1" id="0x42F3" type="uinteger" mandatory="1" default="8" minver="1">The maximum length of the sizes you'll find in this file (8 or less in Matroska). This does not override the element size indicated at the beginning of an element. Elements that have an indicated size which is larger than what is allowed by EBMLMaxSizeLength shall be considered invalid.</element>
-  <element name="DocType" level="1" id="0x4282" type="string" mandatory="1" default="matroska" minver="1">A string that describes the type of document that follows this EBML header. 'matroska' in our case or 'webm' for webm files.</element>
+  <element name="DocType" level="1" id="0x4282" type="string" mandatory="1" default="mide" minver="1">A string that describes the type of document that follows this EBML header. 'mide' for Mide Instrumentation Data Exchange files.</element>
   <element name="DocTypeVersion" level="1" id="0x4287" type="uinteger" mandatory="1" default="1" minver="1">The version of DocType interpreter used to create the file.</element>
   <element name="DocTypeReadVersion" level="1" id="0x4285" type="uinteger" mandatory="1" default="1" minver="1">The minimum DocType version an interpreter has to support to read this file.</element>
   <element name="Void" level="-1" id="0xEC" type="binary" minver="1">Used to void damaged data, to avoid unexpected behaviors when using damaged data. The content is discarded. Also used to reserve space in a sub-element for later use.</element>
@@ -101,89 +101,89 @@
 			<element name="DateOfManufacture" level="2" id="0x5219" type="uinteger" mandatory="0" multiple="0" minver="1">Device .birthdate. (manufacture date) in UTC seconds since the Epoch.</element>
 
         <!-- SensorList and PlotList are optional; there are defaults that will be used. The use of defaults is all-or-nothing; the file should define all sensors or have no SensorList at all. -->
-		<element name="SensorList" level="1" id="0x5240" type="master" mandatory="0" multiple="0" minver="1">Master element for the SensorList items</element>
-			<element name="Sensor" level="2" id="0x5241" type="master" mandatory="0" multiple="1" minver="1">Master element for a Sensor entry</element>
-				<element name="SensorID" level="3" id="0x5242" type="uinteger" mandatory="0" multiple="0" minver="1">ID of a given Sensor entry; can be used to refer back to this sensor.</element>
-				<element name="SensorName" level="3" id="0x5243" type="string" mandatory="0" multiple="0" minver="1">Text name assigned to a sensor; probably the sensor make/model if present.</element>
-				<element name="SensorBwLimitIDRef" level="3" id="0x5244" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a BwLimitList entry. If present, this discloses the usable bandwidth range of the sensor itself.</element>
-				<element name="TraceabilityData" level="3" id="0x5250" type="master" mandatory="0" multiple="0" minver="1">Master element for any traceability data tied to the Sensor.</element>
-					<element name="SensorSerialNumber" level="4" id="0x5251" type="string" mandatory="0" multiple="0" minver="1">Sensor manufacturer-supplied serial number, if any.</element>
+		<element name="SensorList" level="1" id="0x5240" type="master" mandatory="0" multiple="0" minver="2">Master element for the SensorList items</element>
+			<element name="Sensor" level="2" id="0x5241" type="master" mandatory="0" multiple="1" minver="2">Master element for a Sensor entry</element>
+				<element name="SensorID" level="3" id="0x5242" type="uinteger" mandatory="0" multiple="0" minver="2">ID of a given Sensor entry; can be used to refer back to this sensor.</element>
+				<element name="SensorName" level="3" id="0x5243" type="string" mandatory="0" multiple="0" minver="2">Text name assigned to a sensor; probably the sensor make/model if present.</element>
+				<element name="SensorBwLimitIDRef" level="3" id="0x5244" type="uinteger" mandatory="0" multiple="0" minver="2">Reference to a BwLimitList entry. If present, this discloses the usable bandwidth range of the sensor itself.</element>
+				<element name="TraceabilityData" level="3" id="0x5250" type="master" mandatory="0" multiple="0" minver="2">Master element for any traceability data tied to the Sensor.</element>
+					<element name="SensorSerialNumber" level="4" id="0x5251" type="string" mandatory="0" multiple="0" minver="2">Sensor manufacturer-supplied serial number, if any.</element>
 					<!-- Child elements TBD... -->
 
-        <element name="ChannelList" level="1" id="0x5270" type="master" mandatory="0" multiple="0" minver="1">Master element for a Channel entry</element>
-            <element name="Channel" level="2" id="0x5271" type="master" mandatory="0" multiple="1" minver="1">Master element for a Channel entry</element>
-                <element name="ChannelID" level="3" id="0x5272" type="uinteger" mandatory="0" multiple="0" minver="1">ID of a given Channel entry; can be used to refer to this entry. Referenced by ChannelDataBlock/SimpleChannelDataBlock/etc.</element>
-                <element name="ChannelName" level="3" id="0x5273" type="string" mandatory="0" multiple="0" minver="1">Text name of this channel</element>
-                <element name="ChannelCalibrationIDRef" level="3" id="0x5274" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a Calibration in CalibrationList.</element>
-                <element name="ChannelFormat" level="3" id="0x5275" type="string" mandatory="0" multiple="0" minver="1">Declaration of the format and representation of the (sub)channels' data. Modeled after Python Struct format strings, can be expanded.</element>
-                <element name="ChannelParser" level="3" id="0x5276" type="string" mandatory="0" multiple="0" minver="1">Name of the hardcoded parsing object, if known. Overrides ChannelFormat.</element>
+        <element name="ChannelList" level="1" id="0x5270" type="master" mandatory="0" multiple="0" minver="2">Master element for a Channel entry</element>
+            <element name="Channel" level="2" id="0x5271" type="master" mandatory="0" multiple="1" minver="2">Master element for a Channel entry</element>
+                <element name="ChannelID" level="3" id="0x5272" type="uinteger" mandatory="0" multiple="0" minver="2">ID of a given Channel entry; can be used to refer to this entry. Referenced by ChannelDataBlock/SimpleChannelDataBlock/etc.</element>
+                <element name="ChannelName" level="3" id="0x5273" type="string" mandatory="0" multiple="0" minver="2">Descriptive overall text name for this channel (e.g. "ADC").</element>
+                <element name="ChannelCalibrationIDRef" level="3" id="0x5274" type="uinteger" mandatory="0" multiple="0" minver="2">Reference to a Calibration in CalibrationList.</element>
+                <element name="ChannelFormat" level="3" id="0x5275" type="string" mandatory="0" multiple="0" minver="2">Declaration of the format and representation of the (sub)channels' data. Modeled after Python Struct format strings, may be expanded at a later date. Currently limited to the expanded format-string format, i.e. [>HHHHH] rather than [>5H]. Whitespace and undefined formatting characters are ignored.</element>
+                <element name="ChannelParser" level="3" id="0x5276" type="string" mandatory="0" multiple="0" minver="2">Name of the hardcoded parsing object, if known. Overrides ChannelFormat.</element>
 
-                <element name="TimeCodeScale" level="3" id="0x5277" type="string" mandatory="0" multiple="0" minver="1">Channel Ticks/sec. String represents a valid numeric expression, such as integer, decimal or ratio, e.g. '32768/16262'. Applies to all subsequent Abs timecodes. If not set, use channel default.</element>
-                <element name="TimeCodeModulus" level="3" id="0x5278" type="uinteger" mandatory="0" multiple="0" minver="1">The modulus at which modulo timestamps for this channel roll over.</element>
-                    <element name="SampleRate" level="3" id="0x5279" type="string" mandatory="0" multiple="0" minver="1">The samplerate for this channel, if known and fixed. String represents a valid numeric expression, such as integer, decimal or ratio, e.g. '32768/16262'. Element required if both starting and ending timecodes will ever be omitted for blocks in this channel.</element>
-                <element name="SubChannel" level="3" id="0x52A0" type="master" mandatory="0" multiple="1" minver="1">Master element for SensorSubChannels.</element>
-                    <element name="SubChannelID" level="4" id="0x52A1" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
-                    <element name="SubChannelName" level="4" id="0x52A2" type="string" mandatory="0" multiple="0" minver="1">Text name of the subchannel (e.g. "Accelerometer X").</element>
-                    <element name="SubChannelCalibrationIDRef" level="4" id="0x52A3" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a Calibration in CalibrationList.</element>
-                    <element name="SubChannelBwLimitIDRef" level="4" id="0x52A4" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a BwLimitList entry. If present, this discloses any bandwidth limitations imposed for the acquisition channel, e.g. antialias or other filter settings. Note that the effective bandwidth is the lesser of the Sensor and SubChannel bandwidth!</element>
-                    <element name="SubChannelLabel" level="4" id="0x52A5" type="string" mandatory="0" multiple="0" minver="1">Text name of the axis (e.g. "Acceleration").</element>
-                    <element name="SubChannelUnits" level="4" id="0x52A6" type="utf-8" mandatory="0" multiple="0" minver="1">Text name of the sensor output units ("g").</element>
-                    <element name="SubChannelRangeMin" level="4" id="0x52A7" type="uinteger" mandatory="0" multiple="0" minver="1">Minimum valid sensor value.</element>
-                    <element name="SubChannelRangeMax" level="4" id="0x52A8" type="uinteger" mandatory="0" multiple="0" minver="1">Maximum valid sensor value.</element>
-                    <element name="SubChannelSensorRef" level="4" id="0x52A9" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a Sensor ID.</element>
-                    <element name="SubChannelWarningRef" level="4" id="0x52AA" type="uinteger" mandatory="0" multiple="1" minver="1">Reference to a warning range, i.e. another sensor measuring something that affects the results of this one</element>
-                    <element name="SubChannelVisibility" level="4" id="0x52AB" type="integer" mandatory="0" multiple="0" minver="1">Allow data channels to specify a visibility level; could have different visibility levels for e.g. 'advanced', 'on request' (channels which are not normally useful on their own, e.g. IRIG stream), 'hidden' (internal diagnostic or other dirty laundry).</element>
+                <element name="TimeCodeScale" level="3" id="0x5277" type="string" mandatory="0" multiple="0" minver="2">Channel seconds/tick. String represents a valid numeric expression, such as integer, decimal or ratio, e.g. '16262/32768'. Applies to all subsequent Abs timecodes. If not set, use channel default.</element>
+                <element name="TimeCodeModulus" level="3" id="0x5278" type="uinteger" mandatory="0" multiple="0" minver="2">The modulus at which modulo timestamps for this channel roll over.</element>
+                <element name="SampleRate" level="3" id="0x5279" type="string" mandatory="0" multiple="0" minver="2">The samplerate for this channel, if known and fixed. String represents a valid numeric expression, such as integer, decimal or ratio, e.g. '32768/16262'. Element required if both starting and ending timecodes will ever be omitted for blocks in this channel.</element>
+                <element name="SubChannel" level="3" id="0x52A0" type="master" mandatory="0" multiple="1" minver="2">Master element for SensorSubChannels.</element>
+                    <element name="SubChannelID" level="4" id="0x52A1" type="integer" mandatory="0" multiple="0" minver="2">ID of this SubChannel. Currently, SubChannelIDs must be sequential, starting from 0, for use with Slam Stick Lab.</element>
+                    <element name="SubChannelName" level="4" id="0x52A2" type="string" mandatory="0" multiple="0" minver="2">Display name of the subchannel, typically the axis name for multiaxis measurements (e.g. "X", "Yaw", etc.). Typically omitted if no display name is needed beyond a measurement label and units.</element>
+                    <element name="SubChannelCalibrationIDRef" level="4" id="0x52A3" type="uinteger" mandatory="0" multiple="0" minver="2">Reference to a Calibration in CalibrationList.</element>
+                    <element name="SubChannelBwLimitIDRef" level="4" id="0x52A4" type="uinteger" mandatory="0" multiple="0" minver="2">Reference to a BwLimitList entry. If present, this discloses any bandwidth limitations imposed for the acquisition channel, e.g. antialias or other filter settings. Note that the effective bandwidth is the lesser of the Sensor and SubChannel bandwidth!</element>
+                    <element name="SubChannelLabel" level="4" id="0x52A5" type="string" mandatory="0" multiple="0" minver="2">General measurement type label for this subchannel (e.g. "Acceleration", "Rotation", "Temperature", etc.).</element>
+                    <element name="SubChannelUnits" level="4" id="0x52A6" type="utf-8" mandatory="0" multiple="0" minver="2">Text name of the engineering unit (e.g. "g") for this subchannel. Unicode characters such as degree or Greek symbols are allowed and encouraged.</element>
+                    <element name="SubChannelRangeMin" level="4" id="0x52A7" type="uinteger" mandatory="0" multiple="0" minver="2">Minimum valid sensor value; may be used for data validation or initial axis scaling during display.</element>
+                    <element name="SubChannelRangeMax" level="4" id="0x52A8" type="uinteger" mandatory="0" multiple="0" minver="2">Maximum valid sensor value; may be used for data validation or initial axis scaling during display.</element>
+                    <element name="SubChannelSensorRef" level="4" id="0x52A9" type="uinteger" mandatory="0" multiple="0" minver="2">Reference to a Sensor ID. Allows the association between SubChannels and a physical sensor to be expressed.</element>
+                    <element name="SubChannelWarningRef" level="4" id="0x52AA" type="uinteger" mandatory="0" multiple="1" minver="2">Reference to a warning range, i.e. another sensor measuring something that affects the results of this one.</element>
+                    <element name="SubChannelVisibility" level="4" id="0x52AB" type="integer" mandatory="0" multiple="0" minver="2">Allow data channels to specify a visibility level; could have different visibility levels for e.g. 'advanced', 'on request' (channels which are not normally useful on their own, e.g. IRIG stream), 'hidden' (internal diagnostic or other dirty laundry).</element>
 
-            <element name="PlotList" level="2" id="0x5300" type="master" mandatory="0" multiple="0" minver="1">Master element for the PlotList items. It works like a virtual Channel, with Plots being its Subchannels.</element>
-                <element name="Plot" level="3" id="0x5301" type="master" mandatory="0" multiple="1" minver="1">Master element for a Plot entry</element>
+            <element name="PlotList" level="2" id="0x5300" type="master" mandatory="0" multiple="0" minver="2">Master element for the PlotList items. It works like a virtual Channel, with Plots being its Subchannels.</element>
+                <element name="Plot" level="3" id="0x5301" type="master" mandatory="0" multiple="1" minver="2">Master element for a Plot entry</element>
                     <!-- NOTE: ElementIDs/names are intentionally replicated between SubChannel and Plot children. -->
-                    <element name="SubChannelID" level="4" id="0x52A1" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
-                    <element name="SubChannelName" level="4" id="0x52A2" type="string" mandatory="0" multiple="0" minver="1">Text name of the subchannel (e.g. axis?).</element>
-                    <element name="SubChannelCalibrationIDRef" level="4" id="0x52A3" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a Calibration in CalibrationList.</element>
-                    <element name="SubChannelRangeMin" level="4" id="0x52A7" type="uinteger" mandatory="0" multiple="0" minver="1">Minimum valid sensor value.</element>
-                    <element name="SubChannelRangeMax" level="4" id="0x52A8" type="uinteger" mandatory="0" multiple="0" minver="1">Maximum valid sensor value.</element>
-                    <element name="SubChannelWarningRef" level="4" id="0x52AA" type="uinteger" mandatory="0" multiple="1" minver="1">Reference to a warning range, i.e. another sensor measuring something that affects the results of this one</element>
+                    <element name="SubChannelID" level="4" id="0x52A1" type="integer" mandatory="0" multiple="0" minver="2">SubChannelID</element>
+                    <element name="SubChannelName" level="4" id="0x52A2" type="string" mandatory="0" multiple="0" minver="2">Text name of the subchannel (e.g. axis?).</element>
+                    <element name="SubChannelCalibrationIDRef" level="4" id="0x52A3" type="uinteger" mandatory="0" multiple="0" minver="2">Reference to a Calibration in CalibrationList.</element>
+                    <element name="SubChannelRangeMin" level="4" id="0x52A7" type="uinteger" mandatory="0" multiple="0" minver="2">Minimum valid sensor value.</element>
+                    <element name="SubChannelRangeMax" level="4" id="0x52A8" type="uinteger" mandatory="0" multiple="0" minver="2">Maximum valid sensor value.</element>
+                    <element name="SubChannelWarningRef" level="4" id="0x52AA" type="uinteger" mandatory="0" multiple="1" minver="2">Reference to a warning range, i.e. another sensor measuring something that affects the results of this one</element>
                     <!--SubChannelVisibility applicable here? -->
                     <!--SubChannelBwLimitIDRef applicable here? -->
                     <!-- Elements unique to Plot -->
-                    <element name="SubChannelAxisName" level="4" id="0x5302" type="string" mandatory="0" multiple="0" minver="1">Text name of the axis(?).</element>
-                    <element name="SubChannelAxisXRef" level="4" id="0x5303" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to an Axis.</element>
-                    <element name="SubChannelUnitsName" level="4" id="0x5304" type="string" mandatory="0" multiple="0" minver="1">Text name of the sensor output units.</element>
-                    <element name="SubChannelUnitsXRef" level="4" id="0x5305" type="uinteger" mandatory="0" multiple="0" minver="1">Reference to a numbered, standardized SI unit.</element>
+                    <element name="SubChannelAxisName" level="4" id="0x5302" type="string" mandatory="0" multiple="0" minver="2">Text name of the axis(?).</element>
+                    <element name="SubChannelAxisXRef" level="4" id="0x5303" type="uinteger" mandatory="0" multiple="0" minver="2">Reference to an Axis.</element>
+                    <element name="SubChannelUnitsName" level="4" id="0x5304" type="string" mandatory="0" multiple="0" minver="2">Text name of the sensor output units.</element>
+                    <element name="SubChannelUnitsXRef" level="4" id="0x5305" type="uinteger" mandatory="0" multiple="0" minver="2">Reference to a numbered, standardized SI unit.</element>
 
-                    <element name="PlotSource" level="4" id="0x5320" type="master" mandatory="0" multiple="1" minver="1">List of channels/subchannels used by this Plot</element>
-                        <element name="PlotChannelRef" level="5" id="0x5221" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
-                        <element name="PlotSubChannelRef" level="5" id="0x5222" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
+                    <element name="PlotSource" level="4" id="0x5320" type="master" mandatory="0" multiple="1" minver="2">List of channels/subchannels used by this Plot</element>
+                        <element name="PlotChannelRef" level="5" id="0x5221" type="integer" mandatory="0" multiple="0" minver="2">SubChannelID</element>
+                        <element name="PlotSubChannelRef" level="5" id="0x5222" type="integer" mandatory="0" multiple="0" minver="2">SubChannelID</element>
                         
-            <element name="WarningList" level="1" id="0x5360" type="master" mandatory="0" multiple="0" minver="1"> "Idiot Light" warnings for sensors that are inaccurate in certain conditions </element>
-                <element name="Warning" level="2" id="0x5361" type="master" mandatory="0" multiple="1" minver="1"> </element>
-                    <element name="WarningID" level="3" id="0x5362" type="integer" mandatory="0" multiple="0" minver="1">Warning ID, referenced by Subchannels. </element>
-                    <element name="WarningChannelRef" level="3" id="0x5363" type="integer" mandatory="0" multiple="0" minver="1">ChannelID</element>
-                    <element name="WarningSubChannelRef" level="3" id="0x5364" type="integer" mandatory="0" multiple="0" minver="1">SubChannelID</element>
-                    <element name="WarningRangeMin" level="3" id="0x5365" type="float" mandatory="0" multiple="0" minver="1">Minimum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
-                    <element name="WarningRangeMax" level="3" id="0x5366" type="float" mandatory="0" multiple="0" minver="1">Maximum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
+            <element name="WarningList" level="1" id="0x5360" type="master" mandatory="0" multiple="0" minver="2"> "Idiot Light" warnings for sensors that are inaccurate in certain conditions </element>
+                <element name="Warning" level="2" id="0x5361" type="master" mandatory="0" multiple="1" minver="2"> </element>
+                    <element name="WarningID" level="3" id="0x5362" type="integer" mandatory="0" multiple="0" minver="2">Warning ID, referenced by Subchannels. </element>
+                    <element name="WarningChannelRef" level="3" id="0x5363" type="integer" mandatory="0" multiple="0" minver="2">ChannelID</element>
+                    <element name="WarningSubChannelRef" level="3" id="0x5364" type="integer" mandatory="0" multiple="0" minver="2">SubChannelID</element>
+                    <element name="WarningRangeMin" level="3" id="0x5365" type="float" mandatory="0" multiple="0" minver="2">Minimum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
+                    <element name="WarningRangeMax" level="3" id="0x5366" type="float" mandatory="0" multiple="0" minver="2">Maximum valid value. Note: this is in real, post-converted units, not raw channel units. </element>
 
-            <element name="BwLimitList" level="1" id="0x5380" type="master" mandatory="0" multiple="0" minver="1"> List of bandwidth constraints on sensors and data channels. These will (on a Sensor) provide the intrinsic sensor limits if known, or (on a data channel) provide information about any user-configured limits, e.g. AA filter cutoffs. This data is mandatory for sensor fusion, otherwise optional.</element>
-                <element name="BwLimit" level="2" id="0x5381" type="master" mandatory="0" multiple="1" minver="1"> </element>
-                    <element name="BwLimitID" level="3" id="0x5382" type="integer" mandatory="0" multiple="0" minver="1">Limit entry ID, referenced by Sensors or (Sub)channels. </element>
-                    <element name="LowerCutoff" level="3" id="0x5383" type="string" mandatory="0" multiple="0" minver="1">Lower cutoff frequency.</element>
-                    <element name="LowerRolloff" level="3" id="0x5384" type="string" mandatory="0" multiple="0" minver="1">Lower rolloff, in dB/decade.</element>
-                    <element name="UpperCutoff" level="3" id="0x5385" type="string" mandatory="0" multiple="0" minver="1">Upper cutoff frequency.</element>
-                    <element name="UpperRolloff" level="3" id="0x5386" type="string" mandatory="0" multiple="0" minver="1">Upper rolloff, in dB/decade.</element>
-                    <element name="GroupDelay" level="3" id="0x5387" type="string" mandatory="0" multiple="0" minver="1">Group delay, in channel ticks (channels/subchannels only).</element>
+            <element name="BwLimitList" level="1" id="0x5380" type="master" mandatory="0" multiple="0" minver="2"> List of bandwidth constraints on sensors and data channels. These will (on a Sensor) provide the intrinsic sensor limits if known, or (on a data channel) provide information about any user-configured limits, e.g. AA filter cutoffs. This data is mandatory for sensor fusion, otherwise optional.</element>
+                <element name="BwLimit" level="2" id="0x5381" type="master" mandatory="0" multiple="1" minver="2"> </element>
+                    <element name="BwLimitID" level="3" id="0x5382" type="integer" mandatory="0" multiple="0" minver="2">Limit entry ID, referenced by Sensors or (Sub)channels. </element>
+                    <element name="LowerCutoff" level="3" id="0x5383" type="string" mandatory="0" multiple="0" minver="2">Lower cutoff frequency.</element>
+                    <element name="LowerRolloff" level="3" id="0x5384" type="string" mandatory="0" multiple="0" minver="2">Lower rolloff, in dB/decade.</element>
+                    <element name="UpperCutoff" level="3" id="0x5385" type="string" mandatory="0" multiple="0" minver="2">Upper cutoff frequency.</element>
+                    <element name="UpperRolloff" level="3" id="0x5386" type="string" mandatory="0" multiple="0" minver="2">Upper rolloff, in dB/decade.</element>
+                    <element name="GroupDelay" level="3" id="0x5387" type="string" mandatory="0" multiple="0" minver="2">Group delay, in channel ticks (channels/subchannels only).</element>
                     
     <!-- 
     Attributes: a way to insert an arbitrary key/value into a structure, without revising (and potentially bloating) the schema itself. This data is typically non-critical.
     Strictly speaking, this may be considered an abuse of EBML, but it is flexible and moderately clean.
     -->
-    <element name="Attribute" level="-1" id="0x6110" type="master" mandatory="0" multiple="1" minver="1"> Container For arbitrary name/value attributes, allowing additional data without revising (and bloating) the schema. All of these elements are level -1, allowing an AttributeList to occur at any level, but should always be used at the relative levels implied below. </element>
-        <element name="AttributeName" level="1" id="0x612f" type="utf-8" mandatory="0" multiple="0" minver="1"> Attribute name. Should always be child of Atrribute. </element>
-        <element name="IntAttribute" level="1" id="0x6120" type="integer" mandatory="0" multiple="0" minver="1"> Integer Attribute. Should always be child of Atrribute. </element>
-        <element name="UIntAttribute" level="1" id="0x6121" type="uinteger" mandatory="0" multiple="0" minver="1"> Unsigned integer Attribute. Should always be child of Atrribute. </element>
-        <element name="FloatAttribute" level="1" id="0x6122" type="float" mandatory="0" multiple="0" minver="1"> Floating point Attribute. Should always be child of Atrribute. </element>
-        <element name="StringAttribute" level="1" id="0x6123" type="string" mandatory="0" multiple="0" minver="1"> ASCII String Attribute. Should always be child of Atrribute. </element>
-        <element name="DateAttribute" level="1" id="0x6124" type="date" mandatory="0" multiple="0" minver="1"> Date Attribute. Should always be child of Atrribute. </element>
-        <element name="BinaryAttribute" level="1" id="0x6125" type="binary" mandatory="0" multiple="0" minver="1"> Binary Attribute. Should always be child of Atrribute. </element>
+    <element name="Attribute" level="-1" id="0x6110" type="master" mandatory="0" multiple="1" minver="2"> Container For arbitrary name/value attributes, allowing additional data without revising (and bloating) the schema. All of these elements are level -1, allowing an AttributeList to occur at any level, but should always be used at the relative levels implied below. </element>
+        <element name="AttributeName" level="1" id="0x612f" type="utf-8" mandatory="0" multiple="0" minver="2"> Attribute name. Should always be child of Atrribute. </element>
+        <element name="IntAttribute" level="1" id="0x6120" type="integer" mandatory="0" multiple="0" minver="2"> Integer Attribute. Should always be child of Atrribute. </element>
+        <element name="UIntAttribute" level="1" id="0x6121" type="uinteger" mandatory="0" multiple="0" minver="2"> Unsigned integer Attribute. Should always be child of Atrribute. </element>
+        <element name="FloatAttribute" level="1" id="0x6122" type="float" mandatory="0" multiple="0" minver="2"> Floating point Attribute. Should always be child of Atrribute. </element>
+        <element name="StringAttribute" level="1" id="0x6123" type="string" mandatory="0" multiple="0" minver="2"> ASCII String Attribute. Should always be child of Atrribute. </element>
+        <element name="DateAttribute" level="1" id="0x6124" type="date" mandatory="0" multiple="0" minver="2"> Date Attribute. Should always be child of Atrribute. </element>
+        <element name="BinaryAttribute" level="1" id="0x6125" type="binary" mandatory="0" multiple="0" minver="2"> Binary Attribute. Should always be child of Atrribute. </element>
 
 
 	<!-- 
@@ -251,9 +251,16 @@
 				<element name="TriggerSubChannel" level="3" id="0x4362" type="integer" mandatory="0" multiple="0" minver="1">The sensor subchannel used by the trigger.</element>
 				<element name="TriggerWindowLo" level="3" id="0x4363" type="integer" mandatory="0" multiple="0" minver="1">Lower value of trigger window in native units.</element>
 				<element name="TriggerWindowHi" level="3" id="0x4364" type="integer" mandatory="0" multiple="0" minver="1">Upper value of trigger window in native units.</element>
+	    <element name="SSXChannelConfiguration" level="1" id="0x43A0" type="master" mandatory="0" multiple="1" minver="2">Master element for channel-specific configuration elements.</element>
+			<element name="ConfigChannel" level="2" id="0x43A1" type="uinteger" mandatory="1" multiple="0" minver="2">Channel to apply these configuration elements to.</element>
+			<element name="ChannelSampleFreq" level="2" id="0x43A2" type="uinteger" mandatory="0" multiple="0" minver="2">Sampling frequency for this channel in Hz, if supported by device. Unsupported rates will be coerced to nearest supported rate.</element>
+			<element name="SubChannelEnableMap" level="2" id="0x43A3" type="uinteger" mandatory="0" multiple="0" minver="2">Bitmap indicating enabled/disabled SubChannels, if supported by device. If only Channel-level enable/disable supported by this channel, any nonzero value will enable the entire Channel.</element>			
         <element name="RecorderUserData" level="1" id="0x43F0" type="master" mandatory="0" multiple="0" minver="1">The user-defined properties of the recorder, not used by the recorder itself.</element>
             <element name="RecorderName" level="2" id="0x43F1" type="utf-8" mandatory="0" multiple="0" minver="1">The user-defined name of the recorder</element>
             <element name="RecorderDesc" level="2" id="0x43F2" type="utf-8" mandatory="0" multiple="0" minver="1">The user-defined description of/notes on the recorder</element>
+
+
+
 
   <!-- Elements of the actual recording(s) (Session branch(es) of the file) -->
   
@@ -320,9 +327,11 @@
 	  <element name="ChannelIDRef" level="1" id="0xB0" type="integer" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</element>
 	  <element name="ChannelFlags" level="1" id="0xB1" type="uinteger" multiple="0" minver="1">Child of ChannelDataBlock: optional flags to indicate datablock features such as discontinuity</element>
 	  <element name="ChannelDataPayload" level="1" id="0xB2" type="binary" multiple="0" minver="1">Child of ChannelDataBlock: the actual channel data samples. If there are multiple subchannels, for each sample point, the sample for each subchannel will be written consecutively (i.e. [sc0 sc1 sc2] [sc0 sc1 sc2]).</element>
-	  <element name="StartTimeCodeAbs" level="1" id="0xB8" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from the session TimeBase. If included at the Channel level, it is at the Channel scale.</element>
-	  <element name="EndTimeCodeAbs" level="1" id="0xB9" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from the session TimeBase. If included at the Channel level, it is at the Channel scale.</element>
-	  <element name="StartTimeCodeAbsMod" level="1" id="0xBA" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from session TimeBase mod (n_octets). Allows for a short, rolling-over (but still absolute) code.</element>
-	  <element name="EndTimeCodeAbsMod" level="1" id="0xBB" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute time from session TimeBase mod (n_octets). Allows for a short, rolling-over (but still absolute) code.</element>
-	  <element name="ChannelDataMinMeanMax" level="1" id="0xBC" type="binary" multiple="0" minver="1">Child of ChannelDataBlock: structure indicating the min, mean (average) and max value, in that order, for each subchannel in this datablock. Values will have the same format and representation as the subchannel payloads themselves.</element>
+	  <element name="StartTimeCodeAbs" level="1" id="0xB8" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute timecode as an offset from the session TimeBase. The timecode resolution is given by the channel's TimeCodeScale.</element>
+	  <element name="EndTimeCodeAbs" level="1" id="0xB9" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute timecode as an offset  from the session TimeBase. The timecode resolution is given by the channel's TimeCodeScale.</element>
+	  <element name="StartTimeCodeAbsMod" level="1" id="0xBA" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute start timecode as an offset from session TimeBase, mod TimeCodeModulus. Allows for a short, rolling-over (but still absolute) code. The timecode resolution is given by the channel's TimeCodeScale.</element>
+	  <element name="EndTimeCodeAbsMod" level="1" id="0xBB" type="uinteger" mandatory="0" multiple="0" minver="1">Absolute end timecode as an offset from session TimeBase, mod TimeCodeModulus. Allows for a short, rolling-over (but still absolute) code. The timecode resolution is given by the channel's TimeCodeScale.</element>
+	  <element name="ChannelDataMinMeanMax" level="1" id="0xBC" type="binary" multiple="0" minver="1">Statistical data for this block's payload consisting of 3 datapoints (min, mean, max) per subchannel. They are organized as [[sc0min] [sc1min] [sc2min] ...] [[sc0mean] [sc1mean] [sc2mean] ...] [[sc0max] [sc1max] [sc2max] ...]. The format and representation of the stat data exactly matches that of the input samples; that is, if the input samples are uint16_t, each stat entry is also a uint16_t.</element>
+	  <element name="MediaWriteLatency" level="1" id="0xBE" type="uinteger" mandatory="0" multiple="0" minver="2">Super-optional diagnostic element indicating the latency between data acquisition and transfer to the output media. The exact meaning of this value is device-dependent, but may serve as a general indicator of excess activity load, retransmission or congestion (for transmission media) or media wear (for recording media).</element>
 </table>
+
