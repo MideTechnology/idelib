@@ -1664,11 +1664,18 @@ class EventList(Transformable):
                        times=True, display=False):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
+
+            @todo: Remember what `padding` was for, and either implement or
+                remove it completely. 
             
             @keyword startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
             @keyword endTime: The second time, or `None` to use the end of
                 the session.
+            @keyword times: If `True` (default), the results include the 
+                block's starting time. 
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results. 
             @return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
         """
@@ -1679,10 +1686,8 @@ class EventList(Transformable):
         session = self.session
         removeMean = self.removeMean
         _getBlockRollingMean = self._getBlockRollingMean
-        if not self.hasSubchannels:
+        if not hasSubchannels:
             parent_id = self.parent.id
-        else:
-            subChIds = range(len(self.parent.subchannels))
 
         if self.useAllTransforms:
             xform = self._fullXform
@@ -1713,61 +1718,47 @@ class EventList(Transformable):
             result = []
             result_append = result.append
             
+            for val in (block.min, block.mean, block.max):
+                event=xform((t,val), session)
+                if event is None:
+                    sleep(0.001)
+                    event = xform((t, val), session)
+                eTime, eVals = event
+                if m is not None:
+                    eVals -= m
+                result_append(eVals)
+            
+            # Make sure transformed min < max
             if hasSubchannels:
-                for val in (block.min, block.mean, block.max):
-                    event=xform((t,val), session)
-                    if event is None:
-                        sleep(0.001)
-                        event = xform((t, val), session)
-                    if m is not None:
-                        event=(event[0], event[1]-m)
-                    result_append(event)
-                    
-                # Make sure transformed min < max
                 # 'rotate' the arrays, sort them, 'rotate' back.
-                # TODO: work only with values, add time when yielded
-                s = zip(*map(sorted, zip(*[e[1] for e in result])))
-                
-                if times:
-                    # Note: this assumes the times are the same. Currently true.
-                    et = event[0]
-                    yield [(et,x) for x in s]
-                else:
-                    yield s
-                
+                result = zip(*map(sorted, zip(*result)))
             else:
-                for val in (block.min, block.mean, block.max):
-                    event=xform((t,val), session)
-                    if event is None:
-                        sleep(0.001)
-                        event=xform((t,val), session)
-                    if m is not None:
-                        event=(event[0], (event[1]-m)[parent_id])
-                    else:
-                        event=(event[0], event[1][parent_id])
-                    result_append(event)
-                    
-                # Make sure transformed min < max
-                # TODO: work only with values, add time when yielded
-                if result[0][-1] > result[2][-1]:
+                result = [v[parent_id] for v in result]
+                if result[0] > result[2]:
                     result = result[2], result[1], result[0]
-                
-                if times:
-                    yield result
-                else:
-                    yield [e[-1] for e in result]
+            
+            if times:
+                yield [(eTime, x) for x in result]
+            else:
+                yield result
 
-    
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
                       times=True, display=False):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
             
+            @todo: Remember what `padding` was for, and either implement or
+                remove it completely. 
+            
             @keyword startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
             @keyword endTime: The second time, or `None` to use the end of
                 the session.
+            @keyword times: If `True` (default), the results include the 
+                block's starting time. 
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results. 
             @return: A list of sets of three events (min, mean, and max, 
                 respectively).
         """
@@ -1788,6 +1779,8 @@ class EventList(Transformable):
                 the session.
             @keyword subchannel: The subchannel ID to retrieve, if the
                 EventList's parent has subchannels.
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results. 
             @return: A set of three events (min, mean, and max, respectively).
         """
         if not self.hasMinMeanMax:
@@ -1826,6 +1819,8 @@ class EventList(Transformable):
             
             @keyword startTime: The starting time. Defaults to the start.
             @keyword endTime: The ending time. Defaults to the end.
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results. 
             @return: The event with the maximum value.
         """
         if not self.hasMinMeanMax:
@@ -1847,6 +1842,8 @@ class EventList(Transformable):
             
             @keyword startTime: The starting time. Defaults to the start.
             @keyword endTime: The ending time. Defaults to the end.
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results. 
             @return: The event with the minimum value.
         """
         if not self.hasMinMeanMax:
