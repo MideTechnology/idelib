@@ -1681,6 +1681,8 @@ class EventList(Transformable):
         _getBlockRollingMean = self._getBlockRollingMean
         if not self.hasSubchannels:
             parent_id = self.parent.id
+        else:
+            subChIds = range(len(self.parent.subchannels))
 
         if self.useAllTransforms:
             xform = self._fullXform
@@ -1718,8 +1720,21 @@ class EventList(Transformable):
                         sleep(0.001)
                         event = xform((t, val), session)
                     if m is not None:
-                        event=(event[0], tuple(event[1]-m))
+                        event=(event[0], event[1]-m)
                     result_append(event)
+                    
+                # Make sure transformed min < max
+                # 'rotate' the arrays, sort them, 'rotate' back.
+                # TODO: work only with values, add time when yielded
+                s = zip(*map(sorted, zip(*[e[1] for e in result])))
+                
+                if times:
+                    # Note: this assumes the times are the same. Currently true.
+                    et = event[0]
+                    yield [(et,x) for x in s]
+                else:
+                    yield s
+                
             else:
                 for val in (block.min, block.mean, block.max):
                     event=xform((t,val), session)
@@ -1731,11 +1746,17 @@ class EventList(Transformable):
                     else:
                         event=(event[0], event[1][parent_id])
                     result_append(event)
+                    
+                # Make sure transformed min < max
+                # TODO: work only with values, add time when yielded
+                if result[0][-1] > result[2][-1]:
+                    result = result[2], result[1], result[0]
                 
-            if times:
-                yield result
-            else:
-                yield [e[-1] for e in result]
+                if times:
+                    yield result
+                else:
+                    yield [e[-1] for e in result]
+
     
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
