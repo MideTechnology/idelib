@@ -42,6 +42,15 @@ class UnitConverter(Univariate):
     
     @classmethod
     def isApplicable(cls, obj):
+        """ Is this converter applicable to the given object?
+         
+            @param obj: A `Channel` or `EventList` (or a subclass of either).
+                Can also be a list or tuple of said objects. In the latter case,
+                the applicability of each item is tested, and `True` returned
+                if they are all applicable.
+        """
+        if isinstance(obj, (list, tuple)):
+            return all(map(cls.isApplicable, obj))
         if isinstance(obj, Channel):
             sourceUnits = obj.units
         else:

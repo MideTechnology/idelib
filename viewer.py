@@ -1548,8 +1548,8 @@ class Viewer(wx.Frame, MenuMixin):
                 compatible with event handlers.
         """
         noMean = 0
-        if self.plotarea[0].source.removeMean:
-            noMean = 2 if self.plotarea[0].source.rollingMeanSpan == -1 else 1
+        if self.plotarea[0].removeMean:
+            noMean = 2 if self.plotarea[0].rollingMeanSpan == -1 else 1
 
         validTypes = ('CSV', 'MAT')
 
@@ -2082,7 +2082,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handle selection of the unit converter configuration menu item.
         """
         p = self.plotarea.getActivePage()
-        result = ConverterEditor.edit(p.source.transform, self)
+        result = ConverterEditor.edit(p.transform, self)
         if result == wx.ID_OK:
             print "updating transforms"
         self.dataset.updateTransforms()
@@ -2092,14 +2092,13 @@ class Viewer(wx.Frame, MenuMixin):
     def OnConversionPicked(self, evt):
         """ Handle selection of a unit converter menu item.
         """
-        units = self.plotarea.getActivePage().source.parent.units
+        units = self.plotarea.getActivePage().units
         conv = self.unitConverters.get(evt.GetId(), None)
         for p in self.plotarea:
             if p is None:
                 continue
-            if p.source.parent.units == units:
+            if p.units == units:
                 p.setUnitConverter(conv)
-#                 logger.info(" ".join(map(str, ( p.source, p.source.transform, p.source._displayXform))))
         self.updateConversionMenu()
 #         p = self.plotarea.getActivePage()
 #         p.setUnitConverter(self.unitConverters.get(evt.GetId(), None))
@@ -2403,13 +2402,13 @@ class Viewer(wx.Frame, MenuMixin):
             if mi.GetKind() == wx.ITEM_SEPARATOR:
                 continue
             elif mid == self.ID_DATA_DISPLAY_CONFIG:
-                mi.Enable(getattr(p.source.transform, 'parameters', None) is not None)
+                mi.Enable(getattr(p.transform, 'parameters', None) is not None)
                 continue
             elif mid == self.ID_DATA_DISPLAY_NATIVE:
-                mi.SetText("Native Units (%s as %s)" % p.source.parent.units)
+                mi.SetText("Native Units (%s as %s)" % p.units)
             else:
                 mi.Enable(self.unitConverters[mid].isApplicable(p.source))
-            if p.source.transform == self.unitConverters[mid]:
+            if p.transform == self.unitConverters[mid]:
                 self.setMenuItem(self.displayMenu, mid, checked=True)
 
 

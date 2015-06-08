@@ -6,7 +6,7 @@ Created on Sep 30, 2014
 from collections import Iterable, OrderedDict
 import csv
 from datetime import datetime
-import os, os.path
+import os.path
 import shutil
 import string
 from StringIO import StringIO
@@ -18,9 +18,10 @@ import time
 from xml.etree import ElementTree as ET
 
 import numpy as np
-import pylab
+import pylab #@UnresolvedImport - doesn't show up for some reason.
 
-VIEWER_PATH = "P:/WVR_RIF/04_Design/Electronic/Software/SSX_Viewer"
+# VIEWER_PATH = "P:/WVR_RIF/04_Design/Electronic/Software/SSX_Viewer"
+VIEWER_PATH = r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Design_Files\Firmware_and_Software\Development\Source\Slam_Stick_Lab"
 INKSCAPE_PATH = r"C:\Program Files (x86)\Inkscape\inkscape.exe"
 
 CWD = os.path.abspath(os.path.dirname(__file__))
@@ -35,7 +36,7 @@ except ImportError:
         sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
     elif os.path.exists(VIEWER_PATH):
         sys.path.append(VIEWER_PATH)
-    import mide_ebml
+    import mide_ebml #@UnusedImport
 
 from mide_ebml import util as ebml_util
 from mide_ebml import xml2ebml
@@ -45,7 +46,7 @@ from glob import glob
 testFiles = glob(r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Product_Database\_Calibration\SSX0000039\DATA\20140923\*.IDE")
 
 # NOTE: Make sure devices.py is copied to deployed directory
-import devices
+import devices #@UnusedImport
 
 from birth_utils import changeFilename, writeFile, writeFileLine
 
@@ -167,11 +168,19 @@ class CalFile(object):
     """ One analyzed IDE file.
     """
     
-    def __init__(self, filename, serialNum):
+    def __init__(self, filename, serialNum, skipSamples=5000):
+        """ Constructor.
+            @param filename: The IDE file to read.
+            @param serialNum: The recorder's serial number (string).
+            @keyword skipSamples: The number of samples to skip before the data
+                used in the calibration. Used to work around sensor settling
+                time.
+        """
         self.filename = filename
         self.basename = os.path.basename(filename)
         self.name = os.path.splitext(self.basename)[0]
         self.serialNum = serialNum
+        self.skipSamples = skipSamples
         self.analyze()
     
     def __str__(self):
@@ -248,7 +257,7 @@ class CalFile(object):
         times = data[:,0] * .000001
         
         # HACK: Some  devices have a longer delay before Z settles.
-        data = data[5000:]
+        data = data[self.skipSamples:]
     
         gt = lambda(x): x > thres
         
@@ -359,7 +368,8 @@ class Calibrator(object):
                  refMan="ENDEVCO", 
                  refModel="7251A-10/133", 
                  refSerial="12740/BL33", 
-                 refNist="683/283655-13"):
+                 refNist="683/283655-13",
+                 skipSamples=5000):
         self.devPath = devPath
         self.productSerialNum = None
         self.certNum = certNum
@@ -381,6 +391,8 @@ class Calibrator(object):
         self.calTimestamp = 0
         self.cal_vals=None
         self.cal_files = None
+
+        self.skipSamples = skipSamples
 
         if devPath is not None:
             self.readManifest()
@@ -469,7 +481,7 @@ class Calibrator(object):
         
         basenames = map(os.path.basename, filenames)
         if self.cal_vals is None:
-            self.cal_vals = [CalFile(f, self.productSerialNum) for f in filenames]
+            self.cal_vals = [CalFile(f, self.productSerialNum, skipSamples=self.skipSamples) for f in filenames]
         cal_vals = self.cal_vals
         
         self.cal = XYZ()

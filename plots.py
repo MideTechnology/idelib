@@ -508,15 +508,15 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Event handler for redrawing the plot. Catches common exceptions.
             Wraps the 'real' painting event handler.
         """
-#         self._OnPaint(evt)
-#         return
+#         return self._OnPaint(evt)
+
         if len(self.Parent.source) == 0:
             return
         
         ex = None if DEBUG else Exception
         
         try:
-            self._OnPaint(evt)
+            return self._OnPaint(evt)
         except IndexError:
             # TODO: These can occur on the first plot, but are non-fatal. Fix.
             # TODO: Make sure this actually works!
@@ -976,7 +976,47 @@ class Plot(ViewerPanel):
         
         self.enableMenus()
 
+    #===========================================================================
+    # Source properties. 
+    # TODO: Make these handle plots with multiple sources.
+    #===========================================================================
+    
+    @property
+    def removeMean(self):
+        return self.source.removeMean
+    
+    @removeMean.setter
+    def removeMean(self, v):
+        self.source.removeMean = v
+        
+    @property
+    def rollingMeanSpan(self):
+        return self.source.rollingMeanSpan
+    
+    @rollingMeanSpan.setter
+    def rollingMeanSpan(self, v):
+        self.source.rollingMeanSpan = v
 
+    @property
+    def units(self):
+        return self.source.parent.units
+    
+    @units.setter
+    def units(self, v):
+        self.source.parent.units = v
+
+    @property
+    def transform(self):
+        return self.source.transform
+    
+    @transform.setter
+    def transform(self, t):
+        self.source.transform = t
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
     def loadPrefs(self):
         # The plot canvas does most of the work.
         self.plot.loadPrefs()

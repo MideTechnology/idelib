@@ -85,7 +85,8 @@ CONTENT_PATH = os.path.join(DB_PATH, '_Copy_Folder')
 # Rigamarole to ensure the right libraries are located.
 #===============================================================================
 
-VIEWER_PATH = "P:/WVR_RIF/04_Design/Electronic/Software/SSX_Viewer"
+# VIEWER_PATH = "P:/WVR_RIF/04_Design/Electronic/Software/SSX_Viewer"
+VIEWER_PATH = r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Design_Files\Firmware_and_Software\Development\Source\Slam_Stick_Lab"
 
 CWD = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(CWD)
@@ -99,7 +100,7 @@ except ImportError:
         sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
     elif os.path.exists(VIEWER_PATH):
         sys.path.append(VIEWER_PATH)
-    import mide_ebml
+    import mide_ebml #@UnusedImport
 
 # from mide_ebml.importer import importFile, SimpleUpdater
 from devices import SlamStickX
