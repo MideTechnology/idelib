@@ -2403,7 +2403,7 @@ class Viewer(wx.Frame, MenuMixin):
             if mi.GetKind() == wx.ITEM_SEPARATOR:
                 continue
             elif mid == self.ID_DATA_DISPLAY_CONFIG:
-                mi.Enable(hasattr(p.source.transform, 'parameters'))
+                mi.Enable(getattr(p.source.transform, 'parameters', None) is not None)
                 continue
             elif mid == self.ID_DATA_DISPLAY_NATIVE:
                 mi.SetText("Native Units (%s as %s)" % p.source.parent.units)
