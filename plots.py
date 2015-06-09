@@ -382,7 +382,6 @@ class PlotCanvas(wx.ScrolledWindow):
                 Elements that take a long time to draw shouldn't respond if
                 `tracking` is `True`.
         """
-#         print "PlotCanvas.setTimeRange"
         if instigator == self:
             return
         pass
@@ -407,7 +406,8 @@ class PlotCanvas(wx.ScrolledWindow):
         """
         if instigator != self and not tracking:
             self.Refresh()
-    
+
+
     #===========================================================================
     # Drawing
     #===========================================================================
@@ -429,22 +429,17 @@ class PlotCanvas(wx.ScrolledWindow):
         p1 = rect[0] - trect[0]
         p2 = p1 + self.GetSize()[0]
 
-        # XXX:
-#         p1 = 0
-#         p2 = self.GetSize()[0]
-#         print "XXX: getRelRange: size=%r, rect=%r, trect=%r, p1=%r, p2=%r" % (self.GetSize(),rect, trect, p1, p2)
-        
         result = (int(self.root.timeline.getValueAt(p1)),
                   int(self.root.timeline.getValueAt(p2)))
         
         return result
 
 
-    def makeMinMeanMaxLines(self, hRange, vRange, hScale, vScale):
+    def makeMinMeanMaxLines(self, source, hRange, vRange, hScale, vScale):
         """ Generate the points for the minimum and maximum envelopes.
             Used internally.
         """
-        if not self.Parent.source.hasMinMeanMax:
+        if not source.hasMinMeanMax:
             self.minMeanMaxLines = (tuple(),tuple(),tuple())
         
         width = int((hRange[1] - hRange[0]) * hScale)
@@ -471,12 +466,10 @@ class PlotCanvas(wx.ScrolledWindow):
             v = lines[-1][3]
             lines.append((t, v, width, v))
 
-        vals = self.Parent.source.iterMinMeanMax(*hRange, padding=1, display=True)
+        vals = source.iterMinMeanMax(*hRange, padding=1, display=True)
         minPts = []
         meanPts = []
         maxPts = []
-        # XXX: Test
-#         bufferMarks = []
         i=0
 
         try:
@@ -488,9 +481,6 @@ class PlotCanvas(wx.ScrolledWindow):
                 _makeline(minPts, pMin, min)
                 _makeline(meanPts, pMean, lambda x,y: (x+y)*0.5)
                 _makeline(maxPts, pMax, max)
-                # XXX: TEST
-#                 x = (int(min(max(0, (pMin[0] - hRange[0])) * hScale, width)))
-#                 bufferMarks.append((x,vRange[1]*vScale,x,vRange[0]*vScale))
                 i+=1
             _finishline(minPts)
             _finishline(meanPts)
@@ -499,9 +489,7 @@ class PlotCanvas(wx.ScrolledWindow):
             # No min/mean/max in the given range. Generally shouldn't happen.
             pass
         
-        self.minMeanMaxLines = (minPts[1:], meanPts, maxPts[1:])
-        # XXX: TEST
-#         self.bufferMarks = bufferMarks
+        return (minPts[1:], meanPts, maxPts[1:])
     
 
     def OnPaint(self, evt):
@@ -539,7 +527,6 @@ class PlotCanvas(wx.ScrolledWindow):
             @todo: Refactor and modularize this monster. Separate the line-list
                 generation so multiple plots on the same canvas will be easy.
         """
-#         logger.info("XXX: %s hasMinMeanMax==%s" % (self.Parent.source.parent.displayName, self.Parent.source.hasMinMeanMax))
         t0 = time.time()
         if self.Parent.source is None:
             return
@@ -561,8 +548,10 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetUserScale(self.userScale, self.userScale)
         
         dc.BeginDrawing()
-
-        legend = self.Parent.legend
+        
+        parent = self.Parent
+        source = parent.source
+        legend = parent.legend
         
         # The size of a chunk of data to draw, so the rendering seems more
         # interactive. Not really a tenth anymore.
@@ -580,17 +569,17 @@ class PlotCanvas(wx.ScrolledWindow):
 #         updateHRange = (self.root.timeline.getValueAt(updateBox[0]),
 #                   self.root.timeline.getValueAt(updateBox[2]))
 #         updateVRange = (legend.getValueAt(updateBox[1]),
-#                   legend.getValueAt(updateBox[3]))        
+#                   legend.getValueAt(updateBox[3]))
 
         # Auto-zoom the first drawing of the plot, using the source's 
         # minimum and maximum data if available. 
-        if self.Parent.source.hasMinMeanMax:
-            mmm = self.Parent.source.getRangeMinMeanMax(hRange[0], hRange[1], display=True)
+        if source.hasMinMeanMax:
+            mmm = source.getRangeMinMeanMax(hRange[0], hRange[1], display=True)
             if mmm is not None:
-                self.Parent.visibleValueRange = [mmm[0], mmm[2]]
-                if self.Parent.firstPlot: 
-                    self.Parent.firstPlot = False
-                    self.Parent.zoomToFit(self)
+                parent.visibleValueRange = [mmm[0], mmm[2]]
+                if parent.firstPlot: 
+                    parent.firstPlot = False
+                    parent.zoomToFit(self)
                     return
 
         hScale = (size.x + 0.0) / (hRange[1]-hRange[0]) * self.viewScale
@@ -610,7 +599,7 @@ class PlotCanvas(wx.ScrolledWindow):
         drawCondensed = False
 
         # Draw gray over out-of-range times (if visible)
-        sourceFirst, sourceLast = self.Parent.source.getInterval()
+        sourceFirst, sourceLast = source.getInterval()
         if sourceFirst > hRange[0]:
             oldPen = dc.GetPen()
             oldBrush = dc.GetBrush()
@@ -632,7 +621,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetBrush(oldBrush)       
         
         if self.showWarningRange:
-            for r in self.Parent.warningRange:
+            for r in parent.warningRange:
                 r.draw(dc, hRange, hScale, self.viewScale, size)
                 
         # Get the horizontal grid lines. 
@@ -650,16 +639,16 @@ class PlotCanvas(wx.ScrolledWindow):
 
         # If the plot source does not have min/max data, the first drawing only
         # sets up the scale; don't draw.
-        if not self.Parent.firstPlot:
+        if not parent.firstPlot:
             # Minor lines are automatically removed.
             if self.root.drawMinorHLines and len(self.minorHLines) < size[1]/24:
                 dc.DrawLineList(self.minorHLines, self.minorHLinePen)
             if self.root.drawMajorHLines:
                 dc.DrawLineList(self.majorHLines, self.majorHLinePen)
         
-        if self.Parent.source.hasMinMeanMax:
+        if source.hasMinMeanMax:
             if self.minMeanMaxLines is None:
-                self.makeMinMeanMaxLines(hRange, vRange, hScale, vScale)
+                self.minMeanMaxLines = self.makeMinMeanMaxLines(source, hRange, vRange, hScale, vScale)
             drawCondensed = len(self.minMeanMaxLines[0]) >= size[0] * self.condensedThreshold
             if drawCondensed:
                 if self.lines is None:
@@ -679,8 +668,6 @@ class PlotCanvas(wx.ScrolledWindow):
                     dc.DrawLineList(self.minMeanMaxLines[2], self.maxRangePen)
                 if self.root.drawMean:
                     dc.DrawLineList(self.minMeanMaxLines[1], self.meanRangePen)
-                # XXX: TEST
-#                 dc.DrawLineList(self.bufferMarks, self.meanRangePen)
         
         dc.SetPen(self._pen)
         if self.lines is None:
@@ -691,15 +678,15 @@ class PlotCanvas(wx.ScrolledWindow):
             # Lines are drawn in sets to provide more immediate results
             lineSubset = []
             
-            events = self.Parent.source.iterResampledRange(hRange[0], hRange[1],
+            events = source.iterResampledRange(hRange[0], hRange[1],
                 size[0]*self.oversampling, padding=1, 
                 jitter=self.root.noisyResample, display=True)
 
             try:
                 event = events.next()
-                if not self.Parent.source.hasMinMeanMax:
-                    self.Parent.visibleValueRange = [sys.maxint, -sys.maxint]
-                    expandRange(self.Parent.visibleValueRange, event[-1])
+                if not source.hasMinMeanMax:
+                    parent.visibleValueRange = [sys.maxint, -sys.maxint]
+                    expandRange(parent.visibleValueRange, event[-1])
                 lastPt = ((event[-2] - hRange[0]) * hScale, 
                           constrainInt((event[-1] - vRange[0]) * vScale))
                 
@@ -714,8 +701,8 @@ class PlotCanvas(wx.ScrolledWindow):
                         line = lastPt + pt
                         lineSubset.append(line)
                         self.lines.append(line)
-                        if not self.Parent.source.hasMinMeanMax:
-                            expandRange(self.Parent.visibleValueRange, 
+                        if not source.hasMinMeanMax:
+                            expandRange(parent.visibleValueRange, 
                                         event[-1])
                     
                     if i % tenth == 0:
@@ -729,7 +716,7 @@ class PlotCanvas(wx.ScrolledWindow):
                 pass
 
             # Draw the remaining lines (if any)
-            if not self.Parent.firstPlot:
+            if not parent.firstPlot:
                 dc.DrawLineList(lineSubset) 
 
         else:
@@ -739,14 +726,14 @@ class PlotCanvas(wx.ScrolledWindow):
         if DEBUG and self.lines:
             dt = time.time() - t0
             if drawCondensed:
-                logger.info("Plotted %d lines (condensed mode) in %.4fs for %r" % (len(self.lines), dt, self.Parent.source.parent.displayName))
+                logger.info("Plotted %d lines (condensed mode) in %.4fs for %r" % (len(self.lines), dt, source.parent.displayName))
             else:
-                logger.info("Plotted %d lines in %.4fs for %r" % (len(self.lines), dt, self.Parent.source.parent.displayName))
+                logger.info("Plotted %d lines in %.4fs for %r" % (len(self.lines), dt, source.parent.displayName))
         
-        if self.Parent.firstPlot:
+        if parent.firstPlot:
             # First time the plot was drawn. Don't draw; scale to fit.
-            self.Parent.zoomToFit(self)
-            self.Parent.firstPlot = False
+            parent.zoomToFit(self)
+            parent.firstPlot = False
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
             dc.EndDrawing()
             return
@@ -955,11 +942,27 @@ class Plot(ViewerPanel):
         if self.yUnits is None:
             self.yUnits = getattr(self.source, "units", ('',''))
         
-        if hasattr(self.source, 'hasDisplayRange'):
-            self.range = self.source.displayRange
+#         if hasattr(self.source, 'hasDisplayRange'):
+#             self.range = self.source.displayRange
+
+        # XXX: First steps of multi-source plotting. Make a 1-item sources list.
+        self.sources = []
+        self.colors = {}
+        if self.source:
+            self.sources = [self.source] if self.source else []
+            self.colors[self.source] = color
+
+        dispRange = [sys.maxint, -sys.maxint]
+        for s in self.sources:
+            if getattr(s, 'hasDisplayRange', False):
+                expandRange(dispRange, s.displayRange[0])
+                expandRange(dispRange, s.displayRange[1])
+        if dispRange != [sys.maxint, -sys.maxint]:
+            self.range = dispRange
+        # End of multi-source plotting revisions.
         
         self.legend = VerticalScale(self, -1, 
-                                 visibleRange=(max(*self.range),min(*self.range)))
+                                 visibleRange=(max(self.range),min(self.range)))
         self.plot = PlotCanvas(self, -1, color=color)
         self.scrollbar = wx.ScrollBar(self, -1, style=wx.SB_VERTICAL)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
