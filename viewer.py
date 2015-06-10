@@ -2407,7 +2407,7 @@ class Viewer(wx.Frame, MenuMixin):
             elif mid == self.ID_DATA_DISPLAY_NATIVE:
                 mi.SetText("Native Units (%s as %s)" % p.units)
             else:
-                mi.Enable(self.unitConverters[mid].isApplicable(p.source))
+                mi.Enable(self.unitConverters[mid].isApplicable(p.sources))
             if p.transform == self.unitConverters[mid]:
                 self.setMenuItem(self.displayMenu, mid, checked=True)
 

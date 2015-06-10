@@ -25,12 +25,13 @@ import images as images
 # Numeric and math-related helper functions
 #===============================================================================
 
-def expandRange(l, v):
+def expandRange(l, *vals):
     """ Given a two element list containing a minimum and maximum value, 
         expand it if the given value is outside that range. 
     """
-    l[0] = min(l[0],v)
-    l[1] = max(l[1],v)
+    for v in vals:
+        l[0] = min(l[0],v)
+        l[1] = max(l[1],v)
 
 
 def mapRange(x, in_min, in_max, out_min, out_max):
