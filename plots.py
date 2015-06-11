@@ -5,7 +5,7 @@ import sys
 import time
 
 from wx import aui
-import wx; wx = wx # Workaround for Eclipse code comprehension
+import wx
 
 # Graphics (icons, etc.)
 import images
@@ -22,8 +22,8 @@ from mide_ebml.dataset import WarningRange
 
 from build_info import DEBUG
 
-ANTIALIASING_MULTIPLIER = 3.33
-RESAMPLING_JITTER = 0.125
+# ANTIALIASING_MULTIPLIER = 3.33
+# RESAMPLING_JITTER = 0.125
 
 #===============================================================================
 # 
@@ -38,6 +38,7 @@ def constrainInt(val):
 #===============================================================================
 # 
 #===============================================================================
+
 class VerticalScale(ViewerPanel):
     """ The vertical axis of the plot. Contains the scale and the vertical
         zoom buttons.
@@ -320,14 +321,14 @@ class PlotCanvas(wx.ScrolledWindow):
         if self.root is None:
             self.root = self.GetParent().root
         
-        self.antialias = False
-        self.loadPrefs()
-        
         # Source-specific stuff: dictionaries keyed on source object.
         self.lineList = {}
         self.pointList = {}
         self.minMeanMaxLineList = {}
         self.pens = {}
+        
+        self.antialias = False
+        self.loadPrefs()
         
         self.lastEvents = None
         self.lastRange = None
@@ -369,10 +370,30 @@ class PlotCanvas(wx.ScrolledWindow):
         self.color = color if color is not None else self.color
         self.weight = weight if weight is not None else self.weight
         self.style = style if style is not None else self.style
+        
+        for s in self.Parent.sources:
+            color = self.root.getPlotColor(s)
+            self.pens[s] = (wx.Pen(color, self.weight, self.style),
+                            wx.Brush(color, wx.SOLID))
         self._pen = wx.Pen(self.color, self.weight, self.style)
         self._pointPen = wx.Pen(wx.Colour(255,255,255,.5), 1, self.style)
         self._pointBrush = wx.Brush(self.color, wx.SOLID)
         
+    
+    def addSource(self, source):
+        """
+        """
+        self.setPlotPen();
+        
+    
+    def removeSource(self, source):
+        """
+        """
+        self.lineList.pop(source, None)
+        self.pointList.pop(source, None)
+        self.minMeanMaxLineList.pop(source, None)
+
+    
     
     def setTimeRange(self, start=None, end=None, instigator=None,
                      tracking=False):
@@ -683,7 +704,7 @@ class PlotCanvas(wx.ScrolledWindow):
         points = self.pointList.get(source, [])
         
         # TODO: Use source-specific min/max pens
-        mainPen = self._pen
+        mainPen, pointBrush = self.pens.get(source, self._pen)
         minRangePen = self.minRangePen
         maxRangePen = self.maxRangePen
         
@@ -791,7 +812,7 @@ class PlotCanvas(wx.ScrolledWindow):
         if self.drawPoints and len(lines) < size[0] / 4:
             # More pixels than points: draw actual points as circles.
             dc.SetPen(self._pointPen)
-            dc.SetBrush(self._pointBrush)
+            dc.SetBrush(pointBrush)
             for p in points:
                 dc.DrawCirclePoint(p,self.weight*self.viewScale*self.pointSize)
         
@@ -1032,7 +1053,8 @@ class Plot(ViewerPanel):
         
     @property
     def rollingMeanSpan(self):
-        return self.sources[0].rollingMeanSpan
+        if self.sources:
+            return self.sources[0].rollingMeanSpan
     
     @rollingMeanSpan.setter
     def rollingMeanSpan(self, v):
@@ -1041,7 +1063,7 @@ class Plot(ViewerPanel):
 
     @property
     def units(self):
-        return self.sources[0].parent.units
+        return self.yUnits
     
     @units.setter
     def units(self, v):
@@ -1050,7 +1072,8 @@ class Plot(ViewerPanel):
 
     @property
     def transform(self):
-        return self.sources[0].transform
+        if self.sources:
+            return self.sources[0].transform
     
     @transform.setter
     def transform(self, t):
@@ -1326,7 +1349,8 @@ class Plot(ViewerPanel):
         rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME,
                        enabled=rt.session.utcStartTime is not None)
         
-        rt.updateConversionMenu()                
+        rt.updateConversionMenu()
+        rt.updateSourceMenu()             
             
 
     def addSource(self, source):
@@ -1334,6 +1358,16 @@ class Plot(ViewerPanel):
         """
         if source not in self.sources:
             self.sources.append(source)
+            self.plot.addSource(source)
+
+    def removeSource(self, source):
+        try:
+            self.sources.remove(source)
+            self.plot.removeSource(source)
+            return True
+        except ValueError:
+            return False
+            
 
     #===========================================================================
     # 

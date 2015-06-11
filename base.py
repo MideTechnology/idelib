@@ -221,6 +221,26 @@ class MenuMixin(object):
             self.Bind(wx.EVT_MENU, handler, item)
         return item
 
+    def addMenu(self, menubar, text):
+        """
+        """
+        menu = wx.Menu()
+        menubar.Append(menu, text)
+        return menu
+
+    def addSubMenu(self, menu, id_, text, enabled=True):
+        """ Helper method for doing the grunt work involved in adding a submenu.
+            
+            @param menu: The menu to which to add the menu item.
+            @param id_: The submenu's ID (or -1)
+            @param text: The submenu's text.
+            @keyword enabled: The initial enabled state of the submenu.
+        """
+        subM = wx.Menu()
+        menu.AppendMenu(id_, text, subM)
+        menu.Enable(id_, enabled)
+        return subM
+
     
     def setMenuItem(self, menu, itemId, checked=None, enabled=None, label=None):
         """ Helper method to set various properties of a MenuItem. 

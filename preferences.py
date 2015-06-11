@@ -51,6 +51,7 @@ class Preferences(object):
         'resamplingJitterAmount': 0.125,
         'oversampling': 25.0,
         'condensedPlotThreshold': 2.0,
+        'fillCondensedPlot': True,
         'drawMajorHLines': True,
         'drawMinorHLines': True, #False,
         'drawMinMax': True,

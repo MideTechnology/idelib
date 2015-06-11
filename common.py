@@ -14,9 +14,8 @@ import calendar as calendar
 from datetime import datetime
 import os.path
 from threading import Thread as Thread
-# import time
 
-import wx; wx = wx;
+import wx
 import wx.lib.masked as wx_mc
 
 import images as images

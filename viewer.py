@@ -616,6 +616,8 @@ class Viewer(wx.Frame, MenuMixin):
     ID_EDIT_CLEARPREFS = wx.NewId()
     ID_EDIT_RANGES = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
+    ID_VIEW_ADDSOURCE = wx.NewId()
+    ID_VIEW_NEWTAB = wx.NewId()
     ID_VIEW_ZOOM_OUT_Y = wx.NewId()
     ID_VIEW_ZOOM_IN_Y = wx.NewId()
     ID_VIEW_ZOOM_FIT_Y = wx.NewId()
@@ -739,7 +741,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         # "File" menu
         #=======================================================================
-        fileMenu = wx.Menu()
+        fileMenu = self.addMenu(self.menubar,  '&File')
         self.addMenuItem(fileMenu, wx.ID_NEW, "&New Viewer Window\tCtrl+N", "",
                          self.OnFileNewMenu)
         self.addMenuItem(fileMenu, wx.ID_CLOSE, 
@@ -754,9 +756,8 @@ class Viewer(wx.Frame, MenuMixin):
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_EXPORT, 
                          "&Export Data...\tCtrl+S", "", self.OnFileExportMenu)
-#         fileMenu.AppendSeparator()
         
-        renderMenu = wx.Menu()
+        renderMenu = self.addSubMenu(fileMenu, self.ID_RENDER, "Render")
         self.addMenuItem(renderMenu, self.ID_RENDER_PLOTS, 
                          "Render Plots...", '',
                          self.renderPlot)
@@ -769,8 +770,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(renderMenu, self.ID_RENDER_SPEC, 
                          "Render Spectro&gram (2D FFT)...\tCtrl+G", "", 
                          self.renderPlot)
-        fileMenu.AppendMenu(self.ID_RENDER, "Render", renderMenu)
         fileMenu.AppendSeparator()
+        
         self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES, 
                          "Recording Properties...\tCtrl+I", "", 
                          self.OnFileProperties)
@@ -780,6 +781,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
                          enabled=False)
         fileMenu.AppendSeparator()
+        
 #         self.recentFilesMenu = self.app.recentFilesMenu #wx.Menu()
 #         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", 
 #                             self.recentFilesMenu)
@@ -787,29 +789,33 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit\tCtrl+Q', '', 
                 self.OnFileExitMenu)
         wx.App.SetMacExitMenuItemId(wx.ID_EXIT)
-        self.menubar.Append(fileMenu, '&File')
         
         # "Edit" menu
         #=======================================================================
-        editMenu = wx.Menu()
+        editMenu = self.addMenu(self.menubar, '&Edit')
         self.addMenuItem(editMenu, wx.ID_CUT, "Cut", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", enabled=False)
         editMenu.AppendSeparator()
         self.addMenuItem(editMenu, wx.ID_PREFERENCES, "Preferences...", "",
                          self.app.editPrefs)
-        self.menubar.Append(editMenu, '&Edit')
 
         # "View" menu
         #=======================================================================
-        viewMenu = wx.Menu()
+        viewMenu = self.addMenu(self.menubar, 'V&iew')
         self.addMenuItem(viewMenu, wx.ID_REFRESH, "&Redraw Plots\tCtrl+R", "",
                          self.plotarea.redraw)
         viewMenu.AppendSeparator()
+        
+        self.viewNewTabMenu = self.addSubMenu(viewMenu, self.ID_VIEW_NEWTAB,
+                                              "Create New Tab")
+        self.viewSourceMenu = self.addSubMenu(viewMenu, self.ID_VIEW_ADDSOURCE,
+                                              "Display Channels")
+        viewMenu.AppendSeparator()
+
         self.addMenuItem(viewMenu, self.ID_EDIT_RANGES, 
                          "Edit Visible Ranges...\tCtrl+E", "", 
                          self.OnEditRanges)
-        viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom Out X\tCtrl+-", "",
                          self.OnZoomOutX)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_IN, "Zoom In X\tCtrl+=", "",
@@ -852,18 +858,19 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
                          "Show Absolute UTC Time", "",
                          self.OnToggleUtcTime, kind=wx.ITEM_CHECK)
-        self.menubar.Append(viewMenu, 'V&iew')
 
-        deviceMenu = wx.Menu()
+        # "Device" menu
+        #=======================================================================
+        deviceMenu = self.addMenu(self.menubar, 'De&vice')
         self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
                         "Configure &Device...\tCtrl+D", "", 
                          self.OnDeviceConfigMenu)
-        self.menubar.Append(deviceMenu, 'De&vice')
         
         # "Data" menu
         #=======================================================================
-        dataMenu = wx.Menu()
-        meanMenu = wx.Menu()
+        dataMenu = self.addMenu(self.menubar, "&Data")
+        meanMenu = self.addSubMenu(dataMenu, self.ID_DATA_MEAN_SUBMENU, 
+                                   "Remove Mean")
         self.addMenuItem(meanMenu, self.ID_DATA_NOMEAN, 
                          "Do Not Remove Mean", "",
                          self.OnDontRemoveMeanCheck, kind=wx.ITEM_RADIO)
@@ -873,26 +880,21 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(meanMenu, self.ID_DATA_MEAN_TOTAL, 
                          "Remove Total Mean from Data", "",
                          self.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
-        dataMenu.AppendMenu(self.ID_DATA_MEAN_SUBMENU, "Remove Mean", meanMenu)
         
-        self.displayMenu = wx.Menu()
+        self.displayMenu = self.addSubMenu(dataMenu, self.ID_DATA_DISPLAY, "Display")
         self.addMenuItem(self.displayMenu, self.ID_DATA_DISPLAY_NATIVE,
                          "Native Units", "", self.OnConversionPicked, 
                          kind=wx.ITEM_RADIO)
-        dataMenu.AppendMenu(self.ID_DATA_DISPLAY, "Display", self.displayMenu)
         
         self.addMenuItem(dataMenu, self.ID_DATA_WARNINGS,
                           "Show Temperature Range Warnings", "", 
                           self.OnDataWarningsCheck, False, wx.ITEM_CHECK)
         
-        self.menubar.Append(dataMenu, "&Data")
         
         #=======================================================================
         # "Help" menu
         
-        helpMenu = wx.Menu()
-        # TODO: (cross-platform) Move 'about' to right place for MacOS X.
-        # May not be an issue; the library may do it.
+        helpMenu = self.addMenu(self.menubar, '&Help')
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
             "About %s..." % self.app.fullAppName, "", self.OnHelpAboutMenu)
         helpMenu.AppendSeparator()
@@ -905,7 +907,8 @@ class Viewer(wx.Frame, MenuMixin):
             
         if DEBUG:
             helpMenu.AppendSeparator()
-            debugMenu = wx.Menu()
+            debugMenu = self.addSubMenu(helpMenu, self.ID_DEBUG_SUBMENU, 
+                                        "Debugging")
             self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
                              "Save All Preferences", "",
                              lambda(evt): self.app.saveAllPrefs())
@@ -913,9 +916,6 @@ class Viewer(wx.Frame, MenuMixin):
                              self.OnFileOpenMulti)
             self.addMenuItem(debugMenu, self.ID_DEBUG1, "Render Plots/FFTs/etc. in foreground", "",
                              self.OnForegroundRender, kind=wx.ITEM_CHECK)
-            helpMenu.AppendMenu(self.ID_DEBUG_SUBMENU, "Debugging", debugMenu)
-
-        self.menubar.Append(helpMenu, '&Help')
 
         #=======================================================================
         # "Recent Files" submenu
@@ -1014,6 +1014,27 @@ class Viewer(wx.Frame, MenuMixin):
         for c in self.Children:
             c.Enable(enabled)
 
+    
+    def buildAddChannelMenu(self, *args):
+        """ Populate the View->Display Channels menu with plots in the file.
+        """
+        map(self.viewSourceMenu.DestroyItem, self.viewSourceMenu.GetMenuItems())
+        for pid, p in self.dataSources.iteritems():
+            self.addMenuItem(self.viewSourceMenu, pid, p.parent.displayName, "",
+                             self.OnSourceChecked, kind=wx.ITEM_CHECK)
+    
+    
+    def buildNewTabMenu(self, *args):
+        """
+        """
+        self.tabTypes = {}
+        map(self.viewNewTabMenu.DestroyItem, self.viewNewTabMenu.GetMenuItems())
+        for n,t in enumerate(set([p.parent.units[0] for p in self.dataSources.values()]),1):
+            tid = wx.NewId()
+            self.tabTypes[tid] = t
+            self.addMenuItem(self.viewNewTabMenu, tid, "%s\tCtrl+%d" % (t,n), "", 
+                             self.OnNewTabPicked)
+
 
     def buildDisplayMenu(self):
         """ Populate the Data->Display menu with applicable unit converters.
@@ -1022,7 +1043,6 @@ class Viewer(wx.Frame, MenuMixin):
         for mi in self.displayMenu.GetMenuItems():
             if mi.GetId() == self.ID_DATA_DISPLAY_NATIVE:
                 continue
-#             self.displayMenu.RemoveItem(mi)
             self.displayMenu.DestroyItem(mi)
         if self.dataset is None:
             self.displayMenu.Enable(False)
@@ -1168,15 +1188,20 @@ class Viewer(wx.Frame, MenuMixin):
             meanSpan = self.app.getPref('rollingMeanSpan', 5.0)
         elif removeMean:
             meanSpan = -1
-                
+        
+        self.dataSources = {} 
         for d in self.dataset.getPlots(debug=self.showDebugChannels):
             el = d.getSession(self.session.sessionId)
+            self.dataSources[wx.NewId()] = el
             
             p = self.plotarea.addPlot(el, title=d.displayName)
             if p is not None and meanSpan is not None:
                 p.removeMean(True, meanSpan)
         
         self.enableChildren(True)
+        self.buildAddChannelMenu()
+        self.buildNewTabMenu()
+
         # enabling plot-specific menu items happens on page select; do manually
         self.plotarea.getActivePage().enableMenus()
 
@@ -2078,6 +2103,26 @@ class Viewer(wx.Frame, MenuMixin):
             p.setPlotColor(evt)
 
 
+    def OnSourceChecked(self, evt):
+        """
+        """
+        try:
+            p = self.plotarea.getActivePage()
+            source = self.dataSources[evt.GetId()]
+            if evt.IsChecked():
+                p.addSource(source)
+            else:
+                p.removeSource(source)
+            p.redraw()
+        except KeyError:
+            pass
+
+    def OnNewTabPicked(self, evt):
+        """
+        """
+        typeId = evt.GetId()
+        print "OnNewTabPicked():", self.tabTypes[typeId]
+
     def OnConversionConfig(self, evt):
         """ Handle selection of the unit converter configuration menu item.
         """
@@ -2386,6 +2431,24 @@ class Viewer(wx.Frame, MenuMixin):
         if closeFile:
             self.closeFile()
          
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def updateSourceMenu(self):
+        p = self.plotarea.getActivePage()
+        if p is None:
+            return
+        for mi in self.viewSourceMenu.GetMenuItems():
+            mid = mi.GetId()
+            source = self.dataSources.get(mid, None)
+            if source is None:
+                return
+            checked = source in p.sources
+            enabled = p.yUnits == source.units
+            self.setMenuItem(self.viewSourceMenu, mid, checked, enabled)
+            
 
     #===========================================================================
     # Unit conversion/transform-related stuff
