@@ -322,6 +322,7 @@ class PlotCanvas(wx.ScrolledWindow):
             self.root = self.GetParent().root
         
         # Source-specific stuff: dictionaries keyed on source object.
+        # Maybe make a single dict for fewer lookups?
         self.lineList = {}
         self.pointList = {}
         self.minMeanMaxLineList = {}
@@ -375,15 +376,16 @@ class PlotCanvas(wx.ScrolledWindow):
             color = self.root.getPlotColor(s)
             self.pens[s] = (wx.Pen(color, self.weight, self.style),
                             wx.Brush(color, wx.SOLID))
-        self._pen = wx.Pen(self.color, self.weight, self.style)
+            
+        self._pen = (wx.Pen(self.color, self.weight, self.style),
+                     wx.Brush(self.color, wx.SOLID))
         self._pointPen = wx.Pen(wx.Colour(255,255,255,.5), 1, self.style)
-        self._pointBrush = wx.Brush(self.color, wx.SOLID)
         
     
     def addSource(self, source):
         """
         """
-        self.setPlotPen();
+        self.setPlotPen()
         
     
     def removeSource(self, source):
@@ -524,9 +526,6 @@ class PlotCanvas(wx.ScrolledWindow):
         """
 #         return self._OnPaint(evt)
 
-        if len(self.Parent.source) == 0:
-            return
-        
         ex = None if DEBUG else Exception
         
         try:
@@ -553,7 +552,7 @@ class PlotCanvas(wx.ScrolledWindow):
                 generation so multiple plots on the same canvas will be easy.
         """
         t0 = time.time()
-        if self.Parent.source is None:
+        if not self.Parent.sources:
             return
         if self.root.drawingSuspended:
             return
@@ -991,7 +990,7 @@ class Plot(ViewerPanel):
             @keyword range: 
             @keyword warningRange: 
         """
-        self.source = kwargs.pop('source', None)
+        source = kwargs.pop('source', None)
         self.yUnits= kwargs.pop('units',None)
         color = kwargs.pop('color', 'BLACK')
         self.range = kwargs.pop('range', (-(2**16), (2**16)-1))
@@ -1008,18 +1007,24 @@ class Plot(ViewerPanel):
         
         if self.root is None:
             self.root = self.Parent.root
-            
+        
         if self.yUnits is None:
-            self.yUnits = getattr(self.source, "units", ('',''))
+            self.yUnits = getattr(source, "units", ('',''))
+            
+        self.baseUnits = self.yUnits
         
         # XXX: First steps of multi-source plotting. Make a 1-item sources list.
         self.colors = {}
-        if self.source:
-            self.sources = [self.source]
-            self.colors[self.source] = color
+        if source:
+            self.sources = [source]
+            self.colors[source] = color
         else:
             self.sources = []
-            
+        
+        self.plotRemoveMean = True
+        self.plotMeanSpan = 5000000
+        self.plotTransform = None
+        
         dispRange = [sys.maxint, -sys.maxint]
         for s in self.sources:
             if getattr(s, 'hasDisplayRange', False):
@@ -1031,7 +1036,7 @@ class Plot(ViewerPanel):
         
         self.legend = VerticalScale(self, -1, 
                                  visibleRange=(max(self.range),min(self.range)))
-        self.plot = PlotCanvas(self, -1, color=color)
+        self.plot = PlotCanvas(self, -1)
         self.scrollbar = wx.ScrollBar(self, -1, style=wx.SB_VERTICAL)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
         sizer.Add(self.legend, 0, wx.EXPAND)
@@ -1046,6 +1051,7 @@ class Plot(ViewerPanel):
                               self.OnScrollTrack, self.OnScrollEnd)
         
         self.enableMenus()
+#         self.setTabText()
 
     #===========================================================================
     # Source properties. 
@@ -1117,27 +1123,46 @@ class Plot(ViewerPanel):
         self.scrollUnitsPerUnit = self._sbMax / (start - end)
 
 
-    def setTabText(self, s):
+    def setTabText(self):
         """ Set the name displayed on the plot's tab.
         """
+        if not self.sources:
+            ttip = s = self.yUnits[0]
+        else:
+            ttip = '\n'.join([s.parent.displayName for s in self.sources])
+            if len(self.sources) == 1:
+                s = self.sources[0].parent.displayName
+            else:
+                s = "%s (%d sources)" % (self.yUnits[0], len(self.sources)) 
         try:
             i = self.Parent.GetPageIndex(self)
             self.Parent.SetPageText(i, s)
+            self.Parent.SetPageToolTip(i, ttip)
         except AttributeError:
             # Can occur if the plot isn't in a tab; just in case.
-            self.SetTitle(s)
+            try:
+                self.SetTitle(s)
+            except AttributeError:
+                pass
             
 
     def setUnitConverter(self, con):
         """ Apply (or remove) a unit conversion function.
         """
-        oldUnits = self.source.units[0]
-        oldXform = self.source.transform
+        if not self.sources:
+            return
+            
+        self.plotTransform = con
+        oldUnits = self.sources[0].units[0]
+        oldXform = self.sources[0].transform
         
-        self.source.setTransform(con) #, update=False)
-#         self.source.dataset.updateTransforms()
-        self.yUnits = self.source.units
-        self.legend.setUnits(self.source.units[-1])
+        self.yUnits = self.sources[0].units
+        
+        for source in self.sources:
+            source.setTransform(con, update=False)
+        self.root.dataset.updateTransforms()
+        
+        self.legend.setUnits(self.yUnits[1])
         t,b = self.legend.getValueRange()
         
         if oldXform is not None:
@@ -1147,9 +1172,9 @@ class Plot(ViewerPanel):
             t = nt if nt is not None else t
             b = nb if nb is not None else b
         
-        if con is None:
-            self.setTabText(self.source.parent.displayName)
-        else:
+        if con is not None:
+#             self.setTabText(self.source.parent.displayName)
+#         else:
             try:
                 nt = con.convert(t)
                 nb = con.convert(b)
@@ -1159,9 +1184,10 @@ class Plot(ViewerPanel):
                 logger.debug("Value error adjusting vertical range %r" % con)
                 pass
             
-            if oldUnits != con.units[0]:
-                self.setTabText(con.units[0])
+#             if oldUnits != con.units[0]:
+#                 self.setTabText(con.units[0])
         
+        self.setTabText()
         self.legend.setValueRange(*sorted((t,b)))
         self.redraw()
         
@@ -1283,6 +1309,7 @@ class Plot(ViewerPanel):
 
 
     def setPlotColor(self, evt=None):
+        # TODO: Remove or revise for multiple sources
         self.plot.OnMenuColor(evt)
 
 
@@ -1296,18 +1323,26 @@ class Plot(ViewerPanel):
     def removeMean(self, val=True, span=5000000):
         """ Turn 'remove mean' on or off.
         """
-        if not self.source:
-            return
-        val = val and self.source.hasMinMeanMax
-        if self.source.removeMean != val or self.source.rollingMeanSpan != span:
-            self.source.rollingMeanSpan = span
-            self.source.removeMean = val
+        self.plotRemoveMean = val
+        self.plotMeanSpan = span
+        
+        changed = False
+        for source in self.sources:
+            val = val and source.hasMinMeanMax
+            if source.removeMean != val or source.rollingMeanSpan != span:
+                source.rollingMeanSpan = span
+                source.removeMean = val
+                changed = True
+        
+        if changed:
             self.redraw()
-        self.enableMenus()
+            self.enableMenus()
 
         
     def showWarningRange(self, val=True):
-        if not self.source:
+        """
+        """
+        if not self.sources:
             return 
         self.plot.showWarningRange = val
         self.redraw()
@@ -1320,33 +1355,34 @@ class Plot(ViewerPanel):
         if self.Parent.getActivePage() != self:
             return
          
-        enabled = self.source.hasMinMeanMax
+        enabled = any([s.hasMinMeanMax for s in self.sources])
         rt = self.root
+        mb = rt.menubar
         
-        if not enabled or self.source.removeMean is False:
-            rt.setMenuItem(rt.menubar, rt.ID_DATA_NOMEAN, checked=True)
-        elif self.source.rollingMeanSpan == -1:
-            rt.setMenuItem(rt.menubar, rt.ID_DATA_MEAN_TOTAL, checked=True)
+        if not enabled or self.plotRemoveMean is False:
+            rt.setMenuItem(mb, rt.ID_DATA_NOMEAN, checked=True)
+        elif self.plotMeanSpan == -1:
+            rt.setMenuItem(mb, rt.ID_DATA_MEAN_TOTAL, checked=True)
         else:
-            rt.setMenuItem(rt.menubar, rt.ID_DATA_MEAN, checked=True)
+            rt.setMenuItem(mb, rt.ID_DATA_MEAN, checked=True)
             
         for m in [rt.ID_DATA_NOMEAN, rt.ID_DATA_MEAN, rt.ID_DATA_MEAN_TOTAL]:
-            rt.setMenuItem(rt.menubar, m, enabled=enabled)
+            rt.setMenuItem(mb, m, enabled=enabled)
 
-        rt.setMenuItem(rt.menubar, rt.ID_DATA_WARNINGS, 
+        rt.setMenuItem(mb, rt.ID_DATA_WARNINGS, 
                        checked=self.plot.showWarningRange,
                        enabled=(len(self.warningRange)>0))
 
-        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_MINMAX, enabled=enabled, 
-                       checked=self.root.drawMinMax)
-        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_LINES_MAJOR, enabled=True, 
-                       checked=self.root.drawMajorHLines)
-        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_LINES_MINOR, enabled=True, 
-                       checked=self.root.drawMinorHLines)
-        rt.setMenuItem(rt.menubar, self.root.ID_VIEW_MEAN, enabled=enabled, 
-                       checked=self.root.drawMean)
+        rt.setMenuItem(mb, rt.ID_VIEW_MINMAX, enabled=enabled, 
+                       checked=rt.drawMinMax)
+        rt.setMenuItem(mb, rt.ID_VIEW_LINES_MAJOR, enabled=True, 
+                       checked=rt.drawMajorHLines)
+        rt.setMenuItem(mb, rt.ID_VIEW_LINES_MINOR, enabled=True, 
+                       checked=rt.drawMinorHLines)
+        rt.setMenuItem(mb, rt.ID_VIEW_MEAN, enabled=enabled, 
+                       checked=rt.drawMean)
         
-        rt.setMenuItem(rt.menubar, rt.ID_VIEW_UTCTIME,
+        rt.setMenuItem(mb, rt.ID_VIEW_UTCTIME,
                        enabled=rt.session.utcStartTime is not None)
         
         rt.updateConversionMenu()
@@ -1354,16 +1390,30 @@ class Plot(ViewerPanel):
             
 
     def addSource(self, source):
-        """ Add a data source to the plot.
+        """ Add a data source (i.e. `Subchannel` or `Plot`) to the plot.
         """
-        if source not in self.sources:
-            self.sources.append(source)
-            self.plot.addSource(source)
+        if not source or source in self.sources:
+            return
+        
+        self.sources.append(source)
+        source.setTransform(self.plotTransform)
+        source.updateTransforms()
+        self.plot.addSource(source)
+        if source.hasMinMeanMax:
+            source.removeMean = self.plotRemoveMean
+            source.rollingMeanSpan = self.plotMeanSpan
+
+        self.setTabText()
+
 
     def removeSource(self, source):
+        """ Remove a `SubChannel` or `Plot` from the plot.
+        """
         try:
             self.sources.remove(source)
             self.plot.removeSource(source)
+            source.setTransform(None)
+            self.setTabText()
             return True
         except ValueError:
             return False
@@ -1483,6 +1533,8 @@ class PlotSet(aui.AuiNotebook):
                                    | aui.AUI_NB_TAB_MOVE  
                                    | aui.AUI_NB_SCROLL_BUTTONS 
                                    | aui.AUI_NB_WINDOWLIST_BUTTON
+                                   | aui.AUI_NB_CLOSE_BUTTON
+                                   | aui.AUI_NB_CLOSE_ON_ACTIVE_TAB
                                    )
         super(PlotSet, self).__init__(*args, **kwargs)
 
@@ -1536,38 +1588,38 @@ class PlotSet(aui.AuiNotebook):
             @keyword title: The name displayed on the plot's tab
                 (defaults to 'Plot #')
         """
-        
-#         if len(source) == 0:
-#             return None
-        
         # For debugging: catch no exceptions
         Ex = None if DEBUG else Exception
-        
-        # TODO: Use the warning referenced by the subchannel in the file's
-        # ChannelList element.
-        try:
-            warningRange = WarningRange(source.dataset, warningId=0, 
-              channelId=1, subchannelId=1, low=self.warnLow, high=self.warnHigh)
-            warnings = [WarningRangeIndicator(warningRange, source.session.sessionId)]
-        except (IndexError, KeyError):
-            # Dataset had no data for channel and/or subchannel.
-            # Should not normally occur, but not fatal.
-            warnings = []
-        except Ex as err:
-            self.handleError(err, 
-                             what="creating a plot view warning indicator")
+        warnings = []
 
-        title = source.name or title
+        if source is not None:
+            # TODO: Use the warning referenced by the subchannel in the file's
+            # ChannelList element.
+            try:
+                warningRange = WarningRange(source.dataset, warningId=0, 
+                  channelId=1, subchannelId=1, low=self.warnLow, high=self.warnHigh)
+                warnings = [WarningRangeIndicator(warningRange, source.session.sessionId)]
+            except (IndexError, KeyError, AttributeError):
+                # Dataset had no data for channel and/or subchannel.
+                # Should not normally occur, but not fatal.
+                pass
+            except Ex as err:
+                self.handleError(err, 
+                                 what="creating a plot view warning indicator")
+    
+            title = source.name or title
+            
+            if color is None:
+                color = self.root.getPlotColor(source)
+            
         title = "Plot %s" % len(self) if title is None else title
         name = name or title
         
-        if color is None:
-            color = self.root.getPlotColor(source)
-        
         plot = Plot(self, source=source, root=self.root, name=name,
-                    color=color, units=units, warningRange=warnings)
+                    units=units, warningRange=warnings)
         plot.SetToolTipString(name)
         self.AddPage(plot, title)
+        plot.setTabText()
         self.Refresh()
         
         return plot

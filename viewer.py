@@ -1029,10 +1029,10 @@ class Viewer(wx.Frame, MenuMixin):
         """
         self.tabTypes = {}
         map(self.viewNewTabMenu.DestroyItem, self.viewNewTabMenu.GetMenuItems())
-        for n,t in enumerate(set([p.parent.units[0] for p in self.dataSources.values()]),1):
+        for n,t in enumerate(set([p.parent.units for p in self.dataSources.values()]),1):
             tid = wx.NewId()
             self.tabTypes[tid] = t
-            self.addMenuItem(self.viewNewTabMenu, tid, "%s\tCtrl+%d" % (t,n), "", 
+            self.addMenuItem(self.viewNewTabMenu, tid, "%s\tCtrl+%d" % (t[0],n), "", 
                              self.OnNewTabPicked)
 
 
@@ -2117,11 +2117,27 @@ class Viewer(wx.Frame, MenuMixin):
         except KeyError:
             pass
 
+
     def OnNewTabPicked(self, evt):
         """
         """
         typeId = evt.GetId()
-        print "OnNewTabPicked():", self.tabTypes[typeId]
+        units = self.tabTypes[typeId]
+        
+        removeRolling = self.app.getPref('removeRollingMean', False)
+        removeMean = self.app.getPref('removeMean', True)
+        meanSpan = None
+        if removeRolling:
+            meanSpan = self.app.getPref('rollingMeanSpan', 5.0)
+        elif removeMean:
+            meanSpan = -1
+            
+        p = self.plotarea.addPlot(None, title=units[0], units=units)
+        if p is not None and meanSpan is not None:
+            p.removeMean(True, meanSpan)
+
+        
+
 
     def OnConversionConfig(self, evt):
         """ Handle selection of the unit converter configuration menu item.
