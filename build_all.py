@@ -15,7 +15,7 @@ VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
 logger = logging.getLogger('SlamStickLab.BuildAll')
 
 builds = (
-    r'C:\Python27\Scripts\pyinstaller.exe --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
+    r'C:\Python27\Scripts\pyinstaller.exe %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
     r'c:\Python27_64\Scripts\pyinstaller --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer-win-onefile.spec',
 )
 
@@ -47,6 +47,8 @@ parser.add_argument('-r', '--release', action="store_true",
                     help="Builds are for release; build without DEBUG.")
 parser.add_argument('-n', '--noincrement', action="store_true",
                     help="Don't increase the build number.")
+parser.add_argument('-c', '--clean', action="store_true",
+                    help="Clean the PyInstaller cache (fix 'end of file' errors)")
 args = parser.parse_args()
 print args
 
@@ -101,7 +103,9 @@ buildArgs = {
 #     'dist_64': 'Slam Stick Lab v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
     'dist_32': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
     'dist_64': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
+    'options': '--clean' if args.clean else ''
 }
+
 
 bad = 0
 for i, build in enumerate(builds):
