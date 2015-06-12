@@ -629,6 +629,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_VIEW_MEAN = wx.NewId()
     ID_VIEW_LINES_MAJOR = wx.NewId()
     ID_VIEW_LINES_MINOR = wx.NewId()
+    ID_VIEW_LEGEND = wx.NewId()
     ID_DATA_MEAN_SUBMENU = wx.NewId()
     ID_DATA_NOMEAN = wx.NewId()
     ID_DATA_MEAN = wx.NewId()
@@ -723,6 +724,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.drawMean = self.app.getPref('drawMean', False)
         self.drawMajorHLines = self.app.getPref('drawMajorHLines', True)
         self.drawMinorHLines = self.app.getPref('drawMinorHLines', False)
+        self.showLegend = self.app.getPref('showLegend', True)
+        self.legendPos = self.app.getPref('legendPosition', 1)
         
         self.showDebugChannels = self.app.getPref('showDebugChannels', True)
         
@@ -811,6 +814,8 @@ class Viewer(wx.Frame, MenuMixin):
                                               "Create New Tab")
         self.viewSourceMenu = self.addSubMenu(viewMenu, self.ID_VIEW_ADDSOURCE,
                                               "Display Channels")
+        self.addMenuItem(viewMenu, self.ID_VIEW_LEGEND, "Show Legend\tCtrl+L", "",
+                         self.OnLegendToggle, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
 
         self.addMenuItem(viewMenu, self.ID_EDIT_RANGES, 
@@ -1003,6 +1008,7 @@ class Viewer(wx.Frame, MenuMixin):
                           wx.ID_PRINT, wx.ID_PRINT_SETUP)
 
         self.enableMenuItems(self.menubar, alwaysDisabled, False)
+        self.setMenuItem(self.menubar, self.ID_VIEW_LEGEND, checked=self.showLegend)
 
     
     def enableChildren(self, enabled=True):
@@ -2136,8 +2142,13 @@ class Viewer(wx.Frame, MenuMixin):
         if p is not None and meanSpan is not None:
             p.removeMean(True, meanSpan)
 
-        
 
+    def OnLegendToggle(self, evt):
+        """
+        """
+        self.showLegend = evt.IsChecked()
+        self.plotarea.redraw()
+        
 
     def OnConversionConfig(self, evt):
         """ Handle selection of the unit converter configuration menu item.

@@ -339,6 +339,10 @@ class PlotCanvas(wx.ScrolledWindow):
         self.zoomCorners = None
         self.zoomCenter = None
 
+        self.NO_PEN = wx.Pen("white", style=wx.TRANSPARENT)
+        self.BLACK_PEN = wx.Pen("black", style=wx.SOLID)
+        self.LEGEND_BRUSH = wx.Brush(wx.Colour(255,255,255,240), wx.SOLID)
+
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
         self.Bind(wx.EVT_LEFT_DOWN, self.OnMouseLeftDown)
@@ -367,7 +371,6 @@ class PlotCanvas(wx.ScrolledWindow):
             @keyword width: The width of the pen's line.
             @keyword style: The pen's wxWidget line style.
         """
-        self.NO_PEN = wx.Pen("white", style=wx.TRANSPARENT)
         self.color = color if color is not None else self.color
         self.weight = weight if weight is not None else self.weight
         self.style = style if style is not None else self.style
@@ -693,7 +696,9 @@ class PlotCanvas(wx.ScrolledWindow):
             logger.info("Plotted %d lines for %d sources in %.4fs" % 
                         (linesDrawn, len(parent.sources), dt))
 
-    
+        self._drawLegend()
+
+
     def _drawPlot(self, dc, source, size, hRange, vRange, hScale, vScale, tenth):
         """ Does the plotting of a single source.
         """
@@ -816,6 +821,61 @@ class PlotCanvas(wx.ScrolledWindow):
                 dc.DrawCirclePoint(p,self.weight*self.viewScale*self.pointSize)
         
         return len(lines)
+
+    
+    def _drawLegend(self):
+        """ Draw a legend with the plot colors and source names.
+            Work in progress!
+        """
+        numSources = len(self.Parent.sources)
+#         if not self.root.showLegend or numSources < 2:
+        if not self.root.showLegend:
+            return
+        
+        # TODO: Determine these elsewhere
+        padding = 8
+        margin = 10
+        
+        items = []
+        w = 60
+        
+        # Legend is antialiased
+        dc = wx.GCDC(wx.ClientDC(self))
+        size = dc.GetSize()
+        for i,s in enumerate(self.Parent.sources):
+            n = s.parent.displayName
+            nt = dc.GetTextExtent(n)
+            w = max(nt[0], w)
+            items.append((i, n, self.pens[s][1]))
+        swatchSize = nt[1]
+        w += swatchSize + (padding * 3) # padding
+        h = (swatchSize * numSources) + (padding * 2) + (4 * (numSources-1))
+
+        x,y = margin,margin
+        lpos = self.root.legendPos
+        if lpos == 1:
+            # Upper Right
+            x = size[0] - w - margin
+        elif lpos == 2:
+            # Lower Left
+            y = size[1] - h - margin
+        elif lpos == 3:
+            # Lower Right
+            x = size[0] - w - margin
+            y = size[1] - h - margin        
+
+        dc.BeginDrawing()
+        dc.SetPen(self.BLACK_PEN)
+        dc.SetBrush(self.LEGEND_BRUSH)
+        dc.DrawRectangle(x, y, w, h)
+        swatchPos = x + padding
+        textPos = swatchPos + padding + swatchSize
+        for i,n,b in items:
+            vpos = y+(i*(nt[1]+4))+padding
+            dc.SetBrush(b)
+            dc.DrawText(n, textPos, vpos)
+            dc.DrawRectangle(swatchPos, vpos, swatchSize, swatchSize)
+        dc.EndDrawing()
 
 
     #===========================================================================

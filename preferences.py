@@ -29,6 +29,8 @@ class Preferences(object):
     PREFS_VERSION = 0
     defaultPrefsFile = 'ss_lab.cfg'
     
+    LEGEND_POSITIONS = ('Upper Left', 'Upper Right', 'Lower Left', 'Lower Right')
+    
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
         'defaultFilename': '', #'data.dat',
@@ -97,7 +99,7 @@ class Preferences(object):
                           "GOLD",
                           "BLACK",
                           "BLUE VIOLET"],
-
+        'legendPosition': 2,
 #         'locale': 'English_United States.1252', # Python's locale name string
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
         'loader': dict(numUpdates=100, updateInterval=1.0),
@@ -502,6 +504,8 @@ class PrefsDialog(SC.SizedDialog):
              "When the number of points on screen exceeds the number of pixels "
              "by this multiple, use the 'condensed' drawing mode. A multiple "
              "of the Oversampling Multiplier.")
+        _add(PG.EnumProperty("Legend Position (main view)", "legendPosition",
+                             Preferences.LEGEND_POSITIONS))
         
         _add(PG.PropertyCategory("Miscellaneous"))
         _add(PG.BoolProperty("Show Full Path in Title Bar", "showFullPath"),
