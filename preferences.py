@@ -437,6 +437,7 @@ class PrefsDialog(SC.SizedDialog):
         
         buttons = SC.SizedPanel(pane,-1)
         buttons.SetSizerType("horizontal")
+        self.defaultColorsBtn = wx.Button(buttons, -1, "Reset Plot Colors")
         self.defaultsBtn = wx.Button(buttons, -1, "Reset to Defaults")
         wx.Button(buttons, wx.ID_SAVE)
         wx.Button(buttons, wx.ID_CANCEL)
@@ -444,6 +445,7 @@ class PrefsDialog(SC.SizedDialog):
 
         self.buildGrid()
 
+        self.defaultColorsBtn.Bind(wx.EVT_BUTTON, self.OnDefaultColorsButton)
         self.defaultsBtn.Bind(wx.EVT_BUTTON, self.OnDefaultsButton)
         self.SetAffirmativeId(wx.ID_SAVE)
         self.SetEscapeId(wx.ID_CANCEL)
@@ -553,6 +555,12 @@ class PrefsDialog(SC.SizedDialog):
     #===========================================================================
     # 
     #===========================================================================
+
+    def OnDefaultColorsButton(self, evt):
+        """ Restore the default plotting colors.
+        """
+        self.prefs['plotColors'] = self.defaultPrefs.get('plotColors').copy()
+
 
     def OnDefaultsButton(self, evt):
         """ Restore the default settings. """

@@ -213,6 +213,8 @@ class MenuMixin(object):
                 default. Only applicable to `wx.ITEM_CHECK` items; radio buttons
                 need to be set separately.
         """
+        if id_ == -1:
+            id_ = wx.NewId()
         item = menu.Append(id_, text, helpString, kind)
         item.Enable(enabled)
         if kind == wx.ITEM_CHECK:
@@ -236,6 +238,8 @@ class MenuMixin(object):
             @param text: The submenu's text.
             @keyword enabled: The initial enabled state of the submenu.
         """
+        if id_ == -1:
+            id_ = wx.NewId()
         subM = wx.Menu()
         menu.AppendMenu(id_, text, subM)
         menu.Enable(id_, enabled)

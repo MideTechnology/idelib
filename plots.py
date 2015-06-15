@@ -11,8 +11,8 @@ import wx
 import images
 
 # Custom controls
-from base import ViewerPanel
-from common import expandRange, mapRange
+from base import ViewerPanel, MenuMixin
+from common import expandRange, mapRange, inRect
 from timeline import VerticalScaleCtrl
 
 from logger import logger
@@ -279,7 +279,7 @@ class PlotCanvas(wx.ScrolledWindow):
     RANGE_MAX_STYLE = ("maxRangeColor", "PINK", 1, wx.USER_DASH, [2,4])
     RANGE_MEAN_STYLE = ("meanRangeColor", "YELLOW", 1, wx.USER_DASH, [8,4,4,4])
     
-    
+
     def loadPrefs(self):
         """
         """
@@ -291,7 +291,7 @@ class PlotCanvas(wx.ScrolledWindow):
         self.drawPoints = app.getPref("drawPoints", True)
         self.pointSize = app.getPref('pointSize', 2)
         self.weight = app.getPref('plotLineWidth', 1)
-        self.setPlotPen()
+        self.setPlotPens()
 
         self.originHLinePen = self.loadPen(*self.GRID_ORIGIN_STYLE)
         self.majorHLinePen = self.loadPen(*self.GRID_MAJOR_STYLE)
@@ -302,6 +302,7 @@ class PlotCanvas(wx.ScrolledWindow):
         
         self.outOfRangeBrush = wx.Brush(wx.Colour(250,250,250))
 
+        self.legendRect = None
         self.setAntialias(self.antialias)
 
 
@@ -327,6 +328,7 @@ class PlotCanvas(wx.ScrolledWindow):
         self.pointList = {}
         self.minMeanMaxLineList = {}
         self.pens = {}
+        self.legendRect = self.legendItem = None
         
         self.antialias = False
         self.loadPrefs()
@@ -338,7 +340,6 @@ class PlotCanvas(wx.ScrolledWindow):
         self.zooming = False
         self.zoomCorners = None
         self.zoomCenter = None
-
         self.NO_PEN = wx.Pen("white", style=wx.TRANSPARENT)
         self.BLACK_PEN = wx.Pen("black", style=wx.SOLID)
         self.LEGEND_BRUSH = wx.Brush(wx.Colour(255,255,255,240), wx.SOLID)
@@ -348,8 +349,9 @@ class PlotCanvas(wx.ScrolledWindow):
         self.Bind(wx.EVT_LEFT_DOWN, self.OnMouseLeftDown)
         self.Bind(wx.EVT_LEFT_UP, self.OnMouseLeftUp)
         self.Bind(wx.EVT_RIGHT_DOWN, self.OnMouseRightDown)
+        self.Bind(wx.EVT_SIZE, self.OnResize)
 
-       
+
     def loadPen(self, name, defaultColor, width, style, dashes):
         """ Create a pen using a color in the preferences.
             @param name: The name of the parameter to read from the preferences.
@@ -365,9 +367,10 @@ class PlotCanvas(wx.ScrolledWindow):
         return p
 
 
-    def setPlotPen(self, color=None, weight=None, style=wx.SOLID, dashes=None):
-        """ Set the color, weight, and/or style of the plotting pens.
-            @keyword color: The color to use.
+    def setPlotPens(self, color=None, weight=None, style=wx.SOLID, dashes=None):
+        """ Set the color, weight, and/or style of the plotting pens. Uses the
+            plot color preferences.
+            @keyword color: The default color to use for unknown plots.
             @keyword width: The width of the pen's line.
             @keyword style: The pen's wxWidget line style.
         """
@@ -383,17 +386,20 @@ class PlotCanvas(wx.ScrolledWindow):
         self._pen = (wx.Pen(self.color, self.weight, self.style),
                      wx.Brush(self.color, wx.SOLID))
         self._pointPen = wx.Pen(wx.Colour(255,255,255,.5), 1, self.style)
+        self.legendRect = None
         
     
     def addSource(self, source):
         """
         """
-        self.setPlotPen()
+        self.legendRect = None
+        self.setPlotPens()
         
     
     def removeSource(self, source):
         """
         """
+        self.legendRect = None
         self.lineList.pop(source, None)
         self.pointList.pop(source, None)
         self.minMeanMaxLineList.pop(source, None)
@@ -741,7 +747,10 @@ class PlotCanvas(wx.ScrolledWindow):
             drawCondensed = False
         
         dc.SetPen(mainPen)
-        if lines is None:
+        if lines is not None:
+            # No change in displayed range; Use cached lines.
+            dc.DrawLineList(lines)
+        else:
             lines = []
             points = []
             self.lineList[source] = lines
@@ -791,10 +800,6 @@ class PlotCanvas(wx.ScrolledWindow):
             # Draw the remaining lines (if any)
             if not parent.firstPlot:
                 dc.DrawLineList(lineSubset) 
-
-        else:
-            # No change in displayed range; Use cached lines.
-            dc.DrawLineList(lines)
         
         if DEBUG and lines:
             dt = time.time() - t0
@@ -828,7 +833,6 @@ class PlotCanvas(wx.ScrolledWindow):
             Work in progress!
         """
         numSources = len(self.Parent.sources)
-#         if not self.root.showLegend or numSources < 2:
         if not self.root.showLegend:
             return
         
@@ -836,33 +840,36 @@ class PlotCanvas(wx.ScrolledWindow):
         padding = 8
         margin = 10
         
-        items = []
-        w = 60
-        
         # Legend is antialiased
         dc = wx.GCDC(wx.ClientDC(self))
-        size = dc.GetSize()
-        for i,s in enumerate(self.Parent.sources):
-            n = s.parent.displayName
-            nt = dc.GetTextExtent(n)
-            w = max(nt[0], w)
-            items.append((i, n, self.pens[s][1]))
-        swatchSize = nt[1]
-        w += swatchSize + (padding * 3) # padding
-        h = (swatchSize * numSources) + (padding * 2) + (4 * (numSources-1))
-
-        x,y = margin,margin
-        lpos = self.root.legendPos
-        if lpos == 1:
-            # Upper Right
-            x = size[0] - w - margin
-        elif lpos == 2:
-            # Lower Left
-            y = size[1] - h - margin
-        elif lpos == 3:
-            # Lower Right
-            x = size[0] - w - margin
-            y = size[1] - h - margin        
+        if self.legendRect is None:
+            w = 60
+            items = []
+            size = dc.GetSize()
+            for i,s in enumerate(reversed(self.Parent.sources)):
+                n = s.parent.displayName
+                nt = dc.GetTextExtent(n)
+                w = max(nt[0], w)
+                items.append((i, n, self.pens[s][1]))
+            swatchSize = nt[1]
+            w += swatchSize + (padding * 3) # padding
+            h = (swatchSize * numSources) + (padding * 2) + (4 * (numSources-1))
+    
+            x,y = margin,margin
+            lpos = self.root.legendPos
+            if lpos == 1:
+                # Upper Right
+                x = size[0] - w - margin
+            elif lpos == 2:
+                # Lower Left
+                y = size[1] - h - margin
+            elif lpos == 3:
+                # Lower Right
+                x = size[0] - w - margin
+                y = size[1] - h - margin
+            self.legendRect = x, y, w, h, swatchSize, items
+        else:
+            x, y, w, h, swatchSize, items = self.legendRect
 
         dc.BeginDrawing()
         dc.SetPen(self.BLACK_PEN)
@@ -871,7 +878,7 @@ class PlotCanvas(wx.ScrolledWindow):
         swatchPos = x + padding
         textPos = swatchPos + padding + swatchSize
         for i,n,b in items:
-            vpos = y+(i*(nt[1]+4))+padding
+            vpos = y+(i*(swatchSize+4))+padding
             dc.SetBrush(b)
             dc.DrawText(n, textPos, vpos)
             dc.DrawRectangle(swatchPos, vpos, swatchSize, swatchSize)
@@ -894,7 +901,7 @@ class PlotCanvas(wx.ScrolledWindow):
         dc = wx.ClientDC( self )
         dc.BeginDrawing()
         dc.SetPen(wx.Pen(wx.BLACK))
-        dc.SetBrush(wx.Brush( wx.WHITE, wx.TRANSPARENT ) )
+        dc.SetBrush(wx.Brush( wx.WHITE, wx.TRANSPARENT ))
         dc.SetLogicalFunction(wx.INVERT)
         dc.DrawRectangle( ptx,pty, rectWidth,rectHeight)
         dc.SetLogicalFunction(wx.COPY)
@@ -926,6 +933,7 @@ class PlotCanvas(wx.ScrolledWindow):
         self.maxRangePen.SetWidth(self.RANGE_MIN_STYLE[2]*rangeScale)
         self.meanRangePen.SetWidth(self.RANGE_MEAN_STYLE[2]*rangeScale)
         self._pointPen.SetWidth(rangeScale)
+        self.legendRect = None
 
 
     #===========================================================================
@@ -975,6 +983,16 @@ class PlotCanvas(wx.ScrolledWindow):
             self._drawRubberBand(*self.zoomCorners)
             self.zooming = False
             evt.Skip(False)
+            return
+        
+        evtX = evt.GetX()
+        evtY = evt.GetY()
+        
+        if self.root.showLegend and inRect(evtX, evtY, self.legendRect):
+            idx = max(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
+            idx = min(len(self.Parent.sources)-1, idx)
+            self.legendItem = self.Parent.sources[idx]
+            self.Parent.showLegendPopup(self.legendItem)
         else:
             if wx.GetKeyState(wx.WXK_ALT):
                 # Zoom to fit both axes
@@ -982,12 +1000,13 @@ class PlotCanvas(wx.ScrolledWindow):
                 return
             # Zoom out on both axes
             percent = 1.25
-            x = self.root.timeline.getValueAt(evt.GetX())
-            y = self.Parent.legend.getValueAt(evt.GetY())
+            x = self.root.timeline.getValueAt(evtX)
+            y = self.Parent.legend.getValueAt(evtY)
             t1, t2 = self.root.getVisibleRange()
             dx = (t1 - t2) * percent
             v1, v2 = self.Parent.getValueRange()
             dy = (v1 - v2) * percent
+#             self.legendRect = None
             self.root.setVisibleRange(*sorted((x-dx, x+dx)), tracking=False)
             self.Parent.setValueRange(*sorted((y-dy, y+dy)), tracking=True)
 
@@ -1012,30 +1031,30 @@ class PlotCanvas(wx.ScrolledWindow):
         self.zoomCorners = None
 
 
-    def OnMenuColor(self, evt):
-        data = wx.ColourData()
-        data.SetChooseFull(True)
-        data.SetColour(self.color)
-        dlg = wx.ColourDialog(self, data)
-        if self.Parent.Name:
-            dlg.SetTitle("%s Color" % self.Parent.Name)
-        else:
-            dlg.SetTitle("Plot Color")
-
-        if dlg.ShowModal() == wx.ID_OK:
-            color = dlg.GetColourData().GetColour().Get()
-            self.setPlotPen(color=color)
-            self.Refresh()
-
+    def OnResize(self, evt):
+        self.legendRect = None
+        self.Refresh()
+#         evt.Skip()
 
 #===============================================================================
 # 
 #===============================================================================
 
-class Plot(ViewerPanel):
+class Plot(ViewerPanel, MenuMixin):
     """ A single plotted channel, consisting of the vertical scale and actual
         plot-drawing canvas.
     """
+    ID_MENU_SETCOLOR = wx.NewId()
+    ID_MENU_SETPOS_UL = wx.NewId()
+    ID_MENU_SETPOS_UR = wx.NewId()
+    ID_MENU_SETPOS_LR = wx.NewId()
+    ID_MENU_SETPOS_LL = wx.NewId()
+    ID_MENU_MOVE_TOP = wx.NewId()
+    ID_MENU_MOVE_BOTTOM = wx.NewId()
+    ID_MENU_REMOVE = wx.NewId()
+    LEGEND_POS_IDS = [ID_MENU_SETPOS_UL, ID_MENU_SETPOS_UR,
+                      ID_MENU_SETPOS_LL, ID_MENU_SETPOS_LR]
+        
     _sbMax = 10000.0 #(2**32)/2-1 + 0.0
     _minThumbSize = 100
     
@@ -1110,8 +1129,48 @@ class Plot(ViewerPanel):
         self._bindScrollEvents(self.scrollbar, self.OnScroll, 
                               self.OnScrollTrack, self.OnScrollEnd)
         
+        self.buildLegendMenu()
         self.enableMenus()
 #         self.setTabText()
+
+    def buildLegendMenu(self):
+        self.legendMenu = wx.Menu()
+        self.addMenuItem(self.legendMenu, self.ID_MENU_SETCOLOR, 
+                         "Set Color...", "", self.OnMenuSetColor)
+        self.addMenuItem(self.legendMenu, self.ID_MENU_MOVE_TOP, 
+                         "Move Plot to Top", "", self.OnMenuMoveTop)
+        self.addMenuItem(self.legendMenu, self.ID_MENU_MOVE_BOTTOM, 
+                         "Move Plot to Bottom", "", self.OnMenuMoveTop)
+        self.addMenuItem(self.legendMenu, self.ID_MENU_REMOVE,
+                         "Remove Source", "", self.OnMenuRemoveSource)
+        self.legendMenu.AppendSeparator()
+        posMenu = self.addSubMenu(self.legendMenu, -1, "Legend Position")
+        self.addMenuItem(posMenu, self.ID_MENU_SETPOS_UL, "Upper Left", "",
+                         self.OnMenuLegendPos)
+        self.addMenuItem(posMenu, self.ID_MENU_SETPOS_UR, "Upper Right", "",
+                         self.OnMenuLegendPos)
+        self.addMenuItem(posMenu, self.ID_MENU_SETPOS_LL, "Lower Left", "",
+                         self.OnMenuLegendPos)
+        self.addMenuItem(posMenu, self.ID_MENU_SETPOS_LR, "Lower Right", "",
+                         self.OnMenuLegendPos)
+       
+
+    def showLegendPopup(self, item):
+        name = item.parent.displayName
+        idx = self.sources.index(item)
+        topEn = idx > 0
+        botEn = idx < len(self.sources)-1
+        removeEn = len(self.sources) > 0
+        self.setMenuItem(self.legendMenu, self.ID_MENU_SETCOLOR,
+                         label="Set Color of '%s'..." % name)
+        self.setMenuItem(self.legendMenu, self.ID_MENU_MOVE_TOP, enabled=topEn,
+                         label="Move '%s' to Top" % name)
+        self.setMenuItem(self.legendMenu, self.ID_MENU_MOVE_BOTTOM, enabled=botEn,
+                         label="Move '%s' to Bottom" % name)
+        self.setMenuItem(self.legendMenu, self.ID_MENU_REMOVE, enabled=removeEn,
+                         label="Remove '%s' from Plot" % name)
+        self.PopupMenu(self.legendMenu)
+       
 
     #===========================================================================
     # Source properties. 
@@ -1368,11 +1427,6 @@ class Plot(ViewerPanel):
                            tracking)
 
 
-    def setPlotColor(self, evt=None):
-        # TODO: Remove or revise for multiple sources
-        self.plot.OnMenuColor(evt)
-
-
     def redraw(self):
         """ Force the plot to redraw.
         """
@@ -1507,6 +1561,62 @@ class Plot(ViewerPanel):
         self.setValueRange(self.scrollbar2val(start), self.scrollbar2val(end), 
                            None, tracking=False)
         self.scrolling = False
+
+
+    def OnMenuSetColor(self, evt):
+        """ Handle plot legend context menu selection event.
+        """
+        item = self.plot.legendItem
+        data = wx.ColourData()
+        data.SetChooseFull(True)
+        data.SetColour(self.root.getPlotColor(item))
+        dlg = wx.ColourDialog(self, data)
+        dlg.SetTitle("%s Color" % item.parent.displayName)
+        if dlg.ShowModal() == wx.ID_OK:
+            color = dlg.GetColourData().GetColour().Get()
+            self.root.setPlotColor(item, color)
+            self.plot.setPlotPens()
+            self.Refresh()
+
+    
+    def OnMenuMoveTop(self, evt):
+        """ Handle plot legend context menu selection event.
+        """
+        item = self.plot.legendItem
+        if item in self.sources:
+            self.sources.remove(item)
+            self.sources.insert(0, item)
+            self.plot.legendRect=None
+            self.Refresh()
+    
+    def OnMenuMoveBottom(self, evt):
+        """ Handle plot legend context menu selection event.
+        """
+        item = self.plot.legendItem
+        if item in self.sources:
+            self.sources.remove(item)
+            self.sources.insert(0, item)
+            self.plot.legendRect=None
+            self.Refresh()
+    
+    def OnMenuLegendPos(self, evt):
+        """ Handle plot legend context menu selection event.
+        """
+        mid = evt.GetId()
+        try:
+            posId = self.LEGEND_POS_IDS.index(mid)
+            self.root.legendPos = self.root.app.setPref('legendPosition', posId)
+            self.plot.legendRect = None
+            self.Refresh()
+        except ValueError:
+            pass
+            
+    def OnMenuRemoveSource(self, evt):
+        """ Handle plot legend context menu selection event.
+        """
+        self.removeSource(self.plot.legendItem)
+        self.legendRect = None
+        self.Refresh()
 
 
 #===============================================================================

@@ -837,8 +837,6 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y, 
                         "Zoom to Fit All\tAlt+Ctrl+0", '', self.OnZoomFitAll)
         viewMenu.AppendSeparator()
-        self.addMenuItem(viewMenu, wx.ID_SELECT_COLOR, "Set Plot Color...", "",
-                         self.OnSetPlotColor)
         self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS, 
                          "Antialiased Drawing", "", 
                          self.OnToggleAA, kind=wx.ITEM_CHECK)
@@ -1734,7 +1732,17 @@ class Viewer(wx.Frame, MenuMixin):
             self._nextColor += 1
         
         return color
-            
+    
+    
+    def setPlotColor(self, source, color):
+        if isinstance(source, mide_ebml.dataset.EventList):
+            source = source.parent
+        sourceId = "%02x.%d" % (source.parent.id, source.id)
+        colors = self.root.app.getPref('plotColors')
+        colors[sourceId] = color
+        self.root.app.setPref('plotColors', colors)
+        
+    
     #===========================================================================
     # 
     #===========================================================================

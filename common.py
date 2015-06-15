@@ -164,7 +164,20 @@ def wordJoin(words, conj="and"):
     if len(words) > 2:
         result = "%s, %s" % (', '.join(words[:-2]), result)
     return result
-    
+
+#===============================================================================
+# 
+#===============================================================================
+
+def inRect(x, y, rect):
+    if rect is None:
+        return False
+    if x < rect[0] or y < rect[1]:
+        return False
+    if x > rect[0]+rect[2] or y > rect[1]+rect[3]:
+        return False
+    return True
+
 #===============================================================================
 # Field validators
 #===============================================================================
