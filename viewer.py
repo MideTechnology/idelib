@@ -630,6 +630,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_VIEW_LINES_MAJOR = wx.NewId()
     ID_VIEW_LINES_MINOR = wx.NewId()
     ID_VIEW_LEGEND = wx.NewId()
+    ID_VIEW_HOLLOW = wx.NewId()
     ID_DATA_MEAN_SUBMENU = wx.NewId()
     ID_DATA_NOMEAN = wx.NewId()
     ID_DATA_MEAN = wx.NewId()
@@ -727,6 +728,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.showLegend = self.app.getPref('showLegend', True)
         self.legendPos = self.app.getPref('legendPosition', 1)
         
+        self.drawHollowPlot = self.app.getPref('drawHollowPlot', False)
+        
         self.showDebugChannels = self.app.getPref('showDebugChannels', True)
         
         if self.plotarea is not None:
@@ -816,6 +819,8 @@ class Viewer(wx.Frame, MenuMixin):
                                               "Display Channels")
         self.addMenuItem(viewMenu, self.ID_VIEW_LEGEND, "Show Legend\tCtrl+L", "",
                          self.OnLegendToggle, kind=wx.ITEM_CHECK)
+        self.addMenuItem(viewMenu, self.ID_VIEW_HOLLOW, "'Hollow' Envelope Drawing", "",
+                         self.OnHollowToggle, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
 
         self.addMenuItem(viewMenu, self.ID_EDIT_RANGES, 
@@ -977,6 +982,9 @@ class Viewer(wx.Frame, MenuMixin):
         self.enableChildren(False)
 
         self.buildMenus()
+        
+        self.setMenuItem(self.menubar, self.ID_VIEW_LEGEND, checked=self.showLegend)
+        self.setMenuItem(self.menubar, self.ID_VIEW_HOLLOW, checked=self.drawHollowPlot)
 
 
     def enableMenus(self, enabled=True):
@@ -1751,6 +1759,9 @@ class Viewer(wx.Frame, MenuMixin):
             color = defaults[self._nextColor % len(defaults)]
             self._nextColor += 1
         
+        if isinstance(color, basestring):
+            color = self.app.colorDb.Find(color)
+
         return color
     
     
@@ -2176,7 +2187,10 @@ class Viewer(wx.Frame, MenuMixin):
         """
         self.showLegend = evt.IsChecked()
         self.plotarea.redraw()
-        
+    
+    def OnHollowToggle(self, evt):
+        self.drawHollowPlot = evt.IsChecked()
+        self.plotarea.redraw()
 
     def OnConversionConfig(self, evt):
         """ Handle selection of the unit converter configuration menu item.
@@ -2351,6 +2365,46 @@ class Viewer(wx.Frame, MenuMixin):
         while len(self.cancelQueue) > 0:
             result = result and self.cancelOperation(evt, prompt=prompt) is not False
         return result
+
+
+    def pauseOperation(self, evt=None, job=None):
+        """ Temporarily suspend the current background operation. 
+            
+            @keyword evt: The event that initiated the pause, if any.
+            @keyword job: A specific `Job` to pause. Defaults to the last
+                job started.
+            @return: `False` if the operation could not be paused,
+                or a message string to display upon cancellation.
+                Anything but `False` is considered a successful pause.
+        """
+        if len(self.cancelQueue) == 0:
+            return False
+        
+        if job is None:
+            job = self.getCurrentOperation()
+
+        logger.info("Paused operation %r" % job)
+        return job.pause(True)
+
+
+    def resumeOperation(self, evt=None, job=None):
+        """ Temporarily suspend the current background operation. 
+            
+            @keyword evt: The event that initiated the pause, if any.
+            @keyword job: A specific `Job` to pause. Defaults to the last
+                job started.
+            @return: `False` if the operation could not be paused,
+                or a message string to display upon cancellation.
+                Anything but `False` is considered a successful pause.
+        """
+        if len(self.cancelQueue) == 0:
+            return False
+        
+        if job is None:
+            job = self.getCurrentOperation()
+
+        logger.info("Resumed operation %r" % job)
+        return job.pause(False)
 
     #===========================================================================
     # 
@@ -2603,6 +2657,7 @@ class ViewerApp(wx.App):
         self.viewers = []
         self.changedFiles = True
         self.stdPaths = wx.StandardPaths.Get()
+        self.colorDb = wx.ColourDatabase()
         
         self.prefs = Preferences(self.prefsFile, clean=clean)
 

@@ -5,7 +5,7 @@ Widgets for the main view plots.
     (use context menu functionality which should allow control-clicking on Mac)
 """
 
-# import colorsys
+import colorsys
 # from itertools import izip
 # import math
 import sys
@@ -298,7 +298,6 @@ class PlotCanvas(wx.ScrolledWindow):
         self.drawPoints = app.getPref("drawPoints", True)
         self.pointSize = app.getPref('pointSize', 2)
         self.weight = app.getPref('plotLineWidth', 1)
-        self.setPlotPens()
 
         self.originHLinePen = self.loadPen(*self.GRID_ORIGIN_STYLE)
         self.majorHLinePen = self.loadPen(*self.GRID_MAJOR_STYLE)
@@ -309,7 +308,7 @@ class PlotCanvas(wx.ScrolledWindow):
         
         self.outOfRangeBrush = wx.Brush(wx.Colour(250,250,250))
 
-        self.legendRect = None
+        self.setPlotPens()
         self.setAntialias(self.antialias)
 
 
@@ -374,6 +373,16 @@ class PlotCanvas(wx.ScrolledWindow):
         return p
 
 
+    def lightenColor(self, color):
+        """ Helper method to create lightened, desaturated version of a color.
+        """
+        r,g,b = color.Get()[:3]
+        h,s,v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
+        s *= .125
+        v *= .99
+        return wx.Colour(*map(lambda x: int(x*255), colorsys.hsv_to_rgb(h,s,v)))
+            
+
     def setPlotPens(self, color=None, weight=None, style=wx.SOLID, dashes=None):
         """ Set the color, weight, and/or style of the plotting pens. Uses the
             plot color preferences.
@@ -387,24 +396,34 @@ class PlotCanvas(wx.ScrolledWindow):
         
         for s in self.Parent.sources:
             color = self.root.getPlotColor(s)
+            mmcolor = self.lightenColor(color)
+            minPen = wx.Pen(mmcolor, self.RANGE_MIN_STYLE[2], wx.USER_DASH)
+            minPen.SetDashes(self.RANGE_MIN_STYLE[-1])
+            maxPen = wx.Pen(mmcolor, self.RANGE_MAX_STYLE[2], wx.USER_DASH)
+            maxPen.SetDashes(self.RANGE_MAX_STYLE[-1])
             self.pens[s] = (wx.Pen(color, self.weight, self.style),
-                            wx.Brush(color, wx.SOLID))
+                            wx.Brush(color, wx.SOLID),
+                            minPen, 
+                            maxPen)
             
         self._pen = (wx.Pen(self.color, self.weight, self.style),
-                     wx.Brush(self.color, wx.SOLID))
+                     wx.Brush(self.color, wx.SOLID),
+                     self.minRangePen,
+                     self.maxRangePen)
+        
         self._pointPen = wx.Pen(wx.Colour(255,255,255,.5), 1, self.style)
         self.legendRect = None
         
     
     def addSource(self, source):
-        """
+        """ Add a data source (subchannel) to the plot.
         """
         self.legendRect = None
         self.setPlotPens()
         
     
     def removeSource(self, source):
-        """
+        """ Remove a data source (subchannel) from the plot.
         """
         self.legendRect = None
         self.lineList.pop(source, None)
@@ -588,6 +607,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetUserScale(self.userScale, self.userScale)
         
         dc.BeginDrawing()
+        self.root.pauseOperation()
         
         parent = self.Parent
         legend = parent.legend
@@ -702,9 +722,10 @@ class PlotCanvas(wx.ScrolledWindow):
                                          hScale, vScale, tenth)
             
         dc.EndDrawing()
+        self.root.resumeOperation()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         
-        if DEBUG and linesDrawn > 0 and len(parent.sources) > 1:
+        if DEBUG and linesDrawn > 0:# and len(parent.sources) > 1:
             dt = time.time() - t0
             logger.info("Plotted %d lines for %d sources in %.4fs" % 
                         (linesDrawn, len(parent.sources), dt))
@@ -721,9 +742,14 @@ class PlotCanvas(wx.ScrolledWindow):
         points = self.pointList.get(source, [])
         
         # TODO: Use source-specific min/max pens
-        mainPen, pointBrush = self.pens.get(source, self._pen)
-        minRangePen = self.minRangePen
-        maxRangePen = self.maxRangePen
+#         mainPen, pointBrush = self.pens.get(source, self._pen)
+#         minRangePen = self.minRangePen
+#         maxRangePen = self.maxRangePen
+        
+        mainPen, pointBrush, minRangePen, maxRangePen = self.pens.get(source, self._pen)
+        if len(self.pens) == 1:
+            minRangePen = self.minRangePen
+            maxRangePen = self.maxRangePen
         
         if source.hasMinMeanMax:
             minMeanMaxLines = self.minMeanMaxLineList.get(source, None)
@@ -733,17 +759,20 @@ class PlotCanvas(wx.ScrolledWindow):
             drawCondensed = len(minMeanMaxLines[0]) >= size[0] * self.condensedThreshold
             if drawCondensed:
                 if lines is None:
-                # More buffers than (virtual) pixels; draw vertical lines
-                # from min to max instead of the literal plot.
-                    lines = []
-                    self.lineList[source] = lines
-                    lastPt = minMeanMaxLines[2][0][:2]
-                    for i in range(0,len(minMeanMaxLines[0]),2):
-                        a = minMeanMaxLines[0][i]
-                        b = minMeanMaxLines[2][i]
-                        lines.append((lastPt[0],lastPt[1],a[0],a[1]))
-                        lines.append((a[0],a[1],b[0],b[1]))
-                        lastPt = b[:2]
+                    # More buffers than (virtual) pixels; draw vertical lines
+                    # from min to max instead of the literal plot.
+                    if self.root.drawHollowPlot:
+                        lines = minMeanMaxLines[0] + minMeanMaxLines[2]
+                    else:
+                        lines = []
+                        self.lineList[source] = lines
+                        lastPt = minMeanMaxLines[2][0][:2]
+                        for i in range(0,len(minMeanMaxLines[0]),2):
+                            a = minMeanMaxLines[0][i]
+                            b = minMeanMaxLines[2][i]
+                            lines.append((lastPt[0],lastPt[1],a[0],a[1]))
+                            lines.append((a[0],a[1],b[0],b[1]))
+                            lastPt = b[:2]
             else:
                 if self.root.drawMinMax:
                     dc.DrawLineList(minMeanMaxLines[0], minRangePen)
@@ -777,7 +806,7 @@ class PlotCanvas(wx.ScrolledWindow):
                     expandRange(parent.visibleValueRange, event[-1])
                 lastPt = ((event[-2] - hRange[0]) * hScale, 
                           constrainInt((event[-1] - vRange[0]) * vScale))
-                
+                points.append(lastPt)
                 for i, event in enumerate(events,1):
                     # Using negative indices here in case doc.useIndices is True
                     pt = ((event[-2] - hRange[0]) * hScale, 
@@ -816,7 +845,7 @@ class PlotCanvas(wx.ScrolledWindow):
             else:
                 logger.info("Plotted %d lines in %.4fs for %r" % 
                             (len(lines), dt, source.parent.displayName))
-        
+                
         if parent.firstPlot:
             # First time the plot was drawn. Don't draw; scale to fit.
             parent.zoomToFit(self)
@@ -865,16 +894,11 @@ class PlotCanvas(wx.ScrolledWindow):
     
             x,y = margin,margin
             lpos = self.root.legendPos
-            if lpos == 1:
-                # Upper Right
-                x = size[0] - w - margin
-            elif lpos == 2:
-                # Lower Left
-                y = size[1] - h - margin
-            elif lpos == 3:
-                # Lower Right
-                x = size[0] - w - margin
-                y = size[1] - h - margin
+            if lpos & 1:
+                x = size[0] - w - margin # Right side
+            if lpos & 2:
+                y = size[1] - h - margin # Bottom
+                
             self.legendRect = x, y, w, h, swatchSize, items
         else:
             x, y, w, h, swatchSize, items = self.legendRect

@@ -21,6 +21,7 @@ from datetime import datetime
 import os.path
 import sys
 from time import time as time_time
+from time import sleep
 
 import struct
 
@@ -212,6 +213,7 @@ def nullUpdater(*args, **kwargs):
     if kwargs.get('error',None) is not None:
         raise kwargs['error']
 nullUpdater.cancelled = False
+nullUpdater.paused = False
 
 
 class SimpleUpdater(object):
@@ -224,6 +226,7 @@ class SimpleUpdater(object):
                 testing purposes.
         """
         self.cancelled = False
+        self.paused = False
         self.startTime = None
         self.cancelAt = cancelAt
         self.estSum = None
@@ -418,6 +421,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     nextUpdatePos = bytesRead + ticSize
     
     timeOffset = 0
+    maxPause = getattr(updater, "maxPause", None)
     
     # Actual importing ---------------------------------------------------------
     if source is None:
@@ -429,6 +433,14 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             doc.loadCancelled = getattr(updater, "cancelled", False)
             if doc.loadCancelled:
                 break
+            
+            if updater.paused:
+                # Pause or throttle import.
+                pauseTime = time_time()
+                while updater.paused:
+                    sleep(0.125)
+                    if maxPause and time_time() - pauseTime > maxPause:
+                        break
             
             if r.name not in elementParsers:
                 # Unknown block type, but probably okay.

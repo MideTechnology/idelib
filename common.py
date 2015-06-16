@@ -473,7 +473,9 @@ class Job(Thread):
         self.numUpdates = numUpdates
         self.updateInterval = updateInterval
         self.cancelled = False
-        self.startTime = self.lastTime = None
+        self.paused = False
+        self.startTime = self.lastTime = self.pauseTime = None
+        self.totalPauseTime = None
 
         super(Job, self).__init__()
 
@@ -492,3 +494,15 @@ class Job(Thread):
                 pass
         return self.cancelled
 
+
+    def pause(self, pause=True):
+        self.paused = pause
+        if pause:
+            self.pauseTime = datetime.now()
+        else:
+            pt = datetime.now() - self.pauseTime
+            if self.totalPauseTime is None:
+                self.totalPauseTime = pt
+            else:
+                self.totalPauseTime += pt
+        return True

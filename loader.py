@@ -31,7 +31,8 @@ class Loader(Job):
     cancelTitle = "Cancel Import"
     cancelPromptPref = "cancelImportPrompt"
     
-    def __init__(self, root, dataset, reader, numUpdates=100, updateInterval=1.0):
+    def __init__(self, root, dataset, reader, numUpdates=100, 
+                 updateInterval=1.0, maxPause=1.5):
         """ Create the Loader and start the loading process.
             
             @param root: The Viewer.
@@ -46,6 +47,7 @@ class Loader(Job):
         self.readingData = False
         self.lastCount = 0
         self.reader = reader
+        self.maxPause = .5
 
         super(Loader, self).__init__(root, dataset, numUpdates, updateInterval)
 
@@ -138,6 +140,9 @@ class Loader(Job):
         elif percent is not None:
             p = int(percent * 100)
             if p > 0 and p < 100:
+                if self.totalPauseTime:
+                    # Remove time spent paused from the estimate
+                    thisTime -= self.totalPauseTime
                 est = ((thisTime - self.startTime) / p) * (100-p)
         
         msg = self.formatMessage(count, est)

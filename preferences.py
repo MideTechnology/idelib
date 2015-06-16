@@ -31,7 +31,7 @@ class Preferences(object):
     defaultPrefsFile = 'ss_lab.cfg'
     
     LEGEND_POSITIONS = ('Upper Left', 'Upper Right', 'Lower Left', 'Lower Right')
-    INITIAL_DISPLAY = ('One Channel per Tab', 'One Tab per Sensor', 'One Channel per Type')
+    INITIAL_DISPLAY = ('One Channel Per Tab', 'One Tab per Sensor', 'One Tab per Type')
     
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
