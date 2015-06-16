@@ -57,6 +57,14 @@ def nextPow2(x):
 # Formatting and parsing helpers
 #===============================================================================
 
+def multiReplace(s, *replacements):
+    """
+    """
+    for old, new in replacements:
+        s = s.replace(old, new)
+    return s
+
+
 def sanitizeFilename(f, ascii=True):
     """ A blunt instrument for coercing filenames into validity.
     """

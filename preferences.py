@@ -15,6 +15,7 @@ import wx; wx=wx
 import wx.propgrid as PG
 import wx.lib.sized_controls as SC
 
+from common import multiReplace
 from updater import INTERVALS
 from build_info import VERSION, DEBUG
 from logger import logger
@@ -30,6 +31,7 @@ class Preferences(object):
     defaultPrefsFile = 'ss_lab.cfg'
     
     LEGEND_POSITIONS = ('Upper Left', 'Upper Right', 'Lower Left', 'Lower Right')
+    INITIAL_DISPLAY = ('One Channel per Tab', 'One Tab per Sensor', 'One Channel per Type')
     
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
@@ -47,6 +49,7 @@ class Preferences(object):
         'rollingMeanSpan': 5.0, # In seconds
         
         # Rendering
+        'initialDisplayMode': 0,
         'antialiasing': False,
         'antialiasingMultiplier': 3.33,
         'resamplingJitter': False,
@@ -391,12 +394,10 @@ class PrefsDialog(SC.SizedDialog):
     """
 
     LANGUAGES = [s for s in dir(wx) if s.startswith("LANGUAGE")]
-    LANG_LABELS = [s[9:].title(
-       ).replace("_"," "
-                 ).replace(" Us", " US"
-                           ).replace(" Uk", " UK"
-                                     ).replace(" Uae", " UAE"
-                                               ) for s in LANGUAGES]
+    LANG_LABELS = [multiReplace(s[9:].title(), 
+                                ('_',' '), (' Us',' US'), (' Uk',' UK'),
+                                (' Uae',' UAE'), ('UKrain', 'Ukrain'))
+                   for s in LANGUAGES]
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Standard dialog arguments plus:
@@ -450,7 +451,7 @@ class PrefsDialog(SC.SizedDialog):
         self.SetAffirmativeId(wx.ID_SAVE)
         self.SetEscapeId(wx.ID_CANCEL)
         
-        self.SetSize((500,586))
+        self.SetSize((500,686))
         self.SetMinSize((300,200))
         self.SetMaxSize((1000,1000))
 
@@ -486,6 +487,8 @@ class PrefsDialog(SC.SizedDialog):
         
         
         _add(PG.PropertyCategory("Drawing"))
+        _add(PG.EnumProperty("Initial Display Layout", "initialDisplayMode",
+                             Preferences.INITIAL_DISPLAY))
         _add(PG.IntProperty("Plot Line Width", "plotLineWidth"),
              "The base width of the plot lines. This width will scale with "
              "the antialiasing settings.")

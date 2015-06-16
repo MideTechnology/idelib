@@ -1,3 +1,10 @@
+"""
+Widgets for the main view plots.
+
+@todo: Right-click of legend may need to be refactored for cross-platform use
+    (use context menu functionality which should allow control-clicking on Mac)
+"""
+
 # import colorsys
 # from itertools import izip
 # import math
@@ -846,6 +853,7 @@ class PlotCanvas(wx.ScrolledWindow):
             w = 60
             items = []
             size = dc.GetSize()
+
             for i,s in enumerate(reversed(self.Parent.sources)):
                 n = s.parent.displayName
                 nt = dc.GetTextExtent(n)
@@ -989,9 +997,10 @@ class PlotCanvas(wx.ScrolledWindow):
         evtY = evt.GetY()
         
         if self.root.showLegend and inRect(evtX, evtY, self.legendRect):
+            # Right-click on the legend
             idx = max(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
             idx = min(len(self.Parent.sources)-1, idx)
-            self.legendItem = self.Parent.sources[idx]
+            self.legendItem = self.Parent.sources[-1-idx]
             self.Parent.showLegendPopup(self.legendItem)
         else:
             if wx.GetKeyState(wx.WXK_ALT):
@@ -1133,6 +1142,7 @@ class Plot(ViewerPanel, MenuMixin):
         self.enableMenus()
 #         self.setTabText()
 
+
     def buildLegendMenu(self):
         self.legendMenu = wx.Menu()
         self.addMenuItem(self.legendMenu, self.ID_MENU_SETCOLOR, 
@@ -1140,7 +1150,7 @@ class Plot(ViewerPanel, MenuMixin):
         self.addMenuItem(self.legendMenu, self.ID_MENU_MOVE_TOP, 
                          "Move Plot to Top", "", self.OnMenuMoveTop)
         self.addMenuItem(self.legendMenu, self.ID_MENU_MOVE_BOTTOM, 
-                         "Move Plot to Bottom", "", self.OnMenuMoveTop)
+                         "Move Plot to Bottom", "", self.OnMenuMoveBottom)
         self.addMenuItem(self.legendMenu, self.ID_MENU_REMOVE,
                          "Remove Source", "", self.OnMenuRemoveSource)
         self.legendMenu.AppendSeparator()
@@ -1158,8 +1168,8 @@ class Plot(ViewerPanel, MenuMixin):
     def showLegendPopup(self, item):
         name = item.parent.displayName
         idx = self.sources.index(item)
-        topEn = idx > 0
-        botEn = idx < len(self.sources)-1
+        topEn = idx < len(self.sources)-1
+        botEn = idx > 0
         removeEn = len(self.sources) > 0
         self.setMenuItem(self.legendMenu, self.ID_MENU_SETCOLOR,
                          label="Set Color of '%s'..." % name)
@@ -1503,13 +1513,16 @@ class Plot(ViewerPanel, MenuMixin):
         rt.updateSourceMenu()             
             
 
-    def addSource(self, source):
+    def addSource(self, source, first=False):
         """ Add a data source (i.e. `Subchannel` or `Plot`) to the plot.
         """
         if not source or source in self.sources:
             return
         
-        self.sources.append(source)
+        if first:
+            self.sources.insert(0, source)
+        else:
+            self.sources.append(source)
         source.setTransform(self.plotTransform)
         source.updateTransforms()
         self.plot.addSource(source)
@@ -1585,7 +1598,7 @@ class Plot(ViewerPanel, MenuMixin):
         item = self.plot.legendItem
         if item in self.sources:
             self.sources.remove(item)
-            self.sources.insert(0, item)
+            self.sources.append(item)
             self.plot.legendRect=None
             self.Refresh()
     

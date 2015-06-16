@@ -1193,14 +1193,34 @@ class Viewer(wx.Frame, MenuMixin):
         elif removeMean:
             meanSpan = -1
         
-        self.dataSources = {} 
-        for d in self.dataset.getPlots(debug=self.showDebugChannels):
-            el = d.getSession(self.session.sessionId)
-            self.dataSources[wx.NewId()] = el
-            
-            p = self.plotarea.addPlot(el, title=d.displayName)
-            if p is not None and meanSpan is not None:
-                p.removeMean(True, meanSpan)
+        self.dataSources = {}
+        displaymode = self.app.getPref('initialDisplayMode', 1)
+        if displaymode == 0:
+            # Old style: one tab per subchannel
+            for d in self.dataset.getPlots(debug=self.showDebugChannels):
+                el = d.getSession(self.session.sessionId)
+                self.dataSources[wx.NewId()] = el
+                
+                p = self.plotarea.addPlot(el, title=d.displayName)
+                if p is not None and meanSpan is not None:
+                    p.removeMean(True, meanSpan)
+        else:
+            # Create tabs with multiple channels
+            units = None
+            for ch in self.dataset.channels.values():
+                if displaymode == 1:
+                    # If one sensor per tab, reset units each time
+                    units = None
+                for subc in ch.subchannels:
+                    el = subc.getSession(self.session.sessionId)
+                    self.dataSources[wx.NewId()] = el
+                    if subc.units != units:
+                        p = self.plotarea.addPlot(el, subc.displayName)
+                        units = subc.units
+                    else:
+                        p.addSource(el, True)
+                if p is not None and meanSpan is not None:
+                    p.removeMean(True, meanSpan)
         
         self.enableChildren(True)
         self.buildAddChannelMenu()
