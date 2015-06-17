@@ -35,6 +35,7 @@ FEEDBACK_URL = "https://www.surveymonkey.com/s/slam-stick-x"
 # 
 #===============================================================================
 
+from collections import OrderedDict
 from datetime import datetime
 import os
 import time
@@ -47,7 +48,7 @@ import images
 
 # Custom controls, events and base classes
 from base import ViewerPanel, MenuMixin
-from common import StatusBar, cleanUnicode, wordJoin
+from common import StatusBar, cleanUnicode, wordJoin, TimeValidator
 import events
 from timeline import TimelineCtrl, TimeNavigatorCtrl
 
@@ -384,8 +385,9 @@ class TimeNavigator(ViewerPanel):
                 `tracking` is `True`.
         """
         if instigator != self:
-            self.timeline.setVisibleRange(start * self.root.timeScalar, 
-                                          end * self.root.timeScalar)
+            start = None if start is None else start * self.root.timeScalar
+            end = None if end is None else end * self.root.timeScalar
+            self.timeline.setVisibleRange(start, end)
 
 
     def zoom(self, percent, tracking=True, useKeyboard=False):
@@ -488,21 +490,24 @@ class Corner(ViewerPanel):
     def __init__(self, *args, **kwargs):
         super(Corner, self).__init__(*args, **kwargs)
         
+        self.oldStart = self.oldEnd = None
         self.updating = False
         self.formatting = "%.4f"
         labelSize = self.GetTextExtent(" Start:")
         
         fieldAtts = {'size': (56,-1),
-                     'style': wx.TE_PROCESS_ENTER | wx.TE_PROCESS_TAB}
+                     'style': wx.TE_PROCESS_ENTER}# | wx.TE_PROCESS_TAB}
         labelAtts = {'size': labelSize,#(30,-1),
                      'style': wx.ALIGN_RIGHT | wx.ALIGN_BOTTOM}
         unitAtts = {'style': wx.ALIGN_LEFT}
         
-        self.startField = wx.TextCtrl(self, -1, "start", **fieldAtts)
+        self.startField = wx.TextCtrl(self, -1, "start", 
+                                      validator=TimeValidator(), **fieldAtts)
         startLabel = wx.StaticText(self,-1,"Start:", **labelAtts)
         self.startUnits = wx.StaticText(self, -1, " ", **unitAtts)
 
-        self.endField = wx.TextCtrl(self, -1, "end", **fieldAtts)
+        self.endField = wx.TextCtrl(self, -1, "end", 
+                                    validator=TimeValidator(), **fieldAtts)
         endLabel = wx.StaticText(self,-1,"End:", **labelAtts)
         self.endUnits = wx.StaticText(self, -1, " ", **unitAtts)
 
@@ -528,8 +533,10 @@ class Corner(ViewerPanel):
         self.SetBackgroundColour(self.root.uiBgColor)
         self.setXUnits()
         
-        self.startField.Bind(wx.EVT_TEXT_ENTER, self.OnRangeChanged)
-        self.endField.Bind(wx.EVT_TEXT_ENTER, self.OnRangeChanged)
+        self.startField.Bind(wx.EVT_KILL_FOCUS, self.OnRangeChanged)
+        self.endField.Bind(wx.EVT_KILL_FOCUS, self.OnRangeChanged)
+#         self.Bind(wx.EVT_TEXT_ENTER, self.OnRangeEntered)
+        self.Bind(wx.EVT_TEXT_ENTER, self.OnRangeChanged)
 
 
     def _setValue(self, field, val):
@@ -545,6 +552,7 @@ class Corner(ViewerPanel):
         try:
             return float(field.GetValue()) / self.root.timeScalar
         except ValueError:
+            self._setValue(field, default)
             return default
         
     
@@ -577,21 +585,34 @@ class Corner(ViewerPanel):
             return
 
         self.updating = True
+        self.oldStart = start
+        self.oldEnd = end
         self._setValue(self.startField, start)
         self._setValue(self.endField, end)
         self.updating = False
         
 
     def OnRangeChanged(self, evt):
+        """ Process value changes after Enter or Tab.
         """
-        """
-        start = self._getValue(self.startField)
-        end = self._getValue(self.endField)
-        
-        if not self.updating:
-            self.Parent.setVisibleRange(start, end, None, False)
+        start = self._getValue(self.startField, self.oldStart)
+        end = self._getValue(self.endField, self.oldEnd)
+
+        if start != self.oldStart or end != self.oldEnd:
+            if not self.updating:
+                self.Parent.setVisibleRange(start, end, None, False)
             
-    
+        evt.Skip()
+
+
+    def OnRangeEntered(self, evt):
+        """ Handle Enter. Does some work before `OnRangeChanged` is called.
+        """
+        evt.EventObject.SetSelection(-1,-1)
+        self.OnRangeChanged(evt)
+
+
+        
 #===============================================================================
 # 
 #===============================================================================
@@ -1031,8 +1052,12 @@ class Viewer(wx.Frame, MenuMixin):
         """ Populate the View->Display Channels menu with plots in the file.
         """
         map(self.viewSourceMenu.DestroyItem, self.viewSourceMenu.GetMenuItems())
-        for pid, p in self.dataSources.iteritems():
-            self.addMenuItem(self.viewSourceMenu, pid, p.parent.displayName, "",
+        for n,s in enumerate(self.dataSources.iteritems(),1):
+            txt = s[1].parent.displayName
+            if n < 10:
+                # Add keyboard shortcut for first 9 sources
+                txt = "%s\tCtrl+%d" % (txt, n)
+            self.addMenuItem(self.viewSourceMenu, s[0], txt, "",
                              self.OnSourceChecked, kind=wx.ITEM_CHECK)
     
     
@@ -1041,10 +1066,10 @@ class Viewer(wx.Frame, MenuMixin):
         """
         self.tabTypes = {}
         map(self.viewNewTabMenu.DestroyItem, self.viewNewTabMenu.GetMenuItems())
-        for n,t in enumerate(set([p.parent.units for p in self.dataSources.values()]),1):
+        for t in sorted(set([p.parent.units for p in self.dataSources.values()])):
             tid = wx.NewId()
             self.tabTypes[tid] = t
-            self.addMenuItem(self.viewNewTabMenu, tid, "%s\tCtrl+%d" % (t[0],n), "", 
+            self.addMenuItem(self.viewNewTabMenu, tid, t[0], "", 
                              self.OnNewTabPicked)
 
 
@@ -1201,7 +1226,7 @@ class Viewer(wx.Frame, MenuMixin):
         elif removeMean:
             meanSpan = -1
         
-        self.dataSources = {}
+        self.dataSources = OrderedDict()
         displaymode = self.app.getPref('initialDisplayMode', 1)
         if displaymode == 0:
             # Old style: one tab per subchannel

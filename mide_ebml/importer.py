@@ -64,13 +64,15 @@ DEFAULTS = {
                 "parser": parsers.AccelerometerParser(),
                 "transform": calibration.AccelTransform(-500,500),
                 "subchannels":{0: {"name": "Accelerometer Z", 
-                                  "units":('Acceleration','g'),
-                                  "displayRange": (-100.0,100.0),
-                                  "transform": 3,
-                                  "warningId": 0,
-                                  "sensorId": 0,
+                                   "axisName": "Z",
+                                   "units":('Acceleration','g'),
+                                   "displayRange": (-100.0,100.0),
+                                   "transform": 3,
+                                   "warningId": 0,
+                                   "sensorId": 0,
                                  },
                               1: {"name": "Accelerometer Y", 
+                                  "axisName": "Y",
                                   "units":('Acceleration','g'),
                                   "displayRange": (-100.0,100.0),
                                   "transform": 2,
@@ -78,6 +80,7 @@ DEFAULTS = {
                                   "sensorId": 0,
                                   },
                               2: {"name": "Accelerometer X", 
+                                  "axisName": "X",
                                   "units":('Acceleration','g'),
                                   "displayRange": (-100.0,100.0),
                                   "transform": 1,
@@ -218,6 +221,8 @@ nullUpdater.paused = False
 
 class SimpleUpdater(object):
     """ A simple text-based progress updater.
+        @ivar cancelled: If set to `True`, the job using the updater will abort. 
+        @ivar paused: If set to `True`, the job using the updater will pause.
     """
     
     def __init__(self, cancelAt=1.0, quiet=False):
@@ -297,8 +302,16 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
             calibration, building the sensor list, creating the session catalog)
             out of `readData()`.
 
+        @param stream: The file or file-like object containing the EBML data.
+        @keyword updater: A function (or function-like object) to notify as 
+            work is done. It should take four keyword arguments: `count` (the 
+            current line number), `total` (the total number of samples), `error` 
+            (an unexpected exception, if raised during the import), and `done` 
+            (will be `True` when the export is complete). If the updater object 
+            has a `cancelled` attribute that is `True`, the import will be 
+            aborted. The default callback is `None` (nothing will be notified).
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        @keyword defaultSensors: A nested dictionary containing a default set 
+        @keyword defaults: A nested dictionary containing a default set 
             of sensors, channels, and subchannels. These will only be used if
             the dataset contains no sensor/channel/subchannel definitions. 
         @keyword name: An optional name for the Dataset. Defaults to the
@@ -356,7 +369,7 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
 
 def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterval=.1,
              total=None, bytesRead=0, samplesRead=0, parserTypes=elementParserTypes,
-             sessionId=0, onlyChannel=None, **kwargs):
+             sessionId=0, onlyChannel=None, maxPause=None, **kwargs):
     """ Import the data from a file into a Dataset.
     
         @param doc: The Dataset document into which to import the data.
@@ -382,9 +395,10 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         @keyword samplesRead: The total number of samples imported. Mainly for
             merging multiple recordings.
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        @keyword defaultSensors: A nested dictionary containing a default set 
-            of sensors, channels, and subchannels. These will only be used if
-            the dataset contains no sensor/channel/subchannel definitions.
+        @keyword sessionId:
+        @keyword onlyChannel: If supplied, only import data from one channel.
+        @keyword maxPause: If the updater's `paused` attribute is `True`, the
+            import will pause. This is the maximum pause length. 
             
         @keyword onlyChannel: If a number, only the channel specified will
             be imported. Kind of a hack, to be redone later.
@@ -421,7 +435,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     nextUpdatePos = bytesRead + ticSize
     
     timeOffset = 0
-    maxPause = getattr(updater, "maxPause", None)
+    maxPause = getattr(updater, "maxPause", maxPause)
     
     # Actual importing ---------------------------------------------------------
     if source is None:

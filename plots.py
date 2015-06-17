@@ -675,7 +675,8 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetPen(self.NO_PEN)
             dc.SetBrush(self.outOfRangeBrush)
             w = int((sourceFirst-hRange[0])*hScale)
-            dc.DrawRectangle(0, 0, w, int(size[1]))
+            h = abs(int(size[1]/self.userScale))
+            dc.DrawRectangle(0, 0, w, h)
             dc.SetPen(oldPen)
             dc.SetBrush(oldBrush)
         
@@ -685,9 +686,11 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetPen(self.NO_PEN)
             dc.SetBrush(self.outOfRangeBrush)
             x = int((sourceLast-hRange[0])*hScale)
-            dc.DrawRectangle(x, 0, int(size[0]-x), int(size[1]))
+            w = abs(int((size[0]/self.userScale)-x))
+            h = abs(int(size[1]/self.userScale))
+            dc.DrawRectangle(x, 0, w, h)
             dc.SetPen(oldPen)
-            dc.SetBrush(oldBrush)       
+            dc.SetBrush(oldBrush)
         
         # Draw 'idiot light'
         if self.showWarningRange:
@@ -752,33 +755,37 @@ class PlotCanvas(wx.ScrolledWindow):
             maxRangePen = self.maxRangePen
         
         if source.hasMinMeanMax:
-            minMeanMaxLines = self.minMeanMaxLineList.get(source, None)
-            if minMeanMaxLines is None:
-                minMeanMaxLines = self.makeMinMeanMaxLines(source, hRange, vRange, hScale, vScale)
-                self.minMeanMaxLineList[source] = minMeanMaxLines
-            drawCondensed = len(minMeanMaxLines[0]) >= size[0] * self.condensedThreshold
+            mmmLines = self.minMeanMaxLineList.get(source, None)
+            if mmmLines is None:
+                mmmLines = self.makeMinMeanMaxLines(source, hRange, vRange, hScale, vScale)
+                self.minMeanMaxLineList[source] = mmmLines
+            minLines, meanLines, maxLines = mmmLines
+            drawCondensed = len(minLines) >= size[0] * self.condensedThreshold
             if drawCondensed:
                 if lines is None:
                     # More buffers than (virtual) pixels; draw vertical lines
                     # from min to max instead of the literal plot.
-                    if self.root.drawHollowPlot:
-                        lines = minMeanMaxLines[0] + minMeanMaxLines[2]
+                    if self.root.drawHollowPlot and len(minLines)>2:
+                        # Hollow mode: just draw min/max without first/last
+                        # (they just go to the edges of the screen)
+                        lines = minLines[1:-1] + maxLines[1:-1]
                     else:
+                        # Draw solid plots, actually a tight sawtooth.
                         lines = []
                         self.lineList[source] = lines
-                        lastPt = minMeanMaxLines[2][0][:2]
-                        for i in range(0,len(minMeanMaxLines[0]),2):
-                            a = minMeanMaxLines[0][i]
-                            b = minMeanMaxLines[2][i]
+                        lastPt = maxLines[0][:2]
+                        for i in range(0,len(minLines),2):
+                            a = minLines[i]
+                            b = maxLines[i]
                             lines.append((lastPt[0],lastPt[1],a[0],a[1]))
                             lines.append((a[0],a[1],b[0],b[1]))
                             lastPt = b[:2]
             else:
                 if self.root.drawMinMax:
-                    dc.DrawLineList(minMeanMaxLines[0], minRangePen)
-                    dc.DrawLineList(minMeanMaxLines[2], maxRangePen)
+                    dc.DrawLineList(minLines, minRangePen)
+                    dc.DrawLineList(maxLines, maxRangePen)
                 if self.root.drawMean:
-                    dc.DrawLineList(minMeanMaxLines[1], self.meanRangePen)
+                    dc.DrawLineList(meanLines, self.meanRangePen)
         else:
             drawCondensed = False
         

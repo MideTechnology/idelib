@@ -1085,6 +1085,19 @@ class TimeBaseUTCParser(ElementHandler):
         self.doc.lastSession.utcStartTime = val
 
 
+class RecorderConfigurationParser(ElementHandler):
+    """ Handle Recorder configuration data in a recording. This just parses it
+        and stores it verbatim.
+    """
+    elementName = "RecorderConfiguration"
+    isHeader = True
+    isSubElement = False
+    
+    def parse(self, element, **kwargs):
+        if self.doc is not None:
+            self.doc.recorderConfig = parse_ebml(element.value)
+
+
 #===============================================================================
 # 
 #===============================================================================

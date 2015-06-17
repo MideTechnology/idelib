@@ -190,34 +190,36 @@ def inRect(x, y, rect):
 # Field validators
 #===============================================================================
 
-# class TimeValidator(wx.PyValidator):
-#     """
-#     """
-#     validCharacters = "-+.0123456789"
-#     
-#     def __init__(self):
-#         super(TimeValidator, self).__init__()
-#         self.Bind(wx.EVT_CHAR, self.OnChar)
-# 
-#     def Validate(self, win):
-#         val = self.GetWindow.GetValue()
-#         return all((c in self.validCharacters for c in val))
-# 
-#     def OnChar(self, evt):
-#         key = evt.GetKeyCode()
-# 
-#         if key < wx.WXK_SPACE or key == wx.WXK_DELETE or key > 255:
-#             evt.Skip()
-#             return
-# 
-#         if chr(key) in self.validCharacters:
-#             evt.Skip()
-#             return
-# 
+class TimeValidator(wx.PyValidator):
+    """
+    """
+    validCharacters = "-.0123456789"
+     
+    def __init__(self):
+        super(TimeValidator, self).__init__()
+        self.Bind(wx.EVT_CHAR, self.OnChar)
+ 
+    def Clone(self):
+        return TimeValidator()
+ 
+    def Validate(self, win):
+        val = self.GetWindow.GetValue()
+        return all((c in self.validCharacters for c in val))
+ 
+    def OnChar(self, evt):
+        key = evt.GetKeyCode()
+        
+        if key < wx.WXK_SPACE or key == wx.WXK_DELETE or key > 255:
+            evt.Skip()
+            return
+ 
+        if chr(key) in self.validCharacters:
+            evt.Skip()
+            return
+        
 #         if not wx.Validator_IsSilent():
 #             wx.Bell()
-#             
-#         return        
+        return        
 
 #===============================================================================
 # Custom widgets

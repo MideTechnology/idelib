@@ -22,7 +22,6 @@ from events import EvtImportError
 class Loader(Job):
     """ The object that does the work of spawning an asynchronous file-loading
         thread and updating the viewer as data is loaded.
-        
     """
 
     cancelPrompt = True
@@ -69,6 +68,12 @@ class Loader(Job):
                     updateInterval=self.updateInterval,
                     sessionId=sessionId)
 
+        evt = EvtSetTimeRange(start=self.root.session.firstTime, 
+                              end=self.root.session.lastTime, 
+                              instigator=None, 
+                              tracking=True)
+        wx.PostEvent(self.root, evt)
+        
         evt = EvtProgressEnd(label=self.formatMessage(self.lastCount),
                              job=self)
         wx.PostEvent(self.root, evt)
@@ -110,6 +115,10 @@ class Loader(Job):
         
         if done:
             # Nothing else needs to be done. Put cleanup here if need be.
+            return
+        
+        if self.paused:
+            # Don't update the time estimate if paused; causes stutter.
             return
         
         if not self.readingData:

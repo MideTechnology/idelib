@@ -214,6 +214,7 @@ class Dataset(Cascading):
         self.parent = None
         self.currentSession = None
         self.recorderInfo = {}
+        self.recorderConfig = None
         
         # For keeping track of element parsers in import.
         self._parsers = None
@@ -710,7 +711,7 @@ class SubChannel(Channel):
     
     def __init__(self, parent, subchannelId, name=None, units=('',''), 
                  transform=None, displayRange=None, sensorId=None, 
-                 warningId=None):
+                 warningId=None, axisName=None):
         """ Constructor. This should generally be done indirectly via
             `Channel.addSubChannel()`.
         
@@ -732,6 +733,7 @@ class SubChannel(Channel):
         self.warningId = warningId
         self.cache = self.parent.cache
         self.dataset = parent.dataset
+        self.axisName = axisName
         
         if name is None:
             self.name = "%s:%02d" % (parent.name, subchannelId)
@@ -1150,7 +1152,7 @@ class EventList(Transformable):
         start = len(self._data) + start if start < 0 else start
         stop = len(self._data) + stop if stop < 0 else stop
                 
-        return getIdx(start, stop)
+        return min(len(self._data)-1, getIdx(start, stop))
 
     
     def _getBlockIndexWithIndex(self, idx, start=0, stop=-1):
