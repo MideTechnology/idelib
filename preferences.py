@@ -451,7 +451,7 @@ class PrefsDialog(SC.SizedDialog):
         self.SetAffirmativeId(wx.ID_SAVE)
         self.SetEscapeId(wx.ID_CANCEL)
         
-        self.SetSize((500,686))
+        self.SetSize((500,688))
         self.SetMinSize((300,200))
         self.SetMaxSize((1000,1000))
 
@@ -527,14 +527,14 @@ class PrefsDialog(SC.SizedDialog):
              "general use of the app and may cause problems. Use with caution!",
              UseCheckbox=True)
         
-        _add(PG.PropertyCategory("Slam Stick X/WVR Special Preferences"))
-        temphelp = ("Accelerometer readings when the temperature (Channel "
-                    "01.1) is %s this value may not be accurate; used for "
-                    "accelerometer display.") 
-        _add(PG.FloatProperty("Temperature Warning, Low", 
-                              "wvr.tempMin"), tooltop=temphelp % "below")
-        _add(PG.FloatProperty("Temperature Warning, High", 
-                              "wvr.tempMax"), tooltip=temphelp % "above")
+#         _add(PG.PropertyCategory("Slam Stick X/WVR Special Preferences"))
+#         temphelp = ("Accelerometer readings when the temperature (Channel "
+#                     "01.1) is %s this value may not be accurate; used for "
+#                     "accelerometer display.") 
+#         _add(PG.FloatProperty("Temperature Warning, Low", 
+#                               "wvr.tempMin"), tooltop=temphelp % "below")
+#         _add(PG.FloatProperty("Temperature Warning, High", 
+#                               "wvr.tempMax"), tooltip=temphelp % "above")
         
         self.populateGrid(self.prefs)
 

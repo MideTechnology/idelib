@@ -51,6 +51,7 @@ class Dataset(DS.Dataset):
         self.parent = None
         self.currentSession = None
         self.recorderInfo = None
+        self.warningRanges = {}
         
         self.useIndices = False
         self.fileDamaged = False

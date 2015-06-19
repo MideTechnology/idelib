@@ -347,7 +347,7 @@ class Dataset(Cascading):
                    low=None, high=None):
         """
         """
-        w = WarningRange(self, warningId=None, channelId=channelId, 
+        w = WarningRange(self, warningId=warningId, channelId=channelId, 
                          subchannelId=subchannelId, low=low, high=high)
         self.warningRanges[warningId] = w
         return w
@@ -2292,8 +2292,9 @@ class WarningRange(object):
     """
     
     def __repr__(self):
-        return "<%s %d (%s<%s<%s)>" % (self.__class__.__name__, self.id,
+        return "<%s %d (%s < %s < %s)>" % (self.__class__.__name__, self.id,
             self.low, self.source.name, self.high)
+
     
     def __init__(self, dataset, warningId=None, channelId=None, 
                  subchannelId=None, low=None, high=None):

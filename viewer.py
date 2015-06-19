@@ -838,9 +838,11 @@ class Viewer(wx.Frame, MenuMixin):
                                               "Create New Tab")
         self.viewSourceMenu = self.addSubMenu(viewMenu, self.ID_VIEW_ADDSOURCE,
                                               "Display Channels")
-        self.addMenuItem(viewMenu, self.ID_VIEW_LEGEND, "Show Legend\tCtrl+L", "",
+        self.addMenuItem(viewMenu, self.ID_VIEW_LEGEND, 
+                         "Show Legend\tCtrl+L", "",
                          self.OnLegendToggle, kind=wx.ITEM_CHECK)
-        self.addMenuItem(viewMenu, self.ID_VIEW_HOLLOW, "'Hollow' Envelope Drawing", "",
+        self.addMenuItem(viewMenu, self.ID_VIEW_HOLLOW, 
+                         "'Hollow' Envelope Drawing", "",
                          self.OnHollowToggle, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
 
@@ -910,7 +912,8 @@ class Viewer(wx.Frame, MenuMixin):
                          "Remove Total Mean from Data", "",
                          self.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
         
-        self.displayMenu = self.addSubMenu(dataMenu, self.ID_DATA_DISPLAY, "Display")
+        self.displayMenu = self.addSubMenu(dataMenu, self.ID_DATA_DISPLAY, 
+                                           "Display Units")
         self.addMenuItem(self.displayMenu, self.ID_DATA_DISPLAY_NATIVE,
                          "Native Units", "", self.OnConversionPicked, 
                          kind=wx.ITEM_RADIO)
@@ -1218,6 +1221,8 @@ class Viewer(wx.Frame, MenuMixin):
             else:
                 self.session = self.dataset.lastSession
         
+        self.plotarea.createWarningRanges()
+        
         removeRolling = self.app.getPref('removeRollingMean', False)
         removeMean = self.app.getPref('removeMean', True)
         meanSpan = None
@@ -1225,6 +1230,7 @@ class Viewer(wx.Frame, MenuMixin):
             meanSpan = self.app.getPref('rollingMeanSpan', 5.0)
         elif removeMean:
             meanSpan = -1
+        
         
         self.dataSources = OrderedDict()
         displaymode = self.app.getPref('initialDisplayMode', 1)
@@ -2201,8 +2207,12 @@ class Viewer(wx.Frame, MenuMixin):
             meanSpan = self.app.getPref('rollingMeanSpan', 5.0)
         elif removeMean:
             meanSpan = -1
-            
-        p = self.plotarea.addPlot(None, title=units[0], units=units)
+        
+        # TODO: Generate a realistic range from the sensor descriptions
+        initialRange = (-10,10)
+        
+        p = self.plotarea.addPlot(None, title=units[0], units=units, 
+                                  initialRange=initialRange)
         if p is not None and meanSpan is not None:
             p.removeMean(True, meanSpan)
 

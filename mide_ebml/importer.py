@@ -52,60 +52,67 @@ testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\test_recordings\\shocks.ID
 # but these should be default for the standard Slam Stick X.
 # TODO: Base default sensors on the device type UID.
 DEFAULTS = {
-            "sensors": {
-    0x00: {"name": "832M1 Accelerometer"},
-    0x01: {"name": "MPL3115 Temperature/Pressure"}
-},
-
-"channels": {
-        0x00: {"name": "Accelerometer XYZ",
-#                 "parser": struct.Struct("<HHH"), 
-#                 "transform": 0, #calibration.AccelTransform(),
-                "parser": parsers.AccelerometerParser(),
-                "transform": calibration.AccelTransform(-500,500),
-                "subchannels":{0: {"name": "Accelerometer Z", 
-                                   "axisName": "Z",
-                                   "units":('Acceleration','g'),
-                                   "displayRange": (-100.0,100.0),
-                                   "transform": 3,
-                                   "warningId": 0,
-                                   "sensorId": 0,
-                                 },
-                              1: {"name": "Accelerometer Y", 
-                                  "axisName": "Y",
-                                  "units":('Acceleration','g'),
-                                  "displayRange": (-100.0,100.0),
-                                  "transform": 2,
-                                  "warningId": 0,
-                                  "sensorId": 0,
-                                  },
-                              2: {"name": "Accelerometer X", 
-                                  "axisName": "X",
-                                  "units":('Acceleration','g'),
-                                  "displayRange": (-100.0,100.0),
-                                  "transform": 1,
-                                  "warningId": 0,
-                                  "sensorId": 0,
-                                  },
-                            },
-               },
-        0x01: {"name": "Pressure/Temperature",
-               "parser": parsers.MPL3115PressureTempParser(),
-               "subchannels": {0: {"name": "Pressure", 
-                                   "units":('Pressure','Pa'),
-                                   "displayRange": (0.0,120000.0),
-                                  "sensorId": 1,
+    "sensors": {
+        0x00: {"name": "832M1 Accelerometer"},
+        0x01: {"name": "MPL3115 Temperature/Pressure"}
+    },
+    
+    "channels": {
+            0x00: {"name": "Accelerometer XYZ",
+    #                 "parser": struct.Struct("<HHH"), 
+    #                 "transform": 0, #calibration.AccelTransform(),
+                    "parser": parsers.AccelerometerParser(),
+                    "transform": calibration.AccelTransform(-500,500),
+                    "subchannels":{0: {"name": "Accelerometer Z", 
+                                       "axisName": "Z",
+                                       "units":('Acceleration','g'),
+                                       "displayRange": (-100.0,100.0),
+                                       "transform": 3,
+                                       "warningId": [0],
+                                       "sensorId": 0,
+                                     },
+                                  1: {"name": "Accelerometer Y", 
+                                      "axisName": "Y",
+                                      "units":('Acceleration','g'),
+                                      "displayRange": (-100.0,100.0),
+                                      "transform": 2,
+                                      "warningId": [0],
+                                      "sensorId": 0,
+                                      },
+                                  2: {"name": "Accelerometer X", 
+                                      "axisName": "X",
+                                      "units":('Acceleration','g'),
+                                      "displayRange": (-100.0,100.0),
+                                      "transform": 1,
+                                      "warningId": [0],
+                                      "sensorId": 0,
+                                      },
+                                },
+                   },
+            0x01: {"name": "Pressure/Temperature",
+                   "parser": parsers.MPL3115PressureTempParser(),
+                   "subchannels": {0: {"name": "Pressure", 
+                                       "units":('Pressure','Pa'),
+                                       "displayRange": (0.0,120000.0),
+                                      "sensorId": 1,
+                                       },
+                                   1: {"name": "Temperature", 
+                                       "units":(u'Temperature',u'\xb0C'),
+                                       "displayRange": (-40.0,80.0),
+                                      "sensorId": 1,
+                                       }
                                    },
-                               1: {"name": "Temperature", 
-                                   "units":(u'Temperature',u'\xb0C'),
-                                   "displayRange": (-40.0,80.0),
-                                  "sensorId": 1,
-                                   }
-                               },
-               "cache": True,
-               "singleSample": True,
-               },
-}
+                   "cache": True,
+                   "singleSample": True,
+                   },
+    },
+    
+    "warnings": [{"warningId": 0,
+                   "channelId": 1,
+                   "subchannelId": 1,
+                   "low": -20.0,
+                   "high": 60.0
+                   }]
 }
 
 
@@ -146,6 +153,7 @@ def createDefaultSensors(doc, defaults=DEFAULTS):
     logger.info("creating default sensors")
     sensors = defaults['sensors'].copy()
     channels = defaults['channels'].copy()
+    warnings = defaults['warnings']
     
     if doc.recorderInfo:
         # TODO: Move device-specific stuff out of the main importer
@@ -179,6 +187,9 @@ def createDefaultSensors(doc, defaults=DEFAULTS):
             continue
         for subChId, subChInfo in subchannels.iteritems():
             channel.addSubChannel(subChId, **subChInfo)
+    
+    for warn in warnings:
+        doc.addWarning(**warn)
     
 
 #===============================================================================

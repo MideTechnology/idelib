@@ -554,6 +554,34 @@ class PlotCanvas(wx.ScrolledWindow):
         
         return (minPts[1:], meanPts, maxPts[1:])
     
+    
+    def _drawGridlines(self, dc, size):
+        """ Helper method for drawing grid lines. 
+        """
+        parent = self.Parent
+        legend = parent.legend
+        # Get the horizontal grid lines. 
+        # NOTE: This might not work in the future. Consider modifying
+        #    VerticalScaleCtrl to ensure we've got access to the labels!
+        if self.root.drawMinorHLines:
+            if self.minorHLines is None:
+                self.minorHLines = self.makeHGridlines(
+                    legend.scale._minorlabels, size[0], self.viewScale)
+            
+        if self.root.drawMajorHLines:
+            if self.majorHLines is None:
+                self.majorHLines = self.makeHGridlines(
+                    legend.scale._majorlabels, size[0], self.viewScale)
+
+        # If the plot source does not have min/max data, the first drawing only
+        # sets up the scale; don't draw the horizontal graduation.
+        if not parent.firstPlot:
+            # Minor lines are automatically removed.
+            if self.root.drawMinorHLines and len(self.minorHLines) < size[1]/24:
+                dc.DrawLineList(self.minorHLines, self.minorHLinePen)
+            if self.root.drawMajorHLines:
+                dc.DrawLineList(self.majorHLines, self.majorHLinePen)
+
 
     def OnPaint(self, evt):
         """ Event handler for redrawing the plot. Catches common exceptions.
@@ -607,6 +635,8 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetUserScale(self.userScale, self.userScale)
         
         dc.BeginDrawing()
+        
+        # Pause the import during painting to make it faster.
         self.root.pauseOperation()
         
         parent = self.Parent
@@ -614,7 +644,7 @@ class PlotCanvas(wx.ScrolledWindow):
         
         # The size of a chunk of data to draw, so the rendering seems more
         # interactive. Not really a tenth anymore.
-        tenth = int(size[0]/2 * self.oversampling)
+        chunkSize = int(size[0]/2 * self.oversampling)
 
         # BUG: This does not work for vertically split plots; they all start
         # at the start of the visible range instead of relative position on
@@ -652,10 +682,7 @@ class PlotCanvas(wx.ScrolledWindow):
             vScale = -(size.y + 0.0) * self.viewScale
             
         thisRange = (hScale, vScale, hRange, vRange)
-        newRange = (self.lastRange != thisRange 
-                    or not self.lineList 
-                    or not all(self.lineList.items()))
-        if newRange:
+        if self.lastRange != thisRange:
             self.lineList.clear()
             self.minMeanMaxLineList.clear()
             self.minorHLines = None
@@ -663,12 +690,12 @@ class PlotCanvas(wx.ScrolledWindow):
             self.lastRange = thisRange
 
         # Draw gray over out-of-range times (if visible)
-#         sourceFirst, sourceLast = source.getInterval()
         sourceInterval = [sys.maxint, -sys.maxint]
         for s in parent.sources:
             expandRange(sourceInterval, *s.getInterval())
         sourceFirst, sourceLast = sourceInterval 
         
+        # Time before recording
         if sourceFirst > hRange[0]:
             oldPen = dc.GetPen()
             oldBrush = dc.GetBrush()
@@ -680,6 +707,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetPen(oldPen)
             dc.SetBrush(oldBrush)
         
+        # Time after recording
         if sourceLast < hRange[1]:
             oldPen = dc.GetPen()
             oldBrush = dc.GetBrush()
@@ -694,35 +722,17 @@ class PlotCanvas(wx.ScrolledWindow):
         
         # Draw 'idiot light'
         if self.showWarningRange:
-            for r in parent.warningRange:
+            for r in parent.warningRanges:
                 r.draw(dc, hRange, hScale, self.viewScale, size)
-                
-        # Get the horizontal grid lines. 
-        # NOTE: This might not work in the future. Consider modifying
-        #    VerticalScaleCtrl to ensure we've got access to the labels!
-        if self.root.drawMinorHLines:
-            if self.minorHLines is None:
-                self.minorHLines = self.makeHGridlines(
-                    legend.scale._minorlabels, size[0], self.viewScale)
-            
-        if self.root.drawMajorHLines:
-            if self.majorHLines is None:
-                self.majorHLines = self.makeHGridlines(
-                    legend.scale._majorlabels, size[0], self.viewScale)
+        
+        # Draw horizontal grid lines
+        self._drawGridlines(dc, size)
 
-        # If the plot source does not have min/max data, the first drawing only
-        # sets up the scale; don't draw the horizontal graduation.
-        if not parent.firstPlot:
-            # Minor lines are automatically removed.
-            if self.root.drawMinorHLines and len(self.minorHLines) < size[1]/24:
-                dc.DrawLineList(self.minorHLines, self.minorHLinePen)
-            if self.root.drawMajorHLines:
-                dc.DrawLineList(self.majorHLines, self.majorHLinePen)
-
+        # The actual data plotting
         linesDrawn = 0
         for s in parent.sources:
             linesDrawn += self._drawPlot(dc, s, size, hRange, vRange, 
-                                         hScale, vScale, tenth)
+                                         hScale, vScale, chunkSize)
             
         dc.EndDrawing()
         self.root.resumeOperation()
@@ -736,18 +746,14 @@ class PlotCanvas(wx.ScrolledWindow):
         self._drawLegend()
 
 
-    def _drawPlot(self, dc, source, size, hRange, vRange, hScale, vScale, tenth):
+    def _drawPlot(self, dc, source, size, hRange, vRange, hScale, vScale, 
+                  chunkSize):
         """ Does the plotting of a single source.
         """
         t0 = time.time()
         parent = self.Parent
         lines = self.lineList.get(source, None)
         points = self.pointList.get(source, [])
-        
-        # TODO: Use source-specific min/max pens
-#         mainPen, pointBrush = self.pens.get(source, self._pen)
-#         minRangePen = self.minRangePen
-#         maxRangePen = self.maxRangePen
         
         mainPen, pointBrush, minRangePen, maxRangePen = self.pens.get(source, self._pen)
         if len(self.pens) == 1:
@@ -790,7 +796,7 @@ class PlotCanvas(wx.ScrolledWindow):
             drawCondensed = False
         
         dc.SetPen(mainPen)
-        if lines is not None:
+        if lines:
             # No change in displayed range; Use cached lines.
             dc.DrawLineList(lines)
         else:
@@ -808,29 +814,32 @@ class PlotCanvas(wx.ScrolledWindow):
 
             try:
                 event = events.next()
+                eTime = event[-2]
+                eVal = event[-1]
                 if not source.hasMinMeanMax:
                     parent.visibleValueRange = [sys.maxint, -sys.maxint]
-                    expandRange(parent.visibleValueRange, event[-1])
-                lastPt = ((event[-2] - hRange[0]) * hScale, 
-                          constrainInt((event[-1] - vRange[0]) * vScale))
+                    expandRange(parent.visibleValueRange, eVal)
+                lastPt = ((eTime - hRange[0]) * hScale, 
+                          constrainInt((eVal - vRange[0]) * vScale))
                 points.append(lastPt)
                 for i, event in enumerate(events,1):
                     # Using negative indices here in case doc.useIndices is True
-                    pt = ((event[-2] - hRange[0]) * hScale, 
-                          constrainInt((event[-1] - vRange[0]) * vScale))
+                    eTime = event[-2]
+                    eVal = event[-1]
+                    pt = ((eTime - hRange[0]) * hScale, 
+                          constrainInt((eVal - vRange[0]) * vScale))
                     points.append(pt)
                     
                     # A value of None is a discontinuity; don't draw a line.
-                    if event[-1] is not None:
+                    if eVal is not None:
                         line = lastPt + pt
                         lineSubset.append(line)
                         lines.append(line)
                         if not source.hasMinMeanMax:
-                            expandRange(parent.visibleValueRange, 
-                                        event[-1])
+                            expandRange(parent.visibleValueRange, eVal)
                     
                     # Draw 'chunks' of the graph to make things seem faster.
-                    if i % tenth == 0:
+                    if i % chunkSize == 0:
                         dc.DrawLineList(lineSubset)
                         lineSubset = []
                         
@@ -870,10 +879,10 @@ class PlotCanvas(wx.ScrolledWindow):
         
         return len(lines)
 
+
     
     def _drawLegend(self):
         """ Draw a legend with the plot colors and source names.
-            Work in progress!
         """
         numSources = len(self.Parent.sources)
         if not self.root.showLegend:
@@ -890,6 +899,7 @@ class PlotCanvas(wx.ScrolledWindow):
             items = []
             size = dc.GetSize()
 
+            # Reversing the list, so the topmost item is the 'top' plot
             for i,s in enumerate(reversed(self.Parent.sources)):
                 n = s.parent.displayName
                 nt = dc.GetTextExtent(n)
@@ -1102,18 +1112,18 @@ class Plot(ViewerPanel, MenuMixin):
         """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
             @keyword root: The viewer's 'root' window.
-            @keyword source: The source of data for the plot (i.e. a
-                sensor channel's dataset.EventList or dataset.Plot)
-            @keyword units: 
-            @keyword scale: 
-            @keyword range: 
+            @keyword source: The initial source of data for the plot (i.e. a
+                sensor channel's dataset.EventList or dataset.Plot).
+            @keyword units: A tuple with the measurement type and units (e.g.
+                `('Acceleration','X')`).
+            @keyword initialRange: An initial display range.
             @keyword warningRange: 
         """
         source = kwargs.pop('source', None)
         self.yUnits= kwargs.pop('units',None)
         color = kwargs.pop('color', 'BLACK')
-        self.range = kwargs.pop('range', (-(2**16), (2**16)-1))
-        self.warningRange = kwargs.pop("warningRange", [])
+        self.range = kwargs.pop('initialRange', None)
+#         self.warningRange = kwargs.pop("warningRange", [])
         super(Plot, self).__init__(*args, **kwargs)
         
         self.firstPlot = True
@@ -1124,19 +1134,17 @@ class Plot(ViewerPanel, MenuMixin):
         self.unitsPerPixel = 1.0
         self.scrolling = False
         
-        if self.root is None:
-            self.root = self.Parent.root
+        self.range = self.range if self.range is not None else (-100,100)
         
         if self.yUnits is None:
             self.yUnits = getattr(source, "units", ('',''))
-            
-        self.baseUnits = self.yUnits
-        
-        # XXX: First steps of multi-source plotting. Make a 1-item sources list.
+    
+        self.warningRanges = set()
         self.colors = {}
         if source:
             self.sources = [source]
             self.colors[source] = color
+            self._getWarningRanges()
         else:
             self.sources = []
         
@@ -1151,10 +1159,9 @@ class Plot(ViewerPanel, MenuMixin):
                 expandRange(dispRange, s.displayRange[1])
         if dispRange != [sys.maxint, -sys.maxint]:
             self.range = dispRange
-        # End of multi-source plotting revisions.
         
-        self.legend = VerticalScale(self, -1, 
-                                 visibleRange=(max(self.range),min(self.range)))
+        self.legend = VerticalScale(self, -1, visibleRange=(max(self.range),
+                                                            min(self.range)))
         self.plot = PlotCanvas(self, -1)
         self.scrollbar = wx.ScrollBar(self, -1, style=wx.SB_VERTICAL)
         sizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -1167,7 +1174,7 @@ class Plot(ViewerPanel, MenuMixin):
         self.plot.Bind(wx.EVT_LEAVE_WINDOW, self.OnMouseLeave)
 
         self._bindScrollEvents(self.scrollbar, self.OnScroll, 
-                              self.OnScrollTrack, self.OnScrollEnd)
+                               self.OnScrollTrack, self.OnScrollEnd)
         
         self.buildLegendMenu()
         self.enableMenus()
@@ -1175,6 +1182,8 @@ class Plot(ViewerPanel, MenuMixin):
 
 
     def buildLegendMenu(self):
+        """ Create the legend contextual `wx.Menu`.
+        """
         self.legendMenu = wx.Menu()
         self.addMenuItem(self.legendMenu, self.ID_MENU_SETCOLOR, 
                          "Set Color...", "", self.OnMenuSetColor)
@@ -1197,6 +1206,8 @@ class Plot(ViewerPanel, MenuMixin):
        
 
     def showLegendPopup(self, item):
+        """ Display the contextual menu for a legend item.
+        """
         name = item.parent.displayName
         idx = self.sources.index(item)
         topEn = idx < len(self.sources)-1
@@ -1471,7 +1482,7 @@ class Plot(ViewerPanel, MenuMixin):
     def redraw(self):
         """ Force the plot to redraw.
         """
-        self.plot.lineList.clear()
+#         self.plot.lineList.clear()
         self.Refresh()
 
 
@@ -1526,7 +1537,7 @@ class Plot(ViewerPanel, MenuMixin):
 
         rt.setMenuItem(mb, rt.ID_DATA_WARNINGS, 
                        checked=self.plot.showWarningRange,
-                       enabled=(len(self.warningRange)>0))
+                       enabled=(len(self.warningRanges)>0))
 
         rt.setMenuItem(mb, rt.ID_VIEW_MINMAX, enabled=enabled, 
                        checked=rt.drawMinMax)
@@ -1544,6 +1555,18 @@ class Plot(ViewerPanel, MenuMixin):
         rt.updateSourceMenu()             
             
 
+    def _getWarningRanges(self):
+        """
+        """
+        self.warningRanges.clear()
+        for s in self.sources:
+            if s.parent.warningId is not None:
+                for i in s.parent.warningId:
+                    w = self.Parent.warningRanges.get(i, None)
+                    if w is not None:
+                        self.warningRanges.add(w)
+
+
     def addSource(self, source, first=False):
         """ Add a data source (i.e. `Subchannel` or `Plot`) to the plot.
         """
@@ -1560,6 +1583,8 @@ class Plot(ViewerPanel, MenuMixin):
         if source.hasMinMeanMax:
             source.removeMean = self.plotRemoveMean
             source.rollingMeanSpan = self.plotMeanSpan
+        
+        self._getWarningRanges()
 
         self.setTabText()
 
@@ -1572,6 +1597,7 @@ class Plot(ViewerPanel, MenuMixin):
             self.plot.removeSource(source)
             source.setTransform(None)
             self.setTabText()
+            self._getWarningRanges()
             return True
         except ValueError:
             return False
@@ -1671,22 +1697,39 @@ class WarningRangeIndicator(object):
     """ A visual indicator showing intervals in which a sensor's readings
         were outside a specific range.
     """
+    PATTERNS = (wx.FDIAGONAL_HATCH, wx.BDIAGONAL_HATCH, 
+                wx.HORIZONTAL_HATCH, wx.VERTICAL_HATCH)
+
     
-    def __init__(self, source, sessionId=None, color="PINK", style=wx.BDIAGONAL_HATCH):
+    def __init__(self, parent, warning, color=None, 
+                 style=None):
         """ 
             @type source: `mide_ebml.dataset.WarningRange`
             @keyword color: The warning area drawing color.
             @keyword style: The warning area fill style.
         """
-        self.source = source
-        self.sessionId = sessionId
+        if style is None:
+            style = self.PATTERNS[warning.id % len(self.PATTERNS)]
+        if color is None:
+            color = "PINK"
+        self.source = warning
+        self.sessionId = parent.root.session.sessionId
         self.brush = wx.Brush(color, style=style)
         self.pen = wx.Pen(color, style=wx.TRANSPARENT)
         self.oldDraw = None
         self.rects = None
-        self.sourceList = source.getSessionSource(sessionId)
+        self.sourceList = warning.getSessionSource(self.sessionId)
         
-        
+    
+    @classmethod
+    def new(cls, parent, warning):
+        """
+        """
+        sessionId = parent.root.session.sessionId
+        style = cls.PATTERNS[warning.id % len(cls.PATTERNS)]
+        return cls(warning, sessionId, color="PINK", style=style)
+    
+    
     def draw(self, dc, hRange, hScale, scale=1.0, size=None):
         """ Draw a series of out-of-bounds rectangles in the given drawing
             context.
@@ -1755,6 +1798,8 @@ class PlotSet(aui.AuiNotebook):
         if self.root is None:
             self.root = self.GetParent().root
         
+        self.warningRanges = {}
+        
         self.loadPrefs()
         
         self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnPageChange)
@@ -1763,10 +1808,6 @@ class PlotSet(aui.AuiNotebook):
     def loadPrefs(self):
         """
         """
-        # TODO: Remove this when the full ChannelList is implemented.
-        # The default RecorderInfo will contain these defaults.
-        self.warnLow = self.root.app.getPref("tempMin", -20.0, section="wvr")
-        self.warnHigh = self.root.app.getPref("tempMax", 60.0, section="wvr")
         for p in self:
             p.loadPrefs()
 
@@ -1794,7 +1835,7 @@ class PlotSet(aui.AuiNotebook):
         
         
     def addPlot(self, source, title=None, name=None, color=None, 
-                units=None, allowEmpty=False):
+                units=None, allowEmpty=False, initialRange=None):
         """ Add a new Plot to the display.
         
             @param source: The source of data for the plot (i.e. a
@@ -1802,25 +1843,7 @@ class PlotSet(aui.AuiNotebook):
             @keyword title: The name displayed on the plot's tab
                 (defaults to 'Plot #')
         """
-        # For debugging: catch no exceptions
-        Ex = None if DEBUG else Exception
-        warnings = []
-
         if source is not None:
-            # TODO: Use the warning referenced by the subchannel in the file's
-            # ChannelList element.
-            try:
-                warningRange = WarningRange(source.dataset, warningId=0, 
-                  channelId=1, subchannelId=1, low=self.warnLow, high=self.warnHigh)
-                warnings = [WarningRangeIndicator(warningRange, source.session.sessionId)]
-            except (IndexError, KeyError, AttributeError):
-                # Dataset had no data for channel and/or subchannel.
-                # Should not normally occur, but not fatal.
-                pass
-            except Ex as err:
-                self.handleError(err, 
-                                 what="creating a plot view warning indicator")
-    
             title = source.name or title
             
             if color is None:
@@ -1829,8 +1852,8 @@ class PlotSet(aui.AuiNotebook):
         title = "Plot %s" % len(self) if title is None else title
         name = name or title
         
-        plot = Plot(self, source=source, root=self.root, name=name,
-                    units=units, warningRange=warnings)
+        plot = Plot(self, source=source, root=self.root, name=name, units=units, 
+                    initialRange=initialRange)
         plot.SetToolTipString(name)
         self.AddPage(plot, title)
         plot.setTabText()
@@ -1901,25 +1924,36 @@ class PlotSet(aui.AuiNotebook):
             self.removePlot(0)
     
     
-    def redraw(self, evt=None):
+    def redraw(self, evt=None, force=False):
         """ Force a redraw.
         """
         # Clear the cached lines from all plots
-        for p in self:
-#             p.plot.lines = None
-            p.plot.lineList.clear()
+        if force:
+            for p in self:
+                p.plot.lineList.clear()
         self.Refresh()
         
     
     def OnPageChange(self, evt):
-        ""
+        """
+        """
         self.getActivePage().enableMenus()
 
 
     def setAntialias(self, aa=True):
+        """
+        """
         for p in self:
             p.plot.setAntialias(aa)
         self.redraw()
+
+    
+    def createWarningRanges(self):
+        """
+        """
+        self.warningRanges.clear()
+        for warn in self.root.dataset.warningRanges.values():
+            self.warningRanges[warn.id] = WarningRangeIndicator(self, warn)
 
 
 #===============================================================================
