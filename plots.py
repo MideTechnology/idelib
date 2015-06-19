@@ -5,6 +5,7 @@ Widgets for the main view plots.
     (use context menu functionality which should allow control-clicking on Mac)
 """
 
+from collections import defaultdict
 import colorsys
 # from itertools import izip
 # import math
@@ -330,8 +331,8 @@ class PlotCanvas(wx.ScrolledWindow):
         
         # Source-specific stuff: dictionaries keyed on source object.
         # Maybe make a single dict for fewer lookups?
-        self.lineList = {}
-        self.pointList = {}
+        self.lineList = defaultdict(list)
+        self.pointList = defaultdict(list)
         self.minMeanMaxLineList = {}
         self.pens = {}
         self.legendRect = self.legendItem = None
@@ -728,11 +729,14 @@ class PlotCanvas(wx.ScrolledWindow):
         # Draw horizontal grid lines
         self._drawGridlines(dc, size)
 
+        # XX: EXPERIMENT. MOVE ELSEHWHERE
+        self.x_collectParents()
+        
         # The actual data plotting
         linesDrawn = 0
         for s in parent.sources:
-            linesDrawn += self._drawPlot(dc, s, size, hRange, vRange, 
-                                         hScale, vScale, chunkSize)
+#             linesDrawn += self._drawPlot(dc, s, size, hRange, vRange,  hScale, vScale, chunkSize)
+            linesDrawn += self.x_drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
             
         dc.EndDrawing()
         self.root.resumeOperation()
@@ -880,7 +884,167 @@ class PlotCanvas(wx.ScrolledWindow):
         return len(lines)
 
 
-    
+    # XXX: EXPERIMENTAL VERSION
+    def x_collectParents(self):
+        """
+        """
+        self.sourceChannels = {}
+        for s in self.Parent.sources:
+            ch = s._parentList
+            ch.removeMean = s.removeMean
+            ch.rollingMeanSpan = s.rollingMeanSpan
+            self.sourceChannels.setdefault(ch, [None]*len(ch.parent.subchannels))[s.parent.id] = s
+        self.root.dataset.updateTransforms()
+        
+
+    # XXX: EXPERIMENTAL VERSION
+    def x_drawPlot(self, dc, source, size, hRange, vRange, hScale, vScale, 
+                  chunkSize):
+        """ Does the plotting of a single source.
+        """
+        t0 = time.time()
+        parent = self.Parent
+        lines = self.lineList[source]
+        points = self.pointList[source]
+        
+        mainPen, pointBrush, minRangePen, maxRangePen = self.pens.get(source, self._pen)
+        if len(self.pens) == 1:
+            minRangePen = self.minRangePen
+            maxRangePen = self.maxRangePen
+        
+        if source.hasMinMeanMax:
+            mmmLines = self.minMeanMaxLineList.get(source, None)
+            if mmmLines is None:
+                mmmLines = self.makeMinMeanMaxLines(source, hRange, vRange, hScale, vScale)
+                self.minMeanMaxLineList[source] = mmmLines
+            minLines, meanLines, maxLines = mmmLines
+            drawCondensed = len(minLines) >= size[0] * self.condensedThreshold
+            if drawCondensed:
+                if not lines:
+                    # More buffers than (virtual) pixels; draw vertical lines
+                    # from min to max instead of the literal plot.
+                    if self.root.drawHollowPlot and len(minLines)>2:
+                        # Hollow mode: just draw min/max without first/last
+                        # (they just go to the edges of the screen)
+                        lines = minLines[1:-1] + maxLines[1:-1]
+                    else:
+                        # Draw solid plots, actually a tight sawtooth.
+                        lines = []
+                        self.lineList[source] = lines
+                        lastPt = maxLines[0][:2]
+                        for i in range(0,len(minLines),2):
+                            a = minLines[i]
+                            b = maxLines[i]
+                            lines.append((lastPt[0],lastPt[1],a[0],a[1]))
+                            lines.append((a[0],a[1],b[0],b[1]))
+                            lastPt = b[:2]
+            else:
+                if self.root.drawMinMax:
+                    dc.DrawLineList(minLines, minRangePen)
+                    dc.DrawLineList(maxLines, maxRangePen)
+                if self.root.drawMean:
+                    dc.DrawLineList(meanLines, self.meanRangePen)
+        else:
+            drawCondensed = False
+        
+        dc.SetPen(mainPen)
+        if self.lineList[source]:
+            # No change in displayed range; Use cached lines.
+            dc.DrawLineList(self.lineList[source])
+        else:
+#             lines = []
+#             points = []
+#             self.lineList[source] = lines
+#             self.pointList[source] = points
+            
+            # Lines are drawn in sets to provide more immediate results
+            lineSubset = []
+            
+            lastPt = {}
+            
+            events = source._parentList.iterResampledRange(hRange[0], hRange[1],
+                size[0]*self.oversampling, padding=1, 
+                jitter=self.root.noisyResample, display=False)#True)
+
+            try:
+                event = events.next()
+                eTime = event[-2]
+                for chId, eVal in enumerate(event[-1]):
+                    s = self.sourceChannels[source._parentList][chId]
+                    if s not in self.Parent.sources:
+                        continue
+                    if not source.hasMinMeanMax:
+                        parent.visibleValueRange = [sys.maxint, -sys.maxint]
+                        expandRange(parent.visibleValueRange, eVal)
+                    lastPt[s] = ((eTime - hRange[0]) * hScale, 
+                                 constrainInt((eVal - vRange[0]) * vScale))
+                    self.pointList[s].append(lastPt[s])
+                    
+                for i, event in enumerate(events,1):
+                    # Using negative indices here in case doc.useIndices is True
+                    eTime = event[-2]
+                    for s, eVal in zip(self.sourceChannels[source._parentList], event[-1]):
+                        if s is None:
+                            continue
+                        pt = ((eTime - hRange[0]) * hScale, 
+                              constrainInt((eVal - vRange[0]) * vScale))
+                        self.pointList[s].append(pt)
+                        
+                        # A value of None is a discontinuity; don't draw a line.
+                        if eVal is not None:
+                            line = lastPt[s] + pt
+                            self.lineList[s].append(line)
+                            if not source.hasMinMeanMax:
+                                expandRange(parent.visibleValueRange, eVal)
+                            if s == source:
+                                lineSubset.append(line)
+                        
+                        # Draw 'chunks' of the graph to make things seem faster.
+                        if i % chunkSize == 0:
+                            dc.DrawLineList(lineSubset)
+                            lineSubset = []
+                            
+                        lastPt[s] = pt
+                    
+            except StopIteration:
+                # This will occur if there are 0-1 events, but that's okay.
+                pass
+
+            for k,v in self.lineList.items():
+                print k, len(v)
+
+            # Draw the remaining lines (if any)
+            if not parent.firstPlot:
+                dc.DrawLineList(lineSubset) 
+
+        if DEBUG:# and lines:
+            dt = time.time() - t0
+            if drawCondensed:
+                logger.info("Plotted %d lines (condensed) in %.4fs for %r" % 
+                            (len(self.lineList[source]), dt, source.parent.displayName))
+            else:
+                logger.info("Plotted %d lines in %.4fs for %r" % 
+                            (len(self.lineList[source]), dt, source.parent.displayName))
+                
+        if parent.firstPlot:
+            # First time the plot was drawn. Don't draw; scale to fit.
+            parent.zoomToFit(self)
+            parent.firstPlot = False
+            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+            dc.EndDrawing()
+            return 0
+        
+#         if self.drawPoints and len(lines) < size[0] / 4:
+#             # More pixels than points: draw actual points as circles.
+#             dc.SetPen(self._pointPen)
+#             dc.SetBrush(pointBrush)
+#             for p in self.pointList[source]:
+#                 print p
+#                 dc.DrawCirclePoint(p,self.weight*self.viewScale*self.pointSize)
+        
+        return len(lines)
+
+
     def _drawLegend(self):
         """ Draw a legend with the plot colors and source names.
         """
