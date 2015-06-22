@@ -351,12 +351,19 @@ class PlotCanvas(wx.ScrolledWindow):
         self.BLACK_PEN = wx.Pen("black", style=wx.SOLID)
         self.LEGEND_BRUSH = wx.Brush(wx.Colour(255,255,255,240), wx.SOLID)
 
+        self.pauseTimer = wx.Timer()
+        self.abortRendering = False
+
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
         self.Bind(wx.EVT_LEFT_DOWN, self.OnMouseLeftDown)
         self.Bind(wx.EVT_LEFT_UP, self.OnMouseLeftUp)
         self.Bind(wx.EVT_RIGHT_DOWN, self.OnMouseRightDown)
         self.Bind(wx.EVT_SIZE, self.OnResize)
+#         self.Bind(wx.EVT_TIMER, self.OnTimerFinish)
+        self.pauseTimer.Bind(wx.EVT_TIMER, self.OnTimerFinish)
+
+        self.x_collectParents()
 
 
     def loadPen(self, name, defaultColor, width, style, dashes):
@@ -419,6 +426,7 @@ class PlotCanvas(wx.ScrolledWindow):
     def addSource(self, source):
         """ Add a data source (subchannel) to the plot.
         """
+        self.x_collectParents()
         self.legendRect = None
         self.setPlotPens()
         
@@ -426,6 +434,7 @@ class PlotCanvas(wx.ScrolledWindow):
     def removeSource(self, source):
         """ Remove a data source (subchannel) from the plot.
         """
+        self.x_collectParents()
         self.legendRect = None
         self.lineList.pop(source, None)
         self.pointList.pop(source, None)
@@ -730,12 +739,14 @@ class PlotCanvas(wx.ScrolledWindow):
         self._drawGridlines(dc, size)
 
         # XX: EXPERIMENT. MOVE ELSEHWHERE
-        self.x_collectParents()
+#         self.x_collectParents()
         
         # The actual data plotting
         linesDrawn = 0
         for s in parent.sources:
 #             linesDrawn += self._drawPlot(dc, s, size, hRange, vRange,  hScale, vScale, chunkSize)
+            if self.abortRendering:
+                break
             linesDrawn += self.x_drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
             
         dc.EndDrawing()
@@ -772,7 +783,7 @@ class PlotCanvas(wx.ScrolledWindow):
             minLines, meanLines, maxLines = mmmLines
             drawCondensed = len(minLines) >= size[0] * self.condensedThreshold
             if drawCondensed:
-                if lines is None:
+                if not lines:
                     # More buffers than (virtual) pixels; draw vertical lines
                     # from min to max instead of the literal plot.
                     if self.root.drawHollowPlot and len(minLines)>2:
@@ -891,8 +902,8 @@ class PlotCanvas(wx.ScrolledWindow):
         self.sourceChannels = {}
         for s in self.Parent.sources:
             ch = s._parentList
-            ch.removeMean = s.removeMean
-            ch.rollingMeanSpan = s.rollingMeanSpan
+            ch.removeMean = self.Parent.plotRemoveMean
+            ch.rollingMeanSpan = self.Parent.plotMeanSpan
             self.sourceChannels.setdefault(ch, [None]*len(ch.parent.subchannels))[s.parent.id] = s
         self.root.dataset.updateTransforms()
         
@@ -902,6 +913,9 @@ class PlotCanvas(wx.ScrolledWindow):
                   chunkSize):
         """ Does the plotting of a single source.
         """
+        if self.abortRendering is True:
+            return 0
+        
         t0 = time.time()
         parent = self.Parent
         lines = self.lineList[source]
@@ -920,17 +934,18 @@ class PlotCanvas(wx.ScrolledWindow):
             minLines, meanLines, maxLines = mmmLines
             drawCondensed = len(minLines) >= size[0] * self.condensedThreshold
             if drawCondensed:
-                if not lines:
+                if True:#not lines:
                     # More buffers than (virtual) pixels; draw vertical lines
                     # from min to max instead of the literal plot.
+                    print "self.root.drawHollowPlot: %r, len(minLines): %r" % (self.root.drawHollowPlot, len(minLines))
                     if self.root.drawHollowPlot and len(minLines)>2:
                         # Hollow mode: just draw min/max without first/last
                         # (they just go to the edges of the screen)
+                        print "hollow"
                         lines = minLines[1:-1] + maxLines[1:-1]
                     else:
                         # Draw solid plots, actually a tight sawtooth.
                         lines = []
-                        self.lineList[source] = lines
                         lastPt = maxLines[0][:2]
                         for i in range(0,len(minLines),2):
                             a = minLines[i]
@@ -938,6 +953,7 @@ class PlotCanvas(wx.ScrolledWindow):
                             lines.append((lastPt[0],lastPt[1],a[0],a[1]))
                             lines.append((a[0],a[1],b[0],b[1]))
                             lastPt = b[:2]
+                    self.lineList[source] = lines
             else:
                 if self.root.drawMinMax:
                     dc.DrawLineList(minLines, minRangePen)
@@ -948,14 +964,11 @@ class PlotCanvas(wx.ScrolledWindow):
             drawCondensed = False
         
         dc.SetPen(mainPen)
-        if self.lineList[source]:
+        if lines:
             # No change in displayed range; Use cached lines.
-            dc.DrawLineList(self.lineList[source])
+            dc.DrawLineList(lines)
         else:
-#             lines = []
-#             points = []
-#             self.lineList[source] = lines
-#             self.pointList[source] = points
+            lines = self.lineList[source] = []
             
             # Lines are drawn in sets to provide more immediate results
             lineSubset = []
@@ -978,13 +991,16 @@ class PlotCanvas(wx.ScrolledWindow):
                         expandRange(parent.visibleValueRange, eVal)
                     lastPt[s] = ((eTime - hRange[0]) * hScale, 
                                  constrainInt((eVal - vRange[0]) * vScale))
-                    self.pointList[s].append(lastPt[s])
+                    self.pointList[s] = [lastPt[s]]
                     
                 for i, event in enumerate(events,1):
+                    if self.abortRendering is True:
+                        return
                     # Using negative indices here in case doc.useIndices is True
                     eTime = event[-2]
-                    for s, eVal in zip(self.sourceChannels[source._parentList], event[-1]):
-                        if s is None:
+                    for chId, eVal in enumerate(event[-1]):
+                        s = self.sourceChannels[source._parentList][chId]
+                        if s not in self.Parent.sources:
                             continue
                         pt = ((eTime - hRange[0]) * hScale, 
                               constrainInt((eVal - vRange[0]) * vScale))
@@ -1010,9 +1026,6 @@ class PlotCanvas(wx.ScrolledWindow):
                 # This will occur if there are 0-1 events, but that's okay.
                 pass
 
-            for k,v in self.lineList.items():
-                print k, len(v)
-
             # Draw the remaining lines (if any)
             if not parent.firstPlot:
                 dc.DrawLineList(lineSubset) 
@@ -1034,13 +1047,12 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.EndDrawing()
             return 0
         
-#         if self.drawPoints and len(lines) < size[0] / 4:
-#             # More pixels than points: draw actual points as circles.
-#             dc.SetPen(self._pointPen)
-#             dc.SetBrush(pointBrush)
-#             for p in self.pointList[source]:
-#                 print p
-#                 dc.DrawCirclePoint(p,self.weight*self.viewScale*self.pointSize)
+        if self.drawPoints and len(lines) < size[0] / 4:
+            # More pixels than points: draw actual points as circles.
+            dc.SetPen(self._pointPen)
+            dc.SetBrush(pointBrush)
+            for p in self.pointList[source]:
+                dc.DrawCirclePoint(p,self.weight*self.viewScale*self.pointSize)
         
         return len(lines)
 
@@ -1049,7 +1061,7 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Draw a legend with the plot colors and source names.
         """
         numSources = len(self.Parent.sources)
-        if not self.root.showLegend:
+        if self.abortRendering is True or not self.root.showLegend:
             return
         
         # TODO: Determine these elsewhere
@@ -1246,9 +1258,20 @@ class PlotCanvas(wx.ScrolledWindow):
 
 
     def OnResize(self, evt):
+        """ Window resize event handler.
+        """
         self.legendRect = None
+        self.abortRendering = True
+        
+        # Start up (or reset) the timer delaying the redraw 
+        self.pauseTimer.Start(25, wx.TIMER_ONE_SHOT)
+
+
+    def OnTimerFinish(self, evt):
+        """ Handle expiration of the timer that delays refresh during resize.
+        """
+        self.abortRendering = False
         self.Refresh()
-#         evt.Skip()
 
 #===============================================================================
 # 
@@ -1394,13 +1417,16 @@ class Plot(ViewerPanel, MenuMixin):
         
     @property
     def rollingMeanSpan(self):
-        if self.sources:
-            return self.sources[0].rollingMeanSpan
+        return self.plotMeanSpan
+#         if self.sources:
+#             return self.sources[0].rollingMeanSpan
     
     @rollingMeanSpan.setter
     def rollingMeanSpan(self, v):
+        self.plotMeanSpan = v
         for source in self.sources:
             source.rollingMeanSpan = v
+        self.plot.x_collectParents()
 
     @property
     def units(self):
@@ -1420,6 +1446,7 @@ class Plot(ViewerPanel, MenuMixin):
     def transform(self, t):
         for source in self.sources:
             source.transform = t
+        self.plot.x_collectParents()
 
     #===========================================================================
     # 
@@ -1665,6 +1692,8 @@ class Plot(ViewerPanel, MenuMixin):
                 changed = True
         
         if changed:
+            self.plot.x_collectParents()
+            self.plot.lineList.clear()
             self.redraw()
             self.enableMenus()
 

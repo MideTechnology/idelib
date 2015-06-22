@@ -105,6 +105,8 @@ class Timeline(ViewerPanel):
     _sbMax = 10000.0
     _minThumbSize = 100
     
+    BORDER_WIDTH = 4
+    
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
         
@@ -118,7 +120,7 @@ class Timeline(ViewerPanel):
         self.scrolling = False
         self.highlightColor = wx.Colour(255,255,255)
 
-#         outerSizer = wx.BoxSizer(wx.HORIZONTAL)                
+        outerSizer = wx.BoxSizer(wx.HORIZONTAL)                
         sizer = wx.BoxSizer(wx.VERTICAL)
         
         self.timebar = TimelineCtrl(self, -1, orient=wx.HORIZONTAL, 
@@ -127,15 +129,15 @@ class Timeline(ViewerPanel):
         self.timebar.SetBackgroundColour(self.root.uiBgColor)
         self.timebar.SetCursor(wx.StockCursor(wx.CURSOR_SIZEWE))
         self.timebar.SetRange(self.timerange[0] * self.root.timeScalar,
-                             self.timerange[1] * self.root.timeScalar)
+                              self.timerange[1] * self.root.timeScalar)
         
         self.scrollbar = wx.ScrollBar(self, -1, style=wx.SB_HORIZONTAL)
         sizer.Add(self.scrollbar, 0, wx.EXPAND|wx.ALIGN_BOTTOM)
         
-#         outerSizer.Add(sizer, 1, wx.EXPAND)
-#         outerSizer.Add(wx.Panel(self, -1, size=(self.scrollbar.GetSize().y,16)),0)
-#         self.SetSizer(outerSizer)
-        self.SetSizer(sizer)
+        outerSizer.Add(sizer, 1, wx.EXPAND)
+        outerSizer.Add(wx.Panel(self, -1, size=(self.scrollbar.GetSize().y,16)),0)
+        self.SetSizer(outerSizer)
+#         self.SetSizer(sizer)
 
         self._bindScrollEvents(self.scrollbar, self.OnScroll, 
                                self.OnScrollTrack, self.OnScrollEnd)
@@ -160,7 +162,7 @@ class Timeline(ViewerPanel):
     def getValueAt(self, hpos):
         """ Retrieve the value at a given horizontal pixel position.
         """
-        return (hpos * self.unitsPerPixel) + self.currentTime
+        return ((hpos+self.BORDER_WIDTH) * self.unitsPerPixel) + self.currentTime
         
 
     #===========================================================================
