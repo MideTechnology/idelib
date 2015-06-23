@@ -905,6 +905,7 @@ class ChannelParser(ElementHandler):
         # Child SubChannel parameters; `renameKeys` operates recursively.
         "SubChannelID": "subchannelId",
         "SubChannelName": "name",
+        "SubChannelAxisName": "axisName",
         "SubChannelCalibrationIDRef": "transform",
         "SubChannelLabel": "label",
         "SubChannelUnits": "units",

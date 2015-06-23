@@ -746,6 +746,9 @@ class SubChannel(Channel):
             self.name = "%s:%02d" % (parent.name, subchannelId)
         else:
             self.name = name
+            if axisName is None:
+                self.axisName = self.name.split()[0]
+                
         self.units = units
 
         if self.units[0]:
