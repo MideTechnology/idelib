@@ -11,7 +11,8 @@ import struct
 import time
 
 from mide_ebml import util
-from mide_ebml.parsers import CalibrationListParser #PolynomialParser
+from mide_ebml.dataset import Dataset
+from mide_ebml.parsers import CalibrationListParser, RecordingPropertiesParser
 from mide_ebml.ebml.schema.mide import MideDocument
 
 import mide_ebml.ebml.schema.manifest as schema_manifest
@@ -60,6 +61,8 @@ class SlamStickX(Recorder):
         self._calibration = None
         self._calData = None
         self._calPolys = None
+        self._sensors = None
+        self._channels = None
         self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
 
     @classmethod
@@ -242,6 +245,10 @@ class SlamStickX(Recorder):
         if refresh is True:
             self._manifest = None
             self._calibration = None
+            self._properties = None
+            self._channels = None
+            self._sensors = None
+            self._warnings = None
         
         if self._manifest is not None:
             return self._manifest
@@ -255,17 +262,33 @@ class SlamStickX(Recorder):
                 data.append(fs.read())
         data = ''.join(data)
         
-        manOffset, manSize, calOffset, calSize = struct.unpack_from("<HHHH", data)
+        manOffset, manSize, calOffset, calSize, propOffset, propSize = struct.unpack_from("<HHHHHH", data)
         manData = StringIO(data[manOffset:manOffset+manSize])
         self._calData = StringIO(data[calOffset:calOffset+calSize])
+        propData = StringIO(data[propOffset:propOffset+propSize])
         
         try:
-            self._manifest = util.read_ebml(manData, 
-                schema=schema_manifest).get('DeviceManifest', None)
+            self._manifest = util.read_ebml(manData, schema=schema_manifest
+                ).get('DeviceManifest', None)
             self._calibration = util.read_ebml(self._calData, 
-               ).get('CalibrationList', None)
+                ).get('CalibrationList', None)
         except (AttributeError, KeyError):
             pass
+        
+        if propData:
+            # Use dataset parsers to read the recorder properties. 
+            # This is nice in theory but kind of ugly in practice.
+            # TODO: Make Sensor/Channel objects functional without a Dataset.
+            try:
+                doc = Dataset(None)
+                parser = RecordingPropertiesParser(doc)
+                doc._parsers = {'RecordingProperties': parser}
+                parser.parse(MideDocument(propData).roots[0])
+                self._channels = doc.channels
+                self._sensors = doc.sensors
+                self._warnings = doc.warningRanges
+            except None:#(IndexError, AttributeError):
+                pass
         
         return self._manifest
 
@@ -294,6 +317,23 @@ class SlamStickX(Recorder):
         
         return self._calPolys
             
+    
+    def getSensors(self, refresh=False):
+        """ Get the recorder sensor description data.
+            @todo: Merge with manifest sensor data?
+        """
+        if refresh or self._sensors is None:
+            self.getManifest(refresh=True)
+        return self._sensors
+        
+
+    def getChannels(self, refresh=False):
+        """ Get the recorder channel/subchannel description data.
+        """
+        if refresh or self._channels is None:
+            self.getManifest(refresh=True)
+        return self._channels
+
 
     def getAge(self, refresh=False):
         """ Get the number of days since the recorder's date of manufacture.

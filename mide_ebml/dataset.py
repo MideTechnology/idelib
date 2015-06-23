@@ -91,7 +91,7 @@ class Cascading(object):
         if self.parent is None:
             return self.name
         p = self.parent.path()
-        if p is None:
+        if not p:
             return self.name
         return "%s:%s" % (p, self.name)
     
@@ -228,7 +228,6 @@ class Dataset(Cascading):
         self.fileDamaged = False
         self.loadCancelled = False
         self.loading = True
-        self.ebmldoc = MideDocument(stream)
         self.filename = getattr(stream, "name", None)
         
         self.subsets = []
@@ -241,14 +240,16 @@ class Dataset(Cascading):
         else:
             self.name = name
 
-        self.schemaVersion = self.ebmldoc.__class__.version
-        if not quiet:
-            # It is currently assumed future versions will be backwards
-            # compatible. Change if/when not, or if certain old versions aren't.
-            if self.schemaVersion > self.ebmldoc.version:
-                raise IOError("EBML schema version mismatch: file is %d, "
-                              "library is %d" % (self.schemaVersion, 
-                                                 self.ebmldoc.version))
+        if stream is not None:
+            self.ebmldoc = MideDocument(stream)
+            self.schemaVersion = self.ebmldoc.__class__.version
+            if not quiet:
+                # It is currently assumed future versions will be backwards
+                # compatible. Change if/when not, or if certain old versions aren't.
+                if self.schemaVersion > self.ebmldoc.version:
+                    raise IOError("EBML schema version mismatch: file is %d, "
+                                  "library is %d" % (self.schemaVersion, 
+                                                     self.ebmldoc.version))
 
     def close(self):
         result = self.ebmldoc.stream.file.close()
