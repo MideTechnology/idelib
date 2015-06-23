@@ -127,17 +127,23 @@ class Transformable(Cascading):
             unless it is `True`.
         """
         self.transform = transform
+        if isinstance(transform, int):
+            self.transformId = transform
+        else:
+            self.transformId = getattr(transform, 'id', None)
+            
         if transform is None:
             self._transform = Transform.null
         else:
             self._transform = transform
         if update:
             self.updateTransforms()
-            
+        
+        
     def _updateXformIds(self):
         if isinstance(self.transform, int):
             self.transform = self.dataset.transforms.get(self.transform, 
-                                                         self.transform)
+                                                         None)
 
     def updateTransforms(self):
         """
@@ -2295,10 +2301,31 @@ class WarningRange(object):
         return "<%s %d (%s < %s < %s)>" % (self.__class__.__name__, self.id,
             self.low, self.source.name, self.high)
 
+
+    @property
+    def displayName(self):
+        """ A nice, human-readable description of this warning range, for use
+            user interfaces.
+        """
+        if self._displayName is None:
+            try:
+                units = self.source.units[1]
+                if self.low is None:
+                    s = "above %r%s" % (self.high, units)
+                elif self.high is None:
+                    s = "below %r%s" % (self.low, units)
+                else:
+                    s = "outside range %r%s to %r%s" % (self.low, units, 
+                                                        self.high, units)
+                self._displayName = "%s %s" % (self.source.displayName, s)
+            except TypeError:
+                pass
+        return self._displayName
+    
     
     def __init__(self, dataset, warningId=None, channelId=None, 
                  subchannelId=None, low=None, high=None):
-        """
+        """ Constructor.
         """
         self.dataset = dataset
         self.id = warningId
@@ -2317,6 +2344,7 @@ class WarningRange(object):
         else:
             self.valid = lambda x: x > low and x < high
         
+        self._displayName = None
     
     def getSessionSource(self, sessionId=None):
         """ 

@@ -920,9 +920,9 @@ class Viewer(wx.Frame, MenuMixin):
                          "Native Units", "", self.OnConversionPicked, 
                          kind=wx.ITEM_RADIO)
         
-        self.addMenuItem(dataMenu, self.ID_DATA_WARNINGS,
-                          "Show Temperature Range Warnings", "", 
-                          self.OnDataWarningsCheck, False, wx.ITEM_CHECK)
+        dataMenu.AppendSeparator()
+        self.viewWarningsMenu = self.addSubMenu(dataMenu, self.ID_DATA_WARNINGS,
+                          "Display Range Warnings")
         
         
         #=======================================================================
@@ -1067,7 +1067,8 @@ class Viewer(wx.Frame, MenuMixin):
     
     
     def buildNewTabMenu(self, *args):
-        """
+        """ Populate the View->New Tab menu with measurement types from the
+            current dataset.
         """
         self.tabTypes = {}
         map(self.viewNewTabMenu.DestroyItem, self.viewNewTabMenu.GetMenuItems())
@@ -1077,6 +1078,24 @@ class Viewer(wx.Frame, MenuMixin):
             self.addMenuItem(self.viewNewTabMenu, tid, t[0], "", 
                              self.OnNewTabPicked)
 
+
+    def buildWarningMenu(self, *args):
+        """ Populate the Data->Display Range Warnings menu with 'idiot light'
+            warning ranges from the current dataset.
+        """
+        self.warningRanges = {}
+        map(self.viewWarningsMenu.DestroyItem, self.viewWarningsMenu.GetMenuItems())
+        if len(self.plotarea.warningRanges) == 0:
+            self.addMenuItem(self.viewWarningsMenu, -1, "None", "",
+                             None, enabled=False)
+            return
+        
+        for w in sorted(self.plotarea.warningRanges.values()):
+            wid = wx.NewId()
+            self.warningRanges[wid] = w
+            self.addMenuItem(self.viewWarningsMenu, wid, w.source.displayName, "",
+                             self.OnDataWarningsCheck, kind=wx.ITEM_CHECK)
+            
 
     def buildDisplayMenu(self):
         """ Populate the Data->Display menu with applicable unit converters.
@@ -1266,6 +1285,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.enableChildren(True)
         self.buildAddChannelMenu()
         self.buildNewTabMenu()
+        self.buildWarningMenu()
 
         # enabling plot-specific menu items happens on page select; do manually
         self.plotarea.getActivePage().enableMenus()
@@ -1987,6 +2007,7 @@ class Viewer(wx.Frame, MenuMixin):
         """
         wx.LaunchDefaultBrowser(FEEDBACK_URL)
 
+
     def OnDontRemoveMeanCheck(self, evt):
         """
         """ 
@@ -2042,14 +2063,16 @@ class Viewer(wx.Frame, MenuMixin):
             @param evt: The menu event. Can also be `True` or `False` to force
                 the check to be set (kind of a hack).
         """ 
-        if isinstance(evt, bool):
-            self.setMenuItem(self.menubar, self.ID_DATA_WARNINGS, checked=evt)
-            checked = evt
-        else:
-            checked = evt.IsChecked()
-        self.app.setPref('showWarningRange', checked, section="wvr")
-        for p in self.plotarea:
-            p.showWarningRange(checked)
+        try:
+            p = self.plotarea.getActivePage()
+            source = self.warningRanges[evt.GetId()]
+            if evt.IsChecked():
+                p.warningRanges.add(source)
+            else:
+                p.warningRanges.remove(source)
+            p.redraw()
+        except KeyError:
+            pass
         
 
     def OnZoomInY(self, evt):
@@ -2172,17 +2195,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.plotarea.redraw()
     
     
-    def OnSetPlotColor(self, evt):
-        """
-        """
-        # Forward the event to the active plot.
-        p = self.plotarea.getActivePage()
-        if p:
-            p.setPlotColor(evt)
-
-
     def OnSourceChecked(self, evt):
-        """
+        """ Toggle the display of a data source.
         """
         try:
             p = self.plotarea.getActivePage()
@@ -2197,7 +2211,7 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnNewTabPicked(self, evt):
-        """
+        """ Create a new display tab.
         """
         typeId = evt.GetId()
         units = self.tabTypes[typeId]
@@ -2220,14 +2234,18 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnLegendToggle(self, evt):
-        """
+        """ Handle 'Show Legend' menu item selection.
         """
         self.showLegend = evt.IsChecked()
         self.plotarea.redraw()
+
     
     def OnHollowToggle(self, evt):
+        """ Handle 'Hollow Mode' menu item selection.
+        """
         self.drawHollowPlot = evt.IsChecked()
         self.plotarea.redraw()
+
 
     def OnConversionConfig(self, evt):
         """ Handle selection of the unit converter configuration menu item.
@@ -2235,25 +2253,23 @@ class Viewer(wx.Frame, MenuMixin):
         p = self.plotarea.getActivePage()
         result = ConverterEditor.edit(p.transform, self)
         if result == wx.ID_OK:
-            print "updating transforms"
-        self.dataset.updateTransforms()
+#             print "updating transforms"
+            self.dataset.updateTransforms()
         p.redraw()
         
 
     def OnConversionPicked(self, evt):
         """ Handle selection of a unit converter menu item.
         """
-        units = self.plotarea.getActivePage().units
+        activePage = self.plotarea.getActivePage()
+        units = activePage.units
         conv = self.unitConverters.get(evt.GetId(), None)
         for p in self.plotarea:
             if p is None:
                 continue
             if p.units == units:
                 p.setUnitConverter(conv)
-        self.updateConversionMenu()
-#         p = self.plotarea.getActivePage()
-#         p.setUnitConverter(self.unitConverters.get(evt.GetId(), None))
-#         self.updateConversionMenu()
+        self.updateConversionMenu(activePage)
         
             
     #===========================================================================
@@ -2582,8 +2598,7 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
     
-    def updateSourceMenu(self):
-        p = self.plotarea.getActivePage()
+    def updateSourceMenu(self, p):
         if p is None:
             return
         for mi in self.viewSourceMenu.GetMenuItems():
@@ -2596,14 +2611,25 @@ class Viewer(wx.Frame, MenuMixin):
             self.setMenuItem(self.viewSourceMenu, mid, checked, enabled)
             
 
+    def updateWarningsMenu(self, p):
+        if p is None:
+            return
+        for mi in self.viewWarningsMenu.GetMenuItems():
+            mid = mi.GetId()
+            warn = self.warningRanges.get(mid, None)
+            if warn is None:
+                return
+            checked = warn in p.warningRanges
+            self.setMenuItem(self.viewWarningsMenu, mid, checked)
+            
+
     #===========================================================================
     # Unit conversion/transform-related stuff
     #===========================================================================
     
-    def updateConversionMenu(self):
+    def updateConversionMenu(self, p):
         """ Update the enabled and checked items in the Data->Display menu.
         """
-        p = self.plotarea.getActivePage()
         if p is None:
             return
         for mi in self.displayMenu.GetMenuItems():

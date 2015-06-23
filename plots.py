@@ -937,11 +937,9 @@ class PlotCanvas(wx.ScrolledWindow):
                 if True:#not lines:
                     # More buffers than (virtual) pixels; draw vertical lines
                     # from min to max instead of the literal plot.
-                    print "self.root.drawHollowPlot: %r, len(minLines): %r" % (self.root.drawHollowPlot, len(minLines))
                     if self.root.drawHollowPlot and len(minLines)>2:
                         # Hollow mode: just draw min/max without first/last
                         # (they just go to the edges of the screen)
-                        print "hollow"
                         lines = minLines[1:-1] + maxLines[1:-1]
                     else:
                         # Draw solid plots, actually a tight sawtooth.
@@ -977,7 +975,7 @@ class PlotCanvas(wx.ScrolledWindow):
             
             events = source._parentList.iterResampledRange(hRange[0], hRange[1],
                 size[0]*self.oversampling, padding=1, 
-                jitter=self.root.noisyResample, display=False)#True)
+                jitter=self.root.noisyResample, display=True)
 
             try:
                 event = events.next()
@@ -1515,15 +1513,15 @@ class Plot(ViewerPanel, MenuMixin):
             return
             
         self.plotTransform = con
-        oldUnits = self.sources[0].units[0]
+#         oldUnits = self.sources[0].units[0]
         oldXform = self.sources[0].transform
-        
-        self.yUnits = self.sources[0].units
         
         for source in self.sources:
             source.setTransform(con, update=False)
         self.root.dataset.updateTransforms()
-        
+
+        self.yUnits = self.sources[0].units
+                
         self.legend.setUnits(self.yUnits[1])
         t,b = self.legend.getValueRange()
         
@@ -1670,10 +1668,11 @@ class Plot(ViewerPanel, MenuMixin):
                            tracking)
 
 
-    def redraw(self):
+    def redraw(self, force=False):
         """ Force the plot to redraw.
         """
-#         self.plot.lineList.clear()
+        if force:
+            self.plot.lineList.clear()
         self.Refresh()
 
 
@@ -1699,19 +1698,20 @@ class Plot(ViewerPanel, MenuMixin):
 
         
     def showWarningRange(self, val=True):
-        """
+        """ Display or hide all out-of-range warning indicators.
         """
         if not self.sources:
             return 
         self.plot.showWarningRange = val
-        self.redraw()
+        self.Refresh()
         self.enableMenus()
 
 
     def enableMenus(self):
         """ Update the plot-specific menus items in the main view's menu bar.
         """
-        if self.Parent.getActivePage() != self:
+        p = self.Parent.getActivePage()
+        if p != self:
             return
          
         enabled = any([s.hasMinMeanMax for s in self.sources])
@@ -1728,10 +1728,6 @@ class Plot(ViewerPanel, MenuMixin):
         for m in [rt.ID_DATA_NOMEAN, rt.ID_DATA_MEAN, rt.ID_DATA_MEAN_TOTAL]:
             rt.setMenuItem(mb, m, enabled=enabled)
 
-        rt.setMenuItem(mb, rt.ID_DATA_WARNINGS, 
-                       checked=self.plot.showWarningRange,
-                       enabled=(len(self.warningRanges)>0))
-
         rt.setMenuItem(mb, rt.ID_VIEW_MINMAX, enabled=enabled, 
                        checked=rt.drawMinMax)
         rt.setMenuItem(mb, rt.ID_VIEW_LINES_MAJOR, enabled=True, 
@@ -1744,8 +1740,9 @@ class Plot(ViewerPanel, MenuMixin):
         rt.setMenuItem(mb, rt.ID_VIEW_UTCTIME,
                        enabled=rt.session.utcStartTime is not None)
         
-        rt.updateConversionMenu()
-        rt.updateSourceMenu()             
+        rt.updateConversionMenu(p)
+        rt.updateSourceMenu(p)      
+        rt.updateWarningsMenu(p)       
             
 
     def _getWarningRanges(self):
@@ -1914,15 +1911,6 @@ class WarningRangeIndicator(object):
         self.sourceList = warning.getSessionSource(self.sessionId)
         
     
-    @classmethod
-    def new(cls, parent, warning):
-        """
-        """
-        sessionId = parent.root.session.sessionId
-        style = cls.PATTERNS[warning.id % len(cls.PATTERNS)]
-        return cls(warning, sessionId, color="PINK", style=style)
-    
-    
     def draw(self, dc, hRange, hScale, scale=1.0, size=None):
         """ Draw a series of out-of-bounds rectangles in the given drawing
             context.
@@ -1999,7 +1987,7 @@ class PlotSet(aui.AuiNotebook):
         
 
     def loadPrefs(self):
-        """
+        """ (Re-)Load the app preferences.
         """
         for p in self:
             p.loadPrefs()
@@ -2138,7 +2126,7 @@ class PlotSet(aui.AuiNotebook):
         """
         for p in self:
             p.plot.setAntialias(aa)
-        self.redraw()
+        self.Refresh()
 
     
     def createWarningRanges(self):
