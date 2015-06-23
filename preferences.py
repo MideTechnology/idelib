@@ -69,6 +69,8 @@ class Preferences(object):
         'minRangeColor': wx.Colour(190,190,255),
         'maxRangeColor': wx.Colour(255,190,190),
         'meanRangeColor': wx.Colour(255,255,150),
+        'outOfRangeColor': wx.Colour(250,250,250),
+        'warningColor': wx.Colour(255, 192, 203),
         'plotBgColor': wx.Colour(255,255,255),
         # Plot colors, stored by channel:subchannel IDs.
         'plotColors': {# SSX v1
@@ -103,6 +105,7 @@ class Preferences(object):
                           "BLACK",
                           "BLUE VIOLET"],
         'legendPosition': 2,
+        'legendOpacity': .95,
 #         'locale': 'English_United States.1252', # Python's locale name string
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
         'loader': dict(numUpdates=100, updateInterval=1.0),
@@ -459,8 +462,12 @@ class PrefsDialog(SC.SizedDialog):
     def buildGrid(self):
         """ Build the display.
         """
-        def _add(prop, tooltip=None, **atts):
+        showAdvancedOptions = self.prefs.get("showAdvancedOptions", False)
+        
+        def _add(prop, tooltip=None, advanced=False, **atts):
             # Helper to add properties to the list.
+            if advanced and not showAdvancedOptions:
+                return
             self.pg.Append(prop)
             if tooltip:
                 self.pg.SetPropertyHelpString(prop, tooltip)
@@ -472,9 +479,28 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.ColourProperty("Plot Background", "plotBgColor"))
         _add(PG.ColourProperty("Major Gridline", "majorHLineColor"))
         _add(PG.ColourProperty("Minor Gridlines", "minorHLineColor"))
-        _add(PG.ColourProperty("Buffer Maximum", "maxRangeColor"))
-        _add(PG.ColourProperty("Buffer Mean", "meanRangeColor"))
-        _add(PG.ColourProperty("Buffer Minimum", "minRangeColor"))
+        _add(PG.ColourProperty("Buffer Maximum", "maxRangeColor"),
+             "The color of the buffer maximum envelope line, when plotting "
+             "one source. This color is set automatically when plotting "
+             "multiple sources simultaneously.")
+        _add(PG.ColourProperty("Buffer Mean", "meanRangeColor"),
+             "The color of the buffer mean envelope line, when plotting "
+             "one source. This color is set automatically when plotting "
+             "multiple sources simultaneously.")
+        _add(PG.ColourProperty("Buffer Minimum", "minRangeColor"),
+             "The color of the buffer minimum envelope line, when plotting "
+             "one source. This color is set automatically when plotting "
+             "multiple sources simultaneously.")
+        _add(PG.ColourProperty("Warning Range Highlight Color", "warningColor"),
+             "The color of the shading over the plot where extreme conditions "
+             "may have adversely affected the data (e.g. extreme temperatures "
+             "that affect accelerometer accuracy on a Slam Stick X).")
+        _add(PG.ColourProperty("Out-of-Range Highlight Color", "outOfRangeColor"),
+             "The color of the shading of time before and/or after the "
+             "first/last sample in the dataset.")
+        _add(PG.FloatProperty("Legend Opacity", "legendOpacity"),
+             "The opacity of the legend background; 0 is transparent, "
+             "1 is solid", advanced=True)
         
         _add(PG.PropertyCategory("Data"))
         _add(PG.BoolProperty("Remove Total Mean by Default", "removeMean"), 
@@ -493,8 +519,8 @@ class PrefsDialog(SC.SizedDialog):
              "The base width of the plot lines. This width will scale with "
              "the antialiasing settings.")
         _add(PG.BoolProperty("Draw Points", "drawPoints"), 
-             "If the number of samples shown is fewer than the number "
-             "of pixels, draw individual samples as larger points.",
+             "If the number of samples shown is significantly fewer than the "
+             "number of pixels, draw individual samples as larger points.",
              UseCheckbox=True)
         _add(PG.FloatProperty("Antialiasing Scaling", "antialiasingMultiplier"),
              "A multiplier of screen resolution used when drawing antialiased "

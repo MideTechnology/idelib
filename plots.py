@@ -7,8 +7,6 @@ Widgets for the main view plots.
 
 from collections import defaultdict
 import colorsys
-# from itertools import izip
-# import math
 import sys
 import time
 
@@ -24,9 +22,6 @@ from common import expandRange, mapRange, inRect
 from timeline import VerticalScaleCtrl
 
 from logger import logger
-
-# The actual data-related stuff
-from mide_ebml.dataset import WarningRange 
 
 from build_info import DEBUG
 
@@ -307,7 +302,13 @@ class PlotCanvas(wx.ScrolledWindow):
         self.maxRangePen = self.loadPen(*self.RANGE_MAX_STYLE)
         self.meanRangePen = self.loadPen(*self.RANGE_MEAN_STYLE)
         
-        self.outOfRangeBrush = wx.Brush(wx.Colour(250,250,250))
+        outOfRangeColor = app.getPref('outOfRangeColor', wx.Colour(250,250,250))
+        self.outOfRangeBrush = wx.Brush(outOfRangeColor)
+
+        legendOpacity = int(255 * app.getPref('legendOpacity', .94))
+        legendOpacity = max(0, min(255, legendOpacity))
+        self.legendBrush = wx.Brush(wx.Colour(255,255,255,legendOpacity), 
+                                    wx.SOLID)
 
         self.setPlotPens()
         self.setAntialias(self.antialias)
@@ -349,7 +350,6 @@ class PlotCanvas(wx.ScrolledWindow):
         self.zoomCenter = None
         self.NO_PEN = wx.Pen("white", style=wx.TRANSPARENT)
         self.BLACK_PEN = wx.Pen("black", style=wx.SOLID)
-        self.LEGEND_BRUSH = wx.Brush(wx.Colour(255,255,255,240), wx.SOLID)
 
         self.pauseTimer = wx.Timer()
         self.abortRendering = False
@@ -597,12 +597,20 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Event handler for redrawing the plot. Catches common exceptions.
             Wraps the 'real' painting event handler.
         """
+        
 #         return self._OnPaint(evt)
 
+        # Debugging: don't handle unexpected exceptions gracefully
         ex = None if DEBUG else Exception
         
+        if self.root.dataset.loading:
+            # Pause the import during painting to make it faster.
+            job, paused = self.root.pauseOperation()
+        else:
+            paused = False
+            
         try:
-            return self._OnPaint(evt)
+            self._OnPaint(evt)
         except IndexError:
             # Note: These can occur on the first plot, but are non-fatal.
             logger.warning("IndexError in plot (race condition?); continuing.") 
@@ -613,6 +621,9 @@ class PlotCanvas(wx.ScrolledWindow):
             self.root.handleError(err, msg, closeFile=True)
         except ex as err:
             self.root.handleError(err, what="plotting data")
+        finally:
+            if paused:
+                self.root.resumeOperation(job)
         
 
     def _OnPaint(self, evt):
@@ -624,12 +635,12 @@ class PlotCanvas(wx.ScrolledWindow):
             @todo: Refactor and modularize this monster. Separate the line-list
                 generation so multiple plots on the same canvas will be easy.
         """
-        t0 = time.time()
-        if not self.Parent.sources:
-            return
         if self.root.drawingSuspended:
             return
+        if not self.Parent.sources:
+            return
         
+        t0 = time.time()
         self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
 
         self.InvalidateBestSize()
@@ -645,9 +656,6 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetUserScale(self.userScale, self.userScale)
         
         dc.BeginDrawing()
-        
-        # Pause the import during painting to make it faster.
-        self.root.pauseOperation()
         
         parent = self.Parent
         legend = parent.legend
@@ -750,7 +758,7 @@ class PlotCanvas(wx.ScrolledWindow):
             linesDrawn += self.x_drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
             
         dc.EndDrawing()
-        self.root.resumeOperation()
+#         self.root.resumeOperation()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         
         if DEBUG and linesDrawn > 0:# and len(parent.sources) > 1:
@@ -1055,21 +1063,18 @@ class PlotCanvas(wx.ScrolledWindow):
         return len(lines)
 
 
-    def _drawLegend(self):
+    def _drawLegend(self, padding=8, margin=10, minWidth=60):
         """ Draw a legend with the plot colors and source names.
         """
+        # TODO: Maybe draw this to a cached bitmap, then just draw that?
         numSources = len(self.Parent.sources)
         if self.abortRendering is True or not self.root.showLegend:
             return
         
-        # TODO: Determine these elsewhere
-        padding = 8
-        margin = 10
-        
         # Legend is antialiased
         dc = wx.GCDC(wx.ClientDC(self))
         if self.legendRect is None:
-            w = 60
+            w = minWidth
             items = []
             size = dc.GetSize()
 
@@ -1096,7 +1101,7 @@ class PlotCanvas(wx.ScrolledWindow):
 
         dc.BeginDrawing()
         dc.SetPen(self.BLACK_PEN)
-        dc.SetBrush(self.LEGEND_BRUSH)
+        dc.SetBrush(self.legendBrush)
         dc.DrawRectangle(x, y, w, h)
         swatchPos = x + padding
         textPos = swatchPos + padding + swatchSize
@@ -1901,7 +1906,7 @@ class WarningRangeIndicator(object):
         if style is None:
             style = self.PATTERNS[warning.id % len(self.PATTERNS)]
         if color is None:
-            color = "PINK"
+            color = parent.root.app.getPref("warningColor", "PINK")
         self.source = warning
         self.sessionId = parent.root.session.sessionId
         self.brush = wx.Brush(color, style=style)

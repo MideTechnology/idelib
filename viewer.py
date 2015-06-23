@@ -216,7 +216,7 @@ class Timeline(ViewerPanel):
             return
         
         if start is not None:
-            self.currentTime = max(self.timerange[0], start)
+            self.currentTime = start #max(self.timerange[0], start)
         
         if end is None:
             end = self.currentTime + self.displayLength
@@ -2431,13 +2431,13 @@ class Viewer(wx.Frame, MenuMixin):
                 Anything but `False` is considered a successful pause.
         """
         if len(self.cancelQueue) == 0:
-            return False
+            return None, False
         
         if job is None:
             job = self.getCurrentOperation()
 
         logger.info("Paused operation %r" % job)
-        return job.pause(True)
+        return job, job.pause(True)
 
 
     def resumeOperation(self, evt=None, job=None):
