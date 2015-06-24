@@ -41,13 +41,23 @@ class Transform(object):
         self._timeOffset = 0
         pass
     
+    def copy(self):
+        """ Create a duplicate of this Transform.
+        """
+        t = self.__class__()
+        for attr in ('id', '_str', '_source', '_function', '_lastSession', 
+                     '_timeOffset'):
+            setattr(t, attr, getattr(self, attr, None))
+        return t
+    
     def __str__(self):
         return self._str
     
     def __repr__(self):
+        cname = self.__class__.__name__
         if self.id is None:
-            return "<%s: (%s)>" % (self.__class__.__name__, self._str)
-        return "<%s (ID %d): (%s)>" % (self.__class__.__name__, self.id, self._str)
+            return "<%s: (%s)>" % (cname, self._str)
+        return "<%s (ID %d): (%s)>" % (cname, self.id, self._str)
 
     def __hash__(self):
         return hash(self._str)
@@ -72,6 +82,7 @@ class Transform(object):
         return event[-2] + self._timeOffset, self._function(event[-1])
      
 
+    
     #===========================================================================
     # 
     #===========================================================================
@@ -104,6 +115,14 @@ class AccelTransform(Transform):
         self._function = eval(self._source, {'math': math})
         self._lastSession = None
         self._timeOffset = 0
+
+
+    def copy(self):
+        """ Create a duplicate of this Transform.
+        """
+        t = self.__class__(self.range[0], self.range[1], self.id, self.dataset)
+        return t
+    
      
 
 
@@ -169,6 +188,15 @@ class Univariate(Transform):
         
         self._build()
         
+        
+    def copy(self):
+        """ Create a duplicate of this Transform.
+        """
+        return self.__class__(self._coeffs, calId=self.id, dataset=self.dataset,
+                              reference=self._references[0], 
+                              varName=self._variables[0])
+
+    
     def _build(self):
         varName = str(self._variables[0])
         srcVarName = "x"
@@ -244,7 +272,7 @@ class Univariate(Transform):
     def references(self, val):
         self._references = val
         self._build()
-    
+        
 
 #===============================================================================
 # 
@@ -296,6 +324,15 @@ class Bivariate(Univariate):
         self._build()
         
         
+    def copy(self):
+        """ Create a duplicate of this Transform.
+        """
+        return self.__class__(self._coeffs, dataset=self.dataset, 
+               channelId=self.channelId, subchannelId=self.subchannelId, 
+               reference=self._references[0], reference2=self._references[1], 
+               varNames=self._variables, calId=self.id)
+
+    
     def _build(self):
         coeffs = self._coeffs
         reference, reference2 = self._references
@@ -313,9 +350,9 @@ class Bivariate(Univariate):
         if reference2 != 0:
             varNames[1] = "(y-%s)" % reference2
         self._str = self._fixSums(self._str)
-        self._str = self._str.replace("x","\0"
+        self._str = self._str.replace("x","\x00"
                                       ).replace("y", varNames[1]
-                                                ).replace("\0", varNames[0])
+                                                ).replace("\x00", varNames[0])
 
         # Optimizations: Build a simplified expression for function.
         # 1. Remove multiples of 0 and 1, addition of 0 constants.      
@@ -373,7 +410,8 @@ class Bivariate(Univariate):
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
-            logger.warning("%s occurred in Bivariate polynomial %r" % err.__class__.__name__, self.id)
+            logger.warning("%s occurred in Bivariate polynomial %r" % \
+                           err.__class__.__name__, self.id)
             return None
 #             return event
 
@@ -389,6 +427,14 @@ class CombinedPoly(Bivariate):
         
         Experimental!
     """
+    
+    def copy(self):
+        """ Create a duplicate of this Transform.
+        """
+        return self.__class__(self.poly, subchannel=self._subchannel, 
+                              calId=self.id, dataset=self.dataset, 
+                              **self.kwargs)
+    
     def __init__(self, poly, subchannel=None, calId=None, dataset=None, 
                  **kwargs):
         self.id = calId
@@ -398,6 +444,7 @@ class CombinedPoly(Bivariate):
         if subchannel is not None:
             self.poly = self.poly[subchannel]
 
+        self.kwargs = kwargs
         p = kwargs.values()[0]
         for attr in ('dataset','_eventlist','_sessionId','channelId',
                      'subchannelId', '_references', '_coeffs','_variables'):
@@ -413,14 +460,12 @@ class CombinedPoly(Bivariate):
         old = None
         while old != src:
             old = src
-#             src = src.replace(' ','')
             src = src.replace('(0+', '(').replace('(0.0+', '(')
             src = src.replace('(0-', '(-').replace('(0.0-', '(-')
             src = src.replace('(0*x', '(0').replace('(0.0*x', '(0')
             src = src.replace('(0*y', '(0').replace('(0.0*y', '(0')
             src = cls._stremove(src, ('(0*x*y)+', '(0*x)+', '(0*y)+'))
             src = src.replace("(1*", "(").replace("(1.0*", "(")
-#             src = src.replace("(x)", "x").replace("(y)", "y")
             if src.endswith('+0'):
                 src = src[:-2]
             src = cls._fixSums(src)
@@ -433,10 +478,6 @@ class CombinedPoly(Bivariate):
                 if p is not None:
                     for attr in ('_str', '_source', '_function', '_noY'):
                         setattr(self, attr, getattr(p, attr, None))
-#                     self._str = p._str
-#                     self._source = p._source
-#                     self._function = p._function
-#                     self._noY = p._noY
                     return
             phead, src= "lambda x", "x"
         else:
@@ -471,15 +512,19 @@ class CombinedPoly(Bivariate):
 class PolyPoly(CombinedPoly):
     """ Calibration transform that combines multiple subchannel polynomials 
         into one single function.
-        
-        Experimental!
     """
+    
+    def copy(self):
+        """ Create a duplicate of this Transform.
+        """
+        return self.__class__(self.polys, calId=self.id, dataset=self.dataset)
+    
+    
     def __init__(self, polys, calId=None, dataset=None):
         self.id = calId
         self.polys = polys
         poly = polys[0]
         for attr in ('dataset','_eventlist','_sessionId','channelId','subchannelId'):
-#             print "PolyPoly.__init__: %s = %r" % (attr, getattr(poly, attr, None))
             setattr(self, attr, getattr(poly, attr, None))
         
         self.dataset = self.dataset or dataset
@@ -541,11 +586,8 @@ class PolyPoly(CombinedPoly):
                 # XXX: Hack! Eventlist length can be 0 if a thread is running.
                 # This almost immediately gets fixed. Find real cause.
                 if len(self._eventlist) == 0:
-#                     print "eventlist length 0 (try 1): %r %x" % (self._eventlist, id(self._eventlist))
                     sleep(0.001)
                     if len(self._eventlist) == 0:
-#                     return event
-#                         print "eventlist length 0 (try 2): %r %x" % (self._eventlist, id(self._eventlist))
                         return None
                     
 #                 y = self._eventlist.getValueAt(event[-2], outOfRange=True)
@@ -561,7 +603,8 @@ class PolyPoly(CombinedPoly):
             # channel has loaded. This should fix it.
 #             return event
             if getattr(self.dataset, 'loading', False):
-                logger.warning("%s occurred in combined polynomial %r" % (err.__class__.__name__, self))
+                logger.warning("%s occurred in combined polynomial %r" % \
+                               (err.__class__.__name__, self))
                 return None
             raise err
         

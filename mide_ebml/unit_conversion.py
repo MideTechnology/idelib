@@ -171,6 +171,12 @@ class Pressure2Meters(UnitConverter):
     parameters = (('temp', u'Temperature at sea level (\xb0C)', float, (-100,100), 15.0),
                   ('sealevel', u'Pressure at sea level (Pa)', int, (0,150000), 101325.0))
     
+    def copy(self):
+        """ Create a duplicate of this unit converter.
+        """
+        t = self.__class__(self.id, self.dataset, self._temp, self._sealevel)
+        return t
+    
     def __init__(self, calId=None, dataset=None, temp=15.0, sealevel=101325.0):
         """ Constructor.
             @keyword dataset: The `Dataset` to which this applies. 
