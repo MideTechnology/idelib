@@ -265,30 +265,17 @@ class SlamStickX(Recorder):
         manOffset, manSize, calOffset, calSize, propOffset, propSize = struct.unpack_from("<HHHHHH", data)
         manData = StringIO(data[manOffset:manOffset+manSize])
         self._calData = StringIO(data[calOffset:calOffset+calSize])
-        propData = StringIO(data[propOffset:propOffset+propSize])
+        
+        # _propData is read here but parsed in `getSensors()`
+        self._propData = data[propOffset:propOffset+propSize]
         
         try:
             self._manifest = util.read_ebml(manData, schema=schema_manifest
-                ).get('DeviceManifest', None)
+                                            ).get('DeviceManifest', None)
             self._calibration = util.read_ebml(self._calData, 
-                ).get('CalibrationList', None)
+                                               ).get('CalibrationList', None)
         except (AttributeError, KeyError):
             pass
-        
-        if propData:
-            # Use dataset parsers to read the recorder properties. 
-            # This is nice in theory but kind of ugly in practice.
-            # TODO: Make Sensor/Channel objects functional without a Dataset.
-            try:
-                doc = Dataset(None)
-                parser = RecordingPropertiesParser(doc)
-                doc._parsers = {'RecordingProperties': parser}
-                parser.parse(MideDocument(propData).roots[0])
-                self._channels = doc.channels
-                self._sensors = doc.sensors
-                self._warnings = doc.warningRanges
-            except None:#(IndexError, AttributeError):
-                pass
         
         return self._manifest
 
@@ -322,16 +309,32 @@ class SlamStickX(Recorder):
         """ Get the recorder sensor description data.
             @todo: Merge with manifest sensor data?
         """
-        if refresh or self._sensors is None:
-            self.getManifest(refresh=True)
+        self.getManifest(refresh=refresh)
+        if self._propData is None:
+            return None
+
+        # Use dataset parsers to read the recorder properties. 
+        # This is nice in theory but kind of ugly in practice.
+        # TODO: Make Sensor/Channel objects functional without a Dataset.
+        try:
+            doc = Dataset(None)
+            parser = RecordingPropertiesParser(doc)
+            doc._parsers = {'RecordingProperties': parser}
+            parser.parse(MideDocument(StringIO(self._propData)).roots[0])
+            self._channels = doc.channels
+            self._sensors = doc.sensors
+            self._warnings = doc.warningRanges
+        except (IndexError, AttributeError):
+            pass
+        
         return self._sensors
         
 
     def getChannels(self, refresh=False):
         """ Get the recorder channel/subchannel description data.
         """
-        if refresh or self._channels is None:
-            self.getManifest(refresh=True)
+        # `getSensors()` does all the real work
+        self.getSensors(refresh=refresh)
         return self._channels
 
 
