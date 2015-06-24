@@ -1313,7 +1313,6 @@ class Plot(ViewerPanel, MenuMixin):
         self.yUnits= kwargs.pop('units',None)
         color = kwargs.pop('color', 'BLACK')
         self.range = kwargs.pop('initialRange', None)
-#         self.warningRange = kwargs.pop("warningRange", [])
         super(Plot, self).__init__(*args, **kwargs)
         
         self.firstPlot = True
@@ -1331,7 +1330,7 @@ class Plot(ViewerPanel, MenuMixin):
     
         self.warningRanges = set()
         self.colors = {}
-        if source:
+        if source is not None:
             self.sources = [source]
             self.colors[source] = color
             self._getWarningRanges()
@@ -1698,6 +1697,7 @@ class Plot(ViewerPanel, MenuMixin):
         if changed:
             self.plot.x_collectParents()
             self.plot.lineList.clear()
+            self.plot.minMeanMaxLineList.clear()
             self.redraw()
             self.enableMenus()
 
@@ -1715,10 +1715,9 @@ class Plot(ViewerPanel, MenuMixin):
     def enableMenus(self):
         """ Update the plot-specific menus items in the main view's menu bar.
         """
-        p = self.Parent.getActivePage()
-        if p != self:
+        if self != self.Parent.getActivePage():
             return
-         
+        
         enabled = any([s.hasMinMeanMax for s in self.sources])
         rt = self.root
         mb = rt.menubar
@@ -1745,9 +1744,9 @@ class Plot(ViewerPanel, MenuMixin):
         rt.setMenuItem(mb, rt.ID_VIEW_UTCTIME,
                        enabled=rt.session.utcStartTime is not None)
         
-        rt.updateConversionMenu(p)
-        rt.updateSourceMenu(p)      
-        rt.updateWarningsMenu(p)       
+        rt.updateConversionMenu(self)
+        rt.updateSourceMenu(self)      
+        rt.updateWarningsMenu(self)       
             
 
     def _getWarningRanges(self):

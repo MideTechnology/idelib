@@ -30,8 +30,11 @@ class Preferences(object):
     PREFS_VERSION = 0
     defaultPrefsFile = 'ss_lab.cfg'
     
-    LEGEND_POSITIONS = ('Upper Left', 'Upper Right', 'Lower Left', 'Lower Right')
-    INITIAL_DISPLAY = ('One Channel Per Tab', 'One Tab per Sensor', 'One Tab per Type')
+    LEGEND_POSITIONS = ('Upper Left', 'Upper Right', 
+                        'Lower Left', 'Lower Right')
+    INITIAL_DISPLAY = ('One Channel Per Tab', 
+                       'One Tab per Sensor', 
+                       'One Tab per Type')
     
     # Default settings. Any user-changed preferences override these.
     defaultPrefs = {
@@ -104,8 +107,10 @@ class Preferences(object):
                           "GOLD",
                           "BLACK",
                           "BLUE VIOLET"],
+        'showLegend': True,
         'legendPosition': 2,
         'legendOpacity': .95,
+        'drawHollowPlot': False,
 #         'locale': 'English_United States.1252', # Python's locale name string
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
         'loader': dict(numUpdates=100, updateInterval=1.0),

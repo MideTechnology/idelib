@@ -1252,7 +1252,6 @@ class Viewer(wx.Frame, MenuMixin):
         elif removeMean:
             meanSpan = -1
         
-        
         self.dataSources = OrderedDict()
         displaymode = self.app.getPref('initialDisplayMode', 1)
         if displaymode == 0:
@@ -1260,7 +1259,6 @@ class Viewer(wx.Frame, MenuMixin):
             for d in self.dataset.getPlots(debug=self.showDebugChannels):
                 el = d.getSession(self.session.sessionId)
                 self.dataSources[wx.NewId()] = el
-                
                 p = self.plotarea.addPlot(el, title=d.displayName)
                 if p is not None and meanSpan is not None:
                     p.removeMean(True, meanSpan)
@@ -2237,6 +2235,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handle 'Show Legend' menu item selection.
         """
         self.showLegend = evt.IsChecked()
+        self.app.setPref("showLegend", self.showLegend)
         self.plotarea.redraw()
 
     
@@ -2244,6 +2243,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handle 'Hollow Mode' menu item selection.
         """
         self.drawHollowPlot = evt.IsChecked()
+        self.app.setPref('drawHollowPlot', self.drawHollowPlot)
         self.plotarea.redraw()
 
 
@@ -2253,7 +2253,6 @@ class Viewer(wx.Frame, MenuMixin):
         p = self.plotarea.getActivePage()
         result = ConverterEditor.edit(p.transform, self)
         if result == wx.ID_OK:
-#             print "updating transforms"
             self.dataset.updateTransforms()
         p.redraw()
         
