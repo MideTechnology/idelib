@@ -13,6 +13,7 @@ from StringIO import StringIO
 import struct
 import subprocess
 import sys
+import tempfile
 import time
 
 from xml.etree import ElementTree as ET
@@ -233,6 +234,52 @@ class CalFile(object):
         return np.sqrt(np.convolve(a2, window, 'valid'))
 
 
+    def getHighAccelerometer(self):
+        """ Get the high-G accelerometer channel. 
+        """
+        # TODO: Actually check sensor descriptions to get channel ID
+        if 0 in self.doc.channels:
+            return self.doc.channels[0]
+        elif 8 in self.doc.channels:
+            return self.doc.channels[8]
+        else:
+            raise TypeError("Accelerometer channel not where expected!")
+    
+    def getLowAccelerometer(self):
+        """ Get the high-G accelerometer channel. 
+        """
+        if 32 in self.doc.channels:
+            return self.doc.channels[32]
+        else:
+            raise TypeError("Low-g accelerometer channel not where expected!")
+
+    def getPressTempChannel(self):
+        """ Get the pressure/temperature channel. 
+        """
+        # TODO: Actually check sensor descriptions to get channel ID
+        if 1 in self.doc.channels:
+            return self.doc.channels[1]
+        elif 36 in self.doc.channels:
+            return self.doc.channels[36]
+        else:
+            raise TypeError("Temp/Pressure channel not where expected!")
+    
+    def getAxisIds(self, channel):
+        """ Get the IDs for the accelerometer X, Y, and Z subchannels. The order
+            differs on revisions of SSX.
+        """
+        ids = XYZ(-1,-1,-1)
+        for subc in channel.subchannels:
+            if 'X' in subc.name and ids.x == -1:
+                ids.x = subc.subchannelId
+            elif 'Y' in subc.name and ids.y == -1:
+                ids.y = subc.subchannelId
+            elif 'Z' in subc.name and ids.z == -1:
+                ids.z = subc.subchannelId
+        if -1 in ids:
+            raise TypeError("Channel did not contain X, Y, and Z subchannels!")
+        return ids
+
     def analyze(self):
         """ An attempt to port the analysis loop of SSX_Calibration.m to Python.
         
@@ -245,10 +292,15 @@ class CalFile(object):
         
         _print("importing %s... " % os.path.basename(self.filename))
         self.doc = doc = importFile(self.filename)
+        accelChannel = self.getHighAccelerometer()
+        pressTempChannel = self.getPressTempChannel()
+        axisIds = self.getAxisIds(accelChannel)
+        
         # Turn off existing per-channel calibration (if any)
-        for c in doc.channels[0].children:
+        for c in accelChannel.children:
             c.setTransform(None)
-        a = doc.channels[0].getSession()
+            
+        a = accelChannel.getSession()
         a.removeMean = True
         a.rollingMeanSpan = -1
         data = self.flattened(a, len(a))
@@ -263,9 +315,9 @@ class CalFile(object):
         
         _print("getting indices... ")
         indices = XYZ(
-            self.getFirstIndex(data, gt, 3),
-            self.getFirstIndex(data, gt, 2),
-            self.getFirstIndex(data, gt, 1)
+            self.getFirstIndex(data, gt, axisIds.x),
+            self.getFirstIndex(data, gt, axisIds.y),
+            self.getFirstIndex(data, gt, axisIds.z)
         )
         
         if indices.x == indices.y == 0:
@@ -292,8 +344,8 @@ class CalFile(object):
                        cal_value / self.rms.y, 
                        cal_value / self.rms.z)
     
-        self.cal_temp = np.mean([x[-1] for x in doc.channels[1][1].getSession()])
-        self.cal_press = np.mean([x[-1] for x in doc.channels[1][0].getSession()])
+        self.cal_temp = np.mean([x[-1] for x in pressTempChannel[1].getSession()])
+        self.cal_press = np.mean([x[-1] for x in pressTempChannel[0].getSession()])
         
         _println()
 
@@ -660,9 +712,16 @@ class Calibrator(object):
         certFilename = changeFilename(svgFilename, ext='.pdf')
         if os.path.exists(certFilename):
             os.remove(certFilename)
-            
-        result = subprocess.call('"%s" -f "%s" -A "%s"' % (INKSCAPE_PATH, svgFilename, certFilename), 
-                                 stdout=sys.stdout, stdin=sys.stdin, shell=True)
+        
+        errfile = os.path.join(tempfile.tempdir, 'svg_err.txt')
+        with open(errfile,'wb') as f:
+            result = subprocess.call('"%s" -f "%s" -A "%s"' % (INKSCAPE_PATH, svgFilename, certFilename), 
+                                     stdout=sys.stdout, stdin=sys.stdin, shell=True)
+        
+        if result != 0:
+            with open(errfile, 'rb') as f:
+                err = f.read().replace('\n',' ')
+            raise IOError(err)
         
         if removeSvg and result == 0 and os.path.exists(certFilename):
             os.remove(svgFilename)
