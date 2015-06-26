@@ -599,7 +599,6 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Event handler for redrawing the plot. Catches common exceptions.
             Wraps the 'real' painting event handler.
         """
-        
 #         return self._OnPaint(evt)
 
         # Debugging: don't handle unexpected exceptions gracefully
@@ -772,6 +771,7 @@ class PlotCanvas(wx.ScrolledWindow):
         """
         # Keep a dict, keyed on parent Channel EventLists, that keeps a list
         # of 'sources,' which are used as keys in the cached line/point lists.
+        # Sibling subchannels that aren't in the plot are `None`.
         # This is all overly complex; refactor later.
         self.sourceChannels = {}
         for s in self.Parent.sources:
@@ -787,6 +787,8 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Does the plotting of a single source.
         """
         if self.abortRendering is True:
+            # Bail if user interrupted drawing (scrolling, etc.)
+            # Doesn't actually work yet!
             return 0
         
         t0 = time.time()
@@ -838,64 +840,70 @@ class PlotCanvas(wx.ScrolledWindow):
         dc.SetPen(mainPen)
         if lines:
             # No change in displayed range; Use cached lines.
-            dc.DrawLineList(lines)
+#             dc.DrawLineList(lines)
+            for i in range(0, len(lines), chunkSize):
+                dc.DrawLineList(lines[i:i+chunkSize])
+                if self.abortRendering is True:
+                    return i
         else:
             lines = self.lineList[source] = []
             
             # Lines are drawn in sets to provide more immediate results
             lineSubset = []
             
+            # OPTIMIZATION: Local variables to reduce indirect referencing
             _parentList = source._parentList
             source_hasMinMeanMax = source.hasMinMeanMax
+            siblings = self.sourceChannels[_parentList]
             
             # The previous point (left side of line), by subchannel ID.
-            lastPt = [None] * len(_parentList.parent.subchannels)
+            lastPt = [None] * len(siblings)
             
+            # Iterate the source's parent Channel's EventList, in case this
+            # plot also contains sibling subchannels
             events = _parentList.iterResampledRange(hRange[0], hRange[1],
                 size[0]*self.oversampling, padding=1, 
                 jitter=self.root.noisyResample, display=True)
             
             # If a subchannel has been added, keep the existing sibling's lines.
-#             cached = dict([(s, len(self.lineList[s])>0) for s in self.Parent.sources])
-            cached = []
-            for s in self.sourceChannels[_parentList]:
-                if s is not None:
-                    cached.append(len(self.lineList[s]) > 0)
-                else:
-                    cached.append(False)
+            cached = [bool(self.lineList[s]) for s in siblings]
 
             try:
+                # Handle the first sample explicitly before iterating over rest
                 event = events.next()
                 eTime = event[-2]
                 for chId, eVal in enumerate(event[-1]):
-                    s = self.sourceChannels[_parentList][chId]
-                    if s not in self.Parent.sources:
+                    s = siblings[chId]
+                    if s is None:
                         continue
                     if not source_hasMinMeanMax:
+                        # Get data min/max for zoom-to-fit
                         parent.visibleValueRange = [sys.maxint, -sys.maxint]
                         expandRange(parent.visibleValueRange, eVal)
                     lastPt[chId] = ((eTime - hRange[0]) * hScale, 
-                                 constrainInt((eVal - vRange[0]) * vScale))
+                                    constrainInt((eVal - vRange[0]) * vScale))
                     self.pointList[s] = [lastPt[chId]]
                 
+                # And now the rest of the samples:
                 for i, event in enumerate(events,1):
                     if self.abortRendering is True:
+                        # Bail if user interrupted drawing (scrolling, etc.)
                         return
-                    # Using negative indices here in case doc.useIndices is True
                     eTime = event[-2]
                     for chId, eVal in enumerate(event[-1]):
-                        s = self.sourceChannels[_parentList][chId]
-                        sLines = self.lineList[s]
-                        sPoints = self.pointList[s]
-                        if s not in self.Parent.sources:
+                        s = siblings[chId]
+                        if s is None:
                             continue
                         if cached[chId]:
                             continue
+                        sLines = self.lineList[s]
+                        sPoints = self.pointList[s]
                         pt = ((eTime - hRange[0]) * hScale, 
                               constrainInt((eVal - vRange[0]) * vScale))
                         sPoints.append(pt)
                         
                         # A value of None is a discontinuity; don't draw a line.
+                        # Not actually implemented in EventList at this point!
                         if eVal is not None:
                             line = lastPt[chId] + pt
                             sLines.append(line)
@@ -1083,12 +1091,21 @@ class PlotCanvas(wx.ScrolledWindow):
 
 
     def OnMouseLeftDown(self, evt):
+        """ Handle start of click-and-drag, displaying 'rubber band' zoom box.
+        """
+        evtX = evt.GetX()
+        evtY = evt.GetY()
+        if self.root.showLegend and inRect(evtX, evtY, self.legendRect):
+            evt.Skip()
+            return
         self.zooming = True
-        self.zoomCenter = (evt.GetX(), evt.GetY())
+        self.zoomCenter = (evtX, evtY)
         self.zoomCorners = [self.zoomCenter]*2
 
 
     def OnMouseDoubleClick(self, evt):
+        """ Handle double-click. Ignored unless it's on the legend.
+        """
         if self.zooming:
             # Cancel zoom rectangle
             self._drawRubberBand(*self.zoomCorners)
@@ -1102,12 +1119,15 @@ class PlotCanvas(wx.ScrolledWindow):
             idx = min(len(self.Parent.sources)-1, idx)
             self.legendItem = self.Parent.sources[-1-idx]
             self.Parent.OnMenuSetColor(evt)
+        else:
+            self.root.OnZoomFitAll(evt)
         
         evt.Skip()
-            
 
 
     def OnMouseRightDown(self, evt):
+        """ Handle right-click. Zoom out, or context menu if over legend.
+        """
         if self.zooming:
             # Cancel zoom rectangle
             self._drawRubberBand(*self.zoomCorners)
@@ -1183,8 +1203,8 @@ class PlotCanvas(wx.ScrolledWindow):
 #===============================================================================
 
 class Plot(ViewerPanel, MenuMixin):
-    """ A single plotted channel, consisting of the vertical scale and actual
-        plot-drawing canvas.
+    """ A display of one or more subchannels of data, consisting of the 
+        vertical scale and actual plot-drawing canvas.
     """
     ID_MENU_SETCOLOR = wx.NewId()
     ID_MENU_SETPOS_UL = wx.NewId()
@@ -1495,7 +1515,6 @@ class Plot(ViewerPanel, MenuMixin):
         end = self.visibleValueRange[1] if end is None else end
         self.legend.setValueRange(start, end, instigator, tracking)
         
-        
         if not tracking:
             self.plot.Refresh()
     
@@ -1652,7 +1671,7 @@ class Plot(ViewerPanel, MenuMixin):
             
 
     def _getWarningRanges(self):
-        """
+        """ Collect all dataset.WarningRange objects for the plot's sources.
         """
         self.warningRanges.clear()
         for s in self.sources:
