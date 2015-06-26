@@ -360,10 +360,10 @@ class PlotCanvas(wx.ScrolledWindow):
         self.Bind(wx.EVT_LEFT_UP, self.OnMouseLeftUp)
         self.Bind(wx.EVT_RIGHT_DOWN, self.OnMouseRightDown)
         self.Bind(wx.EVT_SIZE, self.OnResize)
-#         self.Bind(wx.EVT_TIMER, self.OnTimerFinish)
+        self.Bind(wx.EVT_LEFT_DCLICK, self.OnMouseDoubleClick)
         self.pauseTimer.Bind(wx.EVT_TIMER, self.OnTimerFinish)
 
-        self.x_collectParents()
+        self._collectParents()
 
 
     def loadPen(self, name, defaultColor, width, style, dashes):
@@ -381,13 +381,15 @@ class PlotCanvas(wx.ScrolledWindow):
         return p
 
 
-    def lightenColor(self, color):
+    def lightenColor(self, color, saturation=.125, value=.99):
         """ Helper method to create lightened, desaturated version of a color.
         """
-        r,g,b = color.Get()[:3]
+        if isinstance(color, wx.Colour):
+            color = color.Get()
+        r,g,b = color[:3]
         h,s,v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
-        s *= .125
-        v *= .99
+        s *= saturation
+        v *= value
         return wx.Colour(*map(lambda x: int(x*255), colorsys.hsv_to_rgb(h,s,v)))
             
 
@@ -426,7 +428,7 @@ class PlotCanvas(wx.ScrolledWindow):
     def addSource(self, source):
         """ Add a data source (subchannel) to the plot.
         """
-        self.x_collectParents()
+        self._collectParents()
         self.legendRect = None
         self.setPlotPens()
         
@@ -434,7 +436,7 @@ class PlotCanvas(wx.ScrolledWindow):
     def removeSource(self, source):
         """ Remove a data source (subchannel) from the plot.
         """
-        self.x_collectParents()
+        self._collectParents()
         self.legendRect = None
         self.lineList.pop(source, None)
         self.pointList.pop(source, None)
@@ -682,10 +684,10 @@ class PlotCanvas(wx.ScrolledWindow):
         # minimum and maximum data if available. 
         mmSources = [s for s in parent.sources if s.hasMinMeanMax]
         if len(mmSources) > 0:
-            mmm = mmSources[0].getRangeMinMeanMax(hRange[0], hRange[1], display=True)
+            mmm = mmSources[0].getRangeMinMeanMax(*hRange, display=True)
             parent.visibleValueRange = [mmm[0], mmm[2]]
         for s in mmSources[1:]:
-            mmm = s.getRangeMinMeanMax(hRange[0], hRange[1], display=True)
+            mmm = s.getRangeMinMeanMax(*hRange, display=True)
             if mmm is not None:
                 expandRange(parent.visibleValueRange, *mmm)
         if parent.firstPlot and len(mmSources) > 0:
@@ -746,19 +748,14 @@ class PlotCanvas(wx.ScrolledWindow):
         # Draw horizontal grid lines
         self._drawGridlines(dc, size)
 
-        # XX: EXPERIMENT. MOVE ELSEHWHERE
-#         self.x_collectParents()
-        
         # The actual data plotting
         linesDrawn = 0
         for s in parent.sources:
-#             linesDrawn += self._drawPlot(dc, s, size, hRange, vRange,  hScale, vScale, chunkSize)
             if self.abortRendering:
                 break
-            linesDrawn += self.x_drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
+            linesDrawn += self._drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
             
         dc.EndDrawing()
-#         self.root.resumeOperation()
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         
         if DEBUG and linesDrawn > 0:# and len(parent.sources) > 1:
@@ -769,144 +766,13 @@ class PlotCanvas(wx.ScrolledWindow):
         self._drawLegend()
 
 
-    def _drawPlot(self, dc, source, size, hRange, vRange, hScale, vScale, 
-                  chunkSize):
-        """ Does the plotting of a single source.
+    def _collectParents(self):
+        """ Collect the parent channels' EventLists for the subchannels in this 
+            plot.
         """
-        t0 = time.time()
-        parent = self.Parent
-        lines = self.lineList.get(source, None)
-        points = self.pointList.get(source, [])
-        
-        mainPen, pointBrush, minRangePen, maxRangePen = self.pens.get(source, self._pen)
-        if len(self.pens) == 1:
-            minRangePen = self.minRangePen
-            maxRangePen = self.maxRangePen
-        
-        if source.hasMinMeanMax:
-            mmmLines = self.minMeanMaxLineList.get(source, None)
-            if mmmLines is None:
-                mmmLines = self.makeMinMeanMaxLines(source, hRange, vRange, hScale, vScale)
-                self.minMeanMaxLineList[source] = mmmLines
-            minLines, meanLines, maxLines = mmmLines
-            drawCondensed = len(minLines) >= size[0] * self.condensedThreshold
-            if drawCondensed:
-                if not lines:
-                    # More buffers than (virtual) pixels; draw vertical lines
-                    # from min to max instead of the literal plot.
-                    if self.root.drawHollowPlot and len(minLines)>2:
-                        # Hollow mode: just draw min/max without first/last
-                        # (they just go to the edges of the screen)
-                        lines = minLines[1:-1] + maxLines[1:-1]
-                    else:
-                        # Draw solid plots, actually a tight sawtooth.
-                        lines = []
-                        self.lineList[source] = lines
-                        lastPt = maxLines[0][:2]
-                        for i in range(0,len(minLines),2):
-                            a = minLines[i]
-                            b = maxLines[i]
-                            lines.append((lastPt[0],lastPt[1],a[0],a[1]))
-                            lines.append((a[0],a[1],b[0],b[1]))
-                            lastPt = b[:2]
-            else:
-                if self.root.drawMinMax:
-                    dc.DrawLineList(minLines, minRangePen)
-                    dc.DrawLineList(maxLines, maxRangePen)
-                if self.root.drawMean:
-                    dc.DrawLineList(meanLines, self.meanRangePen)
-        else:
-            drawCondensed = False
-        
-        dc.SetPen(mainPen)
-        if lines:
-            # No change in displayed range; Use cached lines.
-            dc.DrawLineList(lines)
-        else:
-            lines = []
-            points = []
-            self.lineList[source] = lines
-            self.pointList[source] = points
-            
-            # Lines are drawn in sets to provide more immediate results
-            lineSubset = []
-            
-            events = source.iterResampledRange(hRange[0], hRange[1],
-                size[0]*self.oversampling, padding=1, 
-                jitter=self.root.noisyResample, display=True)
-
-            try:
-                event = events.next()
-                eTime = event[-2]
-                eVal = event[-1]
-                if not source.hasMinMeanMax:
-                    parent.visibleValueRange = [sys.maxint, -sys.maxint]
-                    expandRange(parent.visibleValueRange, eVal)
-                lastPt = ((eTime - hRange[0]) * hScale, 
-                          constrainInt((eVal - vRange[0]) * vScale))
-                points.append(lastPt)
-                for i, event in enumerate(events,1):
-                    # Using negative indices here in case doc.useIndices is True
-                    eTime = event[-2]
-                    eVal = event[-1]
-                    pt = ((eTime - hRange[0]) * hScale, 
-                          constrainInt((eVal - vRange[0]) * vScale))
-                    points.append(pt)
-                    
-                    # A value of None is a discontinuity; don't draw a line.
-                    if eVal is not None:
-                        line = lastPt + pt
-                        lineSubset.append(line)
-                        lines.append(line)
-                        if not source.hasMinMeanMax:
-                            expandRange(parent.visibleValueRange, eVal)
-                    
-                    # Draw 'chunks' of the graph to make things seem faster.
-                    if i % chunkSize == 0:
-                        dc.DrawLineList(lineSubset)
-                        lineSubset = []
-                        
-                    lastPt = pt
-                    
-            except StopIteration:
-                # This will occur if there are 0-1 events, but that's okay.
-                pass
-
-            # Draw the remaining lines (if any)
-            if not parent.firstPlot:
-                dc.DrawLineList(lineSubset) 
-        
-        if DEBUG and lines:
-            dt = time.time() - t0
-            if drawCondensed:
-                logger.info("Plotted %d lines (condensed) in %.4fs for %r" % 
-                            (len(lines), dt, source.parent.displayName))
-            else:
-                logger.info("Plotted %d lines in %.4fs for %r" % 
-                            (len(lines), dt, source.parent.displayName))
-                
-        if parent.firstPlot:
-            # First time the plot was drawn. Don't draw; scale to fit.
-            parent.zoomToFit(self)
-            parent.firstPlot = False
-            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
-            dc.EndDrawing()
-            return 0
-        
-        if self.drawPoints and len(lines) < size[0] / 4:
-            # More pixels than points: draw actual points as circles.
-            dc.SetPen(self._pointPen)
-            dc.SetBrush(pointBrush)
-            for p in points:
-                dc.DrawCirclePoint(p,self.weight*self.viewScale*self.pointSize)
-        
-        return len(lines)
-
-
-    # XXX: EXPERIMENTAL VERSION
-    def x_collectParents(self):
-        """
-        """
+        # Keep a dict, keyed on parent Channel EventLists, that keeps a list
+        # of 'sources,' which are used as keys in the cached line/point lists.
+        # This is all overly complex; refactor later.
         self.sourceChannels = {}
         for s in self.Parent.sources:
             ch = s._parentList
@@ -916,8 +782,7 @@ class PlotCanvas(wx.ScrolledWindow):
         self.root.dataset.updateTransforms()
         
 
-    # XXX: EXPERIMENTAL VERSION
-    def x_drawPlot(self, dc, source, size, hRange, vRange, hScale, vScale, 
+    def _drawPlot(self, dc, source, size, hRange, vRange, hScale, vScale, 
                   chunkSize):
         """ Does the plotting of a single source.
         """
@@ -927,7 +792,6 @@ class PlotCanvas(wx.ScrolledWindow):
         t0 = time.time()
         parent = self.Parent
         lines = self.lineList[source]
-        points = self.pointList[source]
         
         mainPen, pointBrush, minRangePen, maxRangePen = self.pens.get(source, self._pen)
         if len(self.pens) == 1:
@@ -935,6 +799,8 @@ class PlotCanvas(wx.ScrolledWindow):
             maxRangePen = self.maxRangePen
         
         if source.hasMinMeanMax:
+            # TODO: Make this work like the subchannel plotting. Not a big deal
+            # since min/mean/max is currently kept in RAM.
             mmmLines = self.minMeanMaxLineList.get(source, None)
             if mmmLines is None:
                 mmmLines = self.makeMinMeanMaxLines(source, hRange, vRange, hScale, vScale)
@@ -942,7 +808,7 @@ class PlotCanvas(wx.ScrolledWindow):
             minLines, meanLines, maxLines = mmmLines
             drawCondensed = len(minLines) >= size[0] * self.condensedThreshold
             if drawCondensed:
-                if True:#not lines:
+                if not lines:
                     # More buffers than (virtual) pixels; draw vertical lines
                     # from min to max instead of the literal plot.
                     if self.root.drawHollowPlot and len(minLines)>2:
@@ -979,44 +845,61 @@ class PlotCanvas(wx.ScrolledWindow):
             # Lines are drawn in sets to provide more immediate results
             lineSubset = []
             
-            lastPt = {}
+            _parentList = source._parentList
+            source_hasMinMeanMax = source.hasMinMeanMax
             
-            events = source._parentList.iterResampledRange(hRange[0], hRange[1],
+            # The previous point (left side of line), by subchannel ID.
+            lastPt = [None] * len(_parentList.parent.subchannels)
+            
+            events = _parentList.iterResampledRange(hRange[0], hRange[1],
                 size[0]*self.oversampling, padding=1, 
                 jitter=self.root.noisyResample, display=True)
+            
+            # If a subchannel has been added, keep the existing sibling's lines.
+#             cached = dict([(s, len(self.lineList[s])>0) for s in self.Parent.sources])
+            cached = []
+            for s in self.sourceChannels[_parentList]:
+                if s is not None:
+                    cached.append(len(self.lineList[s]) > 0)
+                else:
+                    cached.append(False)
 
             try:
                 event = events.next()
                 eTime = event[-2]
                 for chId, eVal in enumerate(event[-1]):
-                    s = self.sourceChannels[source._parentList][chId]
+                    s = self.sourceChannels[_parentList][chId]
                     if s not in self.Parent.sources:
                         continue
-                    if not source.hasMinMeanMax:
+                    if not source_hasMinMeanMax:
                         parent.visibleValueRange = [sys.maxint, -sys.maxint]
                         expandRange(parent.visibleValueRange, eVal)
-                    lastPt[s] = ((eTime - hRange[0]) * hScale, 
+                    lastPt[chId] = ((eTime - hRange[0]) * hScale, 
                                  constrainInt((eVal - vRange[0]) * vScale))
-                    self.pointList[s] = [lastPt[s]]
-                    
+                    self.pointList[s] = [lastPt[chId]]
+                
                 for i, event in enumerate(events,1):
                     if self.abortRendering is True:
                         return
                     # Using negative indices here in case doc.useIndices is True
                     eTime = event[-2]
                     for chId, eVal in enumerate(event[-1]):
-                        s = self.sourceChannels[source._parentList][chId]
+                        s = self.sourceChannels[_parentList][chId]
+                        sLines = self.lineList[s]
+                        sPoints = self.pointList[s]
                         if s not in self.Parent.sources:
+                            continue
+                        if cached[chId]:
                             continue
                         pt = ((eTime - hRange[0]) * hScale, 
                               constrainInt((eVal - vRange[0]) * vScale))
-                        self.pointList[s].append(pt)
+                        sPoints.append(pt)
                         
                         # A value of None is a discontinuity; don't draw a line.
                         if eVal is not None:
-                            line = lastPt[s] + pt
-                            self.lineList[s].append(line)
-                            if not source.hasMinMeanMax:
+                            line = lastPt[chId] + pt
+                            sLines.append(line)
+                            if not source_hasMinMeanMax:
                                 expandRange(parent.visibleValueRange, eVal)
                             if s == source:
                                 lineSubset.append(line)
@@ -1026,7 +909,7 @@ class PlotCanvas(wx.ScrolledWindow):
                             dc.DrawLineList(lineSubset)
                             lineSubset = []
                             
-                        lastPt[s] = pt
+                        lastPt[chId] = pt
                     
             except StopIteration:
                 # This will occur if there are 0-1 events, but that's okay.
@@ -1203,6 +1086,25 @@ class PlotCanvas(wx.ScrolledWindow):
         self.zooming = True
         self.zoomCenter = (evt.GetX(), evt.GetY())
         self.zoomCorners = [self.zoomCenter]*2
+
+
+    def OnMouseDoubleClick(self, evt):
+        if self.zooming:
+            # Cancel zoom rectangle
+            self._drawRubberBand(*self.zoomCorners)
+            self.zooming = False
+            
+        evtX = evt.GetX()
+        evtY = evt.GetY()
+        
+        if self.root.showLegend and inRect(evtX, evtY, self.legendRect):
+            idx = max(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
+            idx = min(len(self.Parent.sources)-1, idx)
+            self.legendItem = self.Parent.sources[-1-idx]
+            self.Parent.OnMenuSetColor(evt)
+        
+        evt.Skip()
+            
 
 
     def OnMouseRightDown(self, evt):
@@ -1428,7 +1330,7 @@ class Plot(ViewerPanel, MenuMixin):
         self.plotMeanSpan = v
         for source in self.sources:
             source.rollingMeanSpan = v
-        self.plot.x_collectParents()
+        self.plot._collectParents()
 
     @property
     def units(self):
@@ -1448,7 +1350,7 @@ class Plot(ViewerPanel, MenuMixin):
     def transform(self, t):
         for source in self.sources:
             source.transform = t
-        self.plot.x_collectParents()
+        self.plot._collectParents()
 
     #===========================================================================
     # 
@@ -1695,7 +1597,7 @@ class Plot(ViewerPanel, MenuMixin):
                 changed = True
         
         if changed:
-            self.plot.x_collectParents()
+            self.plot._collectParents()
             self.plot.lineList.clear()
             self.plot.minMeanMaxLineList.clear()
             self.redraw()

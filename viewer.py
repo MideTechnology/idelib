@@ -2726,7 +2726,7 @@ class ViewerApp(wx.App):
         if loadLast and self.initialFilename is None:
             try:
                 self.initialFilename = self.prefs.getRecentFiles()[0]
-            except KeyError:
+            except (IndexError, KeyError):
                 pass
             
 #         locale.setlocale(locale.LC_ALL, str(self.getPref('locale')))
