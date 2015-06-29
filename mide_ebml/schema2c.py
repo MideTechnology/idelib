@@ -115,9 +115,15 @@ if __name__ == '__main__':
     else:
         schemaDoc = MideDocument
         schemaMod = getSchemaModule()
+
+
+    if args.output:
+        fname = args.output
+    else:
+        fname = '%s.c' % schemaDoc.__name__
         
     result = dumpSchema(schemaDoc)
-    with open('%s.c' % schemaDoc.__name__, 'wb') as f:
+    with open(fname, 'wb') as f:
         f.write(makeHeaderComment(schemaMod, schemaDoc))
 #         f.write("/* EBML schema dump of %s */\n\n" % schema.__name__)
         f.write(result)
