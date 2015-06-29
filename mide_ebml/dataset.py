@@ -1195,12 +1195,15 @@ class EventList(Transformable):
         try:
             tableTime = int(t / self._blockTimeTableSize)
             if stop == -1:
-                stop = self._blockTimeTable[1].get(tableTime, -2) + 1                
+                stop = self._blockTimeTable[1].get(tableTime, -2) + 1
             if start == 0:
                 start = max(self._blockTimeTable[0].get(tableTime, 0)-1, 0)
         except TypeError:
             pass
-            
+        
+        if self.parent.singleSample:
+            return start
+        
         return self._searchBlockRanges(t, self._getBlockTimeRange,
                                        start, stop)
         
@@ -1823,7 +1826,7 @@ class EventList(Transformable):
             
         return startBlockIdx, endBlockIdx
     
-    
+       
     def getMax(self, startTime=None, endTime=None, display=False):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, the maximum of all Subchannels is
@@ -1835,16 +1838,25 @@ class EventList(Transformable):
                 unit conversion) will be applied to the results. 
             @return: The event with the maximum value.
         """
+        def _channelMax(x):
+            return max(x.max)
+        
+        def _val(x):
+            return x[-1]
+        
+        def _maxVal(x):
+            return max(x[-1])
+        
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
         startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
         blocks = self._data[startBlockIdx:endBlockIdx]
         if self.hasSubchannels:
-            block = max(blocks, key=lambda x: max(x.max))
-            return max(self.iterSlice(*block.indexRange, display=display), key=lambda x: max(x[-1]))
+            block = max(blocks, key=_channelMax)
+            return max(self.iterSlice(*block.indexRange, display=display), key=_maxVal)
         else:
             block = max(blocks, key=lambda x: x.max[self.parent.id])
-            return max(self.iterSlice(*block.indexRange, display=display), key=lambda x: x[-1])
+            return max(self.iterSlice(*block.indexRange, display=display), key=_val)
 
 
     def getMin(self, startTime=None, endTime=None, display=False):
@@ -1858,16 +1870,22 @@ class EventList(Transformable):
                 unit conversion) will be applied to the results. 
             @return: The event with the minimum value.
         """
+        def _channelMin(x):
+            return min(x.min)
+        
+        def _val(x):
+            return x[-1]
+        
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
         startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
         blocks = self._data[startBlockIdx:endBlockIdx]
         if self.hasSubchannels:
-            block = min(blocks, key=lambda x: min(x.min))
-            return min(self.iterSlice(*block.indexRange, display=display), key=lambda x: min(x[-1]))
+            block = min(blocks, key=_channelMin)
+            return min(self.iterSlice(*block.indexRange, display=display), key=_minVal)
         else:
             block = min(blocks, key=lambda x: x.min[self.parent.id])
-            return min(self.iterSlice(*block.indexRange, display=display), key=lambda x: x[-1])
+            return min(self.iterSlice(*block.indexRange, display=display), key=_val)
 
 
 #     def getMean(self, startTime=None, endTime=None):
