@@ -125,9 +125,18 @@ default="123" or a text value that may or may not be the name of another tag
 				<element name="AnalogSensorBWUpperCutoff" level="3" id="0x4D56" type="uinteger" mandatory="0" multiple="0" minver="1">4-byte Upper cutoff frequency in Hz.</element>
 				
 		<!-- Codes for specific digital sensors and storage devices. We can't make this all-singing-all-dancing generic, but can at least tell the FW if specific sensors at known e.g. bus locations are stuffed or not. -->
+		<!-- Media elements (SD, eventually wireless/etc.?) -->
 		<element name="DigitalStorageSD" level="1" id="0x4D80" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a uSD card on the SPI bus.</element>
+		<!-- Digital inertial sensors -->
 		<element name="DigitalSensorADXL362" level="1" id="0x4D90" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of an ADXL362 on the SPI bus.</element>
+		<element name="DigitalSensorADXL345" level="1" id="0x4D91" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of an ADXL345 on the SPI bus.</element>
+		<element name="DigitalSensorADXL375" level="1" id="0x4D92" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of an ADXL375 on the SPI bus.</element>
+		<!-- Digital pressure/other sensors -->
 		<element name="DigitalSensorMPL3115A2" level="1" id="0x4DA0" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of an MPL3115A2 on the I2C bus.</element>
+		<!-- Timing/Sync inputs -->
 		<element name="DigitalSensorIR" level="1" id="0x4DB0" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a digital IR sensor.</element>
- 
+		<!-- GPS/Sync inputs -->
+		<element name="DigitalSensorGPS_UART" level="1" id="0x4DC0" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a GPS with full data (location) broken out on UART.</element>
+		<!-- Misc. -->
+		<element name="DigitalSensorReset" level="1" id="0x4DD0" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a hardware pushbutton reset controller.</element>
 </table>
