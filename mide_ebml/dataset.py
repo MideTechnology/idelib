@@ -16,8 +16,9 @@ Created on Sep 26, 2013
 # TODO: Handle files with channels containing a single sample better. Right now,
 #    they are ignored, causing problems with other calculations.
 #
-# TODO: Consider an EventList subclass for subchannels, or see about making
-#    parent Channel EventLists flat.
+# TODO: Consider an EventList subclass for subchannels to reduce the number
+#    of conditionals evaluated, and/or see about making parent Channels' 
+#    EventLists flat.
 #   
 # TODO: See where NumPy can be leveraged. The original plan was to make this
 #     module free of all dependencies (save python_ebml), but NumPy greatly 
@@ -28,13 +29,8 @@ Created on Sep 26, 2013
 #     with null values. An attribute/keyword may be needed to suppress this when 
 #     getting data for processing (FFT, etc.). Low priority.
 #     
-# TODO: Look at remaining places where lists are returned, consider using `yield` 
-#     instead (e.g. parseElement(), etc.)
-#     
-# TODO: Have Sensor.addChannel() possibly check the parser to see if the 
-#     blocks are single-sample, instantiate simpler Channel subclass (possibly
-#     also a specialized, simpler class of EventList, too). This will improve
-#     temperature calibrated SSX data.
+# TODO: Look at remaining places where lists are returned, consider using 
+#    `yield`  instead (e.g. parseElement(), etc.)
 
 from collections import Iterable
 from datetime import datetime
@@ -108,7 +104,8 @@ class Cascading(object):
 
     def __repr__(self):
 #         return "<%s %r>" % (self.__class__.__name__, self.path())
-        return "<%s %r at 0x%08x>" % (self.__class__.__name__, self.path(), id(self))
+        return "<%s %r at 0x%08x>" % (self.__class__.__name__, self.path(), 
+                                      id(self))
     
     
 class Transformable(Cascading):
@@ -507,11 +504,12 @@ class Channel(Transformable):
     
     def __init__(self, dataset, channelId=None, parser=None, sensor=None, 
                  name=None, units=None, transform=None, displayRange=None, 
-                 sampleRate=None, cache=False, singleSample=False):
+                 sampleRate=None, cache=False, singleSample=None):
         """ Constructor. This should generally be done indirectly via
             `Dataset.addChannel()`.
         
-            @param sensor: The parent sensor.
+            @param sensor: The parent sensor, if this Channel contains only
+                data from a single sensor.
             @param channelId: The channel's ID, unique within the file.
             @param parser: The channel's EBML data parser.
             @keyword name: A custom name for this channel.
@@ -525,7 +523,8 @@ class Channel(Transformable):
                 memory rather than lazy-loaded.
             @keyword singleSample: A 'hint' that the data blocks for this
                 channel each contain only a single sample (e.g. temperature/
-                pressure on an SSX).
+                pressure on an SSX). If `None`, this will be determined from
+                the sample data.
         """
         self.id = channelId
         self.sensor = sensor
@@ -536,7 +535,7 @@ class Channel(Transformable):
         self.sampleRate = sampleRate
        
         self.cache = bool(cache)
-        self.singleSample = bool(singleSample)
+        self.singleSample = singleSample
 
         if isinstance(sensor, int):
             sensor = self.dataset.sensors.get(sensor, None)
@@ -578,10 +577,8 @@ class Channel(Transformable):
 
 
     def __repr__(self):
-#         return '<%s %d: %r>' % (self.__class__.__name__, 
-#                                     self.id, self.path())
         return '<%s %d: %r at 0x%08x>' % (self.__class__.__name__, 
-                                    self.id, self.path(), id(self))
+                                          self.id, self.path(), id(self))
 
 
     def __getitem__(self, idx):
@@ -629,6 +626,8 @@ class Channel(Transformable):
         # dynamically generate one.
         if self.subchannels[subchannelId] is None:
             self.subchannels[subchannelId] = SubChannel(self, subchannelId)
+            
+        self.subchannels[subchannelId].singleSample = self.singleSample
         return self.subchannels[subchannelId]
 
 
@@ -734,6 +733,14 @@ class SubChannel(Channel):
                 readings at the Channel level. 
             @keyword displayRange: A 'hint' to the minimum and maximum values
                 of data in this channel.
+            @keyword sensorId: The ID of the sensor that generates this
+                SubChannel's data.
+            @keyword warningId: The ID of the `WarningRange` that indicates
+                conditions that may adversely affect data recorded in this
+                SubChannel.
+            @keyword axisName: The name of the axis this SubChannel represents.
+                Use if the `name` contains additional text (e.g. "X" if the 
+                name is "Accelerometer X (low-g)").
         """
         self.id = subchannelId
         self.parent = parent
@@ -796,10 +803,9 @@ class SubChannel(Channel):
         return self.parent.sampleRate
 
     def __repr__(self):
-#         return '<%s %d.%d: %r>' % (self.__class__.__name__, 
-#                                        self.parent.id, self.id, self.path())
         return '<%s %d.%d: %r at 0x%08x>' % (self.__class__.__name__, 
-                                       self.parent.id, self.id, self.path(), id(self))
+                                             self.parent.id, self.id, 
+                                             self.path(), id(self))
 
 
     @property
@@ -898,10 +904,13 @@ class EventList(Transformable):
         self.dataset = parentChannel.dataset
         self.hasSubchannels = not isinstance(self.parent, SubChannel)#len(self.parent.types) > 1
         self._firstTime = self._lastTime = None
-        self._singleSample = parentChannel.singleSample
         self._parentList = parentList
         self._childLists = []
 
+        if self._parentList is not None:
+            self._singleSample = self._parentList._singleSample
+        else:
+            self._singleSample = parentChannel.singleSample
 
         # Optimization: Keep track of indices in blocks (per 10000)
         # The first is the earliest block with the index,
@@ -1023,6 +1032,15 @@ class EventList(Transformable):
         self._data.append(block)
         self._length += block.numSamples
         block.indexRange = (oldLength, self._length - 1)
+        
+        if self._singleSample is None:
+            self._singleSample = block.numSamples == 1
+            if self._parentList is not None:
+                self._parentList._singleSample = self._singleSample
+            if self.parent.singleSample is None:
+                self.parent.singleSample = self._singleSample
+            if self.parent.parent is not None:
+                self.parent.parent.singleSample = self._singleSample
 
         # Set the session first/last times if they aren't already set.
         # Possibly redundant if all sessions are 'closed.'
@@ -1068,7 +1086,7 @@ class EventList(Transformable):
         # HACK (somewhat): Single-sample-per-block channels get min/mean/max
         # which is just the same as the value of the sample. Set the values,
         # but don't set hasMinMeanMax.
-        if self._singleSample and not self.hasMinMeanMax:
+        if self._singleSample is True and not self.hasMinMeanMax:
             block.minMeanMax = block.payload*3
             block.parseMinMeanMax(self.parent.parser)
             
@@ -1201,7 +1219,7 @@ class EventList(Transformable):
         except TypeError:
             pass
         
-        if self.parent.singleSample:
+        if self._singleSample is True:
             return start
         
         return self._searchBlockRanges(t, self._getBlockTimeRange,
@@ -1838,6 +1856,7 @@ class EventList(Transformable):
                 unit conversion) will be applied to the results. 
             @return: The event with the maximum value.
         """
+        # Optimization: actual functions are faster than building/using lambdas
         def _channelMax(x):
             return max(x.max)
         
@@ -1870,11 +1889,15 @@ class EventList(Transformable):
                 unit conversion) will be applied to the results. 
             @return: The event with the minimum value.
         """
+        # Optimization: actual functions are faster than building/using lambdas
         def _channelMin(x):
             return min(x.min)
         
         def _val(x):
             return x[-1]
+        
+        def _minVal(x):
+            return min(x[-1])
         
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
@@ -2320,8 +2343,8 @@ class WarningRange(object):
     """
     
     def __repr__(self):
-        return "<%s %d (%s < %s < %s)>" % (self.__class__.__name__, self.id,
-            self.low, self.source.name, self.high)
+        return "<%s %d (%s < %s < %s) at 0x%08x>" % (self.__class__.__name__, 
+               self.id, self.low, self.source.name, self.high, id(self))
 
 
     @property

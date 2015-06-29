@@ -12,7 +12,7 @@ from logger import logger
 # VERSION = (1, 0, 0)
 APPNAME = u"Slam\u2022Stick Lab"
 __version__= '.'.join(map(str, VERSION)) #"0.1"
-__copyright__=u"Copyright (c) 2014 Mid\xe9 Technology"
+__copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
 if DEBUG or BETA:
     __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
