@@ -1638,7 +1638,7 @@ class Plot(ViewerPanel, MenuMixin):
         """
         if self != self.Parent.getActivePage():
             return
-        
+
         enabled = any([s.hasMinMeanMax for s in self.sources])
         rt = self.root
         mb = rt.menubar
@@ -1685,7 +1685,7 @@ class Plot(ViewerPanel, MenuMixin):
     def addSource(self, source, first=False):
         """ Add a data source (i.e. `Subchannel` or `Plot`) to the plot.
         """
-        if not source or source in self.sources:
+        if source is None or source in self.sources:
             return
         
         if first:

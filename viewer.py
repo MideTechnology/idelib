@@ -658,8 +658,6 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_NOMEAN = wx.NewId()
     ID_DATA_MEAN = wx.NewId()
     ID_DATA_MEAN_TOTAL = wx.NewId()
-    ID_DATA_NOMEAN_ALL = wx.NewId()
-    ID_DATA_NOMEAN_NONE = wx.NewId()
     ID_DATA_WARNINGS = wx.NewId()
     ID_DATA_DISPLAY = wx.NewId()
     ID_DATA_DISPLAY_NATIVE = wx.NewId()
@@ -1248,8 +1246,9 @@ class Viewer(wx.Frame, MenuMixin):
         removeMean = self.app.getPref('removeMean', True)
         meanSpan = None
         if removeRolling:
+            removeMean = True
             meanSpan = self.app.getPref('rollingMeanSpan', 5.0)
-        elif removeMean:
+        else:
             meanSpan = -1
         
         self.dataSources = OrderedDict()
@@ -1260,8 +1259,8 @@ class Viewer(wx.Frame, MenuMixin):
                 el = d.getSession(self.session.sessionId)
                 self.dataSources[wx.NewId()] = el
                 p = self.plotarea.addPlot(el, title=d.displayName)
-                if p is not None and meanSpan is not None:
-                    p.removeMean(True, meanSpan)
+                if p is not None:
+                    p.removeMean(removeMean, meanSpan)
         else:
             # Create tabs with multiple channels
             units = None
@@ -1274,11 +1273,10 @@ class Viewer(wx.Frame, MenuMixin):
                     self.dataSources[wx.NewId()] = el
                     if subc.units != units:
                         p = self.plotarea.addPlot(el, subc.displayName)
+                        p.removeMean(removeMean, meanSpan)
                         units = subc.units
                     else:
                         p.addSource(el, True)
-                if p is not None and meanSpan is not None:
-                    p.removeMean(True, meanSpan)
         
         self.enableChildren(True)
         self.buildAddChannelMenu()
@@ -1688,7 +1686,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         removeMean = removeMeanType > 0
         if removeMeanType == 1:
-            meanSpan = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+            meanSpan = self.app.getPref('rollingMeanSpan', 5.0) / self.timeScalar
         else:
             meanSpan = -1
         
@@ -2007,18 +2005,28 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnDontRemoveMeanCheck(self, evt):
-        """
+        """ Handler for ID_DATA_NOMEAN menu item selection. The method can
+            also be used to explicitly set the item checked or unchecked.
+            Changes the user prefs only if called with an Event.
+            
+            @param evt: The menu event. Can also be `True` or `False` to force
+                the check to be set (kind of a hack).
         """ 
         if isinstance(evt, bool):
             self.setMenuItem(self.menubar, self.ID_DATA_NOMEAN, checked=evt)
-            
-        for p in self.plotarea:
-            p.removeMean(False)
+        else:
+            checked = evt.IsChecked()
+            if checked:
+                self.app.setPref('removeMean', False)
+                self.app.setPref('removeRollingMean', False)
+                for p in self.plotarea:
+                    p.removeMean(False)
         
 
     def OnRemoveRollingMeanCheck(self, evt):
         """ Handler for ID_DATA_MEAN menu item selection. The method can
             also be used to explicitly set the item checked or unchecked.
+            Changes the user prefs only if called with an Event.
             
             @param evt: The menu event. Can also be `True` or `False` to force
                 the check to be set (kind of a hack).
@@ -2028,6 +2036,9 @@ class Viewer(wx.Frame, MenuMixin):
             checked = evt
         else:
             checked = evt.IsChecked() 
+            self.app.setPref('removeRollingMean', checked)
+            if checked:
+                self.app.setPref('removeMean', False)
             
         span = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
         for p in self.plotarea:
@@ -2039,6 +2050,7 @@ class Viewer(wx.Frame, MenuMixin):
     def OnRemoveTotalMeanCheck(self, evt):
         """ Handler for ID_DATA_MEAN menu item selection. The method can
             also be used to explicitly set the item checked or unchecked.
+            Changes the user prefs only if called with an Event.
             
             @param evt: The menu event. Can also be `True` or `False` to force
                 the check to be set (kind of a hack).
@@ -2048,7 +2060,10 @@ class Viewer(wx.Frame, MenuMixin):
                              checked=evt)
             checked = evt
         else:
-            checked = evt.IsChecked() 
+            checked = evt.IsChecked()
+            self.app.setPref('removeMean', checked)
+            if checked:
+                self.app.setPref('removeRollingMean', False)
             
         for p in self.plotarea:
             p.removeMean(checked, span=-1)
@@ -2171,11 +2186,13 @@ class Viewer(wx.Frame, MenuMixin):
         self.drawMinMax = self.app.setPref('drawMinMax', evt.IsChecked())
         self.plotarea.redraw()
     
+    
     def OnToggleViewMean(self, evt):
         """
         """
         self.drawMean = self.app.setPref('drawMean', evt.IsChecked())
         self.plotarea.redraw()
+    
     
     def OnToggleLinesMajor(self, evt):
         """ Handler for ID_VIEW_LINES_MAJOR menu item selection.
@@ -2218,8 +2235,9 @@ class Viewer(wx.Frame, MenuMixin):
         removeMean = self.app.getPref('removeMean', True)
         meanSpan = None
         if removeRolling:
-            meanSpan = self.app.getPref('rollingMeanSpan', 5.0)
-        elif removeMean:
+            meanSpan = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+            removeMean = True
+        else:
             meanSpan = -1
         
         # TODO: Generate a realistic range from the sensor descriptions
@@ -2227,8 +2245,8 @@ class Viewer(wx.Frame, MenuMixin):
         
         p = self.plotarea.addPlot(None, title=units[0], units=units, 
                                   initialRange=initialRange)
-        if p is not None and meanSpan is not None:
-            p.removeMean(True, meanSpan)
+        if p is not None:
+            p.removeMean(removeMean, meanSpan)
 
 
     def OnLegendToggle(self, evt):
@@ -2269,7 +2287,7 @@ class Viewer(wx.Frame, MenuMixin):
             if p.units == units:
                 p.setUnitConverter(conv)
         self.updateConversionMenu(activePage)
-        
+
             
     #===========================================================================
     # Custom Events
@@ -2598,6 +2616,9 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
     
     def updateSourceMenu(self, p):
+        """ Check menu items for sources displayed in the active tab, disable 
+            menu items for sources that are not applicable.
+        """
         if p is None:
             return
         for mi in self.viewSourceMenu.GetMenuItems():
@@ -2611,6 +2632,8 @@ class Viewer(wx.Frame, MenuMixin):
             
 
     def updateWarningsMenu(self, p):
+        """ Check menu items for the warnings displayed on the active tab.
+        """
         if p is None:
             return
         for mi in self.viewWarningsMenu.GetMenuItems():
