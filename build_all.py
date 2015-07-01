@@ -68,7 +68,7 @@ try:
     else:
         thisVersion = VERSION
     
-    thisBuildNumber = BUILD_NUMBER if args.noincrement else BUILD_NUMBER + 1
+    thisBuildNumber = BUILD_NUMBER - 1 if args.noincrement else BUILD_NUMBER
     thisBeta = args.beta is True
     thisDebug = not (args.release or thisBeta)
     thisTime = time.time()
@@ -121,7 +121,7 @@ if bad == len(builds):
 else:
     print "Version: %s, build %s, DEBUG=%s, BETA=%s" % (versionString, thisBuildNumber, thisDebug, thisBeta)
     # Reset the DEBUG variable in the info file (local runs are always DEBUG)
-    writeInfo(thisVersion, True, True, thisBuildNumber, thisTime, socket.gethostname())
+    writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, socket.gethostname())
 
 if args.release and bad == 0:
     print "*"*78
