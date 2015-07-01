@@ -972,6 +972,8 @@ class PlotCanvas(wx.ScrolledWindow):
             # Reversing the list, so the topmost item is the 'top' plot
             for i,s in enumerate(reversed(self.Parent.sources)):
                 n = s.parent.displayName
+                if s.parent.units[0] != s.units[0]:
+                    n = "%s as %s" % (n, s.units[0])
                 nt = dc.GetTextExtent(n)
                 w = max(nt[0], w)
                 items.append((i, n, self.pens[s][1]))
@@ -1360,6 +1362,7 @@ class Plot(ViewerPanel, MenuMixin):
     def units(self, v):
         for source in self.sources:
             source.parent.units = v
+        self.plot.legendRect = None
 
     @property
     def transform(self):
@@ -1370,6 +1373,7 @@ class Plot(ViewerPanel, MenuMixin):
     def transform(self, t):
         for source in self.sources:
             source.transform = t
+        self.plot.legendRect = None
         self.plot._collectParents()
 
     #===========================================================================
@@ -1412,12 +1416,16 @@ class Plot(ViewerPanel, MenuMixin):
     def setTabText(self):
         """ Set the name displayed on the plot's tab.
         """
-        if not self.sources:
+        if len(self.sources) == 0:
             ttip = s = self.yUnits[0]
         else:
             ttip = '\n'.join([s.parent.displayName for s in self.sources])
             if len(self.sources) == 1:
-                s = self.sources[0].parent.displayName
+                if self.sources[0].parent.units[0] != self.yUnits[0]:
+                    # Special case: show converted units
+                    s = self.yUnits[0]
+                else:
+                    s = self.sources[0].parent.displayName
             else:
                 s = "%s (%d sources)" % (self.yUnits[0], len(self.sources)) 
         try:
@@ -1473,6 +1481,7 @@ class Plot(ViewerPanel, MenuMixin):
 #             if oldUnits != con.units[0]:
 #                 self.setTabText(con.units[0])
         
+        self.plot.legendRect = None
         self.setTabText()
         self.legend.setValueRange(*sorted((t,b)))
         self.redraw()
