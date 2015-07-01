@@ -1809,6 +1809,7 @@ class Plot(ViewerPanel, MenuMixin):
         """ Handle plot legend context menu selection event.
         """
         self.removeSource(self.plot.legendItem)
+        self.root.updateSourceMenu(self)
         self.legendRect = None
         self.Refresh()
 

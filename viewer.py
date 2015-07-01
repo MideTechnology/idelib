@@ -16,6 +16,7 @@ __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
 if DEBUG or BETA:
     __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
+    import debugging
 if DEBUG:
     import socket
     if socket.gethostname() in ('DEDHAM',):
@@ -30,6 +31,7 @@ if DEBUG:
 
 # The feedback form URL. Will show up as an item in the Help menu if provided.
 FEEDBACK_URL = "https://www.surveymonkey.com/s/slam-stick-x"
+
 
 #===============================================================================
 # 
@@ -667,6 +669,7 @@ class Viewer(wx.Frame, MenuMixin):
 
     ID_DEBUG_SUBMENU = wx.NewId()
     ID_DEBUG_SAVEPREFS = wx.NewId()
+    ID_DEBUG_CONSOLE = wx.NewId()
     ID_DEBUG0 = wx.NewId()
     ID_DEBUG1 = wx.NewId()
     ID_DEBUG2 = wx.NewId()
@@ -941,12 +944,18 @@ class Viewer(wx.Frame, MenuMixin):
             helpMenu.AppendSeparator()
             debugMenu = self.addSubMenu(helpMenu, self.ID_DEBUG_SUBMENU, 
                                         "Debugging")
+            self.addMenuItem(debugMenu, self.ID_DEBUG_CONSOLE, 
+                             "Open Debugging Console\tCtrl+Shift+C", "", 
+                             debugging.DebugConsole.openConsole)
+            debugMenu.AppendSeparator()
             self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
                              "Save All Preferences", "",
                              lambda(evt): self.app.saveAllPrefs())
-            self.addMenuItem(debugMenu, self.ID_DEBUG0, "Open Multiple...", "",
+            self.addMenuItem(debugMenu, self.ID_DEBUG0, 
+                             "Open Multiple...", "", 
                              self.OnFileOpenMulti)
-            self.addMenuItem(debugMenu, self.ID_DEBUG1, "Render Plots/FFTs/etc. in foreground", "",
+            self.addMenuItem(debugMenu, self.ID_DEBUG1, 
+                             "Render Plots/FFTs/etc. in foreground", "",
                              self.OnForegroundRender, kind=wx.ITEM_CHECK)
 
         #=======================================================================
@@ -1024,8 +1033,9 @@ class Viewer(wx.Frame, MenuMixin):
                  self.ID_DEVICE_CONFIG, wx.ID_ABOUT, wx.ID_PREFERENCES,
                  self.ID_HELP_CHECK_UPDATES, self.ID_HELP_FEEDBACK,
                  self.ID_FILE_MULTI,
-                 self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, self.ID_DEBUG0,
-                 self.ID_DEBUG1, self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
+                 self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, 
+                 self.ID_DEBUG_CONSOLE, self.ID_DEBUG0, self.ID_DEBUG1, 
+                 self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
                  )
         
         if not enabled:
@@ -1286,6 +1296,15 @@ class Viewer(wx.Frame, MenuMixin):
         # enabling plot-specific menu items happens on page select; do manually
         self.plotarea.getActivePage().enableMenus()
 
+
+    def getTab(self, idx=None):
+        """ Helper method for getting the active plot tab. 
+        """
+        if idx is None:
+            return self.plotarea.getActivePage()
+        else:
+            return self.plotarea[idx]
+        
     #===========================================================================
     # 
     #===========================================================================
@@ -2571,6 +2590,7 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword fatal: If `True`, the app Viewer will shut down. 
                 
         """
+        
         if isinstance(err, wx.Event):
             err = err.err
             msg = getattr(err, 'msg', None)
@@ -2579,6 +2599,8 @@ class Viewer(wx.Frame, MenuMixin):
             what = " while %s" % what
         
         xmsg = None
+        
+        self.app.lastException = err
         
         if not isinstance(msg, basestring):
             # Slightly more specific error messages go here.
@@ -2739,6 +2761,7 @@ class ViewerApp(wx.App):
         super(ViewerApp, self).__init__(*args, **kwargs)
         
 #         self.recentFilesMenu = wx.Menu()
+        self.lastException = None
         self.viewers = []
         self.changedFiles = True
         self.stdPaths = wx.StandardPaths.Get()
