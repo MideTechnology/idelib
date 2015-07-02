@@ -47,7 +47,7 @@ from glob import glob
 testFiles = glob(r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Product_Database\_Calibration\SSX0000039\DATA\20140923\*.IDE")
 
 # NOTE: Make sure devices.py is copied to deployed directory
-import devices #@UnusedImport
+from devices.ssx import SlamStickX
 
 from birth_utils import changeFilename, writeFile, writeFileLine
 
@@ -184,9 +184,11 @@ class CalFile(object):
         self.skipSamples = skipSamples
         self.analyze()
     
+    
     def __str__(self):
         return '%s %2.4f %2.4f %2.4f %2.4f %2.4f %2.4f' % \
             ((self.name,) + tuple(self.rms) + tuple(self.cal))
+    
     
     @classmethod
     def flattened(cls, data, rows=None, cols=4):
@@ -198,6 +200,7 @@ class CalFile(object):
             result[i,0] = row[0]
             result[i,1:] = row[1]
         return result
+    
     
     @classmethod
     def flattenedIndexed(cls, data, rows=None, cols=4):
@@ -211,6 +214,7 @@ class CalFile(object):
             result[i,2:] = row[1]
         return result
     
+    
     @classmethod
     def getFirstIndex(cls, a, fun, col):
         """ Return the index of the first item in the given column that passes the
@@ -222,13 +226,15 @@ class CalFile(object):
                 return it.index
             it.iternext()
         return 0
-    
+
+
     @classmethod
-    def rms(cls, data, axis=None):
+    def calculateRMS(cls, data, axis=None):
         return np.sqrt(np.mean(data**2, axis=axis))
-    
+
+
     @classmethod
-    def window_rms(cls, a, window_size=2):
+    def calculateWindowedRMS(cls, a, window_size=2):
         a2 = np.power(a,2)
         window = np.ones(window_size)/float(window_size)
         return np.sqrt(np.convolve(a2, window, 'valid'))
@@ -244,14 +250,19 @@ class CalFile(object):
             return self.doc.channels[8]
         else:
             raise TypeError("Accelerometer channel not where expected!")
+
     
     def getLowAccelerometer(self):
         """ Get the high-G accelerometer channel. 
         """
+        # TODO: Actually check sensor descriptions to get channel ID
+        if len(self.doc.channels) == 2:
+            return None
         if 32 in self.doc.channels:
             return self.doc.channels[32]
         else:
             raise TypeError("Low-g accelerometer channel not where expected!")
+
 
     def getPressTempChannel(self):
         """ Get the pressure/temperature channel. 
@@ -263,6 +274,7 @@ class CalFile(object):
             return self.doc.channels[36]
         else:
             raise TypeError("Temp/Pressure channel not where expected!")
+
     
     def getAxisIds(self, channel):
         """ Get the IDs for the accelerometer X, Y, and Z subchannels. The order
@@ -280,6 +292,7 @@ class CalFile(object):
             raise TypeError("Channel did not contain X, Y, and Z subchannels!")
         return ids
 
+
     def analyze(self):
         """ An attempt to port the analysis loop of SSX_Calibration.m to Python.
         
@@ -291,7 +304,7 @@ class CalFile(object):
         cal_value = 7.075   # RMS value of closed loop calibration
         
         _print("importing %s... " % os.path.basename(self.filename))
-        self.doc = doc = importFile(self.filename)
+        self.doc = importFile(self.filename)
         accelChannel = self.getHighAccelerometer()
         pressTempChannel = self.getPressTempChannel()
         axisIds = self.getAxisIds(accelChannel)
@@ -328,17 +341,17 @@ class CalFile(object):
             indices.y = indices.z = indices.x
         
     #     _print("slicing...")
-        self.accel = XYZ(data[indices.x+start:indices.x+stop,3],
-                         data[indices.y+start:indices.y+stop,2],
-                         data[indices.z+start:indices.z+stop,1])
+        self.accel = XYZ(data[indices.x+start:indices.x+stop,axisIds.x],
+                         data[indices.y+start:indices.y+stop,axisIds.y],
+                         data[indices.z+start:indices.z+stop,axisIds.z])
         self.times = XYZ(times[indices.x+start:indices.x+stop],
                          times[indices.y+start:indices.y+stop],
                          times[indices.z+start:indices.z+stop])
     
         _print("computing RMS...")
-        self.rms = XYZ(self.rms(self.accel.x), 
-                       self.rms(self.accel.y), 
-                       self.rms(self.accel.z))
+        self.rms = XYZ(self.calculateRMS(self.accel.x), 
+                       self.calculateRMS(self.accel.y), 
+                       self.calculateRMS(self.accel.z))
         
         self.cal = XYZ(cal_value / self.rms.x, 
                        cal_value / self.rms.y, 
@@ -472,6 +485,7 @@ class Calibrator(object):
                 except Exception:
                     pass
 
+
     def readManifest(self):
         """ Read the user page containing the manifest and (possibly)
             calibration data.
@@ -572,9 +586,11 @@ class Calibrator(object):
 
         self.calTimestamp = int(time.mktime(time.gmtime()))
 
+
     #===========================================================================
     # 
     #===========================================================================
+
 
     def createCalLogEntry(self, filename, chipId, mode='at'):
         """
@@ -582,11 +598,13 @@ class Calibrator(object):
         l = map(str, (time.asctime(), self.calTimestamp, chipId,
                       self.productSerialNumInt, self.isUpdate, self.certNum))
         writeFileLine(filename, ','.join(l), mode=mode)
+
         
     #===========================================================================
     # 
     #===========================================================================
-    
+
+
     def createTxt(self, saveTo=None):
         """ Generate the calibration text, optionally saving it to a file.
         """
@@ -619,18 +637,22 @@ class Calibrator(object):
         
         return result
 
+
     #===========================================================================
     # 
     #===========================================================================
+    
     
     def createPlots(self, savePath='.'):
         if self.cal_vals is None:
             return False
         return [c.render(savePath) for c in self.cal_vals]
 
+
     #===========================================================================
     # 
     #===========================================================================
+    
     
     def createCertificate(self, savePath='.', createPdf=True,
                           template="Slam-Stick-X-Calibration-template.svg"):
@@ -809,6 +831,37 @@ class Calibrator(object):
         
         return ebml_util.build_ebml('CalibrationList', calList, schema='mide_ebml.ebml.schema.mide')
 
+
+    def createEbmlFromFile(self):
+        """ Generate proper calibration EBML data, using the calibration info
+            in the calibration recordings as a template. 
+            
+            @todo: Hook this up!
+        """
+        ideFile = self.cal_files.x
+        accelHi = ideFile.getHighAccelerometer()
+        axisIds = ideFile.getAxisIds(accelHi)
+        
+        # High-g accelerometer calibration
+        for i in range(3):
+            t = ideFile.channels[accelHi][axisIds[i]].transform
+            if t is None:
+                raise TypeError("Subchannel %d.%d has no transform!")
+            t.coefficients = (self.cal[i] * -0.003, self.cal[i], 0.0, 0.0)
+            t.references = (0.0, self.cal_temps[i])
+        
+        # Low-g accelerometer calibration
+        accelLo = ideFile.getLowAccelerometer()
+        if accelLo is not None:
+            # TODO: This
+            pass
+        
+        # Do any other calibration stuff.
+        
+        return SlamStickX.generateCalEbml(ideFile.transforms, 
+                                          date=self.calTimestamp, 
+                                          calSerial=self.self.certNum)
+        
 
 #===============================================================================
 # 

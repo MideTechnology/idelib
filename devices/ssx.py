@@ -4,6 +4,7 @@ Created on Jan 28, 2015
 @author: dstokes
 '''
 import calendar
+from collections import OrderedDict
 from datetime import datetime, timedelta
 import os
 from StringIO import StringIO
@@ -11,10 +12,10 @@ import struct
 import time
 
 from mide_ebml import util
+from mide_ebml.calibration import Univariate, Bivariate
 from mide_ebml.dataset import Dataset
 from mide_ebml.parsers import CalibrationListParser, RecordingPropertiesParser
 from mide_ebml.ebml.schema.mide import MideDocument
-
 import mide_ebml.ebml.schema.manifest as schema_manifest
 
 from base import Recorder, os_specific
@@ -32,6 +33,7 @@ class SlamStickX(Recorder):
     INFO_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVINFO")
     CLOCK_FILE = os.path.join(SYSTEM_PATH, "DEV", "CLOCK")
     CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
+    USERCAL_FILE = os.path.join(SYSTEM_PATH, "usercal.dat")
     TIME_PARSER = struct.Struct("<L")
 
     LIFESPAN = timedelta(2 * 365)
@@ -379,4 +381,75 @@ class SlamStickX(Recorder):
             return calexp
         
         return  caldate + self.CAL_LIFESPAN.total_seconds()
+
     
+    @classmethod
+    def generateCalEbml(cls, transforms, date=None, expires=None, calSerial=0):
+        """ Write a set of calibration to a file. For the keyword arguments, a
+            value of `False` will simply not write the corresponding element.
+        
+            @param transforms: A dictionary or list of `mide_ebml.calibration`
+                objects.
+            @keyword date: The date of calibration. If `None`, the current
+                date/time is used. 
+            @keyword expires: The calibration expiration date. If `None`, the
+                calibration date plus default calibration lifespan is used.
+            @keyword calSerial: The calibration serial number (integer). 0 is
+                assumed to be user-created calibration.
+        """
+        if isinstance(transforms, dict):
+            transforms = transforms.values()
+        if date is None:
+            date = int(time.time())
+        if expires is None:
+            expires = date + cls.CAL_LIFESPAN.total_seconds()
+            
+        univar = []
+        bivar = []
+        for xform in transforms:
+            if xform.id is None:
+                # Probably an automatically generated transform; ignore.
+                continue
+            cal = OrderedDict((
+               ('CalID', xform.id),
+               ('CalReferenceValue', xform.references[0]),
+               ('PolynomialCoef', xform.coefficients),
+               ))
+            if isinstance(xform, Bivariate):
+                cal['BivariateCalReferenceValue'] = xform.references[1]
+                cal['BivariateChannelIDRef'] = xform.channelId
+                cal['BivariateSubChannelIDRef'] = xform.subchannelId
+                bivar.append(cal)
+            elif isinstance(xform, Univariate):
+                univar.append(cal)
+                
+        data = OrderedDict()
+        if univar:
+            data['UnivariatePolynomial'] = univar
+        if bivar:
+            data['BivariatePolynomial'] = bivar
+        if date:
+            data['CalibrationDate'] = date
+        if expires:
+            data['CalibrationExpiry'] = expires
+        if isinstance(calSerial, int):
+            data['CalibrationSerialNumber'] = calSerial
+            
+        return util.build_ebml('CalibrationList', data)
+    
+    
+    def writeUserCal(self, transforms, filename=None):
+        """ Write user calibration to the SSX.
+        
+            @param transforms: A dictionary or list of `mide_ebml.calibration`
+                objects.
+            @keyword filename: An alternate file to which to write the data,
+                instead of the standard user calibration file.
+        """
+        if filename is None:
+            filename = os.path.join(self.path, self.USERCAL_FILE)
+        cal = self.generateCalEbml(transforms)
+        with open(filename, 'wb') as f:
+            f.write(cal)
+        
+        
