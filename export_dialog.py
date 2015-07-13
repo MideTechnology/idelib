@@ -638,6 +638,7 @@ class CSVExportDialog(ExportDialog):
         if result is None:
             return None
         
+        result['removeMean'] = self.removeMeanList.GetSelection()
         result['addHeaders'] = self.headerCheck.GetValue()
         result['useUtcTime'] = self.utcCheck.GetValue()
         result['useIsoFormat'] = self.isoCheck.GetValue()

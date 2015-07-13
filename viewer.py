@@ -1257,7 +1257,7 @@ class Viewer(wx.Frame, MenuMixin):
         meanSpan = None
         if removeRolling:
             removeMean = True
-            meanSpan = self.app.getPref('rollingMeanSpan', 5.0)
+            meanSpan = self.app.getPref('rollingMeanSpan', 5.0) / self.timeScalar
         else:
             meanSpan = -1
         
@@ -1786,7 +1786,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         settings['removeMean'] = removeMeanType > 0
         if removeMeanType == 1:
-            settings['meanSpan'] = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+            settings['meanSpan'] = self.app.getPref('rollingMeanSpan', 5.0) / self.timeScalar
         else:
             settings['meanSpan'] = -1
         
@@ -2059,7 +2059,7 @@ class Viewer(wx.Frame, MenuMixin):
             if checked:
                 self.app.setPref('removeMean', False)
             
-        span = self.app.getPref('rollingMeanSpan', 5) / self.timeScalar
+        span = self.app.getPref('rollingMeanSpan', 5.0) / self.timeScalar
         for p in self.plotarea:
             p.removeMean(checked, span=span)
             
