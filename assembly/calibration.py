@@ -68,6 +68,9 @@ class XYZ(list):
         if len(self) < 3:
             self.extend([0]*(3-len(self)))
 
+    def __repr__(self):
+        return "(x: %r, y: %r, z: %r)" % tuple(self)
+
     @property
     def x(self):
         return self[0]
@@ -282,12 +285,22 @@ class CalFile(object):
         """
         ids = XYZ(-1,-1,-1)
         for subc in channel.subchannels:
-            if 'X' in subc.name and ids.x == -1:
-                ids.x = subc.subchannelId
-            elif 'Y' in subc.name and ids.y == -1:
-                ids.y = subc.subchannelId
-            elif 'Z' in subc.name and ids.z == -1:
-                ids.z = subc.subchannelId
+            errmsg = "Found multiple %%s axes: %%r and %r" % subc.id
+            if 'X' in subc.name:
+                if ids.x == -1:
+                    ids.x = subc.id
+                else:
+                    raise KeyError(errmsg % ('X', ids.x))
+            elif 'Y' in subc.name:
+                if ids.y == -1:
+                    ids.y = subc.id
+                else:
+                    raise KeyError(errmsg % ('Y', ids.y))
+            elif 'Z' in subc.name:
+                if ids.z == -1:
+                    ids.z = subc.id
+                else:
+                    raise KeyError(errmsg % ('Z', ids.z))
         if -1 in ids:
             raise TypeError("Channel did not contain X, Y, and Z subchannels!")
         return ids
@@ -309,6 +322,12 @@ class CalFile(object):
         pressTempChannel = self.getPressTempChannel()
         axisIds = self.getAxisIds(accelChannel)
         
+        self.hiAccelChannelId = accelChannel.id
+        self.hiAccelSubchannelIds = axisIds
+        
+        loAccelChannel = self.getLowAccelerometer()
+        self.loAccelChannelId = loAccelChannel.id if loAccelChannel is not None else None
+        
         # Turn off existing per-channel calibration (if any)
         for c in accelChannel.children:
             c.setTransform(None)
@@ -327,10 +346,11 @@ class CalFile(object):
         gt = lambda(x): x > thres
         
         _print("getting indices... ")
+        # Column 0 is the time, so axis columns are offset by 1
         indices = XYZ(
-            self.getFirstIndex(data, gt, axisIds.x),
-            self.getFirstIndex(data, gt, axisIds.y),
-            self.getFirstIndex(data, gt, axisIds.z)
+            self.getFirstIndex(data, gt, axisIds.x+1),
+            self.getFirstIndex(data, gt, axisIds.y+1),
+            self.getFirstIndex(data, gt, axisIds.z+1)
         )
         
         if indices.x == indices.y == 0:
@@ -341,9 +361,10 @@ class CalFile(object):
             indices.y = indices.z = indices.x
         
     #     _print("slicing...")
-        self.accel = XYZ(data[indices.x+start:indices.x+stop,axisIds.x],
-                         data[indices.y+start:indices.y+stop,axisIds.y],
-                         data[indices.z+start:indices.z+stop,axisIds.z])
+        # Column 0 is the time, so axis columns are offset by 1
+        self.accel = XYZ(data[indices.x+start:indices.x+stop,axisIds.x+1],
+                         data[indices.y+start:indices.y+stop,axisIds.y+1],
+                         data[indices.z+start:indices.z+stop,axisIds.z+1])
         self.times = XYZ(times[indices.x+start:indices.x+stop],
                          times[indices.y+start:indices.y+stop],
                          times[indices.z+start:indices.z+stop])
@@ -437,6 +458,7 @@ class Calibrator(object):
                  skipSamples=5000):
         self.devPath = devPath
         self.productSerialNum = None
+        self.productSerialInt = None
         self.certNum = certNum
         self.isUpdate=False
         
@@ -461,6 +483,9 @@ class Calibrator(object):
 
         if devPath is not None:
             self.readManifest()
+        
+        if self.productSerialInt is None and self.productSerialNum is not None:
+            self.productSerialInt = int(self.productSerialNum.strip(string.ascii_letters+string.punctuation))
             
 
     def getFiles(self, path=None):
@@ -491,44 +516,30 @@ class Calibrator(object):
             calibration data.
             
         """
-        # Recombine all the 'user page' files
-        systemPath = os.path.join(self.devPath, 'SYSTEM', 'DEV')
-        data = []
-        for i in range(4):
-            filename = os.path.join(systemPath, 'USERPG%d' % i)
-            with open(filename, 'rb') as fs:
-                data.append(fs.read())
-        data = ''.join(data)
+        self.device = SlamStickX(self.devPath)
         
-        manOffset, manSize, calOffset, calSize = struct.unpack_from("<HHHH", data)
-        manData = StringIO(data[manOffset:manOffset+manSize])
-        calData = StringIO(data[calOffset:calOffset+calSize])
-        manifest = ebml_util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
-        calibration = ebml_util.read_ebml(calData, schema='mide_ebml.ebml.schema.mide')
-
-        systemInfo = manifest['DeviceManifest']['SystemInfo']
-        self.productSerialNumInt = systemInfo['SerialNumber']
+        manifest = self.device.getManifest()
+        calibration = self.device.getCalibration()
+        
+        systemInfo = manifest['SystemInfo']
+        systemInfo['FwRev'] = self.device.firmwareVersion
         self.productManTimestamp = systemInfo['DateOfManufacture']
-        self.productName = systemInfo['ProductName']
-        self.productHwRev = systemInfo['HwRev']
-        self.productPartNum = systemInfo['PartNumber']
         
-        sensorInfo = manifest['DeviceManifest']['AnalogSensorInfo']
+        sensorInfo = manifest['AnalogSensorInfo']
         self.accelSerial = sensorInfo['AnalogSensorSerialNumber']
         
         self.productManDate = datetime.utcfromtimestamp(self.productManTimestamp).strftime("%m/%d/%Y")
-        self.productSerialNum = "SSX%07d" % self.productSerialNumInt
-        
-        # Firmware revision number is in the DEVINFO file
-        devInfo = ebml_util.read_ebml(os.path.join(systemPath, 'DEVINFO'), schema='mide_ebml.ebml.schema.mide')
-        self.productFwRev = devInfo['RecordingProperties'].get('FwRev',1)
-        systemInfo['FwRev'] = self.productFwRev
+        self.productSerialNum = self.device.serial
+        self.productSerialInt = self.device.serialInt
         
         return manifest, calibration
 
-    
+    #===========================================================================
+    # 
+    #===========================================================================
+
     def calculate(self, filenames=None, prev_cal=(1,1,1)):
-        """
+        """ Calculate the high-g accelerometer!
         """
         self.calDate = datetime.now()
         
@@ -596,7 +607,7 @@ class Calibrator(object):
         """
         """
         l = map(str, (time.asctime(), self.calTimestamp, chipId,
-                      self.productSerialNumInt, self.isUpdate, self.certNum))
+                      self.productSerialInt, self.isUpdate, self.certNum))
         writeFileLine(filename, ','.join(l), mode=mode)
 
         
@@ -697,14 +708,14 @@ class Calibrator(object):
             ('FIELD_cal_y', "%.4f" % self.cal.y),
             ('FIELD_cal_z', "%.4f" % self.cal.z),
             ('FIELD_certificateNum', certTxt),
+            ('FIELD_productCalDate', datetime.utcfromtimestamp(self.calTimestamp).strftime("%m/%d/%Y")),
+            ('FIELD_productManDate', self.productManDate),
+            ('FIELD_productName', self.device.productName),
+            ('FIELD_productPartNum', self.device.partNumber),
+            ('FIELD_productSerial', self.productSerialNum),
 #             ('FIELD_documentNum', self.documentNum),
 #             ('FIELD_procedureNum', self.procedureNum),
-            ('FIELD_productCalDate', datetime.utcfromtimestamp(self.calTimestamp).strftime("%m/%d/%Y")),
 #             ('FIELD_productMan', 'Mide Technology Corp.'),
-            ('FIELD_productManDate', self.productManDate),
-            ('FIELD_productName', self.productName),
-            ('FIELD_productPartNum', self.productPartNum),
-            ('FIELD_productSerial', self.productSerialNum),
 #             ('FIELD_refModel', self.refModel),
 #             ('FIELD_refNist', self.refNist),
 #             ('FIELD_refSerial', self.refSerial),
@@ -735,7 +746,7 @@ class Calibrator(object):
         if os.path.exists(certFilename):
             os.remove(certFilename)
         
-        errfile = os.path.join(tempfile.tempdir, 'svg_err.txt')
+        errfile = os.path.join(tempfile.gettempdir(), 'svg_err.txt')
         with open(errfile,'wb') as f:
             result = subprocess.call('"%s" -f "%s" -A "%s"' % (INKSCAPE_PATH, svgFilename, certFilename), 
                                      stdout=sys.stdout, stdin=sys.stdin, shell=True)
@@ -761,10 +772,10 @@ class Calibrator(object):
                 ("Rev",                  self.calRev),
                 ("Cal Date",             caldate),
                 ("Serial #",             self.productSerialNum),
-                ("Hardware",             self.productHwRev),
-                ("Firmware",             self.productFwRev),
-                ("Product Name",         self.productName),
-                ("Part Number",          self.productPartNum),
+                ("Hardware",             self.device.hardwareVersion),
+                ("Firmware",             self.device.firmwareVersion),
+                ("Product Name",         self.device.productName),
+                ("Part Number",          self.device.partNumber),
                 ("Date of Manufacture",  mandate),
                 ("Ref Manufacturer",     self.refMan),
                 ("Ref Model #",          self.refModel),
@@ -795,7 +806,8 @@ class Calibrator(object):
             user page or an external user calibration file.
         """
         if xmlTemplate is None:
-            g = int(self.productPartNum.rsplit('-',1)[-1].strip(string.ascii_letters))
+#             g = int(self.productPartNum.rsplit('-',1)[-1].strip(string.ascii_letters))
+            g = self.device.getAccelRange()[1]
             baseCoefs = [(g*2.0)/65535.0, -g]
              
             calList = OrderedDict([

@@ -14,7 +14,9 @@ import time
 from mide_ebml import util
 from mide_ebml.calibration import Univariate, Bivariate
 from mide_ebml.dataset import Dataset
+from mide_ebml import importer
 from mide_ebml.parsers import CalibrationListParser, RecordingPropertiesParser
+from mide_ebml.parsers import getParserRanges
 from mide_ebml.ebml.schema.mide import MideDocument
 import mide_ebml.ebml.schema.manifest as schema_manifest
 
@@ -63,8 +65,7 @@ class SlamStickX(Recorder):
         self._calibration = None
         self._calData = None
         self._calPolys = None
-        self._sensors = None
-        self._channels = None
+        self._accelChannels = None
         self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
 
     @classmethod
@@ -117,7 +118,8 @@ class SlamStickX(Recorder):
 
 
     def _saveConfig(self, dest, data, verify=True):
-        """
+        """ Device-specific configuration file saver. Used internally; call
+            `SlamStickX.saveConfig()` instead.
         """
         ebml = util.build_ebml("RecorderConfiguration", data)
         if verify and not util.verify(ebml):
@@ -135,38 +137,72 @@ class SlamStickX(Recorder):
         self._name = userdata.get('RecorderName', '')
         return self._name
 
+
     @property
     def productName(self):
         """ The recording device's manufacturer-issued name. """
         return self._getInfoAttr('ProductName', '')
     
     @property
+    def productId(self):
+        return self._getInfoAttr('RecorderTypeUID', 0x12) & 0xff
+    
+    @property
+    def partNumber(self):
+        return self._getInfoAttr('PartNumber', '')
+    
+    @property
     def serial(self):
         """ The recorder's manufacturer-issued serial number. """
         if self._sn is None:
-            sn = self.getInfo().get('RecorderSerial', None)
-            if sn is None:
+            self._snInt = self._getInfoAttr('RecorderSerial', None)
+            if self._snInt == None:
                 self._sn = ""
             else:
-                self._sn = "SSX%08d" % self.getInfo().get('RecorderSerial', '')
+                self._sn = "SSX%08d" % self._snInt
         return self._sn
+
+    @property
+    def serialInt(self):
+        _ = self.serial
+        return self._snInt
 
     @property
     def hardwareVersion(self):
         return self._getInfoAttr('HwRev', -1)
+
     
     @property
     def firmwareVersion(self):
         return self._getInfoAttr('FwRev', -1)
 
-    def getAccelRange(self):
+
+    def getAccelRange(self, channel=8, subchannel=0, refresh=False):
         """ Get the range of the device's acceleration measurement.
         """
-        if self._accelRange is None:
-            t = self.getInfo().get('RecorderTypeUID', 0x12) & 0xff
-            self._accelRange = self.TYPE_RANGES.get(t, (-100,100))
+        if self._accelRange is not None and not refresh:
+            return self._accelRange
+        
+        channels = self.getChannels(refresh=refresh)
+        xforms = self.getCalPolynomials()
+
+        # TODO: Make this more generic by finding the accelerometer channels
+        ch = channels[channel if channel in channels else 0]
+        xform = ch.transform
+        if isinstance(xform, int):
+            xform = xforms[ch.transform]
+        r = getParserRanges(ch.parser)[subchannel]
+        lo = xform.function(r[0])
+        hi = xform.function(r[1])
+        
+        # HACK: The old parser minimum is slightly low; use negative max.
+        lo = -hi
+        
+        self._accelRange = (float("%.2f" % lo), float("%.2f" % hi))
+        
         return self._accelRange
-    
+
+
     def _packAccel(self, v):
         """ Convert an acceleration from G to native units.
         
@@ -293,13 +329,15 @@ class SlamStickX(Recorder):
         """ Get the constructed Polynomial objects created from the device's
             calibration data.
         """
-        self.getManifest(refresh=refresh)
+        self.getSensors(refresh=refresh)
         if self._calPolys is None:
             try:
                 PP = CalibrationListParser(None)
                 self._calData.seek(0)
                 cal = MideDocument(self._calData)
                 self._calPolys = filter(None, PP.parse(cal.roots[0]))
+                if self._calPolys:
+                    self._calPolys = dict(((p.id, p) for p in self._calPolys))
                 return self._calPolys
             except (KeyError, IndexError, ValueError):
                 pass
@@ -312,17 +350,30 @@ class SlamStickX(Recorder):
             @todo: Merge with manifest sensor data?
         """
         self.getManifest(refresh=refresh)
-        if self._propData is None:
-            return None
 
+        if self._sensors is not None:
+            return self._sensors
+        
         # Use dataset parsers to read the recorder properties. 
+        # This also caches the channels, polynomials, and warning ranges.
         # This is nice in theory but kind of ugly in practice.
-        # TODO: Make Sensor/Channel objects functional without a Dataset.
         try:
             doc = Dataset(None)
-            parser = RecordingPropertiesParser(doc)
-            doc._parsers = {'RecordingProperties': parser}
-            parser.parse(MideDocument(StringIO(self._propData)).roots[0])
+            if not self._propData:
+                # No recorder property data; use defaults
+                if 'SystemInfo' in self._manifest:
+                    doc.recorderInfo = self._manifest['SystemInfo'].copy()
+                # Manifest uses different name for element.
+                doc.recorderInfo['RecorderTypeUID'] = doc.recorderInfo['DeviceTypeUID']
+                importer.createDefaultSensors(doc)
+                doc.transforms.setdefault(0, doc.channels[0].transform)
+                if self._calPolys is None:
+                    self._calPolys = doc.transforms
+            else:
+                # Parse userpage recorder property data
+                parser = RecordingPropertiesParser(doc)
+                doc._parsers = {'RecordingProperties': parser}
+                parser.parse(MideDocument(StringIO(self._propData)).roots[0])
             self._channels = doc.channels
             self._sensors = doc.sensors
             self._warnings = doc.warningRanges
@@ -400,38 +451,21 @@ class SlamStickX(Recorder):
         if isinstance(transforms, dict):
             transforms = transforms.values()
         if date is None:
-            date = int(time.time())
+            date = time.time()
         if expires is None:
             expires = date + cls.CAL_LIFESPAN.total_seconds()
             
-        univar = []
-        bivar = []
+        data = OrderedDict()
         for xform in transforms:
             if xform.id is None:
-                # Probably an automatically generated transform; ignore.
                 continue
-            cal = OrderedDict((
-               ('CalID', xform.id),
-               ('CalReferenceValue', xform.references[0]),
-               ('PolynomialCoef', xform.coefficients),
-               ))
-            if isinstance(xform, Bivariate):
-                cal['BivariateCalReferenceValue'] = xform.references[1]
-                cal['BivariateChannelIDRef'] = xform.channelId
-                cal['BivariateSubChannelIDRef'] = xform.subchannelId
-                bivar.append(cal)
-            elif isinstance(xform, Univariate):
-                univar.append(cal)
-                
-        data = OrderedDict()
-        if univar:
-            data['UnivariatePolynomial'] = univar
-        if bivar:
-            data['BivariatePolynomial'] = bivar
+            n = "%sPolynomial" % xform.__class__.__name__
+            data.setdefault(n, []).append(xform.asDict())
+
         if date:
-            data['CalibrationDate'] = date
+            data['CalibrationDate'] = int(date)
         if expires:
-            data['CalibrationExpiry'] = expires
+            data['CalibrationExpiry'] = int(expires)
         if isinstance(calSerial, int):
             data['CalibrationSerialNumber'] = calSerial
             

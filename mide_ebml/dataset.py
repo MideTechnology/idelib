@@ -707,6 +707,23 @@ class Channel(Transformable):
             for s in self.sessions.values():
                 s.updateTransforms()
 
+
+    def getAxisNames(self):
+        """ Get the 'axis name' for all SubChannels.
+        """
+        return [c.axisName for c in self.subchannels]
+
+
+    def getAxis(self, axis, strict=True):
+        """ Get a SubChannel by the name of its axis (or recording type for
+            single-axis data, e.g. temperature).
+        """
+        for c in self.subchannels:
+            if c.axisName == axis or (strict and axis in c.axisName):
+                return c
+        raise KeyError("Could not find axis named %r" % axis)
+
+
 #===============================================================================
 
 class SubChannel(Channel):
@@ -807,6 +824,8 @@ class SubChannel(Channel):
                                              self.parent.id, self.id, 
                                              self.path(), id(self))
 
+    def __len__(self):
+        return AttributeError('SubChannel has no children.')
 
     @property
     def parser(self):
@@ -873,8 +892,13 @@ class SubChannel(Channel):
     def addSubChannel(self, *args, **kwargs):
         raise AttributeError("SubChannels have no SubChannels")
 
-
     def getSubChannel(self, *args, **kwargs):
+        raise AttributeError("SubChannels have no SubChannels")
+
+    def getAxisNames(self, *args, **kwargs):
+        raise AttributeError("SubChannels have no SubChannels")
+
+    def getAxis(self, *args, **kwargs):
         raise AttributeError("SubChannels have no SubChannels")
 
 

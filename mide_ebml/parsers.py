@@ -325,7 +325,7 @@ class AccelerometerParser(object):
         # This parser converts to signed ints to avoid some problems with the
         # inverted 'z' axis.
         z, y, x = self.parser.unpack_from(data, offset)
-        return 32767-z,y-32767,x-32767
+        return 32768-z,y-32768,x-32768
     
 
 ################################################################################

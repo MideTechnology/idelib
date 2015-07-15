@@ -75,6 +75,9 @@ class Recorder(object):
         self._config = None
         self._name = None
         self._sn = None
+        self._snInt = None
+        self._sensors = None
+        self._channels = None
         self._accelRange = None
 
 

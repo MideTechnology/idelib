@@ -150,7 +150,7 @@ def createDefaultSensors(doc, defaults=DEFAULTS):
         more sensors, instantiate those sensors and add them to the dataset
         document.
     """
-    logger.info("creating default sensors")
+#     logger.info("creating default sensors")
     sensors = defaults['sensors'].copy()
     channels = defaults['channels'].copy()
     warnings = defaults['warnings']

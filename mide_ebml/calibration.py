@@ -13,6 +13,7 @@ Created on Nov 27, 2013
 # __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
 #            'Univariate', 'Bivariate']
 
+from collections import OrderedDict
 import math
 from time import sleep
 
@@ -272,7 +273,15 @@ class Univariate(Transform):
     def references(self, val):
         self._references = val
         self._build()
-        
+    
+    
+    def asDict(self):
+        """ Dump the polynomial as a dictionary. Intended for use when
+            generating EBML.
+        """
+        return OrderedDict((('CalID', self.id),
+                            ('CalReferenceValue', self._references[0]),
+                            ('PolynomialCoef', self._coeffs)))
 
 #===============================================================================
 # 
@@ -416,6 +425,16 @@ class Bivariate(Univariate):
 #             return event
 
 
+    def asDict(self):
+        """ Dump the polynomial as a dictionary. Intended for use when
+            generating EBML.
+        """
+        cal = super(Bivariate, self).asDict()
+        cal['BivariateCalReferenceValue'] = self._references[1]
+        cal['BivariateChannelIDRef'] = self.channelId
+        cal['BivariateSubChannelIDRef'] = self.subchannelId
+        return cal
+
 #===============================================================================
 # 
 #===============================================================================
@@ -508,6 +527,14 @@ class CombinedPoly(Bivariate):
         self._function = eval(self._source, evalGlobals)
         self._noY = (0,1) if 'y' not in src else False
         
+        
+    def asDict(self):
+        """ Dump the polynomial as a dictionary. Intended for use when
+            generating EBML.
+        """
+        raise TypeError("Can't generate dictionary for %s" % \
+                        self.__class.__.__name)
+
 
 class PolyPoly(CombinedPoly):
     """ Calibration transform that combines multiple subchannel polynomials 
