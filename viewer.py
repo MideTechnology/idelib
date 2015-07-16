@@ -1871,7 +1871,13 @@ class Viewer(wx.Frame, MenuMixin):
             except (AttributeError, wx.PyDeadObjectError):
                 # FFT view may already have been destroyed; that's okay.
                 pass
-            
+        
+        # Remove from parent's viewer list (prevents dead object errors)
+        try:
+            self.app.viewers.remove(self)
+        except ValueError:
+            pass
+        
         self.Destroy()
         evt.Skip()
     
