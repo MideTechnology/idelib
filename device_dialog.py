@@ -64,7 +64,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         
         sc.SizedDialog.__init__(self, *args, **kwargs)
         
-        self.recorders = []
+        self.recorders = {}
         self.recorderPaths = tuple(getDeviceList())
         self.listWidth = 300
         self.selected = None

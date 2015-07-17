@@ -7,12 +7,16 @@ import calendar
 from collections import OrderedDict
 from datetime import datetime, timedelta
 import os
-from StringIO import StringIO
 import struct
 import time
 
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
+
 from mide_ebml import util
-from mide_ebml.calibration import Univariate, Bivariate
+# from mide_ebml.calibration import Univariate, Bivariate
 from mide_ebml.dataset import Dataset
 from mide_ebml import importer
 from mide_ebml.parsers import CalibrationListParser, RecordingPropertiesParser
@@ -21,6 +25,7 @@ from mide_ebml.ebml.schema.mide import MideDocument
 import mide_ebml.ebml.schema.manifest as schema_manifest
 
 from base import Recorder, os_specific
+from devices.base import ConfigError
 # from base import ConfigError, ConfigVersionError
 
 #===============================================================================
@@ -41,15 +46,6 @@ class SlamStickX(Recorder):
     LIFESPAN = timedelta(2 * 365)
     CAL_LIFESPAN = timedelta(365)
 
-    TYPE_RANGES = {
-       0x10: (-25,25),
-       0x12: (-100,100),
-       0x13: (-200,200),
-       0x14: (-500, 500),
-       0x15: (-2000, 2000),
-       0x16: (-6000, 6000)
-    }
-
     POST_CONFIG_MSG  = ("""When ready...\n"""
                         """    1. Disconnect Slam Stick X\n"""
                         """    2. Mount to surface\n"""
@@ -66,7 +62,11 @@ class SlamStickX(Recorder):
         self._calData = None
         self._calPolys = None
         self._accelChannels = None
-        self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
+        if self.path is not None:
+            self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
+        else:
+            self.clockFile = None
+
 
     @classmethod
     def isRecorder(cls, dev, strict=True):
@@ -90,10 +90,12 @@ class SlamStickX(Recorder):
     def getInfo(self, default=None, refresh=False):
         """ Retrieve a recorder's device information.
         
-            @return: A dictionary containing the device data. An additional key,
-                `"_PATH"`, is added with the path to the device (e.g. the drive
-                letter under Windows).
+            @return: A dictionary containing the device data.
         """
+        if self.path is None:
+            # No path: probably a recorder description from a recording.
+            return self._info
+        
         if self._info is not None and not refresh:
             return self._info
         try:
@@ -101,7 +103,6 @@ class SlamStickX(Recorder):
             props = devinfo.get('RecordingProperties', '')
             if 'RecorderInfo' in props:
                 self._info = props['RecorderInfo']
-                self._info['_PATH'] = self.path
                 
                 return self._info
         except IOError:
@@ -176,6 +177,10 @@ class SlamStickX(Recorder):
     def firmwareVersion(self):
         return self._getInfoAttr('FwRev', -1)
 
+    @property
+    def birthday(self):
+        return self._getInfoAttr('DateOfManufacture')
+
 
     def getAccelRange(self, channel=8, subchannel=0, refresh=False):
         """ Get the range of the device's acceleration measurement.
@@ -230,6 +235,9 @@ class SlamStickX(Recorder):
             @return: The system time and the device time, as integer seconds 
                 since the epoch ('Unix time').
         """
+        if self.path is None:
+            raise ConfigError('Could not get time: Not a real device!')
+        
         sysTime, devTime = os_specific.readRecorderClock(self.clockFile)
         return sysTime, self.TIME_PARSER.unpack_from(devTime)[0]
     
@@ -250,6 +258,9 @@ class SlamStickX(Recorder):
                 fail. Random filesystem things can potentially cause hiccups.
             @return: The time that was set, as integer seconds since the epoch.
         """
+        if self.path is None:
+            raise ConfigError('Could not set time: Not a real device!')
+        
         if t is None:
             t = int(time.time())
         elif isinstance(t, datetime):
@@ -280,6 +291,9 @@ class SlamStickX(Recorder):
         """ Read the device's manifest data. The data is a superset of the
             information returned by `getInfo()`.
         """
+        if self.path is None:
+            return self._manifest
+        
         if refresh is True:
             self._manifest = None
             self._calibration = None
@@ -300,7 +314,10 @@ class SlamStickX(Recorder):
                 data.append(fs.read())
         data = ''.join(data)
         
-        manOffset, manSize, calOffset, calSize, propOffset, propSize = struct.unpack_from("<HHHHHH", data)
+        (manOffset, manSize, 
+         calOffset, calSize, 
+         propOffset, propSize) = struct.unpack_from("<HHHHHH", data)
+         
         manData = StringIO(data[manOffset:manOffset+manSize])
         self._calData = StringIO(data[calOffset:calOffset+calSize])
         
@@ -395,9 +412,8 @@ class SlamStickX(Recorder):
         """ Get the number of days since the recorder's date of manufacture.
         """
         try:
-            birth = self.getInfo(refresh=refresh)['DateOfManufacture']
-            return (time.time() - birth) / (60 * 60 * 24) 
-        except (AttributeError, KeyError):
+            return (time.time() - self.birthday) / (60 * 60 * 24) 
+        except (AttributeError, KeyError, TypeError):
             return None
         
 
@@ -411,17 +427,15 @@ class SlamStickX(Recorder):
                 is returned if no estimation could be made.
         """
         try:
-            birth = self.getInfo(refresh=refresh)['DateOfManufacture']
-            age = (time.time() - birth) 
+            age = (time.time() - self.birthday) 
             return int(0.5 + self.LIFESPAN.total_seconds() - age)
-        except (AttributeError, KeyError):
+        except (AttributeError, KeyError, TypeError):
             return None
 
 
     def getCalExpiration(self, refresh=False):
         """ Get the expiration date of the recorder's factory calibration.
         """
-        self.getCalibration(refresh=refresh)
         caldate = self._calibration.get('CalibrationDate', None)
         calexp = self._calibration.get('CalibrationExpiry', None)
         
@@ -481,9 +495,40 @@ class SlamStickX(Recorder):
                 instead of the standard user calibration file.
         """
         if filename is None:
+            if self.path is None:
+                raise ConfigError('Could not write user calibration data: '
+                                  'Not a real recorder!')
             filename = os.path.join(self.path, self.USERCAL_FILE)
         cal = self.generateCalEbml(transforms)
         with open(filename, 'wb') as f:
             f.write(cal)
+    
+    
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    @classmethod
+    def fromRecording(cls, dataset):
+        """ Create a 'fake' recorder from the recorder description in a
+            recording.
+        """
+        ssx = cls(None)
+        ssx._info = dataset.recorderInfo.copy()
+        ssx._calPolys = dataset.transforms.copy()
+        ssx._channels = dataset.channels.copy()
+        ssx._warnings = dataset.warningRanges.copy()
+        
+        # Datasets merge calibration info info recorderInfo; separate them.
+        ssx._calibration = {}
+        for k in ('CalibrationDate', 
+                  'CalibrationExpiry', 
+                  'CalibrationSerialNumber'):
+            v = ssx._info.pop(k, None)
+            if v is not None:
+                ssx._calibration[k] = v
+        
+        return ssx
+        
         
         

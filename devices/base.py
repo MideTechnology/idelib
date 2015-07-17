@@ -13,9 +13,9 @@ import os.path
 import sys
 
 try:
-    import cStringIO as StringIO
+    from cStringIO import StringIO
 except ImportError:
-    import StringIO
+    from StringIO import StringIO
 
 if sys.platform == 'darwin':
     import macos 
@@ -63,14 +63,15 @@ class Recorder(object):
 
 
     def __init__(self, path):
-        path = os.path.realpath(os.path.expandvars(path))
-        if not self.isRecorder(path):
-            raise IOError("Specified path isn't a %s: %r" % \
-                          (self.__class__.__name__, path))
         self.path = path
-        self.volumeName = os_specific.getDriveInfo(self.path).label
-        self.configFile = os.path.join(self.path, self.CONFIG_FILE)
-        self.infoFile = os.path.join(self.path, self.INFO_FILE)
+        if path is not None:
+            self.path = os.path.realpath(os.path.expandvars(path))
+            if not self.isRecorder(self.path):
+                raise IOError("Specified path isn't a %s: %r" % \
+                              (self.__class__.__name__, self.path))
+            self.volumeName = os_specific.getDriveInfo(self.path).label
+            self.configFile = os.path.join(self.path, self.CONFIG_FILE)
+            self.infoFile = os.path.join(self.path, self.INFO_FILE)
         self._info = None
         self._config = None
         self._name = None
@@ -94,9 +95,9 @@ class Recorder(object):
             return False
     
 
-    def _getInfoAttr(self, name, default=None):
+    def _getInfoAttr(self, name, default=None, refresh=False):
         """ Helper method to make getting an info value tidy. """
-        info = self.getInfo()
+        info = self.getInfo(refresh=refresh)
         if info is None:
             return default
         return info.get(name, default)

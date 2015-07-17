@@ -58,8 +58,8 @@ PRODUCT_ROOT_PATH = "R:/LOG-Data_Loggers/LOG-0002_Slam_Stick_X/"
 BIRTHER_PATH = os.path.join(PRODUCT_ROOT_PATH, "Design_Files/Firmware_and_Software/Manufacturing/LOG-XXXX-SlamStickX_Birther/")
 
 # XXX: TESTING: REMOVE LATER
-if socket.gethostname() == "DEDHAM":
-    PRODUCT_ROOT_PATH = r"C:\Users\dstokes\workspace\SSXViewer\assembly\temp"
+# if socket.gethostname() == "DEDHAM":
+#     PRODUCT_ROOT_PATH = r"C:\Users\dstokes\workspace\SSXViewer\assembly\temp"
 
 FIRMWARE_PATH = os.path.join(BIRTHER_PATH, "firmware")
 TEMPLATE_PATH = os.path.join(BIRTHER_PATH, "data_templates")
@@ -82,7 +82,7 @@ APP_VER_FILE = os.path.join(FIRMWARE_PATH, "app_version.txt")
 CONTENT_PATH = os.path.join(DB_PATH, '_Copy_Folder')
 
 #===============================================================================
-# Rigamarole to ensure the right libraries are located.
+# Rigmarole to ensure the right libraries are located.
 #===============================================================================
 
 # VIEWER_PATH = "P:/WVR_RIF/04_Design/Electronic/Software/SSX_Viewer"
@@ -718,6 +718,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
 
 if __name__ == "__main__":
     import argparse
+    global TEMPLATE_PATH
     
     parser = argparse.ArgumentParser(description="Improved SSX Birthing/Calibration Suite")
     parser.add_argument("mode", help="The job to do", choices=["birth", "calibrate", "cal"])
@@ -727,7 +728,15 @@ if __name__ == "__main__":
 #     parser.add_argument("--fwRev", "-f", help="Firmware revision to birth.")
 #     parser.add_argument("--accelSerialNum", "-a", help="Accelerometer serial number to birth.")
     parser.add_argument("--binfile", "-b", help="An alternate firmware file to upload in birth mode.", default=None)
+    parser.add_argument("--templates", "-t", help="An alternate birth template directory.", default=TEMPLATE_PATH)
     args = parser.parse_args()
+    
+    TEMPLATE_PATH = args.templates
+    
+    print "*" * 78
+    print "Starting Slam Stick X %r script." % (args.mode)
+    print "Template path: %s" % TEMPLATE_PATH
+    print "*" * 78
     
     try:
         if args.mode == "birth":

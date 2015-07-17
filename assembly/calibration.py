@@ -9,12 +9,15 @@ from datetime import datetime
 import os.path
 import shutil
 import string
-from StringIO import StringIO
-import struct
 import subprocess
 import sys
 import tempfile
 import time
+
+try:
+    from cStringIO import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 from xml.etree import ElementTree as ET
 
