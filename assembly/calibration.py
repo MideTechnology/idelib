@@ -446,6 +446,11 @@ class Calibrator(object):
     TODO: check if 'Ref' values are constant.
     """
     
+    # TODO: Get these from the device data (or calibration recordings)
+    accelHiCalIds = XYZ(1, 2, 3)
+    accelLoCalIds = XYZ(33, 34, 35)
+    
+    
     def __init__(self, devPath=None,
                  certNum=0,
                  calRev="C",
@@ -480,7 +485,7 @@ class Calibrator(object):
     
         self.calTimestamp = 0
         self.cal_vals=None
-        self.cal_files = None
+        self.filenames = None
 
         self.skipSamples = skipSamples
 
@@ -565,17 +570,17 @@ class Calibrator(object):
         cal_vals = self.cal_vals
         
         self.cal = XYZ()
-        self.cal_files = XYZ()
+        self.filenames = XYZ()
         for j in range(3):
             if cal_vals[j].cal.x <= 2:
                 self.cal.x = cal_vals[j].cal.x * prev_cal[0]
-                self.cal_files.x = basenames[j]
+                self.filenames.x = basenames[j]
             if cal_vals[j].cal.y <= 2:
                 self.cal.y = cal_vals[j].cal.y * prev_cal[1]
-                self.cal_files.y = basenames[j]
+                self.filenames.y = basenames[j]
             if cal_vals[j].cal.z <= 2:
                 self.cal.z = cal_vals[j].cal.z * prev_cal[2]
-                self.cal_files.z = basenames[j]
+                self.filenames.z = basenames[j]
         
         self.Sxy = self.Sxy_file = None
         self.Syz = self.Syz_file = None
@@ -634,9 +639,9 @@ class Calibrator(object):
                   '    File  X-rms   Y-rms   Z-rms   X-cal   Y-cal   Z-cal']
         
         result.extend(map(str, self.cal_vals))
-        result.append("%s, X Axis Calibration Constant %.4f" % (self.cal_files.x, self.cal.x))
-        result.append("%s, Y Axis Calibration Constant %.4f" % (self.cal_files.y, self.cal.y))
-        result.append("%s, Z Axis Calibration Constant %.4f" % (self.cal_files.z, self.cal.z))
+        result.append("%s, X Axis Calibration Constant %.4f" % (self.filenames.x, self.cal.x))
+        result.append("%s, Y Axis Calibration Constant %.4f" % (self.filenames.y, self.cal.y))
+        result.append("%s, Z Axis Calibration Constant %.4f" % (self.filenames.z, self.cal.z))
         result.append("%s, Transverse Sensitivity in XY = %.2f percent" % (self.Sxy_file, self.Sxy))
         result.append("%s, Transverse Sensitivity in YZ = %.2f percent" % (self.Syz_file, self.Syz))
         result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (self.Sxz_file, self.Sxz))
@@ -832,14 +837,22 @@ class Calibrator(object):
             
         calList['CalibrationSerialNumber'] = self.certNum
         calList['CalibrationDate'] = self.calTimestamp
-            
+        
+        # TODO: Calculate from device calibration data?
+        channels = self.device.getChannels()
+        if 36 in channels:
+            tempChannelId = 36
+        else:
+            tempChannelId = 1
+        tempSubchannelId = 1
+        
         for i in range(3):
             thisCal = OrderedDict([
                 ('CalID', i+1),
                 ('CalReferenceValue', 0.0), 
                 ('BivariateCalReferenceValue', self.cal_temps[i]), 
-                ('BivariateChannelIDRef', 1), 
-                ('BivariateSubChannelIDRef',1), 
+                ('BivariateChannelIDRef', tempChannelId), 
+                ('BivariateSubChannelIDRef',tempSubchannelId), 
                 ('PolynomialCoef', [self.cal[i] * -0.003, self.cal[i], 0.0, 0.0]), 
             ])
             calList['BivariatePolynomial'].append(thisCal)
@@ -853,15 +866,15 @@ class Calibrator(object):
             
             @todo: Hook this up!
         """
-        ideFile = self.cal_files.x
+        ideFile = self.cal_vals.x
         accelHi = ideFile.getHighAccelerometer()
         axisIds = ideFile.getAxisIds(accelHi)
         
         # High-g accelerometer calibration
         for i in range(3):
-            t = ideFile.channels[accelHi][axisIds[i]].transform
+            t = accelHi[axisIds[i]].transform
             if t is None:
-                raise TypeError("Subchannel %d.%d has no transform!")
+                raise TypeError("Subchannel %d.%d has no transform!", (accelHi.id, axisIds[i]))
             t.coefficients = (self.cal[i] * -0.003, self.cal[i], 0.0, 0.0)
             t.references = (0.0, self.cal_temps[i])
         
@@ -873,7 +886,7 @@ class Calibrator(object):
         
         # Do any other calibration stuff.
         
-        return SlamStickX.generateCalEbml(ideFile.transforms, 
+        return SlamStickX.generateCalEbml(ideFile.doc.transforms, 
                                           date=self.calTimestamp, 
                                           calSerial=self.self.certNum)
         
