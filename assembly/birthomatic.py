@@ -514,7 +514,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     try:
         if not os.path.exists(birthFile):
             # Possibly birthed by old script; copy data from main log.
-            birthInfo = utils.findBirthLog(BIRTH_LOG_FILE, val=c.productSerialNumInt)
+            birthInfo = utils.findBirthLog(BIRTH_LOG_FILE, val=c.productSerialInt)
             if not birthInfo:
                 utils.errMsg("Could not get birth log info from either file:",
                              birthFile, BIRTH_LOG_FILE)
@@ -693,7 +693,11 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     
     print "Uploading updated manifest and calibration data..."
     manifest = utils.readFile(os.path.join(chipDirName, 'manifest.ebml'))
-    ssxboot.sendUserpage(manifest, caldata)
+    try:
+        recprops = utils.readFile(os.path.join(chipDirName, 'recprop.ebml'))
+    except IOError:
+        recprops = ''
+    ssxboot.sendUserpage(manifest, caldata, recprops)
      
     print "Disconnecting from bootloader mode..."
     ssxboot.disconnect()
@@ -705,7 +709,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     print "*" * 60
     print "\x07Slam Stick X SN:%s calibration complete!" % (c.productSerialNum)
     print "    Calibration SN:", certNum
-    print "       Part Number:", c.productPartNum
+    print "       Part Number:", c.device.partNumber
     print "       Hardware ID:", chipId
     print "  Accelerometer SN:", c.accelSerial
     print "Total time: %s (%s spent copying files)" % (totalTime, copyTime)
@@ -718,7 +722,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
 
 if __name__ == "__main__":
     import argparse
-    global TEMPLATE_PATH
+#     global TEMPLATE_PATH
     
     parser = argparse.ArgumentParser(description="Improved SSX Birthing/Calibration Suite")
     parser.add_argument("mode", help="The job to do", choices=["birth", "calibrate", "cal"])

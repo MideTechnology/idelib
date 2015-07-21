@@ -1381,7 +1381,7 @@ class CalibrationPanel(InfoPanel):
             self.html.append("<p><b>Calibration ID %d</b>" % cal.id)
             calType = cal.__class__.__name__
             if hasattr(cal, 'channelId'):
-                calType += "; references Channel %x" % cal.channelId
+                calType += "; references Channel %d" % cal.channelId
                 if hasattr(cal, 'subchannelId'):
                     calType += ", Subchannel %d" % cal.subchannelId
             self.html.append('<ul>')

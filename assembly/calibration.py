@@ -815,7 +815,7 @@ class Calibrator(object):
         """
         if xmlTemplate is None:
 #             g = int(self.productPartNum.rsplit('-',1)[-1].strip(string.ascii_letters))
-            g = self.device.getAccelRange()[1]
+            g = float("%0.0f" % self.device.getAccelRange()[1])
             baseCoefs = [(g*2.0)/65535.0, -g]
              
             calList = OrderedDict([
@@ -846,6 +846,9 @@ class Calibrator(object):
             tempChannelId = 1
         tempSubchannelId = 1
         
+        # Z axis is flipped on the PCB. Negate.
+        self.cal.z *= -1
+        
         for i in range(3):
             thisCal = OrderedDict([
                 ('CalID', i+1),
@@ -856,6 +859,9 @@ class Calibrator(object):
                 ('PolynomialCoef', [self.cal[i] * -0.003, self.cal[i], 0.0, 0.0]), 
             ])
             calList['BivariatePolynomial'].append(thisCal)
+
+        # Flip Z back, just in case.
+        self.cal.z *= -1
         
         return ebml_util.build_ebml('CalibrationList', calList, schema='mide_ebml.ebml.schema.mide')
 
@@ -869,7 +875,10 @@ class Calibrator(object):
         ideFile = self.cal_vals.x
         accelHi = ideFile.getHighAccelerometer()
         axisIds = ideFile.getAxisIds(accelHi)
-        
+
+        # Z axis is flipped on the PCB. Negate.
+        self.cal.z *= -1
+                
         # High-g accelerometer calibration
         for i in range(3):
             t = accelHi[axisIds[i]].transform
@@ -877,7 +886,10 @@ class Calibrator(object):
                 raise TypeError("Subchannel %d.%d has no transform!", (accelHi.id, axisIds[i]))
             t.coefficients = (self.cal[i] * -0.003, self.cal[i], 0.0, 0.0)
             t.references = (0.0, self.cal_temps[i])
-        
+
+        # Flip Z back, just in case.
+        self.cal.z *= -1
+                
         # Low-g accelerometer calibration
         accelLo = ideFile.getLowAccelerometer()
         if accelLo is not None:
