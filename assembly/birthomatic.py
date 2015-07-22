@@ -43,7 +43,7 @@ from datetime import datetime, timedelta
 from glob import glob
 import os.path
 import shutil
-import socket
+# import socket
 import string
 import sys
 import time
@@ -679,7 +679,10 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
     copyTime = datetime.now()-copyStart
     
     print "Removing old DATA directory from device..."
-    shutil.rmtree(os.path.join(devPath, "DATA"))
+    try:
+        shutil.rmtree(os.path.join(devPath, "DATA"))
+    except WindowsError:
+        pass
     
     print """\x07Press the Slam Stick X's "X" button to enter bootloader mode."""
     # Don't count the time spent waiting for the user to press the button.
