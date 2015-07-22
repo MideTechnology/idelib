@@ -334,6 +334,10 @@ class CalFile(object):
         # Turn off existing per-channel calibration (if any)
         for c in accelChannel.children:
             c.setTransform(None)
+
+        # HACK: Fix typo in template the hard way
+        accelChannel.transform.references = (0,)
+        accelChannel.updateTransforms()
             
         a = accelChannel.getSession()
         a.removeMean = True
@@ -820,7 +824,7 @@ class Calibrator(object):
              
             calList = OrderedDict([
                 ('UnivariatePolynomial', [
-                    OrderedDict([('CalID', 0), 
+                    OrderedDict([('CalID', 9), 
                                  ('CalReferenceValue', 0.0), 
                                  ('PolynomialCoef', baseCoefs)])
                     ]

@@ -952,6 +952,13 @@ class EventList(Transformable):
             self._blockIdxTableSize = ps._blockIdxTableSize
             self._blockTimeTableSize = ps._blockTimeTableSize
         
+        if self.hasSubchannels:
+            self.channelId = self.parent.id
+            self.subchannelId = None
+        else:
+            self.channelId = self.parent.parent.id
+            self.subchannelId = self.parent.id
+        
         self._hasSubsamples = False
         
         self.hasDisplayRange = self.parent.hasDisplayRange
@@ -1363,7 +1370,7 @@ class EventList(Transformable):
                 
             if not self.hasSubchannels:
                 # Doesn't quite work; transform dataset attribute not set?
-                return (event[-2], event[-1][self.parent.id])
+                return (event[-2], event[-1][self.subchannelId])
             else:
                 return event
 
@@ -1744,7 +1751,7 @@ class EventList(Transformable):
         removeMean = self.removeMean
         _getBlockRollingMean = self._getBlockRollingMean
         if not hasSubchannels:
-            parent_id = self.parent.id
+            parent_id = self.subchannelId
 
         if self.useAllTransforms:
             xform = self._fullXform
@@ -1762,14 +1769,16 @@ class EventList(Transformable):
             # XXX: HACK! Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
             if removeMean and m is None:
-                sleep(0.001)
+                sleep(0.005)
                 m = _getBlockRollingMean(block.blockIndex)
             
             if m is not None:
                 mx = xform((t,m), session)
                 if mx is None:
-                    sleep(0.001)
+                    sleep(0.005)
                     mx = xform((t,m), session)
+                    if mx is None:
+                        mx = (t,m)
                 m = numpy.array(mx[1])
                 
             result = []
@@ -1778,8 +1787,10 @@ class EventList(Transformable):
             for val in (block.min, block.mean, block.max):
                 event=xform((t,val), session)
                 if event is None:
-                    sleep(0.001)
+                    sleep(0.005)
                     event = xform((t, val), session)
+                    if event is None:
+                        event = (t,val)
                 eTime, eVals = event
                 if m is not None:
                     eVals -= m
@@ -1898,7 +1909,7 @@ class EventList(Transformable):
             block = max(blocks, key=_channelMax)
             return max(self.iterSlice(*block.indexRange, display=display), key=_maxVal)
         else:
-            block = max(blocks, key=lambda x: x.max[self.parent.id])
+            block = max(blocks, key=lambda x: x.max[self.subchannelId])
             return max(self.iterSlice(*block.indexRange, display=display), key=_val)
 
 
@@ -1931,7 +1942,7 @@ class EventList(Transformable):
             block = min(blocks, key=_channelMin)
             return min(self.iterSlice(*block.indexRange, display=display), key=_minVal)
         else:
-            block = min(blocks, key=lambda x: x.min[self.parent.id])
+            block = min(blocks, key=lambda x: x.min[self.subchannelId])
             return min(self.iterSlice(*block.indexRange, display=display), key=_val)
 
 
@@ -2146,12 +2157,15 @@ class EventList(Transformable):
     
 
     def getMeanNear(self, t, outOfRange=False):
-        """
+        """ Retrieve the mean value near a given time. 
         """
         b = self._getBlockIndexWithTime(t)
         if outOfRange:
             b = min(len(self._data)-1,b)
-        return self._getBlockRollingMean(b, force=True)
+        m = self._comboXform((t,self._getBlockRollingMean(b, force=True)))[-1]
+        if self.hasSubchannels:
+            return m
+        return m[self.subchannelId]
         
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,

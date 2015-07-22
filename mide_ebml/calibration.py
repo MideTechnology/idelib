@@ -413,7 +413,7 @@ class Bivariate(Univariate):
 #             y = self._noY or self._eventlist.getValueAt(event[-2], 
 #                                                          outOfRange=True)
             y = self._noY or self._eventlist.getMeanNear(event[-2])
-            return event[-2],self._function(x,y[-1])
+            return event[-2],self._function(x,y)
         
         except (IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition
@@ -619,7 +619,7 @@ class PolyPoly(CombinedPoly):
                     
 #                 y = self._eventlist.getValueAt(event[-2], outOfRange=True)
                 y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
-                return event[-2],self._function(y[-1], *x)
+                return event[-2],self._function(y, *x)
             
             else:
                 return event[-2],self._function(*x)

@@ -160,7 +160,7 @@ class SlamStickX(Recorder):
             if self._snInt == None:
                 self._sn = ""
             else:
-                self._sn = "SSX%08d" % self._snInt
+                self._sn = "SSX%07d" % self._snInt
         return self._sn
 
     @property
@@ -182,7 +182,7 @@ class SlamStickX(Recorder):
         return self._getInfoAttr('DateOfManufacture')
 
 
-    def getAccelRange(self, channel=8, subchannel=0, round=True, refresh=False):
+    def getAccelRange(self, channel=8, subchannel=0, rounded=True, refresh=False):
         """ Get the range of the device's acceleration measurement.
         """
         if self._accelRange is not None and not refresh:
@@ -203,7 +203,7 @@ class SlamStickX(Recorder):
         # HACK: The old parser minimum is slightly low; use negative max.
         lo = -hi
         
-        if round:
+        if rounded:
             self._accelRange = (float("%.2f" % lo), float("%.2f" % hi))
         else:
             self._accelRange = (lo, hi)
