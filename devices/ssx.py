@@ -22,6 +22,7 @@ from mide_ebml import importer
 from mide_ebml.parsers import CalibrationListParser, RecordingPropertiesParser
 from mide_ebml.parsers import getParserRanges
 from mide_ebml.ebml.schema.mide import MideDocument
+import mide_ebml.ebml.schema.mide as schema_mide
 import mide_ebml.ebml.schema.manifest as schema_manifest
 
 from base import Recorder, os_specific
@@ -99,7 +100,7 @@ class SlamStickX(Recorder):
         if self._info is not None and not refresh:
             return self._info
         try:
-            devinfo = util.read_ebml(self.infoFile)
+            devinfo = util.read_ebml(self.infoFile, schema=schema_mide)
             props = devinfo.get('RecordingProperties', '')
             if 'RecorderInfo' in props:
                 self._info = props['RecorderInfo']
@@ -122,8 +123,8 @@ class SlamStickX(Recorder):
         """ Device-specific configuration file saver. Used internally; call
             `SlamStickX.saveConfig()` instead.
         """
-        ebml = util.build_ebml("RecorderConfiguration", data)
-        if verify and not util.verify(ebml):
+        ebml = util.build_ebml("RecorderConfiguration", data, schema=schema_mide)
+        if verify and not util.verify(ebml, schema=schema_mide):
             raise ValueError("Generated config EBML could not be verified")
         dest.write(ebml)
         return len(ebml)
@@ -331,7 +332,7 @@ class SlamStickX(Recorder):
         try:
             self._manifest = util.read_ebml(manData, schema=schema_manifest
                                             ).get('DeviceManifest', None)
-            self._calibration = util.read_ebml(self._calData, 
+            self._calibration = util.read_ebml(self._calData, schema=schema_mide,
                                                ).get('CalibrationList', None)
         except (AttributeError, KeyError):
             pass
@@ -487,7 +488,7 @@ class SlamStickX(Recorder):
         if isinstance(calSerial, int):
             data['CalibrationSerialNumber'] = calSerial
             
-        return util.build_ebml('CalibrationList', data)
+        return util.build_ebml('CalibrationList', data, schema=schema_mide)
     
     
     def writeUserCal(self, transforms, filename=None):

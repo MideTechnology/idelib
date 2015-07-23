@@ -90,6 +90,7 @@ VIEWER_PATH = r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Design_Files\Firmware_
 
 CWD = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(CWD)
+sys.path.append(os.path.abspath(os.path.join(CWD, '..')))
 
 try:
     import mide_ebml
@@ -454,7 +455,8 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
 # 
 #===============================================================================
 
-def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
+def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
+              noCopy=False):
     """ Do all the post-shaker stuff: calculate calibration constants, 
         copy content, et cetera.
         
@@ -671,8 +673,9 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None):
 
     # 11. Copy documentation and software folders
     copyStart = datetime.now()
-    print "Copying standard content to device..."
-    copyContent(devPath)
+    if not noCopy:
+        print "Copying standard content to device..."
+        copyContent(devPath)
     print "Copying calibration documentation to device..."
     for filename in copyfiles:
         utils.copyFileTo(filename, docsPath)
@@ -736,6 +739,7 @@ if __name__ == "__main__":
 #     parser.add_argument("--accelSerialNum", "-a", help="Accelerometer serial number to birth.")
     parser.add_argument("--binfile", "-b", help="An alternate firmware file to upload in birth mode.", default=None)
     parser.add_argument("--templates", "-t", help="An alternate birth template directory.", default=TEMPLATE_PATH)
+    parser.add_argument("--nocopy", "-n", help="Do not copy software to SSX after calibration.", action='store_true')
     args = parser.parse_args()
     
     TEMPLATE_PATH = args.templates
@@ -749,6 +753,7 @@ if __name__ == "__main__":
         if args.mode == "birth":
             birth(serialNum=args.serialNum, fwFile=args.binfile)
         elif args.mode.startswith("cal"):
-            calibrate()
+            noCopy = args.nocopy is True
+            calibrate(noCopy=noCopy)
     except KeyboardInterrupt:
         print "Quitting..."

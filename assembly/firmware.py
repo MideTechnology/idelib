@@ -10,10 +10,10 @@ import struct
 import sys
 import time
 from xml.etree import ElementTree as ET
-import xml.dom.minidom as minidom
+# import xml.dom.minidom as minidom
 
+import serial #@UnusedImport
 import serial.tools.list_ports
-import serial
 
 import xmodem
 
@@ -27,7 +27,7 @@ except ImportError:
         sys.path.append(os.path.abspath('..'))
     elif os.path.exists(os.path.join(CWD, '../mide_ebml')):
         sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
-    import mide_ebml
+    import mide_ebml #@UnusedImport
 
 from mide_ebml import util as ebml_util
 import birth_utils
