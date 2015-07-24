@@ -157,7 +157,7 @@ def dumpXml(ebmldoc, indent=0, tabsize=2):
 def readEbml(data, schema=DEFAULT_SCHEMA):
     """ Wrapper for reading a file or set of bytes as EBML.
     """
-    if isinstance(data, bytearray):
+    if isinstance(data, (basestring, bytearray)):
         stream = StringIO(data)
     else:
         stream = data

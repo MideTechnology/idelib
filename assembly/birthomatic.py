@@ -420,6 +420,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     else:
         print "Uploading firmware %s..." % fwFile
         ssxboot.send_app(fwFile)
+        
     print "Uploading manifest and generic calibration data..."
     ssxboot.sendUserpage(manEbml, calEbml, propEbml)
     
@@ -630,9 +631,9 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
             
         if not all([utils.inRange(x.cal_press, 96235, 106365) for x in c.cal_vals]):
             print "!!! Extreme air pressure detected in recording(s)!"
-            q = utils.getYesNo("Continue with device calibration (Y/N)? ")
             for x in c.cal_vals:
                 print "%s: %.2f Pa" % (os.path.basename(x.filename), x.cal_press)
+            q = utils.getYesNo("Continue with device calibration (Y/N)? ")
             if q == "N":
                 return
         
@@ -641,6 +642,15 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
         print "Building calibration EBML..."
         caldata = c.createEbml(calTemplateName)
         utils.writeFile(calCurrentName, caldata)
+        
+        # Create current calibration XML
+        try:
+            calXml = xml2ebml.dumpXmlElement(xml2ebml.readEbml(caldata, schema='mide_ebml.ebml.schema.mide').roots[0])
+            utils.writeFile(calCurrentXml, calXml)
+        except (IndexError, AttributeError) as err:
+            print "!!! Problem writing calibration XML: %s"  % err.message
+            print "!!! Ignoring the problem and continuing..."
+            pass
         
         #  4. Generate calibration certificate
         print "Creating documentation: text file, ",

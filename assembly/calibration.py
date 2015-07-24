@@ -818,8 +818,8 @@ class Calibrator(object):
             user page or an external user calibration file.
         """
         if xmlTemplate is None:
-#             g = int(self.productPartNum.rsplit('-',1)[-1].strip(string.ascii_letters))
-            g = float("%0.0f" % self.device.getAccelRange()[1])
+            # No template; generate from scratch. Generally not used.
+            g = round(self.device.getAccelRange()[1])
             baseCoefs = [(g*2.0)/65535.0, -g]
              
             calList = OrderedDict([
@@ -850,8 +850,16 @@ class Calibrator(object):
             tempChannelId = 1
         tempSubchannelId = 1
         
+        # HIGH-G ANALOG ACCELEROMETER
+        #----------------------------
+        
         # Z axis is flipped on the PCB. Negate.
         self.cal.z *= -1
+
+        # Remove the default high-g accelerometer polynomials.
+        bivars = calList['BivariatePolynomial']
+        bivars = [c for c in bivars if c['CalID'] not in (1,2,3)]
+        calList['BivariatePolynomial'] = bivars
         
         for i in range(3):
             thisCal = OrderedDict([
@@ -866,6 +874,11 @@ class Calibrator(object):
 
         # Flip Z back, just in case.
         self.cal.z *= -1
+        
+        # DIGITAL DC ACCELEROMETER
+        #-------------------------
+        
+        # TODO: Handle DC accelerometer calibration.
         
         return ebml_util.build_ebml('CalibrationList', calList, schema='mide_ebml.ebml.schema.mide')
 
