@@ -1510,7 +1510,8 @@ class EventList(Transformable):
                     logger.info( "XXX: %s: bad offset(2) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
                     offsetx = xform((block.startTime,offset), session=session)
-                offset = numpy_array(offsetx[-1])
+                if offsetx is not None:
+                    offset = numpy_array(offsetx[-1])
                 
             for event in izip(times, values):
                 eventx = xform(event, session=session)

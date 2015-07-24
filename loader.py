@@ -15,6 +15,7 @@ import wx; wx = wx # Workaround for Eclipse code comprehension
 from common import Job
 from events import EvtProgressStart, EvtProgressEnd, EvtProgressUpdate
 from events import EvtInitPlots, EvtSetTimeRange, EvtSetVisibleRange
+from events import EvtResumeDrawing
 from events import EvtImportError
 
 # import mide_ebml
@@ -47,11 +48,14 @@ class Loader(Job):
         self.lastCount = 0
         self.reader = reader
         self.maxPause = .5
+#         self.skippedUpdates = 8200
+        self.startedDrawing = False
 
         super(Loader, self).__init__(root, dataset, numUpdates, updateInterval)
 
 
     def run(self):
+        self.pausable = False
         evt = EvtProgressStart(label="Importing...", initialVal=-1, 
                                cancellable=True, cancelEnabled=None)
         wx.PostEvent(self.root, evt)
@@ -113,8 +117,9 @@ class Loader(Job):
             wx.PostEvent(self.root, EvtImportError(err=error))
             return
         
-        if done:
-            # Nothing else needs to be done. Put cleanup here if need be.
+        if done or percent==1:
+            # Make sure the drawing has been resumed.
+            wx.PostEvent(self.root, EvtResumeDrawing(redraw=True))
             return
         
         if self.paused:
@@ -125,6 +130,7 @@ class Loader(Job):
             if count or percent:
                 # The start of data.
                 self.readingData = True
+                self.pausable = True
                 if self.root.session is None:
                     self.root.session = self.dataset.lastSession
                 wx.PostEvent(self.root, EvtInitPlots())
@@ -166,6 +172,10 @@ class Loader(Job):
                                   tracking=True)
             wx.PostEvent(self.root, evt)
         
+#         if not self.startedDrawing and count > self.skippedUpdates:
+#             self.startedDrawing = True
+#             wx.PostEvent(self.root, EvtResumeDrawing(redraw=True))
+                
         self.lastTime = thisTime
         self.lastCount = count
 

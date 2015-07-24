@@ -198,10 +198,11 @@ class SlamStickX(Recorder):
         if isinstance(xform, int):
             xform = xforms[ch.transform]
         r = getParserRanges(ch.parser)[subchannel]
-        lo = xform.function(r[0])
+
         hi = xform.function(r[1])
         
         # HACK: The old parser minimum is slightly low; use negative max.
+#         lo = xform.function(r[0])
         lo = -hi
         
         if rounded:
@@ -212,7 +213,61 @@ class SlamStickX(Recorder):
         
         return self._accelRange
 
+    
+    def getAccelChannel(self, dc=False):
+        """ Retrieve the accelerometer parent channel.
+            
+            @keyword dc: If `True`, return the digital, 'low-g' DC 
+                accelerometer, if present.
+        """
+        try:
+            # TODO: Make this more generic by finding the actual channel
+            channels = self.getChannels()
+            if dc:
+                if 32 in channels:
+                    return channels[32]
+                return None
+            return channels[8 if 8 in channels else 0]
+        except KeyError:
+            return None
 
+
+    def getAccelAxisChannels(self, dc=False):
+        """ Retrieve a list of all accelerometer axis subchannels, ordered 
+            alphabetically.
+            
+            @keyword dc: If `True`, return the digital, 'low-g' DC 
+                accelerometer, if present.
+        """
+        try:
+            accel = self.getAccelChannel(dc=dc)
+            return sorted(accel.subchannels, key=lambda x: x.axisName)
+        except (IndexError, KeyError, AttributeError):
+            return None
+        
+
+    def getPressureChannel(self):
+        """ Retrieve the pressure channel.
+        """
+        try:
+            # TODO: Make this more generic by finding the actual channel
+            channels = self.getChannels()
+            return channels[36 if 36 in channels else 1][0]
+        except KeyError:
+            return None
+        
+    
+    def getTempChannel(self):
+        """ Retrieve the temperature channel.
+        """
+        try:
+            # TODO: Make this more generic by finding the actual channel
+            channels = self.getChannels()
+            return channels[36 if 36 in channels else 1][1]
+        except KeyError:
+            return None
+
+    
     def _packAccel(self, v):
         """ Convert an acceleration from G to native units.
         
@@ -221,6 +276,7 @@ class SlamStickX(Recorder):
         """
         x = self.getAccelRange()[1]
         return min(65535, max(0, int(((v + x)/(2.0*x)) * 65535)))
+
 
     def _unpackAccel(self, v):
         """ Convert an acceleration from native units to G.

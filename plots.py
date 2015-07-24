@@ -599,6 +599,9 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Event handler for redrawing the plot. Catches common exceptions.
             Wraps the 'real' painting event handler.
         """
+        if self.root.drawingSuspended:
+            return
+        
 #         return self._OnPaint(evt)
 
         # Debugging: don't handle unexpected exceptions gracefully
@@ -615,6 +618,11 @@ class PlotCanvas(wx.ScrolledWindow):
         except IndexError:
             # Note: These can occur on the first plot, but are non-fatal.
             logger.warning("IndexError in plot (race condition?); continuing.") 
+            wx.MilliSleep(50)
+            wx.PostEvent(self, evt)
+        except TypeError as err:
+            # Note: These can occur on the first plot, but are non-fatal.
+            logger.warning("%s (race condition?); continuing." % err.message) 
             wx.MilliSleep(50)
             wx.PostEvent(self, evt)
         except IOError as err:
@@ -636,8 +644,6 @@ class PlotCanvas(wx.ScrolledWindow):
             @todo: Refactor and modularize this monster. Separate the line-list
                 generation so multiple plots on the same canvas will be easy.
         """
-        if self.root.drawingSuspended:
-            return
         if not self.Parent.sources:
             return
         
@@ -786,7 +792,7 @@ class PlotCanvas(wx.ScrolledWindow):
                   chunkSize):
         """ Does the plotting of a single source.
         """
-        if self.abortRendering is True:
+        if self.abortRendering is True or self.root.drawingSuspended:
             # Bail if user interrupted drawing (scrolling, etc.)
             # Doesn't actually work yet!
             return 0
@@ -922,7 +928,7 @@ class PlotCanvas(wx.ScrolledWindow):
             except StopIteration:
                 # This will occur if there are 0-1 events, but that's okay.
                 pass
-
+            
             # Draw the remaining lines (if any)
             if not parent.firstPlot:
                 dc.DrawLineList(lineSubset) 

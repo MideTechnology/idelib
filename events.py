@@ -20,6 +20,9 @@ from wx.lib.newevent import NewEvent as _NewEvent
 (EvtInitPlots,       EVT_INIT_PLOTS) =_NewEvent()
 (EvtImportError,     EVT_IMPORT_ERROR) =_NewEvent()
 
+(EvtSuspendDrawing,  EVT_SUSPEND_DRAWING) = _NewEvent()
+(EvtResumeDrawing,   EVT_RESUME_DRAWING) = _NewEvent()
+
 (EvtUpdateAvailable, EVT_UPDATE_AVAILABLE) = _NewEvent()
 
 # Not currently used

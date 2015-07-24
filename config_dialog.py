@@ -743,8 +743,11 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         """ Retrieve the device's configuration data (or other info) and 
             put it in the `data` attribute.
         """
-        cfg= self.root.device.getConfig()
+        cfg = self.root.device.getConfig()
         self.data = cfg.get('SSXTriggerConfiguration', {})
+        
+        self.accelChannel = self.root.device.getAccelChannel().id
+        self.pressTempChannel = self.root.device.getTempChannel().parent.id
 
 
     def buildUI(self):
@@ -877,14 +880,14 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             subchannel = trigger.get('TriggerSubChannel', None)
             low = trigger.get('TriggerWindowLo', None)
             high = trigger.get('TriggerWindowHi', None)
-            if channel == 0:
+            if channel == self.accelChannel:
                 # Accelerometer. Both or neither must be set.
                 low = -5.0 if low is None else accelTransform(low)
                 high = 5.0 if high is None else accelTransform(high)
                 self.setField(self.accelLoCheck, low)
                 self.setField(self.accelHiCheck, high)
                 self.accelTrigCheck.SetValue(True)
-            elif channel == 1:
+            elif channel == self.pressTempChannel:
                 if subchannel == 0:
                     # Pressure
                     self.presTrigCheck.SetValue(True)
@@ -918,7 +921,8 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             self.addVal(control, data, name)
         
         if self.accelTrigCheck.GetValue():
-            trig = OrderedDict(TriggerChannel=0)
+            trig = OrderedDict()
+            trig['TriggerChannel']=self.accelChannel
             self.addVal(self.accelLoCheck, trig, "TriggerWindowLo", kind=float,
                         transform=self.root.device._packAccel, 
                         default=self.root.device._packAccel(-5.0))
@@ -929,14 +933,18 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                 triggers.append(trig)
                  
         if self.presTrigCheck.GetValue():
-            trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=0)
+            trig = OrderedDict()
+            trig['TriggerChannel'] = self.pressTempChannel
+            trig['TriggerSubChannel'] = 0
             self.addVal(self.pressLoCheck, trig, 'TriggerWindowLo')
             self.addVal(self.pressHiCheck, trig, 'TriggerWindowHi')
             if len(trig) > 2:
                 triggers.append(trig)
                      
         if self.tempTrigCheck.GetValue():
-            trig = OrderedDict(TriggerChannel=1, TriggerSubChannel=1)
+            trig = OrderedDict()
+            trig['TriggerChannel'] = self.pressTempChannel
+            trig['TriggerSubChannel'] = 1
             self.addVal(self.tempLoCheck, trig, 'TriggerWindowLo')
             self.addVal(self.tempHiCheck, trig, 'TriggerWindowHi')
             if len(trig) > 2:
@@ -2002,6 +2010,7 @@ class ConfigDialog(sc.SizedDialog):
                     style=wx.OK | wx.ICON_EXCLAMATION)
         dlg.Destroy()
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -2076,5 +2085,6 @@ if __name__ == "__main__":
             
     app = TestApp()
     recorderPath = devices.getDeviceList()[-1]
-    print "configureRecorder() returned %r" % (configureRecorder(recorderPath, 
+    print "configureRecorder() returned %r" % (configureRecorder(recorderPath,
+                                                                 save=False, 
                                                                  useUtc=True),)

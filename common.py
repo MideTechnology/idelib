@@ -478,6 +478,7 @@ class Job(Thread):
         self.paused = False
         self.startTime = self.lastTime = self.pauseTime = None
         self.totalPauseTime = None
+        self.pausable = True
 
         super(Job, self).__init__()
 
@@ -498,10 +499,10 @@ class Job(Thread):
 
 
     def pause(self, pause=True):
-        self.paused = pause
+        self.paused = pause and self.pausable
         if pause:
             self.pauseTime = datetime.now()
-        else:
+        elif self.pauseTime is not None:
             pt = datetime.now() - self.pauseTime
             if self.totalPauseTime is None:
                 self.totalPauseTime = pt

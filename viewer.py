@@ -684,7 +684,7 @@ class Viewer(wx.Frame, MenuMixin):
         """
         self.app = kwargs.pop('app', None)
         self.units = kwargs.pop('units',('Time','s'))
-        self.drawingSuspended = False
+        self.suspendDrawing()
         
         filename = kwargs.pop('filename', None)
         
@@ -720,6 +720,9 @@ class Viewer(wx.Frame, MenuMixin):
         self.Bind(events.EVT_PROGRESS_END, self.OnProgressEnd)
         self.Bind(events.EVT_INIT_PLOTS, self.initPlots)
         self.Bind(events.EVT_IMPORT_ERROR, self.handleError)
+        
+        self.Bind(events.EVT_SUSPEND_DRAWING, self.suspendDrawing)
+        self.Bind(events.EVT_RESUME_DRAWING, self.resumeDrawing)
         
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
@@ -1297,6 +1300,25 @@ class Viewer(wx.Frame, MenuMixin):
         self.plotarea.getActivePage().enableMenus()
 
 
+    def suspendDrawing(self, evt=None):
+        """ Pause the plot drawing. This method can be used as an event handler.
+        """
+        # TODO: Hook this back up.
+#         self.drawingSuspended = True
+        self.drawingSuspended = False
+        
+        
+    def resumeDrawing(self, evt=None, redraw=False):
+        """ Resume the plot drawing. This method can be used as an event
+            handler.
+        """
+        if evt is not None:
+            redraw = self.drawingSuspended and getattr(evt, "redraw", False)
+        self.drawingSuspended = False
+        if redraw:
+            self.plotarea.redraw()
+
+
     def getTab(self, idx=None):
         """ Helper method for getting the active plot tab. 
         """
@@ -1304,7 +1326,8 @@ class Viewer(wx.Frame, MenuMixin):
             return self.plotarea.getActivePage()
         else:
             return self.plotarea[idx]
-        
+
+
     #===========================================================================
     # 
     #===========================================================================
@@ -1709,7 +1732,7 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             meanSpan = -1
         
-        self.drawingSuspended = True
+        self.suspendDrawing()
         numRows = stop-start
         msg = "Exporting %d rows" % numRows
             
@@ -1741,7 +1764,7 @@ class Viewer(wx.Frame, MenuMixin):
             self.handleError(err, what="exporting %s" % exportType)
             
         dlg.Destroy()
-        self.drawingSuspended = False
+        self.resumeDrawing()
 
 
     def _formatTime(self, t):
@@ -2477,9 +2500,11 @@ class Viewer(wx.Frame, MenuMixin):
         
         if job is None:
             job = self.getCurrentOperation()
-
-        logger.info("Paused operation %r" % job)
-        return job, job.pause(True)
+        
+        # TODO: Hook this back up once race condition resolved!
+#         logger.info("Paused operation %r" % job)
+#         return job, job.pause(True)
+        return job, True
 
 
     def resumeOperation(self, evt=None, job=None):
@@ -2500,6 +2525,7 @@ class Viewer(wx.Frame, MenuMixin):
 
         logger.info("Resumed operation %r" % job)
         return job.pause(False)
+
 
     #===========================================================================
     # 
