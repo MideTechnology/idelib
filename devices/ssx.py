@@ -224,9 +224,7 @@ class SlamStickX(Recorder):
             # TODO: Make this more generic by finding the actual channel
             channels = self.getChannels()
             if dc:
-                if 32 in channels:
-                    return channels[32]
-                return None
+                return channels[32]
             return channels[8 if 8 in channels else 0]
         except KeyError:
             return None
@@ -234,7 +232,7 @@ class SlamStickX(Recorder):
 
     def getAccelAxisChannels(self, dc=False):
         """ Retrieve a list of all accelerometer axis subchannels, ordered 
-            alphabetically.
+            alphabetically (X, Y, Z).
             
             @keyword dc: If `True`, return the digital, 'low-g' DC 
                 accelerometer, if present.

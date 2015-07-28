@@ -78,10 +78,10 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         
         self.accelTrigCheck = self.addCheck("Acceleration Trigger")
         self.accelLoCheck = self.addFloatField("Accelerometer Trigger, Low:", 
-            units="G", tooltip="The lower trigger limit. Less than 0.", 
+            units="g", tooltip="The lower trigger limit. Less than 0.", 
             value=-5, indent=2, check=False)
         self.accelHiCheck = self.addFloatField("Accelerometer Trigger, High:", 
-            units="G", tooltip="The upper trigger limit. Greater than 0.", 
+            units="g", tooltip="The upper trigger limit. Greater than 0.", 
             value=5, indent=2, check=False)
         self.makeChild(self.accelTrigCheck, self.accelLoCheck, self.accelHiCheck)
 
@@ -512,8 +512,12 @@ class CalibrationPanel(InfoPanel):
     """
     
     def getDeviceData(self):
-        PP = PolynomialParser(None)
-        self.info = [PP.parse(c) for c in self.data.value]
+        if hasattr(self.root, 'device'):
+            self.info = self.root.device.getCalPolynomials().values()
+        else:
+            PP = PolynomialParser(None)
+            self.info = [PP.parse(c) for c in self.data.value]
+        self.info.sort(key=lambda x: x.id)
         
     def cleanFloat(self, f, places=6):
         s = (('%%.%df' % places) % f).rstrip('0')
@@ -532,7 +536,7 @@ class CalibrationPanel(InfoPanel):
             self.html.append("<p><b>Calibration ID %d</b>" % cal.id)
             calType = cal.__class__.__name__
             if hasattr(cal, 'channelId'):
-                calType += "; references Channel %x" % cal.channelId
+                calType += "; references Channel %d" % cal.channelId
                 if hasattr(cal, 'subchannelId'):
                     calType += ", Subchannel %d" % cal.subchannelId
             self.html.append('<ul>')
@@ -570,12 +574,17 @@ class ChannelConfigPanel(BaseConfigPanel):
         
         for ch in self.info.values():
             self.startGroup("Channel %d: %s" % (ch.id, ch.displayName))
-            self.indent += 2
+#             self.indent += 2
+            samp = self.addChoiceField("Sample Rate", choices=map(str, range(10)))
+            self.controls[samp][0].SetSizerProps(expand=True)
+
+            self.startGroup("Enable/Disable")
             for subc in ch.children:
                 c = self.addCheck("%d:%d: %s" % (ch.id, subc.id, subc.displayName))
                 csize = c.GetSize()
                 self.fieldSize = (max(self.fieldSize[0], csize[0]), -1)
-            self.indent -= 2
+            self.endGroup()
+#             self.indent -= 2
             self.endGroup()
             
 #         self.add

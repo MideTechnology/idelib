@@ -74,7 +74,8 @@ class ConfigDialog(SC.SizedDialog):
         self.options = OptionsPanel(self.notebook, -1, root=self)
         info = SSXInfoPanel(self.notebook, -1, root=self, info=self.deviceInfo)
         self.channels = ChannelConfigPanel(self.notebook, -1, root=self)
-        self.cal = CalibrationConfigPanel(self.notebook, -1, root=self)
+#         self.cal = CalibrationConfigPanel(self.notebook, -1, root=self)
+        self.cal = CalibrationPanel(self.notebook, -1, root=self)
         
         self.notebook.AddPage(self.options, "General")
         self.notebook.AddPage(self.triggers, "Triggers")
