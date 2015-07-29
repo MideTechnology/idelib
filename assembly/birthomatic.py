@@ -275,7 +275,7 @@ def copyContent(devPath):
 #===============================================================================
 
 def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=None,
-          fwFile=None):
+          fwFile=None, firmwareOnly=False):
     """ Perform initial configuration of a Slam Stick X.
     """
     rebirth = serialNum is not None
@@ -383,46 +383,49 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         os.mkdir(calDirName)
     
     # 7. Generate manifest and generic calibration list for model
-    print "Creating manifest and default calibration files..."
-    manXmlFile = os.path.join(chipDirName, 'manifest.xml')
-    firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, accelSerialNum, manXmlFile)
-    manEbml = xml2ebml.readXml(manXmlFile, schema='mide_ebml.ebml.schema.manifest')
-    with open(utils.changeFilename(manXmlFile, ext="ebml"), 'wb') as f:
-        f.write(manEbml)
+    if not firmwareOnly:
+        print "Creating manifest and default calibration files..."
+        manXmlFile = os.path.join(chipDirName, 'manifest.xml')
+        firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, accelSerialNum, manXmlFile)
+        manEbml = xml2ebml.readXml(manXmlFile, schema='mide_ebml.ebml.schema.manifest')
+        with open(utils.changeFilename(manXmlFile, ext="ebml"), 'wb') as f:
+            f.write(manEbml)
+    
+        calXmlFile = os.path.join(chipDirName, 'cal.template.xml')
+        calibration.makeCalTemplateXml(TEMPLATE_PATH, partNum, hwRev, calXmlFile)
+        calEbml = xml2ebml.readXml(calXmlFile, schema='mide_ebml.ebml.schema.mide') 
+        with open(utils.changeFilename(calXmlFile, ext="ebml"), 'wb') as f:
+            f.write(calEbml)
+    
+        propXmlFile = os.path.join(chipDirName, 'recprop.xml')
+        firmware.makeRecPropXml(TEMPLATE_PATH, partNum, hwRev, accelSerialNum, propXmlFile)
+        if os.path.exists(propXmlFile):
+            propEbml = xml2ebml.readXml(propXmlFile, schema='mide_ebml.ebml.schema.mide') 
+            with open(utils.changeFilename(propXmlFile, ext="ebml"), 'wb') as f:
+                f.write(propEbml)
+        else:
+            print "No recording properties template found, skipping."
+            propEbml = bytearray()
 
-    calXmlFile = os.path.join(chipDirName, 'cal.template.xml')
-    calibration.makeCalTemplateXml(TEMPLATE_PATH, partNum, hwRev, calXmlFile)
-    calEbml = xml2ebml.readXml(calXmlFile, schema='mide_ebml.ebml.schema.mide') 
-    with open(utils.changeFilename(calXmlFile, ext="ebml"), 'wb') as f:
-        f.write(calEbml)
-
-    propXmlFile = os.path.join(chipDirName, 'recprop.xml')
-    firmware.makeRecPropXml(TEMPLATE_PATH, partNum, hwRev, accelSerialNum, propXmlFile)
-    if os.path.exists(propXmlFile):
-        propEbml = xml2ebml.readXml(propXmlFile, schema='mide_ebml.ebml.schema.mide') 
-        with open(utils.changeFilename(propXmlFile, ext="ebml"), 'wb') as f:
-            f.write(propEbml)
-    else:
-        print "No recording properties template found, skipping."
-        propEbml = bytearray()
-
-    # Copy template as 'current' (original script did this).
-    curCalXmlFile = os.path.join(chipDirName, 'cal.current.xml')
-    if not os.path.exists(curCalXmlFile):
-        shutil.copy(calXmlFile, curCalXmlFile)
+        # Copy template as 'current' (original script did this).
+        curCalXmlFile = os.path.join(chipDirName, 'cal.current.xml')
+        if not os.path.exists(curCalXmlFile):
+            shutil.copy(calXmlFile, curCalXmlFile)
     
     # 8. Upload firmware, user page data (firmware.ssx_bootloadable_device)
-    print "Uploading bootloader version %s..." % bootRev
-    ssxboot.send_bootloader(getBootloaderFile(partNum, fwRev))
+    if not firmwareOnly:
+        print "Uploading bootloader version %s..." % bootRev
+        ssxboot.send_bootloader(getBootloaderFile(partNum, fwRev))
     if not fwFile:
         print "Uploading firmware version %s..." % fwRev
         ssxboot.send_app(getFirmwareFile(partNum, fwRev))
     else:
         print "Uploading firmware %s..." % fwFile
         ssxboot.send_app(fwFile)
-        
-    print "Uploading manifest and generic calibration data..."
-    ssxboot.sendUserpage(manEbml, calEbml, propEbml)
+    
+    if not firmwareOnly:
+        print "Uploading manifest and generic calibration data..."
+        ssxboot.sendUserpage(manEbml, calEbml, propEbml)
     
     # 9. Update birth log
     print "Updating birthing logs and serial number..."
@@ -543,6 +546,14 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     if not os.path.exists(chipDirName):
         utils.errMsg( "!!! Directory %s does not exist!" % chipDirName)
         return
+
+    # Make convenience shortcuts
+    try:
+        utils.makeShortcut(chipDirName, calDirName)
+        utils.makeShortcut(calDirName, chipDirName)
+    except Exception:
+        # Naked exceptions are bad medicine. 
+        pass
 
     calTemplateName = os.path.join(chipDirName, 'cal.template.xml')
     calCurrentName = os.path.join(chipDirName, 'cal.current.ebml')
@@ -750,6 +761,7 @@ if __name__ == "__main__":
     parser.add_argument("--binfile", "-b", help="An alternate firmware file to upload in birth mode.", default=None)
     parser.add_argument("--templates", "-t", help="An alternate birth template directory.", default=TEMPLATE_PATH)
     parser.add_argument("--nocopy", "-n", help="Do not copy software to SSX after calibration.", action='store_true')
+    parser.add_argument("--firmwareonly", "-f", help="Only upload the firmware; do not replace the userpage data.", action='store_true')
     args = parser.parse_args()
     
     TEMPLATE_PATH = args.templates
@@ -761,7 +773,7 @@ if __name__ == "__main__":
     
     try:
         if args.mode == "birth":
-            birth(serialNum=args.serialNum, fwFile=args.binfile)
+            birth(serialNum=args.serialNum, fwFile=args.binfile, firmwareOnly=args.firmwareonly)
         elif args.mode.startswith("cal"):
             noCopy = args.nocopy is True
             calibrate(noCopy=noCopy)
