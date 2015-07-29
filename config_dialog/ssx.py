@@ -575,7 +575,7 @@ class ChannelConfigPanel(BaseConfigPanel):
         for ch in self.info.values():
             self.startGroup("Channel %d: %s" % (ch.id, ch.displayName))
 #             self.indent += 2
-            samp = self.addChoiceField("Sample Rate", choices=map(str, range(10)))
+            samp = self.addIntField("Sample Rate", units="Hz")
             self.controls[samp][0].SetSizerProps(expand=True)
 
             self.startGroup("Enable/Disable")
@@ -624,6 +624,35 @@ class CalibrationConfigPanel(BaseConfigPanel):
     
     def OnDefaultsBtn(self, evt):
         pass
+    
+
+#===============================================================================
+# 
+#===============================================================================
+
+def buildUI_SSX(parent):
+    """ Add the Slam Stick X configuration tabs to the configuration dialog.
+    """
+    try:
+        cal = parent.device.getCalibration()
+        parent.deviceInfo['CalibrationSerialNumber'] = cal['CalibrationSerialNumber']
+        parent.deviceInfo['CalibrationDate'] = cal['CalibrationDate']
+        parent.deviceInfo['CalibrationExpirationDate'] = parent.device.getCalExpiration()
+    except (AttributeError, KeyError):
+        pass
+    
+    parent.triggers = SSXTriggerConfigPanel(parent.notebook, -1, root=parent)
+    parent.options = OptionsPanel(parent.notebook, -1, root=parent)
+    info = SSXInfoPanel(parent.notebook, -1, root=parent, info=parent.deviceInfo)
+    parent.channels = ChannelConfigPanel(parent.notebook, -1, root=parent)
+#     self.cal = CalibrationConfigPanel(self.notebook, -1, root=self)
+    parent.cal = CalibrationPanel(parent.notebook, -1, root=parent)
+    
+    parent.notebook.AddPage(parent.options, "General")
+    parent.notebook.AddPage(parent.triggers, "Triggers")
+    parent.notebook.AddPage(parent.channels, "Channels")
+    parent.notebook.AddPage(parent.cal, "Calibration")
+    parent.notebook.AddPage(info, "Device Info")
     
 
 #===============================================================================

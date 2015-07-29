@@ -418,3 +418,17 @@ class ClassicInfoPanel(InfoPanel):
         if 'U' in vers:
             # Unlikely to ever be missing, but just in case...
             self.data['Capacity'] = "%s MB" % vers[vers.index('U')+1:]
+
+#===============================================================================
+# 
+#===============================================================================
+
+def buildUI_Classic(parent):
+    parent.options = ClassicOptionsPanel(parent.notebook, -1, root=parent)
+    parent.triggers = ClassicTriggerConfigPanel(parent.notebook, -1, root=parent)
+    info = ClassicInfoPanel(parent.notebook, -1, root=parent)
+    parent.notebook.AddPage(parent.options, "General")
+    parent.notebook.AddPage(parent.triggers, "Triggers")
+    parent.notebook.AddPage(info, "Device Info")
+
+

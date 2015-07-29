@@ -61,38 +61,7 @@ class ConfigDialog(SC.SizedDialog):
     ICON_WARN = 1
     ICON_ERROR = 2
     
-    def buildUI_SSX(self):
-        try:
-            cal = self.device.getCalibration()
-            self.deviceInfo['CalibrationSerialNumber'] = cal['CalibrationSerialNumber']
-            self.deviceInfo['CalibrationDate'] = cal['CalibrationDate']
-            self.deviceInfo['CalibrationExpirationDate'] = self.device.getCalExpiration()
-        except (AttributeError, KeyError):
-            pass
-        
-        self.triggers = SSXTriggerConfigPanel(self.notebook, -1, root=self)
-        self.options = OptionsPanel(self.notebook, -1, root=self)
-        info = SSXInfoPanel(self.notebook, -1, root=self, info=self.deviceInfo)
-        self.channels = ChannelConfigPanel(self.notebook, -1, root=self)
-#         self.cal = CalibrationConfigPanel(self.notebook, -1, root=self)
-        self.cal = CalibrationPanel(self.notebook, -1, root=self)
-        
-        self.notebook.AddPage(self.options, "General")
-        self.notebook.AddPage(self.triggers, "Triggers")
-        self.notebook.AddPage(self.channels, "Channels")
-        self.notebook.AddPage(self.cal, "Calibration")
-        self.notebook.AddPage(info, "Device Info")
     
-    
-    def buildUI_Classic(self):
-        self.options = ClassicOptionsPanel(self.notebook, -1, root=self)
-        self.triggers = ClassicTriggerConfigPanel(self.notebook, -1, root=self)
-        info = ClassicInfoPanel(self.notebook, -1, root=self)
-        self.notebook.AddPage(self.options, "General")
-        self.notebook.AddPage(self.triggers, "Triggers")
-        self.notebook.AddPage(info, "Device Info")
-
-
     def __init__(self, *args, **kwargs):
         self.device = kwargs.pop('device', None)
         self.root = kwargs.pop('root', None)
@@ -119,11 +88,12 @@ class ConfigDialog(SC.SizedDialog):
         self.notebook = wx.Notebook(pane, -1)
         self.pages = []
         
-        # Add pages per device
+        # Add pages per device.
+        # TODO: Make even more modular (device itself gets its configuration UI)
         if isinstance(self.device, devices.SlamStickX):
-            self.buildUI_SSX()
+            buildUI_SSX(self)
         elif isinstance(self.device, devices.SlamStickClassic):
-            self.buildUI_Classic()
+            buildUI_Classic(self)
         else:
             raise TypeError("Unknown recorder type: %r" % self.device)
         
