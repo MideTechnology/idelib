@@ -80,7 +80,12 @@ class Recorder(object):
         self._sensors = None
         self._channels = None
         self._accelRange = None
-
+        
+        self._importOlderFwConfig = False
+        self._importNewerFwConfig = False
+        self._importOlderHwConfig = False
+        self._importNewerHwConfig = False
+        self._defaultHwRev = 0
 
 
     @classmethod
@@ -152,7 +157,7 @@ class Recorder(object):
         return os.path.commonprefix((self.path, filename)) == self.path
 
 
-    def _loadConfig(self, source, default=None):
+    def _loadConfig(self, source, default=None, hwRev=None, fwRev=None):
         """ Stub for the method that does device-specific config loading. 
             Must be implemented for each `Recorder` subclass!
         """
@@ -180,15 +185,16 @@ class Recorder(object):
             data = self.getConfig()
         if not data:
             raise ConfigError("No configuration data!")
+        header = [self.productName, self.firmwareVersion, self.hardwareVersion]
         with open(filename, 'wb') as f:
-            json.dump([self.productName, self.firmwareVersion],f)
+            json.dump(header,f)
             f.write('\n')
             self._saveConfig(f, data, verify)
             return True
         
         
-    def importConfig(self, filename, update=True, allowOlder=False, 
-                     allowNewer=False):
+    def importConfig(self, filename, update=True, allowOlder=None, 
+                     allowNewer=None, allowOlderHw=None, allowNewerHw=None):
         """ Read device configuration data from a file. The file must contain
             the device's product name, a newline, and then the data in the
             device's native format. If the product name doesn't match the
@@ -199,25 +205,42 @@ class Recorder(object):
                 device. If `False`, it is just imported.
             @return: A dictionary of configuration attributes.
         """
-        with open(filename,'rb') as f:
-            cname, cvers = json.loads(f.readline().strip())
-            if cname == self.productName:
-                if cvers < self.firmwareVersion:
-                    good = allowOlder
-                elif cvers > self.firmwareVersion:
-                    good = allowOlder
-                else:
-                    good = True
-            else:
-                good = False
+        if allowOlder is None:
+            allowOlder = self._importOlderFwConfig
+        if allowNewer is None:
+            allowNewer = self._importNewerFwConfig
+        if allowOlderHw is None:
+            allowOlderHw = self._importOlderHwConfig
+        if allowNewerHw is None:
+            allowNewerHw = self._importNewerHwConfig
 
-            versions = (cname, cvers, self.productName, self.firmwareVersion)
+
+        with open(filename,'rb') as f:
+            # First line is JSON containing product name, FW version, HW version
+            # The HW version is new (20150729), so fill in with a default.
+            vers = json.loads(f.readline().strip())
+            if len(vers) == 2:
+                vers.append(self._defaultHwRev)
+            cname, cfwvers, chwvers = vers
+            good = cname == self.productName
+            if good:
+                if cfwvers < self.firmwareVersion:
+                    good = good and allowOlder
+                elif cfwvers > self.firmwareVersion:
+                    good = good and allowOlder
+                    
+                if chwvers < self.hardwareVersion:
+                    good = good and allowOlderHw
+                elif chwvers > self.hardwareVersion:
+                    good = good and allowNewerHw
+
+            versions = (cname, cfwvers, self.productName, self.firmwareVersion)
             if not good:
                 raise ConfigVersionError(
                     "Device mismatch: this is %r v.%r, file is %r v.%r" % \
                     versions, versions)
         
-            config = self._loadConfig(StringIO(f.read()))
+            config = self._loadConfig(StringIO(f.read()), hwRev=chwvers, fwRev=cfwvers)
             
         if update:
             self.getConfig().update(config)

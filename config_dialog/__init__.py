@@ -135,8 +135,10 @@ class ConfigDialog(SC.SizedDialog):
         """ Retrieve the values entered in the dialog.
         """
         data = OrderedDict()
-        data.update(self.options.getData())
-        data.update(self.triggers.getData())
+        for i in range(self.notebook.GetPageCount()):
+            data.update(self.notebook.GetPage(i).getData())
+#         data.update(self.options.getData())
+#         data.update(self.triggers.getData())
         return data
 
 
@@ -279,7 +281,7 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
 #===============================================================================
 
 
-def testDialog():
+def testDialog(save=True):
     class TestApp(wx.App):
         def getPref(self, name, default=None):
             if name == 'showAdvancedOptions':
@@ -288,7 +290,8 @@ def testDialog():
             
     _app = TestApp()
     recorderPath = devices.getDeviceList()[-1]
-    print "configureRecorder() returned %r" % (configureRecorder(recorderPath, 
+    print "configureRecorder() returned %r" % (configureRecorder(recorderPath,
+                                                                 save=save,
                                                                  useUtc=True),)
 
 if __name__ == "__main__":

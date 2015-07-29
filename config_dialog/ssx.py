@@ -155,7 +155,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
 
     
     def initUI(self):
-        """
+        """ Populate the UI.
         """
         super(SSXTriggerConfigPanel, self).initUI()
 
@@ -533,6 +533,9 @@ class CalibrationPanel(InfoPanel):
         self.html = [u"<html><body>"]
         
         for cal in self.info:
+            if cal.id is None:
+                # HACK: This shouldn't happen.
+                continue
             self.html.append("<p><b>Calibration ID %d</b>" % cal.id)
             calType = cal.__class__.__name__
             if hasattr(cal, 'channelId'):
@@ -561,35 +564,40 @@ class CalibrationPanel(InfoPanel):
 #===============================================================================
 
 class ChannelConfigPanel(BaseConfigPanel):
+    """ Configuration of channel-specific options.
     """
-    """
+    
+    DC_ACCEL_FREQS = [3200, 1600, 800, 400, 200, 100, 50, 25, 12]
+    
     def getDeviceData(self):
+        self.accelChannel = self.root.device.getAccelChannel()
+        self.accelChannelDC = self.root.device.getAccelChannel(dc=True)
         self.info = self.root.device.getChannels()
+    
     
     def buildUI(self):
         """ Create the UI elements within the page. Every subclass should
             implement this. Called after __init__() and before initUI().
         """
         self.getDeviceData()
-        
-        for ch in self.info.values():
-            self.startGroup("Channel %d: %s" % (ch.id, ch.displayName))
-#             self.indent += 2
-            samp = self.addIntField("Sample Rate", units="Hz")
-            self.controls[samp][0].SetSizerProps(expand=True)
 
-            self.startGroup("Enable/Disable")
-            for subc in ch.children:
-                c = self.addCheck("%d:%d: %s" % (ch.id, subc.id, subc.displayName))
-                csize = c.GetSize()
-                self.fieldSize = (max(self.fieldSize[0], csize[0]), -1)
+        self.startGroup("Channel %d: %s" % (self.accelChannel.id, self.accelChannel.displayName))
+        self.indent += 2
+        self.accelEnables = [self.addCheck("Enable %d:%d: %s" % (self.accelChannel.id, c.id, c.displayName)) for c in self.accelChannel.subchannels]
+        self.indent -= 2
+        self.endGroup()
+        
+        if self.accelChannelDC is not None:
+            self.startGroup("Channel %d: %s" % (self.accelChannelDC.id, self.accelChannelDC.displayName))
+            self.indent += 2
+            self.dcEnabled = self.addCheck("Enable (all axes)")
+            self.dcSampRate = self.addChoiceField("Sample Rate", units="Hz", choices=self.DC_ACCEL_FREQS, selected=3)
+            self.indent -= 2
             self.endGroup()
-#             self.indent -= 2
-            self.endGroup()
+            self.makeChild(self.dcEnabled, self.dcSampRate)
             
-#         self.add
         self.addSpacer()
-#         self.fieldSize = (200, -1)
+        self.fieldSize = (200, -1)
         SC.SizedPanel(self, -1).SetSizerProps(proportion=1)
         SC.SizedPanel(self, -1).SetSizerProps(proportion=1)
         self.addButton("Reset to Defaults", wx.ID_DEFAULT, self.OnDefaultsBtn, 
@@ -597,8 +605,69 @@ class ChannelConfigPanel(BaseConfigPanel):
                        "Does not change other tabs.")
     
     
-    def OnDefaultsBtn(self, evt):
-        pass
+    def initUI(self):
+        """ Populate the dialog's fields.
+        """
+        super(ChannelConfigPanel, self).initUI()
+        self.OnDefaultsBtn()
+        
+        enableMap = 0xff
+        for conf in self.root.deviceConfig.get("SSXChannelConfiguration", []):
+            ch = conf.get('ConfigChannel', None)
+            if ch == self.accelChannel.id:
+                # High-g accelerometer
+                enableMap = conf.get("SubChannelEnableMap", enableMap)
+                pass
+            elif self.accelChannelDC is not None and ch == self.accelChannelDC.id:
+                # DC/Low-g accelerometer
+                dcEnable = conf.get("SubChannelEnableMap", 0b111) != 0
+                self.setField(self.dcEnabled, dcEnable, dcEnable)
+                if "ChannelSampleFreq" in conf:
+                    self.setField(self.dcSampRate, conf["ChannelSampleFreq"])
+        
+        for c in self.accelEnables:
+            c.SetValue(enableMap & 1 == 1)
+            enableMap >> 1
+
+
+    def getData(self):
+        """ Retrieve the values entered in the dialog.
+        """
+        data = []
+        accelData = OrderedDict()
+        dcData = OrderedDict()
+        
+        # This is assuming that the default is channel enabled.
+        enableMap = 0
+        checks = [ch.GetValue() for ch in reversed(self.accelEnables)]
+        if not all(checks):
+            for en in checks:
+                enableMap = (enableMap << 1) | en
+            accelData['ConfigChannel'] = self.accelChannel.id
+            accelData['SubChannelEnableMap'] = enableMap
+            data.append(accelData)
+        
+        dcEnable = 0b111 if self.dcEnabled.GetValue() else 0
+        self.addVal(self.dcSampRate, dcData, "ChannelSampleFreq", kind=int)
+        if len(dcData) > 0 or dcEnable != 0b111:
+            dcData['ConfigChannel'] = self.accelChannelDC.id
+            dcData['SubChannelEnableMap'] = dcEnable
+            data.append(dcData)
+
+        if len(data) > 0:
+            return {"SSXChannelConfiguration": data}
+        else:
+            return {}
+
+
+    def OnDefaultsBtn(self, evt=None):
+        for c in self.accelEnables:
+            c.SetValue(True)
+        if self.accelChannelDC is not None:
+            self.setField(self.dcEnabled, True, True)
+            self.setField(self.dcSampRate, 400, checked=False)
+            self.dcSampRate.Enable(True)
+
 
 
 #===============================================================================
@@ -644,13 +713,16 @@ def buildUI_SSX(parent):
     parent.triggers = SSXTriggerConfigPanel(parent.notebook, -1, root=parent)
     parent.options = OptionsPanel(parent.notebook, -1, root=parent)
     info = SSXInfoPanel(parent.notebook, -1, root=parent, info=parent.deviceInfo)
-    parent.channels = ChannelConfigPanel(parent.notebook, -1, root=parent)
-#     self.cal = CalibrationConfigPanel(self.notebook, -1, root=self)
     parent.cal = CalibrationPanel(parent.notebook, -1, root=parent)
+    if parent.device.firmwareVersion >= 3:
+        parent.channels = ChannelConfigPanel(parent.notebook, -1, root=parent)
+    else:
+        parent.channels = None
     
     parent.notebook.AddPage(parent.options, "General")
     parent.notebook.AddPage(parent.triggers, "Triggers")
-    parent.notebook.AddPage(parent.channels, "Channels")
+    if parent.channels is not None:
+        parent.notebook.AddPage(parent.channels, "Channels")
     parent.notebook.AddPage(parent.cal, "Calibration")
     parent.notebook.AddPage(info, "Device Info")
     
@@ -661,4 +733,4 @@ def buildUI_SSX(parent):
 
 if __name__ == '__main__':
     import __init__
-    __init__.testDialog()
+    __init__.testDialog(save=False)

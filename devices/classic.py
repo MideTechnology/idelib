@@ -33,6 +33,17 @@ class SlamStickClassic(Recorder):
     manufacturer = u"Mid\xe9 Technology Corp."
     homepage = "http://www.mide.com/products/slamstick/slamstick-vibration-data-logger.php"
 
+    def __init__(self, *args, **kwargs):
+        super(SlamStickClassic, self).__init__(*args, **kwargs)
+        
+        # Parameters for importing saved config data.
+        self._importOlderFwConfig = True
+        self._importNewerFwConfig = False
+        self._importOlderHwConfig = True
+        self._importNewerHwConfig = False
+        self._defaultHwRev = 0
+
+
     @classmethod
     def isRecorder(cls, dev, strict=True):
         """ Does the specified path refer to a recorder?
@@ -108,7 +119,7 @@ class SlamStickClassic(Recorder):
         return s.rstrip(u'\x00\xff')
 
 
-    def _loadConfig(self, source):
+    def _loadConfig(self, source, hwRev=None, fwRev=None, default=None):
         """ Device-specific configuration data reader. """
         return classic_config.readConfig(source)
     

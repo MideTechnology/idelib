@@ -731,6 +731,10 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             except ValueError:
                 trig[name] = val or default
 
+
+    def getData(self):
+        return {}
+    
 #===============================================================================
 # 
 #===============================================================================
@@ -913,4 +917,8 @@ class InfoPanel(HtmlWindow):
         else:
             # Show in same window (file, etc.)
             super(InfoPanel, self).OnLinkClicked(linkinfo)
+
             
+    def getData(self):
+        return {}
+    

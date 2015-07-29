@@ -68,6 +68,13 @@ class SlamStickX(Recorder):
         else:
             self.clockFile = None
 
+        # Parameters for importing saved config data.
+        self._importOlderFwConfig = False
+        self._importNewerFwConfig = False
+        self._importOlderHwConfig = False
+        self._importNewerHwConfig = False
+        self._defaultHwRev = 4
+
 
     @classmethod
     def isRecorder(cls, dev, strict=True):
@@ -111,12 +118,12 @@ class SlamStickX(Recorder):
         return default
 
     
-    def _loadConfig(self, source):
+    def _loadConfig(self, source, hwRev=None, fwRev=None, default=None):
         """ Helper method to read configuration info from a file. Used
             internally.
         """
         devinfo = util.read_ebml(source)
-        return devinfo.get('RecorderConfiguration', None)
+        return devinfo.get('RecorderConfiguration', default)
 
 
     def _saveConfig(self, dest, data, verify=True):
