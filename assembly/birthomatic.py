@@ -372,18 +372,15 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     print "SN: %s, accelerometer SN: %s" % (serialNumStr, accelSerialNum)
         
     # 6. Create chip ID directory in product_database
-    makeShortcuts = False
     chipDirName = os.path.realpath(os.path.join(DB_PATH, chipId))
     if not os.path.exists(chipDirName):
         print "Creating chip ID folder..."
         os.mkdir(chipDirName)
-        makeShortcuts = True
         
     calDirName = os.path.realpath(os.path.join(CAL_PATH, serialNumStr))
     if not os.path.exists(calDirName):
         print "Creating calibration folder..."
         os.mkdir(calDirName)
-        makeShortcuts = True
 
     # Make convenience shortcuts
     try:

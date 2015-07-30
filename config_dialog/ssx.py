@@ -94,7 +94,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.useUtcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
 
         self.Fit()
-        print "trig",self.fieldSize
+
     
     def OnDefaultsBtn(self, evt):
         """ Apply the factory defaults, both in the field values and whether the
@@ -588,16 +588,18 @@ class ChannelConfigPanel(BaseConfigPanel):
         self.endGroup()
         
         if self.accelChannelDC is not None:
+            # NOTE: Explicit size may not work in future cross-platform versions
             self.fieldSize = (100, 23)
-            self.startGroup("Channel %d: %s" % (self.accelChannelDC.id, self.accelChannelDC.displayName))
+            self.startGroup("Channel %d: %s" % (self.accelChannelDC.id, 
+                                                self.accelChannelDC.displayName))
             self.indent += 2
             self.dcEnabled = self.addCheck("Enable (all axes)")
-            self.dcSampRate = self.addChoiceField("Sample Rate", units="Hz", choices=self.DC_ACCEL_FREQS, selected=3)
+            self.dcSampRate = self.addChoiceField("Sample Rate", units="Hz", 
+                                                  choices=self.DC_ACCEL_FREQS, selected=3)
 #             self.controls[self.dcSampRate][0].SetSizerProps(expand=True)
             self.indent -= 2
             self.endGroup()
             self.makeChild(self.dcEnabled, self.dcSampRate)
-        print "chan",self.fieldSize
             
 #         self.fieldSize = (200, -1)
         self.addSpacer()
@@ -630,7 +632,7 @@ class ChannelConfigPanel(BaseConfigPanel):
         
         for c in self.accelEnables:
             c.SetValue(enableMap & 1 == 1)
-            enableMap >> 1
+            enableMap = enableMap >> 1
 
 
     def getData(self):
@@ -739,4 +741,5 @@ def buildUI_SSX(parent):
 
 if __name__ == '__main__':
     import __init__
-    __init__.testDialog(save=False)
+#     __init__.testDialog(save=False)
+    __init__.testDialog(save=True)

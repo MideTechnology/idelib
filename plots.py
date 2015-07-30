@@ -350,6 +350,9 @@ class PlotCanvas(wx.ScrolledWindow):
         self.zoomCenter = None
         self.NO_PEN = wx.Pen("white", style=wx.TRANSPARENT)
         self.BLACK_PEN = wx.Pen("black", style=wx.SOLID)
+        
+        self._cursor_arrowwait = wx.StockCursor(wx.CURSOR_ARROWWAIT)
+        self._cursor_default = wx.StockCursor(wx.CURSOR_DEFAULT)
 
         self.pauseTimer = wx.Timer()
         self.abortRendering = False
@@ -617,20 +620,27 @@ class PlotCanvas(wx.ScrolledWindow):
             self._OnPaint(evt)
         except IndexError:
             # Note: These can occur on the first plot, but are non-fatal.
-            logger.warning("IndexError in plot (race condition?); continuing.") 
-            wx.MilliSleep(50)
-            wx.PostEvent(self, evt)
+            if self.root.dataset.loading:
+                logger.warning("IndexError in plot (race condition?); continuing.") 
+                wx.MilliSleep(50)
+                wx.PostEvent(self, evt)
+            else:
+                logger.warning("IndexError in plot: no data?")
         except TypeError as err:
             # Note: These can occur on the first plot, but are non-fatal.
-            logger.warning("%s (race condition?); continuing." % err.message) 
-            wx.MilliSleep(50)
-            wx.PostEvent(self, evt)
+            if self.root.dataset.loading:
+                logger.warning("%s (race condition?); continuing." % err.message) 
+                wx.MilliSleep(50)
+                wx.PostEvent(self, evt)
+            else:
+                logger.warning("%s; no data?" % err.message) 
         except IOError as err:
             msg = "An error occurred while trying to read the recording file."
             self.root.handleError(err, msg, closeFile=True)
         except ex as err:
             self.root.handleError(err, what="plotting data")
         finally:
+            self.SetCursor(self._cursor_default)
             if paused:
                 self.root.resumeOperation(job)
         
@@ -648,7 +658,7 @@ class PlotCanvas(wx.ScrolledWindow):
             return
         
         t0 = time.time()
-        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+        self.SetCursor(self._cursor_arrowwait)
 
         self.InvalidateBestSize()
         dc = wx.PaintDC(self)
@@ -761,7 +771,7 @@ class PlotCanvas(wx.ScrolledWindow):
             linesDrawn += self._drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
             
         dc.EndDrawing()
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(self._cursor_default)
         
         if DEBUG and linesDrawn > 0:# and len(parent.sources) > 1:
             dt = time.time() - t0
@@ -946,7 +956,7 @@ class PlotCanvas(wx.ScrolledWindow):
             # First time the plot was drawn. Don't draw; scale to fit.
             parent.zoomToFit(self)
             parent.firstPlot = False
-            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+            self.SetCursor(self._cursor_default)
             dc.EndDrawing()
             return 0
         
