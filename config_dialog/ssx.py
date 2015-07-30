@@ -94,7 +94,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.useUtcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
 
         self.Fit()
-        
+        print "trig",self.fieldSize
     
     def OnDefaultsBtn(self, evt):
         """ Apply the factory defaults, both in the field values and whether the
@@ -583,21 +583,24 @@ class ChannelConfigPanel(BaseConfigPanel):
 
         self.startGroup("Channel %d: %s" % (self.accelChannel.id, self.accelChannel.displayName))
         self.indent += 2
-        self.accelEnables = [self.addCheck("Enable %d:%d: %s" % (self.accelChannel.id, c.id, c.displayName)) for c in self.accelChannel.subchannels]
+        self.accelEnables = [self.addCheck("Enable %s (%d:%d)" % (c.displayName, self.accelChannel.id, c.id)) for c in self.accelChannel.subchannels]
         self.indent -= 2
         self.endGroup()
         
         if self.accelChannelDC is not None:
+            self.fieldSize = (100, 23)
             self.startGroup("Channel %d: %s" % (self.accelChannelDC.id, self.accelChannelDC.displayName))
             self.indent += 2
             self.dcEnabled = self.addCheck("Enable (all axes)")
             self.dcSampRate = self.addChoiceField("Sample Rate", units="Hz", choices=self.DC_ACCEL_FREQS, selected=3)
+#             self.controls[self.dcSampRate][0].SetSizerProps(expand=True)
             self.indent -= 2
             self.endGroup()
             self.makeChild(self.dcEnabled, self.dcSampRate)
+        print "chan",self.fieldSize
             
+#         self.fieldSize = (200, -1)
         self.addSpacer()
-        self.fieldSize = (200, -1)
         SC.SizedPanel(self, -1).SetSizerProps(proportion=1)
         SC.SizedPanel(self, -1).SetSizerProps(proportion=1)
         self.addButton("Reset to Defaults", wx.ID_DEFAULT, self.OnDefaultsBtn, 
@@ -637,7 +640,8 @@ class ChannelConfigPanel(BaseConfigPanel):
         accelData = OrderedDict()
         dcData = OrderedDict()
         
-        # This is assuming that the default is channel enabled.
+        # This is assuming that the default is channel enabled if there is no
+        # SubChannelEnableMap element.
         enableMap = 0
         checks = [ch.GetValue() for ch in reversed(self.accelEnables)]
         if not all(checks):
@@ -647,6 +651,8 @@ class ChannelConfigPanel(BaseConfigPanel):
             accelData['SubChannelEnableMap'] = enableMap
             data.append(accelData)
         
+        # DC accelerometer doesn't have per-channel enable, so any nonzero
+        # value enables the whole thing. Using 0b111 for consistency.
         dcEnable = 0b111 if self.dcEnabled.GetValue() else 0
         self.addVal(self.dcSampRate, dcData, "ChannelSampleFreq", kind=int)
         if len(dcData) > 0 or dcEnable != 0b111:

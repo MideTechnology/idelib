@@ -418,9 +418,9 @@ class SlamStickX(Recorder):
                 PP = CalibrationListParser(None)
                 self._calData.seek(0)
                 cal = MideDocument(self._calData)
-                self._calPolys = filter(None, PP.parse(cal.roots[0]))
+                self._calPolys = PP.parse(cal.roots[0])
                 if self._calPolys:
-                    self._calPolys = dict(((p.id, p) for p in self._calPolys))
+                    self._calPolys = dict(((p.id, p) for p in self._calPolys if p is not None))
                 return self._calPolys
             except (KeyError, IndexError, ValueError):
                 pass
@@ -450,8 +450,8 @@ class SlamStickX(Recorder):
                 doc.recorderInfo['RecorderTypeUID'] = doc.recorderInfo['DeviceTypeUID']
                 importer.createDefaultSensors(doc)
                 doc.transforms.setdefault(0, doc.channels[0].transform)
-                if self._calPolys is None:
-                    self._calPolys = doc.transforms
+#                 if self._calPolys is None:
+#                     self._calPolys = doc.transforms
             else:
                 # Parse userpage recorder property data
                 parser = RecordingPropertiesParser(doc)
