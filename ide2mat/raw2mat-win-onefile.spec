@@ -3,6 +3,7 @@
 from datetime import datetime
 import glob
 import os
+import platform
 import socket
 import sys
 import time
@@ -80,7 +81,8 @@ exe = EXE(pyz,
           a.datas,
           schemas,
           exclude_binaries=False,
-          name='raw2mat.exe',
+          name='raw2mat_%s.exe' % (platform.architecture()[0][:3]),
+#           name='raw2mat.exe',
           icon='ssx.ico',
           debug=False, #DEBUG,
           strip=None,

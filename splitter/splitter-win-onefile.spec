@@ -3,6 +3,7 @@
 from datetime import datetime
 import glob
 import os
+import platform
 import sys
 
 
@@ -77,7 +78,8 @@ exe = EXE(pyz,
           a.datas,
           schemas,
           exclude_binaries=False,
-          name='ide_split.exe',
+          name='ide_split_%s.exe' % (platform.architecture()[0][:3]),
+#          name='ide_split.exe',
           icon='ssx.ico',
           debug=False, #DEBUG,
           strip=None,

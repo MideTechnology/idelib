@@ -27,6 +27,8 @@ from mide_ebml import importer
 from mide_ebml.matfile import MP
 from mide_ebml.parsers import MPL3115PressureTempParser, ChannelDataBlock
 
+from devices import SlamStickX
+
 from build_info import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME
 __version__ = VERSION
 
@@ -210,19 +212,28 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
         mat = matfile.MatStream(matFilename, doc, maxFileSize=maxSize,  writeCal=True, writeStart=True, writeInfo=True)
+
+        ssx = SlamStickX.fromRecording(doc)
+        accelCh = ssx.getAccelChannel()
+        accelChId = accelCh.id
+        pressTempCh = ssx.getTempChannel().parent
+        pressTempChId = pressTempCh.id
         
-        numAccelCh = len(doc.channels[0].subchannels)
-        numTempCh = len(doc.channels[1].subchannels)
+        numAccelCh = len(accelCh.subchannels)
+        numTempCh = len(pressTempCh.subchannels)
         
         totalSize = os.path.getsize(ideFilename) + 0.0
         nextUpdate = time.time() + updateInterval
         
         try:
-            mat.startArray(doc.channels[0].name, numAccelCh, dtype=MP.miUINT16, noTimes=True, colNames=[c.name for c in doc.channels[0].subchannels])
+            mat.startArray(accelCh.name, numAccelCh, dtype=MP.miUINT16, noTimes=True, colNames=[c.name for c in accelCh.subchannels])
     
-            dumpers = (AccelDumper(3, mat.writeRow, startTime, endTime), 
-                       MPL3115Dumper(2, None, startTime, endTime))
-            
+#             dumpers = (AccelDumper(3, mat.writeRow, startTime, endTime), 
+#                        MPL3115Dumper(2, None, startTime, endTime))
+            dumpers = {accelChId: AccelDumper(numAccelCh, mat.writeRow, startTime, endTime), 
+                       pressTempChId: MPL3115Dumper(numTempCh, None, startTime, endTime)}
+
+                    
             lastMat = ''
             writeMsg = '' 
             isWriting = False
@@ -239,7 +250,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
     
                     if el.name == "ChannelDataBlock":
                         chId = el.value[0].value
-                        if chId < 2:
+                        if chId in dumpers:
                             wroteData = dumpers[chId].write(el)
                             
                             # First block written; base the 
@@ -249,7 +260,7 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                                 isWriting = True
                             
                     if i % 250 == 0 or time.time() > nextUpdate:
-                        count = sum((x.numSamp for x in dumpers))
+                        count = sum((x.numSamp for x in dumpers.itervalues()))
                         updater(count=count, total=None, percent=((stream.tell()-offset)/totalSize))
                         nextUpdate = time.time() + updateInterval
 
@@ -265,8 +276,8 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             mat.endArray()
             
             if not accelOnly:
-                d = dumpers[1]
-                mat.startArray(doc.channels[1].name, numTempCh,
+                d = dumpers[pressTempChId]
+                mat.startArray(pressTempCh.name, numTempCh,
                        dtype=MP.miSINGLE, noTimes=True)
                 for r in izip(np.linspace(d.firstTime, d.lastTime, len(d.data)), d.data):
                     mat.writeRow(r)
@@ -275,13 +286,13 @@ def raw2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
             # Calculate actual sampling rate based on total count and total time
             # TODO: Write this for each MAT file.
             # TODO: Write the time range in each file (reset parser.firstTime)
-            sampRates = [1000000.0/(((d.lastTime-d.firstTime)*ChannelDataBlock.timeScalar)/d.numRows) for d in dumpers]
+            sampRates = [1000000.0/(((d.lastTime-d.firstTime)*ChannelDataBlock.timeScalar)/d.numRows) for d in dumpers.itervalues()]
             mat.startArray("sampling_rates", len(sampRates), dtype=MP.miSINGLE, noTimes=True, hasTimes=False)
             mat.writeRow((0,sampRates))
             mat.endArray()
             
             mat.close()
-            return sum((x.numSamp for x in dumpers))
+            return sum((x.numSamp for x in dumpers.itervalues()))
         
         except IOError:
             mat.close()
