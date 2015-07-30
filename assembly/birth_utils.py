@@ -13,6 +13,8 @@ import shutil
 import sys
 import time
 
+from win32com.client import Dispatch
+
 from devices import SlamStickX
 import ssx_namer
 
@@ -255,3 +257,16 @@ def getNumber(prompt, dataType=float, default=None, minmax=None):
 def errMsg(*msg):
     print "\x07\x07\x07%s" % '\n'.join(map(str,msg))
     raw_input("Press enter to continue.")
+    
+#===============================================================================
+# 
+#===============================================================================
+
+def makeShortcut(path, target):
+    scName = os.path.realpath(os.path.join(path, os.path.basename(target)+".lnk"))
+    shell = Dispatch("WScript.Shell")
+    sc = shell.CreateShortcut(scName)
+    sc.Targetpath = os.path.realpath(target)
+    sc.save()
+    return scName
+    
