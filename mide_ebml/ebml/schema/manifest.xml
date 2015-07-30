@@ -77,7 +77,7 @@ default="123" or a text value that may or may not be the name of another tag
 		<element name="SystemInfo" level="1" id="0x4D00" type="master" mandatory="0" multiple="0" minver="1">Class B (2 byte + 2 length) Master element for the basic system info (serial#, etc).</element>
 			<element name="SerialNumber" level="2" id="0x4D01" type="uinteger" mandatory="1" multiple="0" minver="1" length="4">4-byte Vendor-defined (MIDE) product serial number.</element>
 			<element name="DeviceTypeUID" level="2" id="0x4D02" type="uinteger" mandatory="1" multiple="0" minver="1" length="4">4-byte Unique hardware configuration ID used to distinguish recorder types/variants.</element>
-			<element name="ProductName" level="2" id="0x4D03" type="string" mandatory="1" multiple="0" minver="1" length="20">20-byte Displayable text name for this product/variant.</element>
+			<element name="ProductName" level="2" id="0x4D03" type="string" mandatory="1" multiple="0" minver="1" length="40">20-byte Displayable text name for this product/variant.</element>
 			<element name="HwRev" level="2" id="0x4D04" type="uinteger" mandatory="1" multiple="0" minver="1" length="2">2-byte hardware revision code for this DeviceTypeUID.</element>
 			<element name="MinFwRev" level="2" id="0x4D05" type="uinteger" mandatory="1" multiple="0" minver="1" length="2">2-byte Minimum FW revision code required to support this hardware.</element>
 			<element name="DateOfManufacture" level="2" id="0x4D06" type="uinteger" mandatory="1" multiple="0" minver="1" length="8">8-byte date/time of manufacture (initial programming) in UTC seconds since the Epoch.</element>
