@@ -56,12 +56,17 @@ class Dataset(DS.Dataset):
         self.useIndices = False
         self.fileDamaged = False
         self.loadCancelled = False
-        self.loading = True
-        self.file = stream
-        self.filename = stream.name
         self.lastUtcTime = None
+        if stream is None:
+            self.loading = False
+            self.file = None
+            self.filename = None
+        else:
+            self.loading = True
+            self.file = stream
+            self.filename = stream.name
 
-        if name is None:
+        if name is None and self.filename is not None:
             self.name = os.path.splitext(os.path.basename(self.filename))[0]
         else:
             self.name = name

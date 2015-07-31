@@ -44,9 +44,6 @@ class SlamStickX(Recorder):
     USERCAL_FILE = os.path.join(SYSTEM_PATH, "usercal.dat")
     TIME_PARSER = struct.Struct("<L")
 
-    LIFESPAN = timedelta(2 * 365)
-    CAL_LIFESPAN = timedelta(365)
-
     POST_CONFIG_MSG  = ("""When ready...\n"""
                         """    1. Disconnect Slam Stick X\n"""
                         """    2. Mount to surface\n"""
@@ -62,11 +59,16 @@ class SlamStickX(Recorder):
         self._calibration = None
         self._calData = None
         self._calPolys = None
+        self._userCalPolys = None
+        self._userCalDict = None
+        self._factoryCalPolys = None
+        self._factoryCalDict = None
         self._accelChannels = None
         if self.path is not None:
             self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
+            self.userCalFile = os.path.join(self.path, self.USERCAL_FILE)
         else:
-            self.clockFile = None
+            self.clockFile = self.userCalFile = None
 
         # Parameters for importing saved config data.
         self._importOlderFwConfig = False
@@ -217,7 +219,6 @@ class SlamStickX(Recorder):
         else:
             self._accelRange = (lo, hi)
             
-        
         return self._accelRange
 
     
@@ -353,6 +354,22 @@ class SlamStickX(Recorder):
         return t
 
 
+    def _parsePolynomials(self, stream):
+        """ Helper method to parse CalibrationList EBML into `Transform`
+            objects. 
+        """
+        try:
+            PP = CalibrationListParser(None)
+            stream.seek(0)
+            cal = MideDocument(stream)
+            calPolys = PP.parse(cal.roots[0])
+            if calPolys:
+                calPolys = dict(((p.id, p) for p in calPolys if p is not None))
+            return calPolys
+        except (KeyError, IndexError, ValueError):
+            pass
+
+
     def getManifest(self, refresh=False):
         """ Read the device's manifest data. The data is a superset of the
             information returned by `getInfo()`.
@@ -373,12 +390,11 @@ class SlamStickX(Recorder):
         
         # Recombine all the 'user page' files
         systemPath = os.path.join(self.path, 'SYSTEM', 'DEV')
-        data = []
+        data = bytearray()
         for i in range(4):
             filename = os.path.join(systemPath, 'USERPG%d' % i)
             with open(filename, 'rb') as fs:
-                data.append(fs.read())
-        data = ''.join(data)
+                data.extend(fs.read())
         
         (manOffset, manSize, 
          calOffset, calSize, 
@@ -401,33 +417,68 @@ class SlamStickX(Recorder):
         return self._manifest
 
 
-    def getCalibration(self, refresh=False):
+    def getFactoryCalibration(self, refresh=False):
         """ Get the recorder's factory calibration information.
         """
         self.getManifest(refresh=refresh)
         return self._calibration
 
 
-    def getCalPolynomials(self, refresh=False):
+    def getFactoryCalPolynomials(self, refresh=False):
         """ Get the constructed Polynomial objects created from the device's
             calibration data.
         """
         self.getSensors(refresh=refresh)
         if self._calPolys is None:
-            try:
-                PP = CalibrationListParser(None)
-                self._calData.seek(0)
-                cal = MideDocument(self._calData)
-                self._calPolys = PP.parse(cal.roots[0])
-                if self._calPolys:
-                    self._calPolys = dict(((p.id, p) for p in self._calPolys if p is not None))
-                return self._calPolys
-            except (KeyError, IndexError, ValueError):
-                pass
+            self._calPolys = self._parsePolynomials(self._calData)
         
         return self._calPolys
             
     
+    def getUserCalibration(self, refresh=False):
+        """ Get the recorder's user-defined calibration data as a dictionary
+            of parameters.
+        """
+        if self.userCalFile is None or not os.path.exists(self.userCalFile):
+            return None
+        if self._userCalDict is None or refresh:
+            with open(self.userCalFile, 'rb') as f:
+                d = util.read_ebml(f, schema=schema_mide)
+                self._userCalDict = d.get('CalibrationList', None)
+        return self._userCalDict
+
+
+    def getUserCalPolynomials(self, refresh=False):
+        """ Get the recorder's user-defined calibration data as a dictionary
+            of `mide_ebml.transforms.Transform` subclass objects.
+        """
+        if self.userCalFile is None or not os.path.exists(self.userCalFile):
+            return None
+        if self._userCalPolys is None or refresh:
+            with open(self.userCalFile, 'rb') as f:
+                self._userCalPolys = self._parsePolynomials(f)
+        return self._userCalPolys
+        
+
+    def getCalibration(self, refresh=False):
+        """ Get the recorder's current calibration information. User-supplied
+            calibration, if present, takes priority.
+        """
+        c = self.getUserCalibration(refresh=refresh)
+        if c is None:
+            return self.getFactoryCalibration(refresh=refresh)
+
+
+    def getCalPolynomials(self, refresh=False):
+        """ Get the constructed Polynomial objects created from the device's
+            current calibration data. User-supplied calibration, if present, 
+            takes priority.
+        """
+        c = self.getUserCalPolynomials(refresh=refresh)
+        if c is None:
+            return self.getFactoryCalPolynomials(refresh=refresh)
+
+
     def getSensors(self, refresh=False):
         """ Get the recorder sensor description data.
             @todo: Merge with manifest sensor data?
@@ -474,36 +525,42 @@ class SlamStickX(Recorder):
         return self._channels
 
 
-    def getAge(self, refresh=False):
-        """ Get the number of days since the recorder's date of manufacture.
+    def getUserCalDate(self, refresh=False):
+        """ Get the date of the recorder's user-defined calibration. This data
+            may or may not be available.
         """
         try:
-            return (time.time() - self.birthday) / (60 * 60 * 24) 
-        except (AttributeError, KeyError, TypeError):
+            return self.getUserCalibration(refresh)['CalibrationDate']
+        except (KeyError, TypeError):
             return None
         
-
-    def getEstLife(self, refresh=False):
-        """ Get the recorder's estimated remaining life span in days. This is
-            (currently) only a very basic approximation based on days since 
-            the device's recorded date of manufacture.
-            
-            @return: The estimated days of life remaining. Negative values
-                indicate the device is past its estimated life span. `None`
-                is returned if no estimation could be made.
+        
+    def getFactoryCalDate(self, refresh=False):
+        """ Get the date of the recorder's factory calibration.
         """
         try:
-            age = (time.time() - self.birthday) 
-            return int(0.5 + self.LIFESPAN.total_seconds() - age)
-        except (AttributeError, KeyError, TypeError):
+            return self.getFactoryCalibration(refresh)['CalibrationDate']
+        except (KeyError, TypeError):
             return None
 
 
-    def getCalExpiration(self, refresh=False):
+    def getCalDate(self, refresh=False):
+        """ Get the date of the recorder's active calibration.
+            User-supplied calibration, if present, takes priority.
+        """
+        try:
+            return self.getCalibration(refresh)['CalibrationDate']
+        except (KeyError, TypeError):
+            return None
+    
+    
+    def _getCalExpiration(self, data):
         """ Get the expiration date of the recorder's factory calibration.
         """
-        caldate = self._calibration.get('CalibrationDate', None)
-        calexp = self._calibration.get('CalibrationExpiry', None)
+        if data is None:
+            return None
+        caldate = data.get('CalibrationDate', None)
+        calexp = data.get('CalibrationExpiry', None)
         
         if caldate is None and calexp is None:
             return None
@@ -512,6 +569,35 @@ class SlamStickX(Recorder):
             return calexp
         
         return  caldate + self.CAL_LIFESPAN.total_seconds()
+
+
+    def getFactoryCalExpiration(self, refresh=False):
+        """ Get the expiration date of the recorder's factory calibration.
+        """
+        return self._getCalExpiration(self.getFactoryCalibration(refresh))
+
+
+    def getUserCalExpiration(self, refresh=False):
+        """ Get the expiration date of the recorder's user-defined calibration.
+            This data may or may not be available.
+        """
+        return self._getCalExpiration(self.getUserCalibration(refresh))
+
+
+    def getCalExpiration(self, refresh=False):
+        """ Get the expiration date of the recorder's active calibration.
+            User-supplied calibration, if present, takes priority.
+        """
+        return self._getCalExpiration(self.getCalibration(refresh))
+        
+
+    def getCalSerial(self, refresh=False):
+        """ Get the recorder's factory calibration serial number.
+        """
+        try:
+            return self.getCalibration(refresh)['CalibrationSerialNumber']
+        except (KeyError, TypeError):
+            return None
 
     
     @classmethod
@@ -560,11 +646,10 @@ class SlamStickX(Recorder):
             @keyword filename: An alternate file to which to write the data,
                 instead of the standard user calibration file.
         """
+        filename = self.userCalFile if filename is None else filename
         if filename is None:
-            if self.path is None:
-                raise ConfigError('Could not write user calibration data: '
-                                  'Not a real recorder!')
-            filename = os.path.join(self.path, self.USERCAL_FILE)
+            raise ConfigError('Could not write user calibration data: '
+                              'Not a real recorder!')
         cal = self.generateCalEbml(transforms)
         with open(filename, 'wb') as f:
             f.write(cal)

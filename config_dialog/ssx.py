@@ -511,13 +511,27 @@ class CalibrationPanel(InfoPanel):
     """ Panel for displaying SSX calibration polynomials. Read-only.
     """
     
+    def __init__(self, parent, id_, calSerial=None, calDate=None, 
+                 calExpiry=None, **kwargs):
+        self.calSerial = calSerial
+        self.calDate = calDate
+        self.calExpiry = calExpiry
+        super(CalibrationPanel, self).__init__(parent, id_, **kwargs)
+    
+    
     def getDeviceData(self):
-        if hasattr(self.root, 'device'):
+        if self.info:
+            self.info = self.info.values()
+        elif hasattr(self.root, 'device'):
             self.info = self.root.device.getCalPolynomials().values()
+            self.calSerial = self.root.device.getCalExpiration()
+            self.calDate = self.root.device.getCalSerial()
         else:
+            # NOTE: Is this used by anything anymore?
             PP = PolynomialParser(None)
             self.info = [PP.parse(c) for c in self.data.value]
         self.info.sort(key=lambda x: x.id)
+        
         
     def cleanFloat(self, f, places=6):
         s = (('%%.%df' % places) % f).rstrip('0')
@@ -525,12 +539,25 @@ class CalibrationPanel(InfoPanel):
             return '%s0' % s
         return s
     
+    
     def buildUI(self):
         """ Create the UI elements within the page. Every subclass should
             implement this. Called after __init__() and before initUI().
         """
         self.getDeviceData()
         self.html = [u"<html><body>"]
+        
+        if self.calSerial:
+            self.html.append("<p><b>Calibration Serial: C%03d</b></p>" % self.calSerial)
+        if self.calDate or self.calExpiry:
+            self.html.append("<p>")
+            if self.calDate:
+                d = datetime.fromtimestamp(self.calDate).date()
+                self.html.append("<b>Calibration Date:</b> %s" % d)
+            if self.calDate:
+                d = datetime.fromtimestamp(self.calExpiry).date()
+                self.html.append("<b>Expires:</b> %s" % d)
+            self.html.append("</p>")
         
         for cal in self.info:
             if cal.id is None:
@@ -710,28 +737,38 @@ class CalibrationConfigPanel(BaseConfigPanel):
 def buildUI_SSX(parent):
     """ Add the Slam Stick X configuration tabs to the configuration dialog.
     """
-    try:
-        cal = parent.device.getCalibration()
-        parent.deviceInfo['CalibrationSerialNumber'] = cal['CalibrationSerialNumber']
-        parent.deviceInfo['CalibrationDate'] = cal['CalibrationDate']
-        parent.deviceInfo['CalibrationExpirationDate'] = parent.device.getCalExpiration()
-    except (AttributeError, KeyError):
-        pass
+    usercal = parent.device.getUserCalPolynomials()
+    factorycal = parent.device.getFactoryCalPolynomials()
+    
+    calSerial = parent.device.getCalSerial()
+    calDate = parent.device.getCalDate()
+    calExpiry = parent.device.getCalExpiration()
+    parent.deviceInfo['CalibrationSerialNumber'] = calSerial
+    parent.deviceInfo['CalibrationDate'] = calDate
+    parent.deviceInfo['CalibrationExpirationDate'] = calExpiry
+
+    parent.options = OptionsPanel(parent.notebook, -1, root=parent)
+    parent.notebook.AddPage(parent.options, "General")
     
     parent.triggers = SSXTriggerConfigPanel(parent.notebook, -1, root=parent)
-    parent.options = OptionsPanel(parent.notebook, -1, root=parent)
-    info = SSXInfoPanel(parent.notebook, -1, root=parent, info=parent.deviceInfo)
-    parent.cal = CalibrationPanel(parent.notebook, -1, root=parent)
+    parent.notebook.AddPage(parent.triggers, "Triggers")
+
     if parent.device.firmwareVersion >= 3:
         parent.channels = ChannelConfigPanel(parent.notebook, -1, root=parent)
-    else:
-        parent.channels = None
-    
-    parent.notebook.AddPage(parent.options, "General")
-    parent.notebook.AddPage(parent.triggers, "Triggers")
-    if parent.channels is not None:
         parent.notebook.AddPage(parent.channels, "Channels")
-    parent.notebook.AddPage(parent.cal, "Calibration")
+            
+    if factorycal is not None:
+        parent.factorycal = CalibrationPanel(parent.notebook, -1, root=parent,
+                                          info=factorycal, calSerial=calSerial,
+                                          calDate=calDate, calExpiry=calExpiry)
+        parent.notebook.AddPage(parent.factorycal, "Factory Calibration")
+        
+    if usercal is not None:
+        parent.usercal = CalibrationPanel(parent.notebook, -1, root=parent,
+                                          info=usercal)
+        parent.notebook.AddPage(parent.usercal, "User Calibration")
+
+    info = SSXInfoPanel(parent.notebook, -1, root=parent, info=parent.deviceInfo)
     parent.notebook.AddPage(info, "Device Info")
     
 

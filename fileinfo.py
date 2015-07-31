@@ -221,7 +221,9 @@ class RecorderInfoDialog(SC.SizedDialog):
             notebook.AddPage(recPanel, "Device Info")
         
         if self.root.transforms:
-            calPanel = RecordingCalibrationPanel(notebook, -1, root=self.root)
+            cal = self.root.transforms.values()
+            calPanel = RecordingCalibrationPanel(notebook, -1, root=self.root,
+                                                 info=cal)
             notebook.AddPage(calPanel, "Calibration")
         
         if showAll and ebmlInfo is not None:

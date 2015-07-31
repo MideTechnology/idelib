@@ -117,11 +117,6 @@ class Loader(Job):
             wx.PostEvent(self.root, EvtImportError(err=error))
             return
         
-        if done or percent==1:
-            # Make sure the drawing has been resumed.
-            wx.PostEvent(self.root, EvtResumeDrawing(redraw=True))
-            return
-        
         if self.paused:
             # Don't update the time estimate if paused; causes stutter.
             return
@@ -179,4 +174,8 @@ class Loader(Job):
         self.lastTime = thisTime
         self.lastCount = count
 
+        if done or percent==1:
+            # Make sure the drawing has been resumed.
+            wx.PostEvent(self.root, EvtResumeDrawing(redraw=True))
+        
 

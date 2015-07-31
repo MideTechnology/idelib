@@ -15,6 +15,9 @@ import os
 import time
 
 from mide_ebml.classic import config as classic_config
+from mide_ebml.classic.dataset import Dataset
+from mide_ebml.classic.importer import createDefaultSensors
+from mide_ebml.calibration import Univariate
 from base import Recorder
 
 #===============================================================================
@@ -35,6 +38,8 @@ class SlamStickClassic(Recorder):
 
     def __init__(self, *args, **kwargs):
         super(SlamStickClassic, self).__init__(*args, **kwargs)
+        
+        self._calPolys = None
         
         # Parameters for importing saved config data.
         self._importOlderFwConfig = True
@@ -231,9 +236,49 @@ class SlamStickClassic(Recorder):
             this is just a subset of the data returned by `getInfo()`.
         """
         self.getInfo(refresh=refresh)
+        if refresh:
+            self._calPolys = None
         cal = {}
         for a in ('CALOFFSX', 'CALOFFSY', 'CALOFFSZ', 'CALGAINX', 'CALGAINY', 'CALGAINZ'):
             cal[a] = self._getInfoAttr(a)
         return cal
     
     
+    def getCalPolynomials(self, refresh=False):
+        c = self.getCalibration(refresh)
+        if self._calPolys is None:
+            gainx = c['CALGAINX'] or 1
+            gainy = c['CALGAINY'] or 1
+            gainz = c['CALGAINZ'] or 1
+            self._calPolys = {
+              1: Univariate((gainx, c['CALOFFSX']), 1),
+              2: Univariate((gainy, c['CALOFFSY']), 2),
+              3: Univariate((gainz, c['CALGAINZ']), 3),
+            }
+        return self._calPolys
+        
+
+    def getSensors(self, refresh=False):
+        if self._sensors is None:
+            doc = Dataset(None)
+            createDefaultSensors(doc)
+            self._sensors = doc.sensors
+            self._channels = doc.channels
+        return self._sensors
+
+
+    def getChannels(self, refresh=False):
+        self.getSensors(refresh)
+        return self._channels
+
+    
+    def getAccelChannel(self, dc=False):
+        self.getSensors()
+        if self._channels is not None:
+            return self._channels.get(0, None)
+    
+    def getAccelAxisChannels(self, dc=False):
+        c = self.getAccelChannel(dc)
+        if c is None:
+            return None
+        return sorted(c.subchannels, key=lambda x: x.displayName)

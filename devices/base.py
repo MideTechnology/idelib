@@ -8,9 +8,11 @@ Created on Jan 28, 2015
 '''
 
 from collections import OrderedDict
+from datetime import timedelta
 import json
 import os.path
 import sys
+import time
 
 try:
     from cStringIO import StringIO
@@ -48,6 +50,9 @@ class Recorder(object):
     """
     INFO_FILE = ''
     CONFIG_FILE = ''
+
+    LIFESPAN = timedelta(2 * 365)
+    CAL_LIFESPAN = timedelta(365)
     
     POST_CONFIG_MSG = None
     productName = "Generic Recorder"
@@ -136,6 +141,10 @@ class Recorder(object):
     def firmwareVersion(self):
         """ The recorder's manufacturer-issued firmware version number. """
         return 0
+
+    @property
+    def birthday(self):
+        return None
     
     def _configVersion(self):
         return self.productName, self.firmwareVersion
@@ -283,16 +292,37 @@ class Recorder(object):
         with open(self.configFile, 'wb') as f:
             return self._saveConfig(f, data, verify)
     
+    
+    def getManifest(self, refresh=False):
+        """
+        """
+        return None
+    
+    def getUserCalibration(self, refresh=False):
+        """
+        """
+        return None
+
+    def getFactoryCalibration(self, refresh=False):
+        """
+        """
+        return None
+    
     def getCalibration(self, refresh=False):
         """ Get the recorder's factory calibration information.
         """
         return None
 
+
     def getAge(self, refresh=False):
         """ Get the number of days since the recorder's date of manufacture.
         """
-        return None
-        
+        try:
+            return (time.time() - self.birthday) / (60 * 60 * 24) 
+        except (AttributeError, KeyError, TypeError):
+            return None
+
+
     def getEstLife(self, refresh=False):
         """ Get the recorder's estimated remaining life span in days. This is
             (currently) only a very basic approximation based on days since 
@@ -302,9 +332,40 @@ class Recorder(object):
                 indicate the device is past its estimated life span. `None`
                 is returned if no estimation could be made.
         """
+        try:
+            age = (time.time() - self.birthday) 
+            return int(0.5 + self.LIFESPAN.total_seconds() - age)
+        except (AttributeError, KeyError, TypeError):
+            return None
+
+    def getFactoryCalDate(self, refresh=False):
+        return None
+    
+    def getUserCalDate(self, refresh=False):
+        return None
+    
+    def getCalDate(self, refresh=False):
+        return None
+
+    def getFactoryCalExpiration(self, refresh=False):
+        """ Get the expiration date of the recorder's factory calibration.
+        """
+        return None
+
+    def getUserCalExpiration(self, refresh=False):
+        """ Get the expiration date of the recorder's user-defined calibration.
+            This data may or may not be available.
+        """
         return None
 
     def getCalExpiration(self, refresh=False):
-        """ Get the expiration date of the recorder's factory calibration.
+        """ Get the expiration date of the recorder's active calibration.
+            User-supplied calibration, if present, takes priority.
+        """
+        return None
+
+
+    def getCalSerial(self, refresh=False):
+        """ Get the recorder's factory calibration serial number.
         """
         return None
