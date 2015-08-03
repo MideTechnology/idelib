@@ -192,7 +192,17 @@ def getPartNumber(default=None):
 
 def getHardwareRevs(partNum, default=None):
     """ Get a list of all known Hardware Revisions. """
-    return map(os.path.basename, glob(os.path.join(TEMPLATE_PATH, partNum, '*')))
+    revs = filter(os.path.isdir, glob(os.path.join(TEMPLATE_PATH, partNum, '*')))
+    revs = map(os.path.basename, revs)
+    result = []
+    for rev in revs:
+        try:
+            result.append(str(int(rev)))
+        except ValueError:
+            pass
+    if len(result) == 0:
+        raise ValueError("Found no hardware rev dirs for %r!" % partNum)
+    return result
 
 def getHardwareRev(partNum, default=None):
     """ Prompt the user for a Hardware Revision number. """
@@ -353,10 +363,15 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         utils.errMsg("Failed to get bootloader revision number!")
         return
     
-    accelSerialNum = getAccelSerialNum(default=accelSerialNum)
-    if not accelSerialNum:
-        utils.errMsg("Failed to get accelerometer serial number!")
-        return
+    # The SlamStick C has no analog accelerometer!
+    has_832M1 = utils.hasAnalogAccel(TEMPLATE_PATH, partNum, hwRev)
+    if has_832M1:
+        accelSerialNum = getAccelSerialNum(default=accelSerialNum)
+        if not accelSerialNum:
+            utils.errMsg("Failed to get accelerometer serial number!")
+            return
+    else:
+        accelSerialNum = None
         
     # 5. Get next recorder serial number
     if serialNum is None:

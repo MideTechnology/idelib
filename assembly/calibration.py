@@ -938,4 +938,11 @@ def makeCalTemplateXml(templatePath, partNum, hwRev, dest):
 def generateUserCal():
     """
     """
-    
+
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == "__main__":
+    print "This is only a library. Don't try to run it!"
+    exit(1)

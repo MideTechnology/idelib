@@ -12,6 +12,7 @@ import os
 import shutil
 import sys
 import time
+from xml.etree import ElementTree as ET
 
 from win32com.client import Dispatch
 
@@ -263,10 +264,31 @@ def errMsg(*msg):
 #===============================================================================
 
 def makeShortcut(path, target):
+    """ Create a Windows Shortcut.
+    """
     scName = os.path.realpath(os.path.join(path, os.path.basename(target)+".lnk"))
     shell = Dispatch("WScript.Shell")
     sc = shell.CreateShortcut(scName)
     sc.Targetpath = os.path.realpath(target)
     sc.save()
     return scName
-    
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def hasAnalogAccel(templatePath, partNum, hwRev):
+    """
+    """
+    template = os.path.join(templatePath, partNum, str(hwRev), 'manifest.template.xml')
+    doc = ET.parse(template)
+    return doc.find('./AnalogSensorInfo/AnalogSensorSerialNumber') is not None
+
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == "__main__":
+    print "This is only a library. Don't try to run it!"
+    exit(1)

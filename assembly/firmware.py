@@ -281,8 +281,12 @@ def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, de
     el.set('value', str(device_sn))
     el = xmlroot.find("./SystemInfo/DateOfManufacture")
     el.set('value', str(int(time.mktime(time.gmtime()))) )
-    el = xmlroot.find("./AnalogSensorInfo/AnalogSensorSerialNumber")
-    el.set('value', device_accel_sn) # already a string
+    
+    if device_accel_sn is not None:
+        el = xmlroot.find("./AnalogSensorInfo/AnalogSensorSerialNumber")
+        if el is not None:
+            el.set('value', device_accel_sn) # already a string
+        
     xmltree.write(dest)
     return xmlroot
 
@@ -358,3 +362,10 @@ def getBootloaderSSX(block=True, timeout=None, delay=0.25, callback=birth_utils.
             raw_input("Unplug the SSX, re-attach it, press the button, and type [enter]")
 
 
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == "__main__":
+    print "This is only a library. Don't try to run it!"
+    exit(1)
