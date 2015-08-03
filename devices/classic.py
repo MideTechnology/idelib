@@ -276,9 +276,11 @@ class SlamStickClassic(Recorder):
         self.getSensors()
         if self._channels is not None:
             return self._channels.get(0, None)
-    
+
+
     def getAccelAxisChannels(self, dc=False):
         c = self.getAccelChannel(dc)
         if c is None:
             return None
         return sorted(c.subchannels, key=lambda x: x.displayName)
+    

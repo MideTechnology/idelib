@@ -85,7 +85,6 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
             "Only applicable when the recording length is limited.")
         self.indent -= 1
         
-        self.intGroup = self.startGroup("Interval Trigger")
         self.wakeCheck = self.addDateTimeField("Alarm Time:", "ALARM_TIME", 
             tooltip="The date and time used for all interval triggers. "
             "Note: the year is ignored.")
@@ -193,7 +192,7 @@ class ClassicTriggerConfigPanel(BaseConfigPanel):
         
         # Hide fields not supported by earlier versions of the firmware
         if self.info.get('SWREV', 0) < 2:
-            self.hideField(self.intGroup)
+#             self.hideField(self.intGroup)
             self.hideField(self.wakeCheck)
         
         trigs = self.info.get('TRIG_ACT_INACT_REG', 0)
@@ -432,3 +431,11 @@ def buildUI_Classic(parent):
     parent.notebook.AddPage(info, "Device Info")
 
 
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == '__main__':
+    import __init__
+    __init__.testDialog(save=False)
+#     __init__.testDialog(save=True)

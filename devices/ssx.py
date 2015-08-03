@@ -5,7 +5,7 @@ Created on Jan 28, 2015
 '''
 import calendar
 from collections import OrderedDict
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 import struct
 import time
@@ -90,11 +90,17 @@ class SlamStickX(Recorder):
                 be automatically rejected. 
         """
         try:
-            return (cls._isRecorder(dev, strict) and
-                    os.path.exists(os.path.join(dev, cls.INFO_FILE)))
-
-        except (IOError, TypeError):
-            return False
+            if cls._isRecorder(dev, strict):
+                infoFile = os.path.join(dev, cls.INFO_FILE)
+                if os.path.exists(infoFile):
+                    if not strict:
+                        return True
+                    devinfo = util.read_ebml(infoFile, schema=schema_mide)
+                    props = devinfo['RecordingProperties']['RecorderInfo']
+                    return props['RecorderTypeUID'] != 0x20
+        except (KeyError, TypeError, AttributeError, IOError):
+            pass
+        return False
 
 
     def getInfo(self, default=None, refresh=False):
