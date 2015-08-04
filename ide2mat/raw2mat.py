@@ -27,7 +27,9 @@ from mide_ebml import __version__ as ebml_version
 from mide_ebml import matfile
 from mide_ebml import importer
 from mide_ebml.matfile import MP
-from mide_ebml.parsers import MPL3115PressureTempParser, ChannelDataBlock
+from mide_ebml.parsers import ChannelDataBlock
+from mide_ebml.calibration import CombinedPoly, PolyPoly
+
 
 from devices import SlamStickX
 
@@ -107,17 +109,23 @@ class AccelDumper(object):
         return True
 
 
-class MPL3115Dumper(AccelDumper):
+class GenericDumper(AccelDumper):
     """ Parser replacement that dumps temperature/pressure data as read.
         This accumulates data rather than writing it directly.
     """
     
     def __init__(self, *args, **kwargs):
-        super(MPL3115Dumper, self).__init__(*args, **kwargs)
+        super(GenericDumper, self).__init__(*args, **kwargs)
         self.unpacker = self.source.parser.unpack_from
-        print self.source.parser
         self.data = []
-    
+        self.data_append = self.data.append
+        
+        if self.source.transform is not None or not all([c.transform is None for c in self.source.subchannels]):
+            self.source.dataset.updateTransforms()
+            self.xform = PolyPoly([CombinedPoly(c.transform, x=self.source.transform) for c in self.source.subchannels])
+        else:
+            self.xform = None
+
     def write(self, el):
         self.lastTime = self.fixOverflow(el.value[1].value)
         if self.firstTime is None:
@@ -128,7 +136,10 @@ class MPL3115Dumper(AccelDumper):
         
         self.numRows += 1
         self.numSamp += self.numCh
-        self.data.append(self.unpacker(el.value[-1].value))
+        if self.xform is not None:
+            self.data_append(self.xform.function(*self.unpacker(el.value[-1].value)))
+        else:
+            self.data_append(self.unpacker(el.value[-1].value))
         return True
 
 #===============================================================================
@@ -292,13 +303,14 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
                            noTimes=True, colNames=[c.displayName for c in accelCh.subchannels])
     
 #             dumpers = {accelChId: AccelDumper(accelCh, mat.writeRow, startTime, endTime), 
-#                        pressTempChId: MPL3115Dumper(pressTempCh, None, startTime, endTime)}
+#                        pressTempChId: GenericDumper(pressTempCh, None, startTime, endTime)}
             dumpers = {}
 
+            # TODO: Make this all more generic, to work with any future recorder
             if accelChId in channels:
                 dumpers[accelChId] = AccelDumper(accelCh, mat.writeRow, startTime, endTime)
             if pressTempChId in channels:
-                dumpers[pressTempChId] = MPL3115Dumper(pressTempCh, None, startTime, endTime)
+                dumpers[pressTempChId] = GenericDumper(pressTempCh, None, startTime, endTime)
             if dcAccelChId in channels:
                 tempFile = open(os.path.join(tempfile.gettempdir(), 'ch%d_temp.csv' % dcAccelChId), 'wb')
                 tempWriter = TempWriter(tempFile) #csv.writer(tempFile)
