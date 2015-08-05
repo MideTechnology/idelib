@@ -23,7 +23,7 @@ try:
 except ImportError:
     sys.path.append('..')
     
-from mide_ebml import matfile
+from mide_ebml.matfile import MatStream
 from mide_ebml.matfile import MP
 from mide_ebml import importer
 
@@ -192,7 +192,7 @@ class SimpleUpdater(object):
 
 def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1, 
             dtype="double", nocal=False, raw=False, accelOnly=True,
-            noTimes=False, maxSize=matfile.MatStream.MAX_SIZE, **kwargs):
+            noTimes=False, maxSize=MatStream.MAX_SIZE, **kwargs):
     """
     """
     if raw:
@@ -230,7 +230,7 @@ def ide2mat(ideFilename, matFilename=None, channelId=0, calChannelId=1,
                 for sc in c.subchannels:
                     sc.setTransform(None)
         
-        mat = matfile.MatStream(matFilename, matfile.makeHeader(doc), maxFileSize=maxSize)
+        mat = MatStream(matFilename, MatStream.makeHeader(doc), maxFileSize=maxSize)
         mat.writeNames([c.name for c in doc.channels[0].subchannels])
         if len(doc.transforms) > 1:
             mat.writeStringArray("cal_polynomials", map(str, doc.transforms.values()[1:]))
@@ -289,7 +289,7 @@ if __name__ == "__main__":
     argparser.add_argument('-r', '--raw', action="store_true", help="Write data in raw form: no calibration, integer ADC units. For expert users only.")
     argparser.add_argument('-s', '--noTimestamps', action="store_true", help="Save without sample time stamps. For expert users only.")
     argparser.add_argument('-a', '--accelOnly', action='store_true', help="Export only accelerometer data.")
-    argparser.add_argument('-m', '--maxSize', type=int, default=matfile.MatStream.MAX_SIZE, help="The maximum MAT file size in bytes. Must be less than 2GB.")
+    argparser.add_argument('-m', '--maxSize', type=int, default=MatStream.MAX_SIZE, help="The maximum MAT file size in bytes. Must be less than 2GB.")
     argparser.add_argument('source', nargs="+", help="The source .IDE file(s) to split.")
 
     args = argparser.parse_args()

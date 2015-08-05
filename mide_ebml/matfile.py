@@ -119,8 +119,10 @@ def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_'):
     result = [c if c in validChars else '_' for c in s.strip()]
     if result[0].isdigit():
         result.insert(0, '_')
-    return ''.join(result).rstrip('_').replace('__','_')
-    
+    result = ''.join(result).rstrip('_')
+    return result.replace('__','_').replace('__','_').encode('utf8')
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -167,14 +169,26 @@ class MatStream(object):
 
     def __init__(self, filename, doc=None, msg=None, serialize=True, 
                  maxFileSize=MAX_SIZE, timeScalar=1, writeCal=False,
-                 writeStart=False, writeInfo=False):
+                 calChannels=None, writeStart=False, writeInfo=False):
         """ Constructor. Create a new .MAT file.
+        
             @param filename: The name of the new file, or `None`.
+            @keyword doc: The `mide_ebml.dataset.Dataset` from which to export.
             @keyword msg: The message string to appear at the start of the
                 MAT file. The first 4 bytes must be non-zero.
+            @keyword serialize: If `True`, start the first file with a 
+                number. Successive files are always numbered.
+            @keyword maxFileSize: The maximum size of each exported file.
+                Must not exceed the maximum size allowed for MATs.
+            @keyword timeScalar: Timestamp scaling factor.
+            @keyword writeCal: If `True`, write calibration data to each
+                exported file. If `"channel"`, write calibration by channel
+                name, ignoring any transforms not being used.
+            @keyword writeStart: If `True`, write the doc's start time.
+            @keyword writeInfo: If `True`, write doc/recorder info.
         """
         if msg is None:
-            msg = self.DEFAULT_HEADER if doc is None else makeHeader(doc)
+            msg = self.DEFAULT_HEADER if doc is None else self.makeHeader(doc)
         self.basename = filename
         self.filename = filename
         self.msg = msg.encode('utf8') or self.DEFAULT_HEADER
@@ -183,10 +197,12 @@ class MatStream(object):
         self.doc = doc
         if doc is not None:
             self._writeCal = writeCal and len(doc.transforms) > 0
+            self._calPerChannel = "channel" in str(writeCal).lower()
             self._writeInfo = writeInfo
             self.startTime = writeStart and doc.sessions[0].utcStartTime
         else:
             self._writeCal = self._writeInfo = self._writeStart = False
+        self.calChannels = calChannels
 
         # MATLAB identifies the file as level 4 if the first byte is 0.
         if '\x00' in self.msg[:4]:
@@ -213,7 +229,6 @@ class MatStream(object):
     def newFile(self, serialize=True, offset=None):
         """ Used internally. Wraps file creation.
         """
-#         print "newFile"
         if self.stream is not None:
             self.close()
             
@@ -222,13 +237,18 @@ class MatStream(object):
         else:
             self.filename = self.basename
         self.stream = open(self.filename, 'wb')
+        self._write = self.stream.write
+        self._seek = self.stream.seek
 
-        self.stream.write(struct.pack('116s II H 2s', self.msg, 0, 0, 0x0100, 'IM'))
+        self._write(struct.pack('116s II H 2s', self.msg, 0, 0, 0x0100, 'IM'))
         
         if self._writeInfo:
             self.writeRecorderInfo(self.doc.recorderInfo)
         if self._writeCal:
-            self.writeCalibration(self.doc.transforms)
+            if self._calPerChannel:
+                self.writeCalPerChannel(self.doc)
+            else:
+                self.writeCalibration(self.doc.transforms)
         if self.startTime:
             self.writeValue('start_time_utc', self.startTime, MP.miINT64)
         
@@ -287,18 +307,18 @@ class MatStream(object):
         """
         dataSize = struct.calcsize(fmt)
         result = struct.pack('II'+fmt, dtype, dataSize, *args)
-        self.stream.write(result.ljust(self.next8(len(result)),'\0'))
+        self._write(result.ljust(self.next8(len(result)),'\0'))
         return self.next8(dataSize + 8)
 
     
-    def packStr(self, string, maxlen=31):
+    def packStr(self, s, maxlen=31):
         """ Write a string to the file, proceeded by type and size info, aligned
             to 64 bits. Used internally.
         """
-        string = string[:maxlen]
-        n = self.next8(len(string))
+        s = s[:maxlen].encode('utf8')
+        n = self.next8(len(s))
         fmt = 'II %ds' % n
-        self.stream.write(struct.pack(fmt, MP.miINT8, len(string), string))
+        self._write(struct.pack(fmt, MP.miINT8, len(s), s))
 
    
     def endArray(self):
@@ -312,21 +332,21 @@ class MatStream(object):
         arrayEndPos = self.next8(dataEndPos)
         
         # Move back and rewrite the actual total size
-        self.stream.seek(self.dataStartPos-4)
-        self.stream.write(self.intPack.pack(self.next8(dataEndPos-self.dataStartPos)))
+        self._seek(self.dataStartPos-4)
+        self._write(self.intPack.pack(self.next8(dataEndPos-self.dataStartPos)))
         
         # Move back and rewrite the actual number of rows (columns, actually)
-        self.stream.seek(self.rowsPos)
-        self.stream.write(self.intPack.pack(self.numRows))
+        self._seek(self.rowsPos)
+        self._write(self.intPack.pack(self.numRows))
             
         # Move back and write the actual payload size (the 'real' portion only)
-        self.stream.seek(self.prSize)
-        self.stream.write(self.intPack.pack(self.numRows * self.rowFormatter.size))
+        self._seek(self.prSize)
+        self._write(self.intPack.pack(self.numRows * self.rowFormatter.size))
         
         # Go back to the end.
-        self.stream.seek(dataEndPos)
+        self._seek(dataEndPos)
         if dataEndPos < arrayEndPos:
-            self.stream.write('\0' * (arrayEndPos-dataEndPos))
+            self._write('\0' * (arrayEndPos-dataEndPos))
 
         if self.arrayHasTimes and self.arrayNoTimes and self.arrayStartTime is not None:
             self.writeValue('%s_start' % self.arrayBaseName, self.arrayStartTime, MP.miUINT64)
@@ -350,7 +370,6 @@ class MatStream(object):
             @keyword mtype: The Matlab matrix type. Defaults to match `dtype`.
             @keyword flags: A set of bit flags for the matrix.
         """
-#         print "got start of %s" % name
         if self._inArray:
             self.endArray()
 
@@ -397,7 +416,7 @@ class MatStream(object):
         self.rowFormatter = struct.Struct(fchar)
         
         # Start of matrix element, initial size of 0 (rewritten at end)
-        self.stream.write(struct.pack("II", MP.miMATRIX, 0)) # Start
+        self._write(struct.pack("II", MP.miMATRIX, 0)) # Start
         self.dataStartPos = self.stream.tell()
         
         # Write flags and matrix type
@@ -413,7 +432,7 @@ class MatStream(object):
         self.packStr(sanitizeName(name))
         
         # Write the start of the 'PR' element; the size will be filled in later.
-        self.stream.write(struct.pack('II', self.arrayDType, self.rowFormatter.size * rows))
+        self._write(struct.pack('II', self.arrayDType, self.rowFormatter.size * rows))
         self.prSize = self.stream.tell() - 4
         
 
@@ -436,12 +455,12 @@ class MatStream(object):
         # Ensure that this won't exceed the max file size before writing
         self.checkFileSize(totalSize)
         
-        self.stream.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
+        self._write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
         self.pack('BBBBBBBB', (0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
         self.pack('II', (len(strings), textSize), dtype=MP.miINT32)
         self.packStr(sanitizeName(title))
-        self.stream.write(struct.pack("II", MP.miUTF8, textSize*len(strings)))
-        self.stream.write(payload.ljust(self.next8(len(payload)), '\0'))
+        self._write(struct.pack("II", MP.miUTF8, textSize*len(strings)))
+        self._write(payload.ljust(self.next8(len(payload)), '\0'))
         
     
     def getNamesSize(self, names, title="channel_names", noTimes=False):
@@ -479,7 +498,7 @@ class MatStream(object):
             print "ERROR: %s, formatter=%r, event=%r" % (self.arrayBaseName, self.rowFormatter.format, event)
             raise err
             
-        self.stream.write(data)
+        self._write(data)
         self.numRows += 1
 
 
@@ -502,7 +521,7 @@ class MatStream(object):
         
         self.checkFileSize(totalSize)
         
-        self.stream.write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
+        self._write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
         self.pack('BBBBBBBB', (mtype, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)) #flags
         self.pack('II', (1, 1), dtype=MP.miINT32) # dimensions
         self.packStr(name)
@@ -518,16 +537,34 @@ class MatStream(object):
             self.writeStringArray('recorder_info', s)
 
 
+    def _writeCalData(self, name, cal, doc=None):
+        if isinstance(cal, int):
+            cal = doc.transforms.get(cal, None)
+        if cal is None:
+            return
+        vals = cal.references + cal.coefficients
+        self.startArray(name, len(vals), dtype=MP.miDOUBLE, noTimes=True, hasTimes=False)
+        self.writeRow((0,vals))
+        self.endArray()
+
+
     def writeCalibration(self, cals):
-        """
+        """ Write a dictionary of Transform objects (keyed by ID) to the file.
         """
 #         print "writeCalibration %s" % self.stream.name
         for calId, cal in cals.iteritems():
-            vals = cal.references + cal.coefficients
-            self.startArray("calibration%d" % calId, len(vals), dtype=MP.miDOUBLE, noTimes=True, hasTimes=False)
-            self.writeRow((0,vals))
-            self.endArray()
+            self._writeCalData("calibration%d" % calId, cal)
     
+    
+    def writeCalPerChannel(self, doc):
+        """ Write the calibration used by a document's Channels/Subchannels.
+        """
+        channels = [c for c in doc.channels.values() if self.calChannels is None or c.id in self.calChannels]
+        for c in channels:
+            self._writeCalData("%s_calibration" % c.displayName, c.transform, doc)
+            for subc in c.subchannels:
+                self._writeCalData("%s_calibration" % subc.displayName, subc.transform, doc)
+
     
     def close(self):
         """ Close the file.
@@ -542,29 +579,30 @@ class MatStream(object):
 # 
 #===============================================================================
 
-def makeHeader(doc, session=-1, prefix="MATLAB 5.0 MAT-file"):
-    """ Generate MAT file header text from a `Dataset` document.
-    """
-    if not isinstance(prefix, basestring):
-        prefix = ''
-    elif not prefix.endswith(' '):
-        prefix += ' '
+    @classmethod
+    def makeHeader(cls, doc, session=-1, prefix="MATLAB 5.0 MAT-file"):
+        """ Generate MAT file header text from a `Dataset` document.
+        """
+        if not isinstance(prefix, basestring):
+            prefix = ''
+        elif not prefix.endswith(' '):
+            prefix += ' '
+            
+        msg = "%sGenerated from %s" % (prefix, os.path.basename(doc.filename))
+    
+        s = doc.sessions[session]
+        if s.utcStartTime:
+            createTime = s.utcStartTime
+        else:
+            try:
+                createTime = os.path.getctime(doc.filename)
+            except IOError:
+                createTime = None
         
-    msg = "%sGenerated from %s" % (prefix, os.path.basename(doc.filename))
-
-    s = doc.sessions[session]
-    if s.utcStartTime:
-        createTime = s.utcStartTime
-    else:
-        try:
-            createTime = os.path.getctime(doc.filename)
-        except IOError:
-            createTime = None
-    
-    if createTime is not None:
-        msg = "%s recorded %s UTC" % (msg, datetime.utcfromtimestamp(createTime))
-    
-    return msg
+        if createTime is not None:
+            msg = "%s recorded %s UTC" % (msg, datetime.utcfromtimestamp(createTime))
+        
+        return msg
 
 
 #===============================================================================
@@ -574,7 +612,8 @@ def makeHeader(doc, session=-1, prefix="MATLAB 5.0 MAT-file"):
 def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
               callback=None, callbackInterval=0.01, timeScalar=1,
               raiseExceptions=False, useUtcTime=False, headers=True, 
-              removeMean=None, meanSpan=None, display=False, **kwargs):
+              removeMean=None, meanSpan=None, display=False, matArgs={},
+              **kwargs):
     """ Export a `dataset.EventList` as a Matlab .MAT file. Works in a manner
         similar to the standard `EventList.exportCsv()` method.
     
@@ -592,7 +631,7 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
             of lines), `error` (an exception, if raised during the
             export), and `done` (will be `True` when the export is
             complete). If the callback object has a `cancelled`
-            attribute that is `True`, the CSV export will be aborted.
+            attribute that is `True`, the MAT export will be aborted.
             The default callback is `None` (nothing will be notified).
         @keyword callbackInterval: The frequency of update, as a
             normalized percent of the total lines to export.
@@ -605,6 +644,10 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
         @keyword removeMean: If `True`, remove the mean from the output.
         @keyword meanSpan: The span over which the mean is calculated. -1
             for the total mean.
+        @keyword display: If `True`, export using the EventList's 'display'
+            transform (e.g. unit conversion).
+        @keyword matArgs: A dictionary of keyword arguments supplied to the
+            `MatStream` constructor.
         @return: Tuple: The number of rows exported and the elapsed time.
     """
     noCallback = callback is None
@@ -658,8 +701,9 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     if headers is False:
         names = None
     
-    comments = makeHeader(events.dataset, events.session.sessionId)
-    matfile = MatStream(filename, events.dataset, comments, timeScalar=timeScalar)
+    comments = MatStream.makeHeader(events.dataset, events.session.sessionId)
+    matfile = MatStream(filename, events.dataset, comments, 
+                        timeScalar=timeScalar, **matArgs)
     
     matfile.startArray(events.parent.name, numCols, rows=totalLines, colNames=names, noTimes=False)
     

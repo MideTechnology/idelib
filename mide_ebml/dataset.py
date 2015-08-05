@@ -2229,6 +2229,8 @@ class EventList(Transformable):
                 export.
             @keyword meanSpan: The span of the mean removal for the export. 
                 -1 removes the total mean.
+            @keyword display: If `True`, export using the EventList's 'display'
+                transform (e.g. unit conversion).
             @return: Tuple: The number of rows exported and the elapsed time.
         """
         noCallback = callback is None

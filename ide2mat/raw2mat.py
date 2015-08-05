@@ -258,7 +258,7 @@ def showInfo(ideFilename, **kwargs):
 
 def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
             noTimes=False, startTime=0, endTime=None, updateInterval=1.5,  
-            maxSize=matfile.MatStream.MAX_SIZE, **kwargs):
+            maxSize=matfile.MatStream.MAX_SIZE, writeCal=True, **kwargs):
     """ The main function that handles generating MAT files from an IDE file.
     """
     
@@ -273,13 +273,13 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
         
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
-        mat = matfile.MatStream(matFilename, doc, maxFileSize=maxSize,  writeCal=True, writeStart=True, writeInfo=True)
+        doc.updateTransforms()
 
         ssx = SlamStickX.fromRecording(doc)
         accelCh = ssx.getAccelChannel()
-        accelChId = accelCh.id
+        accelChId = accelCh.id if accelCh is not None else None
         pressTempCh = ssx.getTempChannel().parent
-        pressTempChId = pressTempCh.id
+        pressTempChId = pressTempCh.id if pressTempCh is not None else None
         
         dcAccelCh = ssx.getAccelChannel(dc=True)
         dcAccelChId = dcAccelCh.id if dcAccelCh is not None else None
@@ -291,6 +291,8 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
         totalSize = os.path.getsize(ideFilename) + 0.0
         nextUpdate = time.time() + updateInterval
         
+        # Export all channels if no specific IDs were supplied, and bail if an
+        # invalid ID was given.
         if channels is None:
             channels = doc.channels.keys()
         else:
@@ -298,12 +300,24 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
             if missing:
                 raise MATExportError("Unknown channel(s): %s" % (', '.join(missing)))
         
+        # If exporting calibration by channel, exclude the temp/pressure,
+        # since it's already converted.
+        if "channel" in str(writeCal).lower():
+            calChannels = [accelChId, dcAccelChId]
+        else:
+            calChannels = None
+        
+        mat = matfile.MatStream(matFilename, doc, maxFileSize=maxSize, 
+                                writeCal=writeCal, calChannels=calChannels, 
+                                writeStart=True, writeInfo=True)
+        
         try:
-            mat.startArray(accelCh.name, numAccelCh, dtype=MP.miUINT16, 
-                           noTimes=True, colNames=[c.displayName for c in accelCh.subchannels])
+            # The main accelerometer gets dumped first, directly to the MAT.
+            # There may not be any analog accelerometer if it was disabled.
+            if accelCh is not None:
+                mat.startArray(accelCh.name, numAccelCh, dtype=MP.miUINT16, 
+                               noTimes=True, colNames=[c.displayName for c in accelCh.subchannels])
     
-#             dumpers = {accelChId: AccelDumper(accelCh, mat.writeRow, startTime, endTime), 
-#                        pressTempChId: GenericDumper(pressTempCh, None, startTime, endTime)}
             dumpers = {}
 
             # TODO: Make this all more generic, to work with any future recorder
@@ -404,6 +418,7 @@ if __name__ == "__main__":
     argparser = argparse.ArgumentParser(description="Mide Raw .IDE to .MAT Converter v%d.%d.%d - Copyright (c) %d Mide Technology" % (VERSION+(datetime.now().year,)))
     argparser.add_argument('-o', '--output', help="The output path to which to save the .MAT files. Defaults to the same as the source file.")
     argparser.add_argument('-c', '--channel', action='append', type=int, help="Export the specific channel. Can be used multiple times. If not used, all channels will export.")
+    argparser.add_argument('-a', '--allCal', action='store_const', const=True, default="channel", help="Export all calibration, by ID, instead of only exporting the calibration for each channel.")
     argparser.add_argument('-m', '--maxSize', type=int, default=matfile.MatStream.MAX_SIZE, help="The maximum MAT file size in bytes. Must be less than 2GB.")
     argparser.add_argument('-t', '--startTime', type=float, help="The start of the time span to export (seconds from the beginning of the recording).", default=0)
     argparser.add_argument('-e', '--endTime', type=float, help="The end of the time span to export (seconds from the beginning of the recording).")
@@ -413,7 +428,7 @@ if __name__ == "__main__":
     argparser.add_argument('source', nargs="*", help="The source .IDE file(s) to convert.")
 
     args = argparser.parse_args()
-    
+
     if args.version is True:
         print argparser.description
         print "Converter version %d.%d.%d (build %d) %s, %s" % (VERSION + (BUILD_NUMBER, platform.architecture()[0], datetime.fromtimestamp(BUILD_TIME)))
@@ -433,18 +448,18 @@ if __name__ == "__main__":
         missing = map(lambda x: not os.path.exists(x), sourceFiles)
         print "Source file(s) could not be found:"
         print "\n\t".join(missing)
-        sys.exit(1)
+        exit(1)
 
     if args.info is True:
         print "=" * 70
         for f in sourceFiles:
             showInfo(f)
-        sys.exit(0)
+        exit(0)
         
     if args.output is not None:
         if not os.path.exists(args.output):
             print "Output path does not exist: %s" % args.output
-            sys.exit(1)
+            exit(1)
         if not os.path.isdir(args.output):
             print "Specified output is not a directory: %s" % args.output
             sys.exit(1)
@@ -469,8 +484,8 @@ if __name__ == "__main__":
             updater(starting=True)
             totalSamples += raw2mat(f, matFilename=args.output, 
                                     channels=args.channel, maxSize=args.maxSize,
-                                    startTime=args.startTime, endTime=endTime, 
-                                    updater=updater)
+                                    startTime=args.startTime, endTime=endTime,
+                                    writeCal=args.allCal, updater=updater)
             updater(done=True)
     
         totalTime = datetime.now() - t0
@@ -478,6 +493,7 @@ if __name__ == "__main__":
         sampSec = locale.format("%d", totalSamples/totalTime.total_seconds(), grouping=True)
         totSamp = locale.format("%d", totalSamples, grouping=True)
         print "Conversion complete! Exported %s samples in %s (%s samples/sec.)" % (totSamp, tstr, sampSec)
+        exit(0)
     except MATExportError as err:
         print "*** Export error: %s" % err
         exit(1)
