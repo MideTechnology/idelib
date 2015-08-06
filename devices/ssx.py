@@ -371,7 +371,7 @@ class SlamStickX(Recorder):
             cal = MideDocument(stream)
             calPolys = PP.parse(cal.roots[0])
             if calPolys:
-                calPolys = dict(((p.id, p) for p in calPolys if p is not None))
+                calPolys = {p.id: p for p in calPolys if p is not None}
             return calPolys
         except (KeyError, IndexError, ValueError):
             pass

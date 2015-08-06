@@ -36,6 +36,19 @@ class SlamStickC(SlamStickX):
             pass
         return False
 
+
+    @property
+    def serial(self):
+        """ The recorder's manufacturer-issued serial number. """
+        if self._sn is None:
+            self._snInt = self._getInfoAttr('RecorderSerial', None)
+            if self._snInt == None:
+                self._sn = ""
+            else:
+                self._sn = "SSC%07d" % self._snInt
+        return self._sn
+
+
     def getAccelChannel(self, dc=False):
         return SlamStickX.getAccelChannel(self, dc=True)
     

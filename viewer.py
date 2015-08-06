@@ -2310,7 +2310,7 @@ class Viewer(wx.Frame, MenuMixin):
         """
         self.drawHollowPlot = evt.IsChecked()
         self.app.setPref('drawHollowPlot', self.drawHollowPlot)
-        self.plotarea.redraw()
+        self.plotarea.redraw(force=True)
 
 
     def OnConversionConfig(self, evt):
