@@ -48,11 +48,11 @@ class Preferences(object):
         
         # Data modifications
         'removeMean': True,
-        'removeRollingMean': False,
+        'removeRollingMean': True,
         'rollingMeanSpan': 5.0, # In seconds
         
         # Rendering
-        'initialDisplayMode': 0,
+        'initialDisplayMode': 1,
         'antialiasing': False,
         'antialiasingMultiplier': 3.33,
         'resamplingJitter': False,
@@ -110,7 +110,7 @@ class Preferences(object):
         'showLegend': True,
         'legendPosition': 2,
         'legendOpacity': .95,
-        'drawHollowPlot': False,
+        'drawHollowPlot': True,
 #         'locale': 'English_United States.1252', # Python's locale name string
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
         'loader': dict(numUpdates=100, updateInterval=1.0),

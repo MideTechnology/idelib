@@ -11,6 +11,7 @@ import os
 from base import Recorder, ConfigError, ConfigVersionError, os_specific
 
 from ssx import SlamStickX
+from ssc import SlamStickC
 from classic import SlamStickClassic
 
 
@@ -18,7 +19,7 @@ from classic import SlamStickClassic
 # 
 #===============================================================================
 
-RECORDER_TYPES = (SlamStickClassic, SlamStickX)
+RECORDER_TYPES = (SlamStickClassic, SlamStickC, SlamStickX)
 
 
 #===============================================================================

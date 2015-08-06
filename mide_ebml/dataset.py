@@ -570,6 +570,10 @@ class Channel(Transformable):
         # Optimization. Memoization-like cache of the last block parsed.
         self._lastParsed = (None, None)
 
+        # HACK! Disallowing mean removal should be sensor-defined.
+        # TODO: Add this to the manifest?
+        self.allowMeanRemoval = self.id < 32
+
 
     @property
     def children(self):
@@ -792,7 +796,7 @@ class SubChannel(Channel):
                 self.sensor = parent.sensor
         else:
             self.sensor = sensorId
-
+        
         self.types = (parent.types[subchannelId], )
         
         self._sessions = None
@@ -806,7 +810,8 @@ class SubChannel(Channel):
         else:
             self.hasDisplayRange = True
             self.displayRange = displayRange
-            
+        
+        self.allowMeanRemoval = parent.allowMeanRemoval
         self.removeMean = False
         self.singleSample = parent.singleSample
             
@@ -971,7 +976,7 @@ class EventList(Transformable):
         self.transform = None
         self.useAllTransforms = True
         self.updateTransforms(recurse=False)
-    
+        self.allowMeanRemoval = parentChannel.allowMeanRemoval    
     
 #     def setTransform(self, xform, update=True):
 #         """
@@ -1044,6 +1049,7 @@ class EventList(Transformable):
         newList.dataset = self.dataset
         newList.hasMinMeanMax = self.hasMinMeanMax
         newList.removeMean = self.removeMean
+        newList.allowMeanRemoval = self.allowMeanRemoval
         return newList
     
 
@@ -1113,6 +1119,7 @@ class EventList(Transformable):
             self.hasMinMeanMax = True
         else:
             self.hasMinMeanMax = False
+            self.allowMeanRemoval = False
         
         # HACK (somewhat): Single-sample-per-block channels get min/mean/max
         # which is just the same as the value of the sample. Set the values,
@@ -1266,8 +1273,9 @@ class EventList(Transformable):
             @return: An array containing the mean values of each subchannel. 
         """
         # XXX: I don't remember why I do this.
-        if force is False and self.removeMean is False:
-            return None
+        if force is False:
+            if self.removeMean is False or self.allowMeanRemoval is False:
+                return None
         
         block = self._data[blockIdx]
         
@@ -1480,7 +1488,7 @@ class EventList(Transformable):
         _getBlockSampleTime = self._getBlockSampleTime
         _getBlockRollingMean = self._getBlockRollingMean
         numpy_array = numpy.array
-        removeMean = self.removeMean and self.hasMinMeanMax
+        removeMean = self.allowMeanRemoval and self.removeMean and self.hasMinMeanMax
         offset = None
 
         if self.useAllTransforms:
@@ -1577,7 +1585,7 @@ class EventList(Transformable):
         _data = self._data
         _getBlockSampleTime = self._getBlockSampleTime
         _getBlockRollingMean = self._getBlockRollingMean
-        removeMean = self.removeMean
+        removeMean = self.allowMeanRemoval and self.removeMean
         offset = None
         
         if self.useAllTransforms:
@@ -2264,7 +2272,7 @@ class EventList(Transformable):
         oldRemoveMean = self.removeMean
         oldMeanSpan = self.rollingMeanSpan
         if removeMean is not None:
-            self.removeMean = removeMean
+            self.removeMean = self.allowMeanRemoval and removeMean
         if meanSpan is not None:
             self.rollingMeanSpan = meanSpan
         

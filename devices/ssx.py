@@ -208,6 +208,7 @@ class SlamStickX(Recorder):
         xforms = self.getCalPolynomials()
 
         # TODO: Make this more generic by finding the accelerometer channels
+        channel = channel if channel in channels else 32
         ch = channels[channel if channel in channels else 0]
         xform = ch.transform
         if isinstance(xform, int):

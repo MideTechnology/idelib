@@ -39,6 +39,7 @@ from common import makeWxDateTime, DateTimeCtrl, cleanUnicode
 import devices
 
 from ssx import *
+from ssc import *
 from classic import *
 
 # from base import HtmlWindow
@@ -90,7 +91,9 @@ class ConfigDialog(SC.SizedDialog):
         
         # Add pages per device.
         # TODO: Make even more modular (device itself gets its configuration UI)
-        if isinstance(self.device, devices.SlamStickX):
+        if isinstance(self.device, devices.SlamStickC):
+            buildUI_SSC(self)
+        elif isinstance(self.device, devices.SlamStickX):
             buildUI_SSX(self)
         elif isinstance(self.device, devices.SlamStickClassic):
             buildUI_Classic(self)
