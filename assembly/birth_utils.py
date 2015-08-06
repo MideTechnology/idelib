@@ -16,7 +16,7 @@ from xml.etree import ElementTree as ET
 
 from win32com.client import Dispatch
 
-from devices import SlamStickX
+import devices
 import ssx_namer
 
 #===============================================================================
@@ -168,13 +168,13 @@ cylon = SpinnyCallback(frames=["----","*---","-*--","--*-", "---*"])
 # 
 #===============================================================================
 
-def waitForSSX(onlyNew=False, timeout=60, callback=spinner):
+def waitForSSX(onlyNew=False, timeout=60, callback=spinner, strict=False):
     if onlyNew:
         excluded_drives = set(ssx_namer.getAllDrives())
     else:
         xd = []
         for d in ssx_namer.getAllDrives():
-            if SlamStickX.isRecorder(d):
+            if devices.SlamStickX.isRecorder(d, strict=strict):
                 return d
             xd.append(d)
         excluded_drives = set(xd)
@@ -186,7 +186,7 @@ def waitForSSX(onlyNew=False, timeout=60, callback=spinner):
         if ssx_namer.deviceChanged():
             vols = set(ssx_namer.getCurrentDrives()) - excluded_drives
             for v in vols:
-                if SlamStickX.isRecorder(v):
+                if devices.SlamStickX.isRecorder(v, strict=strict):
                     return v
         
         time.sleep(.125)
@@ -196,6 +196,29 @@ def waitForSSX(onlyNew=False, timeout=60, callback=spinner):
         if timeout and deadline < time.time():
             return False
     
+
+def waitForRecorder(onlyNew=False, timeout=60, callback=spinner):
+    """
+    """
+    if onlyNew:
+        excluded_drives = set(ssx_namer.getAllDrives())
+        ssx_namer.deviceChanged()
+    else:
+        excluded_drives = set()
+
+    deadline = time.time() + timeout if timeout else None
+    while True:
+        if ssx_namer.deviceChanged():
+            devs = devices.getDevices(list(set(devices.getDeviceList()) - excluded_drives))
+            if len(devs) > 0:
+                return devs[0]
+            
+        time.sleep(.125)
+        if callback:
+            callback.update()
+        
+        if timeout and deadline < time.time():
+            return False
 
 #===============================================================================
 # 

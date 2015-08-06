@@ -50,7 +50,8 @@ from glob import glob
 testFiles = glob(r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Product_Database\_Calibration\SSX0000039\DATA\20140923\*.IDE")
 
 # NOTE: Make sure devices.py is copied to deployed directory
-from devices.ssx import SlamStickX
+import devices
+# from devices.ssx import SlamStickX
 
 from birth_utils import changeFilename, writeFile, writeFileLine
 
@@ -528,7 +529,7 @@ class Calibrator(object):
             calibration data.
             
         """
-        self.device = SlamStickX(self.devPath)
+        self.device = devices.getDevices([self.devPath])[0]
         
         manifest = self.device.getManifest()
         calibration = self.device.getCalibration()
@@ -537,8 +538,8 @@ class Calibrator(object):
         systemInfo['FwRev'] = self.device.firmwareVersion
         self.productManTimestamp = systemInfo['DateOfManufacture']
         
-        sensorInfo = manifest['AnalogSensorInfo']
-        self.accelSerial = sensorInfo['AnalogSensorSerialNumber']
+        sensorInfo = manifest.get('AnalogSensorInfo', {})
+        self.accelSerial = sensorInfo.get('AnalogSensorSerialNumber', None)
         
         self.productManDate = datetime.utcfromtimestamp(self.productManTimestamp).strftime("%m/%d/%Y")
         self.productSerialNum = self.device.serial
