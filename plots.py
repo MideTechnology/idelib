@@ -1355,6 +1355,7 @@ class Plot(ViewerPanel, MenuMixin):
 
     #===========================================================================
     # Source properties. 
+    # TODO: Adding these was kind of a hack for multi-source plots; remove.
     #===========================================================================
         
     @property
@@ -1376,6 +1377,7 @@ class Plot(ViewerPanel, MenuMixin):
     
     @units.setter
     def units(self, v):
+        self.yUnits = v
         for source in self.sources:
             source.parent.units = v
         self.plot.legendRect = None
@@ -1459,10 +1461,15 @@ class Plot(ViewerPanel, MenuMixin):
     def setUnitConverter(self, con):
         """ Apply (or remove) a unit conversion function.
         """
+        self.plotTransform = con
+        
         if not self.sources:
+#             print "no sources"
+            if self.plotTransform is not None:
+                self.yUnits = self.plotTransform.units
+            self.setTabText()
             return
             
-        self.plotTransform = con
 #         oldUnits = self.sources[0].units[0]
         oldXform = self.sources[0].transform
         
@@ -1483,8 +1490,6 @@ class Plot(ViewerPanel, MenuMixin):
             b = nb if nb is not None else b
         
         if con is not None:
-#             self.setTabText(self.source.parent.displayName)
-#         else:
             try:
                 nt = con.convert(t)
                 nb = con.convert(b)

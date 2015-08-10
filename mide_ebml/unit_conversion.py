@@ -50,6 +50,8 @@ class UnitConverter(Univariate):
                 if they are all applicable.
         """
         if isinstance(obj, (list, tuple)):
+            if len(obj) == 0:
+                return False
             return all(map(cls.isApplicable, obj))
         if isinstance(obj, Channel):
             sourceUnits = obj.units

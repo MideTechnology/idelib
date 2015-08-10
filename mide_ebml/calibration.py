@@ -108,7 +108,7 @@ class AccelTransform(Transform):
     """
     modifiesValue = True
      
-    def __init__(self, amin=-100, amax=100, calId=None, dataset=None):
+    def __init__(self, amin=-100, amax=100, calId=0, dataset=None):
         self.id = calId
         self.range = (amin, amax)
         self._str = "(x / 32767.0) * %.3f" % amax
