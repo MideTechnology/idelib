@@ -600,11 +600,14 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     
     calCurrentXml = utils.changeFilename(calCurrentName, ext='.xml')
     if os.path.exists(calCurrentXml) and not recalculate:
+        # TODO: Comparing the XML is brittle; comparing EBML would be better.
         try:
-            x = utils.readFile(calCurrentXml)
+            curr = utils.readFile(calCurrentXml)
+            temp = utils.readFile(calTemplateName) 
         except IOError:
-            x = ''
-        if 'CalibrationSerialNumber' in x:
+            curr = 0
+            temp = 1
+        if curr != temp:
             # Calibration EBML exists; recalculate anyway?
             totalTime += time.time() - startTime
             q = utils.getYesNo("\x07\x07Calibration data already exists! Recompute (Y/N)? ")
@@ -632,12 +635,16 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
         certFiles = glob(os.path.join(calDirName, '*.pdf'))
         if certFiles:
             copyfiles = [certFiles[-1]]
-            
-    caldata = utils.readFile(calCurrentName)
+    
+    if os.path.exists(calCurrentName):
+        caldata = utils.readFile(calCurrentName)
 
-    if not os.path.exists(calBackupPath):
-        os.mkdir(calBackupPath)
-        utils.writeFile(os.path.join(calBackupPath, 'cal.ebml'), caldata)
+        if not os.path.exists(calBackupPath):
+            os.mkdir(calBackupPath)
+            utils.writeFile(os.path.join(calBackupPath, 'cal.ebml'), caldata)
+    else:
+        print "No calibration EBML data, continuing..."
+        caldata = ''
 
     # 11. Copy documentation and software folders
     copyStart = datetime.now()
@@ -659,13 +666,15 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     if os.system('label %s %s' % (devPath.strip("\\"), volName)) != 0:
         print "!!! Couldn't rename %s, continuing..."
     
-    print """\x07Press and hold the %s's "%s" button to enter bootloader mode.""" % (dev.baseName, dev.baseName[-1])
+    print """\x07Press and hold the %s's "%s" button to enter bootloader mode.""" % (dev.baseName, dev.baseName.split()[-1])
     # Don't count the time spent waiting for the user to press the button.
     totalTime += (time.time() - startTime)
-    ssxboot = firmware.getBootloaderSSX()
-    if ssxboot is None:
-        utils.errMsg( "!!! Failed to connect to bootloader!")
-        return
+    ssxboot = None
+    while ssxboot is None:
+        ssxboot = firmware.getBootloaderSSX()
+        if ssxboot is None:
+            print "Could not connect! Disconnect the recorder and try again!"
+            
     # Reset startTime to resume counting elapsed time
     startTime = time.time()
     

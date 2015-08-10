@@ -916,9 +916,9 @@ class Calibrator(object):
         
         # Do any other calibration stuff.
         
-        return SlamStickX.generateCalEbml(ideFile.doc.transforms, 
-                                          date=self.calTimestamp, 
-                                          calSerial=self.self.certNum)
+        return self.device.generateCalEbml(ideFile.doc.transforms, 
+                                           date=self.calTimestamp, 
+                                           calSerial=self.self.certNum)
         
 
 #===============================================================================

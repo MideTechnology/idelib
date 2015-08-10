@@ -142,6 +142,62 @@ def findBirthLog(filename, key="serialNum", val=None, last=True):
 # 
 #===============================================================================
 
+def parseCalLog(l):
+    sp = l.strip().split(',')
+    fields = (('Cal #', int),
+              ('Rev', str),
+              ('Cal Date', str),
+              ('Serial #', str),
+              ('Hardware', int),
+              ('Firmware', int),
+              ('Product Name', str),
+              ('Part Number', str),
+              ('Date of Manufacture', str),
+              ('Ref Manufacturer', str),
+              ('Ref Model #', str),
+              ('Ref Serial #', str),
+              ('NIST #', str),
+              ('832M1 Serial #', str),
+              ('Temp. (C)', float),
+              ('Rel. Hum. (%)', float),
+              ('Temp Comp. (%/C)', float),
+              ('X-Axis', float),
+              ('Y-Axis', float),
+              ('Z-Axis', float),
+              ('Pressure (Pa)', float))
+    
+    result = OrderedDict()
+    for val, field in zip(sp, fields):
+        fname, ftype = field
+        val = ftype(val.strip())
+        val = None if val == 'None' else val
+        result[fname] = val
+    return result
+
+
+def readCalLog(filename):
+    return parseCalLog(readFileLine(filename, str, last=True))
+
+
+def findCalLog(filename, key="Serial #", val=None, last=True):
+    result = None
+    with open(filename, 'rb') as f:
+        for l in f:
+            try:
+                line = parseCalLog(l)
+            except (ValueError, IOError):
+                continue
+            if line:
+                if line[key] == val:
+                    result = line
+                    if not last:
+                        break
+    return result
+
+#===============================================================================
+# 
+#===============================================================================
+
 class SpinnyCallback(object):
     FRAMES = "|/-\\"
     INTERVAL = 0.125
