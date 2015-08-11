@@ -266,6 +266,7 @@ class OptionsPanel(BaseConfigPanel):
         properties.
     """
     OVERSAMPLING = map(str, [2**x for x in range(4,13)])
+    SAMPLE_RATE = (100,20000,5000) # Min, max, default
 
     def getDeviceData(self):
         cfg = self.root.device.getConfig()
@@ -296,7 +297,7 @@ class OptionsPanel(BaseConfigPanel):
         self.addSpacer()
       
         self.samplingCheck = self.addIntField("Sampling Frequency:",
-            "SampleFreq", "Hz", minmax=(100,20000), value=5000,
+            "SampleFreq", "Hz", minmax=self.SAMPLE_RATE[:2], value=self.SAMPLE_RATE[2],
             tooltip="Checking this field overrides the device's default.")
         
 #         self.osrCheck = self.addChoiceField("Oversampling Ratio:", "OSR", 
