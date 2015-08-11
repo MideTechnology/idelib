@@ -634,15 +634,19 @@ class PlotCanvas(wx.ScrolledWindow):
                 wx.PostEvent(self, evt)
             else:
                 logger.warning("%s; no data?" % err.message) 
-        except IOError as err:
+        except (IOError, wx.PyDeadObjectError) as err:
             msg = "An error occurred while trying to read the recording file."
             self.root.handleError(err, msg, closeFile=True)
         except ex as err:
             self.root.handleError(err, what="plotting data")
         finally:
-            self.SetCursor(self._cursor_default)
             if paused:
                 self.root.resumeOperation(job)
+        
+        try:
+            self.SetCursor(self._cursor_default)
+        except wx.PyDeadObjectError:
+            pass
         
 
     def _OnPaint(self, evt):

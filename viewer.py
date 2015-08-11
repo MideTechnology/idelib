@@ -6,7 +6,7 @@ loggers.
 
 '''
 
-from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME
+from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, REPO_BRANCH
 from logger import logger
 
 # VERSION = (1, 0, 0)
@@ -2030,10 +2030,16 @@ class Viewer(wx.Frame, MenuMixin):
             updateCheck = datetime.fromtimestamp(int(updateCheck))
         else:
             updateCheck = "Never"
+        
+        if REPO_BRANCH.lower() != "master":
+            buildNum = "%s (%s)" % (BUILD_NUMBER, REPO_BRANCH)
+        else:
+            buildNum = BUILD_NUMBER
+        
         AboutBox.showDialog(self, -1, strings={
            'appName': self.app.GetAppDisplayName(),
            'version': self.app.versionString, 
-           'buildNumber': BUILD_NUMBER, 
+           'buildNumber': buildNum, 
            'buildTime': datetime.fromtimestamp(BUILD_TIME),
            'lastUpdateCheck': updateCheck,
         })

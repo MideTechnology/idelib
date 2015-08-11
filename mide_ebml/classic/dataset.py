@@ -207,6 +207,7 @@ class EventList(DS.EventList):
         self.displayRange = self.parent.displayRange
 
         self.removeMean = False
+        self.allowMeanRemoval = False
         self.hasMinMeanMax = False
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
         self._mmm = (None, None)

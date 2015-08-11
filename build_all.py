@@ -8,6 +8,8 @@ import socket
 import sys
 import time
 
+from git.repo import Repo
+
 from updater import CHANGELOG_URL
 
 HOME_DIR = os.getcwd()
@@ -23,7 +25,7 @@ builds = (
 # 
 #===============================================================================
 
-def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine):
+def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=None):
     with open('build_info.py', 'wb') as f:
         f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
         f.write('VERSION = %s\n' % str(version))
@@ -33,6 +35,8 @@ def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine):
         f.write('BUILD_NUMBER = %d\n' % buildNum)
         f.write('BUILD_TIME = %d\n' % buildTime)
         f.write('BUILD_MACHINE = %r\n' % buildMachine)
+        if branch is not None:
+            f.write('REPO_BRANCH = %r\n' % branch)
 
 #===============================================================================
 # 
@@ -60,7 +64,7 @@ t0 = datetime.now()
 
 try:
     sys.path.append(HOME_DIR)
-    from build_info import BUILD_NUMBER, DEBUG, BETA, VERSION, BUILD_TIME, BUILD_MACHINE
+    from build_info import BUILD_NUMBER, DEBUG, BETA, VERSION, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH
     
     if args.version is not None:
         thisVersion = map(int, filter(len, args.version.split('.')))
@@ -73,7 +77,9 @@ try:
     thisDebug = not (args.release or thisBeta)
     thisTime = time.time()
     
-    writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname())
+    thisBranch = Repo('.').active_branch
+    
+    writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname(), thisBranch)
     versionString = '.'.join(map(str,thisVersion))
 
 except ImportError:
@@ -117,11 +123,11 @@ print "Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now
 
 if bad == len(builds):
     print "Everything failed; restoring old build_info."
-    writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE)
+    writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH)
 else:
     print "Version: %s, build %s, DEBUG=%s, BETA=%s" % (versionString, thisBuildNumber, thisDebug, thisBeta)
     # Reset the DEBUG variable in the info file (local runs are always DEBUG)
-    writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, socket.gethostname())
+    writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, socket.gethostname(), thisBranch)
 
 if args.release and bad == 0:
     print "*"*78

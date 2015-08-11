@@ -9,7 +9,7 @@ from glob import glob
 import os.path
 import sys
 
-import wx
+# import wx
 import wx.lib.sized_controls as SC
 import wx.html
 from wx.lib.wordwrap import wordwrap
