@@ -8,6 +8,7 @@ import socket
 import sys
 import time
 
+from git import InvalidGitRepositoryError
 from git.repo import Repo
 
 from updater import CHANGELOG_URL
@@ -53,14 +54,23 @@ parser.add_argument('-n', '--noincrement', action="store_true",
                     help="Don't increase the build number.")
 parser.add_argument('-c', '--clean', action="store_true",
                     help="Clean the PyInstaller cache (fix 'end of file' errors)")
+parser.add_argument('-a', '--allowDirty', action="store_true",
+                    help=("Allow builds if the git repo is 'dirty' (i.e. has "
+                          "uncommitted changes)"))
+parser.add_argument('-p', '--preview', action="store_true",
+                    help="Don't build, just preview.")
 args = parser.parse_args()
-print args
 
 #===============================================================================
 # 
 #===============================================================================
 
 t0 = datetime.now()
+
+try:
+    repo = Repo('.')
+except InvalidGitRepositoryError:
+    repo = None
 
 try:
     sys.path.append(HOME_DIR)
@@ -77,9 +87,19 @@ try:
     thisDebug = not (args.release or thisBeta)
     thisTime = time.time()
     
-    thisBranch = Repo('.').active_branch
+    if repo is not None:
+        thisBranch = repo.active_branch
+        if repo.is_dirty:
+            if args.allowDirty:
+                logger.warning("Repository is dirty, but ignoring it.")
+            else:
+                logger.error("*** Repository is dirty! Commit all changes before building!")
+                exit(1)
+    else:
+        thisBranch = None
     
-    writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname(), thisBranch)
+    if not args.preview:
+        writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname(), thisBranch)
     versionString = '.'.join(map(str,thisVersion))
 
 except ImportError:
@@ -116,26 +136,32 @@ buildArgs = {
 bad = 0
 for i, build in enumerate(builds):
     print("="*78),("\nBuild #%d: %s\n" % (i+1, build % buildArgs)),("="*78)
-    bad += subprocess.call(build % buildArgs, stdout=sys.stdout, stdin=sys.stdin, shell=True)
+    if args.preview:
+        bad = 0
+    else:
+        bad += subprocess.call(build % buildArgs, stdout=sys.stdout, stdin=sys.stdin, shell=True)
 
 print "*"*78
 print "Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now() - t0)
 
 if bad == len(builds):
     print "Everything failed; restoring old build_info."
-    writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH)
+    if not args.preview:
+        writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH)
 else:
     print "Version: %s, build %s, DEBUG=%s, BETA=%s" % (versionString, thisBuildNumber, thisDebug, thisBeta)
     # Reset the DEBUG variable in the info file (local runs are always DEBUG)
-    writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, socket.gethostname(), thisBranch)
+    if not args.preview:
+        writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, socket.gethostname(), thisBranch)
 
 if args.release and bad == 0:
     print "*"*78
     print "Everything is okay; updating version info file '%s'" % VERSION_INFO_FILE
-    with open(VERSION_INFO_FILE,'w') as f:
-        json.dump({"version": thisVersion, 
-                   "changelog": CHANGELOG_URL, 
-                   "date": int(thisTime)},
-                  f)
+    info = {"version": thisVersion, "changelog": CHANGELOG_URL, "date": int(thisTime)}
+    if not args.preview:
+        with open(VERSION_INFO_FILE,'w') as f:
+            json.dump(info, f)
+    else:
+        print "PREVIEW of info file:", json.dumps(info)
         
 print "*"*78
