@@ -532,6 +532,7 @@ def estimateLength(filename=testFile, numSamples=50000, channel=0,
     # Fake updater that just quits after some number of samples.
     class DummyUpdater(object):
         cancelled = False
+        paused = False
         def __init__(self, n):
             self.numSamples = n
         def __call__(self, count, **kwargs):

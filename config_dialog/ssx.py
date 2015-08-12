@@ -6,6 +6,7 @@ Created on Jun 25, 2015
 # import cgi
 from collections import OrderedDict
 from datetime import datetime
+import sys
 import time
 
 import wx.lib.sized_controls as SC
@@ -57,7 +58,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.makeChild(self.wakeCheck, self.useUtcCheck)
         
         self.timeCheck = self.addIntField("Limit recording time to:", 
-            "RecordingTime", "seconds", 0, minmax=(0,86400))
+            "RecordingTime", "seconds", 0, minmax=(0,sys.maxint))
         
         self.rearmCheck = self.addCheck("Re-triggerable", "AutoRearm")
         self.makeChild(self.timeCheck, self.rearmCheck)

@@ -67,7 +67,7 @@ from plots import PlotSet
 from preferences import Preferences
 from range_dialog import RangeDialog
 from renderplot import PlotView
-from memorydialog import MemoryDialog
+from widgets.memorydialog import MemoryDialog
 import updater
 # Special helper objects and functions
 import devices
