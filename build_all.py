@@ -1,3 +1,8 @@
+""" 
+Utility script to do multiple builds. Makes the build number and other info
+available to the built apps by modifying `build_info.py`.
+"""
+
 import argparse
 from datetime import datetime
 import json
@@ -36,8 +41,7 @@ def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=No
         f.write('BUILD_NUMBER = %d\n' % buildNum)
         f.write('BUILD_TIME = %d\n' % buildTime)
         f.write('BUILD_MACHINE = %r\n' % buildMachine)
-        if branch is not None:
-            f.write('REPO_BRANCH = %r\n' % branch)
+        f.write('REPO_BRANCH = %r\n' % branch)
 
 #===============================================================================
 # 
@@ -45,7 +49,7 @@ def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=No
 
 parser = argparse.ArgumentParser(description="Multi-Target Builder")
 parser.add_argument('-v', '--version',  
-                    help="A new version number, as 'x.y.z'.")
+                    help="A new version number, as 'x.y.z'. Note: editing build_info.py is better.")
 parser.add_argument('-b', '--beta', action='store_true',
                     help="Builds a 'beta' release; sets BETA flag.")
 parser.add_argument('-r', '--release', action="store_true",
@@ -89,12 +93,6 @@ try:
     
     if repo is not None:
         thisBranch = repo.active_branch
-        if repo.is_dirty:
-            if args.allowDirty:
-                logger.warning("Repository is dirty, but ignoring it.")
-            else:
-                logger.error("*** Repository is dirty! Commit all changes before building!")
-                exit(1)
     else:
         thisBranch = None
     
@@ -108,7 +106,6 @@ except ImportError:
     thisBuildNumber = thisVersion = versionString = "Unknown"
     thisDebug = True
 
-
 print "*"*78
 print ("*** Building Version %s, Build number %d," % (versionString,thisBuildNumber)),
 if thisDebug:
@@ -117,6 +114,14 @@ elif thisBeta:
     print "BETA version"
 else:
     print "Release version"
+
+if repo is not None:
+    if repo.is_dirty:
+        if args.allowDirty:
+            logger.warning("Repository is dirty, but ignoring it.")
+        else:
+            print("*** Repository is dirty! Commit all changes before building!")
+            exit(1)
 
 buildType = ''
 if thisDebug:
