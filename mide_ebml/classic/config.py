@@ -274,6 +274,8 @@ def encodeConfig(data):
 def verify(data):
     """ Stub for config file verification. 
     """
+    if data.keys() != CONFIG_FIELDS.keys():
+        return False
     try:
         CONFIG_PARSER.pack(*encodeConfig(data).values())
     except struct.error:
@@ -312,6 +314,9 @@ def writeConfig(dest, data, validate=True):
     if isinstance(dest, basestring):
         with open(dest, 'wb') as f:
             return writeConfig(f, data, validate)
+    
+    if validate and not verify(data):
+        return False
     
     try:
         c = CONFIG_PARSER.pack(*encodeConfig(data).values())

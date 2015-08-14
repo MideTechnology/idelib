@@ -468,7 +468,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
     volNameFile = os.path.join(TEMPLATE_PATH, partNum, str(hwRev), 'volume_name.txt')
     volName = utils.readFileLine(volNameFile, str, default=RECORDER_NAME)
-    autoRename(volName, timeout=10)
+    autoRename(volName, timeout=20)
 #     utils.waitForSSX(timeout=10)
     
     # 11. Notify user that recorder is ready for potting/calibration

@@ -403,19 +403,25 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             c = wx.StaticText(col1, -1, checkText)
         c.SetSizerProps(valign="center")
 
-        subpane = sc.SizedPanel(self, -1)
-        subpane.SetSizerType("horizontal")
-        subpane.SetSizerProps(expand=True)
+        if units is None:
+            subpane = col1
+        else:
+            subpane = sc.SizedPanel(self, -1)
+            subpane.SetSizerType("horizontal")
+            subpane.SetSizerProps(expand=True)
 
         if fieldStyle is None:
             field = wx.Choice(subpane, -1, size=fieldSize, choices=choices)
         else:
             field = wx.Choice(subpane, -1, size=fieldSize, choices=choices,
                                style=fieldStyle)
-        u = wx.StaticText(subpane, -1, units)
-        u.SetSizerProps(valign="center")
-        
-        self.controls[c] = [field, u]
+        if units is None:
+            self.controls[c] = [field]
+        else:
+            u = wx.StaticText(subpane, -1, units)
+            u.SetSizerProps(valign="center")
+            self.controls[c] = [field, u]
+            
         if col1 != self:
             self.controls[c].append(pad)
         

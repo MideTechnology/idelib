@@ -289,8 +289,7 @@ class Recorder(object):
             data = self.getConfig()
             if not data:
                 raise ValueError("Device configuration data has not been loaded")
-        with open(self.configFile, 'wb') as f:
-            return self._saveConfig(f, data, verify)
+        return self._saveConfig(self.configFile, data, verify)
     
     
     def getManifest(self, refresh=False):

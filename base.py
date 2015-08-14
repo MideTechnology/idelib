@@ -7,6 +7,8 @@ Created on Dec 4, 2013
 @author: dstokes
 '''
 
+__all__ = ('ViewerPanel', 'MenuMixin')
+
 import wx; wx = wx # Workaround for PyDev code comprehension
 
 from events import EvtSetTimeRange, EvtSetVisibleRange

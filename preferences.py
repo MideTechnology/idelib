@@ -593,7 +593,7 @@ class PrefsDialog(SC.SizedDialog):
     def OnDefaultColorsButton(self, evt):
         """ Restore the default plotting colors.
         """
-        self.prefs['plotColors'] = self.defaultPrefs.get('plotColors').copy()
+        self.prefs.pop('plotColors', None)
 
 
     def OnDefaultsButton(self, evt):

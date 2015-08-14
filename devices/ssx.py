@@ -125,7 +125,7 @@ class SlamStickX(Recorder):
             pass
         return default
 
-    
+
     def _loadConfig(self, source, hwRev=None, fwRev=None, default=None):
         """ Helper method to read configuration info from a file. Used
             internally.
@@ -141,7 +141,11 @@ class SlamStickX(Recorder):
         ebml = util.build_ebml("RecorderConfiguration", data, schema=schema_mide)
         if verify and not util.verify(ebml, schema=schema_mide):
             raise ValueError("Generated config EBML could not be verified")
-        dest.write(ebml)
+        if isinstance(dest, basestring):
+            with open(dest, 'wb') as f:
+                f.write(ebml)
+        else:
+            dest.write(ebml)
         return len(ebml)
 
 

@@ -268,6 +268,8 @@ class OptionsPanel(BaseConfigPanel):
     """
     OVERSAMPLING = map(str, [2**x for x in range(4,13)])
     SAMPLE_RATE = (100,20000,5000) # Min, max, default
+    PLUGIN_POLICIES = ['Stop recording when attached via USB',
+                       'None: Stop recording when button is pressed']
 
     def getDeviceData(self):
         cfg = self.root.device.getConfig()
@@ -315,6 +317,16 @@ class OptionsPanel(BaseConfigPanel):
             self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
              tooltip="If checked, data recorder will not apply oversampling.")
         
+        self.addSpacer()
+      
+        pp = self.addChoiceField("Plug-in Action",
+            choices=self.PLUGIN_POLICIES, check=False, units=None,
+            tooltip="What a recorder does when attached to USB while recording.")
+        self.plugPolicy = self.controls[pp][0]
+        self.plugPolicy.SetSizerProps(expand=True)
+        
+        self.addSpacer()
+      
         self.utcCheck = self.addIntField("Local UTC Offset:", "UTCOffset", 
             "Hours", str(-time.timezone/60/60), minmax=(-24,24), 
             tooltip="The local timezone's offset from UTC time. "
@@ -340,6 +352,11 @@ class OptionsPanel(BaseConfigPanel):
                        "Does not change other tabs.")
 
         self.Fit()
+
+
+    def initUI(self):
+        super(OptionsPanel, self).initUI()
+        self.plugPolicy.SetSelection(max(0, self.data.get('PlugPolicy', 1)-1))
 
         
     def OnDefaultsBtn(self, evt):
@@ -378,7 +395,11 @@ class OptionsPanel(BaseConfigPanel):
                 self.addVal(control, userConfig, name, self.strOrNone)
             else:
                 self.addVal(control, ssxConfig, name)
-
+                
+        plugPol = self.plugPolicy.GetSelection() + 1
+        if plugPol == 2:
+            ssxConfig["PlugPolicy"] = plugPol
+ 
         if 'UTCOffset' in ssxConfig:
             ssxConfig['UTCOffset'] *= 3600
         if ssxConfig:
@@ -386,6 +407,7 @@ class OptionsPanel(BaseConfigPanel):
         if userConfig:
             data["RecorderUserData"] = userConfig
         
+       
         if self.setTimeCheck.GetValue():
             try:
                 self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
@@ -684,12 +706,13 @@ class ChannelConfigPanel(BaseConfigPanel):
         
         # DC accelerometer doesn't have per-channel enable, so any nonzero
         # value enables the whole thing. Using 0b111 for consistency.
-        dcEnable = 0b111 if self.dcEnabled.GetValue() else 0
-        self.addVal(self.dcSampRate, dcData, "ChannelSampleFreq", kind=int)
-        if len(dcData) > 0 or dcEnable != 0b111:
-            dcData['ConfigChannel'] = self.accelChannelDC.id
-            dcData['SubChannelEnableMap'] = dcEnable
-            data.append(dcData)
+        if self.accelChannelDC is not None:
+            dcEnable = 0b111 if self.dcEnabled.GetValue() else 0
+            self.addVal(self.dcSampRate, dcData, "ChannelSampleFreq", kind=int)
+            if len(dcData) > 0 or dcEnable != 0b111:
+                dcData['ConfigChannel'] = self.accelChannelDC.id
+                dcData['SubChannelEnableMap'] = dcEnable
+                data.append(dcData)
 
         if len(data) > 0:
             return {"SSXChannelConfiguration": data}

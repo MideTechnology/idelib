@@ -4,8 +4,8 @@ Dialog for selecting recording devices.
 """
 from collections import namedtuple
 from datetime import datetime
-import random
-import struct
+# import random
+# import struct
 import sys
 import time
 
