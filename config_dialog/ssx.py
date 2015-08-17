@@ -319,13 +319,14 @@ class OptionsPanel(BaseConfigPanel):
         
         self.addSpacer()
       
-        pp = self.addChoiceField("Plug-in Action",
-            choices=self.PLUGIN_POLICIES, check=False, units=None,
-            tooltip="What a recorder does when attached to USB while recording.")
-        self.plugPolicy = self.controls[pp][0]
-        self.plugPolicy.SetSizerProps(expand=True)
-        
-        self.addSpacer()
+        # TODO: Enable plug-in policy (need text for UI)
+#         pp = self.addChoiceField("Plug-in Action",
+#             choices=self.PLUGIN_POLICIES, check=False, units=None,
+#             tooltip="What a recorder does when attached to USB while recording.")
+#         self.plugPolicy = self.controls[pp][0]
+#         self.plugPolicy.SetSizerProps(expand=True)
+#         
+#         self.addSpacer()
       
         self.utcCheck = self.addIntField("Local UTC Offset:", "UTCOffset", 
             "Hours", str(-time.timezone/60/60), minmax=(-24,24), 
@@ -356,7 +357,8 @@ class OptionsPanel(BaseConfigPanel):
 
     def initUI(self):
         super(OptionsPanel, self).initUI()
-        self.plugPolicy.SetSelection(max(0, self.data.get('PlugPolicy', 1)-1))
+        # TODO: Enable plug-in policy (need text for UI)
+#         self.plugPolicy.SetSelection(max(0, self.data.get('PlugPolicy', 1)-1))
 
         
     def OnDefaultsBtn(self, evt):
@@ -396,9 +398,9 @@ class OptionsPanel(BaseConfigPanel):
             else:
                 self.addVal(control, ssxConfig, name)
                 
-        plugPol = self.plugPolicy.GetSelection() + 1
-        if plugPol == 2:
-            ssxConfig["PlugPolicy"] = plugPol
+#         plugPol = self.plugPolicy.GetSelection() + 1
+#         if plugPol == 2:
+#             ssxConfig["PlugPolicy"] = plugPol
  
         if 'UTCOffset' in ssxConfig:
             ssxConfig['UTCOffset'] *= 3600
