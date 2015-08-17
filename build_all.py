@@ -76,6 +76,14 @@ try:
 except InvalidGitRepositoryError:
     repo = None
 
+if repo is not None:
+    if repo.is_dirty:
+        if args.allowDirty:
+            logger.warning("Repository is dirty, but ignoring it.")
+        else:
+            print("*** Repository is dirty! Commit all changes before building!")
+            exit(1)
+
 try:
     sys.path.append(HOME_DIR)
     from build_info import BUILD_NUMBER, DEBUG, BETA, VERSION, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH
@@ -114,14 +122,6 @@ elif thisBeta:
     print "BETA version"
 else:
     print "Release version"
-
-if repo is not None:
-    if repo.is_dirty:
-        if args.allowDirty:
-            logger.warning("Repository is dirty, but ignoring it.")
-        else:
-            print("*** Repository is dirty! Commit all changes before building!")
-            exit(1)
 
 buildType = ''
 if thisDebug:
