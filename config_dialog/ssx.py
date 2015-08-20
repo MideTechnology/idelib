@@ -268,8 +268,9 @@ class OptionsPanel(BaseConfigPanel):
     """
     OVERSAMPLING = map(str, [2**x for x in range(4,13)])
     SAMPLE_RATE = (100,20000,5000) # Min, max, default
-    PLUGIN_POLICIES = ['Stop recording when attached via USB',
-                       'None: Stop recording when button is pressed']
+    PLUGIN_POLICIES = ['Immediately stop recording and appear as USB drive',
+                       'Complete recording before appearing as drive',
+                       'Ignore: Stop recording when button is pressed']
 
     def getDeviceData(self):
         cfg = self.root.device.getConfig()
@@ -319,14 +320,12 @@ class OptionsPanel(BaseConfigPanel):
         
         self.addSpacer()
       
-        # TODO: Enable plug-in policy (need text for UI)
-#         pp = self.addChoiceField("Plug-in Action",
-#             choices=self.PLUGIN_POLICIES, check=False, units=None,
-#             tooltip="What a recorder does when attached to USB while recording.")
-#         self.plugPolicy = self.controls[pp][0]
-#         self.plugPolicy.SetSizerProps(expand=True)
-#         
-#         self.addSpacer()
+        self.plugPolicy = self.addChoiceField("Plug-in Action", name="PlugPolicy",
+            choices=self.PLUGIN_POLICIES, units=None, selected=0,
+            tooltip="What a recorder does when attached to USB while recording.")
+        self.controls[self.plugPolicy][0].SetSizerProps(expand=True)
+         
+        self.addSpacer()
       
         self.utcCheck = self.addIntField("Local UTC Offset:", "UTCOffset", 
             "Hours", str(-time.timezone/60/60), minmax=(-24,24), 
@@ -356,11 +355,10 @@ class OptionsPanel(BaseConfigPanel):
 
 
     def initUI(self):
-        super(OptionsPanel, self).initUI()
-        # TODO: Enable plug-in policy (need text for UI)
-#         self.plugPolicy.SetSelection(max(0, self.data.get('PlugPolicy', 1)-1))
+        BaseConfigPanel.initUI(self)
+        self.controls[self.plugPolicy][0].SetSelection(self.data.get('PlugPolicy', 0))
 
-        
+
     def OnDefaultsBtn(self, evt):
         """ Reset the device's fields to their factory default.
         """
@@ -397,11 +395,14 @@ class OptionsPanel(BaseConfigPanel):
                 self.addVal(control, userConfig, name, self.strOrNone)
             else:
                 self.addVal(control, ssxConfig, name)
-                
-#         plugPol = self.plugPolicy.GetSelection() + 1
-#         if plugPol == 2:
-#             ssxConfig["PlugPolicy"] = plugPol
- 
+        
+        if 'PlugPolicy' in ssxConfig:
+            idx = self.controls[self.plugPolicy][0].GetSelection()
+            if idx < 0:
+                ssxConfig.pop('PlugPolicy')
+            else:
+                ssxConfig['PlugPolicy'] = idx
+        
         if 'UTCOffset' in ssxConfig:
             ssxConfig['UTCOffset'] *= 3600
         if ssxConfig:

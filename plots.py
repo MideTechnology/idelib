@@ -19,7 +19,7 @@ import images
 # Custom controls
 from base import ViewerPanel, MenuMixin
 from common import expandRange, mapRange, inRect
-from timeline import VerticalScaleCtrl
+from widgets.timeline import VerticalScaleCtrl
 
 from logger import logger
 

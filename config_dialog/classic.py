@@ -3,21 +3,22 @@ Created on Jun 25, 2015
 
 @author: dstokes
 '''
-import cgi
+# import cgi
 from collections import OrderedDict
 from datetime import datetime
-import string
+# import string
 import time
 
 import wx.lib.sized_controls as SC
-from wx.html import HtmlWindow
+# from wx.html import HtmlWindow
 import wx; wx = wx
 
-from mide_ebml import util
-from mide_ebml.parsers import PolynomialParser
+# from mide_ebml import util
+# from mide_ebml.parsers import PolynomialParser
 # from mide_ebml.ebml.schema.mide import MideDocument
-from common import makeWxDateTime, DateTimeCtrl, cleanUnicode
-import devices
+# from common import makeWxDateTime, DateTimeCtrl
+from common import cleanUnicode
+# import devices
 
 from base import BaseConfigPanel, InfoPanel
 

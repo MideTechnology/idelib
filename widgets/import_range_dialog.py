@@ -9,7 +9,7 @@ import wx; wx = wx;
 from wx.lib.agw.floatspin import FloatSpin
 
 from mide_ebml import importer
-from timeline import TimeNavigatorCtrl
+from widgets.timeline import TimeNavigatorCtrl
 
 
 class ImportRangeDialog(wx.Dialog):

@@ -131,7 +131,7 @@ class ConfigDialog(SC.SizedDialog):
         
         self.SetMinSize((400, 500))
         self.Fit()
-        self.SetSize((520,540))
+        self.SetSize((560,540))
         
         
     def getData(self, schema=util.DEFAULT_SCHEMA):

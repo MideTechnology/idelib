@@ -52,7 +52,7 @@ import images
 from base import ViewerPanel, MenuMixin
 from common import StatusBar, cleanUnicode, wordJoin, TimeValidator
 import events
-from timeline import TimelineCtrl, TimeNavigatorCtrl
+from widgets.timeline import TimelineCtrl, TimeNavigatorCtrl
 
 # Views, dialogs and such
 from aboutbox import AboutBox
@@ -1765,11 +1765,6 @@ class Viewer(wx.Frame, MenuMixin):
             
         dlg.Destroy()
         self.resumeDrawing()
-
-
-    def _formatTime(self, t):
-        places = self.app.getPref("precisionX", 4)
-        return ("%%.%df" % places) % (t * self.timeScalar)
 
 
     def renderPlot(self, evt=None, plotType=ID_RENDER_FFT):
