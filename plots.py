@@ -504,12 +504,12 @@ class PlotCanvas(wx.ScrolledWindow):
         rect = self.GetScreenRect()
         trect = self.root.timeline.timebar.GetScreenRect()
         
-        p1 = rect[0] - trect[0]
-        p2 = p1 + self.GetSize()[0]
+        # TODO: Make sure the window border isn't causing issues.
+        p1 = rect[0] - trect[0]# + 3
+        p2 = p1 + self.GetSize()[0]# - 3
 
         result = (int(self.root.timeline.getValueAt(p1)),
                   int(self.root.timeline.getValueAt(p2)))
-        
         return result
 
 
@@ -533,11 +533,13 @@ class PlotCanvas(wx.ScrolledWindow):
             lastV = l[3]
             thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
             thisV = constrainInt(int((pt[-1] - vRange[0]) * vScale))
-            if False:#thisT == lastT:
-                lines[-1] = l[0], l[1], l[2], fun(lastV, thisV)
-            else:
-                lines.append((lastT, lastV, thisT, lastV))
-                lines.append((thisT, lastV, thisT, thisV))
+#             if thisT == lastT:
+#                 lines[-1] = l[0], l[1], l[2], fun(lastV, thisV)
+#             else:
+#                 lines.append((lastT, lastV, thisT, lastV))
+#                 lines.append((thisT, lastV, thisT, thisV))
+            lines.append((lastT, lastV, thisT, lastV))
+            lines.append((thisT, lastV, thisT, thisV))
         
         def _finishline(lines):
             t = lines[-1][2]
@@ -596,6 +598,18 @@ class PlotCanvas(wx.ScrolledWindow):
                 dc.DrawLineList(self.minorHLines, self.minorHLinePen)
             if self.root.drawMajorHLines:
                 dc.DrawLineList(self.majorHLines, self.majorHLinePen)
+
+
+    def _drawOutOfRange(self, dc, x, w, h):
+        """ Helper method for coloring time before and/or after the recording.
+        """
+        oldPen = dc.GetPen()
+        oldBrush = dc.GetBrush()
+        dc.SetPen(self.NO_PEN)
+        dc.SetBrush(self.outOfRangeBrush)
+        dc.DrawRectangle(x, 0, w, h)
+        dc.SetPen(oldPen)
+        dc.SetBrush(oldBrush)
 
 
     def OnPaint(self, evt):
@@ -736,28 +750,16 @@ class PlotCanvas(wx.ScrolledWindow):
         
         # Time before recording
         if sourceFirst > hRange[0]:
-            oldPen = dc.GetPen()
-            oldBrush = dc.GetBrush()
-            dc.SetPen(self.NO_PEN)
-            dc.SetBrush(self.outOfRangeBrush)
-            w = int((sourceFirst-hRange[0])*hScale)
-            h = abs(int(size[1]/self.userScale))
-            dc.DrawRectangle(0, 0, w, h)
-            dc.SetPen(oldPen)
-            dc.SetBrush(oldBrush)
+            self._drawOutOfRange(dc, 0, 
+                                 int((sourceFirst-hRange[0])*hScale), 
+                                 abs(int(size[1]/self.userScale)))
         
         # Time after recording
         if sourceLast < hRange[1]:
-            oldPen = dc.GetPen()
-            oldBrush = dc.GetBrush()
-            dc.SetPen(self.NO_PEN)
-            dc.SetBrush(self.outOfRangeBrush)
             x = int((sourceLast-hRange[0])*hScale)
-            w = abs(int((size[0]/self.userScale)-x))
-            h = abs(int(size[1]/self.userScale))
-            dc.DrawRectangle(x, 0, w, h)
-            dc.SetPen(oldPen)
-            dc.SetBrush(oldBrush)
+            self._drawOutOfRange(dc, x, 
+                                 abs(int((size[0]/self.userScale)-x)), 
+                                 abs(int(size[1]/self.userScale)))
         
         # Draw 'idiot light'
         if self.showWarningRange:

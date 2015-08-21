@@ -668,10 +668,12 @@ class Channel(Transformable):
             @return: A list of tuples, one for each subsample.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
-
         p = (block, start, end, step, subchannel, str(offset))
         if self._lastParsed[0] == p:
             return self._lastParsed[1]
+        if self.singleSample:
+            start = 0
+            end = 1
         result = list(block.parseWith(self.parser, start=start, end=end, 
                                     step=step, subchannel=subchannel))
         
@@ -1257,8 +1259,8 @@ class EventList(Transformable):
         except TypeError:
             pass
         
-        if self._singleSample is True:
-            return start
+#         if self._singleSample is True:
+#             return start
         
         return self._searchBlockRanges(t, self._getBlockTimeRange,
                                        start, stop)
@@ -1691,6 +1693,14 @@ class EventList(Transformable):
             @keyword endTime: The second time, or `None` to use the end of
                 the session.
         """
+        if self.parent.singleSample:
+            startIdx = self._getBlockIndexWithTime(startTime)
+            if endTime is None:
+                endIdx = len(self)-1
+            else:
+                endIdx = self._getBlockIndexWithTime(endTime) + 1
+            return startIdx, endIdx
+            
         if startTime is None or startTime <= self._data[0].startTime:
             startIdx = startBlockIdx = 0
             startBlock = self._data[0]
