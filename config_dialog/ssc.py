@@ -10,8 +10,31 @@ from ssx import OptionsPanel, CalibrationPanel, SSXInfoPanel
 class SSCOptionsPanel(OptionsPanel):
     """
     """
-    SAMPLE_RATE = (12,3200,3200) # Min, max, default
-    
+    SAMPLE_RATE = (12,3200,400) # Min, max, default
+
+    def getDeviceData(self):
+        OptionsPanel.getDeviceData(self)
+        
+        # Semi-hack: Remove analog accelerometer sample frequency item, and/or
+        # replace it with the DC accelerometer's per-channel sample rate
+        self.data.pop('SampleFreq', None)
+        
+        self.accelChannelDC = self.root.device.getAccelChannel(dc=True)
+        if self.accelChannelDC is not None: 
+            for ch in self.root.deviceConfig.get('SSXChannelConfiguration', []):
+                if ch['ConfigChannel'] == self.accelChannelDC.id:
+                    self.data['SampleFreq'] = ch.get('ChannelSampleFreq', 400)
+        
+
+    def getData(self):
+        data = OptionsPanel.getData(self)
+        if self.samplingCheck.GetValue():
+            sampRate = self.controls[self.samplingCheck][0].GetValue()
+            data['SSXChannelConfiguration'] = {'ConfigChannel': self.accelChannelDC.id,
+                                               'ChannelSampleFreq': sampRate}
+        else:
+            data.pop('SSXChannelConfiguration', None)
+        return data
 
 #===============================================================================
 # 
@@ -40,7 +63,7 @@ def buildUI_SSC(parent):
 #         parent.channels = ChannelConfigPanel(parent.notebook, -1, root=parent)
 #         parent.notebook.AddPage(parent.channels, "Channels")
             
-    if factorycal is not None:
+    if True:#factorycal is not None:
         parent.factorycal = CalibrationPanel(parent.notebook, -1, root=parent,
                                           info=factorycal, calSerial=calSerial,
                                           calDate=calDate, calExpiry=calExpiry)

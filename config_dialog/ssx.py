@@ -550,9 +550,13 @@ class CalibrationPanel(InfoPanel):
         if self.info:
             self.info = self.info.values()
         elif hasattr(self.root, 'device'):
-            self.info = self.root.device.getCalPolynomials().values()
-            self.calSerial = self.root.device.getCalExpiration()
-            self.calDate = self.root.device.getCalSerial()
+            polys = self.root.device.getCalPolynomials()
+            if polys is not None:
+                self.info = self.root.device.getCalPolynomials().values()
+                self.calSerial = self.root.device.getCalExpiration()
+                self.calDate = self.root.device.getCalSerial()
+            else:
+                self.info = []
         else:
             # NOTE: Is this used by anything anymore?
             PP = PolynomialParser(None)
@@ -585,6 +589,9 @@ class CalibrationPanel(InfoPanel):
                 d = datetime.fromtimestamp(self.calExpiry).date()
                 self.html.append("<b>Expires:</b> %s" % d)
             self.html.append("</p>")
+        
+        if len(self.info) == 0:
+            self.html.append("Device has no calibration data.")
         
         for cal in self.info:
             if cal.id is None:
