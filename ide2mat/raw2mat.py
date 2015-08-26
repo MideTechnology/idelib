@@ -181,7 +181,7 @@ class SimpleUpdater(object):
             self.out.flush()
     
     def __call__(self, count=0, total=None, percent=None, error=None, 
-                 starting=False, done=False):
+                 starting=False, done=False, **kwargs):
         if starting:
             self.reset()
             return
@@ -224,6 +224,7 @@ class TempWriter(object):
     def writerow(self, r):
         self.stream.write('%d, %r\n' % (r[0], list(r[1])))
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -258,13 +259,26 @@ def showInfo(ideFilename, **kwargs):
 
 def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
             noTimes=False, startTime=0, endTime=None, updateInterval=1.5,  
-            maxSize=matfile.MatStream.MAX_SIZE, writeCal=True, **kwargs):
+            maxSize=matfile.MatStream.MAX_SIZE, writeCal=True, out=sys.stdout,
+            **kwargs):
     """ The main function that handles generating MAT files from an IDE file.
     """
     
     updater = kwargs.get('updater', importer.nullUpdater)
 #     maxSize = max(1024**2*16, min(matfile.MatStream.MAX_SIZE, 1024**2*maxSize))
     maxSize =1024*maxSize
+    
+    def _printStream(*args):
+        out.write(" ".join(map(str, args)))
+        out.flush()
+    
+    def _printNone(*args):
+        pass
+    
+    if out is None:
+        _print = _printNone
+    else:
+        _print = _printStream
     
     if matFilename is None:
         matFilename = os.path.splitext(ideFilename)[0] + ".mat"
@@ -341,7 +355,7 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
                         lastMat = mat.filename
                         msgLen = len(writeMsg)
                         writeMsg = "  Writing %s... " % os.path.basename(lastMat)
-                        print "%s%s" % ('\x08'*msgLen, writeMsg),
+                        _print("%s%s" % ('\x08'*msgLen, writeMsg))
                         nextUpdate = 0
     
                     if el.name == "ChannelDataBlock":
@@ -357,7 +371,7 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
                             
                     if i % 250 == 0 or time.time() > nextUpdate:
                         count = sum((x.numSamp for x in dumpers.itervalues()))
-                        updater(count=count, total=None, percent=((stream.tell()-offset)/totalSize))
+                        updater(count=count, total=None, percent=((stream.tell()-offset)/totalSize), filename=mat.filename)
                         nextUpdate = time.time() + updateInterval
 
                     # Remove per-element substreams. Saves memory; a large
@@ -365,6 +379,9 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
                     # NOTE: This may change if the underlying EMBL library does.
                     doc.ebmldoc.stream.substreams.clear()
                     del el
+                    
+                    if updater.cancelled:
+                        break
                     
             except (IOError, StopIteration):
                 pass

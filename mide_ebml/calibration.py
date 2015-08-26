@@ -116,6 +116,9 @@ class AccelTransform(Transform):
         self._function = eval(self._source, {'math': math})
         self._lastSession = None
         self._timeOffset = 0
+        
+        self.references = (0,)
+        self.coefficients = ((amax / 32767.0), amax)
 
 
     def copy(self):

@@ -373,6 +373,8 @@ class MatStream(object):
         if self._inArray:
             self.endArray()
 
+        self.arrayBaseName = sanitizeName(name)
+        
         # Calculate size of data, plus any applicable 'header' data that needs
         # to be in the same file as the array (column names, start time offset, 
         # etc.)
@@ -386,7 +388,6 @@ class MatStream(object):
         self.checkFileSize(newSize)
 
         self._inArray = True
-        self.arrayBaseName = sanitizeName(name)
         self.arrayNumber = arrayNumber
         self.numRows = 0
         self.expectedRows = rows

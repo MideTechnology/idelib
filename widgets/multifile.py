@@ -48,11 +48,13 @@ class MultiFileSelect(wx.Panel):
         self.listbox = wx.ListBox(self, -1, style=wx.LB_MULTIPLE)
         self.addBtn = wx.Button(self, wx.ID_ADD)
         self.removeBtn = wx.Button(self, wx.ID_REMOVE)
+        self.clearBtn = wx.Button(self, wx.ID_CLEAR)
         
         rsizer.Add(self.listbox, 1, wx.LEFT|wx.CENTER|wx.EXPAND|wx.ALL, 5)
         rsizer.Add(bsizer)
         bsizer.Add(self.addBtn, 1, wx.ALIGN_RIGHT|wx.ALIGN_TOP)
         bsizer.Add(self.removeBtn, 1, wx.ALIGN_RIGHT|wx.ALIGN_TOP)
+        bsizer.Add(self.clearBtn, 1, wx.ALIGN_RIGHT|wx.ALIGN_TOP)
         
         sizer.Add(rsizer, 1, wx.EXPAND|wx.ALL)
         
@@ -71,6 +73,7 @@ class MultiFileSelect(wx.Panel):
         self.listbox.Bind(wx.EVT_MOTION, self.OnListMotion)
         self.addBtn.Bind(wx.EVT_BUTTON, self.OnAdd)
         self.removeBtn.Bind(wx.EVT_BUTTON, self.OnRemove)
+        self.clearBtn.Bind(wx.EVT_BUTTON, self.OnClear)
         
         self.OnListbox(None)
 
@@ -119,6 +122,7 @@ class MultiFileSelect(wx.Panel):
         """ Handle listbox selection change.
         """
         self.removeBtn.Enable(len(self.listbox.GetSelections()) > 0)
+        self.clearBtn.Enable(len(self.listItems) > 0)
         if evt is not None:
             evt.Skip()
 
@@ -130,7 +134,12 @@ class MultiFileSelect(wx.Panel):
             del self.files[i]
         self.makeListItems()
         
+    
+    def OnClear(self, evt):
+        self.files = []
+        self.makeListItems()
         
+    
     def GetPaths(self):
         """ Get the widget's selected files.
         """
