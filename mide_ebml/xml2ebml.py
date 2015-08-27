@@ -135,8 +135,15 @@ def dumpXmlElement(el, indent=0, tabsize=4):
     if el.name == 'Void':
         return u'%s<%s offset="%d" size="%s" />' % \
             (tab, el.name, el.stream.offset, el.size)
+    
+    val = el.value
+    if isinstance(el.value, (str, bytearray)):
+        try:
+            val = unicode(str(el.value), "utf8")
+        except UnicodeDecodeError:
+            val = repr(str(val))
     return u'%s<%s offset="%d" size="%s" value="%s" />' % \
-        (tab, el.name, el.stream.offset, el.size, el.value)
+        (tab, el.name, el.stream.offset, el.size, val)
 
 
 def dumpXml(ebmldoc, indent=0, tabsize=2):
