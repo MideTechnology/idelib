@@ -512,7 +512,7 @@ class Calibrator(object):
             for d in dirs:
                 if d.startswith('.'):
                     dirs.remove(d)
-        return ides[:3]
+        return ides[-3:]
 
 
     def closeFiles(self):
