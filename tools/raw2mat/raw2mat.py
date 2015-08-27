@@ -15,10 +15,23 @@ import wx.lib.sized_controls as SC
 
 from mide_ebml.matfile import MatStream
 
-from base import ToolDialog
+from tools.base import ToolDialog
 from widgets.multifile import MultiFileSelect
 
 from ide2mat.raw2mat import raw2mat
+
+#===============================================================================
+# 
+#===============================================================================
+
+__author__ = "D. R. Stokes"
+__email__ = "dstokes@mide.com"
+__version_tuple__ = (1,0,1)
+__version__= ".".join(map(str, __version_tuple__))
+__copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
+
+__plugin_name__ = "Raw Data to .MAT Utility"
+__plugin_type__ = "tool"
 
 #===============================================================================
 # 
@@ -278,17 +291,26 @@ class Raw2Mat(ToolDialog):
         dlg = ScrolledMessageDialog(self, msg, "%s: Complete" % self.GetTitle())
         dlg.ShowModal()
 
-        print exported
-        
         self.savePrefs()
-        
+
+#===============================================================================
+# 
+#===============================================================================
+
+def launch(parent=None):
+    dlg = Raw2Mat(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+    dlg.ShowModal()
+    
+
+def init(*args, **kwargs):
+    return launch
 
 
 #===============================================================================
 # 
 #===============================================================================
 
-if __name__ == "__main__":
+def test(*args, **kwargs):
     class TestApp(wx.App):
         def __init__(self, *args, **kwargs):
             super(TestApp, self).__init__(*args, **kwargs)
@@ -313,3 +335,10 @@ if __name__ == "__main__":
     dlg = Raw2Mat(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
     dlg.ShowModal()
     print dlg.GetSize()
+
+
+#===============================================================================
+# 
+#===============================================================================
+if __name__ == "__main__":
+    test()

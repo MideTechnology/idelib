@@ -80,7 +80,8 @@ import mide_ebml.multi_importer
 import mide_ebml.matfile
 import mide_ebml.unit_conversion
 
-# XXX: FOR TESTING; REMOVE LATER
+# Plug-ins
+import plugins
 
 #===============================================================================
 # 
@@ -664,6 +665,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_DISPLAY = wx.NewId()
     ID_DATA_DISPLAY_NATIVE = wx.NewId()
     ID_DATA_DISPLAY_CONFIG = wx.NewId()
+    ID_TOOLS = wx.NewId()
     ID_HELP_CHECK_UPDATES = wx.NewId()
     ID_HELP_FEEDBACK = wx.NewId()
 
@@ -930,6 +932,16 @@ class Viewer(wx.Frame, MenuMixin):
         
         
         #=======================================================================
+        #
+        tools = self.app.plugins.find(type='tool')
+        if tools:
+            toolMenu = self.addMenu(self.menubar, "Tools")
+            for t in tools:
+                self.addMenuItem(toolMenu, t.info.setdefault('wxId', wx.NewId()),
+                                 t.name, "", self.OnToolMenuSelection)
+              
+        
+        #=======================================================================
         # "Help" menu
         
         helpMenu = self.addMenu(self.menubar, '&Help')
@@ -1032,14 +1044,15 @@ class Viewer(wx.Frame, MenuMixin):
         """
         # These are the menus that are enabled even when there's no file open.
         # There are fewer of them than menus that are disabled.
-        menus = (wx.ID_NEW, wx.ID_OPEN, wx.ID_CLOSE, wx.ID_EXIT, 
+        menus = [wx.ID_NEW, wx.ID_OPEN, wx.ID_CLOSE, wx.ID_EXIT, 
                  self.ID_DEVICE_CONFIG, wx.ID_ABOUT, wx.ID_PREFERENCES,
                  self.ID_HELP_CHECK_UPDATES, self.ID_HELP_FEEDBACK,
-                 self.ID_FILE_MULTI,
+                 self.ID_FILE_MULTI, self.ID_TOOLS,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, 
                  self.ID_DEBUG_CONSOLE, self.ID_DEBUG0, self.ID_DEBUG1, 
                  self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
-                 )
+                 ]
+        menus.extend([t.info['wxId'] for t in self.app.plugins.find(type='tool') if 'wxId' in t.info])
         
         if not enabled:
             self.enableMenuItems(self.menubar, menus, True, False)
@@ -2337,7 +2350,12 @@ class Viewer(wx.Frame, MenuMixin):
                 p.setUnitConverter(conv)
         self.updateConversionMenu(activePage)
 
-            
+    
+    def OnToolMenuSelection(self, evt):
+        tool = self.app.plugins.find(wxId=evt.GetId())
+        if tool:
+            tool[0](self)
+        
     #===========================================================================
     # Custom Events
     #===========================================================================
@@ -2751,6 +2769,9 @@ class ViewerApp(wx.App):
 
     def hasPref(self, name, section=None, defaults=False):
         return self.prefs.hasPref(name, section, defaults)
+    
+    def deletePref(self, name, section=None):
+        return self.prefs.deletePref(name, section)
 
     def editPrefs(self, evt=None):
         if self.prefs.editPrefs():
@@ -2804,6 +2825,8 @@ class ViewerApp(wx.App):
         
         self.prefs = Preferences(self.prefsFile, clean=clean)
 
+        self.loadPlugins()
+
         if loadLast and self.initialFilename is None:
             try:
                 self.initialFilename = self.prefs.getRecentFiles()[0]
@@ -2824,6 +2847,16 @@ class ViewerApp(wx.App):
         if self.getPref('updater.interval',3) > 0:
             updater.startCheckUpdatesThread(self)
 
+        
+
+    def loadPlugins(self, pluginPaths=['tools/*']):
+        logger.info("Searching for plug-ins...")
+        self.plugins = plugins.PluginSet(pluginPaths, quiet=True)
+        logger.info("Found %d plug-ins" % len(self.plugins))
+        
+        if len(self.plugins.bad) > 0:
+            logger.info("!!! %d plugins were 'bad'!" % len(self.plugins.bad))
+        
 
     def createNewView(self, filename=None, title=None):
         """ Create a new viewer window.
