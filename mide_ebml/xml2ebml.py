@@ -141,7 +141,7 @@ def dumpXmlElement(el, indent=0, tabsize=4):
         try:
             val = unicode(str(el.value), "utf8")
         except UnicodeDecodeError:
-            val = repr(str(val))
+            val = repr(str(val))[1:-1]
     return u'%s<%s offset="%d" size="%s" value="%s" />' % \
         (tab, el.name, el.stream.offset, el.size, val)
 
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     if args.toxml:
         with open(args.source, 'rb') as f:
             ebmldoc = readEbml(f, schema=fixpath(args.schema))
-            xmldoc = dumpXml(ebmldoc)
+            xmldoc = dumpXml(ebmldoc).encode('utf8')
         result = '<?xml version="1.0" encoding="utf-8"?>\n' + xmldoc
         if args.output:
             outfilename = os.path.realpath(args.output.strip())
