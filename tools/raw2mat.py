@@ -30,8 +30,11 @@ __version_tuple__ = (1,0,1)
 __version__= ".".join(map(str, __version_tuple__))
 __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
-__plugin_name__ = "Raw Data to .MAT Utility"
-__plugin_type__ = "tool"
+
+PLUGIN_INFO = {"type": "tool",
+               "name": "Raw Data to .MAT Utility",
+               }
+
 
 #===============================================================================
 # 
@@ -331,14 +334,10 @@ def test(*args, **kwargs):
             pass
 
         
-    app = TestApp()
+    _app = TestApp()
     dlg = Raw2Mat(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
     dlg.ShowModal()
     print dlg.GetSize()
 
-
-#===============================================================================
-# 
-#===============================================================================
 if __name__ == "__main__":
     test()

@@ -82,6 +82,7 @@ import mide_ebml.unit_conversion
 
 # Plug-ins
 import plugins
+import tools.raw2mat
 
 #===============================================================================
 # 
@@ -2849,13 +2850,13 @@ class ViewerApp(wx.App):
 
         
 
-    def loadPlugins(self, pluginPaths=['tools/*']):
+    def loadPlugins(self, pluginPaths=[], pluginMods=[tools.raw2mat]):
         logger.info("Searching for plug-ins...")
-        self.plugins = plugins.PluginSet(pluginPaths, quiet=True)
-        logger.info("Found %d plug-ins" % len(self.plugins))
+        self.plugins = plugins.PluginSet(pluginMods+pluginPaths, quiet=True)
+        logger.info("Found %d plug-in(s)." % len(self.plugins))
         
         if len(self.plugins.bad) > 0:
-            logger.info("!!! %d plugins were 'bad'!" % len(self.plugins.bad))
+            logger.warning("!!! %d plugin(s) were 'bad'!" % len(self.plugins.bad))
         
 
     def createNewView(self, filename=None, title=None):
