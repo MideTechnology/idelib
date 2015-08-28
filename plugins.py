@@ -99,15 +99,17 @@ class Plugin(object):
             if not useSource:
                 return False
             return os.path.exists(os.path.join(p, 'info.json'))
-        print [p+x for x in cls.PLUGIN_EXT]
-        return any(map(os.path.exists, [p+x for x in cls.PLUGIN_EXT]))
+        p = os.path.splitext(p)[0]
+        return any(map(os.path.isfile, [p+x for x in cls.PLUGIN_EXT]))
 
 
     def __repr__(self):
         args = (self.__class__.__name__, self.moduleName, self.path)
         if self.loaded:
-            return '<%s %s %s>' % args
-        return '<%s (unloaded) %s %s>' % args
+            r = u'<%s %s %s>' % args
+        else:
+            r = u'<%s (unloaded) %s %s>' % args
+        return r.encode('ascii', 'replace')
     
     
     def __init__(self, path, useSource=True):
@@ -148,7 +150,6 @@ class Plugin(object):
         path = os.path.realpath(os.path.expanduser(path))
         try:
             dirPath = os.path.splitext(path)[0]
-            print [dirPath + x for x in self.PLUGIN_EXT]
             zipPaths = filter(os.path.isfile, 
                               [dirPath + x for x in self.PLUGIN_EXT])
         except (AttributeError, TypeError) as err:
@@ -170,12 +171,12 @@ class Plugin(object):
             if self.isDir:
                 # Not archive.
                 self.zip = None
-                with open(os.path.join(self.path, 'info.json'), 'rb') as f:
+                with open(os.path.join(self.path, u'info.json'), 'rb') as f:
                     self.info = json.load(f)
             else:
                 # Is an archive.
                 self.zip = zipimport.zipimporter(self.path)
-                self.info = json.loads(self.zip.get_data('info.json'))
+                self.info = json.loads(self.zip.get_data(u'info.json'))
         except (IOError, ImportError) as err:
             raise PluginImportError('Could not find plugin info in', 
                                     self.path, err)

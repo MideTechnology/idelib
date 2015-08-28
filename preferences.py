@@ -125,9 +125,14 @@ class Preferences(object):
         'updater.lastCheck': 0, # Unix timestamp of the last version check
         'updater.version': VERSION, # The last version check
 
-        # WVR/SSX-specific parameters: the hard-coded warning range.        
+        # WVR/SSX-specific parameters: the hard-coded warning range. 
+        # Obsolete, but used for old firmware.      
         'wvr.tempMin': -20.0,
         'wvr.tempMax': 60.0,
+        
+        # Plug-ins
+        'plugins.loadUserPlugins': True,
+        'plugins.searchPaths': [],
     }
 
 

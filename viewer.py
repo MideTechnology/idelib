@@ -2815,22 +2815,26 @@ class ViewerApp(wx.App):
         self.prefsFile = kwargs.pop('prefsFile', None)
         self.initialFilename = kwargs.pop('filename', None)
         clean = kwargs.pop('clean', False)
-        
+        safeMode = kwargs.pop('safe', False)
         loadLast = kwargs.pop('loadLastFile', False)
                     
+        logger.info("Starting in SAFE MODE. No plug-ins will be loaded.")
+        
         super(ViewerApp, self).__init__(*args, **kwargs)
         
 #         self.recentFilesMenu = wx.Menu()
         self.lastException = None
         self.viewers = []
         self.changedFiles = True
-        self.stdPaths = wx.StandardPaths.Get()
         self.colorDb = wx.ColourDatabase()
+
+        stdPaths = wx.StandardPaths.Get()
+        self.docsDir = os.path.join(stdPaths.GetDocumentsDir(), "Slam Stick Lab")
         
-        self.prefs = Preferences(self.prefsFile, clean=clean)
+        self.prefs = Preferences(self.prefsFile, clean=(clean or safeMode))
         
-        # TODO: get any external plugin paths, and/or collect modules.
-        self.loadPlugins(self.defaultPlugins)
+        if not safeMode:
+            self.loadPlugins()
 
         if loadLast and self.initialFilename is None:
             try:
@@ -2854,17 +2858,33 @@ class ViewerApp(wx.App):
 
         
 
-    def loadPlugins(self, pluginPaths):
+    def loadPlugins(self):
         """ Search for and load plugin components.
         """
         logger.info("Searching for plug-ins...")
-        self.plugins = plugins.PluginSet(pluginPaths, quiet=True)
-        if DEBUG:
-            logger.info("Found %d plug-in(s):" % len(self.plugins))
-            for p in self.plugins.items():
-                logger.info(" * {}".format(p))
+        self.plugins = plugins.PluginSet(self.defaultPlugins, quiet=True)
+        numPlugins = len(self.plugins)
+        logger.info("Found %d standard plug-in(s)" % numPlugins)
+
+        if DEBUG and numPlugins > 0:
+            stdPlugs = self.plugins.items()
+            for p in stdPlugs:
+                logger.info(u" * %s: %s" % p)
+        
+        if self.getPref('plugins.loadUserPlugins', False):
+            dirs = [os.path.join(self.docsDir, 'plugins', '*')]
+            dirs.extend(self.getPref('plugins.searchPaths', []))
+            self.plugins.add(dirs, quiet=True)
+            newNum = len(self.plugins) - numPlugins
+            logger.info("Found %d external plug-in(s)" % newNum)
+            
+            if DEBUG and newNum > 0:
+                userPlugs = set(self.plugins.items()).difference(stdPlugs)
+                for p in userPlugs:
+                    logger.info(u" * %s: %s" % p)
         else:
-            logger.info("Found %d plug-in(s)." % len(self.plugins))
+            logger.info("External plug-ins disabled.")
+
         
         if len(self.plugins.bad) > 0:
             logger.warning("!!! %d plugin(s) were 'bad'!" % len(self.plugins.bad))
