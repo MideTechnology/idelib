@@ -361,8 +361,41 @@ class PluginSet(object):
     
     
     def find(self, **kwargs):
-        """ Find all plugins with the specified values in their `info`. 
-            Glob-style wildcards accepted as values. Examples:
+        """ Find all plugins with the specified values in their `info`. Plugins
+            matching all of the specified criteria are returned.
+ 
+            Parameters to match are provided as keyword arguments. Glob-style 
+            wildcards accepted as values. Examples:
+                plugins.find(name="Specific Tool") # Gets one plug-in
+                plugins.find(type="exporter") # Gets all of the specific type
+                plugins.find(name="Meters2*") # Gets all plugins starting with "Meters2"
+        """
+        result = []
+        for p in self.plugins.itervalues():
+            good = True
+            for k,v in kwargs.iteritems():
+                # Get data from either the 'info' dict or an attribute
+                val = p.info[k] if k in p.info else getattr(p, k, None)
+                try:
+                    if val == v:
+                        good = good and True
+                    elif not isinstance(v, basestring) or not fnmatch(val, v):
+                        good = False
+                except AttributeError:
+                    good = False
+                if not good:
+                    break
+            if good:
+                result.append(p)
+        return result
+
+
+    def findAny(self, **kwargs):
+        """ Find all plugins with the specified values in their `info`. Plugins
+            matching any of the specified criteria are returned.
+ 
+            Parameters to match are provided as keyword arguments. Glob-style 
+            wildcards accepted as values. Examples:
                 plugins.find(name="Specific Tool") # Gets one plug-in
                 plugins.find(type="exporter") # Gets all of the specific type
                 plugins.find(name="Meters2*") # Gets all plugins starting with "Meters2"
@@ -370,20 +403,17 @@ class PluginSet(object):
         result = []
         for p in self.plugins.itervalues():
             for k,v in kwargs.iteritems():
-                if k in p.info:
-                    val = p.info.get(k, None)
-                else:
-                    val = getattr(p, k, None)
+                # Get data from either the 'info' dict or an attribute
+                val = p.info[k] if k in p.info else getattr(p, k, None)
                 try:
-                    if not isinstance(v, basestring):
-                        if val == v:
-                            result.append(p)
-                    elif fnmatch(val, v):
+                    if val == v:
+                        result.append(p)
+                    elif isinstance(v, basestring) and fnmatch(val, v):
                         result.append(p)
                 except AttributeError:
                     continue
         return result
-
+    
     
     def load(self, plug, args=[], kwargs={}, quiet=False):
         """ Load a plugin. Wraps the plugin's `load()` method. Can be called

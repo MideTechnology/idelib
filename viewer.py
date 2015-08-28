@@ -935,12 +935,23 @@ class Viewer(wx.Frame, MenuMixin):
         
         #=======================================================================
         #
-        tools = self.app.plugins.find(type='tool')
-        if tools:
-            toolMenu = self.addMenu(self.menubar, "Tools")
-            for t in tools:
-                self.addMenuItem(toolMenu, t.info.setdefault('wxId', wx.NewId()),
-                                 t.name, "", self.OnToolMenuSelection)
+        if self.app.plugins is not None:
+            tools = self.app.plugins.find(type='tool', isModule=True)
+            extTools = self.app.plugins.find(type='tool', isModule=False)
+            if tools or extTools:
+                tools.sort(key=lambda x: x.name)
+                toolMenu = self.addMenu(self.menubar, "Tools")
+                for t in tools:
+                    self.addMenuItem(toolMenu, 
+                                     t.info.setdefault('wxId', wx.NewId()),
+                                     t.name, "", self.OnToolMenuSelection)
+                if extTools:
+                    toolMenu.AppendSeparator()
+                    for t in extTools:
+                        self.addMenuItem(toolMenu, 
+                                         t.info.setdefault('wxId', wx.NewId()),
+                                         t.name, "", self.OnToolMenuSelection)
+            
               
         
         #=======================================================================
@@ -2827,11 +2838,10 @@ class ViewerApp(wx.App):
         self.viewers = []
         self.changedFiles = True
         self.colorDb = wx.ColourDatabase()
-
         stdPaths = wx.StandardPaths.Get()
         self.docsDir = os.path.join(stdPaths.GetDocumentsDir(), "Slam Stick Lab")
-        
         self.prefs = Preferences(self.prefsFile, clean=(clean or safeMode))
+        self.plugins = None
         
         if not safeMode:
             self.loadPlugins()
