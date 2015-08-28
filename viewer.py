@@ -83,6 +83,7 @@ import mide_ebml.unit_conversion
 # Plug-ins
 import plugins
 import tools.raw2mat
+import tools.filesplit
 
 #===============================================================================
 # 
@@ -2758,6 +2759,8 @@ class ViewerApp(wx.App):
     versionString = __version__
     buildVersion = VERSION + (BUILD_NUMBER,)
     
+    defaultPlugins = [tools.raw2mat,
+                      tools.filesplit]
 
     def saveAllPrefs(self, filename=None, hideFile=None):
         self.prefs.saveAllPrefs(filename, hideFile)
@@ -2825,8 +2828,9 @@ class ViewerApp(wx.App):
         self.colorDb = wx.ColourDatabase()
         
         self.prefs = Preferences(self.prefsFile, clean=clean)
-
-        self.loadPlugins()
+        
+        # TODO: get any external plugin paths, and/or collect modules.
+        self.loadPlugins(self.defaultPlugins)
 
         if loadLast and self.initialFilename is None:
             try:
@@ -2850,10 +2854,17 @@ class ViewerApp(wx.App):
 
         
 
-    def loadPlugins(self, pluginPaths=[], pluginMods=[tools.raw2mat]):
+    def loadPlugins(self, pluginPaths):
+        """ Search for and load plugin components.
+        """
         logger.info("Searching for plug-ins...")
-        self.plugins = plugins.PluginSet(pluginMods+pluginPaths, quiet=True)
-        logger.info("Found %d plug-in(s)." % len(self.plugins))
+        self.plugins = plugins.PluginSet(pluginPaths, quiet=True)
+        if DEBUG:
+            logger.info("Found %d plug-in(s):" % len(self.plugins))
+            for p in self.plugins.items():
+                logger.info(" * {}".format(p))
+        else:
+            logger.info("Found %d plug-in(s)." % len(self.plugins))
         
         if len(self.plugins.bad) > 0:
             logger.warning("!!! %d plugin(s) were 'bad'!" % len(self.plugins.bad))

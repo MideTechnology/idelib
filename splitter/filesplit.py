@@ -74,9 +74,10 @@ class SimpleUpdater(object):
         if not self.quiet:
             self.out.write(s)
             self.out.flush()
-    
+
+
     def __call__(self, count=0, total=None, percent=None, error=None, 
-                 starting=False, done=False):
+                 starting=False, done=False, **kwargs):
         
         if done:
             self.dump('\nSplitting complete!\n')
@@ -151,9 +152,10 @@ elementParserTypes = [ChannelDataBlockParser]
 #===============================================================================
 
 
-def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSize=1024*1024*10, 
-              numDigits=3, updater=nullUpdater, numUpdates=500, updateInterval=1.0,
-              parserTypes=elementParserTypes):
+def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, 
+             maxSize=1024*1024*10, numSplits=None, numDigits=3, 
+             updater=nullUpdater, numUpdates=500, updateInterval=1.0,
+             parserTypes=elementParserTypes):
     """ Import the data from a file into a Dataset.
     
         @param doc: The EBML document to split.
@@ -220,12 +222,16 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
 
     try:
         while True:
+            if updater.cancelled:
+                break
+                    
             if fs is None or fs.closed:
                 num += 1
                 fs = open(filename % num, 'wb')
                 fs.write(header)
                 filesize = len(header)
                 fileWrites = 0
+                updater(count=num, total=numSplits, filename=fs.name)
             
             raw = None
             
@@ -281,7 +287,6 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
             if filesize >= maxSize:
                 fs.close()
                 wroteFirst.clear()
-                updater(count=num)
 
             el = i.next()
             
@@ -290,8 +295,8 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
             doc.stream.substreams.clear()
 
     
-#     except IOError as e:
-    except None as e:
+    except IOError as e:
+#     except None as e:
         if e.errno is None:
             # The EBML library raises an empty IOError if it hits EOF.
             # TODO: Handle other cases of empty IOError (lots in python-ebml)
@@ -312,7 +317,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None, maxSi
 
 
 def splitFile(filename=testFile, savePath=None, basename=None, numDigits=3,
-              startTime=0, endTime=None, maxSize=1024*1024*10, 
+              startTime=0, endTime=None, maxSize=1024*1024*10, numSplits=None,
               updater=nullUpdater, numUpdates=500, updateInterval=1.0, 
               parserTypes=elementParserTypes):
     """ Wrapper function to split a file based on filename.
@@ -342,9 +347,9 @@ def splitFile(filename=testFile, savePath=None, basename=None, numDigits=3,
         doc = MideDocument(fp)
         return splitDoc(doc, savePath=savePath, basename=basename, 
                         numDigits=numDigits, startTime=startTime, 
-                        endTime=endTime, maxSize=maxSize, updater=updater, 
+                        endTime=endTime, maxSize=maxSize, numSplits=numSplits,
                         numUpdates=numUpdates, updateInterval=updateInterval, 
-                        parserTypes=parserTypes)
+                        updater=updater, parserTypes=parserTypes)
  
  
 if __name__ == '__main__':

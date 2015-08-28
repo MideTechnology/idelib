@@ -1,6 +1,8 @@
 """
-The basis of a simple plug-in architecture. Plug-ins are zip files with a
-different extension, containing at least two items:
+The basis of a simple plug-in architecture. Plug-ins can be imported modules, 
+directories, or zip files with a different extension. Directories and zips
+are imported by path (e.g. the name of the zip file) and must contain at least 
+two items:
 
   * info.json:  A JSON file containing vital information about the plugin.
                 At minimum, it must contain a `"module"` and a`"type"`. 
@@ -14,7 +16,18 @@ different extension, containing at least two items:
                 this object is what gets called when the plugin is used.
                 The name should match that of the directory or compressed
                 file.
+
+Plug-ins as imported modules are explicitly imported in Python and then wrapped
+in a `Plugin` object. They are the same as the Python in a file/directory-based
+plug-in, but the metadata is stored in a `PLUGIN_INFO` attribute (a dictionary,
+the same content as a parsed `info.json` file).
+
+Plug-ins embedded in a packaged Python app (PyInstaller, Py2Exe) are most 
+easily handled as modules.
 """
+
+__author__ = "D. R. Stokes"
+__email__ = "dstokes@mide.com"
 
 from collections import defaultdict, Sequence
 from fnmatch import fnmatch
@@ -72,21 +85,22 @@ class Plugin(object):
         The actual import of the plug-in module happens then.
         
     """
-    PLUGIN_EXT = ".plg"
+    PLUGIN_EXT = (".plg", ".zip")
     
     @classmethod
     def isPlugin(cls, p, useSource=True):
+        """ Test a given path or module for plugin-ness.
+        """
         if isinstance(p, types.ModuleType):
             return hasattr(p, "PLUGIN_INFO")
         if not isinstance(p, basestring):
-            return False
-        if not os.path.exists(p):
             return False
         if os.path.isdir(p):
             if not useSource:
                 return False
             return os.path.exists(os.path.join(p, 'info.json'))
-        return os.path.isfile(p) and os.path.splitext(p)[-1].lower() == cls.PLUGIN_EXT
+        print [p+x for x in cls.PLUGIN_EXT]
+        return any(map(os.path.exists, [p+x for x in cls.PLUGIN_EXT]))
 
 
     def __repr__(self):
@@ -100,7 +114,8 @@ class Plugin(object):
         """ Constructor. 
         
             @param path: The path to the plugin. Any file extension is
-                ignored. 
+                ignored. May also be an imported module with the proper
+                attributes.
             @keyword useSource: If `True`, an uncompressed version of the
                 plugin will be loaded if available. 
         """
@@ -109,6 +124,9 @@ class Plugin(object):
         self.main = None
         self.isModule = False
         
+        # The plugin is an imported module. Just get the relevant data from it.
+        # Module plugins are not otherwise validated, since they were imported
+        # explicitly.
         if isinstance(path, types.ModuleType):
             self.isDir = False
             self.isModule =True
@@ -121,6 +139,7 @@ class Plugin(object):
                                         path, err)
             self.module = path
             self.moduleName = path.__name__
+            self.path = path.__file__
             return
         
         # The plugin could be a directory name, or the name of a compressed
@@ -129,8 +148,9 @@ class Plugin(object):
         path = os.path.realpath(os.path.expanduser(path))
         try:
             dirPath = os.path.splitext(path)[0]
-            zipPaths = filter(os.path.isfile, (dirPath + self.PLUGIN_EXT,
-                                               dirPath + ".zip"))
+            print [dirPath + x for x in self.PLUGIN_EXT]
+            zipPaths = filter(os.path.isfile, 
+                              [dirPath + x for x in self.PLUGIN_EXT])
         except (AttributeError, TypeError) as err:
             raise PluginImportError("Bad path:", path, err)
         
@@ -237,55 +257,71 @@ class PluginSet(object):
     """ A container for `Plugin` objects. Handles loading accessing them.
     """
     
-    def __init__(self, paths, useSource=True, quiet=False):
+    @staticmethod
+    def _isWildcard(s):
+        if not isinstance(s, basestring):
+            return False
+        try:
+            return any([c in s for c in '*?[]'])
+        except TypeError:
+            return False
+
+
+    def __init__(self, paths=None, useSource=True, quiet=False):
+        """ Constructor. 
+        
+            @keyword paths: The path to a plugin file or directory, an imported
+                module containing a plugin, or a collection of the two. Paths
+                may contain glob-style wildcards.
+            @keyword useSource: If `True`, unpackaged plugin directories will
+                be imported in favor of the packaged versions. 
+            @keyword quiet: If `True`, plugin import errors will be suppressed.
+                Bad imports will be added to the object's `bad` and `dupes` 
+                lists.
         """
-        """
-        if isinstance(paths, basestring):
-            paths = paths.split(os.pathsep)
-        
-        mods = [p for p in paths if isinstance(p, types.ModuleType)]
-        dirs = []
-        map(dirs.extend, 
-            map(glob, [p for p in paths if isinstance(p, basestring)]))
-        
-        if not useSource:
-            dirs = filter(lambda x: Plugin.isPlugin(x, useSource=False), dirs)
-        else:
-            dirs = filter(Plugin.isPlugin, dirs)
-        
         self.plugins = {}
         self.pluginTypes = defaultdict(list)
         self.bad = []
         self.dupes = []
+
+        if paths is None:
+            return        
+        self.add(paths, useSource=useSource, quiet=quiet)
         
-        for d in mods+dirs:
-            self.add(d, useSource=useSource, quiet=quiet)
 
-
-    def add(self, path, useSource=True, quiet=False):
+    def add(self, paths, useSource=True, quiet=False):
         """ Add one or more plugins. The plugin will be imported but not
             loaded (i.e. its `load()` method will not be called).
+            
+            @param paths: The path to a plugin file or directory, an imported
+                module containing a plugin, or a collection of the two. Paths
+                may contain glob-style wildcards.
+            @keyword useSource: If `True`, unpackaged plugin directories will
+                be imported in favor of the packaged versions. 
+            @keyword quiet: If `True`, plugin import errors will be suppressed.
+                Bad imports will be added to the object's `bad` and `dupes` 
+                lists, regardless.
         """
-        err = None
-        if isinstance(path, (list, tuple)):
-            for p in path:
-                self.add(p, useSource=useSource, quiet=quiet)
-            return
+        if isinstance(paths, basestring) or not isinstance(paths, Sequence):
+            paths = [paths]
         
-        try:
-            if isinstance(path, Plugin):
-                p = path
-            else:
+        map(paths.extend, map(glob, [p for p in paths if self._isWildcard(p)]))
+        
+        err = None
+        for path in paths:
+            if not Plugin.isPlugin(path):
+                continue
+            try:
                 p = Plugin(path, useSource=useSource)
-            if p.moduleName in self.plugins:
+                if p.moduleName in self.plugins:
+                    self.dupes.append(path)
+                else:
+                    self.plugins[p.moduleName] = p
+                    self.pluginTypes[p.type].append(p)
+            except PluginDupeError as err:
                 self.dupes.append(path)
-            else:
-                self.plugins[p.moduleName] = p
-                self.pluginTypes[p.type].append(p)
-        except PluginDupeError as err:
-            self.dupes.append(path)
-        except PluginImportError as err:
-            self.bad.append((path, err))
+            except PluginImportError as err:
+                self.bad.append((path, err))
         
         if not quiet and err is not None:
             raise err
@@ -295,10 +331,27 @@ class PluginSet(object):
         return len(self.plugins)
    
    
-    def __get__(self, k):
+    def __getitem__(self, k):
         return self.plugins[k]
 
+    def get(self, *args, **kwargs):
+        return self.plugins.get(*args, **kwargs)
+    
+    def items(self):
+        return self.plugins.items()
 
+    def keys(self):
+        return self.plugins.keys()
+
+    def values(self):
+        return self.plugins.values()
+    
+    def __iter__(self, *args, **kwargs):
+        return self.plugins.__iter__(*args, **kwargs)
+    
+    def __contains__(self, k):
+        return self.plugins.__contains__(k)
+    
     @property
     def types(self):
         """ Return a list of all plugin types.
@@ -347,16 +400,51 @@ class PluginSet(object):
             @return: The loaded plugin, or a list of loaded plugins if 
                 `plug` was a list.
         """
-        ex = (KeyError, PluginImportError) if quiet else None
+        err = None
         try:
             if isinstance(plug, basestring):
                 return self.plugins[plug].load(*args, **kwargs)
             elif isinstance(plug, Sequence):
-                return filter(None, map(partial(self.load, args=args, kwargs=kwargs, quiet=quiet), plug))
+                load = partial(self.load, args=args, kwargs=kwargs, quiet=quiet)
+                return filter(None, map(load, plug))
             else:
                 return plug.load(*args, **kwargs)
-        except ex as err:
-            if isinstance(err, PluginImportError):
-                self.bad.append((plug, err))
-            return None
+        except (KeyError, PluginImportError) as err:
+            self.bad.append((plug, err))
+        
+        if err is not None and not quiet:
+            raise err
 
+
+#===============================================================================
+# 
+#===============================================================================
+
+def makeInfo(mod):
+    """ Utility function to generate the data for an plugin's `info.json` file.
+    """
+    ignore = ('__name__',)
+    items = {}
+    if isinstance(mod, basestring):
+        if os.path.exists(mod):
+            # A module name or a path
+            modName = os.path.splitext(os.path.basename(mod.strip('\\/')))[0]
+            if os.path.isdir(mod):
+                infoFile = os.path.join(mod, 'info.json')
+                if os.path.isfile(infoFile):
+                    with open(infoFile, "rb") as f:
+                        print "reading JSON"
+                        items = json.load(f)
+                modName = items.get('moduleName', modName)
+                mod = os.path.join(mod, modName+".py")
+            
+            mod = imp.load_source(modName, mod)
+        else:
+            import importlib
+            mod = importlib.import_module(mod)
+    headerInfo = [x for x in dir(mod) if x.startswith('__') and x not in ignore]
+    items.update({x.strip('_'): getattr(mod, x) for x in headerInfo if isinstance(getattr(mod, x), basestring)})
+    items['moduleName'] = mod.__name__
+    if hasattr(mod, "PLUGIN_INFO"):
+        items.update(mod.PLUGIN_INFO)
+    return items

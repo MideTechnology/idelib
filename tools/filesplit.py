@@ -1,9 +1,11 @@
 '''
-Created on Aug 11, 2015
+Created on Aug 28, 2015
 
 @author: dstokes
 '''
+
 import locale
+import math
 import os.path
 import sys
 import time
@@ -13,12 +15,11 @@ from wx.lib.dialogs import ScrolledMessageDialog
 import wx.lib.filebrowsebutton as FB
 import wx.lib.sized_controls as SC
 
-from mide_ebml.matfile import MatStream
-
 from tools.base import ToolDialog
+from tools.raw2mat import ModalExportProgress
 from widgets.multifile import MultiFileSelect
 
-from ide2mat.raw2mat import raw2mat
+from splitter.filesplit import splitFile
 
 #===============================================================================
 # 
@@ -32,7 +33,7 @@ __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
 
 PLUGIN_INFO = {"type": "tool",
-               "name": "Raw Data to .MAT Utility",
+               "name": "Split IDE Files",
                }
 
 
@@ -40,33 +41,10 @@ PLUGIN_INFO = {"type": "tool",
 # 
 #===============================================================================
 
-class ModalExportProgress(wx.ProgressDialog):
+class SplitterExportProgress(ModalExportProgress):
     """ Subclass of the standard progress dialog, implementing the __call__
         method and other attributes needed for a callback (like the Loader).
     """
-    def __init__(self, *args, **kwargs):
-        self.cancelled = False
-        self.message = kwargs.pop('message', 'Processing...')
-        self.precision = kwargs.pop('precision', 0)
-        style = wx.PD_CAN_ABORT|wx.PD_APP_MODAL|wx.PD_REMAINING_TIME
-        kwargs.setdefault("style", style)
-        kwargs.setdefault('maximum', 1000)
-        super(ModalExportProgress, self).__init__(*args, **kwargs)
-        self.outputFiles = set()
-        self.reset()
-        
-    
-    def reset(self):
-        self.startTime = None
-        self.cancelled = False
-        self.lastPercent = 0.0
-        
-        if self.precision == 0:
-            self.formatter = " %d%%"
-        else:
-            self.formatter = " %%.%df%%%%" % self.precision
-
-
     def __call__(self, count=0, percent=None, total=None, error=None, 
                  starting=False, done=False, message=None, filename=None):
         if starting or done:
@@ -84,21 +62,18 @@ class ModalExportProgress(wx.ProgressDialog):
 
         msg = self.message or message
         if filename is not None:
-            msg = "%s\nWriting %s\n" % (msg, filename)
+            msg = "%s\nWriting %s" % (msg, filename)
 
         countStr = locale.format("%d", count, grouping=True)
-        percentStr = self.formatter % (percent * 100)
         if total:
             totalStr = locale.format("%d", total, grouping=True)
-            msg = "%s\nExported %s of %s samples (%s)" % (msg,  
-                                                     countStr, totalStr, percentStr)
         else:
-            msg = "%s\nExported %s samples (%s)" % (msg, 
-                                              countStr, percentStr)
+            totalStr = "?"
+        msg = "%s (%s of %s)" % (msg, countStr, totalStr)
         
-        dt = time.time() - self.startTime
-        if dt > 0.0:
-            msg = "%s - %s samples/sec." % (msg, locale.format("%d", count/dt, grouping=True))
+#         dt = time.time() - self.startTime
+#         if dt > 0.0:
+#             msg = "%s - %s samples/sec." % (msg, locale.format("%d", count/dt, grouping=True))
 
         keepGoing, skip = super(ModalExportProgress, self).Update(int(percent*1000), msg)
         self.cancelled = not keepGoing
@@ -106,7 +81,7 @@ class ModalExportProgress(wx.ProgressDialog):
         
         if filename is not None:
             self.outputFiles.add(filename)
-            
+
         return keepGoing, skip
 
 
@@ -114,14 +89,14 @@ class ModalExportProgress(wx.ProgressDialog):
 # 
 #===============================================================================
 
-class Raw2Mat(ToolDialog):
+class IdeSplitter(ToolDialog):
     """ The main dialog. The plan is for all tools to implement a ToolDialog,
         so the tools can be found and started in a generic manner.
     """
-    TITLE = "Raw Data to .MAT Utility"
+    TITLE = "IDE File Splitter"
     
     def __init__(self, *args, **kwargs):
-        super(Raw2Mat, self).__init__(*args, **kwargs)
+        super(IdeSplitter, self).__init__(*args, **kwargs)
 
         pane = self.GetContentsPane()
         
@@ -156,15 +131,14 @@ class Raw2Mat(ToolDialog):
             tooltip=("The length of time from the start to export. "
                      "Cannot be used with End Time."))
         self.maxSize = self.addIntField(subpane, "Max. File Size:", "MB", 
-            name="maxSize", value=MatStream.MAX_SIZE/1024/1024, 
-            minmax=(16, MatStream.MAX_LENGTH/1024/1024),
-            tooltip="The maximum size of each MAT file. Must be below 2GB.")
+            name="maxSize", value=16, minmax=(1, 1024*1024*10),
+            tooltip=("The maximum size of each generated file. "
+                     "Cannot be used if a number of files is specified."))
+        self.numSplits = self.addIntField(subpane, "Total number of files:", 
+            name="numSplits", value=16, minmax=(1, sys.maxint),
+            tooltip=("The maximum size of each generated file. "
+                     "Cannot be used if a number of files is specified."))
     
-        subpane = SC.SizedPanel(pane, -1)
-        subpane.SetSizerType('form')
-        subpane.SetSizerProps(expand=True)
-        self.allCal = self.addCheck(subpane, "Export All Calibration Polynomials")
-        
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
         self.okBtn = self.FindWindowById(wx.ID_OK)
         self.cancelBtn = self.FindWindowById(wx.ID_CANCEL)
@@ -173,7 +147,7 @@ class Raw2Mat(ToolDialog):
         if self.setValue(self.endTime, self.getPref("endTime", None)) is None:
             self.setValue(self.duration, self.getPref("duration", None))
         self.setValue(self.maxSize, self.getPref("maxSize", None))
-        self.setCheck(self.allCal, self.getPref("allCal", False))
+        self.setValue(self.numSplits, self.getPref("numSplits", None))
         
         self.okBtn.Bind(wx.EVT_BUTTON, self.run)
         
@@ -189,7 +163,7 @@ class Raw2Mat(ToolDialog):
     def OnCheck(self, evt):
         """ Handle all checkbox events. Bound in base class.
         """
-        super(Raw2Mat, self).OnCheck(evt)
+        super(IdeSplitter, self).OnCheck(evt)
         obj = evt.EventObject
         if obj.IsChecked():
             # end time and duration are mutually exclusive
@@ -197,10 +171,14 @@ class Raw2Mat(ToolDialog):
                 self.setCheck(self.duration, False)
             elif obj == self.duration:
                 self.setCheck(self.endTime, False)
+            elif obj == self.maxSize:
+                self.setCheck(self.numSplits, False)
+            elif obj == self.numSplits:
+                self.setCheck(self.maxSize, False)
     
     
     def savePrefs(self):
-        for c in (self.startTime, self.endTime, self.duration, self.maxSize):
+        for c in (self.startTime, self.endTime, self.duration, self.maxSize, self.numSplits):
             name = c.GetName()
             v = self.getValue(c)
             if v is not False:
@@ -208,7 +186,6 @@ class Raw2Mat(ToolDialog):
             else:
                 self.deletePref(name)
         
-        self.setPref('allCal', self.allCal.GetValue())
         self.setPref('outputPath', self.outputBtn.GetValue())
         
         paths = self.inputFiles.GetPaths()
@@ -229,41 +206,52 @@ class Raw2Mat(ToolDialog):
         startTime = self.getValue(self.startTime) or 0
         endTime = self.getValue(self.endTime) or None
         duration = self.getValue(self.duration) or None
-        maxSize = (self.getValue(self.maxSize) * 1024) or MatStream.MAX_SIZE
-        writeCal = self.allCal.GetValue()
+        maxSize = self.getValue(self.maxSize) or 16
+        numSplits = self.getValue(self.numSplits) or None
         
         if duration:
             endTime = startTime + duration
         endTime = endTime or None
-        
-        updater = ModalExportProgress(self.GetTitle(), "Converting...\n\n", 
+
+        updater = SplitterExportProgress(self.GetTitle(), "Splitting...\n\n...", 
                                       parent=self)
         
         exported = set()
         processed = set()
-        totalSamples = 0
+        totalFiles = 0
         
         for n, f in enumerate(sourceFiles, 1):
+            if numSplits is not None:
+                splits = numSplits
+                size = max(1024*1024,int(math.ceil(os.path.getsize(f)/(numSplits+0.0))))
+            else:
+                size = maxSize * 1024 * 1024
+                splits = int(math.ceil(os.path.getsize(f)/(size+0.0)))
+    
+            numDigits = max(2, len(str(splits)))
+            
+            savePath = output if output is not None else os.path.dirname(f)
+            
             b = os.path.basename(f)
-            updater.message = "Converting %s (file %d of %d)" % (b, n, numFiles)
+            updater.message = "Splitting %s (file %d of %d)" % (b, n, numFiles)
             updater.precision = max(0, min(2, (len(str(os.path.getsize(f)))/2)-1))
             updater(starting=True)
+            
             try:
-                totalSamples += raw2mat(f, matFilename=output, maxSize=maxSize,
-                                        startTime=startTime, endTime=endTime,
-                                        writeCal=writeCal, updater=updater,
-                                        out=None)
+                totalFiles += splitFile(f, savePath=savePath, 
+                                        startTime=startTime, endTime=endTime, 
+                                        maxSize=size, numSplits=splits, 
+                                        numDigits=numDigits, 
+                                        updater=updater)
                 processed.add(f)
             except Exception as err:
                 # TODO: Handle this exception for real!
                 msg = err.message
                 if n < numFiles:
                     # Not the last file; ask to abort.
-                    msg = "%s\n\nContinue exporting next file?" % msg
-                    x = wx.MessageBox(msg, 
-                                      "Error", 
-                                      wx.YES_NO | wx.ICON_ERROR,
-                                      parent=updater)
+                    msg = "%s\n\nContinue processing next file?" % msg
+                    x = wx.MessageBox(msg, "Error", 
+                                      wx.YES_NO | wx.ICON_ERROR, parent=updater)
                     if x == wx.ID_NO:
                         # Cancel the remaining exports.
                         break
@@ -272,7 +260,7 @@ class Raw2Mat(ToolDialog):
                         # Make sure progress dialog is in the foreground
                         exported.update(updater.outputFiles)
                         updater.Destroy()
-                        updater = ModalExportProgress(self.GetTitle(), 
+                        updater = SplitterExportProgress(self.GetTitle(), 
                                                       updater.message, 
                                                       parent=self)
                 else:
@@ -290,7 +278,7 @@ class Raw2Mat(ToolDialog):
         bulleted = lambda x: " * {}".format(x)
         processed = '\n'.join(map(bulleted, sorted(processed))) or "None"
         exported = '\n'.join(map(bulleted, sorted(exported))) or "None"
-        msg = "Files processed:\n%s\n\nFiles generated:\n%s\n\nTotal samples exported: %d" % (processed, exported, totalSamples)
+        msg = "Files processed:\n%s\n\nFiles generated:\n%s" % (processed, exported)
         dlg = ScrolledMessageDialog(self, msg, "%s: Complete" % self.GetTitle())
         dlg.ShowModal()
 
@@ -301,7 +289,7 @@ class Raw2Mat(ToolDialog):
 #===============================================================================
 
 def launch(parent=None):
-    dlg = Raw2Mat(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+    dlg = IdeSplitter(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
     dlg.ShowModal()
     
 
@@ -335,7 +323,7 @@ def test(*args, **kwargs):
 
         
     _app = TestApp()
-    dlg = Raw2Mat(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+    dlg = IdeSplitter(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
     dlg.ShowModal()
     print dlg.GetSize()
 
