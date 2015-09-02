@@ -6,7 +6,6 @@ Created on Sep 2, 2015
 from fnmatch import fnmatch
 import io
 import json
-import os
 import struct
 import time
 
@@ -18,6 +17,9 @@ import wx
 import wx.lib.sized_controls as SC
 
 import xmodem
+
+import device_dialog
+import devices
 from logger import logger
 
 #===============================================================================
@@ -188,9 +190,12 @@ class FirmwareUpdater(object):
 
     def sendCommand(self, command, response='Ready'):
         """ Send a command byte.
+        
             @param command: The bootloader command character, one of 
-                `iudtpblvcnmr`. See SiLabs EFM32 Bootloader docs.
-            @keyword response: The expected response. Method returns `False`
+                `bcdilmnprtuv`. See SiLabs EFM32 Bootloader docs.
+            @keyword response: The expected response. Can be a glob-style
+                wildcard.
+            @return: `True` if the response matches `response`, `False`
                 if the command gets a different response.
         """
         self.myPort.write(command[0]) # make sure it is 1 character.
@@ -261,23 +266,25 @@ class FirmwareUpdater(object):
         """
     
         PAGE_SIZE = 2048
+        
         manSize = len(manifest)
+        manOffset = 0x0010 # 16 byte offset from start
         calSize = len(caldata)
+        calOffset =  manOffset + manSize #0x0400 # 1k offset from start
         propsSize = len(recprops)
-        MANIFEST_OFFSET = 0x0010 # 16 byte offset from start
-        CALDATA_OFFSET =  MANIFEST_OFFSET + manSize #0x0400 # 1k offset from start
-        RECPROPS_OFFSET = CALDATA_OFFSET + calSize
+        propsOffset = calOffset + calSize
     
         data = struct.pack("<HHHHHH", 
-                           MANIFEST_OFFSET, manSize, 
-                           CALDATA_OFFSET, calSize,
-                           RECPROPS_OFFSET, propsSize)
+                           manOffset, manSize, 
+                           calOffset, calSize,
+                           propsOffset, propsSize)
         data = bytearray(data.ljust(PAGE_SIZE, '\x00'))
-        data[MANIFEST_OFFSET:MANIFEST_OFFSET+manSize] = manifest
-        data[CALDATA_OFFSET:CALDATA_OFFSET+calSize] = caldata
-        data[RECPROPS_OFFSET:RECPROPS_OFFSET+propsSize] = recprops
+        data[manOffset:manOffset+manSize] = manifest
+        data[calOffset:calOffset+calSize] = caldata
+        data[propsOffset:propsOffset+propsSize] = recprops
         
         if len(data) != PAGE_SIZE:
+            # Probably can never happen, but just in case...
             raise ValueError("Userpage block was %d bytes; should be %d" % \
                              (len(data), PAGE_SIZE))
         
@@ -336,6 +343,7 @@ class FirmwareUpdaterDialog(SC.SizedDialog):
         
         kwargs.setdefault('style', style)
         self.device = kwargs.pop('device', None)
+        self.fwFile = kwargs.pop('filename', None)
         super(FirmwareUpdaterDialog, self).__init__(*args, **kwargs)
         
         if self.TITLE and not self.GetTitle():
@@ -343,10 +351,51 @@ class FirmwareUpdaterDialog(SC.SizedDialog):
             
         self.app = wx.GetApp()
         self.prefSection = "tools.%s" % self.__class__.__name__
-        self.updater = FirmwareUpdater(device=self.device)
-
+        
+        if self.device is None:
+            self.device = device_dialog.selectDevice(hideClock=True)
+        
+        
+        if self.fwFile is None:
+            dlg = wx.FileDialog(self, message="Select a Slam Stick Firmware File",
+                                wildcard="Slam Stick Firmware Package (*.fw)|*.fw",
+                                style=wx.OPEN | wx.CHANGE_DIR)
+            if dlg.ShowModal() == wx.ID_OK:
+                self.fwFile = dlg.GetPath()
+            dlg.Destroy()
+            print self.fwFile
+#         self.updater = FirmwareUpdater(device=self.device)
 
 #===============================================================================
 # 
 #===============================================================================
 
+def updateFirmware(parent=None, device=None, filename=None):
+    """
+    """
+    if device is None:
+        device = device_dialog.selectDevice(parent=parent, hideClock=True)
+    if device is None:
+        return False
+    if len(devices.getDevices()) > 1:
+        # warn user.
+        wx.MessageBox("Too many recorders!\n\nWarning text.", "Update Firmware")
+    if filename is None:
+        dlg = wx.FileDialog(parent, message="Select a Slam Stick Firmware File",
+                            wildcard="MIDE Firmware Package (*.fw)|*.fw",
+                            style=wx.OPEN | wx.CHANGE_DIR)
+        if dlg.ShowModal() == wx.ID_OK:
+            filename = dlg.GetPath()
+        dlg.Destroy()
+    if filename is None:
+        return False
+    
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == '__main__':
+    app = wx.App()
+    updateFirmware()
+#     dlg = FirmwareUpdaterDialog(None)
+#     dlg.ShowModal()

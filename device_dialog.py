@@ -57,7 +57,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             | wx.MINIMIZE_BOX \
             | wx.DIALOG_EX_CONTEXTHELP \
             | wx.SYSTEM_MENU
-            
+        
         self.root = kwargs.pop('root', None)
         self.autoUpdate = kwargs.pop('autoUpdate', 500)
         kwargs.setdefault('style', style)
@@ -303,7 +303,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 # 
 #===============================================================================
 
-def selectDevice(title="Select Recorder", autoUpdate=1000, parent=None):
+def selectDevice(title="Select Recorder", autoUpdate=1000, parent=None,
+                 hideClock=False):
     """ Display a device-selection dialog and return the path to a recorder.
         The dialog will (optionally) update automatically when devices are
         added or removed.
@@ -315,6 +316,8 @@ def selectDevice(title="Select Recorder", autoUpdate=1000, parent=None):
     """
     result = None
     dlg = DeviceSelectionDialog(parent, -1, title, autoUpdate=autoUpdate)
+    if hideClock:
+        dlg.setClockButton.Hide()
     
     if dlg.ShowModal() == wx.ID_OK:
         result = dlg.getSelected()
@@ -332,6 +335,6 @@ def selectDevice(title="Select Recorder", autoUpdate=1000, parent=None):
 if __name__ == '__main__':
     app = wx.App()
     
-    result = selectDevice()
+    result = selectDevice(hideClock=True)
     print result
     
