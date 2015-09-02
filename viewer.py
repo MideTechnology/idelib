@@ -935,6 +935,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         #=======================================================================
         #
+        self.toolPlugins = {}
         if self.app.plugins is not None:
             tools = self.app.plugins.find(type='tool', isModule=True)
             extTools = self.app.plugins.find(type='tool', isModule=False)
@@ -942,15 +943,17 @@ class Viewer(wx.Frame, MenuMixin):
                 tools.sort(key=lambda x: x.name)
                 toolMenu = self.addMenu(self.menubar, "Tools")
                 for t in tools:
-                    self.addMenuItem(toolMenu, 
-                                     t.info.setdefault('wxId', wx.NewId()),
-                                     t.name, "", self.OnToolMenuSelection)
+                    tid = t.info.setdefault('wxId', wx.NewId())
+                    self.toolPlugins[tid] = t
+                    self.addMenuItem(toolMenu, tid, t.name, "", 
+                                     self.OnToolMenuSelection)
                 if extTools:
                     toolMenu.AppendSeparator()
                     for t in extTools:
-                        self.addMenuItem(toolMenu, 
-                                         t.info.setdefault('wxId', wx.NewId()),
-                                         t.name, "", self.OnToolMenuSelection)
+                        tid = t.info.setdefault('wxId', wx.NewId())
+                        self.toolPlugins[tid] = t
+                        self.addMenuItem(toolMenu, tid, t.name, "", 
+                                         self.OnToolMenuSelection)
             
               
         
@@ -2828,8 +2831,6 @@ class ViewerApp(wx.App):
         clean = kwargs.pop('clean', False)
         safeMode = kwargs.pop('safe', False)
         loadLast = kwargs.pop('loadLastFile', False)
-                    
-        logger.info("Starting in SAFE MODE. No plug-ins will be loaded.")
         
         super(ViewerApp, self).__init__(*args, **kwargs)
         
@@ -2843,7 +2844,9 @@ class ViewerApp(wx.App):
         self.prefs = Preferences(self.prefsFile, clean=(clean or safeMode))
         self.plugins = None
         
-        if not safeMode:
+        if safeMode:
+            logger.info("Starting in SAFE MODE. No plug-ins will be loaded.")
+        else:
             self.loadPlugins()
 
         if loadLast and self.initialFilename is None:
@@ -2866,13 +2869,13 @@ class ViewerApp(wx.App):
         if self.getPref('updater.interval',3) > 0:
             updater.startCheckUpdatesThread(self)
 
-        
 
     def loadPlugins(self):
         """ Search for and load plugin components.
         """
         logger.info("Searching for plug-ins...")
-        self.plugins = plugins.PluginSet(self.defaultPlugins, quiet=True)
+        self.plugins = plugins.PluginSet(self.defaultPlugins, app=APPNAME, 
+                                         appVersion=VERSION, quiet=True)
         numPlugins = len(self.plugins)
         logger.info("Found %d standard plug-in(s)" % numPlugins)
 
@@ -2884,7 +2887,7 @@ class ViewerApp(wx.App):
         if self.getPref('plugins.loadUserPlugins', False):
             dirs = [os.path.join(self.docsDir, 'plugins', '*')]
             dirs.extend(self.getPref('plugins.searchPaths', []))
-            self.plugins.add(dirs, quiet=True)
+            self.plugins.add(dirs, app=APPNAME, appVersion=VERSION, quiet=True)
             newNum = len(self.plugins) - numPlugins
             logger.info("Found %d external plug-in(s)" % newNum)
             
@@ -2895,6 +2898,9 @@ class ViewerApp(wx.App):
         else:
             logger.info("External plug-ins disabled.")
 
+        # TODO: Better reporting of bad/incompatible plugins
+        if len(self.plugins.incompatible) > 0:
+            logger.warning("%d incompatible plugin(s) were skipped!" % len(self.plugins.incompatible))
         
         if len(self.plugins.bad) > 0:
             logger.warning("!!! %d plugin(s) were 'bad'!" % len(self.plugins.bad))

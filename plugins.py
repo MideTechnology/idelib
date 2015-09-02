@@ -24,6 +24,14 @@ the same content as a parsed `info.json` file).
 
 Plug-ins embedded in a packaged Python app (PyInstaller, Py2Exe) are most 
 easily handled as modules.
+
+Additional, optional keys in `info.json` or `PLUGIN_INFO`:
+  * app (string): The name of the app for which the plug-in was written. May
+      contain glob-style wildcards.
+  * minVersion (tuple/list of integers): The minimum version of the app with
+      which the plug-in is compatible. 
+  * maxVersion (tuple/list of integers): The maximum version of the app with
+      which the plug-in is compatible. 
 """
 
 __author__ = "D. R. Stokes"
@@ -71,6 +79,9 @@ class PluginDupeError(PluginValidationError):
     """ Raised when a plug-in conflicts with an existing plug-in or module.
     """
 
+class PluginCompatibilityError(PluginImportError):
+    """
+    """
 
 #===============================================================================
 # 
@@ -103,6 +114,26 @@ class Plugin(object):
         return any(map(os.path.isfile, [p+x for x in cls.PLUGIN_EXT]))
 
 
+    @staticmethod
+    def isNewer(v1, v2):
+        """ Compare two sets of version numbers `(major, [minor,] [micro])`.
+        """
+        if v1 is None or v2 is None:
+            return False
+        if v1 == v2:
+            return False
+        try:
+            for v,u in zip(v1,v2):
+                if v == u:
+                    continue
+                else:
+                    return v > u
+        except TypeError:
+            return False
+        
+        return False
+    
+
     def __repr__(self):
         args = (self.__class__.__name__, self.moduleName, self.path)
         if self.loaded:
@@ -112,7 +143,7 @@ class Plugin(object):
         return r.encode('ascii', 'replace')
     
     
-    def __init__(self, path, useSource=True):
+    def __init__(self, path, useSource=True, app=None, appVersion=None):
         """ Constructor. 
         
             @param path: The path to the plugin. Any file extension is
@@ -124,6 +155,7 @@ class Plugin(object):
         self.loaded = False
         self.module = None
         self.main = None
+        self.moduleName = None
         self.isModule = False
         
         # The plugin is an imported module. Just get the relevant data from it.
@@ -134,7 +166,6 @@ class Plugin(object):
             self.isModule =True
             try:
                 self.info = path.PLUGIN_INFO.copy()
-                self.name = self.info['name']
                 self.type = self.info['type']
             except (KeyError, AttributeError) as err:
                 raise PluginImportError('Could not find plugin info in', 
@@ -142,6 +173,8 @@ class Plugin(object):
             self.module = path
             self.moduleName = path.__name__
             self.path = path.__file__
+            
+            self.validate(app, appVersion)
             return
         
         # The plugin could be a directory name, or the name of a compressed
@@ -187,13 +220,42 @@ class Plugin(object):
         # Validate the plugin, using information from the info file.
         # TODO: This. Maybe check signatures or something for security.
         # TODO: Possibly store list of dependencies, like `setup.py` scripts.
+        self.validate(app, appVersion)
+
+
+    def validate(self, app=None, appVersion=None):
+        """ Validate the plugin, using information from the info file. Also sets
+            a couple of attributes.
+        """
+        # Get requisite data from the plugin info
         try:
             self.type = self.info['type']
-            self.moduleName = self.info['module']
-        except KeyError as err:
-            raise PluginValidationError("Could not validate plugin", 
-                                        self.path, err)
+            if self.moduleName is None:
+                self.moduleName = self.info['module']
+            self.name = self.info.get('name', self.moduleName)
+        except (KeyError, AttributeError) as err:
+            raise PluginImportError('Could not find plugin info in', 
+                                    self.path, err)
+
+        # Check for compatibility with app.
+        if app is not None and 'app' in self.info:
+            if not fnmatch(app, self.info['app']):
+                raise PluginCompatibilityError(
+                    "Plugin is for %r, not %r" % (self.info['app'], app),
+                    self.path)
         
+        # Check for compatibility with version
+        if appVersion is not None:
+            if self.isNewer(self.info.get('minVersion', None), appVersion):
+                raise PluginCompatibilityError(
+                    "Plugin requires version %r or later, not %r" % \
+                    (self.info['minVersion'], appVersion), self.path)
+            if self.isNewer(appVersion, self.info.get('maxVersion', None)):
+                raise PluginCompatibilityError(
+                    "Plugin requires version %r or older, not %r" % \
+                    (self.info['maxVersion'], appVersion), self.path)
+        
+        # Check for duplicate modules
         try:
             imp.find_module(self.moduleName)
             raise PluginDupeError("Plugin module name %r already in use" % \
@@ -202,7 +264,7 @@ class Plugin(object):
             # This is good: the module doesn't already exist.
             pass
         
-        self.name = self.info.get('name', self.moduleName)
+        # TODO: Additional validation (check signatures, etc.)
         
 
     def load(self, *args, **kwargs):
@@ -268,7 +330,8 @@ class PluginSet(object):
             return False
 
 
-    def __init__(self, paths=None, useSource=True, quiet=False):
+    def __init__(self, paths=None, app=None, appVersion=None, useSource=True, 
+                 quiet=False):
         """ Constructor. 
         
             @keyword paths: The path to a plugin file or directory, an imported
@@ -284,13 +347,16 @@ class PluginSet(object):
         self.pluginTypes = defaultdict(list)
         self.bad = []
         self.dupes = []
+        self.incompatible = []
 
         if paths is None:
-            return        
-        self.add(paths, useSource=useSource, quiet=quiet)
+            return
+        
+        self.add(paths, app=app, appVersion=appVersion, useSource=useSource, 
+                 quiet=quiet)
         
 
-    def add(self, paths, useSource=True, quiet=False):
+    def add(self, paths, app=None, appVersion=None, useSource=True, quiet=False):
         """ Add one or more plugins. The plugin will be imported but not
             loaded (i.e. its `load()` method will not be called).
             
@@ -313,12 +379,14 @@ class PluginSet(object):
             if not Plugin.isPlugin(path):
                 continue
             try:
-                p = Plugin(path, useSource=useSource)
+                p = Plugin(path, app=app, appVersion=appVersion, useSource=useSource)
                 if p.moduleName in self.plugins:
                     self.dupes.append(path)
                 else:
                     self.plugins[p.moduleName] = p
                     self.pluginTypes[p.type].append(p)
+            except PluginCompatibilityError as err:
+                self.incompatible.append((path, err))
             except PluginDupeError as err:
                 self.dupes.append(path)
             except PluginImportError as err:
