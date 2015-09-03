@@ -489,6 +489,15 @@ class SlamStickX(Recorder):
         if c is None:
             return self.getFactoryCalPolynomials(refresh=refresh)
 
+    
+    def getProperties(self, refresh=False):
+        """ Get the raw Recording Properties from the device. 
+        """
+        # TODO: Optimize. Cache data like getManifest and such.
+        self.getManifest(refresh=refresh)
+        data = util.read_ebml(StringIO(self._propData), schema=schema_mide)
+        return data.get('RecordingProperties', {})
+        
 
     def getSensors(self, refresh=False):
         """ Get the recorder sensor description data.

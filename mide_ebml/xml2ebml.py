@@ -10,6 +10,7 @@ import argparse
 import os.path
 from StringIO import StringIO
 import xml.dom.minidom
+import xml.sax.saxutils
 
 from ebml import core as ebml_core
 from util import getSchemaElements, getSchemaDocument, getElementSizes, ENCODERS
@@ -142,6 +143,7 @@ def dumpXmlElement(el, indent=0, tabsize=4):
             val = unicode(str(el.value), "utf8")
         except UnicodeDecodeError:
             val = repr(str(val))[1:-1]
+        val = xml.sax.saxutils.escape(val)
     return u'%s<%s offset="%d" size="%s" value="%s" />' % \
         (tab, el.name, el.stream.offset, el.size, val)
 

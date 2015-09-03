@@ -1,4 +1,7 @@
 '''
+
+TODO: Make sure all data is loaded/generated before anything gets uploaded.
+
 Created on Sep 2, 2015
 
 @author: dstokes
@@ -6,6 +9,7 @@ Created on Sep 2, 2015
 from fnmatch import fnmatch
 import io
 import json
+import os.path
 import struct
 import time
 
@@ -21,14 +25,43 @@ import xmodem
 import device_dialog
 import devices
 from logger import logger
+from mide_ebml import util
+import mide_ebml.ebml.schema.mide as schema_mide
+import mide_ebml.ebml.schema.manifest as schema_manifest
+
+from updater import isNewer
+
+#===============================================================================
+# 
+#===============================================================================
+
+def findItem(container, path):
+    d = container
+    for key in path.strip("\n\r\t /").split('/'):
+        try:
+            d = d[key]
+        except TypeError:
+            d = d[int(key)]
+    return d
+
+
+def changeItem(container, path, val):
+    p, k = os.path.split(path.strip("\n\r\t /"))
+    return findItem(p)[k]
+
 
 #===============================================================================
 # 
 #===============================================================================
 
 class ValidationError(ValueError):
+    """ Exception raised when the firmware package fails validation. Mainly
+        provides an easy way to differentiate from other exceptions that can
+        be raised, as several failure conditions natively raise the same type.
     """
-    """
+    def __init__(self, msg, exception=None):
+        super(ValidationError, self).__init__(msg)
+        self.exception = exception
 
 #===============================================================================
 # 
@@ -42,6 +75,8 @@ class FirmwareUpdater(object):
         Firmware files are zips containing the firmware binary plus additional
         metadata.
     """
+    
+    PACKAGE_FORMAT_VERSION = 1
     
     MIN_FILE_SIZE = 1024
 
@@ -70,12 +105,17 @@ class FirmwareUpdater(object):
         self.filename = filename
         self.password = self.ZIPPW
         self.info = None
+        self.releaseNotes = None
         self.fwBin = None
         self.bootBin = None
         self.lastResponse = None
         
-        if self.device is not None:
-            pass
+#         if self.device is not None:
+#             self.manifest = device.getManifest()
+#             self.cal = device.getFactoryCalPolynomials()
+#             self.props = device.getProperties()
+#         else:
+#             self.manifest = self.cal = self.props = None
         
         if filename is not None:
             self.openFirmwareFile(filename, self.password, strict)
@@ -84,8 +124,6 @@ class FirmwareUpdater(object):
     #===========================================================================
     # 
     #===========================================================================
-    
-    
     
     def _readItem(self, z, name, pw=None):
         """ Helper method to read an item from a zip. """
@@ -104,46 +142,96 @@ class FirmwareUpdater(object):
         bootBin = None
         
         with zipfile.ZipFile(filename, 'r') as fwzip:
-            contents = fwzip.namelist()
-            
-            with fwzip.open('info.json', 'r', password) as f:
-                try:
-                    info = json.load(f)
-                except ValueError:
-                    raise ValidationError('Could not read firmware info')
+            try:
+                fwzip.testzip()
+            except RuntimeError as err:
+                raise ValidationError('File failed CRC check', err)
                 
-            fwBin = self._readItem(fwzip, 'app.bin', password)
+            self.contents = contents = fwzip.namelist()
+
+            try:
+                info = json.loads(fwzip.read('fw_update.json', password))
+            except ValueError as err:
+                raise ValidationError('Could not read firmware info', err)
+            
+            fwBin = fwzip.read('app.bin', password)
+            if len(fwBin) < self.MIN_FILE_SIZE:
+                raise ValueError("Firmware binary too small (%d bytes)" % len(fwBin))
+            
             if 'boot.bin' in contents:
-                bootBin = self._readItem(fwzip, 'boot.bin', password)
+                bootBin = fwzip.read('boot.bin', password)
+                if len(bootBin) < self.MIN_FILE_SIZE:
+                    raise ValueError("Bootloader binary too small (%d bytes)" % len(bootBin))
+
+            for n in ('release_notes.html', 'release_notes.txt'):
+                if n in contents:
+                    self.releaseNotes = (n, fwzip.read(n, password))
         
-        if len(fwBin) < self.MIN_FILE_SIZE:
-            raise ValueError("Firmware binary too small (%d bytes)" % len(fwBin))
         
         # Sanity check: Make sure the binary contains the expected string
         if strict and self.MIDE_STRING not in fwBin:
             raise ValidationError("Could not verify firmware binary's origin")
         
-        # Recorder-specific tests: types, versions, etc.
-        if self.device is not None:
-            # Check recorder types and such
-            if 'types' in info:
-                if self.device.productId not in info['types']:
-                    raise ValidationError("Incompatible recorder type")
-            if 'hwRevs' in info:
-                if self.device.hardwareVersion not in info['hwRevs']:
-                    raise ValidationError("")
-            
         self.info = info
         self.fwBin = fwBin
         self.bootBin = bootBin
         self.filename = filename
 
 
+    def isNewerBootloader(self, vers):
+        try:
+            bootVers = self.info.get('boot_version', None)
+            if self.bootBin is None or not bootVers:
+                return False
+            return isNewer(map(int, bootVers.replace('m','.').split('.')),
+                           map(int, vers.replace('m','.').split('.')))
+        except TypeError:
+            return False
+        
+
+    def checkCompatibility(self, device=None):
+        """ Determine if the loaded firmware package is compatible with a 
+            recorder. 
+            
+            @keyword device: A `Recorder` object. Defaults to the one specified
+                when the `FirmwareUpdater` was instantiated.
+        """
+        device = device if device is not None else self.device
+        
+        if not any((device.partNumber in d for d in self.contents)):
+            raise ValidationError('Device type not supported')
+        
+        template = 'templates/%s/%d/*' % (self.device.partNumber, 
+                                          self.device.hardwareVersion)
+        if not any(lambda x: fnmatch(x, template), self.contents):
+            raise ValidationError("Device hardware revision %d not supported" % \
+                                  self.device.hardwareVersion)
+                
+        
+    
+
+    def openRawFirmware(self, filename, boot=None):
+        """ Explicitly load a .bin file, skipping all the checks. For Mide use.
+        """
+        with open(filename, 'rb') as f:
+            fwBin = f.read()
+        if len(fwBin) < self.MIN_FILE_SIZE:
+            raise ValueError("Firmware binary too small (%d bytes)" % len(fwBin))
+        if boot is not None:
+            with open(boot, 'rb') as f:
+                bootBin = f.read()
+                if len(bootBin) < self.MIN_FILE_SIZE:
+                    raise ValueError("Bootloader binary too small (%d bytes)" % len(bootBin))
+        
+        self.fwBin = fwBin
+        self.bootBin = bootBin
+        self.filename = filename
+
     #===========================================================================
     # 
     #===========================================================================
     
-    def findDevice(self):
+    def findBootloader(self):
         """ Check available serial ports for a Slam Stick in bootloader mode.
             @return: The name of the port, or `None` if no device was found.
         """
@@ -178,7 +266,7 @@ class FirmwareUpdater(object):
         
 
     #===============================================================================
-    # 
+    # Low-level bootloader communication stuff
     #===============================================================================
     
     def flush(self):
@@ -291,9 +379,19 @@ class FirmwareUpdater(object):
         return data
 
 
-    def sendUserpage(self, manifest, caldata, recprops=''):
+    def sendUserpage(self):
+        """ Upload the userpage data.
         """
-        """
+        caldata = ''
+        recprops = ''
+        
+        manifest = util.build_ebml('DeviceManifest', self.manifest, schema=schema_manifest)
+        
+        if self.cal:
+            caldata = util.build_ebml('CalibrationList', self.cal, schema=schema_mide)
+        if self.props:
+            recprops = util.build_ebml('RecordingProperties', self.props, schema=schema_mide)
+
         payload = self.makeUserpage(manifest, caldata, recprops)
         return self.uploadData('t', payload)
     
@@ -323,6 +421,54 @@ class FirmwareUpdater(object):
         return (bootverstring.rsplit(" ", 1)[-1], 
                 chipidstring.rsplit(" ", 1)[-1])
 
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def readTemplate(self, z, name, schema, password=None):
+        with z.open(name, password) as f:
+            return util.read_ebml(f, schema=schema)
+    
+    def updateManifest(self):
+        """
+        """
+        templateBase = 'templates/%s/%d' % (self.device.partNumber, self.device.hardwareVersion)
+        manTempName = "%s/manifest.template.ebml" % templateBase
+        calTempName = "%s/cal.template.ebml" % templateBase
+        propTempName = "%s/recprop.template.ebml" % templateBase
+        
+        with zipfile.ZipFile(self.filename, 'r') as fwzip:
+            manTemplate = self.readTemplate(fwzip, manTempName, schema_manifest, self.password)
+            calTemplate = self.readTemplate(fwzip, calTempName, schema_mide, self.password)
+            propTemplate = self.readTemplate(fwzip, propTempName, schema_mide, self.password)
+
+        accelSn = findItem(self.manifest, 'AnalogSensorInfo/AnalogSensorSerialNumber')
+        manChanges = (
+            ('DeviceManifest/SystemInfo/SerialNumber', self.device.serialInt),
+            ('DeviceManifest/SystemInfo/DateOfManufacture', self.device.birthday),
+            ('DeviceManifest/AnalogSensorInfo/AnalogSensorSerialNumber', accelSn),
+        )
+        propChanges = (
+            ('RecordingProperties/SensorList/TraceabilityData/SensorSerialNumber', accelSn),
+        )
+        
+        for k,v in manChanges:
+            changeItem(manTemplate, k, v)
+        for k,v in propChanges:
+            changeItem(propTemplate, k, v)
+
+        # Update transform channel IDs and references
+        if 0 in self.cal:
+            self.cal[0].id = 9
+        self.cal[1].channelId = 36
+        self.cal[2].channelId = 36
+        self.cal[3].channelId = 36
+        
+        if not all((manTemplate, calTemplate, propTemplate)):
+            raise ValueError("Could not find template")
+        
+        
 
 #===============================================================================
 # 
@@ -371,7 +517,7 @@ class FirmwareUpdaterDialog(SC.SizedDialog):
 #===============================================================================
 
 def updateFirmware(parent=None, device=None, filename=None):
-    """
+    """ Wrapper for starting the firmware update.
     """
     if device is None:
         device = device_dialog.selectDevice(parent=parent, hideClock=True)
