@@ -31,20 +31,19 @@ Created on Jul 25, 2014
 '''
 
 from collections import OrderedDict
-# import httplib
 import json
 import os.path
 import threading
 import time
 import urllib
 
-import wx; wx = wx
+import wx #@UnusedImport
 import wx.lib.sized_controls as SC
-import wx.html
 
 from logger import logger
 from build_info import DEBUG, BETA
 from events import EvtUpdateAvailable
+from widgets.htmlwindow import SaferHtmlWindow, isSafeUrl, hijackWarning
 
 if DEBUG:
     import logging
@@ -74,71 +73,6 @@ INTERVALS = OrderedDict(enumerate(("Never check automatically",
                                    "Weekly",
                                    "Daily",
                                    "Every time the app is launched")))
-
-#===============================================================================
-# 
-#===============================================================================
-
-def isSafeUrl(url):
-    """ Simple function to determine if a URL is (moderately) safe, i.e. is
-        at mide.com. 
-    """
-    if not url:
-        return False
-    
-    if DEBUG:
-        return True
-    
-    prot, addr = urllib.splittype(url)
-    if not (prot and addr):
-        return False
-    if not prot.lower().startswith(('http','ftp')):
-        return False
-    host, _path = urllib.splithost(addr)
-    if not host.lower().endswith('mide.com'):
-        return False
-    return True
-
-
-def hijackWarning(parent, url):
-    """ Display a warning message if a URL doesn't point to a Mide server.
-    """
-    if url and len(url) > 40:
-        url = urllib.splitquery(url)[0]
-    d = wx.MessageBox(
-        "The link's URL does not appear to direct to a Mid\xe9 website.\n\n"
-        "This is likely intentional, but it could be an indication that the "
-        "update server has been compromised.\n\nURL: %s\n\n"
-        "Open the link anyway?" % url, "Possible Link Hijack", parent=parent,
-        style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
-    return d == wx.YES
-
-#===============================================================================
-# 
-#===============================================================================
-
-class SaferHtmlWindow(wx.html.HtmlWindow):
-    """ A slightly safer HTML window, which checks all URLs before opening
-        them. File and relative named anchor links open in the same window,
-        all others in the default browser.
-    """
-        
-    def OnLinkClicked(self, linkinfo):
-        """ Handle a link click. Does not permit outgoing links (for security).
-        """
-        href = linkinfo.GetHref()
-        if href.startswith(('file:', '#')):
-            super(SaferHtmlWindow, self).OnLinkClicked(linkinfo)
-            return
-        
-        if not isSafeUrl(href):
-            if not hijackWarning(self, href):
-                return
-            
-        # Launch external web browser
-        logger.info('Updater HTML window opened %s' % href)
-        wx.LaunchDefaultBrowser(href)
-
 
 #===============================================================================
 # 
@@ -393,11 +327,12 @@ def startCheckUpdatesThread(*args, **kwargs):
                          args=args, kwargs=kwargs)
     t.start()
 
-
-  
+#===============================================================================
+# 
+#===============================================================================
   
 # if __name__ == '__main__':
-#           
+#            
 #     class FakeApp(wx.App):
 #         PREFS = {
 #                  }
@@ -410,16 +345,16 @@ def startCheckUpdatesThread(*args, **kwargs):
 #             self.PREFS[v] = val
 #         def editPrefs(self, evt=None):
 #             print "edit prefs"
-#          
+#           
 #     app = FakeApp()
-#          
+#           
 #     code, response = getLatestVersion()
 #     print "app.version = %r" % (app.version,)
 #     print "getLatestVersion returned code %r, version %r" % (code, response)
 #     if response is None:
 #         print "Error occurred; aborting"
 #         exit(1)
-#      
+#       
 #     vers = response.get('version', None)
 #     changeUrl = response.get('changelog', None)
 #     print "zipped: %r" % (zip(app.version, vers),)
@@ -428,9 +363,9 @@ def startCheckUpdatesThread(*args, **kwargs):
 #     t = time.time()
 #     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
 #     print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
-#          
+#           
 #     evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
-#          
+#           
 # #     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
 #     dlg = UpdateDialog(None, -1, updaterEvent=evt)
 #     dlg.ShowModal()

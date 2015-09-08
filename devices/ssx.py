@@ -619,6 +619,15 @@ class SlamStickX(Recorder):
         except (KeyError, TypeError):
             return None
 
+
+    def getFactoryCalSerial(self, refresh=False):
+        """ Get the recorder's factory calibration serial number.
+        """
+        try:
+            return self.getFactoryCalibration(refresh)['CalibrationSerialNumber']
+        except (KeyError, TypeError):
+            return None
+
     
     @classmethod
     def generateCalEbml(cls, transforms, date=None, expires=None, calSerial=0):

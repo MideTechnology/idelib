@@ -7,9 +7,11 @@ Created on Sep 2, 2015
 @author: dstokes
 '''
 from fnmatch import fnmatch
+from glob import glob
 import io
 import json
 import os.path
+from StringIO import StringIO
 import struct
 import time
 
@@ -19,6 +21,7 @@ import zipfile
 
 import wx
 import wx.lib.sized_controls as SC
+from  wx.lib.throbber import Throbber
 
 import xmodem
 
@@ -47,7 +50,7 @@ def findItem(container, path):
 
 def changeItem(container, path, val):
     p, k = os.path.split(path.strip("\n\r\t /"))
-    return findItem(p)[k]
+    return findItem(container, p)[k]
 
 
 #===============================================================================
@@ -166,6 +169,7 @@ class FirmwareUpdater(object):
             for n in ('release_notes.html', 'release_notes.txt'):
                 if n in contents:
                     self.releaseNotes = (n, fwzip.read(n, password))
+                    break
         
         
         # Sanity check: Make sure the binary contains the expected string
@@ -199,15 +203,14 @@ class FirmwareUpdater(object):
         device = device if device is not None else self.device
         
         if not any((device.partNumber in d for d in self.contents)):
-            raise ValidationError('Device type not supported')
+            raise ValidationError('Device type %s not supported' % device.partNumber)
         
         template = 'templates/%s/%d/*' % (self.device.partNumber, 
                                           self.device.hardwareVersion)
-        if not any(lambda x: fnmatch(x, template), self.contents):
+        print self.contents, template
+        if not any((fnmatch(x, template) for x in self.contents)):
             raise ValidationError("Device hardware revision %d not supported" % \
                                   self.device.hardwareVersion)
-                
-        
     
 
     def openRawFirmware(self, filename, boot=None):
@@ -226,6 +229,7 @@ class FirmwareUpdater(object):
         self.fwBin = fwBin
         self.bootBin = bootBin
         self.filename = filename
+
 
     #===========================================================================
     # 
@@ -379,19 +383,9 @@ class FirmwareUpdater(object):
         return data
 
 
-    def sendUserpage(self):
+    def sendUserpage(self, manifest, caldata, recprops=''):
         """ Upload the userpage data.
         """
-        caldata = ''
-        recprops = ''
-        
-        manifest = util.build_ebml('DeviceManifest', self.manifest, schema=schema_manifest)
-        
-        if self.cal:
-            caldata = util.build_ebml('CalibrationList', self.cal, schema=schema_mide)
-        if self.props:
-            recprops = util.build_ebml('RecordingProperties', self.props, schema=schema_mide)
-
         payload = self.makeUserpage(manifest, caldata, recprops)
         return self.uploadData('t', payload)
     
@@ -427,8 +421,8 @@ class FirmwareUpdater(object):
     #===========================================================================
     
     def readTemplate(self, z, name, schema, password=None):
-        with z.open(name, password) as f:
-            return util.read_ebml(f, schema=schema)
+        return util.read_ebml(StringIO(z.read(name, password)), schema=schema)
+    
     
     def updateManifest(self):
         """
@@ -443,74 +437,112 @@ class FirmwareUpdater(object):
             calTemplate = self.readTemplate(fwzip, calTempName, schema_mide, self.password)
             propTemplate = self.readTemplate(fwzip, propTempName, schema_mide, self.password)
 
-        accelSn = findItem(self.manifest, 'AnalogSensorInfo/AnalogSensorSerialNumber')
+        if not all((manTemplate, calTemplate, propTemplate)):
+            raise ValueError("Could not find template")
+
+        accelSn = findItem(self.device.getManifest(), 'AnalogSensorInfo/AnalogSensorSerialNumber')
         manChanges = (
             ('DeviceManifest/SystemInfo/SerialNumber', self.device.serialInt),
             ('DeviceManifest/SystemInfo/DateOfManufacture', self.device.birthday),
             ('DeviceManifest/AnalogSensorInfo/AnalogSensorSerialNumber', accelSn),
         )
         propChanges = (
-            ('RecordingProperties/SensorList/TraceabilityData/SensorSerialNumber', accelSn),
+            ('RecordingProperties/SensorList/Sensor/0/TraceabilityData/SensorSerialNumber', accelSn),
         )
         
+        print propTemplate
         for k,v in manChanges:
             changeItem(manTemplate, k, v)
         for k,v in propChanges:
             changeItem(propTemplate, k, v)
-
+        
         # Update transform channel IDs and references
-        if 0 in self.cal:
-            self.cal[0].id = 9
-        self.cal[1].channelId = 36
-        self.cal[2].channelId = 36
-        self.cal[3].channelId = 36
+        cal = self.device.getFactoryCalPolynomials()
         
-        if not all((manTemplate, calTemplate, propTemplate)):
-            raise ValueError("Could not find template")
+        calEx = self.device.getFactoryCalExpiration()
+        calDate = self.device.getFactoryCalDate()
+        calSer = self.device.getFactoryCalSerial()
+            
+        for p in findItem(calTemplate, 'CalibrationList/BivariatePolynomial'):
+            calId = p['CalID']
+            if calId in cal:
+                p['PolynomialCoef'] = cal[calId].coefficients
+                p['CalReferenceValue'] = cal[calId].references[0]
+                p['BivariateCalReferenceValue'] = cal[calId].references[1]
         
+        if calEx:
+            calTemplate['CalibrationList']['CalibrationSerialNumber'] = calSer
+        if calDate:
+            calTemplate['CalibrationList']['CalibrationDate'] = calDate
+        if calEx:
+            calTemplate['CalibrationList']['CalibrationExpiry'] = calEx
+        
+        self.manifest = util.build_ebml('DeviceManifest', 
+                                        manTemplate['DeviceManifest'], 
+                                        schema=schema_manifest)
+        self.cal = util.build_ebml('CalibrationList', 
+                                   calTemplate['CalibrationList'], 
+                                   schema=schema_mide)
+        self.props = util.build_ebml('RecordingProperties', 
+                                     propTemplate['RecordingProperties'], 
+                                     schema=schema_mide)
         
 
 #===============================================================================
 # 
 #===============================================================================
 
-class FirmwareUpdaterDialog(SC.SizedDialog):
-    """ UI for updating recorder firmware.
-    """
-    TITLE = None
-    
+class FirmwareUpdateDialog(wx.Dialog):
     def __init__(self, *args, **kwargs):
-        style = wx.DEFAULT_DIALOG_STYLE \
-            | wx.RESIZE_BORDER \
-            | wx.MAXIMIZE_BOX \
-            | wx.MINIMIZE_BOX \
-            | wx.DIALOG_EX_CONTEXTHELP \
-            | wx.SYSTEM_MENU
-        
-        kwargs.setdefault('style', style)
+        self.firmware = kwargs.pop('firmware', None)
         self.device = kwargs.pop('device', None)
-        self.fwFile = kwargs.pop('filename', None)
-        super(FirmwareUpdaterDialog, self).__init__(*args, **kwargs)
+        kwargs.setdefault('style', wx.CAPTION)
+        kwargs.setdefault('title', "Update Firmware")
         
-        if self.TITLE and not self.GetTitle():
-            self.SetTitle(self.TITLE)
-            
-        self.app = wx.GetApp()
-        self.prefSection = "tools.%s" % self.__class__.__name__
+        wx.Dialog.__init__(self, *args, **kwargs)#, parent, -1)
+        self.SetBackgroundColour("WHITE")
+#         panel = wx.Panel(self, -1)
+        panel = self
         
-        if self.device is None:
-            self.device = device_dialog.selectDevice(hideClock=True)
+        frameFiles = glob(os.path.join(os.path.dirname(__file__), '..','resources','ssx_throbber*.png'))
+        frames = [wx.Image(f, wx.BITMAP_TYPE_PNG).ConvertToBitmap() for f in frameFiles]
+        self.throbber = Throbber(panel, -1, frames, rest=15, frameDelay=1.0/len(frames))
+        self.throbber.Start()
+        
+        headerText = "Please Stand By..."
+        messageText = "\n"*4
+#         messageText="Message line 1\nMessage line 2\nMessage line 3"
+        
+        self.header = wx.StaticText(panel, -1, headerText, style=wx.ALIGN_CENTER)
+        self.header.SetFont(self.GetFont().Bold().Scaled(1.5))
+
+        self.message = wx.StaticText(panel, -1, messageText, style=wx.ALIGN_CENTER)
+        
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(wx.Panel(panel, -1), 0, wx.EXPAND)
+        sizer.Add(self.throbber, 0, wx.ALIGN_CENTER)
+        sizer.Add(self.header, 0, wx.ALIGN_CENTER)
+        sizer.Add(self.message, 0, wx.ALIGN_CENTER)
+        sizer.Add(wx.Panel(panel, -1), 1, wx.EXPAND)
+        
+        b = wx.Button(panel, wx.ID_CANCEL)
+        sizer.Add(b, 0, wx.EXPAND)
+        b.Bind(wx.EVT_BUTTON, self.but)
         
         
-        if self.fwFile is None:
-            dlg = wx.FileDialog(self, message="Select a Slam Stick Firmware File",
-                                wildcard="Slam Stick Firmware Package (*.fw)|*.fw",
-                                style=wx.OPEN | wx.CHANGE_DIR)
-            if dlg.ShowModal() == wx.ID_OK:
-                self.fwFile = dlg.GetPath()
-            dlg.Destroy()
-            print self.fwFile
-#         self.updater = FirmwareUpdater(device=self.device)
+        self.scanTimer = wx.Timer(self)
+        self.timeoutTimer = wx.Timer(self)
+
+        panel.SetSizerAndFit(sizer)
+        self.SetSizeWH(400,-1)
+        self.message.SetLabelText("Not so long vertically, but much longer horizontally.")
+
+        
+    def but(self, evt, *args, **kwargs):
+        print "hello"
+        evt.Skip()
+
+
 
 #===============================================================================
 # 
@@ -526,6 +558,7 @@ def updateFirmware(parent=None, device=None, filename=None):
     if len(devices.getDevices()) > 1:
         # warn user.
         wx.MessageBox("Too many recorders!\n\nWarning text.", "Update Firmware")
+        
     if filename is None:
         dlg = wx.FileDialog(parent, message="Select a Slam Stick Firmware File",
                             wildcard="MIDE Firmware Package (*.fw)|*.fw",
@@ -536,12 +569,59 @@ def updateFirmware(parent=None, device=None, filename=None):
     if filename is None:
         return False
     
+    try:
+        update = FirmwareUpdater(device, filename)
+        logger.info("Passed basic validation")
+    except ValidationError as _err:
+        # Various causes
+        if "CRC" in _err.message:
+            msg = "This firmware update package appears to be damaged (CRC check failed)."
+        else:
+            msg = "This firmware update package appears to be missing vital components,\nand is likely damaged."
+        wx.MessageBox(msg, "Validation Error")
+        return
+    except KeyError as _err:
+        # File missing from archive?
+        wx.MessageBox("This firmware update package appears to be missing vital components,\nand is likely damaged.", "Validation Error")
+        return
+    except IOError as _err:
+        # Bad file
+        wx.MessageBox("This firmware file could not be read.", "Validation Error")
+        return
+    except RuntimeError as _err:
+        # Bad password
+        wx.MessageBox("This firmware update package could not be authenticated.", "Validation Error")
+        return
+    
+    try:
+        update.checkCompatibility()
+        logger.info("Passed compatibility check")
+    except ValidationError as _err:
+        msg = _err.message.rstrip('.')+'.'
+        wx.MessageBox(msg, "Compatibility Error")
+        return
+
+    updateVer = update.info['app_version']
+    if updateVer <= device.firmwareVersion:
+        msg = "This update package contains firmware version %d.\nYour recorder is running firmware version %d." % (updateVer, device.firmwareVersion)
+        if updateVer < device.firmwareVersion:
+            msg += "\nUpdating with older firmware is not recommended."
+        dlg = wx.MessageBox("%s\n\nContinue?" % msg, "Old Firmware", wx.YES_NO|wx.ICON_QUESTION)
+        if dlg != wx.YES:
+            return
+            
+    update.updateManifest()
+    
+    
+    
+    
 #===============================================================================
 # 
 #===============================================================================
 
 if __name__ == '__main__':
     app = wx.App()
-    updateFirmware()
+#     FirmwareUpdateDialog(None).ShowModal()
+    print updateFirmware()
 #     dlg = FirmwareUpdaterDialog(None)
 #     dlg.ShowModal()
