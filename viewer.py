@@ -42,8 +42,9 @@ from datetime import datetime
 import os
 import time
 
+import wx
 from wx.lib.rcsizer import RowColSizer
-import wx; wx = wx # Workaround for Eclipse code comprehension
+from wx.lib.wordwrap import wordwrap
 
 # Graphics (icons, etc.)
 import images
@@ -69,8 +70,10 @@ from range_dialog import RangeDialog
 from renderplot import PlotView
 from widgets.memorydialog import MemoryDialog
 import updater
+
 # Special helper objects and functions
-import devices
+import devices #@UnusedImport
+import devices.efm32_firmware
 from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
@@ -644,6 +647,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_EDIT_CLEARPREFS = wx.NewId()
     ID_EDIT_RANGES = wx.NewId()
     ID_DEVICE_CONFIG = wx.NewId()
+    ID_DEVICE_UPDATE = wx.NewId()
     ID_VIEW_ADDSOURCE = wx.NewId()
     ID_VIEW_NEWTAB = wx.NewId()
     ID_VIEW_ZOOM_OUT_Y = wx.NewId()
@@ -774,6 +778,8 @@ class Viewer(wx.Frame, MenuMixin):
         """ Construct and configure the view's menu bar. Called once by
             `buildUI()`. Used internally.
         """        
+        showAdvanced = self.app.getPref('showAdvancedOptions', False)
+        
         self.menubar = wx.MenuBar()
         
         # "File" menu
@@ -906,6 +912,11 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
                         "Configure &Device...\tCtrl+D", "", 
                          self.OnDeviceConfigMenu)
+        if showAdvanced:
+            deviceMenu.AppendSeparator()
+            self.addMenuItem(deviceMenu, self.ID_DEVICE_UPDATE, 
+                             "Update Recorder Firmware...", "",
+                             self.OnDeviceUpdateFW)
         
         # "Data" menu
         #=======================================================================
@@ -1061,7 +1072,8 @@ class Viewer(wx.Frame, MenuMixin):
         # These are the menus that are enabled even when there's no file open.
         # There are fewer of them than menus that are disabled.
         menus = [wx.ID_NEW, wx.ID_OPEN, wx.ID_CLOSE, wx.ID_EXIT, 
-                 self.ID_DEVICE_CONFIG, wx.ID_ABOUT, wx.ID_PREFERENCES,
+                 self.ID_DEVICE_CONFIG, self.ID_DEVICE_UPDATE, wx.ID_ABOUT, 
+                 wx.ID_PREFERENCES,
                  self.ID_HELP_CHECK_UPDATES, self.ID_HELP_FEEDBACK,
                  self.ID_FILE_MULTI, self.ID_TOOLS,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, 
@@ -1181,7 +1193,8 @@ class Viewer(wx.Frame, MenuMixin):
 
     def ask(self, message, title="Confirm", style=wx.YES_NO | wx.NO_DEFAULT, 
             icon=wx.ICON_QUESTION, parent=None, pref=None, saveNo=True,
-            extendedMessage=None, rememberMsg=None, persistent=True):
+            extendedMessage=None, rememberMsg=None, persistent=True,
+            textwrap=400):
         """ Generate a message box to notify or prompt the user, allowing for
             a simple means of turning off such warnings and prompts. If a
             preference name is supplied and that preference exists, the user
@@ -1210,9 +1223,21 @@ class Viewer(wx.Frame, MenuMixin):
         if pref is not None and self.app.hasPref(pref, section="ask"):
             return self.app.getPref(pref, section="ask")
         remember = pref is not None
+        
+        if "\n\n" in message:
+            message, ext = message.split('\n\n', 1)
+            if extendedMessage:
+                extendedMessage = '\n'.join((ext,extendedMessage))
+            else:
+                extendedMessage = ext
+        
         dlg = MemoryDialog(parent, message, title, style, remember=remember)
         if extendedMessage:
+            if textwrap:
+                extendedMessage = wordwrap(extendedMessage, textwrap, 
+                                           wx.ClientDC(dlg))
             dlg.SetExtendedMessage(extendedMessage)
+            
         result = dlg.ShowModal()
         savePref = result != wx.ID_CANCEL or (result == wx.ID_NO and saveNo)
         if pref is not None and savePref:
@@ -2045,6 +2070,20 @@ class Viewer(wx.Frame, MenuMixin):
                            wx.OK, icon=wx.ICON_INFORMATION, pref=pref, 
                            extendedMessage=msg)
     
+    
+    def OnDeviceUpdateFW(self, evt):
+        """
+        """
+        warning = self.ask("This operation can harm your device!\n\n"
+                           "A failed firmware update attempt can potentially "
+                           "render your recorder non-operational, and may "
+                           "require repair by the manufacturer.\n\n"
+                           "Do you wish to continue?", 
+                           "Update Firmware", icon=wx.ICON_WARNING, 
+                           pref="FWUpdateWarning", saveNo=False)
+        if warning == wx.ID_YES:
+            devices.efm32_firmware.updateFirmware(self)
+            
     
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.

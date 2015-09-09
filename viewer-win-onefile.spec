@@ -53,6 +53,7 @@ schemas = Datafiles('mide_ebml/ebml/schema/mide.xml',
                     'mide_ebml/ebml/schema/matroska.xml',
                     'LICENSES/*.txt',
                     'ABOUT/*',
+                    'resources/*',
                     strip_path=False)
         
 a = Analysis(['viewer.py'],
