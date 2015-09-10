@@ -1,11 +1,12 @@
 '''
-
-TODO: Make sure all data is loaded/generated before anything gets uploaded.
+Tool for updating the firmware on a SSX-based data recorder. Requires the
+EFM32 CDC USB Serial driver for Windows.
 
 Created on Sep 2, 2015
 
 @author: dstokes
 '''
+
 from fnmatch import fnmatch
 from glob import glob
 import io
@@ -14,13 +15,12 @@ import os.path
 from StringIO import StringIO
 import struct
 import time
+import zipfile
 
 import serial #@UnusedImport
 import serial.tools.list_ports
-import zipfile
 
 import wx
-# import wx.lib.sized_controls as SC
 from  wx.lib.throbber import Throbber
 from wx.lib.wordwrap import wordwrap
 
@@ -92,7 +92,8 @@ class FirmwareUpdater(object):
         'parity':       'N', 
         'bytesize':     8, 
         'stopbits':     1, 
-        'timeout':      1.0, 
+        'timeout':      5.0,
+        'writeTimeout': 5.0, 
     }
 
     # Double-byte string: "MIDE Technology Corp". Should be found in firmware.
@@ -130,12 +131,6 @@ class FirmwareUpdater(object):
     # 
     #===========================================================================
     
-    def _readItem(self, z, name, pw=None):
-        """ Helper method to read an item from a zip. """
-        with z.open(name, 'r', pw) as f:
-            return f.read()
-
-
     def openFirmwareFile(self, filename=None, password=None, strict=True):
         """
             @raise zipfile.BadZipfile: If the file isn't a zip
@@ -172,7 +167,6 @@ class FirmwareUpdater(object):
                 if n in contents:
                     self.releaseNotes = (n, fwzip.read(n, password))
                     break
-        
         
         # Sanity check: Make sure the binary contains the expected string
         if strict and self.MIDE_STRING not in fwBin:
@@ -241,7 +235,7 @@ class FirmwareUpdater(object):
         """ Check available serial ports for a Slam Stick in bootloader mode.
             @return: The name of the port, or `None` if no device was found.
         """
-        ports = filter(lambda x: 'EFM32 USB CDC Serial' in x[1], 
+        ports = filter(lambda x: 'USB VID:PID=2544:0003' in x[2], 
                        serial.tools.list_ports.comports())
         if len(ports) > 0:
             return ports[0][0]
@@ -298,17 +292,16 @@ class FirmwareUpdater(object):
         instring = self.myPort.readline() # 'Ready' response
         self.lastResponse = instring
         if response in instring or fnmatch(instring, response):
-            return True
-        logger.error('Bootloader: Send command %r, expected %r but received %r' % (command, response, instring))
+            return instring or True
+        logger.error('Bootloader: Sent command %r, expected %r but received %r' % (command, response, instring))
         return False
 
 
-    def uploadData(self, command, payload, response='Ready'):
+    def _uploadData(self, command, payload, response='Ready'):
         """ Helper method to upload data.
         """
         self.flush()
         if self.sendCommand(command, response):
-            self.flush()
             time.sleep(1.0) # HACK: give bootloader some time to catch its breath?
 
             if not self.modem.send(io.BytesIO(payload)):
@@ -318,6 +311,20 @@ class FirmwareUpdater(object):
             return True
         
         return False
+
+
+    def uploadData(self, command, payload, response='Ready'):
+        ex = None
+        for i in range(5):
+            try:
+                return self._uploadData(command, payload)
+            except serial.SerialTimeoutException as ex:
+                logger.info('upload got serial timeout on try %d' % (i+1))
+                time.sleep(1)
+        if ex is not None:
+            raise ex
+        else:
+            raise IOError("Upload failed!")
     
     
     def uploadBootloader(self, payload=None):
@@ -327,9 +334,11 @@ class FirmwareUpdater(object):
         """
         payload = self.bootBin if payload is None else payload
         if payload is None:
+            logger.info("No bootloader in package")
             return True
         if len(payload) < self.MIN_FILE_SIZE:
             raise ValueError("Bootloader upload payload too small")
+        
         return self.uploadData("d", payload)
 
 
@@ -341,6 +350,7 @@ class FirmwareUpdater(object):
         payload = self.fwBin if payload is None else payload
         if len(payload) < self.MIN_FILE_SIZE:
             raise ValueError("Firmware upload payload too small")
+        
         return self.uploadData("u", payload)
 
 
@@ -405,31 +415,28 @@ class FirmwareUpdater(object):
         if len(payload) != self.PAGE_SIZE:
             raise ValueError("Userpage block was %d bytes; should be %d" % \
                              (len(payload), self.PAGE_SIZE))
-        return self.uploadData('t', payload)
-    
+        
+        return self.uploadData("t", payload)
+        
     
     def getVersionAndId(self):
         """
             @return: A tuple containing the bootloader version and chip ID.
         """
-        vers = None
         self.myPort.write("i")
         # Hack: FW echoes this character (with \n), then another \n, THEN the string.
-        tries = 3
-        while tries > 0:
+        for _i in range(3):
             instring = self.myPort.readline()
             if "BOOTLOADER" in instring:
-                vers = instring.strip()
                 break
-            tries -= 1
-    
-        if not vers:
+     
+        if "BOOTLOADER" not in instring:
             return None
         
         # Grab any salient information from the bootloader string (mainly 
         # CHIPID, but also bootloader version).
         # Example output: "BOOTLOADER version 1.01m2, Chip ID 2483670050B7D82F"
-        (bootverstring, chipidstring) = vers.split(",")
+        (bootverstring, chipidstring) = instring.strip().split(",")
         return (bootverstring.rsplit(" ", 1)[-1], 
                 chipidstring.rsplit(" ", 1)[-1])
 
@@ -458,7 +465,11 @@ class FirmwareUpdater(object):
         if not all((manTemplate, calTemplate, propTemplate)):
             raise ValueError("Could not find template")
 
-        accelSn = findItem(self.device.getManifest(), 'AnalogSensorInfo/AnalogSensorSerialNumber')
+        try:
+            accelSn = findItem(self.device.getManifest(), 'AnalogSensorInfo/AnalogSensorSerialNumber')
+        except (KeyError, IndexError):
+            accelSn = None
+            
         manChanges = (
             ('DeviceManifest/SystemInfo/SerialNumber', self.device.serialInt),
             ('DeviceManifest/SystemInfo/DateOfManufacture', self.device.birthday),
@@ -469,23 +480,38 @@ class FirmwareUpdater(object):
         )
         
         for k,v in manChanges:
-            changeItem(manTemplate, k, v)
+            try:
+                changeItem(manTemplate, k, v)
+            except (KeyError, IndexError):
+                logger.info("Missing manifest item %s, probably okay." %
+                            os.path.basename(k))
+                pass
         for k,v in propChanges:
-            changeItem(propTemplate, k, v)
+            try:
+                changeItem(propTemplate, k, v)
+            except (KeyError, IndexError):
+                logger.info("Missing props item %s, probably okay." %
+                            os.path.basename(k))
+                pass
         
         # Update transform channel IDs and references
         cal = self.device.getFactoryCalPolynomials()
-        
         calEx = self.device.getFactoryCalExpiration()
         calDate = self.device.getFactoryCalDate()
         calSer = self.device.getFactoryCalSerial()
-            
-        for p in findItem(calTemplate, 'CalibrationList/BivariatePolynomial'):
-            calId = p['CalID']
-            if calId in cal:
-                p['PolynomialCoef'] = cal[calId].coefficients
-                p['CalReferenceValue'] = cal[calId].references[0]
-                p['BivariateCalReferenceValue'] = cal[calId].references[1]
+        
+        try:
+            polys = findItem(calTemplate, 'CalibrationList/BivariatePolynomial')
+        except (KeyError, IndexError):
+            polys = None
+        
+        if polys is not None:
+            for p in polys:
+                calId = p['CalID']
+                if calId in cal:
+                    p['PolynomialCoef'] = cal[calId].coefficients
+                    p['CalReferenceValue'] = cal[calId].references[0]
+                    p['BivariateCalReferenceValue'] = cal[calId].references[1]
         
         if calEx:
             calTemplate['CalibrationList']['CalibrationSerialNumber'] = calSer
@@ -506,13 +532,6 @@ class FirmwareUpdater(object):
         
         self.userpage = self.makeUserpage(self.manifest, self.cal, self.props)
         
-#         print "******** manifest"
-#         print manTemplate
-#         print "******** calibration"
-#         print calTemplate
-#         print "******** props"
-#         print propTemplate
-
 
 #===============================================================================
 # 
@@ -522,12 +541,13 @@ class FirmwareUpdateDialog(wx.Dialog):
     """
     """
     
-    SCAN_MS = 500
+    SCAN_MS = 250
     TIMEOUT_MS = 60000    
     
     @classmethod
     def driverInstalled(cls):
-        """
+        """ Utility method to perform a basic check for the EFM32 USB serial
+            driver. Not especially robust.
         """
         if wx.Platform == '__WXMSW__':
             win = wx.PlatformInformation_GetOperatingSystemDirectory()
@@ -536,10 +556,14 @@ class FirmwareUpdateDialog(wx.Dialog):
                     with open(inf, 'rb') as f:
                         for l in f:
                             if 'EFM32 USB' in l:
+                                logger.info("Identified possible driver: %s" % inf)
                                 return True
                 except WindowsError:
                     pass
-        return False
+            return False
+        else:
+            logger.info('No driver required if not running Windows.')
+            return True
     
     
     def __init__(self, *args, **kwargs):
@@ -561,10 +585,12 @@ class FirmwareUpdateDialog(wx.Dialog):
         headerText = "Please Stand By..."
         messageText = "\n"*4
         
-        self.header = wx.StaticText(self, -1, headerText, style=wx.ALIGN_CENTER)
+        self.header = wx.StaticText(self, -1, headerText, size=(400,40), style=wx.ALIGN_CENTRE_HORIZONTAL)
         self.header.SetFont(self.GetFont().Bold().Scaled(1.5))
+#         self.header.SetSizeWH(400,-1)
 
-        self.message = wx.StaticText(self, -1, messageText, style=wx.ALIGN_CENTER)
+        self.message = wx.StaticText(self, -1, messageText, size=(400,40), style=wx.ALIGN_CENTRE_HORIZONTAL)
+#         self.header.SetSizeWH(400,-1)
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(wx.Panel(self, -1), 0, wx.EXPAND)
@@ -584,30 +610,37 @@ class FirmwareUpdateDialog(wx.Dialog):
         self.SetSizerAndFit(sizer)
         self.SetSizeWH(400,-1)
 
+        if "LOG-0002" in self.device.partNumber:
+            self.but = '"X"'
+        elif "LOG-0003" in self.device.partNumber:
+            self.but = '"C"'
+        else:
+            self.but = 'main'
+
         self.startSerialScan()
 
     
     def setLabels(self, title=None, msg=None):
         """ Helper method to display a new message.
         """
-        if title is not None:
+        changed = False
+        if title is not None and title != self.header.GetLabelText():
             logger.info(title)
             self.header.SetLabelText(title)
-        if msg is not None:
+            changed = True
+        if msg is not None and msg != self.message.GetLabelText():
             self.message.SetLabelMarkup(wordwrap(msg, 350, wx.ClientDC(self)))
-        self.Update()
+            changed = True
+        if changed:
+            self.Update()
         
     
     def startSerialScan(self):
-        but = "main"
-        if "LOG-0002" in self.device.partNumber:
-            but = '"X"'
-        elif "LOG-0003" in self.device.partNumber:
-            but = '"C"'
-
+        """
+        """
         self.setLabels("Waiting for Recorder...",
-                        "Press and hold the recorder's %s button until this "
-                        "message changes." % but)
+                        "Press and hold the recorder's %s button "
+                        "for 3 seconds." % self.but)
         
         self.throbber.Start()
         self.scanTimer.Start(self.SCAN_MS)
@@ -617,6 +650,10 @@ class FirmwareUpdateDialog(wx.Dialog):
     def checkSerial(self, evt):
         """ Timer event handler to look for a bootloader serial connection.
         """
+        if not os.path.exists(self.device.path):
+            self.setLabels(msg="Release the recorder's %s button now!" % 
+                           self.but)
+            
         s = self.firmware.findBootloader()
         if s is None:
             return
@@ -627,11 +664,18 @@ class FirmwareUpdateDialog(wx.Dialog):
         self.scanTimer.Stop()
         self.throbber.Rest()        
         
-        try:
-            c = self.firmware.connect(s)
-            logger.info('Connected to bootloader {}'.format(c))
-        except IOError as err:
-            logger.error("Connection failure: %s" % err)
+        connected = False
+        for i in range(3):
+            try:
+                c = self.firmware.connect(s)
+                connected = True
+                logger.info('Connected to bootloader {}'.format(c))
+                break
+            except IOError as err:
+                logger.error("Connection failure, try %d: %s" % (i+1,err))
+                wx.Sleep(1)
+        
+        if not connected:
             x = wx.MessageBox("Unable to connect to recorder\n\n"
                               "Please disconnect the recorder, re-attach, "
                               "and press and hold the button", 
@@ -639,6 +683,7 @@ class FirmwareUpdateDialog(wx.Dialog):
             if x != wx.OK:
                 self.Close()
                 return
+            
             self.startSerialScan()
             return
         
@@ -660,14 +705,17 @@ class FirmwareUpdateDialog(wx.Dialog):
         self.setLabels(msg="Do not disconnect your recorder!")
         msg = "performing the update"
         
+        wx.Sleep(1)
         try:
             msg = "uploading the bootloader"
             self.setLabels("%s..." % msg.title())
             self.firmware.uploadBootloader()
+            wx.MilliSleep(500)
             
             msg = "uploading the Slam Stick firmware"
             self.setLabels("%s..." % msg.title())
             self.firmware.uploadApp()
+            wx.MilliSleep(500)
             
             msg = "uploading Manifest data"
             self.setLabels("%s..." % msg.title())
@@ -675,6 +723,7 @@ class FirmwareUpdateDialog(wx.Dialog):
 
             try:
                 self.firmware.disconnect()
+                wx.MilliSleep(250)
             except IOError:
                 pass
             
@@ -692,7 +741,6 @@ class FirmwareUpdateDialog(wx.Dialog):
                           "The update failed while %s. \n"
                           "Please try again." % msg,
                           "Update Failure", wx.OK|wx.ICON_ERROR)
-        
         
         self.Close()
             
@@ -713,10 +761,9 @@ def updateFirmware(parent=None, device=None, filename=None):
             "press OK.", 
             "No Driver?", wx.OK|wx.CANCEL|wx.HELP)
         if x == wx.HELP:
-            print "help!"
+            wx.MessageBox("No help yet.", "Firmware Update Help")
             return
         if x != wx.OK:
-            print "not okay"
             return False
         
     if len(devices.getDevices()) > 1:
@@ -792,16 +839,11 @@ def updateFirmware(parent=None, device=None, filename=None):
     dlg = FirmwareUpdateDialog(parent, device=device, firmware=update)
     dlg.ShowModal()
     
-    
-    
-    
+        
 #===============================================================================
 # 
 #===============================================================================
 
 if __name__ == '__main__':
     app = wx.App()
-#     FirmwareUpdateDialog(None).ShowModal()
     print updateFirmware()
-#     dlg = FirmwareUpdaterDialog(None)
-#     dlg.ShowModal()
