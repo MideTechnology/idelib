@@ -37,7 +37,8 @@ import wx; wx = wx
 # from mide_ebml import util
 # from mide_ebml.parsers import PolynomialParser
 # from mide_ebml.ebml.schema.mide import MideDocument
-from common import makeWxDateTime, DateTimeCtrl, cleanUnicode
+from common import makeWxDateTime, cleanUnicode
+from widgets.shared import DateTimeCtrl
 # import devices
 
 #===============================================================================

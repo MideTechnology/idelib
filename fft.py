@@ -28,7 +28,8 @@ import wx.lib.delayedresult as delayedresult
 import spectrum as spec
 
 from base import MenuMixin
-from common import mapRange, StatusBar, nextPow2, sanitizeFilename
+from common import mapRange, nextPow2, sanitizeFilename
+from widgets.shared import StatusBar
 
 from build_info import DEBUG
 from logger import logger

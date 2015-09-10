@@ -26,7 +26,7 @@ from wx.lib.wordwrap import wordwrap
 
 import xmodem
 
-import device_dialog
+from widgets import device_dialog
 import devices
 from logger import logger
 from mide_ebml import util

@@ -4,16 +4,13 @@ Dialog for selecting recording devices.
 """
 from collections import namedtuple
 from datetime import datetime
-# import random
-# import struct
 import sys
 import time
 
-import wx; wx=wx
+import wx
 import wx.lib.sized_controls as sc
 import wx.lib.mixins.listctrl  as  listmix
 
-# from common import hex32
 from common import cleanUnicode
 from devices import getDevices, getDeviceList
 from devices import deviceChanged

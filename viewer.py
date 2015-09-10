@@ -51,25 +51,26 @@ import images
 
 # Custom controls, events and base classes
 from base import ViewerPanel, MenuMixin
-from common import StatusBar, cleanUnicode, wordJoin, TimeValidator
+from common import cleanUnicode, wordJoin, TimeValidator
 import events
-from widgets.timeline import TimelineCtrl, TimeNavigatorCtrl
 
 # Views, dialogs and such
 from aboutbox import AboutBox
 import config_dialog
 from converter_editor import ConverterEditor
-from device_dialog import selectDevice
-import export_dialog as xd
 from fileinfo import RecorderInfoDialog
 from fft import FFTView, SpectrogramView, PSDView
 from loader import Loader
 from plots import PlotSet
 from preferences import Preferences
-from range_dialog import RangeDialog
 from renderplot import PlotView
-from widgets.memorydialog import MemoryDialog
 import updater
+from widgets import export_dialog as xd
+from widgets.shared import StatusBar
+from widgets.device_dialog import selectDevice
+from widgets.memorydialog import MemoryDialog
+from widgets.range_dialog import RangeDialog
+from widgets.timeline import TimelineCtrl, TimeNavigatorCtrl
 
 # Special helper objects and functions
 import devices #@UnusedImport
@@ -77,7 +78,7 @@ import devices.efm32_firmware
 from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
-import mide_ebml; mide_ebml = mide_ebml # Workaround for Eclipse code comp.
+import mide_ebml #@UnusedImport
 import mide_ebml.classic.importer
 import mide_ebml.multi_importer
 import mide_ebml.matfile
