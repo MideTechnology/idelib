@@ -28,7 +28,7 @@ class DebugConsole(wx.py.shell.ShellFrame):
          "viewer.getTab()   Retrieve the foreground tab.",
          ""))
 
-    def __init__(self, parent=None, id=-1, title=None, introText=None,
+    def __init__(self, parent=None, id=-1, title=None, introText=None, 
                  pos=wx.DefaultPosition, size=wx.DefaultSize,
                  style=wx.DEFAULT_FRAME_STYLE, locals=None, InterpClass=None,
                  config=None, dataDir=None, *args, **kwds):

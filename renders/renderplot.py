@@ -7,9 +7,9 @@ Created on Oct 14, 2014
 import numpy as np; np=np
 
 import wx
-from wx_lib_plot import PolyLine, PlotGraphics
+from renders.wx_lib_plot import PolyLine, PlotGraphics
 
-from fft import FFTPlotCanvas, FFTView
+from renders.fft import FFTPlotCanvas, FFTView
 
 class PlotView(FFTView):
     """

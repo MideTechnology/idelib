@@ -16,7 +16,7 @@ __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
 if DEBUG or BETA:
     __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
-    import debugging
+    from widgets import debugging
 if DEBUG:
     import socket
     if socket.gethostname() in ('DEDHAM',):
@@ -59,11 +59,11 @@ from aboutbox import AboutBox
 import config_dialog
 from converter_editor import ConverterEditor
 from fileinfo import RecorderInfoDialog
-from fft import FFTView, SpectrogramView, PSDView
+from renders.fft import FFTView, SpectrogramView, PSDView
 from loader import Loader
 from plots import PlotSet
 from preferences import Preferences
-from renderplot import PlotView
+from renders.renderplot import PlotView
 import updater
 from widgets import export_dialog as xd
 from widgets.shared import StatusBar
@@ -1018,7 +1018,9 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnForegroundRender(self, evt):
-        import fft
+        """ For debugging: handle 'render in foreground' menu item change.
+        """
+        from renders import fft
         fft.FOREGROUND=evt.Checked()
 
 
