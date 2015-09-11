@@ -250,9 +250,6 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         return data
 
 
-
-
-
 #===============================================================================
 # 
 #===============================================================================
@@ -430,7 +427,7 @@ class SSXInfoPanel(InfoPanel):
         on conditions of the recorder.
     """
     
-    ICONS = ('../ABOUT/info.png', '../ABOUT/warn.png', '../ABOUT/error.png')
+    ICONS = ('../resources/info.png', '../resources/warn.png', '../resources/error.png')
 
     def getDeviceData(self):
         man = self.root.device.manufacturer

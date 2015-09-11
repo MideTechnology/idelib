@@ -9,7 +9,7 @@ Created on Dec 4, 2013
 
 __all__ = ('ViewerPanel', 'MenuMixin')
 
-import wx; wx = wx # Workaround for PyDev code comprehension
+import wx
 
 from events import EvtSetTimeRange, EvtSetVisibleRange
 
@@ -214,6 +214,7 @@ class MenuMixin(object):
             @keyword checked: If `True`, the menu item will be checked by
                 default. Only applicable to `wx.ITEM_CHECK` items; radio buttons
                 need to be set separately.
+            @return: The new menu item.
         """
         if id_ == -1:
             id_ = wx.NewId()
@@ -226,11 +227,16 @@ class MenuMixin(object):
         return item
 
     def addMenu(self, menubar, text):
-        """
+        """ Create a submenu in a given menu bar.
+            
+            @param menu: The menu bar to which to add the submenu.
+            @param text: The menu item text.
+            @return: The new submenu.
         """
         menu = wx.Menu()
         menubar.Append(menu, text)
         return menu
+
 
     def addSubMenu(self, menu, id_, text, enabled=True):
         """ Helper method for doing the grunt work involved in adding a submenu.
