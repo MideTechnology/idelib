@@ -176,7 +176,7 @@ class CalFile(object):
     """ One analyzed IDE file.
     """
     
-    def __init__(self, filename, serialNum, skipSamples=5000):
+    def __init__(self, filename, serialNum, dcOnly=False, skipSamples=5000):
         """ Constructor.
             @param filename: The IDE file to read.
             @param serialNum: The recorder's serial number (string).
@@ -189,6 +189,7 @@ class CalFile(object):
         self.name = os.path.splitext(self.basename)[0]
         self.serialNum = serialNum
         self.skipSamples = skipSamples
+        self.dcOnly = dcOnly
         self.analyze()
     
     
@@ -263,10 +264,11 @@ class CalFile(object):
         """ Get the high-G accelerometer channel. 
         """
         # TODO: Actually check sensor descriptions to get channel ID
-        if len(self.doc.channels) == 2:
-            return None
+
         if 32 in self.doc.channels:
             return self.doc.channels[32]
+        if len(self.doc.channels) == 2:
+            return None
         else:
             raise TypeError("Low-g accelerometer channel not where expected!")
 
@@ -315,29 +317,124 @@ class CalFile(object):
         
             @return: The calibration constants tuple and the mean temperature.
         """
-        thres = 4           # (gs) acceleration detection threshold (trigger for finding which axis is calibrated)
-        start= 5000         # Look # data points ahead of first index match after finding point that exceeds threshold
-        stop= start + 5000  # Look # of data points ahead of first index match
-        cal_value = 7.075   # RMS value of closed loop calibration
-        
         _print("importing %s... " % os.path.basename(self.filename))
         self.doc = importFile(self.filename)
-        accelChannel = self.getHighAccelerometer()
-        pressTempChannel = self.getPressTempChannel()
-        axisIds = self.getAxisIds(accelChannel)
-        
-        self.hiAccelChannelId = accelChannel.id
-        self.hiAccelSubchannelIds = axisIds
-        
+
+        if not self.dcOnly:
+            accelChannel = self.getHighAccelerometer()
+        else:
+            accelChannel = None
+        if accelChannel:
+            _print("Analyzing high-g accelerometer data...")
+            
+            # HACK: Fix typo in template the hard way
+            accelChannel.transform.references = (0,)
+            accelChannel.updateTransforms()
+                
+            self.accel, self.times, self.rms, self.cal, self.means = self._analyze(accelChannel)
+
         loAccelChannel = self.getLowAccelerometer()
-        self.loAccelChannelId = loAccelChannel.id if loAccelChannel is not None else None
+        if loAccelChannel:
+            _print("Analyzing low-g accelerometer data...")
+            self.accelLo, self.timesLo, self.rmsLo, self.calLo, self.meansLo = self._analyze(loAccelChannel)
+                
+#         thres = 4           # (gs) acceleration detection threshold (trigger for finding which axis is calibrated)
+#         start= 5000         # Look # data points ahead of first index match after finding point that exceeds threshold
+#         stop= start + 5000  # Look # of data points ahead of first index match
+#         cal_value = 7.075   # RMS value of closed loop calibration
+#         
+#         _print("importing %s... " % os.path.basename(self.filename))
+#         self.doc = importFile(self.filename)
+#         accelChannel = self.getHighAccelerometer()
+#         pressTempChannel = self.getPressTempChannel()
+#         axisIds = self.getAxisIds(accelChannel)
+#         
+#         self.hiAccelChannelId = accelChannel.id
+#         self.hiAccelSubchannelIds = axisIds
+#         
+#         loAccelChannel = self.getLowAccelerometer()
+#         self.loAccelChannelId = loAccelChannel.id if loAccelChannel is not None else None
+#         
+#         # Turn off existing per-channel calibration (if any)
+#         for c in accelChannel.children:
+#             c.setTransform(None)
+# 
+#         # HACK: Fix typo in template the hard way
+#         accelChannel.transform.references = (0,)
+#         accelChannel.updateTransforms()
+#             
+#         a = accelChannel.getSession()
+#         a.removeMean = True
+#         a.rollingMeanSpan = -1
+#         data = self.flattened(a, len(a))
+#         
+#         _print("%d samples imported. " % len(data)) 
+#         times = data[:,0] * .000001
+#         
+#         # HACK: Some  devices have a longer delay before Z settles.
+#         data = data[self.skipSamples:]
+#     
+#         gt = lambda(x): x > thres
+#         
+#         _print("getting indices... ")
+#         # Column 0 is the time, so axis columns are offset by 1
+#         indices = XYZ(
+#             self.getFirstIndex(data, gt, axisIds.x+1),
+#             self.getFirstIndex(data, gt, axisIds.y+1),
+#             self.getFirstIndex(data, gt, axisIds.z+1)
+#         )
+#         
+#         if indices.x == indices.y == 0:
+#             indices.x = indices.y = indices.z
+#         if indices.x == indices.z == 0:
+#             indices.x = indices.z = indices.y
+#         if indices.y == indices.z == 0:
+#             indices.y = indices.z = indices.x
+#         
+#     #     _print("slicing...")
+#         # Column 0 is the time, so axis columns are offset by 1
+#         self.accel = XYZ(data[indices.x+start:indices.x+stop,axisIds.x+1],
+#                          data[indices.y+start:indices.y+stop,axisIds.y+1],
+#                          data[indices.z+start:indices.z+stop,axisIds.z+1])
+#         self.times = XYZ(times[indices.x+start:indices.x+stop],
+#                          times[indices.y+start:indices.y+stop],
+#                          times[indices.z+start:indices.z+stop])
+#     
+#         _print("computing RMS...")
+#         self.rms = XYZ(self.calculateRMS(self.accel.x), 
+#                        self.calculateRMS(self.accel.y), 
+#                        self.calculateRMS(self.accel.z))
+#         
+#         self.cal = XYZ(cal_value / self.rms.x, 
+#                        cal_value / self.rms.y, 
+#                        cal_value / self.rms.z)
+#     
+#         self.cal_temp = np.mean([x[-1] for x in pressTempChannel[1].getSession()])
+#         self.cal_press = np.mean([x[-1] for x in pressTempChannel[0].getSession()])
+#         
+#         _println()
+
+
+    def _analyze(self, accelChannel, thres=4, start=5000, length=5000):
+        """ Analyze one accelerometer channel.
+        
+            An attempt to port the analysis loop of SSX_Calibration.m to Python.
+        
+            @param accelChannel: 
+            @keyword thres: (gs) acceleration detection threshold (trigger for 
+                finding which axis is calibrated).
+            @keyword start: Look # data points ahead of first index match after
+                finding point that exceeds threshold.
+            @keyword length: The number of samples to use.
+        """
+        stop = start + length  # Look # of data points ahead of first index match
+        cal_value = 7.075   # RMS value of closed loop calibration
+        
+        axisIds = self.getAxisIds(accelChannel)
         
         # Turn off existing per-channel calibration (if any)
         for c in accelChannel.children:
             c.setTransform(None)
-
-        # HACK: Fix typo in template the hard way
-        accelChannel.transform.references = (0,)
         accelChannel.updateTransforms()
             
         a = accelChannel.getSession()
@@ -368,31 +465,29 @@ class CalFile(object):
         if indices.y == indices.z == 0:
             indices.y = indices.z = indices.x
         
-    #     _print("slicing...")
         # Column 0 is the time, so axis columns are offset by 1
-        self.accel = XYZ(data[indices.x+start:indices.x+stop,axisIds.x+1],
+        accel = XYZ(data[indices.x+start:indices.x+stop,axisIds.x+1],
                          data[indices.y+start:indices.y+stop,axisIds.y+1],
                          data[indices.z+start:indices.z+stop,axisIds.z+1])
-        self.times = XYZ(times[indices.x+start:indices.x+stop],
+        times = XYZ(times[indices.x+start:indices.x+stop],
                          times[indices.y+start:indices.y+stop],
                          times[indices.z+start:indices.z+stop])
     
         _print("computing RMS...")
-        self.rms = XYZ(self.calculateRMS(self.accel.x), 
-                       self.calculateRMS(self.accel.y), 
-                       self.calculateRMS(self.accel.z))
+        rms = XYZ(self.calculateRMS(accel.x), 
+                  self.calculateRMS(accel.y), 
+                  self.calculateRMS(accel.z))
         
-        self.cal = XYZ(cal_value / self.rms.x, 
-                       cal_value / self.rms.y, 
-                       cal_value / self.rms.z)
-    
-        self.cal_temp = np.mean([x[-1] for x in pressTempChannel[1].getSession()])
-        self.cal_press = np.mean([x[-1] for x in pressTempChannel[0].getSession()])
+        cal = XYZ(cal_value / rms.x, 
+                  cal_value / rms.y, 
+                  cal_value / rms.z)
         
-        _println()
+        means = XYZ([accelChannel[c].getSession().getRangeMinMeanMax(1000000)[1] for c in axisIds])
+        
+        return accel, times, rms, cal, means
+        
 
-
-    def render(self, imgPath, baseName='vibe_test_', imgType=".png"):
+    def render(self, imgPath, baseName='vibe_test_', imgType="png"):
         imgName = '%s%s.%s' % (baseName, os.path.splitext(os.path.basename(self.filename))[0], imgType)
         saveName = os.path.join(imgPath, imgName)
         
