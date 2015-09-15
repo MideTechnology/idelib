@@ -104,7 +104,7 @@ def addJson(z, boot=False):
     z.write(temp, 'fw_update.json')
 
 
-def makePackage(app, boot=False):
+def makePackage(app, boot=False, preview=False):
     """
     """
     fwRev = util.readFileLine(APP_VER_FILE, int)
@@ -112,6 +112,9 @@ def makePackage(app, boot=False):
     nowStr = now.strftime("%Y%m%d")
     basename = "firmware_r%d_%s.%s" % (fwRev, nowStr, PACKAGE_EXT)
     filename = os.path.join(UPDATE_DIR, basename)
+    
+    if preview is True:
+        filename = os.path.join(tempfile.gettempdir(), 'preview.fw')
     
     templates = getTemplates()
     
@@ -136,6 +139,9 @@ def makePackage(app, boot=False):
         print "Removing bad/incomplete zip..."
         os.remove(filename)
     
+    if preview is True:
+        pass
+    
 #===============================================================================
 # 
 #===============================================================================
@@ -146,6 +152,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SSX/SSC Firmware Package Maker")
     parser.add_argument("--app", "-a", default=APP_FILE, help="Full path to the application binary.")
     parser.add_argument("--bootloader", "-b", action="store_true", help="Include the bootloader.")
+    parser.add_argument("--preview", '-p', help="Preview the package and its rendered release notes.")
     
     args = parser.parse_args() 
     makePackage(args.app, boot=args.bootloader)
