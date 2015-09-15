@@ -37,6 +37,7 @@ BOOT_FILE = os.path.join(FIRMWARE_PATH, "boot.bin")
 BOOT_VER_FILE = os.path.join(FIRMWARE_PATH, "boot_version.txt")
 APP_FILE = os.path.join(FIRMWARE_PATH, "app.bin")
 APP_VER_FILE = os.path.join(FIRMWARE_PATH, "app_version.txt")
+NOTES_FILE = os.path.join(FIRMWARE_PATH, 'release_notes.txt')
 
 UPDATE_DIR = os.path.join(PRODUCT_ROOT_PATH, 'Design_Files/Firmware_and_Software/Release/Firmware/updates/')
 
@@ -124,6 +125,9 @@ def makePackage(app, boot=False):
         if boot:
             print "Adding bootloader binary %s..." % BOOT_FILE
             f.write(BOOT_FILE, os.path.basename(BOOT_FILE))
+        if os.path.exists(NOTES_FILE):
+            print "Adding release notes..."
+            f.write(NOTES_FILE, os.path.basename(NOTES_FILE))
         print "Adding %d templates..." % len(templates)
         addTemplates(f, templates)
         print "Done!"

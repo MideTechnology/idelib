@@ -21,7 +21,8 @@ import serial #@UnusedImport
 import serial.tools.list_ports
 
 import wx
-from  wx.lib.throbber import Throbber
+from wx.lib.dialogs import ScrolledMessageDialog
+from wx.lib.throbber import Throbber
 from wx.lib.wordwrap import wordwrap
 
 import xmodem
@@ -165,7 +166,7 @@ class FirmwareUpdater(object):
 
             for n in ('release_notes.html', 'release_notes.txt'):
                 if n in contents:
-                    self.releaseNotes = (n, fwzip.read(n, password))
+                    self.releaseNotes = (n,fwzip.read(n, password))
                     break
         
         # Sanity check: Make sure the binary contains the expected string
@@ -516,9 +517,9 @@ class FirmwareUpdater(object):
         if calEx:
             calTemplate['CalibrationList']['CalibrationSerialNumber'] = calSer
         if calDate:
-            calTemplate['CalibrationList']['CalibrationDate'] = calDate
+            calTemplate['CalibrationList']['CalibrationDate'] = int(calDate)
         if calEx:
-            calTemplate['CalibrationList']['CalibrationExpiry'] = calEx
+            calTemplate['CalibrationList']['CalibrationExpiry'] = int(calEx)
         
         self.manifest = util.build_ebml('DeviceManifest', 
                                         manTemplate['DeviceManifest'], 
@@ -555,7 +556,8 @@ class FirmwareUpdateDialog(wx.Dialog):
                 try:
                     with open(inf, 'rb') as f:
                         for l in f:
-                            if 'EFM32 USB' in l:
+                            # Different versions use different names
+                            if 'EFM32 USB' in l or 'Silicon Labs CDC' in l:
                                 logger.info("Identified possible driver: %s" % inf)
                                 return True
                 except WindowsError:
@@ -585,12 +587,11 @@ class FirmwareUpdateDialog(wx.Dialog):
         headerText = "Please Stand By..."
         messageText = "\n"*4
         
-        self.header = wx.StaticText(self, -1, headerText, size=(400,40), style=wx.ALIGN_CENTRE_HORIZONTAL)
+        self.header = wx.StaticText(self, -1, headerText, size=(400,40), 
+                                    style=wx.ALIGN_CENTRE_HORIZONTAL)
         self.header.SetFont(self.GetFont().Bold().Scaled(1.5))
-#         self.header.SetSizeWH(400,-1)
-
-        self.message = wx.StaticText(self, -1, messageText, size=(400,40), style=wx.ALIGN_CENTRE_HORIZONTAL)
-#         self.header.SetSizeWH(400,-1)
+        self.message = wx.StaticText(self, -1, messageText, size=(400,40), 
+                                     style=wx.ALIGN_CENTRE_HORIZONTAL)
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(wx.Panel(self, -1), 0, wx.EXPAND)
@@ -814,6 +815,11 @@ def updateFirmware(parent=None, device=None, filename=None):
                       "Validation Error")
         return False
     
+    if update.releaseNotes:
+        dlg = ScrolledMessageDialog(parent, update.releaseNotes[1], 
+                                "%s Release Notes" % os.path.basename(filename))
+        dlg.ShowModal()
+        
     try:
         update.checkCompatibility()
         logger.info("Passed compatibility check")
@@ -829,7 +835,8 @@ def updateFirmware(parent=None, device=None, filename=None):
                (updateVer, device.firmwareVersion))
         if updateVer < device.firmwareVersion:
             msg += "\nUpdating with older firmware is not recommended."
-        dlg = wx.MessageBox("%s\n\nContinue?" % msg, "Old Firmware", wx.OK|wx.CANCEL|wx.ICON_WARNING)
+        dlg = wx.MessageBox("%s\n\nContinue?" % msg, "Old Firmware", 
+                            wx.OK|wx.CANCEL|wx.ICON_WARNING)
         if dlg != wx.OK:
             return
 
