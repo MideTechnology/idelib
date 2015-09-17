@@ -298,7 +298,7 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
         dcAccelCh = ssx.getAccelChannel(dc=True)
         dcAccelChId = dcAccelCh.id if dcAccelCh is not None else None
         
-        numAccelCh = len(accelCh.subchannels)
+        numAccelCh = len(accelCh.subchannels) if accelCh is not None else None
         numTempCh = len(pressTempCh.subchannels)
         numDcAccelCh = 0 if dcAccelCh is None else len(dcAccelCh.subchannels)
         

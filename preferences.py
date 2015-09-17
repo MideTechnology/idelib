@@ -553,6 +553,10 @@ class PrefsDialog(SC.SizedDialog):
              UseCheckbox=True)
         _add(PG.BoolProperty("Display 'Open' Dialog on Startup", "openOnStart"), 
              UseCheckbox=True )
+        _add(PG.EnumProperty("When opening another file:", "openAnotherFile",
+                             ("Close previous file","Open in new window", "Ask")),
+             "The application's behavior when opening a file while another "
+             "is already open.")
         _add(PG.IntProperty("X Axis Value Precision", "precisionX", value=4))
         _add(PG.IntProperty("Y Axis Value Precision", "precisionY", value=4))
         _add(PG.EnumProperty("Locale", "locale", self.LANG_LABELS))
@@ -579,6 +583,7 @@ class PrefsDialog(SC.SizedDialog):
         """ Puts the contents of preferences dict into the grid after doing
             any data modifications for display.
         """
+        # Special case: turn the locale into an index into the list of locales.
         locale = prefs.get('locale', 'LANGUAGE_ENGLISH_US')
         if isinstance(locale, basestring):
             if locale not in self.LANGUAGES:
@@ -588,6 +593,10 @@ class PrefsDialog(SC.SizedDialog):
             localeIdx = locale    
         prefs['locale'] = localeIdx
         
+        # Another special case: the open in same window dialog. The user may
+        # want to change this without clearing all other 'ask' settings.
+        openAnother = prefs.get("ask.openInSameWindow", 2)
+        prefs['openAnotherFile'] = {wx.ID_YES: 0, wx.ID_NO: 1}.get(openAnother, 2)
         
         self.pg.SetPropertyValues(prefs)
 
@@ -625,6 +634,13 @@ class PrefsDialog(SC.SizedDialog):
                 continue
             if k not in self.defaultPrefs or v != self.defaultPrefs[k]:
                 result[k] = v
+
+        openAnother = result.pop('openAnotherFile', 2)
+        if openAnother == 2:
+            result.pop("ask.openInSameWindow", None)
+        else:
+            result["ask.openInSameWindow"] = (wx.ID_YES, wx.ID_NO)[openAnother]
+
         return result
 
 
