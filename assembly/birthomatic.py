@@ -774,17 +774,17 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName, calCurrentNa
         if q == "N":
             return
     
-    if not all([utils.inRange(x.cal_temp, 15, 27) for x in c.cal_vals]):
+    if not all([utils.inRange(x.cal_temp, 15, 27) for x in c.calFiles]):
         print "!!! Extreme temperature detected in recording(s)!"
-        for x in c.cal_vals:
+        for x in c.calFiles:
             print "%s: %.2f degrees C" % (os.path.basename(x.filename), x.cal_temp)
         q = utils.getYesNo("Continue with device calibration (Y/N)? ")
         if q == "N":
             return
         
-    if not all([utils.inRange(x.cal_press, 96235, 106365) for x in c.cal_vals]):
+    if not all([utils.inRange(x.cal_press, 96235, 106365) for x in c.calFiles]):
         print "!!! Extreme air pressure detected in recording(s)!"
-        for x in c.cal_vals:
+        for x in c.calFiles:
             print "%s: %.2f Pa" % (os.path.basename(x.filename), x.cal_press)
         q = utils.getYesNo("Continue with device calibration (Y/N)? ")
         if q == "N":

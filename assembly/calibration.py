@@ -24,13 +24,13 @@ from xml.etree import ElementTree as ET
 import numpy as np
 import pylab #@UnresolvedImport - doesn't show up for some reason.
 
-# VIEWER_PATH = "P:/WVR_RIF/04_Design/Electronic/Software/SSX_Viewer"
 VIEWER_PATH = r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Design_Files\Firmware_and_Software\Development\Source\Slam_Stick_Lab"
 INKSCAPE_PATH = r"C:\Program Files (x86)\Inkscape\inkscape.exe"
 
 CWD = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(CWD)
 
+# Song and dance to make sure the mide_ebml library can be found.
 try:
     import mide_ebml
 except ImportError:
@@ -98,7 +98,8 @@ class XYZ(list):
     @z.setter
     def z(self, val):
         self[2] = val
-        
+
+
 #==============================================================================
 # 
 #==============================================================================
@@ -175,8 +176,13 @@ def dump_csv(data, filename):
 class CalFile(object):
     """ One analyzed IDE file.
     """
+    # RMS value of closed loop calibration
+    REFERENCE_RMS = 7.075
+#     REFERENCE_RMS = 10*(2**.5)/2
+    REFERENCE_OFFSET = 1.0
     
-    def __init__(self, filename, serialNum, dcOnly=False, skipSamples=5000):
+    def __init__(self, filename, serialNum, dcOnly=False, skipSamples=5000,
+                 rms=REFERENCE_RMS):
         """ Constructor.
             @param filename: The IDE file to read.
             @param serialNum: The recorder's serial number (string).
@@ -190,6 +196,7 @@ class CalFile(object):
         self.serialNum = serialNum
         self.skipSamples = skipSamples
         self.dcOnly = dcOnly
+        self.referenceRMS = rms
         self.analyze()
     
     
@@ -198,6 +205,15 @@ class CalFile(object):
             ((self.name,) + tuple(self.rms) + tuple(self.cal))
     
     
+    def __repr__(self):
+        try:
+            return "<%s %s at 0x%08x>" % (self.__class__.__name__, 
+                                          os.path.basename(self.filename),
+                                          id(self))
+        except TypeError:
+            return super(CalFile, self).__repr__()           
+
+
     @classmethod
     def flattened(cls, data, rows=None, cols=4):
         """ Given accelerometer data, with each event (time, (z,y,x)), produce an
@@ -212,8 +228,8 @@ class CalFile(object):
     
     @classmethod
     def flattenedIndexed(cls, data, rows=None, cols=4):
-        """ Given accelerometer data, with each event (time, (z,y,x)), produce an
-            array that's (index, time, z, y, x)
+        """ Given accelerometer data, with each event (time, (z,y,x)), produce 
+            an array that's (index, time, z, y, x)
         """
         result = np.zeros(shape=(len(data),cols+1), dtype=float)
         for i, row in enumerate(data):
@@ -253,18 +269,22 @@ class CalFile(object):
         """
         # TODO: Actually check sensor descriptions to get channel ID
         if 0 in self.doc.channels:
+            # Old SSX firmware. Probably won't appear again.
             return self.doc.channels[0]
         elif 8 in self.doc.channels:
+            # New SSX firmware.
             return self.doc.channels[8]
-        else:
-            raise TypeError("Accelerometer channel not where expected!")
+        elif len(self.doc.channels) == 2:
+            # Probably a Slam Stick C.
+            return None
+        
+        raise TypeError("Accelerometer channel not where expected!")
 
     
     def getLowAccelerometer(self):
         """ Get the high-G accelerometer channel. 
         """
         # TODO: Actually check sensor descriptions to get channel ID
-
         if 32 in self.doc.channels:
             return self.doc.channels[32]
         if len(self.doc.channels) == 2:
@@ -278,8 +298,10 @@ class CalFile(object):
         """
         # TODO: Actually check sensor descriptions to get channel ID
         if 1 in self.doc.channels:
+            # Old firmware
             return self.doc.channels[1]
         elif 36 in self.doc.channels:
+            # New firmware
             return self.doc.channels[36]
         else:
             raise TypeError("Temp/Pressure channel not where expected!")
@@ -325,97 +347,38 @@ class CalFile(object):
         else:
             accelChannel = None
         if accelChannel:
+            self.hasHiAccel = True
             _print("Analyzing high-g accelerometer data...")
             
             # HACK: Fix typo in template the hard way
             accelChannel.transform.references = (0,)
             accelChannel.updateTransforms()
                 
-            self.accel, self.times, self.rms, self.cal, self.means = self._analyze(accelChannel)
+            self.accel, self.times, self.rms, self.cal, self.means = self._analyze(accelChannel, skipSamples=self.skipSamples)
+        else:
+            self.hasHiAccel = False
 
         loAccelChannel = self.getLowAccelerometer()
         if loAccelChannel:
+            self.hasLoAccel = True
             _print("Analyzing low-g accelerometer data...")
-            self.accelLo, self.timesLo, self.rmsLo, self.calLo, self.meansLo = self._analyze(loAccelChannel)
-                
-#         thres = 4           # (gs) acceleration detection threshold (trigger for finding which axis is calibrated)
-#         start= 5000         # Look # data points ahead of first index match after finding point that exceeds threshold
-#         stop= start + 5000  # Look # of data points ahead of first index match
-#         cal_value = 7.075   # RMS value of closed loop calibration
-#         
-#         _print("importing %s... " % os.path.basename(self.filename))
-#         self.doc = importFile(self.filename)
-#         accelChannel = self.getHighAccelerometer()
-#         pressTempChannel = self.getPressTempChannel()
-#         axisIds = self.getAxisIds(accelChannel)
-#         
-#         self.hiAccelChannelId = accelChannel.id
-#         self.hiAccelSubchannelIds = axisIds
-#         
-#         loAccelChannel = self.getLowAccelerometer()
-#         self.loAccelChannelId = loAccelChannel.id if loAccelChannel is not None else None
-#         
-#         # Turn off existing per-channel calibration (if any)
-#         for c in accelChannel.children:
-#             c.setTransform(None)
-# 
-#         # HACK: Fix typo in template the hard way
-#         accelChannel.transform.references = (0,)
-#         accelChannel.updateTransforms()
-#             
-#         a = accelChannel.getSession()
-#         a.removeMean = True
-#         a.rollingMeanSpan = -1
-#         data = self.flattened(a, len(a))
-#         
-#         _print("%d samples imported. " % len(data)) 
-#         times = data[:,0] * .000001
-#         
-#         # HACK: Some  devices have a longer delay before Z settles.
-#         data = data[self.skipSamples:]
-#     
-#         gt = lambda(x): x > thres
-#         
-#         _print("getting indices... ")
-#         # Column 0 is the time, so axis columns are offset by 1
-#         indices = XYZ(
-#             self.getFirstIndex(data, gt, axisIds.x+1),
-#             self.getFirstIndex(data, gt, axisIds.y+1),
-#             self.getFirstIndex(data, gt, axisIds.z+1)
-#         )
-#         
-#         if indices.x == indices.y == 0:
-#             indices.x = indices.y = indices.z
-#         if indices.x == indices.z == 0:
-#             indices.x = indices.z = indices.y
-#         if indices.y == indices.z == 0:
-#             indices.y = indices.z = indices.x
-#         
-#     #     _print("slicing...")
-#         # Column 0 is the time, so axis columns are offset by 1
-#         self.accel = XYZ(data[indices.x+start:indices.x+stop,axisIds.x+1],
-#                          data[indices.y+start:indices.y+stop,axisIds.y+1],
-#                          data[indices.z+start:indices.z+stop,axisIds.z+1])
-#         self.times = XYZ(times[indices.x+start:indices.x+stop],
-#                          times[indices.y+start:indices.y+stop],
-#                          times[indices.z+start:indices.z+stop])
-#     
-#         _print("computing RMS...")
-#         self.rms = XYZ(self.calculateRMS(self.accel.x), 
-#                        self.calculateRMS(self.accel.y), 
-#                        self.calculateRMS(self.accel.z))
-#         
-#         self.cal = XYZ(cal_value / self.rms.x, 
-#                        cal_value / self.rms.y, 
-#                        cal_value / self.rms.z)
-#     
-#         self.cal_temp = np.mean([x[-1] for x in pressTempChannel[1].getSession()])
-#         self.cal_press = np.mean([x[-1] for x in pressTempChannel[0].getSession()])
-#         
-#         _println()
+            self.accelLo, self.timesLo, self.rmsLo, self.calLo, self.meansLo = self._analyze(loAccelChannel, thres=6, start=1000, length=1000)
+            
+            if not self.hasHiAccel:
+                self.accel = self.accelLo[:]
+                self.times = self.timesLo[:]
+                self.rms = self.rmsLo[:]
+                self.cal = self.calLo[:]
+                self.means = self.meansLo[:]
+        else:
+            self.hasLoAccel = False 
 
+        pressTempChannel = self.getPressTempChannel()
+        self.cal_temp = np.mean([x[-1] for x in pressTempChannel[1].getSession()])
+        self.cal_press = np.mean([x[-1] for x in pressTempChannel[0].getSession()])
+    
 
-    def _analyze(self, accelChannel, thres=4, start=5000, length=5000):
+    def _analyze(self, accelChannel, thres=4, start=5000, length=5000, skipSamples=0):
         """ Analyze one accelerometer channel.
         
             An attempt to port the analysis loop of SSX_Calibration.m to Python.
@@ -428,15 +391,16 @@ class CalFile(object):
             @keyword length: The number of samples to use.
         """
         stop = start + length  # Look # of data points ahead of first index match
-        cal_value = 7.075   # RMS value of closed loop calibration
-        
         axisIds = self.getAxisIds(accelChannel)
         
         # Turn off existing per-channel calibration (if any)
         for c in accelChannel.children:
             c.setTransform(None)
         accelChannel.updateTransforms()
-            
+
+        accelChannel.removeMean = False
+        means = XYZ([accelChannel[c].getSession().getRangeMinMeanMax(1000000)[1] for c in axisIds])
+                    
         a = accelChannel.getSession()
         a.removeMean = True
         a.rollingMeanSpan = -1
@@ -445,8 +409,13 @@ class CalFile(object):
         _print("%d samples imported. " % len(data)) 
         times = data[:,0] * .000001
         
+        if not a.allowMeanRemoval:
+            _print("Doing 'manual' mean removal.")
+            data = data - ([0] + means)
+        
         # HACK: Some  devices have a longer delay before Z settles.
-        data = data[self.skipSamples:]
+        if skipSamples:
+            data = data[skipSamples:]
     
         gt = lambda(x): x > thres
         
@@ -478,11 +447,9 @@ class CalFile(object):
                   self.calculateRMS(accel.y), 
                   self.calculateRMS(accel.z))
         
-        cal = XYZ(cal_value / rms.x, 
-                  cal_value / rms.y, 
-                  cal_value / rms.z)
-        
-        means = XYZ([accelChannel[c].getSession().getRangeMinMeanMax(1000000)[1] for c in axisIds])
+        cal = XYZ(self.referenceRMS / rms.x, 
+                  self.referenceRMS / rms.y, 
+                  self.referenceRMS / rms.z)
         
         return accel, times, rms, cal, means
         
@@ -574,7 +541,7 @@ class Calibrator(object):
         self.procedureNum = procedureNum
         
         self.calRev = calRev
-        self.calTemp = 21
+        self.meanCalTemp = 21
         self.calTempComp = calTempComp
         self.calHumidity = calHumidity
         
@@ -584,8 +551,8 @@ class Calibrator(object):
         self.refNist = refNist
     
         self.calTimestamp = 0
-        self.cal_vals=None
-        self.filenames = None
+        self.calFilesUnsorted = self.calFiles = self.filenames = None
+        self.hasHiAccel = self.hasLoAccel = None
 
         self.skipSamples = skipSamples
 
@@ -611,8 +578,8 @@ class Calibrator(object):
 
 
     def closeFiles(self):
-        if self.cal_vals:
-            for c in self.cal_vals:
+        if self.calFiles:
+            for c in self.calFiles:
                 try:
                     c.doc.close()
                 except Exception:
@@ -646,11 +613,28 @@ class Calibrator(object):
     # 
     #===========================================================================
 
-    def calculate(self, filenames=None, prev_cal=(1,1,1)):
-        """ Calculate the high-g accelerometer!
+    def sortCalFiles(self, calFiles, thresh=2):
         """
-        self.calDate = datetime.now()
+        """
+        sortedFiles = XYZ()
         
+        for i in range(3):
+            sortedFiles[i] = min(calFiles, key=lambda c: c.cal[i])
+        
+#         for c in calFiles:
+#             if c.cal.x <= thresh:
+#                 sortedFiles.x = c
+#             if c.cal.y <= thresh:
+#                 sortedFiles.y = c
+#             if c.cal.z <= thresh:
+#                 sortedFiles.z = c
+        
+        return sortedFiles
+
+
+    def calculateTrans(self, calFiles, cal, thresh=2, dc=False):
+        """ Calculate the transverse sensitivity.
+        """
         def calc_trans(a, b, c, a_corr, b_corr, c_corr):
             a_cross = a * a_corr
             b_cross = b * b_corr
@@ -659,60 +643,62 @@ class Calibrator(object):
             Stb = 100 * (Stab/c_ampl)
             return Stb
         
+        if dc:
+            xRms = calFiles.x.rmsLo
+            yRms = calFiles.y.rmsLo
+            zRms = calFiles.z.rmsLo
+        else:
+            xRms = calFiles.x.rms
+            yRms = calFiles.y.rms
+            zRms = calFiles.z.rms
+        
+        Sxy = calc_trans(zRms.x, zRms.y, zRms.z, cal.x, cal.y, cal.z)
+        Syz = calc_trans(xRms.y, xRms.z, xRms.x, cal.y, cal.z, cal.x)
+        Sxz = calc_trans(yRms.z, yRms.x, yRms.y, cal.z, cal.x, cal.y)
+        
+        return (Sxy, Syz, Sxz)
+        
+        
+    def calculate(self, filenames=None, prev_cal=(1,1,1), prev_cal_lo=(1,1,1)):
+        """ Calculate the high-g accelerometer!
+        """
+        # TODO: Check for correct number of files?
+        self.calDate = datetime.now()
+        self.calTimestamp = int(time.mktime(time.gmtime()))
+        
         if filenames is None:
             filenames = self.getFiles()
         
-        # TODO: Check for correct number of files?
+        self.calFilesUnsorted = [CalFile(f, self.productSerialNum, 
+                                         skipSamples=self.skipSamples) for f in filenames]
         
-        basenames = map(os.path.basename, filenames)
-        if self.cal_vals is None:
-            self.cal_vals = [CalFile(f, self.productSerialNum, skipSamples=self.skipSamples) for f in filenames]
-        cal_vals = self.cal_vals
+        # All CalFiles will have 'non-Lo' calibration values. For SSC, these
+        # will be the same as the DC accelerometer values.
+        self.calFiles = self.sortCalFiles(self.calFilesUnsorted)
+        self.filenames = XYZ((os.path.basename(c.filename) for c in self.calFiles))
+        self.cal = XYZ([self.calFiles[i].cal[i] * prev_cal[i] for i in range(3)])
+        self.hasHiAccel = all((c.hasHiAccel for c in self.calFiles))
+        self.hasLoAccel = all((c.hasLoAccel for c in self.calFiles))
         
-        self.cal = XYZ()
-        self.filenames = XYZ()
-        for j in range(3):
-            if cal_vals[j].cal.x <= 2:
-                self.cal.x = cal_vals[j].cal.x * prev_cal[0]
-                self.filenames.x = basenames[j]
-            if cal_vals[j].cal.y <= 2:
-                self.cal.y = cal_vals[j].cal.y * prev_cal[1]
-                self.filenames.y = basenames[j]
-            if cal_vals[j].cal.z <= 2:
-                self.cal.z = cal_vals[j].cal.z * prev_cal[2]
-                self.filenames.z = basenames[j]
+        self.Sxy, self.Syz, self.Sxz = self.calculateTrans(self.calFiles, self.cal)
+        self.Syz_file, self.Sxz_file, self.Sxy_file = self.filenames
         
-        self.Sxy = self.Sxy_file = None
-        self.Syz = self.Syz_file = None
-        self.Sxz = self.Sxz_file = None
-        
-        for i in range(3):
-            x,y,z = cal_vals[i].rms
-            if x <= 2 and y <= 2:
-                self.Sxy = calc_trans(x,y,z,self.cal.x, self.cal.y, self.cal.z)
-                self.Sxy_file = basenames[i]
-            if y <= 2 and z <= 2:
-                self.Syz = calc_trans(y,z,x,self.cal.y,self.cal.z,self.cal.x)
-                self.Syz_file = basenames[i]
-            if z <= 2 and x <= 2:
-                self.Sxz = calc_trans(z,x,y,self.cal.z,self.cal.x,self.cal.y)
-                self.Sxz_file = basenames[i]
-        
-        self.cal_temps = XYZ([cal.cal_temp for cal in self.cal_vals])
-        self.calTemp = np.mean(self.cal_temps)
-        self.cal_pressures = XYZ([cal.cal_press for cal in self.cal_vals])
-        self.calPress = np.mean(self.cal_pressures)          
+        self.meanCalTemp = np.mean([cal.cal_temp for cal in self.calFiles])
+        self.meanCalPress = np.mean([cal.cal_press for cal in self.calFiles])
 
-        self.calTimestamp = int(time.mktime(time.gmtime()))
+        if self.hasHiAccel and not self.hasLoAccel:
+            return
+        
+        self.calLo = XYZ([self.calFiles[i].calLo[i] * prev_cal_lo[i] for i in range(3)])
+        self.SxyLo, self.SyzLo, self.SxzLo = self.calculateTrans(self.calFiles, self.calLo, dc=True)
 
 
     #===========================================================================
     # 
     #===========================================================================
 
-
     def createCalLogEntry(self, filename, chipId, mode='at'):
-        """
+        """ Record this calibration session in the log file.
         """
         l = map(str, (time.asctime(), self.calTimestamp, chipId,
                       self.productSerialInt, self.isUpdate, self.certNum))
@@ -738,13 +724,23 @@ class Calibrator(object):
                   'Date: %s' % time.asctime(),
                   '    File  X-rms   Y-rms   Z-rms   X-cal   Y-cal   Z-cal']
         
-        result.extend(map(str, self.cal_vals))
+        result.extend(map(str, self.calFiles))
         result.append("%s, X Axis Calibration Constant %.4f" % (self.filenames.x, self.cal.x))
         result.append("%s, Y Axis Calibration Constant %.4f" % (self.filenames.y, self.cal.y))
         result.append("%s, Z Axis Calibration Constant %.4f" % (self.filenames.z, self.cal.z))
         result.append("%s, Transverse Sensitivity in XY = %.2f percent" % (self.Sxy_file, self.Sxy))
         result.append("%s, Transverse Sensitivity in YZ = %.2f percent" % (self.Syz_file, self.Syz))
         result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (self.Sxz_file, self.Sxz))
+        
+        if self.hasLoAccel:
+            result.append('')
+            result.append('DC Accelerometer:')
+            result.append("%s, X Axis Calibration Constant %.4f" % (self.filenames.x, self.calLo.x))
+            result.append("%s, Y Axis Calibration Constant %.4f" % (self.filenames.y, self.calLo.y))
+            result.append("%s, Z Axis Calibration Constant %.4f" % (self.filenames.z, self.calLo.z))
+            result.append("%s, Transverse Sensitivity in XY = %.2f percent" % (self.Sxy_file, self.SxyLo))
+            result.append("%s, Transverse Sensitivity in YZ = %.2f percent" % (self.Syz_file, self.SyzLo))
+            result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (self.Sxz_file, self.SxzLo))
         
         result = '\n'.join(result)
         
@@ -761,11 +757,12 @@ class Calibrator(object):
     # 
     #===========================================================================
     
-    
     def createPlots(self, savePath='.'):
-        if self.cal_vals is None:
+        """ Render plots of each calibration file.
+        """
+        if self.calFiles is None:
             return False
-        return [c.render(savePath) for c in self.cal_vals]
+        return [c.render(savePath) for c in self.calFiles]
 
 
     #===========================================================================
@@ -810,7 +807,7 @@ class Calibrator(object):
         
         fieldIds = [
             ('FIELD_calHumidity', self.calHumidity),
-            ('FIELD_calTemp', "%.2f" % self.calTemp),
+            ('FIELD_calTemp', "%.2f" % self.meanCalTemp),
             ('FIELD_calTempComp', "%.2f" % self.calTempComp),
             ('FIELD_cal_x', "%.4f" % self.cal.x),
             ('FIELD_cal_y', "%.4f" % self.cal.y),
@@ -890,13 +887,13 @@ class Calibrator(object):
                 ("Ref Serial #",         self.refSerial),
                 ("NIST #",               self.refNist),
                 ("832M1 Serial #",       self.accelSerial),
-                ("Temp. (C)",            self.calTemp),
+                ("Temp. (C)",            self.meanCalTemp),
                 ("Rel. Hum. (%)",        self.calHumidity),
                 ("Temp Comp. (%/C)",     self.calTempComp),
                 ("X-Axis",               self.cal.x),
                 ("Y-Axis",               self.cal.y),
                 ("Z-Axis",               self.cal.z),
-                ("Pressure (Pa)",        self.calPress)])
+                ("Pressure (Pa)",        self.meanCalPress)])
         
         if saveTo is not None:
             newFile = not os.path.exists(saveTo)
@@ -961,7 +958,7 @@ class Calibrator(object):
             thisCal = OrderedDict([
                 ('CalID', i+1),
                 ('CalReferenceValue', 0.0), 
-                ('BivariateCalReferenceValue', self.cal_temps[i]), 
+                ('BivariateCalReferenceValue', self.calFiles[i].cal_temp), 
                 ('BivariateChannelIDRef', tempChannelId), 
                 ('BivariateSubChannelIDRef',tempSubchannelId), 
                 ('PolynomialCoef', [self.cal[i] * -0.003, self.cal[i], 0.0, 0.0]), 
@@ -985,7 +982,7 @@ class Calibrator(object):
             
             @todo: Hook this up!
         """
-        ideFile = self.cal_vals.x
+        ideFile = self.calFiles.x
         accelHi = ideFile.getHighAccelerometer()
         axisIds = ideFile.getAxisIds(accelHi)
 
@@ -998,7 +995,7 @@ class Calibrator(object):
             if t is None:
                 raise TypeError("Subchannel %d.%d has no transform!", (accelHi.id, axisIds[i]))
             t.coefficients = (self.cal[i] * -0.003, self.cal[i], 0.0, 0.0)
-            t.references = (0.0, self.cal_temps[i])
+            t.references = (0.0, self.calFiles[i].cal_temp)
 
         # Flip Z back, just in case.
         self.cal.z *= -1
