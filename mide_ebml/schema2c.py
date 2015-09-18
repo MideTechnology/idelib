@@ -1,76 +1,76 @@
 '''
-Created on Apr 15, 2015
+Created on Sep 11, 2015
 
 @author: dstokes
 '''
+
+from collections import namedtuple
 from datetime import datetime
 import os
 import sys
 import textwrap
+from xml.dom.minidom import parse
 
 from ebml.core import encode_element_id
-from ebml.schema.base import INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
+# from ebml.schema.base import INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
 from ebml.schema.mide import MideDocument
 
 from util import getSchemaModule, getSchemaDocument
 
-types = {INT:       'SINT',
-         UINT:      'UINT',
-         FLOAT:     'FLOAT', 
-         STRING:    'ASCII', 
-         UNICODE:   'UTF8', 
-         DATE:      'DATE', 
-         BINARY:    'BINARY', 
-         CONTAINER: 'MASTER'}
+Element = namedtuple("Element", ('name','level','id','type','mandatory','multiple'))
+
+types = {'integer':  'SINT',
+         'uinteger': 'UINT',
+         'float':    'FLOAT', 
+         'string':   'ASCII', 
+         'utf-8':    'UTF8', 
+         'date':     'DATE', 
+         'binary':   'BINARY', 
+         'master':   'MASTER'}
 
 
-def dumpElement(el, depth):
+def getElements(xmlfile):
+    els = xmlfile.getElementsByTagName('element')
+    result = [Element(el.getAttribute('name'),
+               int(el.getAttribute('level') or 0),
+               int(el.getAttribute('id'), 16),
+               types.get(el.getAttribute('type'), 'UNDEFINED'),
+               int(el.getAttribute('mandatory') or 0),
+               int(el.getAttribute('multiple') or 0),
+#                int(el.getAttribute('minver'))
+               ) for el in els]
+    result = list(set(result))
+    result.sort(key=lambda x: x[2])
+    return result
+
+
+def dumpElementDef(el, schemaName, namelen):
+    inc = "#define %s_ID_%s" % (schemaName.upper(), el.name.upper())
+    return ['%s 0x%08x' % (inc.ljust(namelen), el.id),
+            '%s %d' % ((inc+'_LEN').ljust(namelen), len(encode_element_id(el.id)))]
+
+def dumpElement(el):
     return "\t{.id=0x%08x, .level=%d, .datatype=EBML_TYPE_%-7s .mandatory=%d, .multiple=%d, .minver=%d},\t/* %s */" %\
-        (el.id, depth, types.get(el.type, 'UNDEFINED')+',', el.mandatory, el.multiple, 1, el.name)
+        (el.id, el.level, el.type+',', el.mandatory, el.multiple, 1, el.name)
     
 
-def crawlSchema(el, depth=0, results=None, written=None):
-    if results is None:
-        results = []
-    if written is None:
-        written = {}
-    for ch in el.children:
-        if ch.name not in written:
-            written[ch.name] = ch.id
-            results.append(dumpElement(ch, depth))
-        crawlSchema(ch, depth+1, results, written)
-    return results
-
-
-def dumpSchema(schemaDoc=MideDocument):
-    """ Create the C source for an EBML schema. This is the function that does
-        all the real work.
-    """
-    name = schemaDoc.type.upper()
-    entry = ['static const EbmlSchemaEntry ebml_schema_%s[] = {' % schemaDoc.type.lower()]
-    els = []
-    ids = {}
-    crawlSchema(schemaDoc, 0, els, ids)
-    
-    els.sort()
-    entry.extend(els)
-    entry[-1] = entry[-1].replace('},','}')
-    entry.append('};')
-    
-    incs = ['#ifndef EBML_SCHEMA_%s_H_' % name,
-            '#define EBML_SCHEMA_%s_H_' % name,
+def dumpSchema(xmlfile, name="schema"):
+    incs = ['#ifndef EBML_SCHEMA_%s_H_' % name.upper(),
+            '#define EBML_SCHEMA_%s_H_' % name.upper(),
             '',
             '#include "ebml-schema.h"',
             '']
-    namelen = max([len(x) for x,_ in ids.items()]) + len(name) + 15
-    for n,i in sorted(ids.items(), key=lambda x: x[-1]):
-        n = n.upper()
-        inc = "#define %s_ID_%s" % (name, n)
-        incs.append('%s 0x%08x' % (inc.ljust(namelen), i))
-        incs.append('%s %d' % ((inc+'_LEN').ljust(namelen), len(encode_element_id(i))))
+    els = getElements(xmlfile)
+    entries = []
+    namelen = max((len(el.name) for el in els)) + len(name) + 15
+    for el in els:
+        incs.extend(dumpElementDef(el, name, namelen))
+        entries.append(dumpElement(el))
+    entries[-1] = entries[-1].replace('},','}')
     
     incs.append('')
-    incs.extend(entry)
+    incs.extend(entries)    
+    
     incs.extend(['','#endif /* EBML_SCHEMA_%s_H_ */' % name])
     return '\n'.join(incs)
 
@@ -115,14 +115,14 @@ if __name__ == '__main__':
     else:
         schemaDoc = MideDocument
         schemaMod = getSchemaModule()
-
+    schemaXml = parse(os.path.splitext(schemaMod.__file__)[0]+".xml")
 
     if args.output:
         fname = args.output
     else:
         fname = '%s.c' % schemaDoc.__name__
         
-    result = dumpSchema(schemaDoc)
+    result = dumpSchema(schemaXml, args.schema or "mide")
     with open(fname, 'wb') as f:
         f.write(makeHeaderComment(schemaMod, schemaDoc))
 #         f.write("/* EBML schema dump of %s */\n\n" % schema.__name__)
