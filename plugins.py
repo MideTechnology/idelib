@@ -205,11 +205,11 @@ class Plugin(object):
                 # Not archive.
                 self.zip = None
                 with open(os.path.join(self.path, u'info.json'), 'rb') as f:
-                    self.info = json.load(f)
+                    self.info = json.load(f, 'utf8')
             else:
                 # Is an archive.
                 self.zip = zipimport.zipimporter(self.path)
-                self.info = json.loads(self.zip.get_data(u'info.json'))
+                self.info = json.loads(self.zip.get_data(u'info.json'), 'utf8')
         except (IOError, ImportError) as err:
             raise PluginImportError('Could not find plugin info in', 
                                     self.path, err)
@@ -533,7 +533,7 @@ def makeInfo(mod):
                 if os.path.isfile(infoFile):
                     with open(infoFile, "rb") as f:
                         print "reading JSON"
-                        items = json.load(f)
+                        items = json.load(f, 'utf8')
                 modName = items.get('moduleName', modName)
                 mod = os.path.join(mod, modName+".py")
             

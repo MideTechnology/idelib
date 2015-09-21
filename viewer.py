@@ -955,17 +955,25 @@ class Viewer(wx.Frame, MenuMixin):
                 tools.sort(key=lambda x: x.name)
                 toolMenu = self.addMenu(self.menubar, "Tools")
                 for t in tools:
-                    tid = t.info.setdefault('wxId', wx.NewId())
+                    tid = t.info.setdefault('_wxId', wx.NewId())
                     self.toolPlugins[tid] = t
                     self.addMenuItem(toolMenu, tid, t.name, "", 
                                      self.OnToolMenuSelection)
                 if extTools:
+                    extTools.sort(key=lambda x: x.name)
                     toolMenu.AppendSeparator()
                     for t in extTools:
-                        tid = t.info.setdefault('wxId', wx.NewId())
+                        tid = t.info.setdefault('_wxId', wx.NewId())
                         self.toolPlugins[tid] = t
                         self.addMenuItem(toolMenu, tid, t.name, "", 
                                          self.OnToolMenuSelection)
+                        
+            if DEBUG:
+                if tools or extTools:
+                    toolMenu.AppendSeparator()
+                self.addMenuItem(toolMenu, self.ID_DEBUG_CONSOLE, 
+                                 "Open Scripting Console\tCtrl+Shift+C", "", 
+                                 debugging.DebugConsole.openConsole)
             
               
         
@@ -987,10 +995,6 @@ class Viewer(wx.Frame, MenuMixin):
             helpMenu.AppendSeparator()
             debugMenu = self.addSubMenu(helpMenu, self.ID_DEBUG_SUBMENU, 
                                         "Debugging")
-            self.addMenuItem(debugMenu, self.ID_DEBUG_CONSOLE, 
-                             "Open Debugging Console\tCtrl+Shift+C", "", 
-                             debugging.DebugConsole.openConsole)
-            debugMenu.AppendSeparator()
             self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
                              "Save All Preferences", "",
                              lambda(evt): self.app.saveAllPrefs())
@@ -1083,7 +1087,7 @@ class Viewer(wx.Frame, MenuMixin):
                  self.ID_DEBUG_CONSOLE, self.ID_DEBUG0, self.ID_DEBUG1, 
                  self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
                  ]
-        menus.extend([t.info['wxId'] for t in self.app.plugins.find(type='tool') if 'wxId' in t.info])
+        menus.extend([t.info['_wxId'] for t in self.app.plugins.find(type='tool') if '_wxId' in t.info])
         
         if not enabled:
             self.enableMenuItems(self.menubar, menus, True, False)
@@ -2410,7 +2414,7 @@ class Viewer(wx.Frame, MenuMixin):
 
     
     def OnToolMenuSelection(self, evt):
-        tool = self.app.plugins.find(wxId=evt.GetId())
+        tool = self.app.plugins.find(_wxId=evt.GetId())
         if tool:
             tool[0](self)
         

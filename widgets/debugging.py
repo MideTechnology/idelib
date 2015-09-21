@@ -35,7 +35,7 @@ class DebugConsole(wx.py.shell.ShellFrame):
 
         if title is None:
             version = '.'.join(map(str, build_info.VERSION))
-            title = "Slam Stick Lab version %s (build %d) Debugging Console" % \
+            title = "Slam Stick Lab %s (build %d) Scripting/Debugging Console" % \
                 (version, build_info.BUILD_NUMBER)
             
         wx.py.frame.Frame.__init__(self, parent, id, title, pos, size, style)

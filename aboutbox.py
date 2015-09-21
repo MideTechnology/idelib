@@ -103,6 +103,43 @@ class AboutBox(SC.SizedDialog):
         return LICENSES %  '<hr/>'.join(result)
 
 
+    def getPlugins(self):
+        """ Retrieve info from all plug-ins that have info.
+        """
+        try:
+            app = wx.GetApp()
+            plugins = app.plugins.values()
+        except AttributeError:
+            return
+        
+        result = []
+        plugins.sort(key=lambda x: x.name)
+        for p in plugins:
+            plug = []
+            info = p.info
+            if 'author' not in info or 'copyright' not in info:
+                continue
+            plug.append('<h3>%s</h3>' % p.name)
+            url = info.get('url', None)
+            cr = info.get('copyright', None)
+            if cr is not None:
+                if url is not None:
+                    cr = u'%s [<a href="%s">Link</a>]' % (cr, url)
+                plug.append(cr)
+            plug.append('<dl>')
+            for k,v in sorted(info.items()):
+                if k.startswith('_'):
+                    continue
+                if k in ('name','type','module','minVersion','maxVersion', 'copyright', 'url'):
+                    continue
+                plug.append(u'<dt>%s</dt><dd>%s</dd>' % (k.title(),v))
+            plug.append('</dl>')
+            result.append(u'\n'.join(plug))
+        if len(result) == 0:
+            return
+        return u'<html>%s</html>' % u"<hr/>".join(result)
+
+
     def __init__(self, *args, **kwargs):
         self.strings = kwargs.pop('strings', None)
         kwargs.setdefault("style", 
@@ -130,6 +167,12 @@ class AboutBox(SC.SizedDialog):
         licenses = HtmlWindow(notebook, -1)
         notebook.AddPage(licenses, "Licenses")
         licenses.SetPage(self.getLicenses())
+        
+        pluginInfo = self.getPlugins()
+        if pluginInfo:
+            plugins = HtmlWindow(notebook, -1)
+            notebook.AddPage(plugins, "Plug-Ins")
+            plugins.SetPage(pluginInfo)
         
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK))
         self.SetMinSize((640, 480))

@@ -232,7 +232,11 @@ class Raw2Mat(ToolDialog):
         endTime = self.getValue(self.endTime) or None
         duration = self.getValue(self.duration) or None
         maxSize = (self.getValue(self.maxSize) * 1024) or MatStream.MAX_SIZE
-        writeCal = self.allCal.GetValue()
+        
+        if self.allCal.GetValue():
+            writeCal = True
+        else:
+            writeCal = "channel"
         
         if duration:
             endTime = startTime + duration
