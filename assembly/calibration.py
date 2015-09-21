@@ -24,6 +24,8 @@ from xml.etree import ElementTree as ET
 import numpy as np
 import pylab #@UnresolvedImport - doesn't show up for some reason.
 
+from scipy.signal import butter, lfilter, freqz #@UnresolvedImport
+
 VIEWER_PATH = r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Design_Files\Firmware_and_Software\Development\Source\Slam_Stick_Lab"
 INKSCAPE_PATH = r"C:\Program Files (x86)\Inkscape\inkscape.exe"
 
@@ -98,6 +100,25 @@ class XYZ(list):
     @z.setter
     def z(self, val):
         self[2] = val
+
+#===============================================================================
+# 
+#===============================================================================
+
+def lowpassFilter(data, cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    y = lfilter(b, a, data)
+    return y
+
+
+def highpassFilter(data, cutoff, fs, order=5):
+    nyq = 0.5 * fs
+    normal_cutoff = cutoff / nyq
+    b, a = butter(order, normal_cutoff, btype='high', analog=False)
+    y = lfilter(b, a, data)
+    return y
 
 
 #==============================================================================
@@ -201,7 +222,7 @@ class CalFile(object):
     
     
     def __str__(self):
-        return '%s %2.4f %2.4f %2.4f %2.4f %2.4f %2.4f' % \
+        return '%s %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f' % \
             ((self.name,) + tuple(self.rms) + tuple(self.cal))
     
     
@@ -365,11 +386,12 @@ class CalFile(object):
             self.accelLo, self.timesLo, self.rmsLo, self.calLo, self.meansLo = self._analyze(loAccelChannel, thres=6, start=1000, length=1000)
             
             if not self.hasHiAccel:
-                self.accel = self.accelLo[:]
-                self.times = self.timesLo[:]
-                self.rms = self.rmsLo[:]
-                self.cal = self.calLo[:]
-                self.means = self.meansLo[:]
+                print "no hi accelerometer"
+                self.accel = XYZ(self.accelLo)
+                self.times = XYZ(self.timesLo)
+                self.rms = XYZ(self.rmsLo)
+                self.cal = XYZ(self.calLo)
+                self.means = XYZ(self.meansLo)
         else:
             self.hasLoAccel = False 
 
@@ -377,8 +399,18 @@ class CalFile(object):
         self.cal_temp = np.mean([x[-1] for x in pressTempChannel[1].getSession()])
         self.cal_press = np.mean([x[-1] for x in pressTempChannel[0].getSession()])
     
+    
+    def getOffsets(self, data, sampRate, lowpass=2.55):
+        means = XYZ()
+        if lowpass:
+            _print("Applying high pass filter... ")
+            for i in range(1, data.shape[1]):
+                means[i-1] = lowpassFilter(data[:,i], lowpass, sampRate).mean()
+        return means
+    
 
-    def _analyze(self, accelChannel, thres=4, start=5000, length=5000, skipSamples=0):
+    def _analyze(self, accelChannel, thres=4, start=5000, length=5000, 
+                 skipSamples=0, highpass=10, lowpass=2.55):
         """ Analyze one accelerometer channel.
         
             An attempt to port the analysis loop of SSX_Calibration.m to Python.
@@ -399,23 +431,32 @@ class CalFile(object):
         accelChannel.updateTransforms()
 
         accelChannel.removeMean = False
-        means = XYZ([accelChannel[c].getSession().getRangeMinMeanMax(1000000)[1] for c in axisIds])
+#         means = XYZ([accelChannel[c].getSession().getRangeMinMeanMax(1000000)[1] for c in axisIds])
                     
         a = accelChannel.getSession()
-        a.removeMean = True
-        a.rollingMeanSpan = -1
+        sampRate = a.getSampleRate()
+#         a.removeMean = True
+#         a.rollingMeanSpan = -1
+        a.removeMean = False
         data = self.flattened(a, len(a))
+
+        # HACK: Some  devices have a longer delay before Z settles.
+        if skipSamples:
+            data = data[skipSamples:]
         
         _print("%d samples imported. " % len(data)) 
         times = data[:,0] * .000001
         
-        if not a.allowMeanRemoval:
-            _print("Doing 'manual' mean removal.")
-            data = data - ([0] + means)
+        means = self.getOffsets(data, sampRate, lowpass)
         
-        # HACK: Some  devices have a longer delay before Z settles.
-        if skipSamples:
-            data = data[skipSamples:]
+#         if not a.allowMeanRemoval:
+#             _print("Doing 'manual' mean removal.")
+#             data = data - ([0] + means)
+        
+        if highpass:
+            _print("Applying high pass filter... ")
+            for i in range(1, data.shape[1]):
+                data[:,i] = highpassFilter(data[:,i], highpass, sampRate)
     
         gt = lambda(x): x > thres
         
@@ -722,7 +763,7 @@ class Calibrator(object):
         
         result = ['Serial Number: %s' % self.productSerialNum,
                   'Date: %s' % time.asctime(),
-                  '    File  X-rms   Y-rms   Z-rms   X-cal   Y-cal   Z-cal']
+                  '    File    X-rms    Y-rms    Z-rms    X-cal    Y-cal    Z-cal']
         
         result.extend(map(str, self.calFiles))
         result.append("%s, X Axis Calibration Constant %.4f" % (self.filenames.x, self.cal.x))
@@ -732,7 +773,7 @@ class Calibrator(object):
         result.append("%s, Transverse Sensitivity in YZ = %.2f percent" % (self.Syz_file, self.Syz))
         result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (self.Sxz_file, self.Sxz))
         
-        if self.hasLoAccel:
+        if self.hasLoAccel and not self.hasHiAccel:
             result.append('')
             result.append('DC Accelerometer:')
             result.append("%s, X Axis Calibration Constant %.4f" % (self.filenames.x, self.calLo.x))
