@@ -10,6 +10,8 @@ Created on Sep 3, 2015
 from datetime import datetime
 import json
 import os
+import pprint
+import string
 import tempfile
 import time
 import zipfile
@@ -77,7 +79,7 @@ def addBinaries(z, boot=False):
     z.write(APP_FILE, os.path.basename(APP_FILE))
 
     
-def addJson(z, boot=False):
+def addJson(z, appVersion, appName="app.bin", boot=False):
     """ Generate and add JSON metadata.
     """
     source = os.path.join(FIRMWARE_PATH, 'fw_update.json')
@@ -92,9 +94,12 @@ def addJson(z, boot=False):
 
     data['created'] = time.time()
     data['package_format'] = PACKAGE_FORMAT_VERSION
-    data['app_version'] = util.readFileLine(APP_VER_FILE, int)
+    data['app_name'] = appName
+    data['app_version'] = appVersion
     data['app_hash'] = hash(util.readFile(APP_FILE))
     if boot:
+        if isinstance(boot, basestring):
+            data['boot_name'] = boot
         data['boot_version'] = util.readFileLine(BOOT_VER_FILE, str)
         data['boot_hash'] = hash(util.readFile(BOOT_FILE))
 
@@ -102,18 +107,39 @@ def addJson(z, boot=False):
         json.dump(data, f)
 
     z.write(temp, 'fw_update.json')
+    return data
+
+
+def getRevNum(app, default):
+    for s in app.lower().replace('-','_').split('_'):
+        s = s.strip()
+        if s.startswith('rev') and s[-1].isdigit():
+            try:
+                return int(s.strip(string.ascii_letters + string.punctuation))
+            except None:#ValueError:
+                continue
+    return default
 
 
 def makePackage(app, boot=False, preview=False):
     """
     """
     fwRev = util.readFileLine(APP_VER_FILE, int)
+    notesFile = NOTES_FILE
     now = datetime.now()
-    nowStr = now.strftime("%Y%m%d")
-    basename = "firmware_r%d_%s.%s" % (fwRev, nowStr, PACKAGE_EXT)
-    filename = os.path.join(UPDATE_DIR, basename)
+    if os.path.basename(app).lower() == 'app.bin':
+        nowStr = now.strftime("%Y%m%d")
+        basename = "firmware_r%d_%s" % (fwRev, nowStr)
+    else:
+        basename = os.path.splitext(os.path.basename(app))[0]
+        fwRev = getRevNum(basename, fwRev)
+        nf = util.changeFilename(app, ext=".txt")
+        if os.path.exists(nf):
+            notesFile = nf
+    filename = "%s.%s" % (os.path.join(UPDATE_DIR, basename), PACKAGE_EXT)
     
     if preview is True:
+        print "Previewing package build:", filename
         filename = os.path.join(tempfile.gettempdir(), 'preview.fw')
     
     templates = getTemplates()
@@ -122,18 +148,24 @@ def makePackage(app, boot=False, preview=False):
     print "Writing to file %s" % filename
     with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as f:
         print "Generating JSON..."
-        addJson(f, boot)
+        info = addJson(f, fwRev, appName=os.path.basename(app), boot=boot)
+        if preview:
+            pprint.pprint(info)
         print "Adding app binary %s..." % app
         f.write(app, os.path.basename(app))
         if boot:
             print "Adding bootloader binary %s..." % BOOT_FILE
             f.write(BOOT_FILE, os.path.basename(BOOT_FILE))
-        if os.path.exists(NOTES_FILE):
-            print "Adding release notes..."
-            f.write(NOTES_FILE, os.path.basename(NOTES_FILE))
+        if os.path.exists(notesFile):
+            print "Adding release notes:", notesFile
+            f.write(notesFile, os.path.basename(NOTES_FILE))
         print "Adding %d templates..." % len(templates)
         addTemplates(f, templates)
         print "Done!"
+        if preview:
+            print "Files added:"
+            for n in f.namelist():
+                print " %s" % n
         
     if aborted is True:
         print "Removing bad/incomplete zip..."
@@ -152,8 +184,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SSX/SSC Firmware Package Maker")
     parser.add_argument("--app", "-a", default=APP_FILE, help="Full path to the application binary.")
     parser.add_argument("--bootloader", "-b", action="store_true", help="Include the bootloader.")
-    parser.add_argument("--preview", '-p', help="Preview the package and its rendered release notes.")
+    parser.add_argument("--preview", '-p', action="store_true", help="Preview the package and its rendered release notes.")
     
     args = parser.parse_args() 
-    makePackage(args.app, boot=args.bootloader)
+    makePackage(args.app, boot=args.bootloader, preview=args.preview)
 

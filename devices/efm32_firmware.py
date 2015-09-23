@@ -155,12 +155,14 @@ class FirmwareUpdater(object):
             except ValueError as err:
                 raise ValidationError('Could not read firmware info', err)
             
-            fwBin = fwzip.read('app.bin', password)
+            appName = info.get('app_name', 'app.bin')
+            bootName = info.get('boot_name', 'boot.bin')
+            fwBin = fwzip.read(appName, password)
             if len(fwBin) < self.MIN_FILE_SIZE:
                 raise ValueError("Firmware binary too small (%d bytes)" % len(fwBin))
             
-            if 'boot.bin' in contents:
-                bootBin = fwzip.read('boot.bin', password)
+            if bootName in contents:
+                bootBin = fwzip.read(bootName, password)
                 if len(bootBin) < self.MIN_FILE_SIZE:
                     raise ValueError("Bootloader binary too small (%d bytes)" % len(bootBin))
 
@@ -539,7 +541,7 @@ class FirmwareUpdater(object):
 #===============================================================================
 
 class FirmwareUpdateDialog(wx.Dialog):
-    """
+    """ UI for uploading new firmware to a SSX/SSC/etc. recorder.
     """
     
     SCAN_MS = 250
@@ -760,7 +762,7 @@ def updateFirmware(parent=None, device=None, filename=None):
             "This test is not perfect, however, and could be inaccurate. "
             "If you know you have already installed the driver successfully, "
             "press OK.", 
-            "No Driver?", wx.OK|wx.CANCEL|wx.HELP)
+            "No Driver?", wx.OK|wx.CANCEL)#|wx.HELP)
         if x == wx.HELP:
             wx.MessageBox("No help yet.", "Firmware Update Help")
             return
@@ -791,10 +793,10 @@ def updateFirmware(parent=None, device=None, filename=None):
     try:
         update = FirmwareUpdater(device, filename)
         logger.info("Passed basic validation")
-    except (ValidationError, ValueError, KeyError) as _err:
+    except (ValidationError, ValueError, KeyError) as err:
         # Various causes
-        logger.error(str(_err))
-        if "CRC" in str(_err.message):
+        logger.error(str(err))
+        if "CRC" in str(err.message):
             msg = ("This firmware update package appears to be damaged "
                    "(CRC test of contents failed).")
         else:
@@ -802,15 +804,15 @@ def updateFirmware(parent=None, device=None, filename=None):
                    "components,and is likely damaged.")
         wx.MessageBox(msg, "Validation Error")
         return False
-    except IOError as _err:
+    except IOError as err:
         # Bad file
-        logger.error(str(_err))
+        logger.error(str(err))
         wx.MessageBox("This firmware file could not be read.", 
                       "Validation Error")
         return False
-    except RuntimeError as _err:
+    except RuntimeError as err:
         # Bad password
-        logger.error(str(_err))
+        logger.error(str(err))
         wx.MessageBox("This firmware update package could not be authenticated.", 
                       "Validation Error")
         return False
