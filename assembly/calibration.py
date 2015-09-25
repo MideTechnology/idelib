@@ -403,9 +403,9 @@ class CalFile(object):
     def getOffsets(self, data, sampRate, lowpass=2.55):
         means = XYZ()
         if lowpass:
-            _print("Applying high pass filter... ")
+            _print("Applying low pass filter... ")
             for i in range(1, data.shape[1]):
-                means[i-1] = lowpassFilter(data[:,i], lowpass, sampRate).mean()
+                means[i-1] = lowpassFilter(data[:,i], lowpass, sampRate)[int(sampRate*2):int(sampRate*3)].mean()
         return means
     
 
@@ -431,7 +431,7 @@ class CalFile(object):
         accelChannel.updateTransforms()
 
         accelChannel.removeMean = False
-#         means = XYZ([accelChannel[c].getSession().getRangeMinMeanMax(1000000)[1] for c in axisIds])
+        self.rawMeans = XYZ([accelChannel[c].getSession().getRangeMinMeanMax(1000000)[1] for c in axisIds])
                     
         a = accelChannel.getSession()
         sampRate = a.getSampleRate()
@@ -439,15 +439,17 @@ class CalFile(object):
 #         a.rollingMeanSpan = -1
         a.removeMean = False
         data = self.flattened(a, len(a))
-
+        
+        means = self.getOffsets(data, sampRate, lowpass)
+        
         # HACK: Some  devices have a longer delay before Z settles.
         if skipSamples:
             data = data[skipSamples:]
+
+        self.rawMeans = XYZ((data[:sampRate,i].mean() for i in range(1,data.shape[1])))
         
         _print("%d samples imported. " % len(data)) 
         times = data[:,0] * .000001
-        
-        means = self.getOffsets(data, sampRate, lowpass)
         
 #         if not a.allowMeanRemoval:
 #             _print("Doing 'manual' mean removal.")

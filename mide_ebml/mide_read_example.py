@@ -40,7 +40,7 @@ import sys
 if sys.version_info.major != 2 and sys.version_info.minor != 7:
     raise RuntimeError("This demo requires Python 2.7!")
 
-from collections import Counter, OrderedDict, Sequence
+from collections import Counter, Sequence
 import csv
 from datetime import datetime
 import os.path
@@ -89,17 +89,17 @@ def iter_roots(document):
         yield(element)
 
 
-def parse_ebml(elements, ordered=True):
+def parse_ebml(elements):
     """ Reads a sequence of EBML elements and builds a (nested) dictionary,
         keyed by element name. Elements marked as "multiple" in the schema
-        will produce a list containing one item for each element.
+        will produce a list containing one item for each element of that type.
     """
-    result = OrderedDict() if ordered else dict()
+    result = {}
     if not isinstance(elements, Sequence):
         elements = [elements]
     for el in elements:
         if isinstance(el.value, list) or el.children:
-            value = parse_ebml(el.value, ordered=ordered)
+            value = parse_ebml(el.value)
         else:
             value = el.value
         if el.multiple:
@@ -138,6 +138,30 @@ def dump_ebml(el, indent=0, tabsize=4, index=None):
     if indent == 0:
         print
     return el
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def format2dtype(s):
+    """ Convert a `struct`-style formatting string to a Numpy `dtype`.
+    """
+    types = []
+    # Get native endian code
+    endianCode = '<' if sys.byteorder == 'little' else '>'
+    # Replace any endian codes with either big or little indicator.
+    # Python structs do not allow multiple indicators, but the .IDE spec does.
+    s.replace('!','>').replace('@', endianCode).replace('=', endianCode)
+    idx = 0
+    for c in s:
+        if c in '<>':
+            endianCode = c
+        else:
+            types.append((str(idx), '%s%s' % (endianCode, c)))
+            idx += 1
+    return np.dtype(types)
+
 
 #===============================================================================
 # Data payload parsers
