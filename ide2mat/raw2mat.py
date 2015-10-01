@@ -36,6 +36,8 @@ from devices import SlamStickX
 from build_info import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME #@UnusedImport
 __version__ = VERSION
 
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -53,7 +55,8 @@ class AccelDumper(object):
     maxTimestamp = ChannelDataBlock.maxTimestamp
     timeScalar = 1000000.0 / 2**15
     
-    def __init__(self, source, writer=None, startTime=0, endTime=None):
+    def __init__(self, source, writer=None, startTime=0, endTime=None, 
+                 dtype=MP.miUINT16):
         self.writer = writer
         self.source = source
         self.numCh = len(source.subchannels)
@@ -66,6 +69,19 @@ class AccelDumper(object):
     
         self.timestampOffset = 0
         self.lastStamp = 0
+        
+        self.dtype = {
+            MP.miINT8:   np.int8,
+            MP.miUINT8:  np.uint8,
+            MP.miINT16:  np.int16,
+            MP.miUINT16: np.uint16,
+            MP.miINT32:  np.int32,
+            MP.miUINT32: np.uint32,
+            MP.miINT64:  np.int64,
+            MP.miUINT64: np.uint64,
+            MP.miUTF8:   np.char,
+            MP.miSINGLE: np.single,
+            MP.miDOUBLE: np.double}.get(dtype, np.uint16)
     
 
     def fixOverflow(self, timestamp):
@@ -99,7 +115,7 @@ class AccelDumper(object):
             raise StopIteration
         
         data = el.value[-1].value 
-        vals= np.frombuffer(data, np.uint16).reshape((-1,self.numCh))
+        vals= np.frombuffer(data, self.dtype).reshape((-1,self.numCh))
         self.numRows += vals.shape[0]
         self.numSamp += vals.shape[0] * self.numCh
         times = np.linspace(blockStart, blockEnd, vals.shape[0]) * self.timeScalar
@@ -136,10 +152,12 @@ class GenericDumper(AccelDumper):
         
         self.numRows += 1
         self.numSamp += self.numCh
-        if self.xform is not None:
-            self.data_append(self.xform.function(*self.unpacker(el.value[-1].value)))
-        else:
-            self.data_append(self.unpacker(el.value[-1].value))
+#         if self.xform is not None:
+#             self.data_append(self.xform.function(*self.unpacker(el.value[-1].value)))
+#         else:
+#             self.data_append(self.unpacker(el.value[-1].value))
+
+        self.data_append(self.unpacker(el.value[-1].value))
         return True
 
 #===============================================================================
@@ -257,6 +275,62 @@ def showInfo(ideFilename, **kwargs):
 # 
 #===============================================================================
 
+def getMatlabType(f, default=MP.miINT16):
+    """ Get the largest MATLAB data type for a struct formatting string. Since
+        the exported matrix is of a single type, the largest data type is used.
+        
+        @todo: Raise exception if the formatting string contains incompatible
+            types (e.g. strings and numeric values)
+    """
+    try:
+        # ints and longs are the same size in Python structs.
+        f = f.replace('l','i').replace('L','I')
+
+        # Float types        
+        if 'd' in f:
+            return MP.miDOUBLE
+        elif 'f' in f:
+            # If the struct also has big integers, promote to double.
+            if any((c in 'IQq' for c in f)):
+                return MP.miDOUBLE
+            return MP.miSINGLE
+        
+        # Combination of signed and unsigned (formatting string is mixed case). 
+        # Upgrade smaller unsigned values to larger signed ones.
+        if not f.islower() and not f.isupper():
+            f = f.replace('I', 'q').replace('H', 'i').replace('B', 'i')
+        
+        # Lots of tests, starting with the largest integer type.
+        if 'q' in f:
+            return MP.miINT64
+        elif 'Q' in f:
+            return MP.miUINT64
+        elif 'i' in f:
+            return MP.miINT32
+        elif 'I' in f:
+            return MP.miUINT32
+        elif 'h' in f:
+            return MP.miINT16
+        elif 'H' in f:
+            return MP.miUINT16
+        elif 'b' in f:
+            return MP.miINT8
+        elif 'B' in f:
+            return MP.miUINT8
+        elif 'c' in f:
+            return MP.miUTF8
+        
+    except (TypeError, AttributeError):
+        # Not a string. Can occur with old hardcoded parsers.
+        pass
+
+    return default
+    
+    
+#===============================================================================
+# 
+#===============================================================================
+
 def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
             noTimes=False, startTime=0, endTime=None, updateInterval=1.5,  
             maxSize=matfile.MatStream.MAX_SIZE, writeCal=True, out=sys.stdout,
@@ -290,17 +364,30 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
         doc.updateTransforms()
 
         ssx = SlamStickX.fromRecording(doc)
+        
         accelCh = ssx.getAccelChannel()
-        accelChId = accelCh.id if accelCh is not None else None
+        if accelCh is not None:
+            accelType = getMatlabType(accelCh.parser.format, MP.miUINT16)
+            accelChId = accelCh.id
+            numAccelCh = len(accelCh.subchannels)
+        else:
+            accelType = accelChId = numAccelCh = None
+
         pressTempCh = ssx.getTempChannel().parent
-        pressTempChId = pressTempCh.id if pressTempCh is not None else None
+        if pressTempCh is not None:
+            pressTempType = getMatlabType(pressTempCh.parser.format, MP.miSINGLE)
+            pressTempChId = pressTempCh.id
+            numTempCh = len(pressTempCh.subchannels)
+        else:
+            pressTempType = pressTempChId = numTempCh = None
         
         dcAccelCh = ssx.getAccelChannel(dc=True)
-        dcAccelChId = dcAccelCh.id if dcAccelCh is not None else None
-        
-        numAccelCh = len(accelCh.subchannels) if accelCh is not None else None
-        numTempCh = len(pressTempCh.subchannels)
-        numDcAccelCh = 0 if dcAccelCh is None else len(dcAccelCh.subchannels)
+        if dcAccelCh is not None:
+            dcAccelType = getMatlabType(dcAccelCh.parser.format, MP.miINT16)
+            dcAccelChId = dcAccelCh.id
+            numDcAccelCh = len(dcAccelCh.subchannels)
+        else:
+            dcAccelType = dcAccelChId = numDcAccelCh = None
         
         totalSize = os.path.getsize(ideFilename) + 0.0
         nextUpdate = time.time() + updateInterval
@@ -329,21 +416,33 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
             # The main accelerometer gets dumped first, directly to the MAT.
             # There may not be any analog accelerometer if it was disabled.
             if accelCh is not None:
-                mat.startArray(accelCh.name, numAccelCh, dtype=MP.miUINT16, 
-                               noTimes=True, colNames=[c.displayName for c in accelCh.subchannels])
+                colNames = [c.displayName for c in accelCh.subchannels]
+                mat.startArray(accelCh.name, numAccelCh, dtype=accelType, 
+                               noTimes=True, colNames=colNames)
     
             dumpers = {}
 
             # TODO: Make this all more generic, to work with any future recorder
             if accelChId in channels:
-                dumpers[accelChId] = AccelDumper(accelCh, mat.writeRow, startTime, endTime)
+                # Analog accelerometer data is written directly to the file.
+                dumpers[accelChId] = AccelDumper(accelCh, mat.writeRow, 
+                                                 startTime, endTime, 
+                                                 dtype=accelType)
             if pressTempChId in channels:
-                dumpers[pressTempChId] = GenericDumper(pressTempCh, None, startTime, endTime)
+                # Pressure/Temperature data is kept in memory and written later.
+                dumpers[pressTempChId] = GenericDumper(pressTempCh, None, 
+                                                       startTime, endTime)
+                
             if dcAccelChId in channels:
+                # DC accelerometer data is written to a temporary file and
+                # appended to the main MAT file at the end.
+                # TODO: If only DC accelerometer, write directly to file.
                 tempFile = open(os.path.join(tempfile.gettempdir(), 'ch%d_temp.csv' % dcAccelChId), 'wb')
                 tempWriter = TempWriter(tempFile) #csv.writer(tempFile)
-                dumpers[dcAccelChId] = AccelDumper(dcAccelCh, tempWriter.writerow, startTime, endTime)
-                    
+                dumpers[dcAccelChId] = AccelDumper(dcAccelCh, tempWriter.writerow, 
+                                                   startTime, endTime, 
+                                                   dtype=dcAccelType)
+            
             lastMat = ''
             writeMsg = '' 
             isWriting = False
@@ -371,7 +470,9 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
                             
                     if i % 250 == 0 or time.time() > nextUpdate:
                         count = sum((x.numSamp for x in dumpers.itervalues()))
-                        updater(count=count, total=None, percent=((stream.tell()-offset)/totalSize), filename=mat.filename)
+                        updater(count=count, total=None, 
+                                percent=((stream.tell()-offset)/totalSize), 
+                                filename=mat.filename)
                         nextUpdate = time.time() + updateInterval
 
                     # Remove per-element substreams. Saves memory; a large
@@ -386,21 +487,26 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
             except (IOError, StopIteration):
                 pass
                 
+            # Finished dumping the analog accelerometer data.
             mat.endArray()
             
+            # Dump temperature/pressure data (if applicable)
             if pressTempChId in channels:
                 d = dumpers[pressTempChId]
-                mat.startArray(pressTempCh.name, numTempCh, dtype=MP.miSINGLE, 
-                               noTimes=True, colNames=[c.displayName for c in pressTempCh.subchannels])
+                colNames = [c.displayName for c in pressTempCh.subchannels]
+                mat.startArray(pressTempCh.name, numTempCh, dtype=pressTempType, 
+                               noTimes=True, colNames=colNames)
                 for r in izip(np.linspace(d.firstTime, d.lastTime, len(d.data)), d.data):
                     mat.writeRow(r)
                 mat.endArray()
 
+            # Dump DC accelerometer data (if applicable)
             if dcAccelCh is not None and dcAccelChId in channels:
                 tempFile.close()
                 d = dumpers[dcAccelChId]
-                mat.startArray(dcAccelCh.name, numDcAccelCh, dtype=MP.miUINT16, 
-                               noTimes=True, colNames=[c.displayName for c in dcAccelCh.subchannels])
+                colNames = [c.displayName for c in dcAccelCh.subchannels]
+                mat.startArray(dcAccelCh.name, numDcAccelCh, dtype=dcAccelType, 
+                               noTimes=True, colNames=colNames)
                 with open(tempFile.name, 'rb') as f:
                     for r in f:
                         mat.writeRow(eval(r))
