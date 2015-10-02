@@ -197,8 +197,11 @@ class ExportDialog(sc.SizedDialog):
         """
         self.treeRoot = self.tree.AddRoot(self.root.dataset.name)
         for channel in self.root.dataset.channels.itervalues():
-            self._addTreeItems(self.treeRoot, channel, types=(CT.TREE_ITEMTYPE_RADIO,
-                                                   CT.TREE_ITEMTYPE_CHECK))
+            if not channel.subchannels:
+                continue
+            self._addTreeItems(self.treeRoot, channel, 
+                               types=(CT.TREE_ITEMTYPE_RADIO, 
+                                      CT.TREE_ITEMTYPE_CHECK))
         self.tree.Expand(self.treeRoot)
         
         self.range = self.root.getTimeRange()
