@@ -113,6 +113,7 @@ class FirmwareUpdater(object):
         self.password = self.ZIPPW
         self.info = None
         self.releaseNotes = None
+        self.releaseNotesHtml = None
         self.fwBin = None
         self.bootBin = None
         self.lastResponse = None
@@ -155,6 +156,10 @@ class FirmwareUpdater(object):
             except ValueError as err:
                 raise ValidationError('Could not read firmware info', err)
             
+            packageFormat = info.get('package_format_version', 0)
+            if packageFormat > self.PACKAGE_FORMAT_VERSION:
+                raise ValueError("Can't read package format version %d" % packageFormat)
+            
             appName = info.get('app_name', 'app.bin')
             bootName = info.get('boot_name', 'boot.bin')
             fwBin = fwzip.read(appName, password)
@@ -166,11 +171,16 @@ class FirmwareUpdater(object):
                 if len(bootBin) < self.MIN_FILE_SIZE:
                     raise ValueError("Bootloader binary too small (%d bytes)" % len(bootBin))
 
-            for n in ('release_notes.html', 'release_notes.txt'):
-                if n in contents:
-                    self.releaseNotes = (n,fwzip.read(n, password))
-                    break
-        
+            if 'release_notes.txt' in contents:
+                self.releaseNotes = fwzip.read('release_notes.txt', password)
+            if 'release_notes.html' in contents:
+                self.releaseNotesHtml = fwzip.read('release_notes.html', password)
+            
+#             for n in ('release_notes.html', 'release_notes.txt'):
+#                 if n in contents:
+#                     self.releaseNotes = (n,fwzip.read(n, password))
+#                     break
+         
         # Sanity check: Make sure the binary contains the expected string
         if strict and self.MIDE_STRING not in fwBin:
             raise ValidationError("Could not verify firmware binary's origin")
@@ -817,8 +827,9 @@ def updateFirmware(parent=None, device=None, filename=None):
                       "Validation Error")
         return False
     
+    # TODO: Display HTML release notes, if they exist.
     if update.releaseNotes:
-        dlg = ScrolledMessageDialog(parent, update.releaseNotes[1], 
+        dlg = ScrolledMessageDialog(parent, update.releaseNotes, 
                                 "%s Release Notes" % os.path.basename(filename))
         dlg.ShowModal()
         

@@ -16,7 +16,6 @@ __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
 if DEBUG or BETA:
     __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
-    from widgets import debugging
 if DEBUG:
     import socket
     if socket.gethostname() in ('DEDHAM',):
@@ -65,6 +64,7 @@ from plots import PlotSet
 from preferences import Preferences
 from renders.renderplot import PlotView
 import updater
+from widgets import debugging #@UnusedImport
 from widgets import export_dialog as xd
 from widgets.shared import StatusBar
 from widgets.device_dialog import selectDevice
@@ -952,8 +952,8 @@ class Viewer(wx.Frame, MenuMixin):
             tools = self.app.plugins.find(type='tool', isModule=True)
             extTools = self.app.plugins.find(type='tool', isModule=False)
             if tools or extTools:
-                tools.sort(key=lambda x: x.name)
                 toolMenu = self.addMenu(self.menubar, "Tools")
+                tools.sort(key=lambda x: x.name)
                 for t in tools:
                     tid = t.info.setdefault('_wxId', wx.NewId())
                     self.toolPlugins[tid] = t
@@ -968,15 +968,6 @@ class Viewer(wx.Frame, MenuMixin):
                         self.addMenuItem(toolMenu, tid, t.name, "", 
                                          self.OnToolMenuSelection)
                         
-            if DEBUG:
-                if tools or extTools:
-                    toolMenu.AppendSeparator()
-                self.addMenuItem(toolMenu, self.ID_DEBUG_CONSOLE, 
-                                 "Open Scripting Console\tCtrl+Shift+C", "", 
-                                 debugging.DebugConsole.openConsole)
-            
-              
-        
         #=======================================================================
         # "Help" menu
         
@@ -995,6 +986,10 @@ class Viewer(wx.Frame, MenuMixin):
             helpMenu.AppendSeparator()
             debugMenu = self.addSubMenu(helpMenu, self.ID_DEBUG_SUBMENU, 
                                         "Debugging")
+            self.addMenuItem(debugMenu, self.ID_DEBUG_CONSOLE, 
+                         "Open Scripting Console\tCtrl+Shift+C", "", 
+                         debugging.DebugConsole.openConsole)
+            debugMenu.AppendSeparator()
             self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
                              "Save All Preferences", "",
                              lambda(evt): self.app.saveAllPrefs())
@@ -2872,6 +2867,7 @@ class ViewerApp(wx.App):
             @keyword loadLastFile: If `True` and no `initialFilename' is
                 specified, the viewer will reload the last file opened.
         """
+        print "init"
         self.prefsFile = kwargs.pop('prefsFile', None)
         self.initialFilename = kwargs.pop('filename', None)
         clean = kwargs.pop('clean', False)
@@ -2890,10 +2886,7 @@ class ViewerApp(wx.App):
         self.prefs = Preferences(self.prefsFile, clean=(clean or safeMode))
         self.plugins = None
         
-        if safeMode:
-            logger.info("Starting in SAFE MODE. No plug-ins will be loaded.")
-        else:
-            self.loadPlugins()
+        self.loadPlugins(safeMode or wx.GetKeyState(wx.WXK_SHIFT))
 
         if loadLast and self.initialFilename is None:
             try:
@@ -2916,12 +2909,18 @@ class ViewerApp(wx.App):
             updater.startCheckUpdatesThread(self)
 
 
-    def loadPlugins(self):
+    def loadPlugins(self, safeMode=False):
         """ Search for and load plugin components.
         """
+        self.plugins = plugins.PluginSet(app=APPNAME, appVersion=VERSION, 
+                                         quiet=True)
+        
+        if safeMode or wx.GetKeyState(wx.WXK_SHIFT):
+            logger.info("Starting in SAFE MODE. No plug-ins will be loaded.")
+            return
+
         logger.info("Searching for plug-ins...")
-        self.plugins = plugins.PluginSet(self.defaultPlugins, app=APPNAME, 
-                                         appVersion=VERSION, quiet=True)
+        self.plugins.add(self.defaultPlugins)
         numPlugins = len(self.plugins)
         logger.info("Found %d standard plug-in(s)" % numPlugins)
 

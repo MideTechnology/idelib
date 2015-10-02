@@ -116,25 +116,32 @@ class AboutBox(SC.SizedDialog):
         plugins.sort(key=lambda x: x.name)
         for p in plugins:
             plug = []
-            info = p.info
+            info = p.info.copy()
             if 'author' not in info or 'copyright' not in info:
                 continue
-            plug.append('<h3>%s</h3>' % p.name)
-            url = info.get('url', None)
+            url = info.pop('url', None)
             cr = info.get('copyright', None)
+            desc = info.pop('description', None)
+            vers = info.pop('version', '')
+            
+            plug.append('<h3>%s %s</h3>' % (p.name, vers))
             if cr is not None:
                 if url is not None:
-                    cr = u'%s [<a href="%s">Link</a>]' % (cr, url)
-                plug.append(cr)
-            plug.append('<dl>')
+                    info['copyright'] = u'%s [<a href="%s">Link</a>]' % (cr, url)
+                
+            plug.append(u"<table width='100%'>")
             for k,v in sorted(info.items()):
                 if k.startswith('_'):
                     continue
-                if k in ('name','type','module','minVersion','maxVersion', 'copyright', 'url'):
+                if k in ('name','type','module','minVersion','maxVersion'):
                     continue
-                plug.append(u'<dt>%s</dt><dd>%s</dd>' % (k.title(),v))
-            plug.append('</dl>')
-            result.append(u'\n'.join(plug))
+                plug.append(u'<tr><td width="20%%"><i>%s</i></td><td>%s</td></tr>' % (k.title(),v))
+            plug.append('</table>')
+            
+            if desc is not None:
+                plug.append(u"<blockquote>%s</blockquote>" % desc)
+                
+            result.append(u' '.join(plug))
         if len(result) == 0:
             return
         return u'<html>%s</html>' % u"<hr/>".join(result)
