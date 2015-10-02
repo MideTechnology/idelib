@@ -366,28 +366,28 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
         ssx = SlamStickX.fromRecording(doc)
         
         accelCh = ssx.getAccelChannel()
-        if accelCh is not None:
+        if accelCh is not None and len(accelCh.subchannels) > 0:
             accelType = getMatlabType(accelCh.parser.format, MP.miUINT16)
             accelChId = accelCh.id
             numAccelCh = len(accelCh.subchannels)
         else:
-            accelType = accelChId = numAccelCh = None
+            accelCh = accelType = accelChId = numAccelCh = None
 
         pressTempCh = ssx.getTempChannel().parent
-        if pressTempCh is not None:
+        if pressTempCh is not None and len(pressTempCh.subchannels) > 0:
             pressTempType = getMatlabType(pressTempCh.parser.format, MP.miSINGLE)
             pressTempChId = pressTempCh.id
             numTempCh = len(pressTempCh.subchannels)
         else:
-            pressTempType = pressTempChId = numTempCh = None
+            pressTempCh = pressTempType = pressTempChId = numTempCh = None
         
         dcAccelCh = ssx.getAccelChannel(dc=True)
-        if dcAccelCh is not None:
+        if dcAccelCh is not None and len(dcAccelCh.subchannels) > 0:
             dcAccelType = getMatlabType(dcAccelCh.parser.format, MP.miINT16)
             dcAccelChId = dcAccelCh.id
             numDcAccelCh = len(dcAccelCh.subchannels)
         else:
-            dcAccelType = dcAccelChId = numDcAccelCh = None
+            dcAccelCh = dcAccelType = dcAccelChId = numDcAccelCh = None
         
         totalSize = os.path.getsize(ideFilename) + 0.0
         nextUpdate = time.time() + updateInterval
