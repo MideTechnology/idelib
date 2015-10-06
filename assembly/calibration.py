@@ -24,7 +24,7 @@ from xml.etree import ElementTree as ET
 import numpy as np
 import pylab #@UnresolvedImport - doesn't show up for some reason.
 
-from scipy.signal import butter, lfilter, freqz #@UnresolvedImport
+from scipy.signal import butter, lfilter #, freqz #@UnresolvedImport
 
 VIEWER_PATH = r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Design_Files\Firmware_and_Software\Development\Source\Slam_Stick_Lab"
 INKSCAPE_PATH = r"C:\Program Files (x86)\Inkscape\inkscape.exe"
@@ -56,6 +56,10 @@ import devices
 # from devices.ssx import SlamStickX
 
 from birth_utils import changeFilename, writeFile, writeFileLine
+
+
+# XXX: REMOVE
+import matplotlib.pyplot as plot #@UnresolvedImport
 
 #===============================================================================
 # 
@@ -360,6 +364,9 @@ class CalFile(object):
         
             @return: The calibration constants tuple and the mean temperature.
         """
+        # XXX: REMOVE
+        self.lowpass = XYZ()
+        
         _print("importing %s... " % os.path.basename(self.filename))
         self.doc = importFile(self.filename)
 
@@ -405,7 +412,11 @@ class CalFile(object):
         if lowpass:
             _print("Applying low pass filter... ")
             for i in range(1, data.shape[1]):
-                means[i-1] = lowpassFilter(data[:,i], lowpass, sampRate)[int(sampRate*2):int(sampRate*3)].mean()
+                filtered = lowpassFilter(data[:,i], lowpass, sampRate)
+                self.lowpass[i-1] = filtered
+#                 print "mean range: %s to %s" % (int(sampRate*2),int(sampRate*3))
+                means[i-1] = np.abs(filtered[int(sampRate*2):int(sampRate*3)]).mean()
+#                 means[i-1] = data[int(sampRate*2):int(sampRate*3),i].mean()
         return means
     
 
@@ -729,12 +740,23 @@ class Calibrator(object):
         self.meanCalTemp = np.mean([cal.cal_temp for cal in self.calFiles])
         self.meanCalPress = np.mean([cal.cal_press for cal in self.calFiles])
 
+        self.offsets = XYZ()
+        for i in range(3):
+            self.offsets[i] = 1.0 - (self.cal[i] * self.calFiles[i].means[i])
+
+        self.offsetsLo = XYZ(None, None, None)
+        self.calLo = XYZ(None, None, None)
+        self.SxyLo = self.SyzLo = self.SxzLo = None
+
         if self.hasHiAccel and not self.hasLoAccel:
             return
         
         self.calLo = XYZ([self.calFiles[i].calLo[i] * prev_cal_lo[i] for i in range(3)])
         self.SxyLo, self.SyzLo, self.SxzLo = self.calculateTrans(self.calFiles, self.calLo, dc=True)
 
+        for i in range(3):
+            self.offsetsLo[i] = 1.0 - (self.calLo[i] * self.calFiles[i].meansLo[i])
+        
 
     #===========================================================================
     # 
@@ -768,19 +790,21 @@ class Calibrator(object):
                   '    File    X-rms    Y-rms    Z-rms    X-cal    Y-cal    Z-cal']
         
         result.extend(map(str, self.calFiles))
-        result.append("%s, X Axis Calibration Constant %.4f" % (self.filenames.x, self.cal.x))
-        result.append("%s, Y Axis Calibration Constant %.4f" % (self.filenames.y, self.cal.y))
-        result.append("%s, Z Axis Calibration Constant %.4f" % (self.filenames.z, self.cal.z))
-        result.append("%s, Transverse Sensitivity in XY = %.2f percent" % (self.Sxy_file, self.Sxy))
-        result.append("%s, Transverse Sensitivity in YZ = %.2f percent" % (self.Syz_file, self.Syz))
-        result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (self.Sxz_file, self.Sxz))
-        
-        if self.hasLoAccel and not self.hasHiAccel:
+        if self.hasHiAccel:
+            result.append("Analog Accelerometer:")
+            result.append("%s, X Axis Calibration Constant %.6f" % (self.filenames.x, self.cal.x))
+            result.append("%s, Y Axis Calibration Constant %.6f" % (self.filenames.y, self.cal.y))
+            result.append("%s, Z Axis Calibration Constant %.6f" % (self.filenames.z, self.cal.z))
+            result.append("%s, Transverse Sensitivity in XY = %.6f percent" % (self.Sxy_file, self.Sxy))
+            result.append("%s, Transverse Sensitivity in YZ = %.6f percent" % (self.Syz_file, self.Syz))
+            result.append("%s, Transverse Sensitivity in ZX = %.6f percent" % (self.Sxz_file, self.Sxz))
             result.append('')
+        
+        if self.hasLoAccel:
             result.append('DC Accelerometer:')
-            result.append("%s, X Axis Calibration Constant %.4f" % (self.filenames.x, self.calLo.x))
-            result.append("%s, Y Axis Calibration Constant %.4f" % (self.filenames.y, self.calLo.y))
-            result.append("%s, Z Axis Calibration Constant %.4f" % (self.filenames.z, self.calLo.z))
+            result.append("%s, X Axis Calibration Constant %.6f, offset %.6f" % (self.filenames.x, self.calLo.x, self.offsetsLo.x))
+            result.append("%s, Y Axis Calibration Constant %.6f, offset %.6f" % (self.filenames.y, self.calLo.y, self.offsetsLo.y))
+            result.append("%s, Z Axis Calibration Constant %.6f, offset %.6f" % (self.filenames.z, self.calLo.z, self.offsetsLo.z))
             result.append("%s, Transverse Sensitivity in XY = %.2f percent" % (self.Sxy_file, self.SxyLo))
             result.append("%s, Transverse Sensitivity in YZ = %.2f percent" % (self.Syz_file, self.SyzLo))
             result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (self.Sxz_file, self.SxzLo))
@@ -839,6 +863,14 @@ class Calibrator(object):
                 'FIELD_refNist',
                 'FIELD_refSerial',
                 'FIELD_referenceMan'
+            
+            For DC accelerometer:
+                'FIELD_cal_x_dc',
+                'FIELD_cal_y_dc',
+                'FIELD_cal_z_dc',
+                'FIELD_offset_x_dc',
+                'FIELD_offset_y_dc',
+                'FIELD_offset_z_dc'
          """
         xd = ET.parse(template)
         xr = xd.getroot()
@@ -869,6 +901,16 @@ class Calibrator(object):
 #             ('FIELD_refSerial', self.refSerial),
 #             ('FIELD_referenceMan', self.refMan),
         ]
+
+        if self.hasLoAccel:
+            fieldIds.extend([
+                ('FIELD_cal_x_dc', "%.4f" % self.calLo.x),
+                ('FIELD_cal_y_dc', "%.4f" % self.calLo.y),
+                ('FIELD_cal_z_dc', "%.4f" % self.calLo.z),
+                ('FIELD_offset_x_dc', "%.4f" % self.offsetsLo.x),
+                ('FIELD_offset_y_dc', "%.4f" % self.offsetsLo.y),
+                ('FIELD_offset_z_dc', "%.4f" % self.offsetsLo.z)
+            ])
         
         for name, val in fieldIds:
             setText(name, val)
@@ -936,7 +978,14 @@ class Calibrator(object):
                 ("X-Axis",               self.cal.x),
                 ("Y-Axis",               self.cal.y),
                 ("Z-Axis",               self.cal.z),
-                ("Pressure (Pa)",        self.meanCalPress)])
+                ("Pressure (Pa)",        self.meanCalPress),
+                ("X-Axis (DC)",          self.calLo.x),
+                ("Y-Axis (DC)",          self.calLo.y),
+                ("Z-Axis (DC)",          self.calLo.z),
+                ("X Offset (DC)",        self.offsetsLo.x),
+                ("Y Offset (DC)",        self.offsetsLo.y),
+                ("Z Offset (DC)",        self.offsetsLo.z),
+                ])
         
         if saveTo is not None:
             newFile = not os.path.exists(saveTo)
@@ -997,24 +1046,34 @@ class Calibrator(object):
         bivars = [c for c in bivars if c['CalID'] not in (1,2,3)]
         calList['BivariatePolynomial'] = bivars
         
-        for i in range(3):
-            thisCal = OrderedDict([
-                ('CalID', i+1),
-                ('CalReferenceValue', 0.0), 
-                ('BivariateCalReferenceValue', self.calFiles[i].cal_temp), 
-                ('BivariateChannelIDRef', tempChannelId), 
-                ('BivariateSubChannelIDRef',tempSubchannelId), 
-                ('PolynomialCoef', [self.cal[i] * -0.003, self.cal[i], 0.0, 0.0]), 
-            ])
-            calList['BivariatePolynomial'].append(thisCal)
+        if self.hasHiAccel:
+            for i in range(3):
+                thisCal = OrderedDict([
+                    ('CalID', i+1),
+                    ('CalReferenceValue', 0.0), 
+                    ('BivariateCalReferenceValue', self.calFiles[i].cal_temp), 
+                    ('BivariateChannelIDRef', tempChannelId), 
+                    ('BivariateSubChannelIDRef',tempSubchannelId), 
+                    ('PolynomialCoef', [self.cal[i] * -0.003, self.cal[i], 0.0, 0.0]), 
+                ])
+                calList['BivariatePolynomial'].append(thisCal)
 
         # Flip Z back, just in case.
         self.cal.z *= -1
         
         # DIGITAL DC ACCELEROMETER
         #-------------------------
-        
-        # TODO: Handle DC accelerometer calibration.
+        if self.hasLoAccel:
+            for i in range(3):
+                thisCal = OrderedDict([
+                    ('CalID', i+1),
+                    ('CalReferenceValue', 0.0), 
+                    ('BivariateCalReferenceValue', self.calFiles[i].cal_temp), 
+                    ('BivariateChannelIDRef', tempChannelId), 
+                    ('BivariateSubChannelIDRef',tempSubchannelId), 
+                    ('PolynomialCoef', [self.calLo[i] * -0.003, self.calLo[i], 0.0, 0.0]), 
+                ])
+                calList['BivariatePolynomial'].append(thisCal)
         
         return ebml_util.build_ebml('CalibrationList', calList, schema='mide_ebml.ebml.schema.mide')
 
