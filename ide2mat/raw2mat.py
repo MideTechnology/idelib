@@ -556,11 +556,11 @@ if __name__ == "__main__":
         print argparser.description
         print "Converter version %d.%d.%d (build %d) %s, %s" % (VERSION + (BUILD_NUMBER, platform.architecture()[0], datetime.fromtimestamp(BUILD_TIME)))
         print "MIDE EBML library version %d.%d.%d" % ebml_version
-        exit(0)
+        sys.exit(0)
     
     if len(args.source) == 0:
         print "Error: No source file(s) specified!"
-        exit(1)
+        sys.exit(1)
     
     sourceFiles = []
     for f in args.source:
@@ -571,18 +571,18 @@ if __name__ == "__main__":
         missing = map(lambda x: not os.path.exists(x), sourceFiles)
         print "Source file(s) could not be found:"
         print "\n\t".join(missing)
-        exit(1)
+        sys.exit(1)
 
     if args.info is True:
         print "=" * 70
         for f in sourceFiles:
             showInfo(f)
-        exit(0)
+        sys.exit(0)
         
     if args.output is not None:
         if not os.path.exists(args.output):
             print "Output path does not exist: %s" % args.output
-            exit(1)
+            sys.exit(1)
         if not os.path.isdir(args.output):
             print "Specified output is not a directory: %s" % args.output
             sys.exit(1)
@@ -616,12 +616,18 @@ if __name__ == "__main__":
         sampSec = locale.format("%d", totalSamples/totalTime.total_seconds(), grouping=True)
         totSamp = locale.format("%d", totalSamples, grouping=True)
         print "Conversion complete! Exported %s samples in %s (%s samples/sec.)" % (totSamp, tstr, sampSec)
-        exit(0)
+        sys.exit(0)
     except MATExportError as err:
         print "*** Export error: %s" % err
-        exit(1)
+        sys.exit(1)
     except KeyboardInterrupt:
         print "\n*** Conversion canceled! MAT version(s) of %s may be incomplete." % f
+        sys.exit(0)
+    except Exception as err:
+        print "*** An unexpected %s occurred. Is source an IDE file?" % err.__class__.__name__
+        if DEBUG:
+            print "*** Message: %s" % err.message
+        sys.exit(1)
 #     except IOError as err: #Exception as err:
 #         print "\n\x07*** Conversion failed! %r" % err
 
