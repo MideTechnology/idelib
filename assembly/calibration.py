@@ -7,6 +7,7 @@ from collections import Iterable, OrderedDict
 import csv
 from datetime import datetime
 import os.path
+from xml.sax import saxutils
 import shutil
 import string
 import subprocess
@@ -55,11 +56,11 @@ testFiles = glob(r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Product_Database\_C
 import devices
 # from devices.ssx import SlamStickX
 
-from birth_utils import changeFilename, writeFile, writeFileLine
+from birth_utils import changeFilename, writeFile, writeFileLine, findCalLog
 
 
 # XXX: REMOVE
-import matplotlib.pyplot as plot #@UnresolvedImport
+import matplotlib.pyplot as plot #@UnresolvedImport @UnusedImport
 
 #===============================================================================
 # 
@@ -226,8 +227,11 @@ class CalFile(object):
     
     
     def __str__(self):
-        return '%s %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f' % \
-            ((self.name,) + tuple(self.rms) + tuple(self.cal))
+        try:
+            return '%s %8.4f %8.4f %8.4f %8.4f %8.4f %8.4f' % \
+                ((self.name,) + tuple(self.rms) + tuple(self.cal))
+        except (TypeError, AttributeError):
+            return super(self, CalFile).__str__()
     
     
     def __repr__(self):
@@ -284,6 +288,9 @@ class CalFile(object):
 
     @classmethod
     def calculateWindowedRMS(cls, a, window_size=2):
+        """ Calculate a moving window RMS. Ported from MLeB's MATLAB.
+            NOT IN USE.
+        """
         a2 = np.power(a,2)
         window = np.ones(window_size)/float(window_size)
         return np.sqrt(np.convolve(a2, window, 'valid'))
@@ -408,15 +415,19 @@ class CalFile(object):
     
     
     def getOffsets(self, data, sampRate, lowpass=2.55):
+        """ Calculate offsets (means).
+        """
         means = XYZ()
         if lowpass:
             _print("Applying low pass filter... ")
             for i in range(1, data.shape[1]):
                 filtered = lowpassFilter(data[:,i], lowpass, sampRate)
                 self.lowpass[i-1] = filtered
-#                 print "mean range: %s to %s" % (int(sampRate*2),int(sampRate*3))
                 means[i-1] = np.abs(filtered[int(sampRate*2):int(sampRate*3)]).mean()
-#                 means[i-1] = data[int(sampRate*2):int(sampRate*3),i].mean()
+        else:
+            _print("Calculating means... ")
+            for i in range(1, data.shape[1]):
+                means[i-1] = np.abs(data[int(sampRate*2):int(sampRate*3),i]).mean()
         return means
     
 
@@ -442,7 +453,6 @@ class CalFile(object):
         accelChannel.updateTransforms()
 
         accelChannel.removeMean = False
-        self.rawMeans = XYZ([accelChannel[c].getSession().getRangeMinMeanMax(1000000)[1] for c in axisIds])
                     
         a = accelChannel.getSession()
         sampRate = a.getSampleRate()
@@ -456,16 +466,10 @@ class CalFile(object):
         # HACK: Some  devices have a longer delay before Z settles.
         if skipSamples:
             data = data[skipSamples:]
-
-        self.rawMeans = XYZ((data[:sampRate,i].mean() for i in range(1,data.shape[1])))
         
         _print("%d samples imported. " % len(data)) 
         times = data[:,0] * .000001
-        
-#         if not a.allowMeanRemoval:
-#             _print("Doing 'manual' mean removal.")
-#             data = data - ([0] + means)
-        
+                
         if highpass:
             _print("Applying high pass filter... ")
             for i in range(1, data.shape[1]):
@@ -488,13 +492,13 @@ class CalFile(object):
         if indices.y == indices.z == 0:
             indices.y = indices.z = indices.x
         
-        # Column 0 is the time, so axis columns are offset by 1
-        accel = XYZ(data[indices.x+start:indices.x+stop,axisIds.x+1],
-                         data[indices.y+start:indices.y+stop,axisIds.y+1],
-                         data[indices.z+start:indices.z+stop,axisIds.z+1])
-        times = XYZ(times[indices.x+start:indices.x+stop],
-                         times[indices.y+start:indices.y+stop],
-                         times[indices.z+start:indices.z+stop])
+        accel = XYZ(data[(indices.x+start):(indices.x+stop),axisIds.x+1],
+                    data[(indices.y+start):(indices.y+stop),axisIds.y+1],
+                    data[(indices.z+start):(indices.z+stop),axisIds.z+1])
+        
+        times = XYZ(times[(indices.x+start):(indices.x+stop)],
+                    times[(indices.y+start):(indices.y+stop)],
+                    times[(indices.z+start):(indices.z+stop)])
     
         _print("computing RMS...")
         rms = XYZ(self.calculateRMS(accel.x), 
@@ -509,6 +513,8 @@ class CalFile(object):
         
 
     def render(self, imgPath, baseName='vibe_test_', imgType="png"):
+        """ Create a plot of each axis.
+        """
         imgName = '%s%s.%s' % (baseName, os.path.splitext(os.path.basename(self.filename))[0], imgType)
         saveName = os.path.join(imgPath, imgName)
         
@@ -836,6 +842,30 @@ class Calibrator(object):
     # 
     #===========================================================================
     
+    @classmethod
+    def getCertTemplate(cls, device, path=''):
+        """ Get the specific certification template SVG for the recording
+            device being calibrated.
+        """
+        if not isinstance(device, devices.SlamStickX):
+            raise TypeError("%r is a SlamStick derivative!" % \
+                            device.__class__.__name__)
+        if isinstance(device, devices.SlamStickC):
+            n = "Slam-Stick-C-Calibration-template.svg"
+        elif device.getAccelChannel(dc=True):
+            n = "Slam-Stick-X+DC-Calibration-template.svg"
+        elif device.getAccelChannel(dc=False):
+            n = "Slam-Stick-X-Calibration-template.svg"
+        else:
+            raise TypeError("Can't find a certificate template for %s" % \
+                            device.__class__.__name__)
+        
+        n = os.path.join(path, n)
+        if not os.path.exists(n):
+            raise IOError("Could not find template %s" % n)
+        
+        return n
+            
     
     def createCertificate(self, savePath='.', createPdf=True,
                           template="Slam-Stick-X-Calibration-template.svg"):
@@ -874,11 +904,36 @@ class Calibrator(object):
          """
         xd = ET.parse(template)
         xr = xd.getroot()
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        
+        # Old version used IDs on the actual `tspan` elements. New versions
+        # use the ID on the parent `text` element, which can be set in Inkscape
+        # so the SVG files don't require (much) hand-editing.
+        # TODO: Get rid of this code debt.
+        oldStyle = xr.find(".//*[@id='FIELD_cal_x']").tag.endswith("tspan")
+        
+        def setTextOld(elId, t):
+            t = saxutils.escape(str(t).strip())
+            el = xr.find(".//*[@id='%s']" % elId)
+            if el is not None:
+                el.text=t
+            else:
+                print "could not find field %r in template" % elId 
         
         def setText(elId, t):
-            xr.find(".//*[@id='%s']" % elId).text=str(t).strip()
+            t = saxutils.escape(str(t).strip())
+            el = xr.find(".//*[@id='%s']/svg:tspan" % elId, ns)
+            if el is not None:
+                el.text = t
+            else:
+                print "could not find field %r in template" % elId 
         
         certTxt = "C%05d" % self.certNum
+        
+        if isinstance(self.calTimestamp, basestring):
+            caldate = self.calTimestamp
+        else:
+            caldate = datetime.utcfromtimestamp(self.calTimestamp).strftime("%m/%d/%Y")
         
         fieldIds = [
             ('FIELD_calHumidity', self.calHumidity),
@@ -888,7 +943,7 @@ class Calibrator(object):
             ('FIELD_cal_y', "%.4f" % self.cal.y),
             ('FIELD_cal_z', "%.4f" % self.cal.z),
             ('FIELD_certificateNum', certTxt),
-            ('FIELD_productCalDate', datetime.utcfromtimestamp(self.calTimestamp).strftime("%m/%d/%Y")),
+            ('FIELD_productCalDate', caldate),
             ('FIELD_productManDate', self.productManDate),
             ('FIELD_productName', self.device.productName),
             ('FIELD_productPartNum', self.device.partNumber),
@@ -911,9 +966,14 @@ class Calibrator(object):
                 ('FIELD_offset_y_dc', "%.4f" % self.offsetsLo.y),
                 ('FIELD_offset_z_dc', "%.4f" % self.offsetsLo.z)
             ])
+
         
-        for name, val in fieldIds:
-            setText(name, val)
+        if oldStyle:
+            for name, val in fieldIds:
+                setTextOld(name, val)
+        else:
+            for name, val in fieldIds:
+                setText(name, val)
         
         tempFilename = os.path.realpath(changeFilename(template.replace('template',certTxt), path=savePath))
         if os.path.exists(tempFilename):
@@ -925,6 +985,57 @@ class Calibrator(object):
         
         return tempFilename    
 
+
+    @classmethod
+    def recreateCertificate(cls, device, logFile, savePath='.', createPdf=True,
+                            template="Slam-Stick-X-Calibration-template.svg"):
+        """ Recreate a certificate from the calibration log. In case of updated
+            templates, or if a failure prevented the certificate from being
+            generated during calibration.
+        """
+        caldata = findCalLog(logFile, val=device.serialNum)
+        if not caldata:
+            raise KeyError("Could not find device SN %s in log" % device.serialNum)
+        
+        c = cls()
+        c.device = device
+        c.certNum = caldata.get('Cal #', None)
+        c.calRev = caldata.get('Rev', None)
+        caldate = caldata.get('Cal Date', None)
+        mandate = caldata.get('Date of Manufacture', None)
+        c.productSerialNum = caldata.get('Serial #', None)
+        c.device.hardwareVersion = caldata.get('Hardware', None)
+        c.device.firmwareVersion = caldata.get('Firmware', None)
+        c.device.productName = caldata.get('Product Name', None)
+        c.device.partNumber = caldata.get('Part Number', None)
+        c.refMan = caldata.get('Ref Manufacturer', None)
+        c.refModel = caldata.get('Ref Model #', None)
+        c.refSerial = caldata.get('Ref Serial #', None)
+        c.refNist = caldata.get('NIST #', None)
+        c.accelSerial = caldata.get('832M1 Serial #', None)
+        c.meanCalTemp = caldata.get('Temp. (C)', None)
+        c.calHumidity = caldata.get('Rel. Hum. (%)', None)
+        c.calTempComp = caldata.get('Temp Comp. (%/C)', None)
+        c.cal.x = caldata.get('X-Axis', None)
+        c.cal.y = caldata.get('Y-Axis', None)
+        c.cal.z = caldata.get('Z-Axis', None)
+        c.meanCalPress = caldata.get('Pressure (Pa)', None)
+        c.calLo.x = caldata.get('X-Axis (DC)', None)
+        c.calLo.y = caldata.get('Y-Axis (DC)', None)
+        c.calLo.z = caldata.get('Z-Axis (DC)', None)
+        c.offsetsLo.x = caldata.get('X Offset (DC)', None)
+        c.offsetsLo.y = caldata.get('Y Offset (DC)', None)
+        c.offsetsLo.z = caldata.get('Z Offset (DC)', None)
+        
+        c.productManDate = mandate.split()[0]
+        c.calTimestamp = caldate.split(' ',1)[0]
+        
+        if template is None:
+            template = cls.getCalTemplate(device)
+        
+        c.createCertificate(savePath, createPdf, template)
+        
+        
 
     @classmethod
     def convertSvg(cls, svgFilename, removeSvg=True):
@@ -998,42 +1109,46 @@ class Calibrator(object):
         return data
 
 
-    def createEbml(self, xmlTemplate=None):
+    def createEbml(self, xmlTemplate=None, schema="mide_ebml.ebml.schema.mide"):
         """ Create the calibration EBML data, for inclusion in a recorder's
             user page or an external user calibration file.
         """
         if xmlTemplate is None:
             # No template; generate from scratch. Generally not used.
             g = round(self.device.getAccelRange()[1])
-            baseCoefs = [(g*2.0)/65535.0, -g]
              
             calList = OrderedDict([
                 ('UnivariatePolynomial', [
                     OrderedDict([('CalID', 9), 
                                  ('CalReferenceValue', 0.0), 
-                                 ('PolynomialCoef', baseCoefs)])
-                    ]
+                                 ('PolynomialCoef', [(g*2.0)/65535.0, -g])]),
+                    OrderedDict([('CalID', 32), 
+                                 ('CalReferenceValue', 0.0),
+                                 ('PolynomialCoef', [0.00048828125, 0.0])])
+                    ],
                 ), 
                 ('BivariatePolynomial', [] ), # filled in below
              ])
         else:
             if xmlTemplate.lower().endswith('.xml'):
-                e = xml2ebml.readXml(xmlTemplate, schema="mide_ebml.ebml.schema.mide")
-                doc = ebml_util.read_ebml(StringIO(e), schema='mide_ebml.ebml.schema.mide')
+                e = xml2ebml.readXml(xmlTemplate, schema=schema)
+                doc = ebml_util.read_ebml(StringIO(e), schema=schema)
             elif xmlTemplate.lower().endswith('.ebml'):
-                ebml_util.read_ebml(xmlTemplate, schema='mide_ebml.ebml.schema.mide')
+                ebml_util.read_ebml(xmlTemplate, schema=schema)
             calList = doc['CalibrationList']
             
         calList['CalibrationSerialNumber'] = self.certNum
         calList['CalibrationDate'] = self.calTimestamp
         
         # TODO: Calculate from device calibration data?
-        channels = self.device.getChannels()
-        if 36 in channels:
-            tempChannelId = 36
-        else:
-            tempChannelId = 1
+        # TODO: Get rid of this code debt.
+#         channels = self.device.getChannels()
+#         if 36 in channels:
+#             tempChannelId = 36
+#         else:
+#             tempChannelId = 1
         tempSubchannelId = 1
+        tempChannelId = 36
         
         # HIGH-G ANALOG ACCELEROMETER
         #----------------------------
@@ -1045,6 +1160,10 @@ class Calibrator(object):
         bivars = calList['BivariatePolynomial']
         bivars = [c for c in bivars if c['CalID'] not in (1,2,3)]
         calList['BivariatePolynomial'] = bivars
+        
+        univars = calList['UnivariatePolynomial']
+        univars = [c for c in univars if c['CalID'] not in (33,34,35)]
+        calList['UnivariatePolynomial'] = univars
         
         if self.hasHiAccel:
             for i in range(3):
@@ -1066,16 +1185,13 @@ class Calibrator(object):
         if self.hasLoAccel:
             for i in range(3):
                 thisCal = OrderedDict([
-                    ('CalID', i+1),
+                    ('CalID', i+33),
                     ('CalReferenceValue', 0.0), 
-                    ('BivariateCalReferenceValue', self.calFiles[i].cal_temp), 
-                    ('BivariateChannelIDRef', tempChannelId), 
-                    ('BivariateSubChannelIDRef',tempSubchannelId), 
-                    ('PolynomialCoef', [self.calLo[i] * -0.003, self.calLo[i], 0.0, 0.0]), 
+                    ('PolynomialCoef', [self.calLo[i], self.offsetsLo[i]]), 
                 ])
-                calList['BivariatePolynomial'].append(thisCal)
+                calList['UnivariatePolynomial'].append(thisCal)
         
-        return ebml_util.build_ebml('CalibrationList', calList, schema='mide_ebml.ebml.schema.mide')
+        return ebml_util.build_ebml('CalibrationList', calList, schema=schema)
 
 
     def createEbmlFromFile(self):

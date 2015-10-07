@@ -483,11 +483,11 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     print "Please disconnect it now."
     
     utils.errMsg()
-        
+
+
 #===============================================================================
 # 
 #===============================================================================
-
 
 def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
               noCopy=False):
@@ -520,6 +520,18 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     print "*" * 60
     print "Starting Auto-Calibration of %s on %s." % (dev.baseName, devPath)
     print "*" * 60
+
+    try:
+        certTemplate = calibration.Calibrator.getCertTemplate(dev)
+    except (ValueError, IOError) as err:
+        print "!!! %s" % err
+        totalTime += time.time() - startTime
+        q = utils.getYesNo("No certificate will be generated (and calibration may fail). Continue (Y/N)? ")
+        startTime = time.time()
+        if q == 'Y':
+            exit(0)
+        certTemplate = None
+    
 
     if dev.serial is None:
         utils.errMsg( "!!! Could not get serial number from recorder on %s" % devPath)
@@ -619,14 +631,17 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     #-------------------------------------------------------------------------- 
     # THE DEVICE-SPECIFIC STUFF IS HERE:
     if compute:
-        if isinstance(dev, devices.SlamStickC):
-            copyfiles = calibrateSSC(dev, certNum, calRev, calDirName, calTemplateName, calCurrentName, calCurrentXml, recalculate, writeCertNum)
-        elif isinstance(dev, devices.SlamStickX):
-            copyfiles = calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName, calCurrentName, calCurrentXml, recalculate, writeCertNum)
-        else:
-            raise NotImplementedError("Not a known recorder type!")
+        copyfiles = calibrateSSX(dev, certNum, calRev, calDirName, 
+                                 calTemplateName, calCurrentName, calCurrentXml,
+                                 recalculate, writeCertNum, certTemplate)
+#         if isinstance(dev, devices.SlamStickC):
+#             copyfiles = calibrateSSC(dev, certNum, calRev, calDirName, calTemplateName, calCurrentName, calCurrentXml, recalculate, writeCertNum, certTemplate)
+#         elif isinstance(dev, devices.SlamStickX):
+#             copyfiles = calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName, calCurrentName, calCurrentXml, recalculate, writeCertNum, certTemplate)
+#         else:
+#             raise NotImplementedError("Not a known recorder type!")
     
-        if copyfiles is None:
+        if not copyfiles:
             return
     #-------------------------------------------------------------------------- 
 
@@ -704,13 +719,16 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
 
 #------------------------------------------------------------------------------ 
 
-def calibrateSSC(dev, certNum, calRev, calDirName, calTemplateName, calCurrentName, calCurrentXml, recalculate, writeCertNum):
+def calibrateSSC(dev, certNum, calRev, calDirName, calTemplateName, 
+                 calCurrentName, calCurrentXml, recalculate, writeCertNum):
     print ("Slam Stick C not implemented yet!")
     return []
 
 #------------------------------------------------------------------------------ 
 
-def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName, calCurrentName, calCurrentXml, recalculate, writeCertNum):
+def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName, 
+                 calCurrentName, calCurrentXml, recalculate, writeCertNum,
+                 certTemplate=None):
     """ Do all the post-shaker stuff: calculate calibration constants, 
         copy content, et cetera.
         
@@ -810,11 +828,16 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName, calCurrentNa
     c.createTxt(calDirName)
     print "calibration recording plots,",
     c.createPlots(calDirName)
-    print "certificate PDF"
+    
+    copyfiles = []
+    
     # BUG: TODO: This sometimes fails and takes Python with it. Move to end.
-    certFile = c.createCertificate(calDirName)
-
-    copyfiles = [certFile]
+    if certTemplate:
+        print "certificate PDF"
+        certFile = c.createCertificate(calDirName, template=certTemplate)
+        copyfiles.append(certFile)
+    else:
+        print "skipping certificate generation"
     
     print "Writing to product 'database' spreadsheet..."
     c.writeProductLog(DB_LOG_FILE)
