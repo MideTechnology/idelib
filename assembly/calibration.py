@@ -901,7 +901,7 @@ class Calibrator(object):
                 'FIELD_offset_x_dc',
                 'FIELD_offset_y_dc',
                 'FIELD_offset_z_dc'
-         """
+        """
         xd = ET.parse(template)
         xr = xd.getroot()
         ns = {"svg": "http://www.w3.org/2000/svg"}
@@ -910,7 +910,10 @@ class Calibrator(object):
         # use the ID on the parent `text` element, which can be set in Inkscape
         # so the SVG files don't require (much) hand-editing.
         # TODO: Get rid of this code debt.
-        oldStyle = xr.find(".//*[@id='FIELD_cal_x']").tag.endswith("tspan")
+        try:
+            oldStyle = xr.find(".//*[@id='FIELD_productSerial']").tag.endswith("tspan")
+        except AttributeError:
+            oldStyle = False
         
         def setTextOld(elId, t):
             t = saxutils.escape(str(t).strip())
@@ -1157,11 +1160,11 @@ class Calibrator(object):
         self.cal.z *= -1
 
         # Remove the default high-g accelerometer polynomials.
-        bivars = calList['BivariatePolynomial']
+        bivars = calList.get('BivariatePolynomial', [])
         bivars = [c for c in bivars if c['CalID'] not in (1,2,3)]
         calList['BivariatePolynomial'] = bivars
         
-        univars = calList['UnivariatePolynomial']
+        univars = calList.get('UnivariatePolynomial', [])
         univars = [c for c in univars if c['CalID'] not in (33,34,35)]
         calList['UnivariatePolynomial'] = univars
         

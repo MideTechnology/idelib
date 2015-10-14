@@ -468,6 +468,9 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
                         break
             
             if r.name not in elementParsers:
+                # TODO: Real support for Attribute elements
+                if r.name == "Attribute":
+                    continue
                 # Unknown block type, but probably okay.
                 logger.info("unknown block %r (ID 0x%02x) @%d" % \
                             (r.name, r.id, r.stream.offset))
