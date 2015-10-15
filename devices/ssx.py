@@ -476,8 +476,9 @@ class SlamStickX(Recorder):
             calibration, if present, takes priority.
         """
         c = self.getUserCalibration(refresh=refresh)
-        if c is None:
-            return self.getFactoryCalibration(refresh=refresh)
+        if c is not None:
+            return c
+        return self.getFactoryCalibration(refresh=refresh)
 
 
     def getCalPolynomials(self, refresh=False):
@@ -486,8 +487,9 @@ class SlamStickX(Recorder):
             takes priority.
         """
         c = self.getUserCalPolynomials(refresh=refresh)
-        if c is None:
-            return self.getFactoryCalPolynomials(refresh=refresh)
+        if c is not None:
+            return c
+        return self.getFactoryCalPolynomials(refresh=refresh)
 
     
     def getProperties(self, refresh=False):

@@ -579,7 +579,7 @@ class CalibrationPanel(InfoPanel):
                 self.html.append("<b>Calibration Date:</b> %s" % d)
             if self.calDate:
                 d = datetime.fromtimestamp(self.calExpiry).date()
-                self.html.append("<b>Expires:</b> %s" % d)
+                self.html.append(" <b>Expires:</b> %s" % d)
             self.html.append("</p>")
         
         if len(self.info) == 0:
