@@ -139,7 +139,8 @@ def autoRename(newName=RECORDER_NAME, timeout=60, callback=utils.spinner, quiet=
                     print "%sRenamed %s from %s to %s" % (beep, v, info[1], newName)
                     return v
                 else:
-                    print "%s%s!!! Failed to rename drive %s (labeled %r)!" % (beep, beep, v, info[1])
+                    print ("%s%s!!! Failed to rename drive %s (labeled %r)!" % \
+                           (beep, beep, v, info[1]))
                     return False
         
         time.sleep(.125)
@@ -147,11 +148,13 @@ def autoRename(newName=RECORDER_NAME, timeout=60, callback=utils.spinner, quiet=
             callback.update()
         
         if timeout and deadline < time.time():
-            print "%s%s!!! Timed out waiting for a recorder (%s sec.)!" % (beep, beep, timeout)
+            print ("%s%s!!! Timed out waiting for a recorder (%s sec.)!" % \
+                   (beep, beep, timeout))
             return False
 
 
-def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev, device_accel_sn, partnum):
+def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev, 
+                      device_accel_sn, partnum):
     """
     """
     data = map(str, (time.asctime(), 
@@ -264,12 +267,17 @@ def getBootloaderFile(partNum=None, fwRev=None):
 # 
 #===============================================================================
 
-def copyContent(devPath):
+def copyContent(devPath, partNum=None):
     """ Copy the default Slam Stick X content (i.e. the documentation and 
         application folders) to a recorder.
     """
+    if partNum is None:
+        contentPath = CONTENT_PATH
+    else:
+        contentPath = os.path.join(DB_PATH, '_%s_Contents' % partNum[:8])
+        
     files = filter(lambda x: not (x.startswith('.') or x == "Thumbs.db"), 
-                   glob(os.path.join(CONTENT_PATH, '*')))
+                   glob(os.path.join(contentPath, '*')))
     for c in files:
         c = os.path.realpath(c)
         dest = os.path.realpath(os.path.join(devPath, os.path.basename(c)))
@@ -611,7 +619,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     compute = True
     
     calCurrentXml = utils.changeFilename(calCurrentName, ext='.xml')
-    if os.path.exists(calCurrentXml) and not recalculate:
+    if os.path.exists(calCurrentXml) and os.path.exists(calTemplateName) and not recalculate:
         # TODO: Comparing the XML is brittle; comparing EBML would be better.
         try:
             curr = utils.readFile(calCurrentXml)
@@ -664,8 +672,8 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     # 11. Copy documentation and software folders
     copyStart = datetime.now()
     if not noCopy:
-        print "Copying standard content to device..."
-        copyContent(devPath)
+        print "Copying standard %s content to device..." % dev.partNumber
+        copyContent(devPath, dev.partNumber)
     print "Copying calibration documentation to device..."
     for filename in copyfiles:
         utils.copyFileTo(filename, docsPath)

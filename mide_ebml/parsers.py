@@ -1096,9 +1096,27 @@ class RecorderConfigurationParser(ElementHandler):
     
     def parse(self, element, **kwargs):
         if self.doc is not None:
-            self.doc.recorderConfig = parse_ebml(element.value)
+            if self.doc.recorderConfig is None:
+                self.doc.recorderConfig = {}
+            self.doc.recorderConfig.update(parse_ebml(element.value))
 
 
+# class AttributeParser(ElementHandler):
+#     """ Handle a root-level Attribute element. The value gets copied to the
+#         Document's `recorderInfo` dictionary. Note: multiple root-level
+#         Attributes with the same name will overwrite.
+#     """
+#     elementName = "Attribute"
+#     isHeader = True
+#     isSubElement = False
+#     
+#     def parse(self, element, **kwargs):
+#         att = decode_attributes([parse_ebml(element.value)])
+#         if att and self.doc is not None:
+#             if self.doc.recorderInfo is None:
+#                 self.doc.recorderInfo = {}
+#             self.doc.recorderInfo.update(att)
+    
 #===============================================================================
 # 
 #===============================================================================

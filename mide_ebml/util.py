@@ -18,7 +18,7 @@ import time
 import types
 import xml.dom.minidom
 
-import ebml
+import ebml #@UnusedImport
 from ebml import core as ebml_core
 from ebml.schema import base as schema_base
 from ebml.schema import specs as schema_specs
