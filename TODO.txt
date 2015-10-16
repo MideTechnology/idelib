@@ -24,6 +24,7 @@ Refactor the whole configuration system. It was designed around editing
 parameters that could be omitted entirely, matching the configuration EBML,
 but fewer and fewer items adhere to that model.
 
+
 Minor items
 -----------
 Multi-threaded plot drawing, so the app won't appear to hang and drawing can 
@@ -70,4 +71,18 @@ once.
 Rework the rulerctrl.TimeFormat mode for Timelines so that it will draw more
 labels. Automatically adjust precision based on total time length: trim
 fractional seconds, seconds, minutes, etc.
+
+Plug-in unit converters. Modify ``Viewer.buildDisplayMenu()`` to
+get 'converter' type plug-ins via something similar to the function
+``mide_ebml.unit_conversion.getApplicableConverters()``. Since the default
+converters are actually part of the ``mide_ebml`` library, it makes more sense
+to leave the existing ones as-is rather than converting them to plug-ins like
+the Tools.
+
+Plug-in renderers (like FFT, PSD, etc.). This may be a big deal. Convert 
+existing ones to plug-ins.
+
+Plug-in exporters. Ones that require additional UI might complicate things.
+Maybe the extra parameters could be generalized so that their UI can be
+generated dynamically.
 
