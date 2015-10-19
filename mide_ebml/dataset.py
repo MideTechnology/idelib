@@ -2062,12 +2062,16 @@ class EventList(Transformable):
             block.endTime = endTime
         
         numSamples = block.getNumSamples(self.parent.parser)
-        if numSamples == 0:
-            # No data in block
-            # TODO: Implement getting sample rate in case of empty block?
-            numSamples = 1
+        if numSamples <= 1:
+            block.sampleTime = endTime - startTime
+            return block.sampleTime
 
-        block.sampleTime = (endTime - startTime) / (numSamples+0.0)
+#         if numSamples == 0:
+#             # No data in block
+#             # TODO: Implement getting sample rate in case of empty block?
+#             numSamples = 1
+
+        block.sampleTime = (endTime - startTime) / (numSamples-1.0)
         
         return block.sampleTime
 
