@@ -164,6 +164,70 @@ def format2dtype(s):
 
 
 #===============================================================================
+# 
+#===============================================================================
+
+class Subchannel(object):
+    """ Class representing one axis of data.
+    """
+    
+    def __init__(self, parent, data):
+        """
+        """
+        self.parent = parent
+        self.id = data.get('SubChannelID', len(parent.subchannels))
+        self.name = data.get('SubChannelName', 
+                             'Subchannel_%d.%02d' % (self.parent.id, self.id))
+        self.label = data.get('SubChannelLabel', self.name)
+        self.units = data.get('SubChannelUnits', None)
+        self.calId = data.get('SubChannelCalibrationIDRef', None)
+        
+
+class Channel(object):
+    """
+    """
+    
+    def __init__(self, dataset, data):
+        """
+        """
+        self.dataset = dataset
+        self.id = data.get('ChannelID')
+        self.name = data.get('ChannelName', 'Channel_%d' % self.id)
+        self.calId = data.get('ChannelCalibrationIDRef', None)
+        
+        # A Channel contains one or more Subchannels. Subchannel IDs are
+        # always contiguous, so they are stored in a list rather than a dict
+        # (as Channels are in the parent Dataset).
+        self.subchannels = []
+        
+        # TimeCodeScale is stored as a string in order to simplify the handling
+        # of floating point values on the Slam Stick.
+        self.timeScale = eval(data.get('TimeCodeScale', '1.0/32768'))
+        
+        # The timestamps in each DataBlock are 24 bit, and any lengthy
+        # recording will cause the timer to roll over. By knowing the maximum
+        # time, we can correct for this.
+        self.timeMod = data.get('TimeCodeModulus', 24**2)
+        self.modulus = 0
+        
+
+    def parseDataBlock(self, block):
+        """
+        """
+        
+
+class Dataset(object):
+    """ Class representing an IDE file.
+    """
+    
+    def __init__(self, data):
+        """
+        """
+        self.channels = {}
+        self.calibration = {}
+
+
+#===============================================================================
 # Data payload parsers
 #===============================================================================
 
