@@ -64,7 +64,8 @@ except ImportError as err:
     msg = "%s - see the file's docstring for setup info!" % err.message
     raise ImportError(msg)
 
-from ebml.schema.base import INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
+from ebml.schema.base import INT, UINT, FLOAT, DATE, STRING, UNICODE, BINARY 
+from ebml.schema.base import CONTAINER
 
 # Mapping of python_ebml element value types from numeric IDs to names
 EBML_TYPES = {INT: "int",
@@ -81,33 +82,36 @@ EBML_TYPES = {INT: "int",
 # Low-level EBML parsing and utility functions, not specific to IDE data
 #===============================================================================
 
-def iter_roots(document):
+def iterRoots(document):
     """ Iterate over an EBML document's elements. Note that this does some
         low-level manipulation of the python-ebml library, so any major change
         in that library may cause this to break.
+        
+        See the code for `ebml.schema.base.Document.roots` for more info.
     """
     stream = document.stream
     children = document.children
     size = stream.size
     while size:
-        element_offset = stream.size - size
-        stream.seek(element_offset)
-        element_id, element_id_size = ebml.schema.base.read_element_id(stream)
-        element_size, element_size_size = ebml.schema.base.read_element_size(stream)
-        element_stream_size = element_id_size + element_size_size + element_size
-        element_stream = stream.substream(element_offset, element_stream_size)
-        size -= element_stream_size
-        
+        elementOffset = stream.size - size
+        stream.seek(elementOffset)
+        elementId, elementId_size = ebml.schema.base.read_element_id(stream)
+        elementSize, elementSize_size = ebml.schema.base.read_element_size(stream)
+        elementStream_size = elementId_size + elementSize_size + elementSize
+        elementStream = stream.substream(elementOffset, elementStream_size)
+        size -= elementStream_size
+                
         element_class = None
         for child in (children + document.globals):
-            if child.id == element_id:
+            if child.id == elementId:
                 element_class = child
                 break
         
         if element_class is None:
-            element = ebml.schema.base.UnknownElement(document, element_stream, element_id)
+            element = ebml.schema.base.UnknownElement(document, elementStream, 
+                                                      elementId)
         else:
-            element = element_class(document, element_stream)
+            element = element_class(document, elementStream)
         
         yield(element)
 
@@ -123,20 +127,27 @@ def createXmlElement(element, xmlDoc, xmlParent=None, ignoreVoid=True):
         @param element: The EBML element to process.
         @param xmlDoc: The parent XML document being generated.
         @keyword xmlParent: The XML parent element of the generated XML
-            element.
+            element. Use ``None`` if you are not trying to build a full XML
+            Document object and just want the element itself.
         @keyword ignoreVoid: If ``True``, `Void` elements in the EBML will not
-            be written to the XML. `Void` elements are placeholder and contain
-            no real data.
+            be written to the XML. `Void` elements are placeholder and (should) 
+            contain no real data.
         @return: The generated XML element.
     """
     xmlElement = xmlDoc.createElement(element.name)
+    
+    # Type: a string taken from the EBML_TYPES dictionary.
     xmlElement.setAttribute('type', EBML_TYPES.get(element.type, "unknown"))
+    # EBML ID: Elements are marked by a numeric tag ID; the schema provides
+    # the name. These are written in hex to better match the schema's format.
     xmlElement.setAttribute('ebmlId', "0x%04x" % element.id)
+    # Offset: the EBML element's starting position in the source file.
     xmlElement.setAttribute('offset', str(element.stream.offset))
+    # Size: The size of the EBML element in the source file.
     xmlElement.setAttribute('size', str(element.size))
     
-    # 'Container' elements (called 'master' in the schema) contain elements.
-    # Recursively crawl these.
+    # 'Container' elements (called 'master' in the schema) contain other 
+    # elements. Recursively crawl these.
     if element.type == CONTAINER:
         for child in element.value:
             if ignoreVoid and child.name == "Void":
@@ -149,7 +160,7 @@ def createXmlElement(element, xmlDoc, xmlParent=None, ignoreVoid=True):
     
     if element.type == BINARY:
         # Encode binary data in an XML-friendly form.
-        val = base64.encodestring(element.value)
+        val = "\n"+base64.encodestring(element.value)
     elif element.type == UNICODE:
         # Unicode strings get re-encoded as UTF-8
         val = element.value.encode('utf8')
@@ -178,7 +189,10 @@ def xml2ebml(ideFilename, output=sys.stdout, ignoreVoid=True):
     """
     elCount = 0
     with open(ideFilename, 'rb') as f:
+        # Technically, this could be used to read any EBML file; just change
+        # the class of EBML document being instantiated.
         ebmldoc = MideDocument(f)
+        doctype = ebmldoc.__class__.__name__
         
         # If the specified output is a stream (e.g. a file or the system
         # `stdout`), use it as the output. Otherwise, assume it is a filename.
@@ -188,19 +202,28 @@ def xml2ebml(ideFilename, output=sys.stdout, ignoreVoid=True):
             outStream = open(output, 'wb')
 
         # Create a fresh XML document. This script doesn't actually generate
-        # a complete XML document, however: it generates individual elements
-        # and writes those directly to the output stream. The XML 
-        # representation of an IDE file can get large, so this saves memory.        
+        # a complete XML document, however: to conserve memory, it generates 
+        # individual elements and writes those directly to the output stream. 
+        # The XML version will be several times larger than the binary IDE.        
         xmldoc = xml.dom.minidom.Document()
         outStream.write(xmldoc.toprettyxml(encoding="utf8"))
-        outStream.write("<MideDocument>\n")
+        outStream.write("<%s>\n" % doctype)
         
         try:
-            for el in iter_roots(ebmldoc):
+            for el in iterRoots(ebmldoc):
                 xmlEl = createXmlElement(el, xmldoc, ignoreVoid=ignoreVoid)
                 outStream.write(xmlEl.toprettyxml(encoding="utf8"))
                 elCount += 1
                 
+                # HACK: the python_ebml library is memory-hungry. If you are
+                # processing large files with 100K+ elements (e.g. a multiple
+                # hour recording), you may run out of memory. This next line
+                # attempts to clear a little every 1K elements. This is a 
+                # low-level hack of the python_ebml library, so any major 
+                # change in that library may cause this to fail.
+                if elCount % 1000 == 0:
+                    ebmldoc.stream.substreams.clear()
+                 
         except IOError as err:
             # A premature end-of-file can occur if the recording stops 
             # unexpectedly. The Slam Stick X tries to close all recordings
@@ -221,7 +244,8 @@ def xml2ebml(ideFilename, output=sys.stdout, ignoreVoid=True):
             pass
          
         finally:
-            outStream.write("</MideDocument>\n")
+            # Called after completion or exception. Clean up and close files.
+            outStream.write("</%s>\n" % doctype)
             if outStream != sys.stdout:
                 outStream.close()
     
@@ -234,10 +258,11 @@ def xml2ebml(ideFilename, output=sys.stdout, ignoreVoid=True):
 if __name__ == "__main__":
     # Rudimentary command-line argument parsing. The script can be called with
     # 1 or 2 parameters: the source and destination files. If there is no 2nd
-    # filename, the output is written to the system standard out stream.
-    args = sys.argv[1:]
-    numArgs = len(args)
+    # filename, the output is written to the system 'standard out' stream.
+    filenames = sys.argv[1:] # sys.argv[0] is the Python filename
+    numArgs = len(filenames)
     
+    # Show help message if called with no arguments.
     if numArgs == 0 or numArgs > 2:
         print "IDE-to-XML Example"
         print __copyright__
@@ -245,11 +270,10 @@ if __name__ == "__main__":
         print "Usage: python %s <input.IDE> [<output.XML>]" % sys.argv[0]
         sys.exit(0)
     
-    source = args[1]
     if numArgs == 2:
-        source, out = args
+        source, out = filenames
     else:
-        source, out = args[0], sys.stdout
+        source, out = filenames[0], sys.stdout
     
     print "Reading from %s..." % source
     numProcessed = xml2ebml(source, out)
