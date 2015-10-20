@@ -2036,8 +2036,8 @@ class EventList(Transformable):
             # TODO: Get the sample rate from another session?
             return -1
         
-        if blockIdx < 0:
-            blockIdx += len(self._data)
+#         if blockIdx < 0:
+#             blockIdx += len(self._data)
         
         # See if it's already been computed or provided in the recording
         block = self._data[blockIdx]
@@ -2055,7 +2055,9 @@ class EventList(Transformable):
                 return -1
             elif blockIdx == len(self._data) - 1:
                 # Last block; use previous.
-                startTime = self._data[blockIdx-1].startTime
+                startTime = self._data[blockIdx-1].endTime
+                if startTime is None:
+                    startTime = self._data[blockIdx-1].startTime
                 endTime = block.startTime
             else:
                 endTime = self._data[blockIdx+1].startTime
