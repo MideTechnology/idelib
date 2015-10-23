@@ -39,6 +39,7 @@ Created on Sep 24, 2014
 @author: dstokes
 '''
 
+from collections import OrderedDict
 from datetime import datetime, timedelta
 from glob import glob
 import os.path
@@ -310,7 +311,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     print "*" * 60
     
     # 1. Wait for an SSX in firmware mode (getSSXSerial)
-    ssxboot = firmware.getBootloaderSSX()
+    ssxboot = firmware.getBootloaderSSX(callback=utils.spinner)
     if ssxboot is None:
         utils.errMsg("Failed to find bootloader SSX!")
         return
@@ -476,8 +477,20 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
     volNameFile = os.path.join(TEMPLATE_PATH, partNum, str(hwRev), 'volume_name.txt')
     volName = utils.readFileLine(volNameFile, str, default=RECORDER_NAME)
-    autoRename(volName, timeout=20)
-#     utils.waitForSSX(timeout=10)
+    devPath = autoRename(volName, timeout=20)
+    
+    # 10.1 Set device clock, change DC sample rate (if present)
+    devs = devices.getDevices([devPath])
+    if devs:
+        dev = devs[0]
+        dev.setClock()
+        if dev.getAccelChannel(dc=True):
+            conf = dev.getConfig()
+            conf['SSXChannelConfiguration'] = [
+                OrderedDict([('ChannelSampleFreq', 3200), 
+                             ('ConfigChannel', 32), 
+                             ('SubChannelEnableMap', 7)])]
+            dev.saveConfig(conf)
     
     # 11. Notify user that recorder is ready for potting/calibration
     print "*" * 60
@@ -548,6 +561,16 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     # Set recorder clock
     print "Setting device clock..."
     dev.setTime()
+    
+    # Change default DC sample rate
+    if dev.getAccelChannel(dc=True):
+        print "Setting default DC accelerometer sample rate..."
+        conf = dev.getConfig()
+        conf['SSXChannelConfiguration'] = [
+            OrderedDict([('ChannelSampleFreq', 400), 
+                         ('ConfigChannel', 32), 
+                         ('SubChannelEnableMap', 7)])]
+        dev.saveConfig(conf)
     
     #  2. Create serial number directory in product_database/_Calibration
     calDirName = os.path.realpath(os.path.join(CAL_PATH, dev.serial))
@@ -694,7 +717,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     totalTime += (time.time() - startTime)
     ssxboot = None
     while ssxboot is None:
-        ssxboot = firmware.getBootloaderSSX()
+        ssxboot = firmware.getBootloaderSSX(callback=utils.spinner)
         if ssxboot is None:
             print "Could not connect! Disconnect the recorder and try again!"
             

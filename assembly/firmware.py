@@ -30,7 +30,6 @@ except ImportError:
     import mide_ebml #@UnusedImport
 
 from mide_ebml import util as ebml_util
-import birth_utils
 
 #===============================================================================
 # 
@@ -316,7 +315,7 @@ def makeRecPropXml(templatePath, partNum, hwRev, device_accel_sn, dest):
 # 
 #===============================================================================
 
-def getSSXSerial(block=False, timeout=30, delay=.25, callback=birth_utils.spinner):
+def getSSXSerial(block=False, timeout=30, delay=.25, callback=None):
     """ Get the names of all serial ports connected to bootloader-mode SSX.
     """
     if block:
@@ -332,7 +331,10 @@ def getSSXSerial(block=False, timeout=30, delay=.25, callback=birth_utils.spinne
         
         return None
     
-    ports = filter(lambda x: 'EFM32 USB CDC Serial' in x[1], 
+#     ports = filter(lambda x: 'EFM32 USB CDC Serial' in x[1], 
+#                    serial.tools.list_ports.comports())
+    # Different versions of driver change the name; this should be more reliable.
+    ports = filter(lambda x: 'USB VID:PID=2544:0003' in x[2], 
                    serial.tools.list_ports.comports())
     if len(ports) > 0:
         return [x[0] for x in ports]
@@ -342,7 +344,8 @@ def getSSXSerial(block=False, timeout=30, delay=.25, callback=birth_utils.spinne
 # 
 #===============================================================================
 
-def getBootloaderSSX(block=True, timeout=None, delay=0.25, callback=birth_utils.spinner, quiet=False, fail=False):
+def getBootloaderSSX(block=True, timeout=None, delay=0.25, callback=None, 
+                     quiet=False, fail=False):
     """ Wait for and return a Slam Stick X in bootloader mode.
     """
     ex = None if fail else IOError
