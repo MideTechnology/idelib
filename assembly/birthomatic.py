@@ -82,6 +82,10 @@ APP_VER_FILE = os.path.join(FIRMWARE_PATH, "app_version.txt")
 
 CONTENT_PATH = os.path.join(DB_PATH, '_Copy_Folder')
 
+
+DC_CAL_SAMPLE_RATE = 3200
+DC_DEFAULT_SAMPLE_RATE = 400
+
 #===============================================================================
 # Rigmarole to ensure the right libraries are located.
 #===============================================================================
@@ -483,8 +487,9 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     devs = devices.getDevices([devPath])
     if devs:
         dev = devs[0]
-        dev.setClock()
+        dev.setTime()
         if dev.getAccelChannel(dc=True):
+            print "Setting DC accelerometer to test rate (%s)..." % DC_CAL_SAMPLE_RATE 
             conf = dev.getConfig()
             conf['SSXChannelConfiguration'] = [
                 OrderedDict([('ChannelSampleFreq', 3200), 
@@ -564,10 +569,10 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     
     # Change default DC sample rate
     if dev.getAccelChannel(dc=True):
-        print "Setting default DC accelerometer sample rate..."
+        print "Setting default DC accelerometer sample rate (%s Hz)..." % DC_DEFAULT_SAMPLE_RATE 
         conf = dev.getConfig()
         conf['SSXChannelConfiguration'] = [
-            OrderedDict([('ChannelSampleFreq', 400), 
+            OrderedDict([('ChannelSampleFreq', DC_DEFAULT_SAMPLE_RATE), 
                          ('ConfigChannel', 32), 
                          ('SubChannelEnableMap', 7)])]
         dev.saveConfig(conf)
