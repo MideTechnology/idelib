@@ -71,11 +71,12 @@ class SplitterExportProgress(ModalExportProgress):
             totalStr = "?"
         msg = "%s (%s of %s)" % (msg, countStr, totalStr)
         
-#         dt = time.time() - self.startTime
-#         if dt > 0.0:
-#             msg = "%s - %s samples/sec." % (msg, locale.format("%d", count/dt, grouping=True))
-
-        keepGoing, skip = super(ModalExportProgress, self).Update(int(percent*1000), msg)
+        # HACK: The dialog wasn't dismissing properly for some reason, so it
+        # is being opened with PD_AUTO_HIDE. Make precent smaller than 1.0
+        # so the dialog doesn't disappear with the first of several files.
+        percent *= .9999
+        
+        keepGoing, skip = super(SplitterExportProgress, self).Update(int(percent*1000), msg)
         self.cancelled = not keepGoing
         self.lastPercent = percent
         
@@ -213,8 +214,15 @@ class IdeSplitter(ToolDialog):
             endTime = startTime + duration
         endTime = endTime or None
 
-        updater = SplitterExportProgress(self.GetTitle(), "Splitting...\n\n...", 
-                                      parent=self)
+        # HACK: Progress dialog wasn't updating/closing properly at the end,
+        # so using PD_AUTO_HIDE is being used in the style.
+        updater = SplitterExportProgress(self.GetTitle(), 
+                                         "Splitting...\n\n...", 
+                                         parent=self, 
+                                         style=(wx.PD_CAN_ABORT|
+                                                wx.PD_APP_MODAL|
+                                                wx.PD_REMAINING_TIME|
+                                                wx.PD_AUTO_HIDE))
         
         exported = set()
         processed = set()
@@ -223,7 +231,8 @@ class IdeSplitter(ToolDialog):
         for n, f in enumerate(sourceFiles, 1):
             if numSplits is not None:
                 splits = numSplits
-                size = max(1024*1024,int(math.ceil(os.path.getsize(f)/(numSplits+0.0))))
+                size = max(1024*1024,
+                           int(math.ceil(os.path.getsize(f)/(numSplits+0.0))))
             else:
                 size = maxSize * 1024 * 1024
                 splits = int(math.ceil(os.path.getsize(f)/(size+0.0)))
