@@ -130,7 +130,7 @@ class SlamStickX(Recorder):
         """ Helper method to read configuration info from a file. Used
             internally.
         """
-        devinfo = util.read_ebml(source)
+        devinfo = util.read_ebml(source, schema=schema_mide)
         return devinfo.get('RecorderConfiguration', default)
 
 
