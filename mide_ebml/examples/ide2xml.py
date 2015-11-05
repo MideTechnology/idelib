@@ -176,7 +176,7 @@ def createXmlElement(element, xmlDoc, xmlParent=None, ignoreVoid=True):
     return xmlElement
     
 
-def xml2ebml(ideFilename, output=sys.stdout, ignoreVoid=True):
+def ebml2xml(ideFilename, output=sys.stdout, ignoreVoid=True):
     """ Convert an IDE file to XML. 
     
         @param ideFilename: The source .IDE file.
@@ -276,6 +276,6 @@ if __name__ == "__main__":
         source, out = filenames[0], sys.stdout
     
     print "Reading from %s..." % source
-    numProcessed = xml2ebml(source, out)
+    numProcessed = ebml2xml(source, out)
     print "Processed %s EBML elements." % numProcessed
     
