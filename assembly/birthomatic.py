@@ -112,10 +112,11 @@ except ImportError:
 import devices
 from mide_ebml import xml2ebml
 
-import ssx_namer
-import firmware
-import calibration
 import birth_utils as utils
+import calibration
+import firmware
+import jig_birther
+import ssx_namer
 
 
 #===============================================================================
@@ -515,6 +516,30 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
 # 
 #===============================================================================
 
+def getJigBootloader():
+    """
+    """
+    c = jig_birther.TestJig() # open FTDI chip in bitbang mode
+    
+    c.set_test_mode_run()
+    c.raise_pin(c.PIN_NRECORD_SW);
+    print "Waiting for board on test jig..."
+
+    # Wait until a board is detected on the jig by pulling !BOARD_SENSE low.
+    while c.read_pin(c.PIN_NBOARD_SENSE):
+        utils.spinner.update()
+        time.sleep(0.25)
+
+    c.set_test_mode_boot()
+    c.reset_target()
+    time.sleep(1)
+    c.raise_pin(c.PIN_NRECORD_SW)
+
+
+#===============================================================================
+# 
+#===============================================================================
+
 def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
               noCopy=False):
     """ Do all the post-shaker stuff: calculate calibration constants, 
@@ -896,6 +921,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description="Improved SSX Birthing/Calibration Suite")
     parser.add_argument("mode", help="The job to do", choices=["birth", "calibrate", "cal"])
+    parser.add_argument("--jig", "-j", action="store_true", help="Use the jig for birthing.")
     parser.add_argument("--serialNum", "-s", help="Serial number of the device being birthed. Defaults to a fresh one.")
 #     parser.add_argument("--partNum", "-p", help="Part number to birth.")
 #     parser.add_argument("--hwRev", "-w", help="Hardware revision to birth.")
@@ -916,6 +942,8 @@ if __name__ == "__main__":
     
     try:
         if args.mode == "birth":
+            if args.jig:
+                getJigBootloader()
             birth(serialNum=args.serialNum, fwFile=args.binfile, firmwareOnly=args.firmwareonly)
         elif args.mode.startswith("cal"):
             noCopy = args.nocopy is True
