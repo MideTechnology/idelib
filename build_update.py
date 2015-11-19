@@ -16,6 +16,8 @@ import tempfile
 import time
 import zipfile
 
+from docutils.examples import html_body
+
 from mide_ebml import xml2ebml
 import mide_ebml.ebml.schema.mide as schema_mide
 import mide_ebml.ebml.schema.manifest as schema_manifest
@@ -40,6 +42,7 @@ BOOT_VER_FILE = os.path.join(FIRMWARE_PATH, "boot_version.txt")
 APP_FILE = os.path.join(FIRMWARE_PATH, "app.bin")
 APP_VER_FILE = os.path.join(FIRMWARE_PATH, "app_version.txt")
 NOTES_FILE = os.path.join(FIRMWARE_PATH, 'release_notes.txt')
+NOTES_HTML_FILE = util.changeFilename(NOTES_FILE, ext=".html")
 
 UPDATE_DIR = os.path.join(PRODUCT_ROOT_PATH, 'Design_Files/Firmware_and_Software/Release/Firmware/updates/')
 
@@ -54,7 +57,8 @@ def getTemplates():
         for d in dirs:
             if d.startswith('.') or 'TEST' in d or d=='bak':
                 dirs.remove(d)
-        templates.extend(map(lambda x: os.path.join(root, x), filter(lambda x: x.lower() in names, files)))
+        templates.extend(map(lambda x: os.path.join(root, x), 
+                             filter(lambda x: x.lower() in names, files)))
     return templates
 
 
@@ -111,6 +115,8 @@ def addJson(z, appVersion, appName="app.bin", boot=False):
 
 
 def getRevNum(app, default):
+    """ Parse the revision number out of the app name.
+    """
     for s in app.lower().replace('-','_').split('_'):
         s = s.strip()
         if s.startswith('rev') and s[-1].isdigit():
@@ -121,8 +127,27 @@ def getRevNum(app, default):
     return default
 
 
-def makePackage(app, boot=False, preview=False):
+def makeReleaseNotes(textfile, output=None):
+    """ Use docutils to generate HTML release notes.
     """
+    if output is None:
+        output = util.changeFilename(textfile, ext=".html")
+
+    with open(textfile, "rb") as f:
+        txt = unicode(f.read(), encoding="utf8")
+        html = html_body(txt).replace("h1>", "h2>")
+        
+    with open(output, "wb") as f:
+        f.write("<html><body>\n")
+        f.write("<!-- automatically generated; edits will be lost! -->\n")
+        f.write(html)
+        f.write("</body></html>\n")
+    
+    return output
+    
+
+def makePackage(app, boot=False, preview=False, useHtml=True):
+    """ Main function to generate an updater package.
     """
     fwRev = util.readFileLine(APP_VER_FILE, int)
     notesFile = NOTES_FILE
@@ -159,6 +184,9 @@ def makePackage(app, boot=False, preview=False):
         if os.path.exists(notesFile):
             print "Adding release notes:", notesFile
             f.write(notesFile, os.path.basename(NOTES_FILE))
+            print "Generating HTML release notes..."
+            f.write(makeReleaseNotes(notesFile), os.path.basename(NOTES_HTML_FILE))
+            
         print "Adding %d templates..." % len(templates)
         addTemplates(f, templates)
         print "Done!"
@@ -184,8 +212,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SSX/SSC Firmware Package Maker")
     parser.add_argument("--app", "-a", default=APP_FILE, help="Full path to the application binary.")
     parser.add_argument("--bootloader", "-b", action="store_true", help="Include the bootloader.")
+    parser.add_argument("--nohtml", "-n", action="store_true", help="Do not generate HTML release notes.")
     parser.add_argument("--preview", '-p', action="store_true", help="Preview the package and its rendered release notes.")
     
     args = parser.parse_args() 
-    makePackage(args.app, boot=args.bootloader, preview=args.preview)
+    makePackage(args.app, boot=args.bootloader, preview=args.preview,
+                useHtml=(not args.nohtml))
 
