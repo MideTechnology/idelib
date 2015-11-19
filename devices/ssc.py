@@ -49,6 +49,12 @@ class SlamStickC(SlamStickX):
         return self._sn
 
 
-    def getAccelChannel(self, dc=False):
+    def getAccelChannel(self, dc=True):
+        """ Retrieve the accelerometer parent channel.
+            
+            @keyword dc: If `False`, return None.
+        """
+        if dc is False:
+            return None
         return SlamStickX.getAccelChannel(self, dc=True)
     

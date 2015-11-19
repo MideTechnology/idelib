@@ -31,17 +31,26 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         """
         cfg = self.root.device.getConfig()
         self.data = cfg.get('SSXTriggerConfiguration', {})
-        
-        self.accelChannel = self.root.device.getAccelChannel().id
-        self.pressTempChannel = self.root.device.getTempChannel().parent.id
 
+        self.pressTempChannel = self.root.device.getTempChannel().parent.id
+        
+        ac = self.root.device.getAccelChannel(dc=False)
+        dc = self.root.device.getAccelChannel(dc=True)
+        
+        self.accelChannel = None if ac is None else ac.id
+        self.dcAccelChannel = None if dc is None else dc.id
+                
 
     def buildUI(self):
         """ Create the UI elements within the page. Every subclass should
             implement this. Called after __init__() and before initUI().
         """
-        self.delayCheck = self.addIntField("Wake After Delay:", 
-            "PreRecordDelay", "seconds", 0, (0,86400))
+        self.delayCheck = self.addIntField("Recording Delay/Interval:", 
+            "PreRecordDelay", "seconds", 0, (0,86400),
+            tooltip="The time between recordings if 'Re-triggerable' is "
+            "checked. If no wake date/time is specified, recording will start "
+            "this many seconds after the button is pressed."
+            )
 
         self.wakeCheck = self.addDateTimeField("Wake at specific time:", 
                                                "WakeTimeUTC")
@@ -72,7 +81,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             units=u'\xb0C', minmax=(-40.0,80.0), value=35.0, indent=2, check=False)
         self.makeChild(self.tempTrigCheck, self.tempLoCheck, self.tempHiCheck)
         
-        self.accelTrigCheck = self.addCheck("Acceleration Trigger")
+        self.accelTrigCheck = self.addCheck("Acceleration Trigger (Analog)")
         self.accelLoCheck = self.addFloatField("Accelerometer Trigger, Low:", 
             units="g", tooltip="The lower trigger limit. Less than 0.", 
             value=-5, indent=2, check=False)
@@ -80,6 +89,22 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             units="g", tooltip="The upper trigger limit. Greater than 0.", 
             value=5, indent=2, check=False)
         self.makeChild(self.accelTrigCheck, self.accelLoCheck, self.accelHiCheck)
+        
+        self.dcAccelTrigCheck = self.addCheck("Acceleration Trigger (DC)")
+        self.dcAccelHiCheck = self.addFloatField("Accelerometer Threshold:", 
+            units="g", value=5, minmax=(0.0,16.0), precision=0.01, check=False, indent=2,
+            tooltip="The minimum acceleration (positive or negative) to trigger recording. "
+            "Greater than 0.")
+        self.dcAccelHiCheck.Enable(False)
+        self.dcAxisChecks = (
+            self.addCheck("X Axis Trigger", indent=2,
+                          tooltip="Acceleration on X axis will trigger recording."),
+            self.addCheck("Y Axis Trigger", indent=2,
+                          tooltip="Acceleration on Y axis will trigger recording."),
+            self.addCheck("Z Axis Trigger", indent=2,
+                          tooltip="Acceleration on Z axis will trigger recording."),
+         )
+        self.makeChild(self.dcAccelTrigCheck, self.dcAccelHiCheck, *self.dcAxisChecks)
 
         SC.SizedPanel(self, -1).SetSizerProps(proportion=1)
         SC.SizedPanel(self, -1).SetSizerProps(proportion=1)
@@ -110,14 +135,26 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.presTrigCheck.SetValue(False)
         self.setField(self.tempLoCheck, -15, False)
         self.setField(self.tempHiCheck, 35, False)
-        self.accelTrigCheck.SetValue(False)
-        self.setField(self.accelLoCheck, -5, False)
-        self.setField(self.accelHiCheck, 5, False)
+        
+        if self.accelChannel is not None:
+            self.accelTrigCheck.SetValue(False)
+            self.setField(self.accelLoCheck, -5, False)
+            self.setField(self.accelHiCheck, 5, False)
+        
+        if self.dcAccelChannel is not None:
+            self.dcAccelTrigCheck.SetValue(False)
+            self.setField(self.dcAccelHiCheck, 5, False)
+            for c in self.dcAxisChecks:
+                c.SetValue(True)
         
         self.enableAll()
         self.enableField(self.tempTrigCheck)
         self.enableField(self.presTrigCheck)
-        self.enableField(self.accelTrigCheck)
+        
+        if self.accelChannel is not None:
+            self.enableField(self.accelTrigCheck)
+        if self.dcAccelChannel is not None:
+            self.enableField(self.dcAccelTrigCheck)
 
 
     def OnCheckChanged(self, evt):
@@ -126,14 +163,14 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         cb = evt.EventObject
         if cb in self.controls:
             self.enableField(cb)
-            if cb == self.delayCheck or cb == self.wakeCheck:
-                # Recording delay and wake time are mutually exclusive options
-                if cb == self.wakeCheck:
-                    other = self.delayCheck
-                else:
-                    other = self.wakeCheck
-                other.SetValue(False)
-                self.enableField(other)
+#             if cb == self.delayCheck or cb == self.wakeCheck:
+#                 # Recording delay and wake time are mutually exclusive options
+#                 if cb == self.wakeCheck:
+#                     other = self.delayCheck
+#                 else:
+#                     other = self.wakeCheck
+#                 other.SetValue(False)
+#                 self.enableField(other)
 
 
     def OnUtcCheck(self, evt):
@@ -155,10 +192,15 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         """
         super(SSXTriggerConfigPanel, self).initUI()
 
-        accelTransform = self.root.device._unpackAccel
-        
-        self.controls[self.accelLoCheck][0].SetRange(accelTransform(0), 0)
-        self.controls[self.accelHiCheck][0].SetRange(0,accelTransform(65535))
+        if self.accelChannel is None:
+            self.hideField(self.accelTrigCheck)
+        else:
+            accelTransform = self.root.device._unpackAccel
+            self.controls[self.accelLoCheck][0].SetRange(accelTransform(0), 0)
+            self.controls[self.accelHiCheck][0].SetRange(0,accelTransform(65535))
+            
+        if self.dcAccelChannel is None:
+            self.hideField(self.dcAccelTrigCheck)
 
         # Special case for the list of Triggers         
         for trigger in self.data.get("Trigger", []):
@@ -184,6 +226,14 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                     self.tempTrigCheck.SetValue(True)
                     self.setField(self.tempLoCheck, low)
                     self.setField(self.tempHiCheck, high)
+            elif channel == self.dcAccelChannel:
+                # channel should never be None, so this should work.
+                # TODO: Calculate range based on actual calibration polynomial
+                high = 5.0 if high is None else (high * 0.00048828125)
+                self.dcAccelTrigCheck.SetValue(True)
+                self.setField(self.dcAccelHiCheck, high)
+                if subchannel is not None:
+                    self.setField(self.dcAxisChecks[subchannel], True)
         
         if self.root.useUtc:
             self.OnUtcCheck(True)
@@ -195,6 +245,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         self.enableField(self.presTrigCheck)
         self.enableField(self.tempTrigCheck)
         self.enableField(self.accelTrigCheck)
+        self.enableField(self.dcAccelTrigCheck)
 
 
     def getData(self):
@@ -206,7 +257,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         for name,control in self.fieldMap.iteritems():
             self.addVal(control, data, name)
         
-        if self.accelTrigCheck.GetValue():
+        if self.accelChannel is not None and self.accelTrigCheck.GetValue():
             trig = OrderedDict()
             trig['TriggerChannel']=self.accelChannel
             self.addVal(self.accelLoCheck, trig, "TriggerWindowLo", kind=float,
@@ -217,7 +268,19 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                         default=self.root.device._packAccel(5.0))
             if len(trig) > 2:
                 triggers.append(trig)
-                 
+        
+        if self.dcAccelChannel is not None and self.dcAccelTrigCheck.GetValue():
+            dcXform = lambda x: int(x / 0.00048828125)
+            dcDefault = dcXform(5)
+            for n, axis in enumerate(self.dcAxisChecks):
+                if axis.GetValue():
+                    trig = OrderedDict()
+                    trig['TriggerChannel']=self.dcAccelChannel
+                    trig['TriggerSubChannel'] = n
+                    self.addVal(self.dcAccelHiCheck, trig, "TriggerWindowHi", 
+                                kind=float, transform=dcXform, default=dcDefault)
+                    triggers.append(trig)
+        
         if self.presTrigCheck.GetValue():
             trig = OrderedDict()
             trig['TriggerChannel'] = self.pressTempChannel
