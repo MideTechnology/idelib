@@ -13,8 +13,8 @@ import wx
 import wx.lib.sized_controls as SC
 
 from mide_ebml.parsers import PolynomialParser
-
 from base import BaseConfigPanel, InfoPanel
+from build_info import DEBUG
 
 #===============================================================================
 # 
@@ -39,6 +39,17 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         
         self.accelChannel = None if ac is None else ac.id
         self.dcAccelChannel = None if dc is None else dc.id
+        
+        # Flag features only available in certain firmware versions
+        # TODO: Remove the "or DEBUG" once there's a firmware version 7.
+        fwRev = self.root.device.firmwareVersion
+        self.hasHybridTime = fwRev > 5 or DEBUG
+        self.hasDcTriggers = fwRev > 5 or DEBUG
+        
+        # Hack to make sure the DC accelerometer triggers are hidden for older
+        # versions of the firmware
+        if not self.hasDcTriggers:
+            self.dcAccelChannel = None
                 
 
     def buildUI(self):
@@ -163,14 +174,16 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         cb = evt.EventObject
         if cb in self.controls:
             self.enableField(cb)
-#             if cb == self.delayCheck or cb == self.wakeCheck:
-#                 # Recording delay and wake time are mutually exclusive options
-#                 if cb == self.wakeCheck:
-#                     other = self.delayCheck
-#                 else:
-#                     other = self.wakeCheck
-#                 other.SetValue(False)
-#                 self.enableField(other)
+            if not self.hasHybridTime:
+                # Recording delay and wake time are mutually exclusive options
+                # in older firmware.
+                if cb == self.delayCheck or cb == self.wakeCheck:
+                    if cb == self.wakeCheck:
+                        other = self.delayCheck
+                    else:
+                        other = self.wakeCheck
+                    other.SetValue(False)
+                    self.enableField(other)
 
 
     def OnUtcCheck(self, evt):
@@ -192,6 +205,14 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         """
         super(SSXTriggerConfigPanel, self).initUI()
 
+        if not self.hasHybridTime:
+            # Wake time and delay time are mutually exclusive. Change the
+            # checkbox and tooltip to the old text.
+            self.delayCheck.SetLabel("Wake After Delay:")
+            self.delayCheck.SetToolTipString(
+                "Time between the button press and the start of the recording, "
+                "in seconds.")
+        
         if self.accelChannel is None:
             self.hideField(self.accelTrigCheck)
         else:
