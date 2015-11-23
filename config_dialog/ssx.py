@@ -174,6 +174,18 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
         cb = evt.EventObject
         if cb in self.controls:
             self.enableField(cb)
+            
+            if self.dcAccelChannel is not None and self.accelChannel is not None:
+                # Accelerometer triggering is exclusive to one sensor
+                # (it is redundant otherwise)
+                if cb == self.accelTrigCheck or cb == self.dcAccelTrigCheck:
+                    if cb == self.accelTrigCheck:
+                        other = self.dcAccelTrigCheck
+                    else:
+                        other = self.accelTrigCheck
+                    other.SetValue(False)
+                    self.enableField(other)
+                    
             if not self.hasHybridTime:
                 # Recording delay and wake time are mutually exclusive options
                 # in older firmware.
