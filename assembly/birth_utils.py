@@ -143,6 +143,8 @@ def findBirthLog(filename, key="serialNum", val=None, last=True):
 #===============================================================================
 
 def parseCalLog(l):
+    if l is None:
+        return None
     sp = l.strip().split(',')
     fields = (('Cal #',             int),
               ('Rev',               str),
@@ -175,7 +177,11 @@ def parseCalLog(l):
     result = OrderedDict()
     for val, field in zip(sp, fields):
         fname, ftype = field
-        val = ftype(val.strip())
+        try:
+            val = ftype(val.strip())
+        except (TypeError, ValueError):
+            if val == '' and ftype != str:
+                val = None
         val = None if val == 'None' else val
         result[fname] = val
     return result

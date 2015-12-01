@@ -817,7 +817,11 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
             return
     
 #     totalTime += time.time() - startTime
-    c.calHumidity = utils.getNumber("Humidity at recording time (default: %.2f)? " % c.calHumidity, default=c.calHumidity)
+    try:
+        hum = utils.readCalLog(DB_LOG_FILE).get('Rel. Hum. (%)', calibration.DEFAULT_HUMIDITY)
+    except (ValueError, TypeError, AttributeError, IOError):
+        hum = calibration.DEFAULT_HUMIDITY
+    c.calHumidity = utils.getNumber("Humidity at recording time (default: %.2f)? " % hum, default=hum)
 #     startTime = time.time()
     
     print "Copying calibration recordings from device..."

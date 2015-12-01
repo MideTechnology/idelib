@@ -66,6 +66,12 @@ import matplotlib.pyplot as plot #@UnresolvedImport @UnusedImport
 # 
 #===============================================================================
 
+DEFAULT_HUMIDITY = 22.3
+
+#===============================================================================
+# 
+#===============================================================================
+
 class XYZ(list):
     """ Helper for making arrays of XYZ less ugly. A mutable named tuple. """
     
@@ -451,23 +457,17 @@ class CalFile(object):
         for c in accelChannel.children:
             c.setTransform(None)
         accelChannel.updateTransforms()
-
-        accelChannel.removeMean = False
                     
         a = accelChannel.getSession()
-        sampRate = a.getSampleRate()
 #         a.removeMean = True
 #         a.rollingMeanSpan = -1
         a.removeMean = False
+        sampRate = a.getSampleRate()
         data = self.flattened(a, len(a))
+        _print("%d samples imported. " % len(data)) 
         
         means = self.getOffsets(data, sampRate, lowpass)
         
-        # HACK: Some  devices have a longer delay before Z settles.
-        if skipSamples:
-            data = data[skipSamples:]
-        
-        _print("%d samples imported. " % len(data)) 
         times = data[:,0] * .000001
                 
         if highpass:
@@ -475,6 +475,10 @@ class CalFile(object):
             for i in range(1, data.shape[1]):
                 data[:,i] = highpassFilter(data[:,i], highpass, sampRate)
     
+        # HACK: Some  devices have a longer delay before Z settles.
+        if skipSamples:
+            data = data[skipSamples:]
+        
         gt = lambda(x): x > thres
         
         _print("getting indices... ")
@@ -582,7 +586,7 @@ class Calibrator(object):
                  certNum=0,
                  calRev="C",
                  isUpdate=False,
-                 calHumidity=50,
+                 calHumidity=DEFAULT_HUMIDITY,
                  calTempComp=-0.30,
                  documentNum="LOG-0002-601", 
                  procedureNum="300-601-502", 
