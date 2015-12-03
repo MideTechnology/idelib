@@ -459,6 +459,8 @@ class FirmwareUpdater(object):
     #===========================================================================
     
     def readTemplate(self, z, name, schema, password=None):
+        if name not in self.contents:
+            return None
         return util.read_ebml(StringIO(z.read(name, password)), schema=schema)
     
     
@@ -475,7 +477,7 @@ class FirmwareUpdater(object):
             calTemplate = self.readTemplate(fwzip, calTempName, schema_mide, self.password)
             propTemplate = self.readTemplate(fwzip, propTempName, schema_mide, self.password)
 
-        if not all((manTemplate, calTemplate, propTemplate)):
+        if not all((manTemplate, calTemplate)):
             raise ValueError("Could not find template")
 
         try:
@@ -499,13 +501,14 @@ class FirmwareUpdater(object):
                 logger.info("Missing manifest item %s, probably okay." %
                             os.path.basename(k))
                 pass
-        for k,v in propChanges:
-            try:
-                changeItem(propTemplate, k, v)
-            except (KeyError, IndexError):
-                logger.info("Missing props item %s, probably okay." %
-                            os.path.basename(k))
-                pass
+        if propTemplate is not None:
+            for k,v in propChanges:
+                try:
+                    changeItem(propTemplate, k, v)
+                except (KeyError, IndexError):
+                    logger.info("Missing props item %s, probably okay." %
+                                os.path.basename(k))
+                    pass
         
         # Update transform channel IDs and references
         cal = self.device.getFactoryCalPolynomials()
@@ -539,9 +542,12 @@ class FirmwareUpdater(object):
         self.cal = util.build_ebml('CalibrationList', 
                                    calTemplate['CalibrationList'], 
                                    schema=schema_mide)
-        self.props = util.build_ebml('RecordingProperties', 
-                                     propTemplate['RecordingProperties'], 
-                                     schema=schema_mide)
+        if propTemplate is not None:
+            self.props = util.build_ebml('RecordingProperties', 
+                                         propTemplate['RecordingProperties'], 
+                                         schema=schema_mide)
+        else:
+            self.props = ''
         
         self.userpage = self.makeUserpage(self.manifest, self.cal, self.props)
         
