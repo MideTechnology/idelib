@@ -1,0 +1,9 @@
+{"name": "Scripting Console",
+ "version": "1.0b1",
+ "description": "An interactive Python interpreter. Use at your own risk!",
+ "type": "tool",
+ "module": "scripting_console",
+ "author": "D. R. Stokes",
+ "copyright": "Copyright (c) 2015 Midé Technology",
+ "url": "http://mide.com/"
+ }

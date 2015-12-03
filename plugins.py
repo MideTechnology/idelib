@@ -15,7 +15,10 @@ two items:
                 `init()` function which returns a function-like object;
                 this object is what gets called when the plugin is used.
                 The name should match that of the directory or compressed
-                file.
+                file. `init()` is called by its wrapper `Plugin.load()`, with 
+                the wrapper object as the first argument. Arguments and/or
+                keywords used with `Plugin.load()` are passed to `init()`
+                verbatim.
 
 Plug-ins as imported modules are explicitly imported in Python and then wrapped
 in a `Plugin` object. They are the same as the Python in a file/directory-based
@@ -38,12 +41,14 @@ __author__ = "D. R. Stokes"
 __email__ = "dstokes@mide.com"
 
 from collections import defaultdict, Sequence
+import errno
 from fnmatch import fnmatch
 from functools import partial
 from glob import glob
 import imp
 import json
 import os
+import pkgutil
 import types
 import zipimport
 
@@ -80,7 +85,7 @@ class PluginDupeError(PluginValidationError):
     """
 
 class PluginCompatibilityError(PluginImportError):
-    """
+    """ Raised when a plug-in is incompatible with the system trying to load it.
     """
 
 #===============================================================================
@@ -299,7 +304,7 @@ class Plugin(object):
                                     self.path)
         
         self.loaded = True
-        self.main = self.module.init(*args, **kwargs)
+        self.main = self.module.init(self, *args, **kwargs)
         self.__call__.__func__.__doc__ = self.main.__doc__
         return self
 
@@ -311,6 +316,38 @@ class Plugin(object):
             self.load()
         return self.main(*args, **kwargs)
 
+
+    #===========================================================================
+    # 
+    #===========================================================================
+
+    def getResource(self, path, **kwargs):
+        """ Get a data file included in the plugin. 
+        
+            @param path: The path/name of the file to read.
+            @keyword default: If supplied, this value will be returned if the
+                specified resource could not be found/read. If no default is
+                supplied, a missing file will raise an ``IOError`` with the
+                appropriate error number.
+        """
+        if 'default' in kwargs:
+            try:
+                return self.getResource(path)
+            except IOError:
+                return kwargs.get('default')
+        
+        if self.isDir:
+            with open(os.path.join(self.path, path), 'rb') as f:
+                return f.read()
+        elif self.isModule:
+            return pkgutil.get_data(self.module.__name__, path)
+        else:
+            try:
+                return self.zip.get_data(path)
+            except IOError as err:
+                raise IOError(errno.ENOENT, 'No such file or directory', 
+                              err.filename)
+                
 
 #===============================================================================
 # 
@@ -522,7 +559,7 @@ class PluginSet(object):
 def makeInfo(mod):
     """ Utility function to generate the data for an plugin's `info.json` file.
     """
-    ignore = ('__name__',)
+    ignore = ('__name__', '__file__', '__package__')
     items = {}
     if isinstance(mod, basestring):
         if os.path.exists(mod):
