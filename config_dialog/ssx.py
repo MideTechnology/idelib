@@ -221,7 +221,7 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
             # Wake time and delay time are mutually exclusive. Change the
             # checkbox and tooltip to the old text.
             self.delayCheck.SetLabel("Wake After Delay:")
-            self.delayCheck.SetToolTipString(
+            self.setFieldToolTip(self.delayCheck,
                 "Time between the button press and the start of the recording, "
                 "in seconds.")
         

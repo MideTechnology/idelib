@@ -1755,6 +1755,10 @@ class Viewer(wx.Frame, MenuMixin):
         if self.plotarea[0].removeMean:
             noMean = 2 if self.plotarea[0].rollingMeanSpan == -1 else 1
 
+        # FUTURE: Make exporters conform to the plug-in system, and get the 
+        # extensions from the plugins. If more than one plugin uses the same
+        # file extension, produce a dialog so the user can select (e.g. if
+        # there are separate plugins for ASCII and binary UFF files).
         validTypes = ('CSV', 'MAT')
 
         exportType = None
@@ -1796,6 +1800,9 @@ class Viewer(wx.Frame, MenuMixin):
                                      msg, maximum=numRows*len(subchannels), 
                                      parent=self)
         
+        # TODO: Make the dictionary returned by the settings dialog match the
+        # keyword arguments of the export function, like the rendered views. 
+        # It was supposed to, and it almost does, but not quite.
         params = dict(start=start, stop=stop, 
                       subchannels=subchannelIds, 
                       timeScalar=self.timeScalar, 
@@ -1831,6 +1838,9 @@ class Viewer(wx.Frame, MenuMixin):
             menu item ID for the type of plot to render.
             
         """
+        # FUTURE: Make this conform to the plugin system, and keep a dictionary
+        # mapping the dynamically added menu items to the renderer plugin,
+        # rather than a chain of 'if' statements.
         evtId = plotType if evt is None else evt.GetId()
         if evtId == self.ID_RENDER_PSD:
             viewClass = PSDView

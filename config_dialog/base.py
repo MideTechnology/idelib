@@ -65,6 +65,21 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             return None
         return val
     
+    
+    def setFieldToolTip(self, cb, tooltip):
+        """ Helper method to set the tooltip for all a field's widgets.
+        """
+        if tooltip is None:
+            return
+        tooltip = cleanUnicode(tooltip)
+        cb.SetToolTipString(tooltip)
+        if cb in self.controls:
+            for c in self.controls[cb]:
+                try:
+                    c.SetToolTipString(tooltip)
+                except AttributeError:
+                    pass
+        
 
     def addField(self, labelText, name=None, units="", value="", 
                  fieldSize=None, fieldStyle=None, tooltip=None, indent=0):
@@ -105,10 +120,6 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         else:
             t = wx.TextCtrl(subpane, -1, txt, size=fieldSize, style=fieldStyle)
 
-        if tooltip is not None:
-            c.SetToolTipString(cleanUnicode(tooltip))
-            t.SetToolTipString(cleanUnicode(tooltip))
-            
         if self.fieldSize is None:
             self.fieldSize = t.GetSize()
         
@@ -123,6 +134,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             self.controls[t].append(pad)
         if name is not None:
             self.fieldMap[name] = t
+
+        self.setFieldToolTip(t, tooltip)
             
         return t
     
@@ -193,7 +206,9 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
             self.controls[c].append(pad)
         if name is not None:
             self.fieldMap[name] = c
-            
+        
+        self.setFieldToolTip(c, tooltip)
+
         return c
 
 
@@ -247,6 +262,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         
         if name is not None:
             self.fieldMap[name] = c
+
+        self.setFieldToolTip(c, tooltip)
             
         return c
 
@@ -298,10 +315,6 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if col1 != self:
             self.controls[c].append(pad)
         
-        if tooltip is not None:
-            c.SetToolTipString(cleanUnicode(tooltip))
-            lf.SetToolTipString(cleanUnicode(tooltip))
-        
         if fieldSize == (-1,-1):
             self.fieldSize = lf.GetSize()
         
@@ -311,6 +324,8 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if digits is not None:
             lf.SetDigits(digits)
         
+        self.setFieldToolTip(c, tooltip)
+
         return c
 
     def addIntField(self, checkText, name=None, units="", value=None,
@@ -359,16 +374,14 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if col1 != self:
             self.controls[c].append(pad)
         
-        if tooltip is not None:
-            c.SetToolTipString(cleanUnicode(tooltip))
-            lf.SetToolTipString(cleanUnicode(tooltip))
-        
         if fieldSize == (-1,-1):
             self.fieldSize = lf.GetSize()
         
         if name is not None:
             self.fieldMap[name] = c
             
+        self.setFieldToolTip(c, tooltip)
+
         return c
 
 
@@ -429,16 +442,14 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if selected is not None:
             field.SetSelection(int(selected))
         
-        if tooltip is not None:
-            c.SetToolTipString(cleanUnicode(tooltip))
-            field.SetToolTipString(cleanUnicode(tooltip))
-        
         if fieldSize == (-1,-1):
             self.fieldSize = field.GetSize()
         
         if name is not None:
             self.fieldMap[name] = c
         
+        self.setFieldToolTip(c, tooltip)
+
         return c
 
 
@@ -477,9 +488,7 @@ class BaseConfigPanel(sc.SizedScrolledPanel):
         if name is not None:
             self.fieldMap[name] = c
 
-        if tooltip is not None:
-            c.SetToolTipString(cleanUnicode(tooltip))
-            ctrl.SetToolTipString(cleanUnicode(tooltip))
+        self.setFieldToolTip(c, tooltip)
 
         return c
 

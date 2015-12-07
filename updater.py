@@ -14,13 +14,16 @@ static file.
 `version` is a list of version numbers: major, minor, and micro (build). It
 can be longer or shorter, but two is the expected minimum length. When compared
 to the app's `version` attribute, the shorter form takes precedence (the extra
-digits are ignored).
+digits are ignored). This is the only required item.
 
 `changelog` is the URL of the release notes for the new version. It is displayed
 in the new version announcement dialog. Optional.
 
 `date` is the Unix epoch timestamp of when the last update was created. 
 Currently unused by the viewer. Optional.
+
+`downloadUrl` is the URL of the download page. Defaults to `DOWNLOAD_URL` if
+absent. Optional.
 
 @todo: Use `httplib.HTTPException` raising for bad web server responses, making
     the connection error handling more uniform.
@@ -253,7 +256,7 @@ def getLatestVersion(url=UPDATER_URL):
 
 
 def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL, 
-                 downloadUrl=DOWNLOAD_URL, checkBeta=BETA):
+                 downloadUrl=None, checkBeta=BETA):
     """ Wrapper for the whole version checking system, to be called by the 
         main app instance.
         
@@ -267,7 +270,9 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL,
             doesn't actually do anything with it.
         @keyword url: The URL of the JSON file/feed containing the latest
             version number
-        @keyword downloadUrl: The URL of the download page.
+        @keyword downloadUrl: The URL of the download page. If not `None`, 
+            overrides the download URL in the JSON data (or the default 
+            DOWNLOAD_URL if `downloadURL` is not in the JSON).
         @keyword checkBeta: If `True`, the default beta updater URLs are
             checked if the main one. Beta software will be a later version than
             the official release. 
@@ -280,7 +285,8 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL,
 #     url = url + "?version=%s" % ('.'.join(map(str,app.buildVersion)))
     
     # Helper function to create and post the event.
-    def sendUpdateEvt(vers=None, date=None, cl=None, err=None, response=None):
+    def sendUpdateEvt(vers=None, date=None, cl=None, err=None, response=None,
+                      downloadUrl=DOWNLOAD_URL):
         evt = EvtUpdateAvailable(newVersion=vers, changelog=cl, url=downloadUrl, 
                                  error=err, response=response, quiet=quiet)
         wx.PostEvent(app, evt)
@@ -295,9 +301,11 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL,
             newVersion= responseContent.get('version', (0,0,0))
             changelog = responseContent.get('changelog', CHANGELOG_URL)
             updateDate = responseContent.get('date', None)
+            if downloadUrl is None:
+                downloadUrl = responseContent.get('downloadUrl', DOWNLOAD_URL)
             if isNewer(newVersion, currentVersion):
                 logger.info("Updater found new version %r" % (newVersion,))
-                sendUpdateEvt(newVersion, updateDate, changelog)
+                sendUpdateEvt(newVersion, updateDate, changelog, url=downloadUrl)
             elif checkBeta:
                 checkUpdates(app, force, quiet, BETA_UPDATER_URL,
                              BETA_DOWNLOAD_URL, checkBeta=False)
@@ -332,7 +340,7 @@ def startCheckUpdatesThread(*args, **kwargs):
 #===============================================================================
   
 # if __name__ == '__main__':
-#            
+#             
 #     class FakeApp(wx.App):
 #         PREFS = {
 #                  }
@@ -345,16 +353,16 @@ def startCheckUpdatesThread(*args, **kwargs):
 #             self.PREFS[v] = val
 #         def editPrefs(self, evt=None):
 #             print "edit prefs"
-#           
+#            
 #     app = FakeApp()
-#           
+#            
 #     code, response = getLatestVersion()
 #     print "app.version = %r" % (app.version,)
 #     print "getLatestVersion returned code %r, version %r" % (code, response)
 #     if response is None:
 #         print "Error occurred; aborting"
 #         exit(1)
-#       
+#        
 #     vers = response.get('version', None)
 #     changeUrl = response.get('changelog', None)
 #     print "zipped: %r" % (zip(app.version, vers),)
@@ -363,9 +371,9 @@ def startCheckUpdatesThread(*args, **kwargs):
 #     t = time.time()
 #     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
 #     print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
-#           
+#            
 #     evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
-#           
+#            
 # #     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
 #     dlg = UpdateDialog(None, -1, updaterEvent=evt)
 #     dlg.ShowModal()

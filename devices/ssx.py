@@ -16,7 +16,6 @@ except ImportError:
     from StringIO import StringIO
 
 from mide_ebml import util
-# from mide_ebml.calibration import Univariate, Bivariate
 from mide_ebml.dataset import Dataset
 from mide_ebml import importer
 from mide_ebml.parsers import CalibrationListParser, RecordingPropertiesParser
@@ -27,7 +26,7 @@ import mide_ebml.ebml.schema.manifest as schema_manifest
 
 from base import Recorder, os_specific
 from devices.base import ConfigError
-# from base import ConfigError, ConfigVersionError
+
 
 #===============================================================================
 # 
@@ -205,20 +204,37 @@ class SlamStickX(Recorder):
     def getAccelRange(self, channel=8, subchannel=0, rounded=True, refresh=False):
         """ Get the range of the device's acceleration measurement.
         """
-        if self._accelRange is not None and not refresh:
-            return self._accelRange
+        # TODO: This can be made more general and be used for any channel.
+        # This is also very kludgey.  
+        key = (channel, subchannel)
+        if key in self._channelRanges and not refresh:
+            return self._channelRanges[key]
         
         channels = self.getChannels(refresh=refresh)
         xforms = self.getCalPolynomials()
-
-        # TODO: Make this more generic by finding the accelerometer channels
-        channel = channel if channel in channels else 32
-        ch = channels[channel if channel in channels else 0]
+        
+        if channels is None:
+            raise ConfigError("Could not read any channels from device!")
+        if xforms is None:
+            raise ConfigError("Could not read any transform polynomials from device!")
+        
+        # TODO: Make this more generic by finding the accelerometer channels.
+        # Also, it could fall back to the AnalogSensorScaleHintF.
+        try:
+            chId = channel if channel in channels else 32
+            ch = channels[chId if chId in channels else 0]
+        except KeyError:
+            raise ConfigError("Could not find any accelerometer channels "
+                              "(tried %r, %r, and %r)" % (channel, 32, 0))
         xform = ch.transform
         if isinstance(xform, int):
-            xform = xforms[ch.transform]
+            try:
+                xform = xforms[ch.transform]
+            except KeyError:
+                raise ConfigError("No such transform polynomial ID %r" % \
+                                  ch.transform)
+            
         r = getParserRanges(ch.parser)[subchannel]
-
         hi = xform.function(r[1])
         
         # HACK: The old parser minimum is slightly low; use negative max.
@@ -226,11 +242,11 @@ class SlamStickX(Recorder):
         lo = -hi
         
         if rounded:
-            self._accelRange = (float("%.2f" % lo), float("%.2f" % hi))
+            self._channelRanges[key] = (float("%.2f" % lo), float("%.2f" % hi))
         else:
-            self._accelRange = (lo, hi)
+            self._channelRanges[key] = (lo, hi)
             
-        return self._accelRange
+        return self._channelRanges[key]
 
     
     def getAccelChannel(self, dc=False):

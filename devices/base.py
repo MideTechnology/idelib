@@ -84,7 +84,7 @@ class Recorder(object):
         self._snInt = None
         self._sensors = None
         self._channels = None
-        self._accelRange = None
+        self._channelRanges = {}
         
         self._importOlderFwConfig = False
         self._importNewerFwConfig = False
