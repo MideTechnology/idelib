@@ -400,7 +400,11 @@ class FirmwareUpdater(object):
         calSize = len(caldata)
         calOffset =  manOffset + manSize #0x0400 # 1k offset from start
         propsSize = len(recprops)
-        propsOffset = calOffset + calSize
+        
+        if propsSize > 0:
+            propsOffset = calOffset + calSize
+        else:
+            propsOffset = 0
     
         data = struct.pack("<HHHHHH", 
                            manOffset, manSize, 

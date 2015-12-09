@@ -199,7 +199,13 @@ class ssx_bootloadable_device(object):
         propsSize = len(recprops)
         MANIFEST_OFFSET = 0x0010 # 16 byte offset from start
         CALDATA_OFFSET =  MANIFEST_OFFSET + manSize #0x0400 # 1k offset from start
-        RECPROPS_OFFSET = CALDATA_OFFSET + calSize
+        
+        # Only set the offset for the recorder props if there are any.
+        # Must be zero (or 0xFFFF?) if there are no props.
+        if propsSize > 0:
+            RECPROPS_OFFSET = CALDATA_OFFSET + calSize
+        else:
+            RECPROPS_OFFSET = 0
     
         data = struct.pack("<HHHHHH", 
                            MANIFEST_OFFSET, manSize, 

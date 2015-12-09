@@ -1069,7 +1069,7 @@ class Calibrator(object):
         return certFilename
 
 
-    def writeProductLog(self, saveTo=None):
+    def writeProductLog(self, saveTo=None, err=None):
         """
         """
         caldate = str(datetime.utcfromtimestamp(self.calTimestamp))
@@ -1105,6 +1105,8 @@ class Calibrator(object):
                 ("Z Offset (DC)",        self.offsetsLo.z),
                 ])
         
+        if err is not None:
+            data['Error Message'] = err
         if saveTo is not None:
             newFile = not os.path.exists(saveTo)
             with open(saveTo, 'ab') as f:

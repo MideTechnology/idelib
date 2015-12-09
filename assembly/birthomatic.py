@@ -74,6 +74,7 @@ BIRTH_LOG_FILE = os.path.join(DB_PATH, "product_log.csv")
 CAL_LOG_FILE = os.path.join(DB_PATH, "calibration_log.csv")
 
 DB_LOG_FILE = os.path.join(CAL_PATH, 'SSX_Calibration_Sheet.csv') 
+DB_BAD_LOG_FILE = os.path.join(CAL_PATH, 'SSX_Bad_Calibration.csv') 
 
 BOOT_FILE = os.path.join(FIRMWARE_PATH, "boot.bin")
 BOOT_VER_FILE = os.path.join(FIRMWARE_PATH, "boot_version.txt")
@@ -814,6 +815,7 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
                 return
         else:
             utils.errMsg("!!! Recorder has no DATA directory!")
+            c.writeProductLog(DB_BAD_LOG_FILE, err="No DATA directory")
             return
     
 #     totalTime += time.time() - startTime
@@ -846,6 +848,7 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
         if c.Sxz is not None:
             result.append("%s, Transverse Sensitivity in ZX = %.2f percent" % (c.Sxz_file, c.Sxz))
         utils.errMsg(*result)
+        c.writeProductLog(DB_BAD_LOG_FILE, err="Bad Transverse")
         return
     
     if c.Sxy > 10 or c.Syz > 10 or c.Sxz > 10:
@@ -855,6 +858,7 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
         print "%s, Transverse Sensitivity in ZX = %.2f percent" % (c.Sxz_file, c.Sxz)
         q = utils.getYesNo("Continue with device calibration (Y/N)? ")
         if q == "N":
+            c.writeProductLog(DB_BAD_LOG_FILE, err="Transverse out of range")
             return
     
     if not all([utils.inRange(x.cal_temp, 15, 27) for x in c.calFiles]):
@@ -863,6 +867,7 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
             print "%s: %.2f degrees C" % (os.path.basename(x.filename), x.cal_temp)
         q = utils.getYesNo("Continue with device calibration (Y/N)? ")
         if q == "N":
+            c.writeProductLog(DB_BAD_LOG_FILE, err="Temperature out of range")
             return
         
     if not all([utils.inRange(x.cal_press, 96235, 106365) for x in c.calFiles]):
@@ -871,6 +876,7 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
             print "%s: %.2f Pa" % (os.path.basename(x.filename), x.cal_press)
         q = utils.getYesNo("Continue with device calibration (Y/N)? ")
         if q == "N":
+            c.writeProductLog(DB_BAD_LOG_FILE, err="Pressure out of range")
             return
     
     print c.createTxt()

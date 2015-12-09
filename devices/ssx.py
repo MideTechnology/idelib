@@ -426,11 +426,13 @@ class SlamStickX(Recorder):
         (manOffset, manSize, 
          calOffset, calSize, 
          propOffset, propSize) = struct.unpack_from("<HHHHHH", data)
-         
+        
         manData = StringIO(data[manOffset:manOffset+manSize])
         self._calData = StringIO(data[calOffset:calOffset+calSize])
         
         # _propData is read here but parsed in `getSensors()`
+        # Zero offset means no property data. Size should also be zero, but JIC:
+        propSize = 0 if propOffset == 0 else propSize
         self._propData = data[propOffset:propOffset+propSize]
         
         try:
