@@ -659,12 +659,26 @@ class CalibrationPanel(InfoPanel):
         return s
     
     
+    
     def buildUI(self):
         """ Create the UI elements within the page. Every subclass should
             implement this. Called after __init__() and before initUI().
         """
+        
+        def _usesCal(cal, ch):
+            # Helper function to determine users of a transform
+            return ch.transform == cal.id or ch.transform == cal
+        
+        def _chName(ch):
+            # Helper function to pretty-print (Sub)Channel names
+            if hasattr(ch, 'subchannels'):
+                return "Channel %d: <i>%s</i>" % (ch.id, ch.displayName)
+            return "Channel %d.%d: <i>%s</i>" % (ch.parent.id, ch.id, ch.displayName)
+        
         self.getDeviceData()
         self.html = [u"<html><body>"]
+        
+        channels = self.root.device.getChannels()
         
         if self.calSerial:
             self.html.append("<p><b>Calibration Serial: C%03d</b></p>" % self.calSerial)
@@ -685,12 +699,27 @@ class CalibrationPanel(InfoPanel):
             if cal.id is None:
                 # HACK: This shouldn't happen.
                 continue
-            self.html.append("<p><b>Calibration ID %d</b>" % cal.id)
+            
+            # Collect the users of the calibration polynomial
+            users = []
+            for ch in channels.values():
+                if _usesCal(cal, ch):
+                    users.append(_chName(ch))
+                users.extend([_chName(subch) for subch in ch.subchannels if _usesCal(cal, subch)])
+            print "%r %r" % (cal, users)
+            if len(users) == 0:
+                continue
+            
+            self.html.append("<p><b>Calibration ID %d (Used by %s)</b>" % (cal.id, '; '.join(users)))
             calType = cal.__class__.__name__
             if hasattr(cal, 'channelId'):
-                calType += "; references Channel %d" % cal.channelId
-                if hasattr(cal, 'subchannelId'):
-                    calType += ", Subchannel %d" % cal.subchannelId
+                try:
+                    if hasattr(cal, 'subchannelId'):
+                        calType = "%s; references %s" % (calType, _chName(channels[cal.channelId][cal.subchannelId]))
+                    else:
+                        calType = "%s; references %s" % (calType, _chName(channels[cal.channelId]))
+                except (IndexError, AttributeError):
+                    pass
             self.html.append('<ul>')
             self.html.append('<li>%s</li>' % calType)
             if hasattr(cal, 'coefficients'):
