@@ -21,6 +21,7 @@ from mide_ebml import util
 class RecordingCalibrationPanel(CalibrationPanel):
     def getDeviceData(self):
         self.info = self.root.transforms.values()
+        self.channels = self.root.channels
         
 #===============================================================================
 # 

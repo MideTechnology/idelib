@@ -11,10 +11,12 @@ import time
 
 import wx
 import wx.lib.sized_controls as SC
+import  wx.lib.wxpTag #@UnusedImport
 
-from mide_ebml.parsers import PolynomialParser
 from base import BaseConfigPanel, InfoPanel
 from build_info import DEBUG
+
+from widgets.calibration_editor import PolyEditDialog
 
 #===============================================================================
 # 
@@ -627,17 +629,24 @@ class CalibrationPanel(InfoPanel):
     """
     
     def __init__(self, parent, id_, calSerial=None, calDate=None, 
-                 calExpiry=None, **kwargs):
+                 calExpiry=None, editable=False, **kwargs):
+        self.editable = editable
         self.calSerial = calSerial
         self.calDate = calDate
         self.calExpiry = calExpiry
+        
+        # dictionaries to map calibration IDs to/from the Edit/Revert buttons
+        self.calIds = {}
+        self.calWxIds = {}
+        self.revertIds = {}
+        self.revertWxIds = {}
         super(CalibrationPanel, self).__init__(parent, id_, **kwargs)
     
     
     def getDeviceData(self):
         if self.info:
             self.info = self.info.values()
-        elif hasattr(self.root, 'device'):
+        else:
             polys = self.root.device.getCalPolynomials()
             if polys is not None:
                 self.info = self.root.device.getCalPolynomials().values()
@@ -645,10 +654,9 @@ class CalibrationPanel(InfoPanel):
                 self.calDate = self.root.device.getCalSerial()
             else:
                 self.info = []
-        else:
-            # NOTE: Is this used by anything anymore?
-            PP = PolynomialParser(None)
-            self.info = [PP.parse(c) for c in self.data.value]
+
+
+        self.channels = self.root.device.getChannels()
         self.info.sort(key=lambda x: x.id)
         
         
@@ -658,6 +666,20 @@ class CalibrationPanel(InfoPanel):
             return '%s0' % s
         return s
     
+    
+    def addEditButton(self, cal):
+        wxid = self.calWxIds.setdefault(cal.id, wx.NewId())
+        wxrevid = self.revertWxIds.setdefault(cal.id, wx.NewId())
+        self.calIds[wxid] = cal
+        self.revertIds[wxrevid] = cal
+        return ('<wxp module="wx" class="Button" width="60" height="20">'
+                '<param name="label" value="Edit">'
+                '<param name="id" value="%d">'
+                '</wxp>'
+                '<wxp module="wx" class="Button" width="60" height="20">'
+                '<param name="label" value="Revert">'
+                '<param name="id" value="%d">'
+                '</wxp>' % (wxid, wxrevid))
     
     
     def buildUI(self):
@@ -678,7 +700,12 @@ class CalibrationPanel(InfoPanel):
         self.getDeviceData()
         self.html = [u"<html><body>"]
         
-        channels = self.root.device.getChannels()
+        # XXX: This is getting really ugly.
+#         if isinstance(self.root, Dataset):
+#             channels = self.root.channels
+#         else:
+#             channels = self.root.device.getChannels()
+            
         
         if self.calSerial:
             self.html.append("<p><b>Calibration Serial: C%03d</b></p>" % self.calSerial)
@@ -702,22 +729,26 @@ class CalibrationPanel(InfoPanel):
             
             # Collect the users of the calibration polynomial
             users = []
-            for ch in channels.values():
+            for ch in self.channels.values():
                 if _usesCal(cal, ch):
                     users.append(_chName(ch))
                 users.extend([_chName(subch) for subch in ch.subchannels if _usesCal(cal, subch)])
-            print "%r %r" % (cal, users)
             if len(users) == 0:
                 continue
             
-            self.html.append("<p><b>Calibration ID %d (Used by %s)</b>" % (cal.id, '; '.join(users)))
+            l = ("<p><b>Calibration ID %d (Used by %s)</b>" % (cal.id, '; '.join(users)))
+            if self.editable:
+                l += "<br>"+self.addEditButton(cal)
+            self.html.append(l)
+            
+            
             calType = cal.__class__.__name__
             if hasattr(cal, 'channelId'):
                 try:
                     if hasattr(cal, 'subchannelId'):
-                        calType = "%s; references %s" % (calType, _chName(channels[cal.channelId][cal.subchannelId]))
+                        calType = "%s; references %s" % (calType, _chName(self.channels[cal.channelId][cal.subchannelId]))
                     else:
-                        calType = "%s; references %s" % (calType, _chName(channels[cal.channelId]))
+                        calType = "%s; references %s" % (calType, _chName(self.channels[cal.channelId]))
                 except (IndexError, AttributeError):
                     pass
             self.html.append('<ul>')
@@ -737,6 +768,57 @@ class CalibrationPanel(InfoPanel):
         self.SetPage(''.join(self.html))
             
 
+
+class EditableCalibrationPanel(wx.Panel):
+    """ Wrapper for CalibrationPanel, in order to receive button press events
+        generated by the embedded widgets (they are sent to parent, not the
+        HtmlWindow containing them).
+    """
+    # TODO: Refactor this as the only Calibration panel and use only it.
+    def __init__(self, parent, id_, calSerial=None, calDate=None, 
+                 calExpiry=None, editable=False, info={}, root=None,
+                 **kwargs):
+        self.editable = editable
+        self.calSerial = calSerial
+        self.calDate = calDate
+        self.calExpiry = calExpiry
+        
+        self.tabIcon = None
+        self.info = info
+        self.root = root
+        super(EditableCalibrationPanel, self).__init__(parent, id_, **kwargs)
+        self.data = OrderedDict()
+        self.buildUI()
+        self.initUI()
+
+    
+    def buildUI(self):
+        sizer = wx.BoxSizer()
+        self.SetSizer(sizer)
+        self.html = CalibrationPanel(self, -1, calSerial=self.calSerial, calDate=self.calDate, 
+                                     calExpiry=None, editable=self.editable, info=self.info, root=self.root)
+        sizer.Add(self.html, 1, wx.EXPAND | wx.ALL)
+        self.Bind(wx.EVT_BUTTON, self.OnButtonEvt)
+#         print self.html.FindWindowById(self.html.calIds.keys()[0])
+        
+        
+    def initUI(self):
+        pass
+
+
+    def OnButtonEvt(self, evt):
+        evtId = evt.GetId()
+        if evtId in self.html.calIds:
+            cal = self.html.calIds[evtId]
+            dlg = PolyEditDialog(self, -1, transforms=self.info, channels=self.html.channels, cal=cal, changeSource=False, changeType=False)
+            dlg.ShowModal()
+            print "edit calibration ID %r" % self.html.calIds[evtId]
+        elif evtId in self.html.revertIds:
+            print "revert calibration ID %r" % self.html.revertIds[evtId]
+        else:
+            evt.Skip()
+
+        
 #===============================================================================
 # 
 #===============================================================================
@@ -916,8 +998,8 @@ def buildUI_SSX(parent):
         parent.notebook.AddPage(parent.factorycal, "Factory Calibration")
         
     if usercal is not None:
-        parent.usercal = CalibrationPanel(parent.notebook, -1, root=parent,
-                                          info=usercal)
+        parent.usercal = EditableCalibrationPanel(parent.notebook, -1, root=parent,
+                                          info=usercal, editable=True)
         parent.notebook.AddPage(parent.usercal, "User Calibration")
 
     info = SSXInfoPanel(parent.notebook, -1, root=parent, info=parent.deviceInfo)

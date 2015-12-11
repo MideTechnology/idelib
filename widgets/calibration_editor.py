@@ -246,6 +246,11 @@ class PolyEditDialog(SC.SizedDialog):
                 except (IndexError, KeyError):
                     pass
         
+        title = 'Edit %s Polynomial' % self.polyType.__name__
+        if getattr(cal, 'id', None):
+            title += " (ID %r)" % cal.id
+        kwargs.setdefault('title', title)
+            
         kwargs.setdefault('style', wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         super(PolyEditDialog, self).__init__(parent, wxId, **kwargs)
 
