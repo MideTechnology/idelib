@@ -140,7 +140,10 @@ class ConfigDialog(SC.SizedDialog):
         """
         data = OrderedDict()
         for i in range(self.notebook.GetPageCount()):
-            data.update(self.notebook.GetPage(i).getData())
+            try:
+                data.update(self.notebook.GetPage(i).getData())
+            except AttributeError:
+                pass
 #         data.update(self.options.getData())
 #         data.update(self.triggers.getData())
         return data
@@ -210,7 +213,8 @@ class ConfigDialog(SC.SizedDialog):
         if dlg.ShowModal() == wx.ID_OK:
             try:
                 self.device.exportConfig(dlg.GetPath(), data=self.getData())
-            except NotImplementedError:
+                    
+            except:# NotImplementedError:
                 # TODO: More specific error message
                 wx.MessageBox( 
                     "The configuration data could not be exported to the "
@@ -267,6 +271,8 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
         if save:
             try:
                 dev.saveConfig(data)
+                if hasattr(dlg, "usercal"):
+                    dev.writeUserCal(dlg.usercal.info)
             except IOError as err:
                 msg = ("An error occurred when trying to update the "
                        " recorder's configuration data.")

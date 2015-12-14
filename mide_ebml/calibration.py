@@ -8,6 +8,9 @@ Created on Nov 27, 2013
 @author: dstokes
 
 @todo: Use regex to optimize built univariate and bivariate functions
+
+@todo: Completely remove the 'optimization' that ends up converting floats to
+    ints. It makes things worse.
 '''
 
 # __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
@@ -146,8 +149,10 @@ class Univariate(Transform):
     @classmethod
     def _floatOrInt(self, v):
         " Helper method to convert floats with no decimal component to ints. "
-        iv = int(v)
-        return iv if iv == v else v
+#         iv = int(v)
+#         return iv if iv == v else v
+        # Not a good optimization. Only convert 0 to integer.
+        return 0 if v == 0 else v
     
     @classmethod
     def _stremove(self, s, old):

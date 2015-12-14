@@ -1,12 +1,8 @@
 '''
-Created on Jun 25, 2015
-
-@author: dstokes
-'''
-'''
 The UI for configuring a recorder. Ultimately, the set of tabs will be
-determined by the recorder type, and will feature tabs specific to that 
-recorder. Since there's only the two SSX variants, this is not urgent.
+generated dynamically based on the recorder type, and will feature tabs 
+specific to that recorder. Since there's only the two SSX variants and only
+a couple expected in the near future, this is not urgent.
 
 @author: dstokes
 
@@ -18,28 +14,19 @@ recorder. Since there's only the two SSX variants, this is not urgent.
 
 @todo: I use `info` and `data` for the recorder info at different times;
     if there's no specific reason, unify. It may be vestigial.
-    
-@todo: Move device-specific components to different modules;
-    This could be the start of a sort of extensible architecture.
-
-
 '''
+
 import cgi
 from collections import OrderedDict
 from datetime import datetime
 import string
-# import time
 
 import wx.lib.sized_controls as sc
 from wx.html import HtmlWindow
 import wx; wx = wx
 
-# from mide_ebml import util
-# from mide_ebml.parsers import PolynomialParser
-# from mide_ebml.ebml.schema.mide import MideDocument
 from common import makeWxDateTime, cleanUnicode
 from widgets.shared import DateTimeCtrl
-# import devices
 
 #===============================================================================
 # 
@@ -774,8 +761,8 @@ class InfoPanel(HtmlWindow):
                    'Firmware Revision': str,
                    'Config. Format Version': str,
                    'Recorder Serial': lambda x: "SSX%07d" % x,
-                    'Calibration Date': datetime.fromtimestamp,
-                    'Calibration Expiration Date': datetime.fromtimestamp,
+                   'Calibration Date': datetime.fromtimestamp,
+                   'Calibration Expiration Date': datetime.fromtimestamp,
                    'Calibration Serial Number': lambda x: "C%05d" % x
                    }
 
@@ -792,8 +779,10 @@ class InfoPanel(HtmlWindow):
         self.buildUI()
         self.initUI()
 
+
     def escape(self, s):
         return cgi.escape(cleanUnicode(s))
+
 
     def addItem(self, k, v, escape=True):
         """ Append a labeled info item.

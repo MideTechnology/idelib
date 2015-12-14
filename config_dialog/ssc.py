@@ -4,7 +4,7 @@ Created on Aug 5, 2015
 @author: dstokes
 '''
 from ssx import SSXTriggerConfigPanel #, ChannelConfigPanel
-from ssx import OptionsPanel, CalibrationPanel, SSXInfoPanel
+from ssx import OptionsPanel, CalibrationPanel, EditableCalibrationPanel, SSXInfoPanel
 
 #===============================================================================
 # 
@@ -72,9 +72,11 @@ def buildUI_SSC(parent):
                                           calDate=calDate, calExpiry=calExpiry)
         parent.notebook.AddPage(parent.factorycal, "Factory Calibration")
         
-    if usercal is not None:
-        parent.usercal = CalibrationPanel(parent.notebook, -1, root=parent,
-                                          info=usercal)
+#     if usercal is not None:
+        print "usercal:",usercal
+        parent.usercal = EditableCalibrationPanel(parent.notebook, -1, root=parent,
+                                          info=usercal, factoryCal=factorycal,
+                                          editable=True)
         parent.notebook.AddPage(parent.usercal, "User Calibration")
 
     info = SSXInfoPanel(parent.notebook, -1, root=parent, info=parent.deviceInfo)

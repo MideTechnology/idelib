@@ -11,7 +11,7 @@ import time
 
 import wx
 import wx.lib.sized_controls as SC
-import  wx.lib.wxpTag #@UnusedImport
+import  wx.lib.wxpTag #@UnusedImport - simply importing it does the work.
 
 from base import BaseConfigPanel, InfoPanel
 from build_info import DEBUG
@@ -515,7 +515,6 @@ class OptionsPanel(BaseConfigPanel):
         return data
 
 
-
 #===============================================================================
 # 
 #===============================================================================
@@ -627,13 +626,15 @@ class SSXExtendedInfoPanel(InfoPanel):
 class CalibrationPanel(InfoPanel):
     """ Panel for displaying SSX calibration polynomials. Read-only.
     """
+    ID_CREATE_CAL = wx.NewId()
     
     def __init__(self, parent, id_, calSerial=None, calDate=None, 
-                 calExpiry=None, editable=False, **kwargs):
+                 calExpiry=None, channels=None, editable=False, **kwargs):
         self.editable = editable
         self.calSerial = calSerial
         self.calDate = calDate
         self.calExpiry = calExpiry
+        self.initialized = False
         
         # dictionaries to map calibration IDs to/from the Edit/Revert buttons
         self.calIds = {}
@@ -644,16 +645,17 @@ class CalibrationPanel(InfoPanel):
     
     
     def getDeviceData(self):
-        if self.info:
+        if self.info is not None:
             self.info = self.info.values()
         else:
-            polys = self.root.device.getCalPolynomials()
-            if polys is not None:
-                self.info = self.root.device.getCalPolynomials().values()
-                self.calSerial = self.root.device.getCalExpiration()
-                self.calDate = self.root.device.getCalSerial()
-            else:
-                self.info = []
+            self.info = []
+#             polys = self.root.device.getCalPolynomials()
+#             if polys is not None:
+#                 self.info = self.root.device.getCalPolynomials().values()
+#                 self.calSerial = self.root.device.getCalExpiration()
+#                 self.calDate = self.root.device.getCalSerial()
+#             else:
+#                 self.info = []
 
 
         self.channels = self.root.device.getChannels()
@@ -697,15 +699,13 @@ class CalibrationPanel(InfoPanel):
                 return "Channel %d: <i>%s</i>" % (ch.id, ch.displayName)
             return "Channel %d.%d: <i>%s</i>" % (ch.parent.id, ch.id, ch.displayName)
         
-        self.getDeviceData()
-        self.html = [u"<html><body>"]
-        
-        # XXX: This is getting really ugly.
-#         if isinstance(self.root, Dataset):
-#             channels = self.root.channels
-#         else:
-#             channels = self.root.device.getChannels()
+        # HACK: other panels assume they will only have their contents generated
+        # once, but this one will redraw if its contents were edited.
+        if not self.initialized:
+            self.getDeviceData()
+            self.initialized = True
             
+        self.html = [u"<html><body>"]
         
         if self.calSerial:
             self.html.append("<p><b>Calibration Serial: C%03d</b></p>" % self.calSerial)
@@ -714,13 +714,18 @@ class CalibrationPanel(InfoPanel):
             if self.calDate:
                 d = datetime.fromtimestamp(self.calDate).date()
                 self.html.append("<b>Calibration Date:</b> %s" % d)
-            if self.calDate:
+            if self.calExpiry:
                 d = datetime.fromtimestamp(self.calExpiry).date()
                 self.html.append(" <b>Expires:</b> %s" % d)
             self.html.append("</p>")
         
         if len(self.info) == 0:
             self.html.append("Device has no calibration data.")
+            if self.editable:
+                self.html.append('<br><wxp module="wx" class="Button">'
+                '<param name="label" value="Create User Calibration">'
+                '<param name="id" value="%d">'
+                '</wxp>' % self.ID_CREATE_CAL)
         
         for cal in self.info:
             if cal.id is None:
@@ -777,14 +782,16 @@ class EditableCalibrationPanel(wx.Panel):
     # TODO: Refactor this as the only Calibration panel and use only it.
     def __init__(self, parent, id_, calSerial=None, calDate=None, 
                  calExpiry=None, editable=False, info={}, root=None,
-                 **kwargs):
+                 factoryCal=None, **kwargs):
         self.editable = editable
         self.calSerial = calSerial
         self.calDate = calDate
         self.calExpiry = calExpiry
         
         self.tabIcon = None
-        self.info = info
+        self.originalCal = info
+        self.info = info.copy() if info is not None else None
+        self.factoryCal = factoryCal
         self.root = root
         super(EditableCalibrationPanel, self).__init__(parent, id_, **kwargs)
         self.data = OrderedDict()
@@ -795,27 +802,52 @@ class EditableCalibrationPanel(wx.Panel):
     def buildUI(self):
         sizer = wx.BoxSizer()
         self.SetSizer(sizer)
-        self.html = CalibrationPanel(self, -1, calSerial=self.calSerial, calDate=self.calDate, 
-                                     calExpiry=None, editable=self.editable, info=self.info, root=self.root)
+        self.html = CalibrationPanel(self, -1, calSerial=self.calSerial, 
+                                     calDate=self.calDate, calExpiry=None, 
+                                     editable=self.editable, info=self.info, 
+                                     root=self.root)
         sizer.Add(self.html, 1, wx.EXPAND | wx.ALL)
         self.Bind(wx.EVT_BUTTON, self.OnButtonEvt)
-#         print self.html.FindWindowById(self.html.calIds.keys()[0])
         
         
     def initUI(self):
         pass
 
 
+    def updateCalDisplay(self):
+        """ Update the displayed polynomials.
+        """
+        if self.info is None:
+            return
+        self.html.info = sorted(self.info.values(), key=lambda x: x.id)
+        self.html.buildUI()
+        
+
     def OnButtonEvt(self, evt):
+        """ Handle a button press in the HTML widget.
+        """
         evtId = evt.GetId()
-        if evtId in self.html.calIds:
+        if evtId == self.html.ID_CREATE_CAL:
+            # Duplicate factory calibration data.
+            self.info = self.factoryCal.copy()
+            self.updateCalDisplay()
+        elif evtId in self.html.calIds:
+            # Edit a polynomial
             cal = self.html.calIds[evtId]
-            dlg = PolyEditDialog(self, -1, transforms=self.info, channels=self.html.channels, cal=cal, changeSource=False, changeType=False)
-            dlg.ShowModal()
-            print "edit calibration ID %r" % self.html.calIds[evtId]
+            dlg = PolyEditDialog(self, -1, transforms=self.info,
+                                 channels=self.html.channels, cal=cal, 
+                                 changeSource=False, changeType=False)
+            if dlg.ShowModal() == wx.ID_OK:
+                self.info[dlg.cal.id] = dlg.cal
+                self.updateCalDisplay()
+            dlg.Destroy()
         elif evtId in self.html.revertIds:
-            print "revert calibration ID %r" % self.html.revertIds[evtId]
+            # Revert a polynomial to factory settings
+            cal = self.html.revertIds[evtId]
+            self.info[cal.id] = self.factoryCal[cal.id]
+            self.updateCalDisplay()
         else:
+#             print "Unknown button ID: %r" % evtId
             evt.Skip()
 
         
@@ -997,9 +1029,9 @@ def buildUI_SSX(parent):
                                           calDate=calDate, calExpiry=calExpiry)
         parent.notebook.AddPage(parent.factorycal, "Factory Calibration")
         
-    if usercal is not None:
         parent.usercal = EditableCalibrationPanel(parent.notebook, -1, root=parent,
-                                          info=usercal, editable=True)
+                                          info=usercal, factoryCal=factorycal,
+                                          editable=True)
         parent.notebook.AddPage(parent.usercal, "User Calibration")
 
     info = SSXInfoPanel(parent.notebook, -1, root=parent, info=parent.deviceInfo)
