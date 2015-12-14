@@ -881,6 +881,20 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
     
     print c.createTxt()
     
+    if c.hasHiAccel and not all([utils.inRange(x, 0.5, 2.5) for x in c.cal]):
+        print "!!! Out-of-range calibration coefficient(s) detected!"
+        q = utils.getYesNo("Continue with device calibration (Y/N)? ")
+        if q == "N":
+            c.writeProductLog(DB_BAD_LOG_FILE, err="Coefficient(s) out of range")
+            return
+    
+    if c.hasLoAccel and not all([utils.inRange(x, 0.5, 2.5) for x in c.calLo]):
+        print "!!! Out-of-range calibration coefficient(s) detected for DC accelerometer!"
+        q = utils.getYesNo("Continue with device calibration (Y/N)? ")
+        if q == "N":
+            c.writeProductLog(DB_BAD_LOG_FILE, err="Coefficient(s) out of range (DC)")
+            return        
+    
     print "Building calibration EBML..."
     caldata = c.createEbml(calTemplateName)
     utils.writeFile(calCurrentName, caldata)
