@@ -389,7 +389,7 @@ class CalFile(object):
             accelChannel = None
         if accelChannel:
             self.hasHiAccel = True
-            _print("Analyzing high-g accelerometer data...")
+            _print("\nAnalyzing high-g data...")
             
             # HACK: Fix typo in template the hard way
             accelChannel.transform.references = (0,)
@@ -402,7 +402,7 @@ class CalFile(object):
         loAccelChannel = self.getLowAccelerometer()
         if loAccelChannel:
             self.hasLoAccel = True
-            _print("Analyzing low-g accelerometer data...")
+            _print("\nAnalyzing low-g data...")
             self.accelLo, self.timesLo, self.rmsLo, self.calLo, self.meansLo = self._analyze(loAccelChannel, thres=6, start=1000, length=1000)
             
             if not self.hasHiAccel:
@@ -489,12 +489,17 @@ class CalFile(object):
             self.getFirstIndex(data, gt, axisIds.z+1)
         )
         
+        _print("Indices: %s %s %s" % (indices.x + start + skipSamples,
+                                      indices.y + start + skipSamples,
+                                      indices.z + start + skipSamples))
+        # XXX: What's this actually doing? Do they need the same start?
         if indices.x == indices.y == 0:
             indices.x = indices.y = indices.z
         if indices.x == indices.z == 0:
             indices.x = indices.z = indices.y
         if indices.y == indices.z == 0:
             indices.y = indices.z = indices.x
+#         indices.x = indices.y = indices.z = max(indices)
         
         accel = XYZ(data[(indices.x+start):(indices.x+stop),axisIds.x+1],
                     data[(indices.y+start):(indices.y+stop),axisIds.y+1],
@@ -513,6 +518,7 @@ class CalFile(object):
                   self.referenceRMS / rms.y, 
                   self.referenceRMS / rms.z)
         
+        print
         return accel, times, rms, cal, means
         
 

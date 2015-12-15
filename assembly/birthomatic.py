@@ -833,12 +833,16 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
     
     #  3. Generate calibration data from IDE files on recorder (see calibration.py)
     sourceFiles = c.getFiles(calDirName)
+    if len(sourceFiles) != 3:
+        c.writeProductLog(DB_BAD_LOG_FILE, err="Wrong number of files (%d)" % len(sourceFiles))
+        utils.errMsg(["!!! Wrong number of recordings found (need 3, found %d)!" % len(sourceFiles)])
+        return
 
     print "Calculating calibration constants from recordings..."
     c.calculate(sourceFiles)
     c.closeFiles()
     
-    if (c.Sxy is None or c.Syz is None or c.Sxz is None):
+    if None in (c.Sxy, c.Syz, c.Sxz):
         result = ["!!! Error in calculating transverse sensitivity (bad file?)"]
         result.append("Only found the following:")
         if c.Sxy is not None:
@@ -851,7 +855,7 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
         c.writeProductLog(DB_BAD_LOG_FILE, err="Bad Transverse")
         return
     
-    if c.Sxy > 10 or c.Syz > 10 or c.Sxz > 10:
+    if any((x > 10 for x in (c.Sxy, c.Syz, c.Sxz))):
         print "!!! Extreme transverse sensitivity detected in recording(s)!"
         print "%s, Transverse Sensitivity in XY = %.2f percent" % (c.Sxy_file, c.Sxy)
         print "%s, Transverse Sensitivity in YZ = %.2f percent" % (c.Syz_file, c.Syz)
@@ -860,8 +864,9 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
         if q == "N":
             c.writeProductLog(DB_BAD_LOG_FILE, err="Transverse out of range")
             return
+        c.writeProductLog(DB_BAD_LOG_FILE, err="High transverse warning (process continued)")
     
-    if not all([utils.inRange(x.cal_temp, 15, 27) for x in c.calFiles]):
+    if not utils.allInRange([x.cal_temp for x in c.calFiles], 15, 27):
         print "!!! Extreme temperature detected in recording(s)!"
         for x in c.calFiles:
             print "%s: %.2f degrees C" % (os.path.basename(x.filename), x.cal_temp)
@@ -869,8 +874,10 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
         if q == "N":
             c.writeProductLog(DB_BAD_LOG_FILE, err="Temperature out of range")
             return
+        c.writeProductLog(DB_BAD_LOG_FILE, err="Temp. out of range warning (process continued)")
         
-    if not all([utils.inRange(x.cal_press, 96235, 106365) for x in c.calFiles]):
+        
+    if not utils.allInRange([x.cal_press for x in c.calFiles], 96235, 106365):
         print "!!! Extreme air pressure detected in recording(s)!"
         for x in c.calFiles:
             print "%s: %.2f Pa" % (os.path.basename(x.filename), x.cal_press)
@@ -878,22 +885,25 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
         if q == "N":
             c.writeProductLog(DB_BAD_LOG_FILE, err="Pressure out of range")
             return
+        c.writeProductLog(DB_BAD_LOG_FILE, err="Pressure out of range warning (process continued)")
     
     print c.createTxt()
     
-    if c.hasHiAccel and not all([utils.inRange(x, 0.5, 2.5) for x in c.cal]):
+    if c.hasHiAccel and not utils.allInRange(c.cal, 0.5, 2.5):
         print "!!! Out-of-range calibration coefficient(s) detected!"
         q = utils.getYesNo("Continue with device calibration (Y/N)? ")
         if q == "N":
             c.writeProductLog(DB_BAD_LOG_FILE, err="Coefficient(s) out of range")
             return
+        c.writeProductLog(DB_BAD_LOG_FILE, err="Coefficient(s) out of range warning (process continued)")
     
-    if c.hasLoAccel and not all([utils.inRange(x, 0.5, 2.5) for x in c.calLo]):
+    if c.hasLoAccel and not utils.allInRange(c.calLo, 0.5, 2.5):
         print "!!! Out-of-range calibration coefficient(s) detected for DC accelerometer!"
         q = utils.getYesNo("Continue with device calibration (Y/N)? ")
         if q == "N":
             c.writeProductLog(DB_BAD_LOG_FILE, err="Coefficient(s) out of range (DC)")
             return        
+        c.writeProductLog(DB_BAD_LOG_FILE, err="Coefficient(s) (DC) out of range warning (process continued)")
     
     print "Building calibration EBML..."
     caldata = c.createEbml(calTemplateName)

@@ -26,6 +26,10 @@ import ssx_namer
 def inRange(v, minVal, maxVal):
     return v >= minVal and v <= maxVal
 
+
+def allInRange(vals, minVal, maxVal):
+    return all((inRange(x, minVal, maxVal) for x in vals))
+
 #===============================================================================
 # 
 #===============================================================================
