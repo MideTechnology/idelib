@@ -72,8 +72,6 @@ def buildUI_SSC(parent):
                                           calDate=calDate, calExpiry=calExpiry)
         parent.notebook.AddPage(parent.factorycal, "Factory Calibration")
         
-#     if usercal is not None:
-        print "usercal:",usercal
         parent.usercal = EditableCalibrationPanel(parent.notebook, -1, root=parent,
                                           info=usercal, factoryCal=factorycal,
                                           editable=True)

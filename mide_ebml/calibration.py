@@ -10,7 +10,12 @@ Created on Nov 27, 2013
 @todo: Use regex to optimize built univariate and bivariate functions
 
 @todo: Completely remove the 'optimization' that ends up converting floats to
-    ints. It makes things worse.
+    ints. It makes things worse. Do the opposite where possible.
+
+@todo: Simplify, simplify. For example, allowing arbitrary variable names is a 
+    needless complexity.
+    
+@todo: Completely remove ``AccelTransform``. Obsolete.
 '''
 
 # __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
@@ -28,9 +33,10 @@ logger = logging.getLogger('mide_ebml')
 #===============================================================================
 
 class Transform(object):
-    """ A function-like object representing any processing that an event
-        requires, including basic calibration at the low level and 
-        adjustments for display at the high level.
+    """ Base class for all data-manipulating objects (e.g. calibration
+        polynomials). Instantiates as a function-like object representing any 
+        processing that an event requires, including basic calibration at the 
+        low level and adjustments for display at the high level.
     """
     modifiesTime = False
     modifiesValue = False
@@ -45,6 +51,7 @@ class Transform(object):
         self._timeOffset = 0
         pass
     
+    
     def copy(self):
         """ Create a duplicate of this Transform.
         """
@@ -54,8 +61,10 @@ class Transform(object):
             setattr(t, attr, getattr(self, attr, None))
         return t
     
+    
     def __str__(self):
         return self._str
+    
     
     def __repr__(self):
         cname = self.__class__.__name__
@@ -63,28 +72,39 @@ class Transform(object):
             return "<%s: (%s)>" % (cname, self._str)
         return "<%s (ID %d): (%s)>" % (cname, self.id, self._str)
 
+
     def __hash__(self):
         return hash(self._str)
 
+
     def __eq__(self, other):
-        return hash(self) == hash(other)
+        try:
+            return self._str == other._str
+        except AttributeError:
+            return False
+    
+    
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
 
     @property
     def function(self):
         """ The generated polynomial function itself. """
         return self._function
 
+
     @property
     def source(self):
         """ The optimized source code of the polynomial. """
         return self._source
+    
     
     def __call__(self, event, session=None):
         if session != self._lastSession:
             self._timeOffset = 0 if session.startTime is None else session.startTime
             self._session = session
         return event[-2] + self._timeOffset, self._function(event[-1])
-     
 
     
     #===========================================================================
@@ -152,7 +172,8 @@ class Univariate(Transform):
 #         iv = int(v)
 #         return iv if iv == v else v
         # Not a good optimization. Only convert 0 to integer.
-        return 0 if v == 0 else v
+        return 0 if v == 0 else float(v)
+    
     
     @classmethod
     def _stremove(self, s, old):
@@ -162,11 +183,13 @@ class Univariate(Transform):
             result = result.replace(o,'')
         return result
     
+    
     @classmethod
     def _streplace(cls, s, *args):
         for old,new in args:
             s = s.replace(old, new)
         return s
+    
     
     @classmethod
     def _fixSums(self, s):
@@ -175,6 +198,7 @@ class Univariate(Transform):
         for old, new in (("--", "+"), ("-+", "-"), ("+-", "-"), ("++", "+")):
             result = result.replace(old, new)
         return result
+    
     
     def __init__(self, coeffs, calId=None, dataset=None, reference=0, 
                  varName="x"):
@@ -197,7 +221,14 @@ class Univariate(Transform):
         
         self._build()
         
-        
+
+    def __eq__(self, other):
+        try:
+            return self._coeffs == other._coeffs and self._references == other._references
+        except AttributeError:
+            return False
+
+
     def copy(self):
         """ Create a duplicate of this Transform.
         """
@@ -257,25 +288,30 @@ class Univariate(Transform):
         """ The polynomial's coefficients. """
         return self._coeffs
     
+    
     @coefficients.setter
     def coefficients(self, val):
         self._coeffs = val
         self._build()
+        
         
     @property
     def variables(self):
         """ The name(s) of the variable(s) used in the polynomial. """
         return self._variables
     
+    
     @variables.setter
     def variables(self, val):
         self._variables = val
         self._build()
     
+    
     @property
     def references(self):
         """ The constant offset(s). """
         return self._references
+    
     
     @references.setter
     def references(self, val):
@@ -341,6 +377,13 @@ class Bivariate(Univariate):
         self._build()
         
         
+    def __eq__(self, other):
+        try:
+            return self._str == other._str
+        except AttributeError:
+            return False
+    
+    
     def copy(self):
         """ Create a duplicate of this Transform.
         """
@@ -367,15 +410,12 @@ class Bivariate(Univariate):
         if reference2 != 0:
             varNames[1] = "(y-%s)" % reference2
         self._str = self._fixSums(self._str)
-        self._str = self._str.replace("x","\x00"
-                                      ).replace("y", varNames[1]
-                                                ).replace("\x00", varNames[0])
+        self._str = self._streplace(self._str, ("x","\x00"), ("y", varNames[1]), ("\x00", varNames[0]))
 
         # Optimizations: Build a simplified expression for function.
         # 1. Remove multiples of 0 and 1, addition of 0 constants.      
         src = self._stremove(src, ('(0*x*y)+', '(0*x)+', '(0*y)+'))
-        src = src.replace("(1*", "(")
-        src = src.replace("(x)", "x").replace("(y)", "y")
+        src = self._streplace(src, ("(1*", "("), ("(x)", "x"), ("(y)", "y"))
         if src.endswith('+0'):
             src = src[:-2]
 
@@ -418,8 +458,6 @@ class Bivariate(Univariate):
             
             x = event[-1]
             # Optimization: don't check the other channel if Y is unused
-#             y = self._noY or self._eventlist.getValueAt(event[-2], 
-#                                                          outOfRange=True)
             y = self._noY or self._eventlist.getMeanNear(event[-2])
             return event[-2],self._function(x,y)
         
@@ -430,7 +468,6 @@ class Bivariate(Univariate):
             logger.warning("%s occurred in Bivariate polynomial %r" % \
                            err.__class__.__name__, self.id)
             return None
-#             return event
 
 
     def asDict(self):
@@ -476,27 +513,28 @@ class CombinedPoly(Bivariate):
         for attr in ('dataset','_eventlist','_sessionId','channelId',
                      'subchannelId', '_references', '_coeffs','_variables'):
             setattr(self, attr, getattr(poly, attr, getattr(p, attr, None)))
-#             setattr(self, attr, getattr(poly, attr, None))
                     
         self.dataset = self.dataset or dataset
         self._subchannel = subchannel
         self._build()
+    
     
     @classmethod
     def _reduce(cls, src):
         old = None
         while old != src:
             old = src
-            src = src.replace('(0+', '(').replace('(0.0+', '(')
-            src = src.replace('(0-', '(-').replace('(0.0-', '(-')
-            src = src.replace('(0*x', '(0').replace('(0.0*x', '(0')
-            src = src.replace('(0*y', '(0').replace('(0.0*y', '(0')
-            src = cls._stremove(src, ('(0*x*y)+', '(0*x)+', '(0*y)+'))
-            src = src.replace("(1*", "(").replace("(1.0*", "(")
+            src = cls._streplace(src, 
+                ('(0+', '('), ('(0.0+', '('), ('(0-', '(-'), ('(0.0-', '(-'),
+                ('(0*x', '(0'), ('(0.0*x', '(0'), ('(0*y', '(0'), ('(0.0*y', '(0'),
+                ('(0*x*y)+', ''), ('(0*x)+', ''), ('(0*y)+', ''),
+                ("(1*", "("), ("(1.0*", "("), ("(x)", "x"), ("(y)", "y")
+            )
             if src.endswith('+0'):
                 src = src[:-2]
             src = cls._fixSums(src)
         return src
+    
     
     def _build(self):
         if self.poly is None:
@@ -618,14 +656,13 @@ class PolyPoly(CombinedPoly):
                     self._eventlist = channel.getSession(session.sessionId)
                     self._sessionId = session.sessionId
                     
-                # XXX: Hack! Eventlist length can be 0 if a thread is running.
+                # XXX: Hack! EventList length can be 0 if a thread is running.
                 # This almost immediately gets fixed. Find real cause.
                 if len(self._eventlist) == 0:
                     sleep(0.001)
                     if len(self._eventlist) == 0:
                         return None
                     
-#                 y = self._eventlist.getValueAt(event[-2], outOfRange=True)
                 y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
                 return event[-2],self._function(y, *x)
             
@@ -636,14 +673,9 @@ class PolyPoly(CombinedPoly):
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
-#             return event
             if getattr(self.dataset, 'loading', False):
                 logger.warning("%s occurred in combined polynomial %r" % \
                                (err.__class__.__name__, self))
                 return None
             raise err
-        
-#         except TypeError:
-#             print "type error: event=%r, y=%r" % (event, y)
-#             return event
 

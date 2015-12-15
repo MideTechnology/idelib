@@ -1,7 +1,13 @@
 '''
-Created on Jun 25, 2015
+Configuration UI for Slam Stick X recorders.
 
+Created on Jun 25, 2015
 @author: dstokes
+
+@todo: See notes in ``config_dialog.base``
+
+@todo: Unify ``CalibrationPanel``, ``EditableCalibrationPanel``, and 
+    ``fileinfo.RecordingCalibrationPanel``.
 '''
 
 from collections import OrderedDict
@@ -9,7 +15,7 @@ from datetime import datetime
 import sys
 import time
 
-import wx
+import wx #@UnusedImport - wxPython namespacing oddness.
 import wx.lib.sized_controls as SC
 import  wx.lib.wxpTag #@UnusedImport - simply importing it does the work.
 
@@ -661,8 +667,9 @@ class CalibrationPanel(InfoPanel):
         self.channels = self.root.device.getChannels()
         self.info.sort(key=lambda x: x.id)
         
-        
-    def cleanFloat(self, f, places=6):
+    
+    @classmethod
+    def cleanFloat(cls, f, places=6):
         s = (('%%.%df' % places) % f).rstrip('0')
         if s.endswith('.'):
             return '%s0' % s
@@ -670,6 +677,9 @@ class CalibrationPanel(InfoPanel):
     
     
     def addEditButton(self, cal):
+        """ Helper method to embed Buttons in the HTML display (the widget
+            does not support forms, so it can't be done in HTML).
+        """
         wxid = self.calWxIds.setdefault(cal.id, wx.NewId())
         wxrevid = self.revertWxIds.setdefault(cal.id, wx.NewId())
         self.calIds[wxid] = cal
@@ -771,7 +781,7 @@ class CalibrationPanel(InfoPanel):
 
         self.html.append("</body></html>")
         self.SetPage(''.join(self.html))
-            
+        
 
 
 class EditableCalibrationPanel(wx.Panel):
@@ -811,7 +821,7 @@ class EditableCalibrationPanel(wx.Panel):
         
         
     def initUI(self):
-        pass
+        self.enableRevertButtons()
 
 
     def updateCalDisplay(self):
@@ -821,7 +831,23 @@ class EditableCalibrationPanel(wx.Panel):
             return
         self.html.info = sorted(self.info.values(), key=lambda x: x.id)
         self.html.buildUI()
-        
+        self.enableRevertButtons()
+    
+    
+    def enableRevertButtons(self):
+        """ Disable the 'Revert' button if the user polynomial is the same as
+            the factory's.
+        """
+        if self.info is None:
+            return
+        for calid, wxid in self.html.revertWxIds.items():
+            but = wx.FindWindowById(wxid)
+            try:
+                but.Enable(not self.info[calid] == self.factoryCal[calid])
+            except:
+                print "Except"
+                but.Enable(False)
+
 
     def OnButtonEvt(self, evt):
         """ Handle a button press in the HTML widget.
