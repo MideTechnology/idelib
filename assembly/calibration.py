@@ -620,7 +620,8 @@ class Calibrator(object):
         self.refSerial = refSerial
         self.refNist = refNist
     
-        self.calTimestamp = 0
+        self.calTimestamp = time.time()
+        self.productManTimestamp = 0
         self.calFilesUnsorted = self.calFiles = self.filenames = None
         self.hasHiAccel = self.hasLoAccel = None
 
@@ -631,6 +632,13 @@ class Calibrator(object):
         
         if self.productSerialInt is None and self.productSerialNum is not None:
             self.productSerialInt = int(self.productSerialNum.strip(string.ascii_letters+string.punctuation))
+        
+        self.accelSerial = None
+        self.meanCalPress = self.meanCalTemp = None
+        self.cal = XYZ(None, None, None)
+        self.calLo = XYZ(None, None, None)
+        self.offsets = XYZ(None, None, None)
+        self.offsetsLo = XYZ(None, None, None)
             
 
     def getFiles(self, path=None):
@@ -1081,15 +1089,24 @@ class Calibrator(object):
         caldate = str(datetime.utcfromtimestamp(self.calTimestamp))
         mandate = str(datetime.utcfromtimestamp(self.productManTimestamp))
         
+        if getattr(self, 'device', None) is None:
+            hardwareVersion = firmwareVersion = None
+            productName = partNumber = None
+        else:
+            hardwareVersion = self.device.hardwareVersion
+            firmwareVersion = self.device.firmwareVersion
+            productName = self.device.productName
+            partNumber = self.device.partNumber
+        
         data = OrderedDict([
                 ("Cal #",                self.certNum),
                 ("Rev",                  self.calRev),
                 ("Cal Date",             caldate),
                 ("Serial #",             self.productSerialNum),
-                ("Hardware",             self.device.hardwareVersion),
-                ("Firmware",             self.device.firmwareVersion),
-                ("Product Name",         self.device.productName),
-                ("Part Number",          self.device.partNumber),
+                ("Hardware",             hardwareVersion),
+                ("Firmware",             firmwareVersion),
+                ("Product Name",         productName),
+                ("Part Number",          partNumber),
                 ("Date of Manufacture",  mandate),
                 ("Ref Manufacturer",     self.refMan),
                 ("Ref Model #",          self.refModel),
