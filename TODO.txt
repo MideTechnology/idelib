@@ -12,6 +12,8 @@ Add zoom limit to main plot view, similar to that recently added to the FFT
 view. Zooming in too far doesn't cause the computer to explode, but it does
 raise an exception.
 
+Fix "Zoom to Fit All" - doesn't really work very well.
+
 
 Major items
 -----------
@@ -22,16 +24,14 @@ wxPython and not easily corrected. Future releases of wxPython may look better.
 
 Refactor the whole configuration system. It was designed around editing
 parameters that could be omitted entirely, matching the configuration EBML,
-but fewer and fewer items adhere to that model.
+but fewer and fewer items adhere to that model. It is all overly complex and
+brittle.
 
 
 Minor items
 -----------
 Multi-threaded plot drawing, so the app won't appear to hang and drawing can 
 be interrupted (e.g. by scrolling during redraw).
-
-Calibration editing dialog. Also (possibly) import and export of calibration.
-Editor (mostly) implemented, but not yet hooked up.
 
 
 Very Minor Items
@@ -60,13 +60,10 @@ Improve memory management. The hog is really the python-ebml library, though.
 
 'Wish List' items ("it would be nice if...")
 --------------------------------------------
-Move configuration dialog stuff to the `devices` module, making it more
-modular. Possibly build UI from some sort of template that the recorder
-class itself defines.
-
 Possibly move `devices` to the mide_ebml library; the importer sometimes uses
 some of the same information, and it would be better to have it implemented only
-once.
+once. Probably pretty simple to do, really, so long as the dependencies are
+fixed.
 
 Rework the rulerctrl.TimeFormat mode for Timelines so that it will draw more
 labels. Automatically adjust precision based on total time length: trim

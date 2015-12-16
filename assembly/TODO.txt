@@ -1,0 +1,15 @@
+Slam Stick Birthing/Calibration to-do list
+==========================================
+
+Major items
+-----------
+Separate calibration script from the birthing script, so one can be more safely
+modified while limiting damage to the other. Probably not too difficult.
+
+
+Minor items
+-----------
+Refactor the calibration script to work without a physical Slam Stick, using
+only data stored in the recorder's calibration folder on the network. Not
+too urgent, but there have been a couple of cases where the calibration script
+produced bad results on shipped units and we had to recalculate.

@@ -8,8 +8,10 @@ Created on Nov 7, 2014
 '''
 
 from collections import OrderedDict
+from datetime import datetime
 import os
 import shutil
+import socket
 import sys
 import time
 from xml.etree import ElementTree as ET
@@ -29,6 +31,7 @@ def inRange(v, minVal, maxVal):
 
 def allInRange(vals, minVal, maxVal):
     return all((inRange(x, minVal, maxVal) for x in vals))
+
 
 #===============================================================================
 # 
@@ -94,6 +97,27 @@ def writeFile(filename, data):
         else:
             f.write(str(data))
             
+#===============================================================================
+# 
+#===============================================================================
+
+def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev, 
+                      device_accel_sn, partnum):
+    """
+    """
+    data = map(str, (time.asctime(), 
+                     int(time.mktime(time.gmtime())), 
+                     chipid, 
+                     device_sn, 
+                     int(rebirth), 
+                     bootver, 
+                     hwrev, 
+                     fwrev, 
+                     device_accel_sn, 
+                     partnum))
+    return ','.join(data)+'\n'
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -305,6 +329,7 @@ def copyFileTo(source, destPath):
     shutil.copy(source, dest)
     return dest
 
+
 def copyTreeTo(source, dest):
     if not os.path.exists(source):
         raise IOError("No such file/directory: %r" % source)
@@ -312,7 +337,6 @@ def copyTreeTo(source, dest):
         shutil.rmtree(dest)
     shutil.copytree(source, dest)
     return dest
-
     
 
 #===============================================================================
@@ -328,6 +352,7 @@ def getYesNo(prompt, default=None):
             return default
         q = q[0]
     return q
+
 
 def getNumber(prompt, dataType=float, default=None, minmax=None):
     """ Prompt user for a number. """
@@ -353,7 +378,8 @@ def getNumber(prompt, dataType=float, default=None, minmax=None):
 def errMsg(*msg):
     print "\x07\x07\x07%s" % '\n'.join(map(str,msg))
     raw_input("Press enter to continue.")
-    
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -380,6 +406,41 @@ def hasAnalogAccel(templatePath, partNum, hwRev):
     doc = ET.parse(template)
     return doc.find('./AnalogSensorInfo/AnalogSensorSerialNumber') is not None
 
+#===============================================================================
+# 
+#===============================================================================
+
+def checkLockFile(filename, force=False):
+    """ Super cheap system for checking whether something is already running.
+    """
+    if force or not os.path.exists(filename):
+        with open(filename, 'wb') as f:
+            f.write("Script is currently running on %s at %d\n" % (socket.gethostname(), time.time()))
+            f.write("Automatically-generated file; do not modify!\n")
+        return True
+    try:
+        _pad, where, _at, when = readFileLine(filename, dataType=str, last=False).rsplit(' ',3)
+        when = str(datetime.fromtimestamp(int(when))).rsplit(':',1)[0]
+        where = "your machine" if socket.gethostname() == where else where
+    except (ValueError, IOError, WindowsError):
+        where, when = 'somewhere', "some point"
+    print "\x07\x07"
+    print "There appears to be another copy of the script running on %s," % where
+    print "started at %s. If the script crashed last time, this is okay, " % when
+    print "but running multiple copies simultaneously will causes problems!"
+    if getYesNo("Continue anyway? ") == "Y":
+        return checkLockFile(filename, force=True)
+    return False
+
+
+def releaseLockFile(filename):
+    try:
+        os.remove(filename)
+        return True
+    except (WindowsError, IOError):
+        return False
+    
+    
 #===============================================================================
 # 
 #===============================================================================
