@@ -519,7 +519,7 @@ if __name__ == "__main__":
 #     global TEMPLATE_PATH
     
     parser = argparse.ArgumentParser(description="Improved SSX Calibration Suite")
-    parser.add_argument("mode", help="The job to do", choices=["birth", "calibrate", "cal"], nargs="*")
+    parser.add_argument("mode", help="The job to do", nargs="*")
     parser.add_argument("--templates", "-t", help="An alternate birth template directory.", default=TEMPLATE_PATH)
     parser.add_argument("--nocopy", "-n", help="Do not copy software to SSX after calibration.", action='store_true')
     parser.add_argument("--exclude", "-x", help="Exclude this birth/calibration from the log (for testing only!)", action='store_true')
