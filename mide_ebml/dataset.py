@@ -67,8 +67,8 @@ if __DEBUG__:
 else:
     logger.setLevel(logging.ERROR)
     
-import ebml
-logger.info("Loaded python-ebml from %s" % os.path.abspath(ebml.__file__))
+# import ebml
+# logger.info("Loaded python-ebml from %s" % os.path.abspath(ebml.__file__))
 
 #===============================================================================
 # Mix-In Classes
@@ -1063,6 +1063,7 @@ class EventList(Transformable):
             
             @attention: Added elements should be in chronological order!
         """
+        print "%s: append %r" % (self.channelId, block)
         block.cache = self.parent.cache
         oldLength = self._length
         if block.numSamples is None:
@@ -1401,15 +1402,17 @@ class EventList(Transformable):
     def __len__(self):
         """ x.__len__() <==> len(x)
         """
+        if self._singleSample:
+            return len(self._data)
         if len(self._data) == 0:
             return 0
         # For some reason, the cached self._length wasn't thread-safe.
 #         return self._length
         try:
-            return max(0, self._data[-1].indexRange[-1]-1)
+            return self._data[-1].indexRange[-1]+1
         except (TypeError, IndexError):
             # Can occur early on while asynchronously loading.
-            return 0
+            return self._length
 
 
     def itervalues(self, start=0, end=-1, step=1, subchannels=True, display=False):

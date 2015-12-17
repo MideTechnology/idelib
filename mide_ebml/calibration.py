@@ -238,6 +238,8 @@ class Univariate(Transform):
 
     
     def _build(self):
+        """ Internal method that (re-)constructs the polynomial function.
+        """
         varName = str(self._variables[0])
         srcVarName = "x"
         reference = self._references[0]
@@ -260,8 +262,8 @@ class Univariate(Transform):
     
             # optimization: v is a whole number, do integer math,
             # then make float by adding 0.0
-            if v != 1 and int(v) == v:
-                v = int(v)
+#             if v != 1 and int(v) == v:
+#                 v = int(v)
     
             # optimization: pow() is more expensive than lots of multiplication
             x = "*".join([srcVarName]*p)
@@ -277,8 +279,8 @@ class Univariate(Transform):
         self._str = self._fixSums(self._str)
         
         self._source = "lambda x: %s" % ("+".join(map(str,reversed(f))))
-        if '.' not in self._source:
-            self._source ="%s+0.0" % self._source
+#         if '.' not in self._source:
+#             self._source ="%s+0.0" % self._source
         self._source = self._fixSums(self._source)
         self._function = eval(self._source, {'math': math})
     
@@ -393,7 +395,30 @@ class Bivariate(Univariate):
                varNames=self._variables, calId=self.id)
 
     
+    @classmethod
+    def _reduce(cls, src):
+        """ Simple reduction for polynomial expressions, removing redundant
+            parts (adding/subtracting 0, multiplying by 0 or 1, etc.).
+        """
+        old = None
+        while old != src:
+            old = src
+            src = cls._streplace(src, 
+                ('(0+', '('), ('(0.0+', '('), ('(0-', '(-'), ('(0.0-', '(-'),
+                ('(0*x', '(0'), ('(0.0*x', '(0'), ('(0*y', '(0'), ('(0.0*y', '(0'),
+                ('(0*x*y)+', ''), ('(0*x)+', ''), ('(0*y)+', ''),
+                ('(0)', ''), ('()', ''), ('(1)','1'),
+                ("(1*", "("), ("(1.0*", "("), ("(x)", "x"), ("(y)", "y"),
+                ("--", "+"), ("-+", "-"), ("+-", "-"), ("++", "+")
+            )
+            if src.endswith('+0') or src.endswith('+0.0'):
+                src = src.rstrip('+0.')
+        return src
+    
+    
     def _build(self):
+        """ Internal method that (re-)constructs the polynomial function.
+        """
         coeffs = self._coeffs
         reference, reference2 = self._references
         varNames = self._variables
@@ -413,11 +438,8 @@ class Bivariate(Univariate):
         self._str = self._streplace(self._str, ("x","\x00"), ("y", varNames[1]), ("\x00", varNames[0]))
 
         # Optimizations: Build a simplified expression for function.
-        # 1. Remove multiples of 0 and 1, addition of 0 constants.      
-        src = self._stremove(src, ('(0*x*y)+', '(0*x)+', '(0*y)+'))
-        src = self._streplace(src, ("(1*", "("), ("(x)", "x"), ("(y)", "y"))
-        if src.endswith('+0'):
-            src = src[:-2]
+        # 1. Remove multiples of 0 and 1, addition of 0 constants.
+        src = self._reduce(src)    
 
         # 2. If there's a reference value, replace the variable with (v-ref)           
         references = map(self._floatOrInt, (reference, reference2))
@@ -427,8 +449,11 @@ class Bivariate(Univariate):
         
         # 3. Make sure the result is floating point. Also handles the edge-case
         # of all-zero coefficients (shouldn't exist, but could).
-        if '.' not in src:
-            src = "+".join([src, "0.0"])
+#         if '.' not in src:
+#             src = "+".join([src, "0.0"])
+        
+        # 4. Do the reduction again, now that the offsets are in.
+        src = self._reduce(src)    
         
         self._source = 'lambda x,y: %s' % self._fixSums(src)
         self._function = eval(self._source, {'math': math})
@@ -488,8 +513,6 @@ class CombinedPoly(Bivariate):
     """ Calibration transform that combines multiple polynomials into a single
         function. Used for combining Channel and Subchannel transforms to make
         them more efficient.
-        
-        Experimental!
     """
     
     def copy(self):
@@ -517,23 +540,6 @@ class CombinedPoly(Bivariate):
         self.dataset = self.dataset or dataset
         self._subchannel = subchannel
         self._build()
-    
-    
-    @classmethod
-    def _reduce(cls, src):
-        old = None
-        while old != src:
-            old = src
-            src = cls._streplace(src, 
-                ('(0+', '('), ('(0.0+', '('), ('(0-', '(-'), ('(0.0-', '(-'),
-                ('(0*x', '(0'), ('(0.0*x', '(0'), ('(0*y', '(0'), ('(0.0*y', '(0'),
-                ('(0*x*y)+', ''), ('(0*x)+', ''), ('(0*y)+', ''),
-                ("(1*", "("), ("(1.0*", "("), ("(x)", "x"), ("(y)", "y")
-            )
-            if src.endswith('+0'):
-                src = src[:-2]
-            src = cls._fixSums(src)
-        return src
     
     
     def _build(self):
@@ -581,6 +587,7 @@ class CombinedPoly(Bivariate):
         raise TypeError("Can't generate dictionary for %s" % \
                         self.__class.__.__name)
 
+#------------------------------------------------------------------------------ 
 
 class PolyPoly(CombinedPoly):
     """ Calibration transform that combines multiple subchannel polynomials 
