@@ -31,7 +31,7 @@ builds = (
 # 
 #===============================================================================
 
-def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=None):
+def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=None, commit=None):
     with open('build_info.py', 'wb') as f:
         f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
         f.write('VERSION = %s\n' % str(version))
@@ -42,6 +42,7 @@ def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=No
         f.write('BUILD_TIME = %d\n' % buildTime)
         f.write('BUILD_MACHINE = %r\n' % buildMachine)
         f.write('REPO_BRANCH = %r\n' % branch)
+        f.write('REPO_COMMIT_ID = %r' % commit)
 
 #===============================================================================
 # 
@@ -86,7 +87,8 @@ if repo is not None:
 
 try:
     sys.path.append(HOME_DIR)
-    from build_info import BUILD_NUMBER, DEBUG, BETA, VERSION, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH
+    from build_info import VERSION, BETA, DEBUG, BUILD_NUMBER, BUILD_MACHINE, BUILD_TIME
+    from build_info import REPO_BRANCH, REPO_COMMIT_ID
     
     if args.version is not None:
         thisVersion = map(int, filter(len, args.version.split('.')))
@@ -99,13 +101,16 @@ try:
     thisDebug = not (args.release or thisBeta)
     thisTime = time.time()
     
+    thisBranch = thisCommit = None
     if repo is not None:
-        thisBranch = repo.active_branch
-    else:
-        thisBranch = None
+        try:
+            thisBranch = repo.active_branch
+            thisCommit = repo.commits()[0].id
+        except (AttributeError, IndexError):
+            pass 
     
     if not args.preview:
-        writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname(), thisBranch)
+        writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname(), thisBranch, thisCommit)
     versionString = '.'.join(map(str,thisVersion))
 
 except ImportError:
@@ -152,12 +157,12 @@ print "Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now
 if bad == len(builds):
     print "Everything failed; restoring old build_info."
     if not args.preview:
-        writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH)
+        writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH, REPO_COMMIT_ID)
 else:
     print "Version: %s, build %s, DEBUG=%s, BETA=%s" % (versionString, thisBuildNumber, thisDebug, thisBeta)
     # Reset the DEBUG variable in the info file (local runs are always DEBUG)
     if not args.preview:
-        writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, socket.gethostname(), thisBranch)
+        writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, socket.gethostname(), thisBranch, thisCommit)
 
 if args.release and bad == 0:
     print "*"*78

@@ -6,7 +6,8 @@ loggers.
 
 '''
 
-from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, REPO_BRANCH
+from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME
+from build_info import REPO_BRANCH, REPO_COMMIT_ID
 from logger import logger
 
 # VERSION = (1, 0, 0)
@@ -2877,7 +2878,6 @@ class ViewerApp(wx.App):
             @keyword loadLastFile: If `True` and no `initialFilename' is
                 specified, the viewer will reload the last file opened.
         """
-        print "init"
         self.prefsFile = kwargs.pop('prefsFile', None)
         self.initialFilename = kwargs.pop('filename', None)
         clean = kwargs.pop('clean', False)
@@ -3017,6 +3017,9 @@ class ViewerApp(wx.App):
         self.SetAppName(APPNAME)
         self.SetAppDisplayName(APPNAME)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
+        if DEBUG:
+            logger.info("Starting version %s" % __version__)
+            logger.info("Repo branch %s, commit %s" % (REPO_BRANCH, REPO_COMMIT_ID))
         return True
 
 
