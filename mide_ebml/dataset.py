@@ -1063,7 +1063,6 @@ class EventList(Transformable):
             
             @attention: Added elements should be in chronological order!
         """
-        print "%s: append %r" % (self.channelId, block)
         block.cache = self.parent.cache
         oldLength = self._length
         if block.numSamples is None:
