@@ -32,7 +32,7 @@ class Loader(Job):
     cancelPromptPref = "cancelImportPrompt"
     
     def __init__(self, root, dataset, reader, numUpdates=100, 
-                 updateInterval=1.0, maxPause=1.5):
+                 updateInterval=1.0, maxPause=1.5, minCount=5000000):
         """ Create the Loader and start the loading process.
             
             @param root: The Viewer.
@@ -45,11 +45,13 @@ class Loader(Job):
                 calls to the updater
         """
         self.readingData = False
+        self.plotsInitialized = False
         self.lastCount = 0
         self.reader = reader
         self.maxPause = .5
 #         self.skippedUpdates = 8200
         self.startedDrawing = False
+        self.minCount = minCount
 
         super(Loader, self).__init__(root, dataset, numUpdates, updateInterval)
 
@@ -121,13 +123,39 @@ class Loader(Job):
             # Don't update the time estimate if paused; causes stutter.
             return
         
+        if count or percent:
+            est = None
+            thisTime = datetime.now()
+            if self.startTime is None:
+                self.startTime = thisTime
+            elif percent is not None:
+                p = int(percent * 100)
+                if p > 0 and p < 100:
+                    if self.totalPauseTime:
+                        # Remove time spent paused from the estimate
+                        thisTime -= self.totalPauseTime
+                    est = ((thisTime - self.startTime) / p) * (100-p)
+            self.lastTime = thisTime
+            self.lastCount = count
+        
+            msg = self.formatMessage(count, est)
+            
+            wx.PostEvent(self.root, 
+                EvtProgressUpdate(val=percent, label=msg, cancellable=True))  
+                  
         if not self.readingData:
-            if count or percent:
+            # HACK: readingData is being used to prevent updates until a
+            # minimum number of samples have been imported. 
+            if done or count or percent:
+#                 print "done: %r count: %r percent: %r" % (done, count, percent)
                 # The start of data.
-                self.readingData = True
-                self.pausable = True
                 if self.root.session is None:
                     self.root.session = self.dataset.lastSession
+                if count < self.minCount and not done:
+#                     print "no update yet"
+                    return
+                self.readingData = True
+                self.pausable = True
                 wx.PostEvent(self.root, EvtInitPlots())
                 endTime = self.root.session.endTime
                 if endTime is None:
@@ -142,23 +170,6 @@ class Loader(Job):
             else:
                 # Still in header; don't update.
                 return
-        
-        est = None
-        thisTime = datetime.now()
-        if self.startTime is None:
-            self.startTime = thisTime
-        elif percent is not None:
-            p = int(percent * 100)
-            if p > 0 and p < 100:
-                if self.totalPauseTime:
-                    # Remove time spent paused from the estimate
-                    thisTime -= self.totalPauseTime
-                est = ((thisTime - self.startTime) / p) * (100-p)
-        
-        msg = self.formatMessage(count, est)
-        
-        wx.PostEvent(self.root, 
-            EvtProgressUpdate(val=percent, label=msg, cancellable=True))
 
         if self.dataset.lastSession == self.root.session:
             evt = EvtSetTimeRange(start=self.root.session.firstTime, 
@@ -171,9 +182,6 @@ class Loader(Job):
 #             self.startedDrawing = True
 #             wx.PostEvent(self.root, EvtResumeDrawing(redraw=True))
                 
-        self.lastTime = thisTime
-        self.lastCount = count
-
         if done or percent==1:
             # Make sure the drawing has been resumed.
             wx.PostEvent(self.root, EvtResumeDrawing(redraw=True))

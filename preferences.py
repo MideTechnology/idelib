@@ -113,7 +113,7 @@ class Preferences(object):
         'drawHollowPlot': True,
 #         'locale': 'English_United States.1252', # Python's locale name string
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
-        'loader': dict(numUpdates=100, updateInterval=1.0),
+        'loader': dict(numUpdates=100, updateInterval=1.0, minCount=750000),
         'openOnStart': True,
         'showDebugChannels': DEBUG,
         'showFullPath': True,#False,
@@ -548,15 +548,23 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.EnumProperty("Legend Position (main view)", "legendPosition",
                              Preferences.LEGEND_POSITIONS))
         
+        _add(PG.PropertyCategory("Importing"))
+        _add(PG.IntProperty("Pre-Plotting Samples", 'loader_minCount'), 
+             "The number of samples to import before doing initial plot. "
+             "Note: a very large number may cause performance issues when "
+             "importing extremely large recordings.",
+             Min=0, Max=10000000, Step=50000)
+        self.pg.SetPropertyEditor("loader_minCount","SpinCtrl")
+        _add(PG.EnumProperty("When opening another file:", "openAnotherFile",
+                             ("Close previous file","Open in new window", "Ask")),
+             "The application's behavior when opening a file while another "
+             "is already open.")
+        
         _add(PG.PropertyCategory("Miscellaneous"))
         _add(PG.BoolProperty("Show Full Path in Title Bar", "showFullPath"),
              UseCheckbox=True)
         _add(PG.BoolProperty("Display 'Open' Dialog on Startup", "openOnStart"), 
              UseCheckbox=True )
-        _add(PG.EnumProperty("When opening another file:", "openAnotherFile",
-                             ("Close previous file","Open in new window", "Ask")),
-             "The application's behavior when opening a file while another "
-             "is already open.")
         _add(PG.IntProperty("X Axis Value Precision", "precisionX", value=4))
         _add(PG.IntProperty("Y Axis Value Precision", "precisionY", value=4))
         _add(PG.EnumProperty("Locale", "locale", self.LANG_LABELS))
@@ -597,6 +605,10 @@ class PrefsDialog(SC.SizedDialog):
         # want to change this without clearing all other 'ask' settings.
         openAnother = prefs.get("ask.openInSameWindow", 2)
         prefs['openAnotherFile'] = {wx.ID_YES: 0, wx.ID_NO: 1}.get(openAnother, 2)
+        
+        # YA special case: loader prefs
+        loaderPrefs = prefs.get('loader', {})
+        prefs['loader_minCount'] = loaderPrefs.get('minCount', 500000)
         
         self.pg.SetPropertyValues(prefs)
 
@@ -641,6 +653,10 @@ class PrefsDialog(SC.SizedDialog):
         else:
             result["ask.openInSameWindow"] = (wx.ID_YES, wx.ID_NO)[openAnother]
 
+        loaderMinCount = result.pop('loader_minCount', None)
+        if loaderMinCount is not None:
+            result.setdefault('loader', {})['minCount'] = loaderMinCount
+
         return result
 
 
@@ -680,4 +696,5 @@ if __name__ == "__main__":
     app = wx.App()
     d = PrefsDialog(None, -1, "Prefs Test", defaultPrefs={'updater.lastCheck': time.time()})
     d.ShowModal()
-    app.MainLoop()
+    print d.getChangedPrefs()
+#     app.MainLoop()

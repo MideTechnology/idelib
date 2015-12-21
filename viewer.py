@@ -43,7 +43,7 @@ import os
 import time
 
 import wx
-from wx.lib.rcsizer import RowColSizer
+from wx.lib.rcsizer import RowColSizer #@UnresolvedImport - not sure why
 from wx.lib.wordwrap import wordwrap
 
 # Graphics (icons, etc.)

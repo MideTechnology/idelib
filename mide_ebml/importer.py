@@ -517,9 +517,10 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             # TODO: Handle other cases of empty IOError (lots in python-ebml)
             doc.fileDamaged = True
         else:
-            updater(error=e)
+            updater(error=e, done=True)
         
     doc.loading = False
+    updater(done=True)
     return eventsRead
 
 #===============================================================================
