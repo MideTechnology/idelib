@@ -356,6 +356,9 @@ class Preferences(object):
     def __setitem__(self, k, v):
         return self.setPref(k,v)
     
+    def __iter__(self, *args, **kwargs):
+        return self.prefs.__iter__(*args, **kwargs)
+    
     def get(self, *args, **kwargs):
         return self.getPref(*args, **kwargs)
     
@@ -384,16 +387,16 @@ class Preferences(object):
                 raise KeyError(args[0])
         p = self.getPref(*args)
         self.deletePref(args[0])
-        return p        
+        return p
+    
+    def popitem(self, *args, **kwargs):
+        return self.prefs.popitem(*args, **kwargs)
     
     def setdefault(self, k, v):
         return self.prefs.setdefault(k,v)
 
     def values(self):
         return self.prefs.values()
-                
-            
-        
     
         
 #===============================================================================
@@ -435,10 +438,8 @@ class PrefsDialog(SC.SizedDialog):
         super(PrefsDialog, self).__init__(*args, **kwargs)
         pane = self.GetContentsPane()
 
-        self.pg = pg = PG.PropertyGrid(pane, 
-                                         style=(PG.PG_SPLITTER_AUTO_CENTER |
-#                                                 PG.PG_AUTO_SORT |
-                                                PG.PG_TOOLBAR))
+        self.pg = pg = PG.PropertyGrid(pane, style=(PG.PG_SPLITTER_AUTO_CENTER |
+                                                    PG.PG_TOOLBAR))
         pg.SetExtraStyle(PG.PG_EX_HELP_AS_TOOLTIPS)
         pg.SetSizerProps(expand=True, proportion=1)
         
@@ -487,8 +488,8 @@ class PrefsDialog(SC.SizedDialog):
         
         self.pg.Append(PG.PropertyCategory("UI Colors"))
         _add(PG.ColourProperty("Plot Background", "plotBgColor"))
-        _add(PG.ColourProperty("Major Gridline", "majorHLineColor"))
-        _add(PG.ColourProperty("Minor Gridlines", "minorHLineColor"))
+        _add(PG.ColourProperty("Major Grid Lines", "majorHLineColor"))
+        _add(PG.ColourProperty("Minor Grid Lines", "minorHLineColor"))
         _add(PG.ColourProperty("Buffer Maximum", "maxRangeColor"),
              "The color of the buffer maximum envelope line, when plotting "
              "one source. This color is set automatically when plotting "
@@ -550,7 +551,7 @@ class PrefsDialog(SC.SizedDialog):
         
         _add(PG.PropertyCategory("Importing"))
         _add(PG.IntProperty("Pre-Plotting Samples", 'loader_minCount'), 
-             "The number of samples to import before doing initial plot. "
+             "The number of samples to import before doing the first plot. "
              "Note: a very large number may cause performance issues when "
              "importing extremely large recordings.",
              Min=0, Max=10000000, Step=50000)

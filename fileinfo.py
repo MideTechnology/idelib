@@ -168,13 +168,25 @@ class RecorderInfoDialog(SC.SizedDialog):
         """
         """
         result = OrderedDict()
-        result['File Damaged'] = str(self.root.fileDamaged)
+        damaged = "True *" if self.root.fileDamaged else "False"
+        if damaged:
+            damaged
+        result['File Type'] = "%s (version %s)" % (self.root.ebmldoc.type, 
+                                                   self.root.ebmldoc.version)
+        result['File Damaged'] = damaged
         result['Number of Sessions'] = str(len(self.root.sessions))
         for s in self.root.sessions:
             t = s.utcStartTime
             if t:
                 td = datetime.fromtimestamp(t)
                 result['Session %d Start (UTC)' % s.sessionId] = td
+        
+        if self.root.fileDamaged:
+            result['_label0'] = ("* Files marked as 'damaged' are typically "
+                                 "the result of the recorder having abruptly "
+                                 "closed the file due to its battery running "
+                                 "down. In such cases, the contents of the "
+                                 "file are usually intact.")
         return result
 
 

@@ -2054,7 +2054,7 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnEditRanges(self, evt):
-        """
+        """ Handle "View->Edit Visible Ranges..." menu events.
         """
         newRanges = RangeDialog.display(self)
         if newRanges is not None:
@@ -2085,7 +2085,7 @@ class Viewer(wx.Frame, MenuMixin):
     
     
     def OnDeviceUpdateFW(self, evt):
-        """
+        """ Handle "Device->Update Recorder Firmware..." menu events.
         """
         warning = self.ask("This operation can harm your device!\n\n"
                            "A failed firmware update attempt can potentially "
@@ -2235,24 +2235,31 @@ class Viewer(wx.Frame, MenuMixin):
         if p is not None:
             p.zoomToFit()
     
+    
     def OnZoomFitAll(self, evt):
         self.OnZoomFitX(evt)
         self.OnZoomFitY(evt)
 
 
     def _postCommandEvent(self, target, evtType, Id):
+        """ Helper method to generate and transmit a ``wx.CommandEvent`` 
+            (i.e. a simulated button press). """
         newEvt = wx.CommandEvent(evtType.typeId, Id)
         newEvt.SetEventObject(self)
         wx.PostEvent(target, newEvt)
+    
         
     def OnZoomInX(self, evt):
         self._postCommandEvent(self.navigator, wx.EVT_BUTTON, wx.ID_ZOOM_IN)
     
+    
     def OnZoomOutX(self, evt):
         self._postCommandEvent(self.navigator, wx.EVT_BUTTON, wx.ID_ZOOM_OUT)
     
+    
     def OnZoomFitX(self, evt):
         self._postCommandEvent(self.navigator, wx.EVT_BUTTON, wx.ID_ZOOM_FIT)
+
 
     def OnToggleAA(self, evt):
         """ Handler for ID_VIEW_ANTIALIAS menu item selection. The method can
@@ -2420,6 +2427,8 @@ class Viewer(wx.Frame, MenuMixin):
 
     
     def OnToolMenuSelection(self, evt):
+        """ Handle the selection of a plug-in 'tool' (utility).
+        """
         tool = self.app.plugins.find(_wxId=evt.GetId())
         if tool:
             tool[0](self)
@@ -2507,6 +2516,7 @@ class Viewer(wx.Frame, MenuMixin):
             return True
         except ValueError:
             return False
+
 
     def getCurrentOperation(self):
         """ Retrieve the currently-running background task.
