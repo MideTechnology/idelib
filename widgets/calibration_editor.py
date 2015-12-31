@@ -223,8 +223,21 @@ class PolyEditDialog(SC.SizedDialog):
     #===========================================================================
     
     def __init__(self, parent, wxId, cal=None, channels=[], transforms={},
-                 polyType=None, changeType=True, changeSource=True, **kwargs):
-        """
+                 polyType=None, changeType=True, changeSource=True, 
+                 savedCal=None, **kwargs):
+        """ Constructor. Standard SizedDialog arguments, plus:
+        
+            @keyword cal: The transform to edit.
+            @keyword channels: A list of Channels, for determining users and
+                bivariate references.
+            @keyword transforms: A dictionary of other transforms, mainly to
+                detect and prevent circular references.
+            @keyword polyType: The polynomial type, if creating a new one. 
+            @keyword changeType: If `True`, the polynomial type can be changed.
+            @keyword changeSource: If `True`, the bivariate channel/subchannel
+                can be changed.
+            @keyword savedCal: The original transform from the original 
+                recording or factory calibration.
         """
         self.cal = cal
         self.channels = channels
@@ -232,6 +245,7 @@ class PolyEditDialog(SC.SizedDialog):
         self.changeType = changeType
         self.prevType = None
         self.originalCal = None
+        self.savedCal = savedCal
         
         self.calSubchannel = None
 
@@ -274,7 +288,23 @@ class PolyEditDialog(SC.SizedDialog):
             self.uniBtn.SetValue(True)
             self._showField(self.sourceList, False)
         
-        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
+#         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
+
+        # This stuff is just to create non-standard buttons, right aligned,
+        # with a gap. It really should not be this hard to do. This approach is
+        # probably not optimal or properly cross-platform.
+        SC.SizedPanel(self.GetContentsPane(), -1, size=(8,8))
+        buttonpane = SC.SizedPanel(self.GetContentsPane(), -1)
+        buttonpane.SetSizerType("horizontal")
+        SC.SizedPanel(buttonpane, -1).SetSizerProps(expand=True, halign='right', proportion=1)
+        revertBtn = wx.Button(buttonpane, wx.ID_REVERT, "Revert")
+        wx.Button(buttonpane, wx.ID_OK)
+        wx.Button(buttonpane, wx.ID_CANCEL)
+        buttonpane.SetSizerProps(expand=True, halign='right')
+        
+        if self.savedCal is None:
+            revertBtn.Hide()
+        
         self.Fit()
         s = self.GetSize()
         self.SetMinSize(s)
@@ -282,14 +312,7 @@ class PolyEditDialog(SC.SizedDialog):
         self.SetMaxSize((-1, s[1]))
         
         self.Bind(wx.EVT_BUTTON, self.onCancel, id=wx.ID_CANCEL)
-
-
-    def onCancel(self, evt):
-        """ Handle dialog cancel.
-        """
-        # Reset `self.cal` to the original (no changes)
-        self.cal = self.originalCal
-        evt.Skip()
+        self.Bind(wx.EVT_BUTTON, self.onRevert, id=wx.ID_REVERT)
 
 
     def buildUI(self):
@@ -312,7 +335,10 @@ class PolyEditDialog(SC.SizedDialog):
             self.calId = self.cal.id
             self.calLabel = '%d' % self.calId
         
-        self.pane = self.GetContentsPane()
+#         self.pane = self.GetContentsPane()
+        cp = self.GetContentsPane()
+        self.pane = SC.SizedPanel(cp, -1)
+        self.pane.SetSizerProps(expand=True)
         self.pane.SetSizerType("form")
         
         self.typeTxt = wx.StaticText(self.pane, -1, "Polynomial Type:")
@@ -388,6 +414,25 @@ class PolyEditDialog(SC.SizedDialog):
         self.prevType = self.polyType
         for field in (self.coeffField, self.refField):
             self.updatePoly(field.GetValidator().manualValidate(field, quiet=True))
+        
+
+    def onCancel(self, evt):
+        """ Handle dialog cancel.
+        """
+        # Reset `self.cal` to the original (no changes)
+        self.cal = self.originalCal
+        evt.Skip()
+
+    
+    def onRevert(self, evt):
+        """ Handle reverting to saved.
+        """
+        if self.savedCal is None:
+            return
+        self.cal = self.savedCal.copy()
+        self.coeffField.SetValue('\n'.join(map(str, self.cal.coefficients)))
+        self.refField.SetValue('\n'.join(map(str, self.cal.references)))
+        self.updateUI()
         
 
     def OnLoseFocus(self, evt):
