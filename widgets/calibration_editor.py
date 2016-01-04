@@ -5,6 +5,7 @@ import wx
 import wx.lib.sized_controls as SC
 
 from mide_ebml.calibration import Transform, Univariate, Bivariate
+# from config_dialog.ssx import CalibrationConfigPanel 
 
 #===============================================================================
 # 
@@ -141,18 +142,9 @@ class PolyEditDialog(SC.SizedDialog):
     # labels and warning icons.
     #===========================================================================
     
-    def _addsubpane(self):
-        # Helper helper. Don't use directly.
-        subpane = SC.SizedPanel(self.pane, -1)
-        subpane.SetSizerType("horizontal")
-        subpane.SetSizerProps(expand=True)
-        return subpane
-        
-        
     def _addfield(self, label, default=None, lines=1, **kwargs):
         """ Helper method to add a text field. """
         if isinstance(default, (list, tuple)):
-#             lines = lines if lines == 1 else len(default)
             default = '\n'.join(map(str, default))
         else:
             default = str(default)
@@ -162,7 +154,9 @@ class PolyEditDialog(SC.SizedDialog):
                                | wx.TE_MULTILINE | wx.TE_PROCESS_ENTER)
             kwargs['size'] = (-1, (self.lineHeight * lines)+self.FIELD_PAD)
         txt = wx.StaticText(self.pane, -1, label)
-        subpane = self._addsubpane()
+        subpane = SC.SizedPanel(self.pane, -1)
+        subpane.SetSizerType("horizontal")
+        subpane.SetSizerProps(expand=True)
         t = wx.TextCtrl(subpane, -1, unicode(default), **kwargs)
         t.SetSizerProps(expand=True, proportion=1)
         icon = wx.StaticBitmap(subpane, -1, self.noBmp)
@@ -177,7 +171,9 @@ class PolyEditDialog(SC.SizedDialog):
         # Very possibly overkill, since there's only one Choice field (for now)
         txt = wx.StaticText(self.pane, -1, label)
         txt.SetSizerProps(valign="center")
-        subpane = self._addsubpane()
+        subpane = SC.SizedPanel(self.pane, -1)
+        subpane.SetSizerType("horizontal")
+        subpane.SetSizerProps(expand=True)
         c = wx.Choice(subpane, -1, choices=items, **kwargs)
         c.SetSizerProps(expand=True, proportion=1)
         if selected is not None:
@@ -288,12 +284,13 @@ class PolyEditDialog(SC.SizedDialog):
             self.uniBtn.SetValue(True)
             self._showField(self.sourceList, False)
         
+        # Old version: uses standard buttons (and can't use any others)
 #         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
 
         # This stuff is just to create non-standard buttons, right aligned,
         # with a gap. It really should not be this hard to do. This approach is
         # probably not optimal or properly cross-platform.
-        SC.SizedPanel(self.GetContentsPane(), -1, size=(8,8))
+        SC.SizedPanel(self.GetContentsPane(), -1, size=(8,self.FIELD_PAD))
         buttonpane = SC.SizedPanel(self.GetContentsPane(), -1)
         buttonpane.SetSizerType("horizontal")
         SC.SizedPanel(buttonpane, -1).SetSizerProps(expand=True, halign='right', proportion=1)
@@ -334,8 +331,9 @@ class PolyEditDialog(SC.SizedDialog):
         else:
             self.calId = self.cal.id
             self.calLabel = '%d' % self.calId
-        
-#         self.pane = self.GetContentsPane()
+
+        # Controls are in a child panel, so they can use 'form' layout, while
+        # the buttons at the bottom (no longer a ButtonSizer) don't.        
         cp = self.GetContentsPane()
         self.pane = SC.SizedPanel(cp, -1)
         self.pane.SetSizerProps(expand=True)
@@ -343,7 +341,9 @@ class PolyEditDialog(SC.SizedDialog):
         
         self.typeTxt = wx.StaticText(self.pane, -1, "Polynomial Type:")
         self.lineHeight = self.typeTxt.GetTextExtent("yY")[1] 
-        subpane = self._addsubpane()
+        subpane = SC.SizedPanel(self.pane, -1)
+        subpane.SetSizerType("horizontal")
+        subpane.SetSizerProps(expand=True)
         self.uniBtn = wx.RadioButton(subpane, self.ID_UNIVARIATE, "Univariate")
         self.biBtn = wx.RadioButton(subpane, self.ID_BIVARIATE, "Bivariate")
         
@@ -503,6 +503,12 @@ class PolyEditDialog(SC.SizedDialog):
         else:
             self.polyType = Bivariate
         self.updateUI()
+
+#===============================================================================
+# 
+#===============================================================================
+
+
 
 
 #===============================================================================

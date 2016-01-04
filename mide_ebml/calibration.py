@@ -407,7 +407,8 @@ class Bivariate(Univariate):
                 ('(0+', '('), ('(0.0+', '('), ('(0-', '(-'), ('(0.0-', '(-'),
                 ('(0*x', '(0'), ('(0.0*x', '(0'), ('(0*y', '(0'), ('(0.0*y', '(0'),
                 ('(0*x*y)+', ''), ('(0*x)+', ''), ('(0*y)+', ''),
-                ('(0)', ''), ('()', ''), ('(1)','1'),
+                ('(0)', ''), ('(0.0)', ''), ('()', ''), 
+                ('(1)','1.0'), ('(1.0)','1.0'),
                 ("(1*", "("), ("(1.0*", "("), ("(x)", "x"), ("(y)", "y"),
                 ("--", "+"), ("-+", "-"), ("+-", "-"), ("++", "+")
             )
@@ -435,7 +436,11 @@ class Bivariate(Univariate):
         if reference2 != 0:
             varNames[1] = "(y-%s)" % reference2
         self._str = self._fixSums(self._str)
-        self._str = self._streplace(self._str, ("x","\x00"), ("y", varNames[1]), ("\x00", varNames[0]))
+        
+        # Replace standard variable names with custom ones. Change one to 
+        # a stand-in first, to prevent problems if one name contains the other.
+        self._str = self._streplace(self._str, ("x","\x00"), 
+                                    ("y", varNames[1]), ("\x00", varNames[0]))
 
         # Optimizations: Build a simplified expression for function.
         # 1. Remove multiples of 0 and 1, addition of 0 constants.
@@ -447,13 +452,11 @@ class Bivariate(Univariate):
             if references[i] != 0:
                 src = src.replace(v, "(%s-%s)" % (v, references[i]))  
         
-        # 3. Make sure the result is floating point. Also handles the edge-case
-        # of all-zero coefficients (shouldn't exist, but could).
-#         if '.' not in src:
-#             src = "+".join([src, "0.0"])
-        
-        # 4. Do the reduction again, now that the offsets are in.
+        # 3. Do the reduction again, now that the offsets are in.
         src = self._reduce(src)    
+        if not src:
+            logger.warning("Bad polynomial coefficients {}".format(self._coeffs))
+            src = "x"
         
         self._source = 'lambda x,y: %s' % self._fixSums(src)
         self._function = eval(self._source, {'math': math})
