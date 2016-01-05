@@ -186,6 +186,7 @@ class Univariate(Transform):
     
     @classmethod
     def _streplace(cls, s, *args):
+        " Helper method to replace multiple substrings. "
         for old,new in args:
             s = s.replace(old, new)
         return s
@@ -197,7 +198,7 @@ class Univariate(Transform):
         result = str(s)
         for old, new in (("--", "+"), ("-+", "-"), ("+-", "-"), ("++", "+")):
             result = result.replace(old, new)
-        return result
+        return result.lstrip('+')
     
     
     def __init__(self, coeffs, calId=None, dataset=None, reference=0, 
@@ -329,6 +330,7 @@ class Univariate(Transform):
                             ('CalReferenceValue', self._references[0]),
                             ('PolynomialCoef', self._coeffs)))
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -389,6 +391,8 @@ class Bivariate(Univariate):
     def copy(self):
         """ Create a duplicate of this Transform.
         """
+        # This could be optimized by circumventing the polynomial rebuild,
+        # and instead using the already-generated source.
         return self.__class__(self._coeffs, dataset=self.dataset, 
                channelId=self.channelId, subchannelId=self.subchannelId, 
                reference=self._references[0], reference2=self._references[1], 
@@ -405,8 +409,10 @@ class Bivariate(Univariate):
             old = src
             src = cls._streplace(src, 
                 ('(0+', '('), ('(0.0+', '('), ('(0-', '(-'), ('(0.0-', '(-'),
-                ('(0*x', '(0'), ('(0.0*x', '(0'), ('(0*y', '(0'), ('(0.0*y', '(0'),
+                ('(0*x', '(0'), ('(0.0*x', '(0'), 
+                ('(0*y', '(0'), ('(0.0*y', '(0'),
                 ('(0*x*y)+', ''), ('(0*x)+', ''), ('(0*y)+', ''),
+                ('*)', ')'), ('+)', ')'), 
                 ('(0)', ''), ('(0.0)', ''), ('()', ''), 
                 ('(1)','1.0'), ('(1.0)','1.0'),
                 ("(1*", "("), ("(1.0*", "("), ("(x)", "x"), ("(y)", "y"),
@@ -469,8 +475,7 @@ class Bivariate(Univariate):
     def __call__(self, event, session=None):
         """ Apply the polynomial to an event. 
         
-            @param event: The event to process (a time/value tuple or a
-                `Dataset.Event` named tuple).
+            @param event: The event to process (a time/value tuple).
             @keyword session: The session containing the event.
         """
         session = self.dataset.lastSession if session is None else session
@@ -507,6 +512,7 @@ class Bivariate(Univariate):
         cal['BivariateChannelIDRef'] = self.channelId
         cal['BivariateSubChannelIDRef'] = self.subchannelId
         return cal
+
 
 #===============================================================================
 # 

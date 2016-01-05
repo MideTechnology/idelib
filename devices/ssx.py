@@ -477,14 +477,15 @@ class SlamStickX(Recorder):
         return self._userCalDict
 
 
-    def getUserCalPolynomials(self, refresh=False):
+    def getUserCalPolynomials(self, filename=None, refresh=False):
         """ Get the recorder's user-defined calibration data as a dictionary
             of `mide_ebml.transforms.Transform` subclass objects.
         """
-        if self.userCalFile is None or not os.path.exists(self.userCalFile):
+        filename = self.userCalFile if filename is None else filename
+        if filename is None or not os.path.exists(filename):
             return None
         if self._userCalPolys is None or refresh:
-            with open(self.userCalFile, 'rb') as f:
+            with open(filename, 'rb') as f:
                 self._userCalPolys = self._parsePolynomials(f)
         return self._userCalPolys
         

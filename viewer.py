@@ -67,6 +67,7 @@ from renders.renderplot import PlotView
 import updater
 from widgets import debugging #@UnusedImport
 from widgets import export_dialog as xd
+from widgets import live_calibration
 from widgets.shared import StatusBar
 from widgets.device_dialog import selectDevice
 from widgets.memorydialog import MemoryDialog
@@ -673,6 +674,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_DISPLAY = wx.NewId()
     ID_DATA_DISPLAY_NATIVE = wx.NewId()
     ID_DATA_DISPLAY_CONFIG = wx.NewId()
+    ID_DATA_EDIT_CAL = wx.NewId()
     ID_TOOLS = wx.NewId()
     ID_HELP_CHECK_UPDATES = wx.NewId()
     ID_HELP_FEEDBACK = wx.NewId()
@@ -941,6 +943,10 @@ class Viewer(wx.Frame, MenuMixin):
                          "Native Units", "", self.OnConversionPicked, 
                          kind=wx.ITEM_RADIO)
         
+        self.addMenuItem(dataMenu, self.ID_DATA_EDIT_CAL, 
+                         "Edit Calibration Polynomials...", "", 
+                         self.OnEditCalibration)
+        
         dataMenu.AppendSeparator()
         self.viewWarningsMenu = self.addSubMenu(dataMenu, self.ID_DATA_WARNINGS,
                           "Display Range Warnings")
@@ -1089,6 +1095,9 @@ class Viewer(wx.Frame, MenuMixin):
             self.enableMenuItems(self.menubar, menus, True, False)
         else:
             self.enableMenuItems(self.menubar, enable=True)
+            if self.dataset:
+                enableCal = len(self.dataset.transforms) > 0
+                self.setMenuItem(self.menubar, self.ID_DATA_EDIT_CAL, enabled=enableCal)
     
         # Some items should always be disabled unless explicitly enabled
         alwaysDisabled = (wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE, 
@@ -2425,6 +2434,14 @@ class Viewer(wx.Frame, MenuMixin):
                 p.setUnitConverter(conv)
         self.updateConversionMenu(activePage)
 
+
+    def OnEditCalibration(self, evt):
+        """ Handle Data->Edit Calibration Polynomials menu item selection.
+        """
+        changed = live_calibration.editCalibration(self)
+        if changed:
+            self.plotarea.redraw(force=True)
+        
     
     def OnToolMenuSelection(self, evt):
         """ Handle the selection of a plug-in 'tool' (utility).

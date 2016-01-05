@@ -63,6 +63,7 @@ class ConfigDialog(SC.SizedDialog):
     ICON_WARN = 1
     ICON_ERROR = 2
     
+    FIELD_PAD = 8
     
     def __init__(self, *args, **kwargs):
         self.device = kwargs.pop('device', None)
@@ -116,6 +117,11 @@ class ConfigDialog(SC.SizedDialog):
         
         self.notebook.SetSizerProps(expand=True, proportion=-1)
 
+        # This stuff is just to create non-standard buttons, right aligned,
+        # with a gap. It really should not be this hard to do. This approach is
+        # probably not optimal or properly cross-platform.
+        SC.SizedPanel(self.GetContentsPane(), -1, size=(8,self.FIELD_PAD))
+        
         buttonpane = SC.SizedPanel(pane, -1)
         buttonpane.SetSizerType("horizontal")
         buttonpane.SetSizerProps(expand=True)

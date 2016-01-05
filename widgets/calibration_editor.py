@@ -5,7 +5,6 @@ import wx
 import wx.lib.sized_controls as SC
 
 from mide_ebml.calibration import Transform, Univariate, Bivariate
-# from config_dialog.ssx import CalibrationConfigPanel 
 
 #===============================================================================
 # 

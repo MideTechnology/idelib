@@ -640,6 +640,7 @@ class CalibrationPanel(InfoPanel):
         self.calSerial = calSerial
         self.calDate = calDate
         self.calExpiry = calExpiry
+        self.channels = channels
         self.initialized = False
         
         # dictionaries to map calibration IDs to/from the Edit/Revert buttons
@@ -663,8 +664,9 @@ class CalibrationPanel(InfoPanel):
 #             else:
 #                 self.info = []
 
-
-        self.channels = self.root.device.getChannels()
+        if self.channels is None:
+            self.channels = self.root.device.getChannels()
+            
         self.info.sort(key=lambda x: x.id)
         
     
@@ -701,7 +703,10 @@ class CalibrationPanel(InfoPanel):
         
         def _usesCal(cal, ch):
             # Helper function to determine users of a transform
-            return ch.transform == cal.id or ch.transform == cal
+            try:
+                return ch.transform == cal.id or ch.transform.id == cal.id
+            except AttributeError:# as err:
+                return False
         
         def _chName(ch):
             # Helper function to pretty-print (Sub)Channel names
@@ -748,8 +753,8 @@ class CalibrationPanel(InfoPanel):
                 if _usesCal(cal, ch):
                     users.append(_chName(ch))
                 users.extend([_chName(subch) for subch in ch.subchannels if _usesCal(cal, subch)])
-            if len(users) == 0:
-                continue
+#             if len(users) == 0:
+#                 continue
             
             l = ("<p><b>Calibration ID %d (Used by %s)</b>" % (cal.id, '; '.join(users)))
             if self.editable:
@@ -792,11 +797,12 @@ class EditableCalibrationPanel(wx.Panel):
     # TODO: Refactor this as the only Calibration panel and use only it.
     def __init__(self, parent, id_, calSerial=None, calDate=None, 
                  calExpiry=None, editable=False, info={}, root=None,
-                 factoryCal=None, **kwargs):
+                 factoryCal=None, channels=None, **kwargs):
         self.editable = editable
         self.calSerial = calSerial
         self.calDate = calDate
         self.calExpiry = calExpiry
+        self.channels = channels
         
         self.tabIcon = None
         self.originalCal = info
@@ -815,7 +821,7 @@ class EditableCalibrationPanel(wx.Panel):
         self.html = CalibrationPanel(self, -1, calSerial=self.calSerial, 
                                      calDate=self.calDate, calExpiry=None, 
                                      editable=self.editable, info=self.info, 
-                                     root=self.root)
+                                     root=self.root, channels=self.channels)
         sizer.Add(self.html, 1, wx.EXPAND | wx.ALL)
         self.Bind(wx.EVT_BUTTON, self.OnButtonEvt)
         
@@ -844,8 +850,9 @@ class EditableCalibrationPanel(wx.Panel):
             but = wx.FindWindowById(wxid)
             try:
                 but.Enable(not self.info[calid] == self.factoryCal[calid])
+            except AttributeError:
+                pass
             except:
-                print "Except"
                 but.Enable(False)
 
 
@@ -996,31 +1003,6 @@ class ChannelConfigPanel(BaseConfigPanel):
             self.dcSampRate.Enable(True)
 
 
-
-#===============================================================================
-# 
-#===============================================================================
-
-class CalibrationConfigPanel(BaseConfigPanel):
-    """
-    """
-    def buildUI(self):
-        """ Create the UI elements within the page. Every subclass should
-            implement this. Called after __init__() and before initUI().
-        """
-        self.getDeviceData()
-        
-        self.addSpacer()
-        SC.SizedPanel(self, -1).SetSizerProps(proportion=1)
-        SC.SizedPanel(self, -1).SetSizerProps(proportion=1)
-        self.addButton("Reset to Defaults", wx.ID_DEFAULT, self.OnDefaultsBtn, 
-                       "Reset the trigger configuration to the default values. "
-                       "Does not change other tabs.")
-    
-    
-    def OnDefaultsBtn(self, evt):
-        pass
-    
 
 #===============================================================================
 # 
