@@ -365,6 +365,9 @@ class PolyEditDialog(SC.SizedDialog):
         pLbl, self.polyText = self._addfield("Polynomial", style=wx.TE_READONLY)
         pLbl.SetSizerProps(valign="center")
 
+        rLbl, self.reducedText = self._addfield("Reduced Form", style=wx.TE_READONLY)
+        rLbl.SetSizerProps(valign="center")
+
         # Bind loss of focus to auto-validate fields on the fly.
         self.coeffField.Bind(wx.EVT_KILL_FOCUS, self.OnLoseFocus)
         self.refField.Bind(wx.EVT_KILL_FOCUS, self.OnLoseFocus)
@@ -447,6 +450,7 @@ class PolyEditDialog(SC.SizedDialog):
         """
         if not valid or self.cal is None:
             self.polyText.SetValue("")
+            self.reducedText.SetValue("")
             return
         
         try:
@@ -455,6 +459,7 @@ class PolyEditDialog(SC.SizedDialog):
             self.cal.coefficients = coeffs
             self.cal.references = refs
             self.polyText.SetValue(str(self.cal))
+            self.reducedText.SetValue(self.cal.source.split()[-1])
             if self.polyType == Bivariate:
                 idx = self.sourceList.GetSelection()
                 if idx != wx.NOT_FOUND:
@@ -462,8 +467,9 @@ class PolyEditDialog(SC.SizedDialog):
                     self.cal.channelId = source.parent.id
                     self.cal.subchannelId = source.id
             return True
-        except (ValueError, TypeError):
+        except (ValueError, TypeError, IndexError):
             self.polyText.SetValue("")
+            self.reducedText.SetValue("")
             return False
 
 

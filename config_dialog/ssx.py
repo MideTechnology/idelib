@@ -635,12 +635,14 @@ class CalibrationPanel(InfoPanel):
     ID_CREATE_CAL = wx.NewId()
     
     def __init__(self, parent, id_, calSerial=None, calDate=None, 
-                 calExpiry=None, channels=None, editable=False, **kwargs):
+                 calExpiry=None, channels=None, editable=False, 
+                 hideUnused=True, **kwargs):
         self.editable = editable
         self.calSerial = calSerial
         self.calDate = calDate
         self.calExpiry = calExpiry
         self.channels = channels
+        self.hideUnused = hideUnused
         self.initialized = False
         
         # dictionaries to map calibration IDs to/from the Edit/Revert buttons
@@ -753,8 +755,14 @@ class CalibrationPanel(InfoPanel):
                 if _usesCal(cal, ch):
                     users.append(_chName(ch))
                 users.extend([_chName(subch) for subch in ch.subchannels if _usesCal(cal, subch)])
-#             if len(users) == 0:
-#                 continue
+            
+            if len(users) == 0:
+                # Only show polynomials used by channels if explicitly told to.
+                if self.hideUnused:
+                    continue
+                else:
+                    users = ["None"]
+                
             
             l = ("<p><b>Calibration ID %d (Used by %s)</b>" % (cal.id, '; '.join(users)))
             if self.editable:
@@ -795,6 +803,7 @@ class EditableCalibrationPanel(wx.Panel):
         HtmlWindow containing them).
     """
     # TODO: Refactor this as the only Calibration panel and use only it.
+    # Having them separate is a hack done for expedience.
     def __init__(self, parent, id_, calSerial=None, calDate=None, 
                  calExpiry=None, editable=False, info={}, root=None,
                  factoryCal=None, channels=None, **kwargs):
@@ -867,9 +876,11 @@ class EditableCalibrationPanel(wx.Panel):
         elif evtId in self.html.calIds:
             # Edit a polynomial
             cal = self.html.calIds[evtId]
+            savedCal = self.factoryCal[cal.id]
             dlg = PolyEditDialog(self, -1, transforms=self.info,
                                  channels=self.html.channels, cal=cal, 
-                                 changeSource=False, changeType=False)
+                                 changeSource=False, changeType=False,
+                                 savedCal=savedCal)
             if dlg.ShowModal() == wx.ID_OK:
                 self.info[dlg.cal.id] = dlg.cal
                 self.updateCalDisplay()
