@@ -138,9 +138,13 @@ class Transformable(Cascading):
         
         
     def _updateXformIds(self):
+        xform = self.transform
         if isinstance(self.transform, int):
-            self.transform = self.dataset.transforms.get(self.transform, 
-                                                         None)
+            xform = self.dataset.transforms.get(xform, None)
+        elif isinstance(self.transform, Transform):
+            xform = self.dataset.transforms.get(xform.id, xform)
+        self.transform = xform
+
 
     def updateTransforms(self):
         """

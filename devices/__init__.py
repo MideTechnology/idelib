@@ -19,7 +19,7 @@ from classic import SlamStickClassic
 # 
 #===============================================================================
 
-RECORDER_TYPES = (SlamStickClassic, SlamStickC, SlamStickX)
+RECORDER_TYPES = [SlamStickClassic, SlamStickC, SlamStickX]
 
 
 #===============================================================================
@@ -97,6 +97,19 @@ def onRecorder(path):
     return False
 
 
+def fromRecording(doc):
+    """ Create a 'virtual' recorder from the data contained in a recording
+        file.
+    """
+    productName = doc.recorderInfo.get('ProductName', 'Slam Stick X')
+    recType = SlamStickX
+    for rec in RECORDER_TYPES:
+        if rec.baseName in productName:
+            recType = rec
+            break
+    return recType.fromRecording(doc)
+    
+    
 #===============================================================================
 # 
 #===============================================================================

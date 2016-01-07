@@ -284,3 +284,9 @@ class SlamStickClassic(Recorder):
             return None
         return sorted(c.subchannels, key=lambda x: x.displayName)
     
+    
+    @classmethod
+    def fromRecording(cls, self):
+        raise TypeError("Cannot create virtual Classic recorder.")
+        
+    

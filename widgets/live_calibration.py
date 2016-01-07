@@ -1,7 +1,10 @@
 '''
-Module widgets.live_calibration
+UI for editing 'live' calibration, i.e. the calibration used in the currently
+open recording.
 
 Created on Jan 5, 2016
+
+@todo: Generalize hooks into Slam Stick X configuration code.
 '''
 
 __author__ = "dstokes"
@@ -13,7 +16,8 @@ import wx
 import wx.lib.sized_controls as SC
 
 from config_dialog.ssx import EditableCalibrationPanel
-from devices import SlamStickX
+from devices import fromRecording
+from logger import logger
 from mide_ebml.ebml.schema.mide import MideDocument
 from mide_ebml.parsers import CalibrationListParser
 
@@ -40,7 +44,7 @@ class LiveCalibrationDialog(SC.SizedDialog):
     def __init__(self, *args, **kwargs):
         self.root = kwargs.pop('root', None)
         self.doc = self.root.dataset
-        self.dev = SlamStickX.fromRecording(self.doc)
+        self.dev = fromRecording(self.doc)
         kwargs.setdefault("style", (wx.DEFAULT_DIALOG_STYLE | \
                                     wx.RESIZE_BORDER | \
                                     wx.MAXIMIZE_BOX | \
@@ -87,7 +91,7 @@ class LiveCalibrationDialog(SC.SizedDialog):
         self.SetSize((560,560))
     
     
-    def importCal(self, evt=None):
+    def _importCal(self, evt=None):
         """
         """
         # The keyword arguments used by the error dialog, defined once to
@@ -151,7 +155,72 @@ class LiveCalibrationDialog(SC.SizedDialog):
                 
         dlg.Destroy()
         
-    
+
+    def importCal(self, evt=None):
+        """ Handle the 'Import' button being pressed.
+        """
+        # Created once, used multiple times later.
+        dlg = wx.FileDialog(self, wildcard=self.IMPORT_TYPES,
+                            message="Choose a file containing calibration data",
+                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+        
+        # Keep prompting the user until they either successfully load cal data,
+        # or they cancel.
+        while True:
+            filename = None
+            basename = None
+            errMsg = None
+            try:
+                d = dlg.ShowModal()
+                if d != wx.ID_OK:
+                    # Cancel.
+                    break
+
+                filename = dlg.GetPath()
+                basename = os.path.basename(filename)
+                cal = readCal(filename)
+                
+                # Catch the expected issues.
+                if not cal:
+                    errMsg = ("The specified file contained no usable "
+                              "calibration data.")
+                elif sorted(cal.keys()) != sorted(self.calList.info.keys()):
+                    errMsg = ("Calibration IDs in the specified file "
+                           "do not match those in this recording.")
+                    if filename.lower().endswith('.ide'):
+                        errMsg += ("\n\nThe file may have been recorded by a "
+                                "device with a different firmware version.")
+                        
+                # Everything seems good so far.
+                else:
+                    self.calList.info = cal
+                    self.calList.updateCalDisplay()
+                    break
+
+            except (KeyError, ValueError, AttributeError, IOError) as err:
+                # An unexpected error.
+                # TODO: Differentiate exception handling, if too generic.
+                logger.error("%s: %s" % (err.__class__.__name, err.message))
+                errMsg = ("The specified file may be damaged, or may contain "
+                          "no usable calibration data.")
+            
+            # If there's an error message, display it.
+            if errMsg is not None:
+                if basename:
+                    basename = "'%s'" % basename
+                else:
+                    basename = "the specified file"
+                errMsg = ("Could not import calibration data from %s\n\n%s" % \
+                          (basename, errMsg))
+                mb = wx.MessageBox(errMsg, parent=self, 
+                                   caption='Calibration Import Error', 
+                                   style=wx.OK|wx.CANCEL|wx.ICON_EXCLAMATION)
+                if mb == wx.CANCEL:
+                    break
+                
+        dlg.Destroy()
+        
+          
     def exportCal(self, evt=None):
         """
         """
@@ -190,6 +259,48 @@ class LiveCalibrationDialog(SC.SizedDialog):
 # 
 #===============================================================================
 
+# TODO: Move this somewhere better, since it may be used by other things.
+def readCal(filename):
+    """
+    """
+    cal = None
+    with open(filename, 'rb') as f:
+        doc = MideDocument(f)
+        for el in doc.iterroots():
+            if el.name == "CalibrationList":
+                cal = CalibrationListParser(None).parse(el)
+                if cal:
+                    cal = {p.id: p for p in cal if p is not None}
+                break
+            if 'ChannelDataBlock' in el.name:
+                break
+    return cal
+
+
+# TODO: Move this into the main viewer, to auto-import calibration files if one
+# matches the IDE file being imported.
+def importCal(self, dataset, filename):
+    """ Load a calibration file 
+    """
+    cal = readCal(filename)
+            
+    if not cal:
+        raise ValueError("The file contained no usable calibration data.")
+    elif sorted(cal.keys()) != sorted(dataset.transforms.keys()):
+        raise KeyError("Calibration IDs in the specified file "
+                       "do not match those in this recording.")
+        
+    if not hasattr(dataset, 'originalTransforms'):
+        dataset.originalTransforms = {c.id: c.copy() for c in dataset.transforms.values()}
+    
+    dataset.transforms = cal
+    dataset.updateTransforms()
+
+
+#===============================================================================
+# 
+#===============================================================================
+
 def editCalibration(root):
     """ Launch the 'live' calibration editing dialog.
     
@@ -201,12 +312,14 @@ def editCalibration(root):
     dlg = LiveCalibrationDialog(None, -1, root=root)
     if dlg.ShowModal() != wx.ID_CANCEL:
         doc.transforms = dlg.calList.info
-        for ch in doc.channels.values():
-            if ch.transform is not None:
-                ch.setTransform(doc.transforms[ch.transform.id], update=False)
-            for subch in ch.subchannels:
-                if subch.transform is not None:
-                    subch.setTransform(doc.transforms[subch.transform.id], update=False)
+        # Changed dataset.Transformable to re-apply calibration from the
+        # transforms dictionary. That replaces this:
+#         for ch in doc.channels.values():
+#             if ch.transform is not None:
+#                 ch.setTransform(doc.transforms[ch.transform.id], update=False)
+#             for subch in ch.subchannels:
+#                 if subch.transform is not None:
+#                     subch.setTransform(doc.transforms[subch.transform.id], update=False)
         doc.updateTransforms()
         changed = True
     dlg.Destroy()
