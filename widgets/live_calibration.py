@@ -238,23 +238,6 @@ class LiveCalibrationDialog(SC.SizedDialog):
         dlg.Destroy()
 
 
-    def importFromRecording(self, filename):
-        """ Read calibration polynomials from an IDE file.
-        """
-        calPolys = None
-        with open(filename, 'rb') as f:
-            doc = MideDocument(f)
-            for el in doc.iterroots():
-                if el.name == "CalibrationList":
-                    calPolys = CalibrationListParser(None).parse(el)
-                    if calPolys:
-                        calPolys = {p.id: p for p in calPolys if p is not None}
-                    break
-                if 'ChannelDataBlock' in el.name:
-                    break
-        return calPolys
-
-
 #===============================================================================
 # 
 #===============================================================================
@@ -274,27 +257,29 @@ def readCal(filename):
                 break
             if 'ChannelDataBlock' in el.name:
                 break
+    
+    # TODO: Identify and convert old numbering? 
     return cal
 
 
-# TODO: Move this into the main viewer, to auto-import calibration files if one
-# matches the IDE file being imported.
-def importCal(self, dataset, filename):
-    """ Load a calibration file 
-    """
-    cal = readCal(filename)
-            
-    if not cal:
-        raise ValueError("The file contained no usable calibration data.")
-    elif sorted(cal.keys()) != sorted(dataset.transforms.keys()):
-        raise KeyError("Calibration IDs in the specified file "
-                       "do not match those in this recording.")
-        
-    if not hasattr(dataset, 'originalTransforms'):
-        dataset.originalTransforms = {c.id: c.copy() for c in dataset.transforms.values()}
-    
-    dataset.transforms = cal
-    dataset.updateTransforms()
+# # TODO: Move this into the main viewer, to auto-import calibration files if one
+# # matches the IDE file being imported.
+# def importCal(dataset, filename):
+#     """ Load a calibration file 
+#     """
+#     cal = readCal(filename)
+#             
+#     if not cal:
+#         raise ValueError("The file contained no usable calibration data.")
+#     elif sorted(cal.keys()) != sorted(dataset.transforms.keys()):
+#         raise KeyError("Calibration IDs in the specified file "
+#                        "do not match those in this recording.")
+#         
+#     if not hasattr(dataset, 'originalTransforms'):
+#         dataset.originalTransforms = {c.id: c.copy() for c in dataset.transforms.values()}
+#     
+#     dataset.transforms = cal
+#     dataset.updateTransforms()
 
 
 #===============================================================================
@@ -312,14 +297,6 @@ def editCalibration(root):
     dlg = LiveCalibrationDialog(None, -1, root=root)
     if dlg.ShowModal() != wx.ID_CANCEL:
         doc.transforms = dlg.calList.info
-        # Changed dataset.Transformable to re-apply calibration from the
-        # transforms dictionary. That replaces this:
-#         for ch in doc.channels.values():
-#             if ch.transform is not None:
-#                 ch.setTransform(doc.transforms[ch.transform.id], update=False)
-#             for subch in ch.subchannels:
-#                 if subch.transform is not None:
-#                     subch.setTransform(doc.transforms[subch.transform.id], update=False)
         doc.updateTransforms()
         changed = True
     dlg.Destroy()

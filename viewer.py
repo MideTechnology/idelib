@@ -10,9 +10,8 @@ from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME
 from build_info import REPO_BRANCH, REPO_COMMIT_ID
 from logger import logger
 
-# VERSION = (1, 0, 0)
 APPNAME = u"Slam\u2022Stick Lab"
-__version__= '.'.join(map(str, VERSION)) #"0.1"
+__version__= '.'.join(map(str, VERSION))
 __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
 if DEBUG or BETA:
@@ -1610,7 +1609,7 @@ class Viewer(wx.Frame, MenuMixin):
                 if self.ask("Abort loading the current file?") != wx.ID_YES:
                     return False
             else:
-                q = self.ask("Do you want to close the current file?\n"
+                q = self.ask("Do you want to close the current file?\n\n"
                              "'No' will open the file in another window.",
                              "Open File",style=wx.YES_NO|wx.CANCEL,
                              pref="openInSameWindow")
@@ -1674,6 +1673,25 @@ class Viewer(wx.Frame, MenuMixin):
                 stream.closeAll()
                 return False
             title = "%s (Session %d)" % (title, self.session.sessionId)
+
+        # Import external calibration file, if it has the same name as the
+        # recording file.
+        # This might have to go before the loader is started.
+        calfile = os.path.splitext(filename)[0] + '.cal'
+        if os.path.exists(calfile):
+            q = self.ask("Import matching calibration file?\n\n"
+                         "This recording has a corresponding calibration file "
+                         "(%s). Do you want to import calibration data from "
+                         "this file, overriding the recording's calibration "
+                         "data?" % os.path.basename(calfile),
+                         title="Import Calibration Data?", pref="autoImportCal")
+            if q == wx.ID_YES:
+                # TODO: Implement calibration auto-importing!
+                logger.info("Importing external calibration file.")
+                self.importCalibration(calfile)
+            else:
+                logger.info("Not importing external calibration file.")
+        
         loader = Loader(self, newDoc, reader, **self.app.getPref('loader'))
         self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(title))
@@ -1685,20 +1703,58 @@ class Viewer(wx.Frame, MenuMixin):
         try:
             if time.time() > newDoc.recorderInfo['CalibrationDate'] + 31536000:
                 self.ask("This file was recorded with expired calibration.",
-                         "Expired Calibration Warning", wx.OK, wx.ICON_INFORMATION,
-                         pref="expiredCal", extendedMessage=\
-                         "The display of values recorded in this file may be inaccurate."
-                         )
+                         "Expired Calibration Warning", 
+                         wx.OK, wx.ICON_INFORMATION, pref="expiredCal", 
+                         extendedMessage="The display of values recorded in "
+                         "this file may be inaccurate.")
         except (TypeError, KeyError, AttributeError):
             pass
         
         self.enableMenus(True)
         return True
-    
+
+
+    def importCalibration(self, filename):
+        """ Import an external calibration file into the current dataset.
+        """
+        calname = os.path.basename(filename)
+        try:
+            cal = live_calibration.readCal(filename)
+                    
+            if not cal:
+                # Either import failed, or there was no calibration data.
+                self.handleError(None, "No calibration data could be read.\n\n"
+                                 "The file '%s' contained no usable/readable "
+                                 "calibration data." % calname)
+                return
+            elif sorted(cal.keys()) != sorted(self.dataset.transforms.keys()):
+                # Calibration ID mismatch.
+                self.handleError(None, "Calibration IDs in the file '%s'"
+                               "do not match those in this recording.\n\n"
+                               "The file may have been exported from a "
+                               "recorder running a different version of the "
+                               "firmware." % calname)
+                return
+                
+            if not hasattr(self.dataset, 'originalTransforms'):
+                self.dataset.originalTransforms = {c.id: c.copy() for c in self.dataset.transforms.values()}
+            
+            self.dataset.transforms = cal
+            self.dataset.updateTransforms()
+            live_calibration.importCal(self.dataset, filename)
+            
+        except IOError as err:
+            # Probably bad/damaged file
+            self.handleError(err, "The file '%s' could not be read.\n\n"
+                             "The file may be damaged, or it may not be a "
+                             "calibration file." % calname)
+        except Exception as err:
+            self.handleError(err, what="importing calibration data.")
+        
     
     def openMultiple(self, filenames, prompt=True):
         """
-            @todo: Add all th schema version checking and error handling
+            @todo: Add all the schema version checking and error handling
                 present in the normal openFile().
         """
         title = "%s - %s (%d files)" % (os.path.basename(filenames[0]), 
@@ -2013,10 +2069,6 @@ class Viewer(wx.Frame, MenuMixin):
     def OnFileOpenMulti(self, evt):
         """
         """
-        # XXX: REMOVE THIS!
-#         if socket.gethostname() == "DEDHAM" and wx.GetKeyState(wx.WXK_SHIFT):
-#             return self.openMultiple(mide_ebml.multi_importer.testFiles)
-        
         importTypes =   "MIDE Data File (*.ide)|*.ide"
 
         defaultDir, _ = self.getDefaultImport()
@@ -2756,6 +2808,8 @@ class Viewer(wx.Frame, MenuMixin):
                 msg = u"An unexpected %s occurred%s" % \
                         (err.__class__.__name__, what)
                 xmsg = unicode(err)
+                if not xmsg:
+                    xmsg = "No further information is available."
 
         # If exceptions are explicitly raised, raise it.
         if raiseException and isinstance(err, Exception):
@@ -2880,7 +2934,6 @@ class ViewerApp(wx.App):
     #===========================================================================
 
     def showBetaWarning(self):
-        # TODO: REMOVE THIS BEFORE RELEASE.
         pref = 'hideBetaWarning_%s' % '.'.join(map(str, VERSION))
         if self.getPref(pref, False, section='ask'):
             return
