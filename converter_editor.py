@@ -42,7 +42,7 @@ class ConverterEditor(SC.SizedDialog):
             elif ptype == int:
                 field = wx.SpinCtrlDouble(pane, fid, value=str(pval),
                           min=prange[0], max=prange[1])
-            # TODO: Other types. Tuple for a list box, etc.
+            # FUTURE: Other types. Tuple for a list box, etc.
             else:
                 field = wx.TextCtrl(pane, fid, str(pdefault))
             field.SetSizerProps(expand=True)
@@ -70,7 +70,7 @@ class ConverterEditor(SC.SizedDialog):
     
     def OnDefaultBtn(self, evt):
         for f, v in self.defaults.items():
-            # TODO: Special handing for other types (lists, etc.)
+            # FUTURE: Special handing for other types (lists, etc.)
             f.SetValue(v)
 
 
@@ -101,9 +101,11 @@ class ConverterEditor(SC.SizedDialog):
         dlg.Destroy()
         return result
             
-        
+#===============================================================================
+# 
+#===============================================================================
 
-# XXX: FOR DEVELOPMENT TESTING. REMOVE ME!
+# FOR DEVELOPMENT TESTING. REMOVE ME!
 if __name__ == '__main__':# or True:
     from mide_ebml.unit_conversion import Pressure2Meters
     

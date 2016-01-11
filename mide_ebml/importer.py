@@ -365,15 +365,6 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
         if defaults is not None:
             createDefaultSensors(doc, defaults)
             
-    # XXX: REMOVE THIS
-    if "ChannelList" in doc.filename:
-        logger.info('Modifying test file transforms...')
-        doc.channels[0].parser = struct.Struct('<HHH')
-        doc.channels[0].setTransform(0, update=False)
-        doc.channels[0][0].setTransform(3, update=False)
-        doc.channels[0][1].setTransform(2, update=False)
-        doc.channels[0][2].setTransform(1, update=False)
-    
     doc.updateTransforms()
     return doc
 
@@ -415,7 +406,6 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             be imported. Kind of a hack, to be redone later.
     """
     
-#     elementParsers = dict([(f.elementName, f(doc)) for f in parserTypes])
     if doc._parsers is None:
         doc._parsers = instantiateParsers(doc, parserTypes)
     
@@ -527,8 +517,8 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
 # 
 #===============================================================================
 
-def estimateLength(filename=testFile, numSamples=50000, channel=0,
-                   parserTypes=elementParserTypes, defaults=DEFAULTS):
+def estimateLength(filename, numSamples=50000, parserTypes=elementParserTypes, 
+                   defaults=DEFAULTS):
     """ Open and read enough of a file to get a rough estimate of its complete
         time range. 
     """

@@ -461,29 +461,10 @@ class Sensor(Cascading):
         self.channels = {}
         self.traceData = traceData
 
-    # XXX: MOVED TO dataset - FIX ALL REFERENCES AND REMOVE THIS
-    def addChannel(self, channelId=None, parser=None, **kwargs):
-        """ Add a Channel to a Sensor. 
-        
-            @param channelId: An unique ID number for the channel.
-            @param parser: The Channel's data parser
-        """
-        if channelId is None or parser is None:
-            raise TypeError("addChannel() requires a channel ID")
-        if parser is None:
-            raise TypeError("addChannel() requires a parser")
-        
-        channelClass = kwargs.pop('channelClass', Channel)
-        
-        if channelId in self.channels:
-            return self.channels[channelId]
-        channel = channelClass(self, channelId, parser, **kwargs)
-        self.channels[channelId] = channel
-        self.dataset.channels[channelId] = channel
-        return channel
 
     def __getitem__(self, idx):
         return self.channels[idx]
+
 
     @property
     def children(self):
@@ -1369,7 +1350,7 @@ class EventList(Transformable):
             
             event = xform((timestamp, value), session=self.session)
             if event is None:
-                logger.info( "XXX: %s: bad transform %r %r" % (self.parent.name,timestamp, value))
+                logger.info( "%s: bad transform %r %r" % (self.parent.name,timestamp, value))
                 sleep(0.001)
                 event = xform((timestamp, value), session=self.session)
                 
@@ -1377,7 +1358,7 @@ class EventList(Transformable):
             if offset is not None:
                 offsetx = xform((timestamp, offset), session=self.session)
                 if offsetx is None:
-                    logger.info( "XXX: %s: bad offset @%s" % (self.parent.name,timestamp))
+                    logger.info( "%s: bad offset @%s" % (self.parent.name,timestamp))
                     sleep(0.001)
                     offsetx = xform((timestamp, offset), session=self.session)
                 event = (timestamp, tuple(numpy.array(event[-1])-offsetx[-1]))
@@ -1518,12 +1499,12 @@ class EventList(Transformable):
             if removeMean:
                 offset = _getBlockRollingMean(blockIdx)
                 if offset is None:
-                    logger.info( "XXX: %s: bad offset (1) @%s" % (self.parent.name,block.startTime))
+                    logger.info( "%s: bad offset (1) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
                 offsetx = xform((block.startTime,offset), session=session)
                 if offsetx is None:
-                    logger.info( "XXX: %s: bad offset(2) @%s" % (self.parent.name,block.startTime))
+                    logger.info( "%s: bad offset(2) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
                     offsetx = xform((block.startTime,offset), session=session)
                 if offsetx is not None:
@@ -1532,7 +1513,7 @@ class EventList(Transformable):
             for event in izip(times, values):
                 eventx = xform(event, session=session)
                 if eventx is None:
-                    logger.info( "XXX: %s: bad transform @%s" % (self.parent.name,event[0]))
+                    logger.info( "%s: bad transform @%s" % (self.parent.name,event[0]))
                     sleep(0.001)
                     eventx = xform(event, session=session)
                 event = eventx
@@ -1791,7 +1772,7 @@ class EventList(Transformable):
             t = block.startTime
             m = _getBlockRollingMean(block.blockIndex)
             
-            # XXX: HACK! Multithreaded loading can (very rarely) fail at start.
+            # HACK: Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
             if removeMean and m is None:
                 sleep(0.005)
@@ -2164,10 +2145,9 @@ class EventList(Transformable):
                 return last
             if outOfRange:
                 return last
-            # TODO How best to handle times after last event?
+            # TODO: How best to handle times after last event?
             raise IndexError("Specified time occurs after last event (%d)" % last[-2])
         
-#         startEvt, endEvt = self[startIdx:startIdx+2]
         startEvt = self.__getitem__(startIdx, display=display)
         endEvt = self.__getitem__(startIdx+1, display=display)
         relAt = at - startEvt[-2]
@@ -2205,7 +2185,7 @@ class EventList(Transformable):
             undersampled as to not exceed a given length (e.g. the size of
             the data viewer's screen width).
         
-            XXX: EXPERIMENTAL!
+            @todo: Optimize iterResampledRange().
             Not very efficient, particularly not with single-sample blocks.
         """
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
