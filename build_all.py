@@ -16,8 +16,6 @@ import time
 from git import InvalidGitRepositoryError
 from git.repo import Repo
 
-from updater import CHANGELOG_URL
-
 HOME_DIR = os.getcwd()
 VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
 logger = logging.getLogger('SlamStickLab.BuildAll')
@@ -43,6 +41,20 @@ def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=No
         f.write('BUILD_MACHINE = %r\n' % buildMachine)
         f.write('REPO_BRANCH = %r\n' % branch)
         f.write('REPO_COMMIT_ID = %r' % commit)
+
+
+def updateJson(version, preview=False):
+    with open(VERSION_INFO_FILE, 'r') as f:
+        info = json.load(f)
+     
+    info["version"] = version
+    info["date"] = int(thisTime)
+    
+    if not args.preview:
+        with open(VERSION_INFO_FILE,'w') as f:
+            json.dump(info, f)
+    
+    return info
 
 #===============================================================================
 # 
@@ -167,11 +179,8 @@ else:
 if args.release and bad == 0:
     print "*"*78
     print "Everything is okay; updating version info file '%s'" % VERSION_INFO_FILE
-    info = {"version": thisVersion, "changelog": CHANGELOG_URL, "date": int(thisTime)}
-    if not args.preview:
-        with open(VERSION_INFO_FILE,'w') as f:
-            json.dump(info, f)
-    else:
+    info = updateJson(VERSION_INFO_FILE, preview=args.preview)
+    if args.preview:
         print "PREVIEW of info file:", json.dumps(info)
         
 print "*"*78

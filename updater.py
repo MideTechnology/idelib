@@ -8,7 +8,8 @@ static file.
     {
         "version": [1, 2, 3],
         "changelog": "http://example.mide.com/change_log.html",
-        "date": 1406815444
+        "date": 1406815444,
+        "downloadUrl": "http://example.mide.com/download.html"
     }
 
 `version` is a list of version numbers: major, minor, and micro (build). It
@@ -44,7 +45,7 @@ import wx #@UnusedImport
 import wx.lib.sized_controls as SC
 
 from logger import logger
-from build_info import DEBUG, BETA
+from build_info import DEBUG, BETA, VERSION
 from events import EvtUpdateAvailable
 from widgets.htmlwindow import SaferHtmlWindow, isSafeUrl, hijackWarning
 
@@ -58,10 +59,10 @@ if DEBUG:
 #===============================================================================
 
 # UPDATER_BASE = "http://10.0.0.166/"
-UPDATER_BASE = "http://www.mide.com/software/updates/"
+UPDATER_BASE = "http://info.mide.com/hubfs/software/"
 UPDATER_URL = os.path.join(UPDATER_BASE, "slam_stick_lab.json")
 CHANGELOG_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_changelog.html")
-DOWNLOAD_URL = "http://www.mide.com/products/slamstick/slam-stick-lab-software.php?utm_source=Slam-Stick-X-Data-Logger&utm_medium=Device&utm_content=Link-to-software-page-from-Device-About-Us&utm_campaign=Slam-Stick-X"
+DOWNLOAD_URL = "http://info.mide.com/data-loggers/slam-stick-lab-software?utm_campaign=Slam-Stick-X&utm_content=Link-to-software-page-from-Device-About-Us&utm_medium=Device&utm_source=Slam-Stick-X-Data-Logger"
 
 # BETA_UPDATER_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_beta.json")
 # BETA_CHANGELOG_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_beta_changelog.html")
@@ -220,7 +221,7 @@ def isTimeToCheck(lastUpdate, interval=3):
 
 
 def isNewer(v1, v2):
-    """ Compare two sets of version numbers `(major, minor, [build])`.
+    """ Compare two sets of version numbers `(major, minor, micro, [build])`.
     """
     try:
         for v,u in zip(v1,v2):
@@ -298,7 +299,7 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL,
         logger.info("Checking %r for updates to version %r..." % (url, currentVersion,))
         responseCode, responseContent = getLatestVersion(url)
         if responseContent:
-            newVersion= responseContent.get('version', (0,0,0))
+            newVersion = responseContent.get('version', VERSION)
             changelog = responseContent.get('changelog', CHANGELOG_URL)
             updateDate = responseContent.get('date', None)
             if downloadUrl is None:
@@ -314,7 +315,7 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL,
                 sendUpdateEvt(False, updateDate)
         else:
             logger.warning("Update check failed (code %r)!" % (responseCode,))
-            if not BETA:
+            if not BETA or DEBUG:
                 # updater failure suppressed in beta versions
                 sendUpdateEvt(False, err=True, response=responseCode)
 
@@ -334,6 +335,7 @@ def startCheckUpdatesThread(*args, **kwargs):
     t = threading.Thread(target=checkUpdates, name="Update Check", 
                          args=args, kwargs=kwargs)
     t.start()
+
 
 #===============================================================================
 # 
