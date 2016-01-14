@@ -95,6 +95,8 @@ class UpdateDialog(SC.SizedDialog):
                           "See the Download Page for more information."
                           "</body></html>")
     
+    FIELD_PAD = 8 # Padding for use when calculating field height
+    
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `SizedDialog` arguments, plus:
             @keyword updaterEvent: The `EvtUpdateAvailable` event sent to the
@@ -126,7 +128,6 @@ class UpdateDialog(SC.SizedDialog):
         
         header = wx.StaticText(pane, -1, headerText)
         header.SetFont(self.GetFont().Bold().Scaled(1.5))
-        minWidth = header.GetSize()[0] + 40
         
         # The headline and the current version display
         boldFont = self.GetFont().Bold()
@@ -136,7 +137,7 @@ class UpdateDialog(SC.SizedDialog):
         wx.StaticText(s1, -1, self.root.versionString).SetFont(boldFont)
         
         # The changelog display
-        self.html = SaferHtmlWindow(pane, -1)
+        self.html = SaferHtmlWindow(pane, -1, style=wx.BORDER_THEME)
         self.html.SetSizerProps(expand=True, proportion=-1)
         if isSafeUrl(self.changeUrl):
             self.html.LoadPage(self.changeUrl)
@@ -146,13 +147,22 @@ class UpdateDialog(SC.SizedDialog):
         # Little link to the preferences dialog, for convenience.
         s2 = SC.SizedPanel(pane, -1)
         s2.SetSizerType('horizontal')
-        wx.StaticText(s2, -1, "You can change the frequency "
-                      "of update checks in the")
+        freqTxt = wx.StaticText(s2, -1, ("You can change the frequency "
+                                         "of update checks in the"))
         prefTxt = wx.StaticText(s2, -1, "Preferences Dialog.")
         prefTxt.SetForegroundColour("BLUE")
         prefTxt.Bind(wx.EVT_LEFT_UP, self.OnPrefClick)
         
+        minWidth = max(header.GetSize()[0], freqTxt.GetSize()[0] + prefTxt.GetSize()[0])
+        minWidth += self.FIELD_PAD * 8
+        
         # Bottom button pane
+        
+        # This stuff is just to create non-standard buttons, right aligned,
+        # with a gap. It really should not be this hard to do. This approach is
+        # probably not optimal or properly cross-platform.
+        SC.SizedPanel(pane, -1, size=(8,self.FIELD_PAD))
+        
         buttonpane = SC.SizedPanel(pane, -1)
         buttonpane.SetSizerType("horizontal")
         buttonpane.SetSizerProps(expand=True)
@@ -246,12 +256,16 @@ def getLatestVersion(url=UPDATER_URL):
     """
     try:
         x = urllib.urlopen(url)
-        if int(x.getcode()) / 400 == 1:
+        code = int(x.getcode())
+        if code / 400 == 1:
             # error
-            return x.getcode(), None
+            return code, None
         vers = json.load(x)
+        if BETA and 'beta' in vers:
+            # Beta update info overrides defaults.
+            vers.update(vers.pop('beta'))
         x.close()
-        return x.getcode(), vers
+        return code, vers
     except IOError as err:
         return err, None
 
@@ -342,7 +356,7 @@ def startCheckUpdatesThread(*args, **kwargs):
 #===============================================================================
   
 # if __name__ == '__main__':
-#             
+#
 #     class FakeApp(wx.App):
 #         PREFS = {
 #                  }
@@ -355,16 +369,16 @@ def startCheckUpdatesThread(*args, **kwargs):
 #             self.PREFS[v] = val
 #         def editPrefs(self, evt=None):
 #             print "edit prefs"
-#            
+#
 #     app = FakeApp()
-#            
+#
 #     code, response = getLatestVersion()
 #     print "app.version = %r" % (app.version,)
 #     print "getLatestVersion returned code %r, version %r" % (code, response)
 #     if response is None:
 #         print "Error occurred; aborting"
 #         exit(1)
-#        
+#
 #     vers = response.get('version', None)
 #     changeUrl = response.get('changelog', None)
 #     print "zipped: %r" % (zip(app.version, vers),)
@@ -373,9 +387,9 @@ def startCheckUpdatesThread(*args, **kwargs):
 #     t = time.time()
 #     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
 #     print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
-#            
+#
 #     evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
-#            
+#
 # #     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
 #     dlg = UpdateDialog(None, -1, updaterEvent=evt)
 #     dlg.ShowModal()

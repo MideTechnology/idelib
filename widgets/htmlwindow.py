@@ -1,5 +1,5 @@
 '''
-A somewhat safer subclass of HTML display, filtering potentially harmful URLs.
+Functions and widgets for HTML display.
 
 Created on Sep 8, 2015
 
@@ -10,6 +10,7 @@ import urllib
 
 import wx #@UnusedImport
 import wx.html
+import wx.lib.sized_controls as SC
 
 from logger import logger
 from build_info import DEBUG
@@ -17,6 +18,7 @@ from build_info import DEBUG
 if DEBUG:
     import logging
     logger.setLevel(logging.INFO)
+
 
 #===============================================================================
 # 
@@ -81,3 +83,69 @@ class SaferHtmlWindow(wx.html.HtmlWindow):
         logger.info('Updater HTML window opened %s' % href)
         wx.LaunchDefaultBrowser(href)
 
+
+#===============================================================================
+# 
+#===============================================================================
+
+class HtmlDialog(SC.SizedDialog):
+    """ A simple dialog box containing HTML content. Intended to be a
+        replacement for the standard wxPython scrolled message dialog (for
+        certain purposes, anyway).
+    """
+    
+    DEFAULT_SIZE = (400,200)
+    DEFAULT_STYLE = (wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | \
+                     wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | \
+                     wx.DIALOG_EX_CONTEXTHELP | wx.SYSTEM_MENU)
+    DEFAULT_BUTTONS = wx.OK
+
+    def __init__(self, parent, content, title, buttons=DEFAULT_BUTTONS,
+                 size=DEFAULT_SIZE, pos=wx.DefaultPosition, style=DEFAULT_STYLE, 
+                 ID=-1, setBgColor=True):
+        """
+        """
+        if style & 0b1111:
+            buttons = style & 0b1111
+        style = style & (2**32-1 ^ 0b111)
+        
+        super(HtmlDialog, self).__init__(parent, ID, title, style=style)
+
+        if setBgColor:
+            bg = "#%02x%02x%02x" % self.GetBackgroundColour()[:3]
+            content = '<body bgcolor="%s">%s</body>' % (bg, content)
+        
+        pane = self.GetContentsPane()
+        html = SaferHtmlWindow(pane, -1, style=wx.BORDER_THEME)
+        html.SetSizerProps(expand=True, proportion=1)
+        html.SetPage(content)
+        
+        self.SetButtonSizer(self.CreateStdDialogButtonSizer(buttons))
+
+        self.Bind(wx.EVT_BUTTON, self.OnButton)
+
+        self.Fit()
+        self.SetSize(size)
+
+
+    def OnButton(self, evt):
+        self.EndModal(evt.GetEventObject().GetId())
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == '__main__':
+    responses = {getattr(wx, x): x for x in ('ID_OK','ID_CANCEL','ID_YES','ID_NO')}
+    app = wx.App()
+    dlg = HtmlDialog(None, 
+                     "<h1>Test</h1><p>This is the body.</p>", 
+                     "Test Title", 
+#                     style=wx.DEFAULT_DIALOG_STYLE|wx.YES_NO,
+#                     buttons=wx.YES_NO|wx.CANCEL, 
+                     setBgColor=False)
+    r = dlg.ShowModal()
+    print "Returned %r (%s)" % (r, responses.get(r, 'Unknown'))
+    dlg.Destroy()
+    
