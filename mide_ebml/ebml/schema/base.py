@@ -134,6 +134,9 @@ class Element(object):
 	mandatory = False
 	multiple = False
 	
+	# NOTE: My optimization -DRS
+	_childDict = {}
+
 	def __init__(self, document, stream):
 		self.document = document
 		self.stream = stream
@@ -143,7 +146,7 @@ class Element(object):
 		# NOTE: This is my addition -DRS
 		# It works around a problem with master elements not seeking properly
 		if self.type == CONTAINER:
-			return read_elements(self.body_stream, self.document, self.children)
+			return read_elements(self.body_stream, self.document, self._childDict)
 		
 		if not hasattr(self, 'cached_value'):
 			if self.type in READERS:
@@ -207,11 +210,13 @@ def read_elements(stream, document, children):
 		element_stream = stream.substream(element_offset, element_stream_size)
 		size -= element_stream_size
 		
-		element_class = None
-		for child in (children + document.globals):
-			if child.id == element_id:
-				element_class = child
-				break
+# 		element_class = None
+# 		for child in (children + document.globals):
+# 			if child.id == element_id:
+# 				element_class = child
+# 				break
+		
+		element_class = children.get(element_id, None)
 		
 		if element_class is None:
 			element = UnknownElement(document, element_stream, element_id)
@@ -234,11 +239,13 @@ def iter_elements(stream, document, children):
 		element_stream = stream.substream(element_offset, element_stream_size)
 		size -= element_stream_size
 		
-		element_class = None
-		for child in (children + document.globals):
-			if child.id == element_id:
-				element_class = child
-				break
+# 		element_class = None
+# 		for child in (children + document.globals):
+# 			if child.id == element_id:
+# 				element_class = child
+# 				break
+
+		element_class = children.get(element_id, None)
 		
 		if element_class is None:
 			element = UnknownElement(document, element_stream, element_id)
@@ -265,7 +272,7 @@ class Document(object):
 		if self._roots is None:
 			self._roots = []
 			# This won't totally fail if the file was damaged
-			for r in iter_elements(self.stream, self, self.children):
+			for r in iter_elements(self.stream, self, self._childDict):
 				self._roots.append(r)
 		return self._roots
 	
@@ -274,5 +281,5 @@ class Document(object):
 		""" Iterate over the document's root elements. Allows use of a
 			damaged file; just catch an `IOError` in the root-reading loop.
 		"""
-		return iter_elements(self.stream, self, self.children)#:
-# 			yield r
+		return iter_elements(self.stream, self, self._childDict)
+	

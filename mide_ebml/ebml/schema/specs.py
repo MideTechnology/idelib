@@ -81,6 +81,7 @@ def parse_specdata(source, doc_name, doc_type, doc_version):
 			element_children, element_list = child_elements(element_level if not is_global else 0, element_list, recursive)
 			element_children += tuple(recursive)
 			element.children = element_children
+			element._childDict = {c.id: c for c in element_children}
 			
 			if is_global:
 				globals.append(element)
@@ -90,12 +91,16 @@ def parse_specdata(source, doc_name, doc_type, doc_version):
 	
 	children = child_elements(None, tree.getroot().getchildren())[0]
 	
+	childDict = {c.id: c for c in children}
+	childDict.update({c.id: c for c in globals})
+	
 	document_attrs = {
 		'__module__': None,
 		'type': doc_type,
 		'version': doc_version,
 		'children': children,
-		'globals': tuple(globals)
+		'globals': tuple(globals),
+		'_childDict' : childDict
 	}
 	document = type(doc_name, (Document,), document_attrs)
 	

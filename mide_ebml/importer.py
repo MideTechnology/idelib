@@ -359,7 +359,12 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
             doc.fileDamaged = True
         else:
             updater(error=e)
-        
+    
+    except TypeError:
+        # This can occur if there is a bad element in the data
+        # (typically the last)
+        doc.fileDamaged = True
+
     if not doc.sensors:
         # Got data before the recording props; use defaults.
         if defaults is not None:
@@ -509,6 +514,11 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         else:
             updater(error=e, done=True)
         
+    except TypeError:
+        # This can occur if there is a bad element in the data
+        # (typically the last)
+        doc.fileDamaged = True
+
     doc.loading = False
     updater(done=True)
     return eventsRead
