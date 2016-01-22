@@ -25,6 +25,7 @@ __all__ = ['configureRecorder']
 import cgi
 from collections import OrderedDict
 from datetime import datetime
+import errno
 import string
 import time
 
@@ -278,11 +279,12 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
             try:
                 dev.saveConfig(data)
                 if hasattr(dlg, "usercal"):
-                    dev.writeUserCal(dlg.usercal.info)
+                    if dlg.usercal.info is not None:
+                        dev.writeUserCal(dlg.usercal.info)
             except IOError as err:
                 msg = ("An error occurred when trying to update the "
                        " recorder's configuration data.")
-                if err.errno == 2:
+                if err.errno == errno.ENOENT:
                     msg += "\nThe recorder appears to have been removed."
                 wx.MessageBox(msg, "Configuration Error", wx.OK | wx.ICON_ERROR,
                               parent=parent)
