@@ -293,7 +293,7 @@ class Dataset(Cascading):
         
     
     def addSensor(self, sensorId=None, name=None, sensorClass=None, 
-                  traceData=None, transform=None):
+                  traceData=None, transform=None, attributes=None):
         """ Create a new Sensor object, and add it to the dataset, and return
             it. If the given sensor ID already exists, the existing sensor is 
             returned instead. To modify a sensor or add a sensor object created 
@@ -315,7 +315,7 @@ class Dataset(Cascading):
         
         sensorClass = Sensor if sensorClass is None else sensorClass
         sensor = sensorClass(self,sensorId,name=name, transform=transform,
-                             traceData=traceData)
+                             traceData=traceData, attributes=attributes)
         self.sensors[sensorId] = sensor
         return sensor
 
@@ -352,11 +352,12 @@ class Dataset(Cascading):
     
     
     def addWarning(self, warningId=None, channelId=None, subchannelId=None, 
-                   low=None, high=None):
+                   low=None, high=None, **kwargs):
         """
         """
         w = WarningRange(self, warningId=warningId, channelId=channelId, 
-                         subchannelId=subchannelId, low=low, high=high)
+                         subchannelId=subchannelId, low=low, high=high, 
+                         **kwargs)
         self.warningRanges[warningId] = w
         return w
         
@@ -453,13 +454,25 @@ class Sensor(Cascading):
     """
     
     def __init__(self, dataset, sensorId, name=None, transform=None,
-                  traceData=None):
+                  traceData=None, attributes=None):
+        """ Constructor. This should generally be done indirectly via
+            `Dataset.addSensor()`.
+        
+            @param dataset: The parent `Dataset`.
+            @param sensorId: The ID of the new sensor.
+            @keyword name: The new sensor's name.
+            @keyword transform: A sensor-level data pre-processing function.
+            @keyword traceData: Sensor traceability data.
+            @keyword attributes: A dictionary of arbitrary attributes, e.g.
+                ``Attribute`` elements parsed from the file.
+        """
         self.name = "Sensor%02d" if name is None else name
         self.dataset = dataset
         self.parent = dataset
         self.id = sensorId
         self.channels = {}
         self.traceData = traceData
+        self.attributes = attributes
 
 
     def __getitem__(self, idx):
@@ -489,7 +502,8 @@ class Channel(Transformable):
     
     def __init__(self, dataset, channelId=None, parser=None, sensor=None, 
                  name=None, units=None, transform=None, displayRange=None, 
-                 sampleRate=None, cache=False, singleSample=None):
+                 sampleRate=None, cache=False, singleSample=None,
+                 attributes=None):
         """ Constructor. This should generally be done indirectly via
             `Dataset.addChannel()`.
         
@@ -510,6 +524,8 @@ class Channel(Transformable):
                 channel each contain only a single sample (e.g. temperature/
                 pressure on an SSX). If `None`, this will be determined from
                 the sample data.
+            @keyword attributes: A dictionary of arbitrary attributes, e.g.
+                ``Attribute`` elements parsed from the file.
         """
         self.id = channelId
         self.sensor = sensor
@@ -518,6 +534,7 @@ class Channel(Transformable):
         self.parent = sensor
         self.dataset = dataset
         self.sampleRate = sampleRate
+        self.attributes = attributes
        
         self.cache = bool(cache)
         self.singleSample = singleSample
@@ -725,7 +742,7 @@ class SubChannel(Channel):
     
     def __init__(self, parent, subchannelId, name=None, units=('',''), 
                  transform=None, displayRange=None, sensorId=None, 
-                 warningId=None, axisName=None):
+                 warningId=None, axisName=None, attributes=None):
         """ Constructor. This should generally be done indirectly via
             `Channel.addSubChannel()`.
         
@@ -749,6 +766,8 @@ class SubChannel(Channel):
             @keyword axisName: The name of the axis this SubChannel represents.
                 Use if the `name` contains additional text (e.g. "X" if the 
                 name is "Accelerometer X (low-g)").
+            @keyword attributes: A dictionary of arbitrary attributes, e.g.
+                ``Attribute`` elements parsed from the file.
         """
         self.id = subchannelId
         self.parent = parent
@@ -756,6 +775,7 @@ class SubChannel(Channel):
         self.cache = self.parent.cache
         self.dataset = parent.dataset
         self.axisName = axisName
+        self.attributes = attributes
         
         if name is None:
             self.name = "%s:%02d" % (parent.name, subchannelId)
@@ -2323,13 +2343,15 @@ class Plot(Transformable):
         (e.g. converting data in foot-pounds to pascals).
     """
     
-    def __init__(self, source, plotId, name=None, transform=None, units=None):
+    def __init__(self, source, plotId, name=None, transform=None, units=None,
+                 attributes=None):
         self.source = source
         self.id = plotId
         self.session = source.session
         self.dataset = source.dataset
         self.name = source.path() if name is None else name
         self.units = source.units if units is None else units
+        self.attributes = attributes
         self.setTransform(transform, update=False)
     
     
@@ -2420,7 +2442,7 @@ class WarningRange(object):
     
     
     def __init__(self, dataset, warningId=None, channelId=None, 
-                 subchannelId=None, low=None, high=None):
+                 subchannelId=None, low=None, high=None, attributes=None):
         """ Constructor.
         """
         self.dataset = dataset
@@ -2429,6 +2451,7 @@ class WarningRange(object):
         self.subchannelId = subchannelId
         self.high = high
         self.low = low
+        self.attributes = attributes
         
         self.source = dataset.channels[channelId][subchannelId]
         self._sessions = {}
@@ -2441,6 +2464,7 @@ class WarningRange(object):
             self.valid = lambda x: x > low and x < high
         
         self._displayName = None
+    
     
     def getSessionSource(self, sessionId=None):
         """ 

@@ -450,6 +450,9 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         # This just skips 'header' elements. It could be more efficient, but
         # the size of the header isn't significantly large; savings are minimal.
         for r in source.ebmldoc.iterroots():
+            
+            r_name = r.name
+            
             doc.loadCancelled = getattr(updater, "cancelled", False)
             if doc.loadCancelled:
                 break
@@ -462,27 +465,24 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
                     if maxPause and time_time() - pauseTime > maxPause:
                         break
             
-            if r.name not in elementParsers:
-                # TODO: Real support for Attribute elements
-                if r.name == "Attribute":
-                    continue
+            if r_name not in elementParsers:
                 # Unknown block type, but probably okay.
                 logger.info("unknown block %r (ID 0x%02x) @%d" % \
-                            (r.name, r.id, r.stream.offset))
+                            (r_name, r.id, r.stream.offset))
                 continue
             
             # HACK: Not the best implementation. Should be moved somewhere.
-            if onlyChannel is not None and r.name == "ChannelDataBlock":
+            if onlyChannel is not None and r_name == "ChannelDataBlock":
                 if r.value[0].value != onlyChannel:
                     continue 
             
-            if source != doc and r.name == "TimeBaseUTC":
+            if source != doc and r_name == "TimeBaseUTC":
                 timeOffset = (r.value - doc.lastSession.utcStartTime) * 1000000.0
                 continue
                 
             try:
-                parser = elementParsers[r.name]
-                if not parser.isHeader:
+                parser = elementParsers[r_name]
+                if not parser.isHeader or r_name == "Attribute":
                     added = parser.parse(r, timeOffset=timeOffset)
                     if isinstance(added, int):
                         eventsRead += added

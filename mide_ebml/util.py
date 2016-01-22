@@ -395,7 +395,8 @@ def verify(data, schema=DEFAULT_SCHEMA):
 def decode_attributes(data, withTypes=False):
     """ Convert a set of Attributes (as a list of dictionaries containing an
         `AttributeName` and one of the Attribute value elements (`IntAttribute`,
-        `FloatAttribute`, etc.) to a proper dictionary.
+        `FloatAttribute`, etc.) to a proper dictionary. Attributes are tagged
+        as 'multiple,' so they become lists when the EBML is parsed.
     """
     result = OrderedDict()
     for atts in data:
@@ -404,9 +405,10 @@ def decode_attributes(data, withTypes=False):
             continue
         t,v = atts.items()[0]
         if withTypes:
-            result[k] = (v, t)
+            att = (v, t)
         else:
-            result[k] = v
+            att = v
+        result.setdefault(k, []).append(att)
     return result
 
     

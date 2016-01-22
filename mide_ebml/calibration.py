@@ -49,7 +49,9 @@ class Transform(object):
         self._function = eval(self._source, {'math': math})
         self._lastSession = None
         self._timeOffset = 0
-        pass
+        
+        # Custom attributes, e.g. Attribute elements in the EBML.
+        self.attributes = kwargs.pop('attributes', None)
     
     
     def copy(self):
@@ -202,14 +204,18 @@ class Univariate(Transform):
     
     
     def __init__(self, coeffs, calId=None, dataset=None, reference=0, 
-                 varName="x"):
+                 varName="x", attributes=None):
         """ Construct a simple polynomial function from a set of coefficients.
             
             @param coeffs: A list of coefficients
-            @keyword references: A reference value to be subtracted from the
+            @keyword calId: The polynomial's calibration ID (if any).
+            @keyword dataset: The parent `dataset.Dataset`.
+            @keyword reference: A reference value to be subtracted from the
                 variable.
             @keyword varName: The name of the variable to be used in the
                 string version of the polynomial. For display purposes.
+            @keyword attributes: A dictionary of generic attributes, e.g.
+                ones parsed from `Attribute` EBML elements, or `None`.
         """
         self.id = calId
         self.dataset = dataset
@@ -219,6 +225,8 @@ class Univariate(Transform):
         self._session = None
         self._lastSession = None
         self._timeOffset = 0
+        
+        self.attributes = attributes
         
         self._build()
         
@@ -261,11 +269,6 @@ class Univariate(Transform):
             if v == 0:
                 continue
     
-            # optimization: v is a whole number, do integer math,
-            # then make float by adding 0.0
-#             if v != 1 and int(v) == v:
-#                 v = int(v)
-    
             # optimization: pow() is more expensive than lots of multiplication
             x = "*".join([srcVarName]*p)
             strX = "pow(%s,%s)" % (varName, p) if p > 1 else varName
@@ -280,8 +283,6 @@ class Univariate(Transform):
         self._str = self._fixSums(self._str)
         
         self._source = "lambda x: %s" % ("+".join(map(str,reversed(f))))
-#         if '.' not in self._source:
-#             self._source ="%s+0.0" % self._source
         self._source = self._fixSums(self._source)
         self._function = eval(self._source, {'math': math})
     
@@ -343,16 +344,25 @@ class Bivariate(Univariate):
         reading time and value.
     """
     
-    def __init__(self, coeffs, dataset=None, channelId=None, subchannelId=None, 
-                 reference=0, reference2=0, varNames="xy", calId=None):
+    def __init__(self, coeffs, calId=None, dataset=None, reference=0, 
+                 reference2=0, channelId=None, subchannelId=None, varNames="xy",
+                 attributes=None):
         """ Construct the two-variable polynomial.
             
             @param coeffs: A list of coefficients. Must contain 4!
-            @keyword references: A reference value to be subtracted from the
-                variables.
+            @keyword reference: A reference value to be subtracted from the
+                'x' variable.
+            @keyword reference2: A reference value to be subtracted from the
+                'y' variable.
             @keyword varNames: The names of the variables to be used in the
                 string version of the polynomial. For display purposes; they
                 can be any arbitrary (but hopefully meaningful) strings.
+            @keyword calId: The polynomial's calibration ID (if any).
+            @keyword dataset: The parent `dataset.Dataset`.
+            @keyword varName: The name of the variable to be used in the
+                string version of the polynomial. For display purposes.
+            @keyword attributes: A dictionary of generic attributes, e.g.
+                ones parsed from `Attribute` EBML elements, or `None`.
         """
         self.dataset = dataset
         self._eventlist = None
@@ -377,6 +387,8 @@ class Bivariate(Univariate):
         
         self._session = None
         self._timeOffset = 0
+        
+        self.attributes = attributes
         
         self._build()
         

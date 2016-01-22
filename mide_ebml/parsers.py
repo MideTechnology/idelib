@@ -94,16 +94,23 @@ def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
         result = {}
         
     for oldname,v in d.iteritems():
-        if mergeAttributes and oldname == "Attribute":
-            result.update(decode_attributes(v))
+        if oldname == "Attribute":
+            if mergeAttributes:
+                result.update(decode_attributes(v))
+            else:
+                result['Attribute'] = decode_attributes(v)
             continue
+        
         if oldname not in renamed and exclude:
             continue
+        
         newname = renamed.get(oldname, oldname)
+        
         if recurse:
             result[newname] = renameKeys(v, renamed, exclude, recurse)
         else:
             result[newname] = v
+            
     return result
 
 
@@ -140,7 +147,36 @@ def valEval(value, allowedChars="+-/*01234567890abcdefx.,() ;\t\n_"):
     return eval(val)
     
     
-    
+def parseAttribute(obj, element, multiple=True):
+    """ Utility function to parse an `Attribute` element's data into a 
+        key/value pair and apply it to an object's `attribute` attribute
+        (a dictionary).
+        
+        @param element: The `Attribute` element to parse.
+        @keyword multiple: An object may have more than one Attribute element
+            with the same name. If `True`, the value corresponding to the name
+            is a list which is appended to. If `False`, the value is that of
+            the last `Attribute` element parsed. 
+    """
+    if not hasattr(obj, 'attributes'):
+        obj.attributes = OrderedDict()
+        
+    k = v = None
+    for ch in element.value:
+        if ch.name == "AttributeName":
+            k = ch.value
+        else:
+            v = ch.value
+            
+    if k is not None:
+        if multiple:
+            obj.attributes.setdefault(k, []).append(v)
+        else:
+            obj.attributes[k] = v
+        
+    return k,v
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -380,8 +416,8 @@ class ElementHandler(object):
             result = []
             for el in element.value:
                 if el.name in self.childHandlers:
-                    result.append(self.childHandlers[el.name].parse(el, 
-                                                                    **kwargs))
+                    handler = self.childHandlers[el.name]
+                    result.append(handler.parse(el, **kwargs))
             return result
 
     
@@ -670,23 +706,13 @@ class ChannelDataBlock(BaseDataBlock):
         
         self.element = element
         for num, el in enumerate(element.value):
-            if el.name == "Void":
-                continue
-            elif el.name == "ChannelIDRef":
+            # These are roughly in order of probability, optional and/or
+            # unimplemented elements are at the end.
+            if el.name == "ChannelIDRef":
                 self.channel = el.value
-            elif el.name == "ChannelFlags":
-                # FUTURE: Handle channel flag bits
-                continue
             elif el.name == "ChannelDataPayload":
                 self._payloadIdx = num
                 self.body_size = el.body_size
-            elif el.name == "StartTimeCodeAbs":
-                # FUTURE: Support this. Not currently generated (2014.04.23)
-                self.startTime = el.value
-                self._timestamp = el.value
-            elif el.name == "EndTimeCodeAbs":
-                # FUTURE: Support this. Not currently generated (2014.04.23)
-                self.endTime = el.value
             elif el.name == "StartTimeCodeAbsMod":
                 self.startTime = el.value
                 self._timestamp = el.value
@@ -694,6 +720,20 @@ class ChannelDataBlock(BaseDataBlock):
                 self.endTime = el.value
             elif el.name == "ChannelDataMinMeanMax":
                 self.minMeanMax = el.value
+            elif el.name == "Void":
+                continue
+            elif el.name == 'Attribute':
+                parseAttribute(self, el)
+            elif el.name == "StartTimeCodeAbs":
+                # FUTURE: Support this. Not currently generated (2014.04.23)
+                self.startTime = el.value
+                self._timestamp = el.value
+            elif el.name == "EndTimeCodeAbs":
+                # FUTURE: Support this. Not currently generated (2014.04.23)
+                self.endTime = el.value
+            elif el.name == "ChannelFlags":
+                # FUTURE: Handle channel flag bits
+                continue
             # Add other child element handlers here.
         
         # Single-sample blocks have a total time of 0.
@@ -760,7 +800,10 @@ class RecorderPropertyParser(ElementHandler):
     
     def parse(self, element, **kwargs):
         if self.doc is not None:
-            self.doc.recorderInfo[element.name] = element.value
+            if element.name == 'Attribute':
+                parseAttribute(self.doc, element)
+            else:
+                self.doc.recorderInfo[element.name] = element.value
    
 
 #===============================================================================
@@ -783,7 +826,8 @@ class PolynomialParser(ElementHandler):
                       "BivariateCalReferenceValue": "reference2",
                       "BivariateChannelIDRef": "channelId",
                       "BivariateSubChannelIDRef": "subchannelId",
-                      "PolynomialCoef": "coeffs"}
+                      "PolynomialCoef": "coeffs",
+                      "Attribute": "attributes"}
 
     def parse(self, element, **kwargs):
         """
@@ -816,12 +860,13 @@ class PolynomialParser(ElementHandler):
             # Unknown polynomial type. 
             raise ParsingError("%s: unknown polynomial type" % elName)
         
-        # self.doc might (validly) be None if a configuration tool were 
+        # self.doc might (validly) be None if a configuration tool is 
         # reading the device info file, rather than reading a recording file. 
         if self.doc is not None:
             self.doc.addTransform(cal)
         
         return cal
+
 
 class CalibrationElementParser(RecorderPropertyParser):
     """ Simple handler for calibration birthday (optional). """
@@ -862,12 +907,17 @@ class SensorListParser(ElementHandler):
         "SensorName": "name", 
         "TraceabilityData": "traceData",
         "SensorSerialNumber": "serialNum",
+        "Attribute": "attributes",
 #         "SensorBwLimitIDRef": "bandwidthLimitId" # FUTURE
     }
     
     def parse(self, element, **kwargs):
         """ Parse a SensorList 
         """
+        data = parse_ebml(element.value)
+        if 'attributes' in data:
+            atts = self.doc.recorderInfo.setdefault('sensorAttributes', {})
+            atts.update(decode_attributes(data['attributes']))
         data = renameKeys(parse_ebml(element.value), self.parameterNames)
         if "sensors" in data:
             for sensor in data['sensors']:
@@ -913,6 +963,9 @@ class ChannelParser(ElementHandler):
         "SubChannelRangeMax": "rangeMax",
         "SubChannelSensorRef": "sensorId",
         "SubChannelWarningRef": "warningId",
+        
+        # Generic attribute elements.
+        "Attribute": "attributes"
     }
     
     
@@ -927,15 +980,17 @@ class ChannelParser(ElementHandler):
         
         channelId = data['channelId']
         
+        # Parsing. Either a regular struct.Struct, or a custom parser.
         if 'parser' in data:
-            # get known parser names
+            # A named parser; use the special-case parser function.
             data.pop('format', None)
             data['parser'] = DATA_PARSERS[data['parser']]()
         elif 'format' in data:
             # build struct instead.
-            # TODO (future): Handle special characters
+            # TODO (future): Handle special (non-standard) format characters
             data['parser'] = struct.Struct(data.pop('format'))
 
+        # sampleRate is stored as a string to avoid floats on the recorder.
         if 'sampleRate' in data:
             data['sampleRate'] = valEval(data['sampleRate'])
         
@@ -943,6 +998,7 @@ class ChannelParser(ElementHandler):
         timeScale = data.pop('timeScalar', None)
         timeModulus = data.pop('timeMod', None)
         
+        # Update timestamp modulo in parsers
         for p in filter(lambda x: x.makesData(), self.doc._parsers.values()):
             if timeModulus is not None:
                 p.timeModulus[channelId] = timeModulus
@@ -999,6 +1055,7 @@ class ChannelListParser(ElementHandler):
     isHeader = True
     children = (ChannelParser,) #PlotListParser)
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -1017,7 +1074,8 @@ class WarningListParser(ElementHandler):
         "WarningChannelRef": "channelId",
         "WarningSubChannelRef": "subchannelId",
         "WarningRangeMin" : "low",
-        "WarningRangeMax": "high"
+        "WarningRangeMax": "high",
+        "Attribute": "attributes"
     }
     
     def parse(self, element, **kwargs):
@@ -1101,21 +1159,17 @@ class RecorderConfigurationParser(ElementHandler):
             self.doc.recorderConfig.update(parse_ebml(element.value))
 
 
-# class AttributeParser(ElementHandler):
-#     """ Handle a root-level Attribute element. The value gets copied to the
-#         Document's `recorderInfo` dictionary. Note: multiple root-level
-#         Attributes with the same name will overwrite.
-#     """
-#     elementName = "Attribute"
-#     isHeader = True
-#     isSubElement = False
-#     
-#     def parse(self, element, **kwargs):
-#         att = decode_attributes([parse_ebml(element.value)])
-#         if att and self.doc is not None:
-#             if self.doc.recorderInfo is None:
-#                 self.doc.recorderInfo = {}
-#             self.doc.recorderInfo.update(att)
+class AttributeParser(ElementHandler):
+    """ Handle a root-level Attribute element. 
+    """
+    elementName = "Attribute"
+    isHeader = True
+    isSubElement = False
+     
+    def parse(self, element, **kwargs):
+        parseAttribute(self.doc, element)
+        return 0
+
     
 #===============================================================================
 # 
