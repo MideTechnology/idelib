@@ -1741,7 +1741,6 @@ class Viewer(wx.Frame, MenuMixin):
             
             self.dataset.transforms = cal
             self.dataset.updateTransforms()
-            live_calibration.importCal(self.dataset, filename)
             
         except IOError as err:
             # Probably bad/damaged file
