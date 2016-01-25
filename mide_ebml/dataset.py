@@ -2062,10 +2062,8 @@ class EventList(Transformable):
                 return -1
             elif blockIdx == len(self._data) - 1:
                 # Last block; use previous.
-                startTime = self._data[blockIdx-1].endTime
-                if startTime is None:
-                    startTime = self._data[blockIdx-1].startTime
-                endTime = block.startTime
+                block.sampleTime = self._getBlockSampleTime(blockIdx-1)
+                return block.sampleTime
             else:
                 endTime = self._data[blockIdx+1].startTime
             block.endTime = endTime
