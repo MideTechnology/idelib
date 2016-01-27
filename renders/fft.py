@@ -259,15 +259,21 @@ class FFTView(wx.Frame, MenuMixin):
         self.root = kwargs.pop("root", None)
         self.source = kwargs.pop("source", None)
         self.subchannels = kwargs.pop("subchannels", None)
-        self.range = (kwargs.pop("start",0), kwargs.pop("end",-1))
+        self.range = (kwargs.pop("startTime",0), kwargs.pop("endTime",-1))
         self.data = kwargs.pop("data",None)
         self.sliceSize = kwargs.pop("windowSize", 2**16)
         self.removeMean = kwargs.pop('removeMean', False)
         self.meanSpan = kwargs.pop('meanSpan', -1)
         self.logarithmic = kwargs.pop('logarithmic', (False, False))
         self.exportPrecision = kwargs.pop('exportPrecision', 6)
-        self.useConvertedUnits = kwargs.pop('useConvertedUnits', True)
+        self.useConvertedUnits = kwargs.pop('display', True)
         self.yUnits = kwargs.pop('yUnits', None)#self.subchannels[0].units[1])
+        self.indexRange = kwargs.pop('start', 0), kwargs.pop('stop', -1)
+        self.numRows = kwargs.pop('numRows')
+        
+        # Callback. Not currently used.
+        self.callback = kwargs.pop('callback', None)
+        self.callbackInterval = kwargs.pop('callbackInterval', 0.0005)
         
         sessionId = self.root.session.sessionId
         
@@ -277,8 +283,6 @@ class FFTView(wx.Frame, MenuMixin):
             else:
                 self.yLabel, self.yUnits = self.subchannels[0].units
         
-        self.indexRange = kwargs.pop('indexRange', None)
-        self.numRows = kwargs.pop('numRows')
         
         if self.source is None and self.subchannels is not None:
             self.source = self.subchannels[0].parent.getSession(sessionId)

@@ -2319,7 +2319,8 @@ class EventList(Transformable):
                         break
                     if updateInt == 0 or num % updateInt == 0:
                         callback(num*numChannels, total=totalSamples)
-                    callback(done=True)
+            if callback is not None:
+                callback(done=True)
         except ex as e:
             callback(error=e)
 

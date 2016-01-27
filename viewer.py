@@ -49,8 +49,8 @@ from wx.lib.wordwrap import wordwrap
 import images
 
 # Custom controls, events and base classes
-from base import ViewerPanel, MenuMixin
-from common import cleanUnicode, wordJoin, TimeValidator
+from base import MenuMixin
+from common import cleanUnicode, wordJoin
 import events
 
 # Views, dialogs and such
@@ -71,7 +71,7 @@ from widgets.shared import StatusBar
 from widgets.device_dialog import selectDevice
 from widgets.memorydialog import MemoryDialog
 from widgets.range_dialog import RangeDialog
-from widgets.timeline import TimelineCtrl, TimeNavigatorCtrl
+from widgets.timeline import Corner, Timeline, TimeNavigator
 
 # Special helper objects and functions
 import devices #@UnusedImport
@@ -97,534 +97,7 @@ import tools.filesplit
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
 
-#===============================================================================
-# 
-#===============================================================================
-        
-class Timeline(ViewerPanel):
-    """ The key below the graph. The Timeline itself actually determines the
-        range and zoom shown.
-        
-        @ivar timeScalar: A scaling factor for the time displayed (maps
-            microseconds to float seconds)
-        @ivar timerange: 
-        @ivar currentTime: 
-        @ivar displayLength: 
-    """
-    
-    _sbMax = 10000.0
-    _minThumbSize = 100
-    
-    BORDER_WIDTH = 4
-    
-    def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
-        
-            @keyword root: The viewer's 'root' window.
-            @keyword timerange: The default time range, in microseconds. 
-        """
-        kwargs.setdefault('style',wx.NO_BORDER)
-        super(Timeline, self).__init__(*args, **kwargs)
 
-        self.barClickPos = None
-        self.scrolling = False
-        self.highlightColor = wx.Colour(255,255,255)
-
-        outerSizer = wx.BoxSizer(wx.HORIZONTAL)                
-        sizer = wx.BoxSizer(wx.VERTICAL)
-        
-        self.timebar = TimelineCtrl(self, -1, orient=wx.HORIZONTAL, 
-                                    style=wx.NO_BORDER)
-        sizer.Add(self.timebar, 0, wx.EXPAND)
-        self.timebar.SetBackgroundColour(self.root.uiBgColor)
-        self.timebar.SetCursor(wx.StockCursor(wx.CURSOR_SIZEWE))
-        self.timebar.SetRange(self.timerange[0] * self.root.timeScalar,
-                              self.timerange[1] * self.root.timeScalar)
-        
-        self.scrollbar = wx.ScrollBar(self, -1, style=wx.SB_HORIZONTAL)
-        sizer.Add(self.scrollbar, 0, wx.EXPAND|wx.ALIGN_BOTTOM)
-        
-        outerSizer.Add(sizer, 1, wx.EXPAND)
-        outerSizer.Add(wx.Panel(self, -1, size=(self.scrollbar.GetSize().y,16)),0)
-        self.SetSizer(outerSizer)
-#         self.SetSizer(sizer)
-
-        self._bindScrollEvents(self.scrollbar, self.OnScroll, 
-                               self.OnScrollTrack, self.OnScrollEnd)
-        
-        self.timebar.Bind(wx.EVT_MOTION, self.OnMouseMotion)
-        self.timebar.Bind(wx.EVT_LEFT_DOWN, self.OnTimebarClick)
-        self.timebar.Bind(wx.EVT_LEFT_UP, self.OnTimebarRelease)
-        self.timebar.Bind(wx.EVT_LEAVE_WINDOW, self.OnTimebarRelease)
-        
-        # Initial value: probably not true, but is changed almost immediately.
-        self.scrollUnitsPerUSec = 1.0
-        self.unitsPerPixel = 1.0
-        self.currentTime = 1000 # start of displayed interval, in microseconds
-        self.displayLength = 5000 # The length of displayed interval, in us.
-        self.setTimeRange(*self.timerange)
-        
-
-    #===========================================================================
-    # 
-    #===========================================================================
-    
-    def getValueAt(self, hpos):
-        """ Retrieve the value at a given horizontal pixel position.
-        """
-        return ((hpos+self.BORDER_WIDTH) * self.unitsPerPixel) + self.currentTime
-        
-
-    #===========================================================================
-    # 
-    #===========================================================================
-
-    def setTimeRange(self, start=None, end=None, instigator=None,
-                    tracking=False):
-        """ Set the current time range. Propagates to its children.
-            
-            @keyword start: The first time in the range. Defaults to
-                the current start.
-            @keyword end: The last time in the range. Defaults to the
-                current end.
-            @keyword instigator: The object that initiated the change, in order
-                to avoid an infinite loop of child calling parent calling child.
-            @keyword tracking: `True` if the widget doing the update is
-                tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond
-                if `tracking` is `True`.
-        """
-        if self.scrolling:
-            return
-        start = self.timerange[0] if start is None else start
-        end = self.timerange[1] if end is None else end
-        self.timerange = (start, end)
-        if end != start:
-            self.scrollUnitsPerUSec = self._sbMax / (end-start)
-        else:
-            # This is probably not the best solution
-            self.scrollUnitsPerUSec = 1
-        self.setVisibleRange()
-
-
-    def setVisibleRange(self, start=None, end=None, instigator=None,
-                        tracking=False, broadcast=False):
-        """ Set the currently visible time range.
-            
-            @keyword start: The first time in the visible range. Defaults to
-                the current start.
-            @keyword end: The last time in the visible range. Defaults to the
-                current end.
-            @keyword instigator: The object that initiated the change, in order
-                to avoid an infinite loop of child calling parent calling child.
-            @keyword tracking: `True` if the widget doing the update is
-                tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond
-                if `tracking` is `True`.
-        """
-        if instigator == self:
-            return
-        
-        if start is not None:
-            self.currentTime = start #max(self.timerange[0], start)
-        
-        if end is None:
-            end = self.currentTime + self.displayLength
-        else:
-            if end - self.currentTime < self._minThumbSize:
-                self.currentTime = end - self._minThumbSize 
-            self.displayLength = end - self.currentTime
-        
-        self.timebar.SetRange(self.root.timeScalar * self.currentTime, 
-                              self.root.timeScalar * end)
-        
-        self.scrollbar.SetScrollbar(
-                self.scrollUnitsPerUSec * (self.currentTime-self.timerange[0]), 
-                self.scrollUnitsPerUSec * self.displayLength, 
-                self._sbMax,
-                self.scrollUnitsPerUSec * self.displayLength)
-        
-        self.unitsPerPixel = (self.displayLength/self.timebar.GetSize()[0]+0.0)
-        
-        if broadcast:
-            instigator = self if instigator is None else instigator
-            evt = events.EvtSetVisibleRange(start=self.currentTime, end=end, 
-                                            instigator=self, tracking=tracking)
-            wx.PostEvent(self.root, evt)
-
-
-    def getVisibleRange(self):
-        # Test: get real thing from parent
-        return self.currentTime, self.currentTime + self.displayLength
-
-
-    #===========================================================================
-    # Event Handlers
-    #===========================================================================
-    
-    def OnTimebarClick(self, evt):
-        # Capture the click position for processing drags in OnMouseMotion
-        self.barClickPos = evt.GetX()
-        evt.Skip()
-
-
-    def OnTimebarRelease(self, evt):
-        if self.barClickPos is not None:
-            self.postSetVisibleRangeEvent(self.currentTime, 
-                                          self.currentTime + self.displayLength)
-            self.barClickPos = None
-            self.timebar.SetBackgroundColour(self.root.uiBgColor)
-        evt.Skip()
-
-
-    def OnMouseMotion(self, evt):
-        evt.Skip()
-        if self.scrolling:
-            return
-        if self.barClickPos is not None and evt.LeftIsDown():
-            # The timeline is being dragged
-            self.timebar.SetBackgroundColour(self.highlightColor)
-            newPos = evt.GetX()
-            moved = self.barClickPos - newPos
-            start = self.currentTime + moved * self.unitsPerPixel
-            end = start + self.displayLength
-            if start >= self.timerange[0] and end <= self.timerange[1]:
-                self.setVisibleRange(start, end, None, tracking=True, 
-                                     broadcast=True)
-            self.barClickPos = newPos
-        else:
-            self.barClickPos = None
-            self.root.showMouseHPos(evt.GetX())
-
-    
-    def OnScroll(self, evt):
-        self.scrolling = True
-
-
-    def OnScrollTrack(self, evt):
-        start = (evt.GetPosition()/self.scrollUnitsPerUSec) + self.timerange[0]
-        end = start + self.displayLength
-        self.setVisibleRange(start, end, None, tracking=True, broadcast=True)
-
-
-    def OnScrollEnd(self, evt):
-        self.scrolling = False
-        start = (evt.GetPosition()/self.scrollUnitsPerUSec) + self.timerange[0]
-        end = start + self.displayLength
-        self.setVisibleRange(start, end, None, tracking=False, broadcast=True)
-
-
-#===============================================================================
-# 
-#===============================================================================
-
-class TimeNavigator(ViewerPanel):
-    """ The full timeline view shown above the graph. Includes movable markers 
-        showing the currently visible interval.
-    """
-    
-    def __init__(self, *args, **kwargs):
-        """ Constructor. Takes the standard wx.Panel/ViewerPanel arguments plus:
-        
-            @keyword root: The viewer's 'root' window.
-            @keyword timerange: The default time range, in microseconds. 
-        """
-        kwargs.setdefault('style', wx.NO_BORDER)
-        super(TimeNavigator, self).__init__(*args, **kwargs)
-
-        sizer = wx.BoxSizer(wx.HORIZONTAL)
-        
-        logo = wx.StaticBitmap(self, -1, images.SSXLogo.GetBitmap())
-        sizer.Add(logo, 0, wx.ALIGN_CENTER)
-        
-        self.timeline = TimeNavigatorCtrl(self,-1)
-        sizer.Add(self.timeline, -1, wx.EXPAND)
-        
-        self._addButton(sizer, images.zoomOutH, self.OnZoomOut, 
-                        Id=wx.ID_ZOOM_OUT, tooltip="Zoom Out (X axis)")
-        self._addButton(sizer, images.zoomInH, self.OnZoomIn, 
-                        Id=wx.ID_ZOOM_IN, tooltip="Zoom In (X axis)")
-        self._addButton(sizer, images.zoomFitH, self.OnZoomFit, 
-                        Id=wx.ID_ZOOM_FIT, tooltip="Zoom to fit entire "
-                        "loaded time range (X axis)")
-        
-        self.SetSizer(sizer)
-        
-        self.movingMarks = False
-        
-        self.Bind(TimeNavigatorCtrl.EVT_INDICATOR_CHANGED, self.OnMarkChanged)
-        self.timeline.Bind(wx.EVT_LEFT_UP, self.OnMouseLeftUp)
-
-
-    #===========================================================================
-    # 
-    #===========================================================================
-    
-    def setTimeRange(self, start=None, end=None, instigator=None,
-                     tracking=False):
-        """ Set the current time range. Propagates to its children.
-            
-            @keyword start: The first time in the range. Defaults to the 
-                current start.
-            @keyword end: The last time in the range. Defaults to the current 
-                end.
-            @keyword instigator: The object that initiated the change, in order
-                to avoid an infinite loop of child calling parent calling child.
-            @keyword tracking: `True` if the widget doing the update is
-                tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond if 
-                `tracking` is `True`.
-        """
-        if instigator != self:
-            self.timerange = start, end
-            self.timeline.SetRange(start * self.root.timeScalar, 
-                                   end * self.root.timeScalar)
-
-        
-    def setVisibleRange(self, start=None, end=None, instigator=None,
-                        tracking=False):
-        """ Set the currently visible time range.
-            
-            @keyword start: The first time in the visible range. Defaults to
-                the current start.
-            @keyword end: The last time in the visible range. Defaults to the
-                current end.
-            @keyword instigator: The object that initiated the change, in order
-                to avoid an infinite loop of child calling parent calling child.
-            @keyword tracking: `True` if the widget doing the update is 
-                tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond if 
-                `tracking` is `True`.
-        """
-        if instigator != self:
-            start = None if start is None else start * self.root.timeScalar
-            end = None if end is None else end * self.root.timeScalar
-            self.timeline.setVisibleRange(start, end)
-
-
-    def zoom(self, percent, tracking=True, useKeyboard=False):
-        """ Increase or decrease the size of the visible range.
-        
-            @param percent: A zoom factor. Use a normalized value, positive
-                to zoom in, negative to zoom out.
-            @keyword tracking: `True` if the widget doing the update is 
-                tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond if 
-                `tracking` is `True`.
-            @keyword useKeyboard: If `True`, the state of the modifier keys
-                is checked, multiplying the amount of zoom.
-        """
-        if useKeyboard:
-            if wx.GetKeyState(wx.WXK_CONTROL):
-                percent *= 2
-            if wx.GetKeyState(wx.WXK_SHIFT):
-                percent /= 2
-            if wx.GetKeyState(wx.WXK_ALT):
-                percent *= 10
-
-        v1, v2 = self.timeline.getVisibleRange()
-        d = min(5000, (v2 - v1) * percent / 2)
-        newStart = (v1 + d)/ self.root.timeScalar
-        newEnd = (v2 - d)/ self.root.timeScalar
-        
-        # If one end butts the limit, move the other one more.
-        if newStart < self.timerange[0]:
-            newEnd += self.timerange[0] - newStart
-        elif newEnd > self.timerange[1]:
-            newStart -= newEnd - self.timerange[1]
-            
-        v1 = max(self.timerange[0], newStart) 
-        v2 = min(self.timerange[1], newEnd)#max(v1+10000, newEnd)) # Buffer
-        self.setVisibleRange(v1,v2)
-        self.postSetVisibleRangeEvent(v1, v2, tracking)
-
-
-    #===========================================================================
-    # 
-    #===========================================================================
-    
-    def OnMouseLeftUp(self, evt):
-        """ Handle the release of the left mouse button. If previously dragging
-            a range marker, do the non-tracking update.
-        """
-        evt.Skip()
-        if not self.movingMarks:
-            return
-        
-        self.movingMarks = False
-        v1, v2 = self.timeline.getVisibleRange()
-        self.postSetVisibleRangeEvent(v1/self.root.timeScalar, 
-                                      v2/self.root.timeScalar, 
-                                      False)    
-    
-
-    def OnMarkChanged(self, evt):
-        """ Handle the final adjustment of a visible range marker.
-        """
-        evt.Skip()
-        self.movingMarks = True
-        v1, v2 = self.timeline.getVisibleRange()
-        self.postSetVisibleRangeEvent(v1/self.root.timeScalar, 
-                                      v2/self.root.timeScalar, 
-                                      True)    
-
-    def OnZoomIn(self, evt):
-        """ Handle 'zoom in' events, i.e. the zoom in button was pressed. 
-        """
-        self.zoom(.25, False, useKeyboard=evt.EventObject!=self.root)
-        evt.Skip(False)
-
-    
-    def OnZoomOut(self, evt):
-        """ Handle 'zoom out' events, i.e. the zoom in button was pressed. 
-        """
-        self.zoom(-.25, False, useKeyboard=evt.EventObject!=self.root)
-        evt.Skip(False)
-
-
-    def OnZoomFit(self, evt):
-        """
-        """
-        self.setVisibleRange(*self.timerange)
-        self.postSetVisibleRangeEvent(*self.timerange, tracking=False)
-        evt.Skip(False)
-
-#===============================================================================
-# 
-#===============================================================================
-
-class Corner(ViewerPanel):
-    """ A set of widgets to fit into the empty space in the lower left corner.
-        Provides a space for 'manually' entering an interval of time to
-        display.
-    """
-    
-    def __init__(self, *args, **kwargs):
-        super(Corner, self).__init__(*args, **kwargs)
-        
-        self.oldStart = self.oldEnd = None
-        self.updating = False
-        self.formatting = "%.4f"
-        labelSize = self.GetTextExtent(" Start:")
-        
-        fieldAtts = {'size': (56,-1),
-                     'style': wx.TE_PROCESS_ENTER}# | wx.TE_PROCESS_TAB}
-        labelAtts = {'size': labelSize,#(30,-1),
-                     'style': wx.ALIGN_RIGHT | wx.ALIGN_BOTTOM}
-        unitAtts = {'style': wx.ALIGN_LEFT}
-        
-        self.startField = wx.TextCtrl(self, -1, "start", 
-                                      validator=TimeValidator(), **fieldAtts)
-        startLabel = wx.StaticText(self,-1,"Start:", **labelAtts)
-        self.startUnits = wx.StaticText(self, -1, " ", **unitAtts)
-
-        self.endField = wx.TextCtrl(self, -1, "end", 
-                                    validator=TimeValidator(), **fieldAtts)
-        endLabel = wx.StaticText(self,-1,"End:", **labelAtts)
-        self.endUnits = wx.StaticText(self, -1, " ", **unitAtts)
-
-        sizer = wx.FlexGridSizer(2,3, hgap=0, vgap=2)
-        sizer.AddGrowableCol(0,-1)
-        sizer.AddGrowableCol(1,-1)
-        sizer.AddGrowableCol(2,-1)
-        
-        sizer.Add(startLabel,0,0,wx.GROW|wx.ALIGN_CENTER_VERTICAL|wx.ALL)
-        sizer.Add(self.startField)#,1,0)
-        sizer.Add(self.startUnits)#, 2,0)
-        
-        sizer.Add(endLabel)#,0,1)
-        sizer.Add(self.endField)#,1,1)
-        sizer.Add(self.endUnits)#, 2,1)
-        
-        self.SetSizer(sizer)
-        startLabel.SetSizerProps(valign="center")
-        endLabel.SetSizerProps(valign="center")
-        self.startUnits.SetSizerProps(valign="center")
-        self.endUnits.SetSizerProps(valign="center")
-
-        self.SetBackgroundColour(self.root.uiBgColor)
-        self.setXUnits()
-        
-        self.startField.Bind(wx.EVT_KILL_FOCUS, self.OnRangeChanged)
-        self.endField.Bind(wx.EVT_KILL_FOCUS, self.OnRangeChanged)
-#         self.Bind(wx.EVT_TEXT_ENTER, self.OnRangeEntered)
-        self.Bind(wx.EVT_TEXT_ENTER, self.OnRangeChanged)
-
-
-    def _setValue(self, field, val):
-        """ Sets displayed value of a field. Used internally.
-        """
-        if val is not None:
-            field.SetValue(self.formatting % (self.root.timeScalar * val))
-    
-    
-    def _getValue(self, field, default=None):
-        """ Get the value (in dataset time units) of a field.
-        """
-        try:
-            return float(field.GetValue()) / self.root.timeScalar
-        except ValueError:
-            self._setValue(field, default)
-            return default
-        
-    
-    def setXUnits(self, symbol=None):
-        """ Set the displayed symbol for the horizontal units (e.g. time).
-        """
-        symbol = self.root.units[1] if symbol is None else symbol
-        self.startUnits.SetLabel(symbol)
-        self.endUnits.SetLabel(symbol)
-        
-
-    def setVisibleRange(self, start=None, end=None, instigator=None, 
-                        tracking=None):
-        """ Set the currently visible time range.
-            
-            @keyword start: The first time in the visible range. Defaults to
-                the current start.
-            @keyword end: The last time in the visible range. Defaults to the
-                current end.
-            @keyword instigator: The object that initiated the change, in 
-                order to avoid an infinite loop of child calling parent 
-                calling child. The call is aborted if the instigator is the
-                object itself.
-            @keyword tracking: `True` if the widget doing the update is
-                tracking (a/k/a scrubbing), `False` if the update is final.
-                Elements that take a long time to draw shouldn't respond
-                if `tracking` is `True`.
-        """
-        if instigator == self:
-            return
-
-        self.updating = True
-        self.oldStart = start
-        self.oldEnd = end
-        self._setValue(self.startField, start)
-        self._setValue(self.endField, end)
-        self.updating = False
-        
-
-    def OnRangeChanged(self, evt):
-        """ Process value changes after Enter or Tab.
-        """
-        start = self._getValue(self.startField, self.oldStart)
-        end = self._getValue(self.endField, self.oldEnd)
-
-        if start != self.oldStart or end != self.oldEnd:
-            if not self.updating:
-                self.Parent.setVisibleRange(start, end, None, False)
-            
-        evt.Skip()
-
-
-    def OnRangeEntered(self, evt):
-        """ Handle Enter. Does some work before `OnRangeChanged` is called.
-        """
-        evt.EventObject.SetSelection(-1,-1)
-        self.OnRangeChanged(evt)
-
-
-        
 #===============================================================================
 # 
 #===============================================================================
@@ -1845,48 +1318,30 @@ class Viewer(wx.Frame, MenuMixin):
         if settings is None:
             return
         
-        source = settings['source']
-        subchannels = settings['subchannels']
-        subchannelIds = [c.id for c in subchannels]
-        start, stop = settings['indexRange']
-        removeMeanType = settings.get('removeMean', 0)
-        
-        removeMean = removeMeanType > 0
-        if removeMeanType == 1:
-            meanSpan = self.app.getPref('rollingMeanSpan', 5.0) / self.timeScalar
-        else:
-            meanSpan = -1
+        source = settings.pop('source')
+        subchannels = [c.id for c in settings.pop('subchannels', [])]
+        settings.pop('startTime', None)
+        settings.pop('endTime', None)
+        numRows = settings.pop('numRows', 1)
         
         self.suspendDrawing()
-        numRows = stop-start
-        msg = "Exporting %d rows" % numRows
             
         dlg = xd.ModalExportProgress("Exporting %s" % exportType, 
-                                     msg, maximum=numRows*len(subchannels), 
+                                     "Exporting %d rows" % numRows, 
+                                     maximum=numRows*len(subchannels), 
                                      parent=self)
         
-        # TODO: Make the dictionary returned by the settings dialog match the
-        # keyword arguments of the export function, like the rendered views. 
-        # It was supposed to, and it almost does, but not quite.
-        params = dict(start=start, stop=stop, 
-                      subchannels=subchannelIds, 
-                      timeScalar=self.timeScalar, 
-                      callback=dlg, callbackInterval=0.0005, 
-                      raiseExceptions=True,
-                      useIsoFormat=settings.get('useIsoFormat', False),
-                      useUtcTime=settings.get('useUtcTime', False),
-                      headers=settings.get('addHeaders', False),
-                      removeMean=removeMean,
-                      meanSpan=meanSpan,
-                      display=settings.get('useConvertedUnits', True))
+        settings['callback'] = dlg
+        settings['raiseExceptions'] = True
+        settings.setdefault('display', True)
         
         try:
             if exportType == 'CSV':
                 with open(filename, 'w') as stream:
-                    source.exportCsv(stream, **params)
+                    source.exportCsv(stream, **settings)
                 
             elif exportType == 'MAT':
-                mide_ebml.matfile.exportMat(source, filename, **params)
+                mide_ebml.matfile.exportMat(source, filename, **settings)
                 
         except Exception as err:
             self.handleError(err, what="exporting %s" % exportType)
@@ -1909,12 +1364,7 @@ class Viewer(wx.Frame, MenuMixin):
         evtId = plotType if evt is None else evt.GetId()
         if evtId == self.ID_RENDER_PSD:
             viewClass = PSDView
-            settings = xd.PSDExportDialog.getExport(root=self, 
-                useWelch=self.app.getPref('psd.useWelch', False), 
-                windowSize=self.app.getPref('psd.windowSize', 2**16))
-            if settings is not None:
-                self.app.setPref('psd.useWelch', settings['useWelch'])
-                self.app.setPref('psd.windowSize', settings['windowSize'])
+            settings = xd.PSDExportDialog.getExport(root=self)
         elif evtId == self.ID_RENDER_SPEC:
             viewClass = SpectrogramView
             settings = xd.SpectrogramExportDialog.getExport(root=self)
@@ -1927,17 +1377,6 @@ class Viewer(wx.Frame, MenuMixin):
             
         if settings is None:
             return
-        
-        # Get items from the export dialog's results for setting up the views.
-        # Not all views use all parameters, but their __init__ methods will
-        # accept them.
-        removeMeanType = settings.get('removeMean', 2)
-        
-        settings['removeMean'] = removeMeanType > 0
-        if removeMeanType == 1:
-            settings['meanSpan'] = self.app.getPref('rollingMeanSpan', 5.0) / self.timeScalar
-        else:
-            settings['meanSpan'] = -1
         
         viewId = wx.NewId()
         size = self.GetSize()

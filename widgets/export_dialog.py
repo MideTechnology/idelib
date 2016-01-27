@@ -84,6 +84,7 @@ class ExportDialog(sc.SizedDialog):
             | wx.DIALOG_EX_CONTEXTHELP \
             | wx.SYSTEM_MENU
 
+        self.app = wx.GetApp()
         self.root = kwargs.pop('root', None)
         kwargs.setdefault('style', style)
         kwargs.setdefault('title', self.DEFAULT_TITLE)
@@ -361,17 +362,21 @@ class ExportDialog(sc.SizedDialog):
             # This should never happen, but just in case:
             return None
         
-        startTime, stopTime = self.getExportRange()
         source = channels[0].parent.getSession(self.root.session.sessionId)
-        indexRange = source.getRangeIndices(startTime, stopTime)
+        startTime, stopTime = self.getExportRange()
+        startIdx, stopIdx = source.getRangeIndices(startTime, stopTime)
+        callbackInt = wx.GetApp().getPref('exportCallbackInterval', 0.0005)
 
-        return {'start': startTime,
-                'end': stopTime,
-                'indexRange': indexRange,
+        return {'startTime': startTime,
+                'endTime': stopTime,
+                'start': startIdx,
+                'stop': stopIdx,
                 'subchannels': channels,
-                'numRows': indexRange[1]-indexRange[0],
+                'numRows': stopIdx - startIdx,
 #                 'removeMean': self.removeMeanList.GetSelection(),
-                'source': source}
+                'source': source,
+                'callbackInterval':  callbackInt,
+                }
     
 
     def showColumnsMsg(self, num=0, msg=None):
@@ -641,10 +646,17 @@ class CSVExportDialog(ExportDialog):
         if result is None:
             return None
         
-        result['removeMean'] = self.removeMeanList.GetSelection()
-        result['addHeaders'] = self.headerCheck.GetValue()
+        removeMeanType = self.removeMeanList.GetSelection()
+        result['removeMean'] = removeMeanType > 0
+        if removeMeanType == 1:
+            result['meanSpan'] = self.app.getPref('rollingMeanSpan', 5.0) / self.root.timeScalar
+        else:
+            result['meanSpan'] = -1
+            
+        result['headers'] = self.headerCheck.GetValue()
         result['useUtcTime'] = self.utcCheck.GetValue()
         result['useIsoFormat'] = self.isoCheck.GetValue()
+        result['timeScalar'] = self.root.timeScalar
         return result
 
 #===============================================================================
@@ -683,10 +695,11 @@ class FFTExportDialog(ExportDialog):
                 Not currently implemented.
         """
         self._samplingOrder = kwargs.pop('samplingOrder', self.SEQUENTIAL)
-        self.windowSize = str(kwargs.pop('windowSize', self.DEFAULT_WINDOW_SIZE))
+        super(FFTExportDialog, self).__init__(*args, **kwargs)
+
+        self.windowSize = str(self.app.getPref('psd.windowSize', self.DEFAULT_WINDOW_SIZE))
         if self.windowSize not in self.WINDOW_SIZES:
             self.windowSize = str(self.DEFAULT_WINDOW_SIZE)
-        super(FFTExportDialog, self).__init__(*args, **kwargs)
 
 
     def buildSpecialUI(self):
@@ -783,9 +796,10 @@ class PSDExportDialog(FFTExportDialog):
         # Keep separate many/max values for standard and windowed calculation.
         # The windowed version is less memory intensive, but the total number
         # of samples still counts. 
+        self.root = kwargs['root']
+        self.useWelch = self.root.app.getPref('psd.useWelch', False) 
         self.fftMany = self.manyEvents, self.maxEvents
         self.welchMany = self.manyEvents*8, self.maxEvents*8
-        self.useWelch = kwargs.pop('useWelch', False)
         
         super(PSDExportDialog, self).__init__(*args, **kwargs)
         self.OnWelchChecked(self.useWelch)
@@ -959,6 +973,12 @@ if __name__ == '__main__':# or True:
         def getTimeRange(self):
             return self.timerange
         
+    
+    class FakeApp(wx.App):
+        def getPref(self, k, default):
+            return default
+        
+        
     root=FakeViewer()
     
     DIALOGS_TO_SHOW = (
@@ -970,7 +990,7 @@ if __name__ == '__main__':# or True:
 #         (SpectrogramExportDialog, {'root': root}),
     )
     
-    app = wx.App()
+    app = FakeApp()
     for dialogClass, kwargs in DIALOGS_TO_SHOW:
         title = "Testing %s" % dialogClass.__name__
         results = dialogClass.getExport(**kwargs)#, title=title)
