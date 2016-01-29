@@ -1276,8 +1276,9 @@ class Viewer(wx.Frame, MenuMixin):
         """
         self.cancelOperation()
         self.plotarea.clearAllPlots()
-        self.dataset = None
+        self.dataset.close()
         self.session = None
+        self.dataset = None
         self.enableChildren(False)
         self.enableMenus(False)
 

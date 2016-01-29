@@ -7,6 +7,10 @@ Created on Sep 26, 2013
 @author: dstokes
 
 '''
+# TODO: Clean out some of the unused features. They make the code less clear,
+#    creating more than one way to do the same thing. More often than not, 
+#    they are the result of over-engineering things.
+#
 # TODO: The new, cached EventList transforms save the combined transforms on
 #    the parent EventList. This should probably be revised to have the cached
 #    transforms saved on the children; this will allow multiple copies of
@@ -102,8 +106,8 @@ class Cascading(object):
         result.append(self)
         return result
 
+
     def __repr__(self):
-#         return "<%s %r>" % (self.__class__.__name__, self.path())
         return "<%s %r at 0x%08x>" % (self.__class__.__name__, self.path(), 
                                       id(self))
     
@@ -231,6 +235,7 @@ class Dataset(Cascading):
         self.loading = True
         self.filename = getattr(stream, "name", None)
         
+        # Subsets: used when importing multiple files into the same dataset.
         self.subsets = []
 
         if name is None:
@@ -252,13 +257,23 @@ class Dataset(Cascading):
                                   "library is %d" % (self.schemaVersion, 
                                                      self.ebmldoc.version))
 
+
     def close(self):
-        result = self.ebmldoc.stream.file.close()
+        """ Close the recording file.
+        """
+        stream = self.ebmldoc.stream.file
+        if hasattr(stream, 'closeAll'):
+            # File is a ThreadAwareFile; close for all threads.
+            result = stream.closeAll()
+        else:
+            result = stream.close()
+            
         for s in self.subsets:
             try:
                 s.close()
             except (AttributeError, IOError):
                 pass
+            
         return result
                 
     
@@ -1335,16 +1350,6 @@ class EventList(Transformable):
                 For multiple results, a list of (time, value) tuples.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
-#         # TODO: Is this ever used?
-#         if isinstance(idx, Iterable):
-#             result = []
-#             for t in idx:
-#                 v = self[t]
-#                 if isinstance(v, list):
-#                     result.extend(v)
-#                 else:
-#                     result.append(v)
-#             return result
         if self.useAllTransforms:
             xform = self._fullXform
             if display:
@@ -2073,11 +2078,6 @@ class EventList(Transformable):
             block.sampleTime = endTime - startTime
             return block.sampleTime
 
-#         if numSamples == 0:
-#             # No data in block
-#             # TODO: Implement getting sample rate in case of empty block?
-#             numSamples = 1
-
         block.sampleTime = (endTime - startTime) / (numSamples-1.0)
         
         return block.sampleTime
@@ -2153,7 +2153,6 @@ class EventList(Transformable):
             first = self.__getitem__(0, display=display)
             if first[-2] == at:
                 return first
-            # TODO: How best to handle times before first event?
             if outOfRange:
                 return first
             raise IndexError("Specified time occurs before first event (%d)" % first[-2])
@@ -2163,7 +2162,6 @@ class EventList(Transformable):
                 return last
             if outOfRange:
                 return last
-            # TODO: How best to handle times after last event?
             raise IndexError("Specified time occurs after last event (%d)" % last[-2])
         
         startEvt = self.__getitem__(startIdx, display=display)
