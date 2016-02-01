@@ -13,6 +13,7 @@ import sys
 import wx.lib.sized_controls as SC
 import wx.html
 from wx.lib.wordwrap import wordwrap
+from wx.html import HtmlWindow
 wx = wx
 
 #===============================================================================
@@ -53,6 +54,7 @@ class AboutBox(SC.SizedDialog):
     """
     TEMPLATE = os.path.join('ABOUT', 'about.html')
     TEMPFILE = os.path.join('ABOUT', 'about_tmp.html')
+    RELEASE_NOTES = os.path.join('ABOUT', "slam_stick_lab_changelog.html")
 
     def makeAboutFile(self):
         escapedStrings = self.strings.copy()
@@ -170,6 +172,11 @@ class AboutBox(SC.SizedDialog):
         about = HtmlWindow(notebook, -1)
         notebook.AddPage(about, self.strings.get('appName'))
         about.LoadFile(self.makeAboutFile())
+        
+        if os.path.exists(self.RELEASE_NOTES):
+            notes = HtmlWindow(notebook, -1)
+            notebook.AddPage(notes, "Release Notes")
+            notes.LoadPage(self.RELEASE_NOTES)
         
         licenses = HtmlWindow(notebook, -1)
         notebook.AddPage(licenses, "Licenses")

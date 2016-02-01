@@ -34,8 +34,14 @@ Additional, optional keys in `info.json` or `PLUGIN_INFO`:
   * minVersion (tuple/list of integers): The minimum version of the app with
       which the plug-in is compatible. 
   * maxVersion (tuple/list of integers): The maximum version of the app with
-      which the plug-in is compatible. 
+      which the plug-in is compatible.
 """
+
+# TODO: Support imports of other packages in the plug-in. Possibly add a 
+#     ``packages`` item to the JSON, listing the other packages in the archive.
+#     These can then be imported first, and the main module can be imported; 
+#     its import statements should find the other packages.
+
 
 __author__ = "D. R. Stokes"
 __email__ = "dstokes@mide.com"

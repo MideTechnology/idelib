@@ -8,16 +8,22 @@ from datetime import datetime
 import json
 import logging
 import os
-import subprocess
+from shutil import copyfile
 import socket
+import subprocess
 import sys
 import time
 
+from docutils.examples import html_body
 from git import InvalidGitRepositoryError
 from git.repo import Repo
 
+from assembly import birth_utils as util
+
 HOME_DIR = os.getcwd()
 VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
+RELEASE_NOTES_FILE = 'updater files/slam_stick_lab_changelog.txt'
+RELEASE_NOTES_HTML = util.changeFilename(RELEASE_NOTES_FILE, ext=".html")
 logger = logging.getLogger('SlamStickLab.BuildAll')
 
 builds = (
@@ -55,6 +61,27 @@ def updateJson(version, preview=False):
             json.dump(info, f)
     
     return info
+
+
+def makeReleaseNotes(textfile=RELEASE_NOTES_FILE, output=None):
+    """ Use docutils to generate HTML release notes.
+    """
+    if output is None:
+        output = util.changeFilename(textfile, ext=".html")
+
+    with open(textfile, "rb") as f:
+        txt = unicode(f.read(), encoding="utf8")
+        html = html_body(txt).replace("h1>", "h2>")
+        
+    with open(output, "wb") as f:
+        f.write("<html><body>\n")
+        f.write("<!-- automatically generated; edits will be lost! -->\n")
+        f.write(html)
+        f.write("</body></html>\n")
+    
+    return output
+    
+
 
 #===============================================================================
 # 
@@ -154,6 +181,13 @@ buildArgs = {
     'options': '--clean' if args.clean else ''
 }
 
+# TODO: Generate release notes HTML from ReStructuredText TXT file.
+try:
+    print "Copying release notes to ABOUT directory..."
+    notes = util.changeFilename(RELEASE_NOTES_HTML, path="ABOUT")
+    copyfile(RELEASE_NOTES_HTML, notes)
+except (IOError):
+    print "Could not copy release notes!"
 
 bad = 0
 for i, build in enumerate(builds):

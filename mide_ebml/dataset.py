@@ -312,7 +312,9 @@ class Dataset(Cascading):
         """ Create a new Sensor object, and add it to the dataset, and return
             it. If the given sensor ID already exists, the existing sensor is 
             returned instead. To modify a sensor or add a sensor object created 
-            elsewhere, use `Dataset.sensors[sensorId]` directly. 
+            elsewhere, use `Dataset.sensors[sensorId]` directly.
+            
+            Note that the `sensorId` keyword argument is *not* optional.
             
             @param sensorId: The ID of the new sensor.
             @keyword name: The new sensor's name
@@ -337,7 +339,8 @@ class Dataset(Cascading):
 
     def addChannel(self, channelId=None, parser=None, channelClass=None,
                    **kwargs):
-        """ Add a Channel to a Sensor. 
+        """ Add a Channel to a Sensor. Note that the `channelId` and `parser`
+            arguments are *not* optional.
         
             @param channelId: An unique ID number for the channel.
             @param parser: The Channel's data parser
@@ -358,7 +361,8 @@ class Dataset(Cascading):
 
     def addTransform(self, transform):
         """ Add a transform (calibration, etc.) to the dataset. Various child
-            objects will reference them by ID.
+            objects will reference them by ID. Note: unlike the other `add`
+            methods, this does not instantiate new objects.
         """
         if transform.id is None:
             raise ValueError("Added transform did not have an ID")
@@ -368,7 +372,7 @@ class Dataset(Cascading):
     
     def addWarning(self, warningId=None, channelId=None, subchannelId=None, 
                    low=None, high=None, **kwargs):
-        """
+        """ Add a ``WarningRange`` to the dataset.
         """
         w = WarningRange(self, warningId=warningId, channelId=channelId, 
                          subchannelId=subchannelId, low=low, high=high, 
