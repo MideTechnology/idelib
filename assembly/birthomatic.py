@@ -284,7 +284,7 @@ def copyContent(devPath, partNum=None):
 #===============================================================================
 
 def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=None,
-          fwFile=None, firmwareOnly=False):
+          fwFile=None, firmwareOnly=False, writeLog=True):
     """ Perform initial configuration of a Slam Stick X.
     """
     rebirth = serialNum is not None
@@ -420,8 +420,8 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
             f.write(calEbml)
     
         propXmlFile = os.path.join(chipDirName, 'recprop.xml')
-        firmware.makeRecPropXml(TEMPLATE_PATH, partNum, hwRev, accelSerialNum, propXmlFile)
-        if os.path.exists(propXmlFile):
+        propTemplate = firmware.makeRecPropXml(TEMPLATE_PATH, partNum, hwRev, accelSerialNum, propXmlFile)
+        if propTemplate and os.path.exists(propXmlFile):
             propEbml = xml2ebml.readXml(propXmlFile, schema='mide_ebml.ebml.schema.mide') 
             with open(utils.changeFilename(propXmlFile, ext="ebml"), 'wb') as f:
                 f.write(propEbml)
@@ -451,12 +451,13 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
     # 9. Update birth log
     print "Updating birthing logs and serial number..."
-    logline = utils.makeBirthLogEntry(chipId, serialNum, rebirth, bootVer, hwRev, fwRev, accelSerialNum, partNum)
-    utils.writeFileLine(BIRTH_LOG_FILE, logline, mode='at')
-    utils.writeFileLine(os.path.join(calDirName, 'birth_log.txt'), logline)
-    if not rebirth:
-        print "Writing serial number to file: %s" % serialNum
-        utils.writeFileLine(DEV_SN_FILE, serialNum)
+    if writeLog:
+        logline = utils.makeBirthLogEntry(chipId, serialNum, rebirth, bootVer, hwRev, fwRev, accelSerialNum, partNum)
+        utils.writeFileLine(BIRTH_LOG_FILE, logline, mode='at')
+        utils.writeFileLine(os.path.join(calDirName, 'birth_log.txt'), logline)
+        if not rebirth:
+            print "Writing serial number to file: %s" % serialNum
+            utils.writeFileLine(DEV_SN_FILE, serialNum)
     utils.writeFileLine(os.path.join(chipDirName, 'mide_sn.txt'), serialNum)
     utils.writeFileLine(os.path.join(chipDirName, 'accel_sn.txt'), accelSerialNum)
    
@@ -557,7 +558,7 @@ if __name__ == "__main__":
                 exit(0)
             if args.jig:
                 getJigBootloader()
-            birth(serialNum=args.serialNum, fwFile=args.binfile, firmwareOnly=args.firmwareonly)
+            birth(serialNum=args.serialNum, fwFile=args.binfile, firmwareOnly=args.firmwareonly, writeLog=(not args.exclude))
         elif args.mode.startswith("cal"):
             # HACK to keep the procedure the same; will remove cal in future.
             try:
@@ -565,7 +566,7 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 pass
     except KeyboardInterrupt:
-        print "Quitting..."
+        print "\nQuitting..."
     finally:
         utils.releaseLockFile(LOCK_FILE)
  

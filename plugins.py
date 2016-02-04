@@ -164,10 +164,13 @@ class Plugin(object):
                 plugin will be loaded if available. 
         """
         self.loaded = False
+        self.bad = True
         self.module = None
         self.main = None
         self.moduleName = None
         self.isModule = False
+        
+        self.imports = None
         
         # The plugin is an imported module. Just get the relevant data from it.
         # Module plugins are not otherwise validated, since they were imported
@@ -275,7 +278,10 @@ class Plugin(object):
             # This is good: the module doesn't already exist.
             pass
         
+        self.modules = self.info.get('modules', [])
+        
         # TODO: Additional validation (check signatures, etc.)
+        self.bad = False
         
 
     def load(self, *args, **kwargs):
@@ -286,6 +292,11 @@ class Plugin(object):
             Arguments and keyword arguments are passed directly to the
             plugin's `__init__()` method.
         """
+        if self.bad:
+            raise PluginImportError("Cannot load bad plugin %r "
+                                    "(see previous errors)" % self.moduleName)
+        
+        self.bad = True
         if self.module is None:
             try:
                 if self.isDir:
@@ -300,7 +311,14 @@ class Plugin(object):
                 else:
                     # Import from the compressed file.
                     # The library handles loading source vs. compiled.
+                    
+                    # Import submodules first, to resolve dependencies.
+                    # Not needed when importing an uncompressed file.
+                    for m in self.modules:
+                        self.zip.load_module(m)
+                        
                     self.module = self.zip.load_module(self.moduleName)
+                    
             except (SyntaxError, ImportError, IOError) as err:
                 raise PluginImportError("Could not import %r from" % \
                                         self.moduleName, self.path, err)
@@ -310,6 +328,7 @@ class Plugin(object):
                                     self.path)
         
         self.loaded = True
+        self.bad = False
         self.main = self.module.init(self, *args, **kwargs)
         self.__call__.__func__.__doc__ = self.main.__doc__
         return self
