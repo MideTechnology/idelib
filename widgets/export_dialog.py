@@ -694,12 +694,14 @@ class FFTExportDialog(ExportDialog):
             @keyword samplingOrder: The order in which the samples are taken.
                 Not currently implemented.
         """
+        self.app = wx.GetApp()
         self._samplingOrder = kwargs.pop('samplingOrder', self.SEQUENTIAL)
-        super(FFTExportDialog, self).__init__(*args, **kwargs)
-
         self.windowSize = str(self.app.getPref('psd.windowSize', self.DEFAULT_WINDOW_SIZE))
+
         if self.windowSize not in self.WINDOW_SIZES:
             self.windowSize = str(self.DEFAULT_WINDOW_SIZE)
+
+        super(FFTExportDialog, self).__init__(*args, **kwargs)
 
 
     def buildSpecialUI(self):
@@ -795,14 +797,16 @@ class PSDExportDialog(FFTExportDialog):
     def __init__(self, *args, **kwargs):
         # Keep separate many/max values for standard and windowed calculation.
         # The windowed version is less memory intensive, but the total number
-        # of samples still counts. 
+        # of samples still counts.
         self.root = kwargs['root']
-        self.useWelch = self.root.app.getPref('psd.useWelch', False) 
+        self.app = wx.GetApp()
+        self.useWelch = self.app.getPref('psd.useWelch', False) 
         self.fftMany = self.manyEvents, self.maxEvents
         self.welchMany = self.manyEvents*8, self.maxEvents*8
         
         super(PSDExportDialog, self).__init__(*args, **kwargs)
         self.OnWelchChecked(self.useWelch)
+    
     
     def buildSpecialUI(self):
         """ Called before the OK/Cancel buttons are added.
