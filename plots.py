@@ -1273,6 +1273,7 @@ class Plot(ViewerPanel, MenuMixin):
         
         if self.yUnits is None:
             self.yUnits = getattr(source, "units", ('',''))
+        self.nativeUnits = self.yUnits
     
         self.warningRanges = set()
         self.colors = {}
@@ -1672,7 +1673,8 @@ class Plot(ViewerPanel, MenuMixin):
     def enableMenus(self):
         """ Update the plot-specific menus items in the main view's menu bar.
         """
-        if self != self.Parent.getActivePage():
+        activePage = self.Parent.getActivePage()
+        if self != activePage and activePage is not None:
             return
 
         enabled = any([s.allowMeanRemoval and s.hasMinMeanMax for s in self.sources])
@@ -1753,6 +1755,7 @@ class Plot(ViewerPanel, MenuMixin):
         except ValueError:
             return False
             
+
 
     #===========================================================================
     # 
@@ -1946,6 +1949,8 @@ class PlotSet(aui.AuiNotebook):
         self.loadPrefs()
         
         self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnPageChange)
+        self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSE, self.OnPageClose)
+        self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSED, self.OnPageClosed)
         
 
     def loadPrefs(self):
@@ -2081,6 +2086,22 @@ class PlotSet(aui.AuiNotebook):
         """
         """
         self.getActivePage().enableMenus()
+
+
+    def OnPageClose(self, evt):
+        """
+        """
+        if len(self) == 1:
+            pass
+        evt.Skip()
+
+
+    def OnPageClosed(self, evt):
+        """
+        """
+        if self.GetPageCount() == 0:
+            self.root.enableMenus(False)
+        evt.Skip()
 
 
     def setAntialias(self, aa=True):

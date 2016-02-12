@@ -181,6 +181,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.root = self # for consistency with other objects
         self.dataset = None
         self.session = None
+        self.dataSources = OrderedDict()
+        self.tabTypes = {}
         self.cancelQueue = []
         self.plotarea = None
         
@@ -354,7 +356,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y, 
                         "Zoom to Fit Y\tAlt+0", '', self.OnZoomFitY)
         # ID_VIEW_ZOOM_FIT_ALL
-        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y, 
+        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_ALL, 
                         "Zoom to Fit All\tAlt+Ctrl+0", '', self.OnZoomFitAll)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS, 
@@ -563,6 +565,10 @@ class Viewer(wx.Frame, MenuMixin):
                  ]
         menus.extend([t.info['_wxId'] for t in self.app.plugins.find(type='tool') if '_wxId' in t.info])
         
+        if self.dataset:
+            menus.append(self.ID_VIEW_NEWTAB)
+            menus.extend(self.tabTypes.keys())
+        
         if not enabled:
             self.enableMenuItems(self.menubar, menus, True, False)
         else:
@@ -606,7 +612,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Populate the View->New Tab menu with measurement types from the
             current dataset.
         """
-        self.tabTypes = {}
+        self.tabTypes.clear()
         map(self.viewNewTabMenu.DestroyItem, self.viewNewTabMenu.GetMenuItems())
         for t in sorted(set([p.parent.units for p in self.dataSources.values()])):
             tid = wx.NewId()
@@ -802,7 +808,7 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             meanSpan = -1
         
-        self.dataSources = OrderedDict()
+        self.dataSources.clear()
         displaymode = self.app.getPref('initialDisplayMode', 1)
         if displaymode == 0:
             # Old style: one tab per subchannel
@@ -1885,6 +1891,11 @@ class Viewer(wx.Frame, MenuMixin):
                                   initialRange=initialRange)
         if p is not None:
             p.removeMean(removeMean, meanSpan)
+        
+        # This is to make sure everything works if all tabs were closed first.
+        self.enableMenus()
+        self.updateSourceMenu(p)
+        self.updateConversionMenu(p)
 
 
     def OnLegendToggle(self, evt):
@@ -1917,6 +1928,8 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handle selection of a unit converter menu item.
         """
         activePage = self.plotarea.getActivePage()
+        if activePage is None:
+            return
         units = activePage.units
         conv = self.unitConverters.get(evt.GetId(), None)
         for p in self.plotarea:
@@ -2324,7 +2337,7 @@ class Viewer(wx.Frame, MenuMixin):
                 mi.Enable(getattr(p.transform, 'parameters', None) is not None)
                 continue
             elif mid == self.ID_DATA_DISPLAY_NATIVE:
-                mi.SetText("Native Units (%s as %s)" % p.units)
+                mi.SetText("Native Units (%s as %s)" % p.nativeUnits)#p.units)
             elif len(p.sources) == 0:
                 mi.Enable(self.unitConverters[mid].convertsFrom == p.units)
             else:
