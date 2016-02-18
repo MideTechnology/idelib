@@ -276,7 +276,7 @@ class IdeSplitter(ToolDialog):
                     # Last (or only) file being processed; just alert.
                     msg = "%s\n\nExport cancelled." % msg
                     wx.MessageBox(msg, 
-                                  "Error", 
+                                  "IDE Splitter Error", 
                                   wx.OK | wx.ICON_ERROR,
                                   parent=updater)
         
