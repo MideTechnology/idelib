@@ -97,6 +97,7 @@ import tools.filesplit
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
 
+FILESIZE_WARNING = 500000
 
 #===============================================================================
 # 
@@ -1506,7 +1507,23 @@ class Viewer(wx.Frame, MenuMixin):
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
-            self.openFile(filename)
+            # TODO: Enable file size warning at some point in the future.
+#             try:
+#                 if os.path.getsize(filename) > FILESIZE_WARNING:
+#                     q = self.ask("You are attempting to open an extremely large file.\n\n"
+#                                  "This may cause the Lab to respond slowly. "
+#                                  "For best results, try splitting the recording "
+#                                  "into smaller parts using the IDE Splitter "
+#                                  "tool, located under the Tools menu.\n\n"
+#                                  "Open the large file anyway?", "Large File Warning", 
+#                                  wx.OK|wx.CANCEL, icon=wx.ICON_WARNING, 
+#                                  pref="largeFileWarning")
+#                     if q != wx.ID_OK:
+#                         filename = ''
+#             except (OSError, IOError):
+#                 pass
+            if filename:
+                self.openFile(filename)
             
         # Note to self: do this last!
         dlg.Destroy()
