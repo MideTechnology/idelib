@@ -92,29 +92,15 @@ class SimpleUpdater(object):
 class ChannelDataBlockParser(parsers.ChannelDataBlockParser):
     """ Simplified data block parser that only corrects the timestamp modulus.
     """
-    def _fixOverflow(self, block, timestamp):
-        """ Return an adjusted, scaled time from a low-resolution timestamp.
-        """
-        channel = block.getHeader()[1]
-        timestamp += self.timestampOffset.setdefault(channel, 0)
-        # NOTE: This might need to just be '<' (for discontinuities)
-        while timestamp <= self.lastStamp.get(channel,0):
-            timestamp += block.maxTimestamp
-            self.timestampOffset[channel] += block.maxTimestamp
-        self.lastStamp[channel] = timestamp
-        return timestamp * self.timeScalar
     
     def fixOverflow(self, block, timestamp):
         """ Return an adjusted, scaled time from a low-resolution timestamp.
         """
         channel = block.getHeader()[1]
-        timestamp += self.timestampOffset.setdefault(channel, 0)
-        # NOTE: This might need to just be '<' (for discontinuities)
-        while timestamp <= self.lastStamp.get(channel,0):
-            timestamp += block.maxTimestamp
-            self.timestampOffset[channel] += block.maxTimestamp
+        if timestamp < self.lastStamp.get(channel, 0):
+            self.timestampOffset[channel] = self.timestampOffset.get(channel, 0) + block.maxTimestamp
         self.lastStamp[channel] = timestamp
-        return timestamp * block.timeScalar
+        return (timestamp + self.timestampOffset.get(channel, 0)) * block.timeScalar
   
     def parse(self, element, sessionId=None):
         """ Create a (Simple)ChannelDataBlock from the given EBML element.

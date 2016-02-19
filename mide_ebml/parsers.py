@@ -453,7 +453,7 @@ class BaseDataBlock(object):
             clock ticks) to microseconds.
     """
     headerSize = 0
-    maxTimestamp = 2**16
+    maxTimestamp = 2**24 #2**16
     timeScalar = 1000000.0 / 2**15
     
     def __init__(self, element, maxTimestamp=maxTimestamp, timeScalar=timeScalar):
@@ -588,6 +588,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
     """
     headerParser = struct.Struct(">HB")
     headerSize = headerParser.size
+    maxTimestamp = 2**16
 
     def __init__(self, element, ):
         super(SimpleChannelDataBlock, self).__init__(element)
@@ -638,7 +639,6 @@ class SimpleChannelDataBlockParser(ElementHandler):
 
         # Timestamp conversion/correction is done per channel        
         self.timestampOffset = {}
-        self.stampRollover = {}
         self.lastStamp = {}
         self.timeScalars = {}
         self.timeModulus = {}
@@ -648,14 +648,22 @@ class SimpleChannelDataBlockParser(ElementHandler):
         """ Return an adjusted, scaled time from a low-resolution timestamp.
         """
         channel = block.getHeader()[1]
-        timestamp += self.timestampOffset.setdefault(channel, 0)
-        # NOTE: This might need to just be '<' (for discontinuities)
-#         if timestamp <= self.lastStamp.get(channel,0):
-        while timestamp < self.lastStamp.get(channel,0):
-            timestamp += block.maxTimestamp
-            self.timestampOffset[channel] += block.maxTimestamp
+        modulus = self.timeModulus.setdefault(channel, block.maxTimestamp)
+        offset = self.timestampOffset.setdefault(channel, 0)
+        
+        if timestamp > modulus:
+            # Timestamp is (probably) not modulo; will occur in split files.
+            offset = timestamp - (timestamp % modulus)
+            timestamp = timestamp % modulus
+            self.timestampOffset[channel] = offset
+        elif timestamp < self.lastStamp.get(channel, 0):
+            # Modulo rollover (probably) occurred.
+            offset += modulus
+            self.timestampOffset[channel] = offset
+            
         self.lastStamp[channel] = timestamp
-        return timestamp * self.timeScalars.get(channel, self.timeScalar)
+        timestamp += self.timestampOffset[channel]
+        return timestamp * self.timeScalars.setdefault(channel, self.timeScalar)
     
    
     def parse(self, element, sessionId=None, timeOffset=0):
@@ -777,13 +785,6 @@ class ChannelDataBlockParser(SimpleChannelDataBlockParser):
 
     timeScalar = 1000000.0 / 2**15
 
-    def __init__(self, doc, **kwargs):
-        super(ChannelDataBlockParser, self).__init__(doc, **kwargs)
-        
-        self.timestampOffset = {}
-        self.stampRollover = {}
-        self.lastStamp = {}
-        
 
 ################################################################################
 #===============================================================================
