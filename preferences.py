@@ -58,7 +58,7 @@ class Preferences(object):
         'resamplingJitter': False,
         'resamplingJitterAmount': 0.125,
         'oversampling': 25.0,
-        'condensedPlotThreshold': 2.0,
+        'condensedPlotThreshold': 1.0,
         'fillCondensedPlot': True,
         'drawMajorHLines': True,
         'drawMinorHLines': True, #False,
@@ -113,7 +113,7 @@ class Preferences(object):
         'drawHollowPlot': True,
 #         'locale': 'English_United States.1252', # Python's locale name string
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
-        'loader': dict(numUpdates=100, updateInterval=1.0, minCount=750000),
+        'loader': dict(numUpdates=100, updateInterval=1.0, minCount=10000000),
         'openOnStart': True,
         'showDebugChannels': DEBUG,
         'showFullPath': True,#False,
@@ -554,7 +554,7 @@ class PrefsDialog(SC.SizedDialog):
              "The number of samples to import before doing the first plot. "
              "Note: a very large number may cause performance issues when "
              "importing extremely large recordings.",
-             Min=0, Max=10000000, Step=50000)
+             Min=0, Max=25000000, Step=50000)
         self.pg.SetPropertyEditor("loader_minCount","SpinCtrl")
         _add(PG.EnumProperty("When opening another file:", "openAnotherFile",
                              ("Close previous file","Open in new window", "Ask")),

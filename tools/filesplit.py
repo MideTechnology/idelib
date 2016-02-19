@@ -110,7 +110,7 @@ class IdeSplitter(ToolDialog):
         self.inputFiles.SetSizerProps(expand=True, proportion=1)
         self.outputBtn = FB.DirBrowseButton(pane, -1, size=(450, -1), 
                                             labelText="Output Directory:",
-                                            dialogTitle="MAT Export Path",
+                                            dialogTitle="Split Export Path",
                                             newDirectory=True,
                                             startDirectory=outPath)
         self.outputBtn.SetSizerProps(expand=True, proportion=0)
