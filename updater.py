@@ -320,7 +320,7 @@ def checkUpdates(app, force=False, quiet=True, url=UPDATER_URL,
                 downloadUrl = responseContent.get('downloadUrl', DOWNLOAD_URL)
             if isNewer(newVersion, currentVersion):
                 logger.info("Updater found new version %r" % (newVersion,))
-                sendUpdateEvt(newVersion, updateDate, changelog, url=downloadUrl)
+                sendUpdateEvt(newVersion, updateDate, changelog, downloadUrl=downloadUrl)
             elif checkBeta:
                 checkUpdates(app, force, quiet, BETA_UPDATER_URL,
                              BETA_DOWNLOAD_URL, checkBeta=False)
@@ -355,42 +355,42 @@ def startCheckUpdatesThread(*args, **kwargs):
 # 
 #===============================================================================
   
-# if __name__ == '__main__':
-#
-#     class FakeApp(wx.App):
-#         PREFS = {
-#                  }
-#         version = (0,1,10)
-#         versionString = '.'.join(map(str, version))
-#         buildVersion = version + (1234,)
-#         def getPref(self, v, default):
-#             return self.PREFS.get(v, default)
-#         def setPref(self, v, val):
-#             self.PREFS[v] = val
-#         def editPrefs(self, evt=None):
-#             print "edit prefs"
-#
-#     app = FakeApp()
-#
-#     code, response = getLatestVersion()
-#     print "app.version = %r" % (app.version,)
-#     print "getLatestVersion returned code %r, version %r" % (code, response)
-#     if response is None:
-#         print "Error occurred; aborting"
-#         exit(1)
-#
-#     vers = response.get('version', None)
-#     changeUrl = response.get('changelog', None)
-#     print "zipped: %r" % (zip(app.version, vers),)
-#     t = 1406471411.0
-#     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t,2))
-#     t = time.time()
-#     print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
-#     print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
-#
-#     evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
-#
-# #     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
-#     dlg = UpdateDialog(None, -1, updaterEvent=evt)
-#     dlg.ShowModal()
-#     dlg.Destroy()
+if __name__ == '__main__':
+
+    class FakeApp(wx.App):
+        PREFS = {
+                 }
+        version = (0,1,10)
+        versionString = '.'.join(map(str, version))
+        buildVersion = version + (1234,)
+        def getPref(self, v, default):
+            return self.PREFS.get(v, default)
+        def setPref(self, v, val):
+            self.PREFS[v] = val
+        def editPrefs(self, evt=None):
+            print "edit prefs"
+
+    app = FakeApp()
+
+    code, response = getLatestVersion()
+    print "app.version = %r" % (app.version,)
+    print "getLatestVersion returned code %r, version %r" % (code, response)
+    if response is None:
+        print "Error occurred; aborting"
+        exit(1)
+
+    vers = response.get('version', None)
+    changeUrl = response.get('changelog', None)
+    print "zipped: %r" % (zip(app.version, vers),)
+    t = 1406471411.0
+    print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t,2))
+    t = time.time()
+    print "isTimeToCheck(%r): %r" % (t, isTimeToCheck(t))
+    print "isNewer(%r, %r): %r" % (app.version, vers, isNewer(app.version, vers))
+
+    evt = EvtUpdateAvailable(newVersion=vers, changelog=changeUrl, url=DOWNLOAD_URL)
+
+#     dlg = UpdateDialog(None, -1, root=app, newVersion=vers, changelog=changeUrl)
+    dlg = UpdateDialog(None, -1, updaterEvent=evt)
+    dlg.ShowModal()
+    dlg.Destroy()

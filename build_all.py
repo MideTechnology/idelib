@@ -22,6 +22,7 @@ from assembly import birth_utils as util
 
 HOME_DIR = os.getcwd()
 VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
+BETA_INFO_FILE = 'updater files/slam_stick_lab_beta.json'
 RELEASE_NOTES_FILE = 'updater files/slam_stick_lab_changelog.txt'
 RELEASE_NOTES_HTML = util.changeFilename(RELEASE_NOTES_FILE, ext=".html")
 logger = logging.getLogger('SlamStickLab.BuildAll')
@@ -49,7 +50,7 @@ def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=No
         f.write('REPO_COMMIT_ID = %r' % commit)
 
 
-def updateJson(version, preview=False):
+def updateJson(version, filename=VERSION_INFO_FILE, preview=False):
     with open(VERSION_INFO_FILE, 'r') as f:
         info = json.load(f)
      
@@ -57,7 +58,7 @@ def updateJson(version, preview=False):
     info["date"] = int(thisTime)
     
     if not args.preview:
-        with open(VERSION_INFO_FILE,'w') as f:
+        with open(filename,'w') as f:
             json.dump(info, f)
     
     return info
@@ -213,7 +214,7 @@ else:
 if args.release and bad == 0:
     print "*"*78
     print "Everything is okay; updating version info file '%s'" % VERSION_INFO_FILE
-    info = updateJson(VERSION_INFO_FILE, preview=args.preview)
+    info = updateJson(thisVersion, VERSION_INFO_FILE, preview=args.preview)
     if args.preview:
         print "PREVIEW of info file:", json.dumps(info)
         

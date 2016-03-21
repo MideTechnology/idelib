@@ -14,6 +14,7 @@ class SlamStickC(SlamStickX):
     """ A Slam Stick C data recorder from Mide Technology Corporation. 
     """
     
+    # TODO: This really belongs in the configuration UI
     POST_CONFIG_MSG  = ("""When ready...\n"""
                         """    1. Disconnect Slam Stick C\n"""
                         """    2. Mount to surface\n"""

@@ -1166,7 +1166,6 @@ class Viewer(wx.Frame, MenuMixin):
                          "data?" % os.path.basename(calfile),
                          title="Import Calibration Data?", pref="autoImportCal")
             if q == wx.ID_YES:
-                # TODO: Implement calibration auto-importing!
                 logger.info("Importing external calibration file.")
                 self.importCalibration(calfile)
             else:
@@ -1507,21 +1506,21 @@ class Viewer(wx.Frame, MenuMixin):
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
-            # TODO: Enable file size warning at some point in the future.
-#             try:
-#                 if os.path.getsize(filename) > FILESIZE_WARNING:
-#                     q = self.ask("You are attempting to open an extremely large file.\n\n"
-#                                  "This may cause the Lab to respond slowly. "
-#                                  "For best results, try splitting the recording "
-#                                  "into smaller parts using the IDE Splitter "
-#                                  "tool, located under the Tools menu.\n\n"
-#                                  "Open the large file anyway?", "Large File Warning", 
-#                                  wx.OK|wx.CANCEL, icon=wx.ICON_WARNING, 
-#                                  pref="largeFileWarning")
-#                     if q != wx.ID_OK:
-#                         filename = ''
-#             except (OSError, IOError):
-#                 pass
+            try:
+                if os.path.getsize(filename) > FILESIZE_WARNING:
+                    q = self.ask("You are attempting to open an extremely large file.\n\n"
+                                 "This may cause the Lab to respond slowly. "
+                                 "For best results, try splitting the recording "
+                                 "into smaller parts using the IDE Splitter "
+                                 "tool, located under the Tools menu.\n\n"
+                                 "Open the large file anyway?", "Large File Warning", 
+                                 wx.OK|wx.CANCEL, icon=wx.ICON_WARNING, 
+                                 pref="largeFileWarning")
+                    if q != wx.ID_OK:
+                        filename = ''
+            except (OSError, IOError):
+                # Ignore errors here; openFile() should handle them instead.
+                pass
             if filename:
                 self.openFile(filename)
             

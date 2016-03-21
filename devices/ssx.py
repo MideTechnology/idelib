@@ -43,6 +43,7 @@ class SlamStickX(Recorder):
     USERCAL_FILE = os.path.join(SYSTEM_PATH, "usercal.dat")
     TIME_PARSER = struct.Struct("<L")
 
+    # TODO: This really belongs in the configuration UI
     POST_CONFIG_MSG  = ("""When ready...\n"""
                         """    1. Disconnect Slam Stick X\n"""
                         """    2. Mount to surface\n"""

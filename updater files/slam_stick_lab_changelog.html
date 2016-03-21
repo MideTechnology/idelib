@@ -4,9 +4,27 @@
     <title>Slam Stick Lab Changelog</title>
   </head>
   <body>
+      <a name="1.5.0"><h3>1.5.0</h3></a>
+      <p>Version <b>1.5.0</b> is a significant update, containing new features and important improvements.</p>
+      <p>Changes in 1.5.0 include:</p>
+      <ul>
+          <li>Calibration polynomial editing</li>
+          <ul>
+            <li><i>Slam Stick&trade; X/C user calibration editing:</i> Through the Device Configuration dialog, the user can create custom calibration data, overriding the factory settings in future recordings.</li>
+            <li><i>"Live" recording calibration editing:</i> When viewing recorded data, the user can modify the file's calibration polynomials. Changes made will immediately update the display in the Lab.</li>
+            <li><i>Calibration import/export:</i> Edited calibration data can be exported for use in displaying other files, or transferred to another recorder.</li>
+            <li><i>Automatic import of user-edited calibration:</i> When opening a recording (<tt>.IDE</tt>), if the file has a matching calibration data file (<tt>.CAL</tt>) in the same directory, the user is given the option to import it automatically.</li>
+          </ul>
+          <li>The number of samples loaded before plotting begins is now a user preference (<i>Pre-Plotting Samples</i>). The default number is significantly larger than in previous versions.</li>
+          <li>Time stamp accuracy has been improved in multi-hour recordings, and in the final files split from a multi-hour recording.</li>
+          <li>Improved support for extremely short recordings.</li>
+          <li>Miscellaneous bug fixes, optimizations, and minor UI improvements.</li>
+      </ul>
+
+      <hr/>
       <a name="1.4.3"><h3>1.4.3</h3></a>
       <p>Version <b>1.4.3</b> is a maintenance release, containing various
-          improvements and minor bug fixes, primarily to recorder coniguration.</p>
+          improvements and minor bug fixes, primarily to recorder configuration.</p>
       <p>Changes in 1.4.3 include:</p>
       <ul>
           <li>Improvements to Slam Stick C&trade; configuration, including acceleration triggering.</li>
