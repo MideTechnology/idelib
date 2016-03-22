@@ -97,7 +97,7 @@ class SlamStickX(Recorder):
                         return True
                     devinfo = util.read_ebml(infoFile, schema=schema_mide)
                     props = devinfo['RecordingProperties']['RecorderInfo']
-                    return props['RecorderTypeUID'] != 0x20
+                    return "Slam Stick X" in props['RecorderTypeUID']
         except (KeyError, TypeError, AttributeError, IOError):
             pass
         return False

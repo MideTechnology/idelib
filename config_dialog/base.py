@@ -760,7 +760,7 @@ class InfoPanel(HtmlWindow):
                    'Hardware Revision': str,
                    'Firmware Revision': str,
                    'Config. Format Version': str,
-                   'Recorder Serial': lambda x: "SSX%07d" % x,
+                   'Recorder Serial': str,
                    'Calibration Date': datetime.fromtimestamp,
                    'Calibration Expiration Date': datetime.fromtimestamp,
                    'Calibration Serial Number': lambda x: "C%05d" % x
@@ -844,6 +844,8 @@ class InfoPanel(HtmlWindow):
 
 
     def getDeviceData(self):
+        # XXX: This is ugly!
+        self.info['RecorderSerial'] = self.root.device.serial
         for k,v in self.info.iteritems():
             self.data[self.field_names.get(k, self._fromCamelCase(k))] = v
 

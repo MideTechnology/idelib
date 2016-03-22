@@ -32,7 +32,7 @@ class SlamStickC(SlamStickX):
                 if os.path.exists(infoFile):
                     devinfo = util.read_ebml(infoFile, schema=schema_mide)
                     props = devinfo['RecordingProperties']['RecorderInfo']
-                    return props['RecorderTypeUID'] == 0x20
+                    return 'Slam Stick C' in props['ProductName']
         except (KeyError, AttributeError, IOError):
             pass
         return False
