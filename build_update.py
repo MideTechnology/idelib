@@ -55,7 +55,7 @@ def getTemplates():
     templates = []
     for root, dirs, files in os.walk(TEMPLATE_PATH): 
         for d in dirs:
-            if d.startswith('.') or 'TEST' in d or d=='bak':
+            if d.startswith('.') or 'TEST' in d or d=='bak' or d=='OLD':
                 dirs.remove(d)
         templates.extend(map(lambda x: os.path.join(root, x), 
                              filter(lambda x: x.lower() in names, files)))

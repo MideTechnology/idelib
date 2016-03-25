@@ -44,12 +44,10 @@ Disclaimer
 ----------
 THIS CODE IS PROVIDED ONLY AS AN EXAMPLE. USE AT YOUR OWN RISK. MIDE TECHNOLOGY
 CORPORATION DISCLAIMS ANY AND ALL WARRANTIES, EXPRESSED OR IMPLIED. 
-
-Created on Oct 19, 2015
 '''
 
 __author__ = "dstokes"
-__copyright__ = "Copyright 2015 Mide Technology Corporation"
+__copyright__ = "Copyright 2016 Mide Technology Corporation"
 
 import base64
 import sys
@@ -71,7 +69,7 @@ from ebml.schema.base import CONTAINER
 EBML_TYPES = {INT: "int",
               UINT: "uint",
               FLOAT: "float",
-              STRING: "unicode",
+              STRING: "str",
               UNICODE: "unicode",
               DATE: "date",
               BINARY: "binary",
@@ -156,6 +154,8 @@ def createXmlElement(element, xmlDoc, xmlParent=None, ignoreVoid=True):
                 # These can be safely ignored.
                 continue
             createXmlElement(child, xmlDoc, xmlParent=xmlElement)
+        if xmlParent:
+            xmlParent.appendChild(xmlElement)
         return xmlElement
     
     if element.type == BINARY:
@@ -164,6 +164,10 @@ def createXmlElement(element, xmlDoc, xmlParent=None, ignoreVoid=True):
     elif element.type == UNICODE:
         # Unicode strings get re-encoded as UTF-8
         val = element.value.encode('utf8')
+        # NOTE: xml.dom.minidom does not respect encoding when writing 
+        # individual elements, which ebml2xml does in order to stream to a
+        # file, so UTF-8 strings are converted to base64 ASCII. 
+        val = base64.encodestring(val)
     else:
         # All other types get converted to ASCII strings
         val = str(element.value)
