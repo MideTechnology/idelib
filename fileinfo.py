@@ -170,10 +170,11 @@ class RecorderInfoDialog(SC.SizedDialog):
         """
         result = OrderedDict()
         damaged = "True *" if self.root.fileDamaged else "False"
-        if damaged:
-            damaged
-        result['File Type'] = "%s (version %s)" % (self.root.ebmldoc.type, 
-                                                   self.root.ebmldoc.version)
+        if hasattr(self.root, 'ebmldoc'):
+            result['File Type'] = "%s (version %s)" % (self.root.ebmldoc.type, 
+                                                       self.root.ebmldoc.version)
+        else:
+            result['File Type'] = "Slam Stick Classic"
         result['File Damaged'] = damaged
         result['Number of Sessions'] = str(len(self.root.sessions))
         for s in self.root.sessions:
