@@ -845,7 +845,8 @@ class InfoPanel(HtmlWindow):
 
     def getDeviceData(self):
         # XXX: This is ugly!
-        self.info['RecorderSerial'] = self.root.device.serial
+        if self.root.device is not None:
+            self.info['RecorderSerial'] = self.root.device.serial
         for k,v in self.info.iteritems():
             self.data[self.field_names.get(k, self._fromCamelCase(k))] = v
 

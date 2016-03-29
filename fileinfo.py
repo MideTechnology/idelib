@@ -12,6 +12,7 @@ import wx; wx = wx
 import wx.lib.sized_controls as SC
 
 from config_dialog import InfoPanel, CalibrationPanel
+import devices
 from mide_ebml import util
 
 #===============================================================================
@@ -208,6 +209,7 @@ class RecorderInfoDialog(SC.SizedDialog):
         
         super(RecorderInfoDialog, self).__init__(*args, **kwargs)
         
+        
         fileInfo = self.getFileInfo()
         recordingInfo = self.getRecordingInfo()
         recorderInfo = self.getRecorderInfo()
@@ -217,6 +219,11 @@ class RecorderInfoDialog(SC.SizedDialog):
                 ebmlInfo = ebmlInfo[0]
         else:
             ebmlInfo = None
+        
+        try:    
+            self.device = devices.fromRecording(self.root)
+        except TypeError:
+            self.device = None
         
         pane = self.GetContentsPane()
         notebook = wx.Notebook(pane, -1)

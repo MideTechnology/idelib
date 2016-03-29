@@ -97,7 +97,7 @@ import tools.filesplit
 ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
 
-FILESIZE_WARNING = 500000
+FILESIZE_WARNING = 33554432
 
 #===============================================================================
 # 

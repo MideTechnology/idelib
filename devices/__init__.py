@@ -19,6 +19,7 @@ from classic import SlamStickClassic
 # 
 #===============================================================================
 
+# TODO: Modularize device type registration, so new ones can be added cleanly.
 RECORDER_TYPES = [SlamStickClassic, SlamStickC, SlamStickX]
 
 
@@ -101,12 +102,16 @@ def fromRecording(doc):
     """ Create a 'virtual' recorder from the data contained in a recording
         file.
     """
-    productName = doc.recorderInfo.get('ProductName', 'Slam Stick X')
-    recType = SlamStickX
+    productName = doc.recorderInfo.get('ProductName')
+    if productName is None:
+        raise TypeError("Could not create virtual recorder from file (no ProductName)")
+    recType = None #SlamStickX
     for rec in RECORDER_TYPES:
         if rec.baseName in productName:
             recType = rec
             break
+    if recType is None:
+        return None
     return recType.fromRecording(doc)
     
     

@@ -36,6 +36,9 @@ import mide_ebml.ebml.schema.manifest as schema_manifest
 
 from updater import isNewer
 
+# TODO: Better way of identifying valid devices, probably part of the class.
+RECORDER_TYPES = [devices.SlamStickC, devices.SlamStickX]
+
 #===============================================================================
 # 
 #===============================================================================
@@ -796,7 +799,7 @@ def updateFirmware(parent=None, device=None, filename=None):
                       "recorders except the one you wish to update.", 
                       "Update Firmware")
     if device is None:
-        device = device_dialog.selectDevice(parent=parent, hideClock=True)
+        device = device_dialog.selectDevice(parent=parent, hideClock=True, types=RECORDER_TYPES)
     if device is None:
         return False
         
@@ -821,7 +824,7 @@ def updateFirmware(parent=None, device=None, filename=None):
                    "(CRC test of contents failed).")
         else:
             msg = ("This firmware update package appears to be missing vital "
-                   "components,and is likely damaged.")
+                   "components, and is likely damaged.")
         wx.MessageBox(msg, "Validation Error")
         return False
     except IOError as err:

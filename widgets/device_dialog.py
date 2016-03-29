@@ -12,7 +12,7 @@ import wx.lib.sized_controls as sc
 import wx.lib.mixins.listctrl  as  listmix
 
 from common import cleanUnicode
-from devices import getDevices, getDeviceList
+from devices import getDevices, getDeviceList, RECORDER_TYPES
 from devices import deviceChanged
 
 #===============================================================================
@@ -57,12 +57,13 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         
         self.root = kwargs.pop('root', None)
         self.autoUpdate = kwargs.pop('autoUpdate', 500)
+        self.deviceTypes = kwargs.pop('types', RECORDER_TYPES)
         kwargs.setdefault('style', style)
         
         sc.SizedDialog.__init__(self, *args, **kwargs)
         
         self.recorders = {}
-        self.recorderPaths = tuple(getDeviceList())
+        self.recorderPaths = tuple(getDeviceList(types=self.deviceTypes))
         self.listWidth = 300
         self.selected = None
         self.selectedIdx = None
@@ -133,7 +134,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     def TimerHandler(self, evt):
         if deviceChanged(recordersOnly=True):
             self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
-            newPaths = tuple(getDeviceList())
+            newPaths = tuple(getDeviceList(types=self.deviceTypes))
             if newPaths == self.recorderPaths:
                 self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
                 return
@@ -301,7 +302,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 #===============================================================================
 
 def selectDevice(title="Select Recorder", autoUpdate=1000, parent=None,
-                 hideClock=False):
+                 hideClock=False, types=RECORDER_TYPES):
     """ Display a device-selection dialog and return the path to a recorder.
         The dialog will (optionally) update automatically when devices are
         added or removed.
@@ -312,7 +313,7 @@ def selectDevice(title="Select Recorder", autoUpdate=1000, parent=None,
         @return: The path of the selected device.
     """
     result = None
-    dlg = DeviceSelectionDialog(parent, -1, title, autoUpdate=autoUpdate)
+    dlg = DeviceSelectionDialog(parent, -1, title, autoUpdate=autoUpdate, types=types)
     if hideClock:
         dlg.setClockButton.Hide()
     

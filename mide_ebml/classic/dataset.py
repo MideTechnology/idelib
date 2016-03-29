@@ -50,7 +50,7 @@ class Dataset(DS.Dataset):
         self.transforms = {}
         self.parent = None
         self.currentSession = None
-        self.recorderInfo = {'productName': 'Slam Stick Classic'}
+        self.recorderInfo = {'ProductName': 'Slam Stick Classic'}
         self.warningRanges = {}
         
         self.useIndices = False
