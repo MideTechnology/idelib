@@ -535,6 +535,22 @@ class FirmwareUpdater(object):
                     p['PolynomialCoef'] = cal[calId].coefficients
                     p['CalReferenceValue'] = cal[calId].references[0]
                     p['BivariateCalReferenceValue'] = cal[calId].references[1]
+        else:
+            logger.info("No Bivariate polynomials; expected for SSC.")
+        
+        try:
+            polys = findItem(calTemplate, 'CalibrationList/UnivariatePolynomial')
+        except (KeyError, IndexError):
+            polys = None
+
+        if polys is not None:
+            for p in polys:
+                calId = p['CalID']
+                if calId in cal:
+                    p['PolynomialCoef'] = cal[calId].coefficients
+                    p['CalReferenceValue'] = cal[calId].references[0]
+        else:
+            logger.warn("No Univariate polynomials: this should not happen!")
         
         if calEx:
             calTemplate['CalibrationList']['CalibrationSerialNumber'] = calSer
@@ -557,8 +573,8 @@ class FirmwareUpdater(object):
             self.props = ''
         
         self.userpage = self.makeUserpage(self.manifest, self.cal, self.props)
-        
 
+        
 #===============================================================================
 # 
 #===============================================================================

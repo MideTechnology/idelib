@@ -31,8 +31,8 @@ from assembly import birth_utils as util
 PACKAGE_FORMAT_VERSION = 1
 PACKAGE_EXT = "fw"
 
-PRODUCT_ROOT_PATH = "R:/LOG-Data_Loggers/LOG-0002_Slam_Stick_X/"
-BIRTHER_PATH = os.path.join(PRODUCT_ROOT_PATH, "Design_Files/Firmware_and_Software/Manufacturing/LOG-XXXX-SlamStickX_Birther/")
+PRODUCT_ROOT_PATH = os.path.realpath("R:/LOG-Data_Loggers/LOG-0002_Slam_Stick_X/")
+BIRTHER_PATH = os.path.realpath(os.path.join(PRODUCT_ROOT_PATH, "Design_Files/Firmware_and_Software/Manufacturing/LOG-XXXX-SlamStickX_Birther/"))
 
 FIRMWARE_PATH = os.path.join(BIRTHER_PATH, "firmware")
 TEMPLATE_PATH = os.path.join(BIRTHER_PATH, "data_templates")
@@ -44,7 +44,8 @@ APP_VER_FILE = os.path.join(FIRMWARE_PATH, "app_version.txt")
 NOTES_FILE = os.path.join(FIRMWARE_PATH, 'release_notes.txt')
 NOTES_HTML_FILE = util.changeFilename(NOTES_FILE, ext=".html")
 
-UPDATE_DIR = os.path.join(PRODUCT_ROOT_PATH, 'Design_Files/Firmware_and_Software/Release/Firmware/updates/')
+UPDATE_DIR = os.path.realpath(os.path.join(PRODUCT_ROOT_PATH, 'Design_Files/Firmware_and_Software/Release/Firmware/updates/'))
+UPDATE_BUILD_FILE = os.path.join(UPDATE_DIR, "updater_package_build_num.txt")
 
 #===============================================================================
 # 
@@ -54,7 +55,7 @@ def getTemplates():
     names = "manifest.template.xml", "cal.template.xml", "recprop.template.xml"
     templates = []
     for root, dirs, files in os.walk(TEMPLATE_PATH): 
-        for d in dirs:
+        for d in dirs[:]:
             if d.startswith('.') or 'TEST' in d or d=='bak' or d=='OLD':
                 dirs.remove(d)
         templates.extend(map(lambda x: os.path.join(root, x), 
@@ -83,7 +84,7 @@ def addBinaries(z, boot=False):
     z.write(APP_FILE, os.path.basename(APP_FILE))
 
     
-def addJson(z, appVersion, appName="app.bin", boot=False):
+def addJson(z, appVersion, appName="app.bin", boot=False, preview=False):
     """ Generate and add JSON metadata.
     """
     source = os.path.join(FIRMWARE_PATH, 'fw_update.json')
@@ -95,7 +96,6 @@ def addJson(z, appVersion, appName="app.bin", boot=False):
         data = {}
     
     # TODO: Add any generated data
-
     data['created'] = time.time()
     data['package_format'] = PACKAGE_FORMAT_VERSION
     data['app_name'] = appName
@@ -107,8 +107,17 @@ def addJson(z, appVersion, appName="app.bin", boot=False):
         data['boot_version'] = util.readFileLine(BOOT_VER_FILE, str)
         data['boot_hash'] = hash(util.readFile(BOOT_FILE))
 
+    buildNum = util.readFileLine(UPDATE_BUILD_FILE, last=True)
+    if buildNum is not None:
+        data['package_build_number'] = buildNum
+
     with open(temp, 'wb') as f:
         json.dump(data, f)
+
+    if not preview:
+        with open(UPDATE_BUILD_FILE, 'wb') as f:
+            f.write("# This is incremented each time a .FW package is built. Don't edit!\n")
+            f.write('%d\n' % (buildNum + 1))
 
     z.write(temp, 'fw_update.json')
     return data
@@ -173,7 +182,7 @@ def makePackage(app, boot=False, preview=False, useHtml=True):
     print "Writing to file %s" % filename
     with zipfile.ZipFile(filename, "w", zipfile.ZIP_DEFLATED) as f:
         print "Generating JSON..."
-        info = addJson(f, fwRev, appName=os.path.basename(app), boot=boot)
+        info = addJson(f, fwRev, appName=os.path.basename(app), boot=boot, preview=preview)
         if preview:
             pprint.pprint(info)
         print "Adding app binary %s..." % app
