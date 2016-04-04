@@ -9,6 +9,7 @@ Created on Nov 7, 2014
 
 from collections import OrderedDict
 from datetime import datetime
+import errno
 import os
 import shutil
 import socket
@@ -77,26 +78,57 @@ def readFileLine(filename, dataType=None, fail=False, last=True, default=None):
         return default
 
 
-def writeFileLine(filename, val, mode='w', newline=True):
-    """ Open a file and write a line. """
+def _writeFileLine(filename, val, mode='w', newline=True):
+    """ Open a file and write a line. Called by writeFileLine, which catches
+        a few exceptions.
+    """
     with open(filename, mode) as f:
         s = str(val)
         if newline and not s.endswith('\n'):
             s += "\n"
         return f.write(s)
+            
 
+def writeFileLine(filename, val, mode='w', newline=True):
+    """ Open a file and write a line. """
+    while True:
+        try:
+            return _writeFileLine(filename, val, mode, newline)
+        except IOError as err:
+            if err.errno == errno.EACCES:
+                f = os.path.basename(filename)
+                errMsg("Could not write to %s: make sure it is not open in another application!" % f)
+            else:
+                raise err
+        
 
 def readFile(filename):
     with open(filename,'rb') as f:
         return f.read()
 
-def writeFile(filename, data):
+
+def _writeFile(filename, data):
     with open(filename, 'wb') as f:
         if isinstance(data, basestring):
             f.write(data)
         else:
             f.write(str(data))
-            
+
+
+def writeFile(filename, data):
+    """ Open a file and write a line. """
+    while True:
+        try:
+            return _writeFile(filename, data)
+        except IOError as err:
+            if err.errno == errno.EACCES:
+                f = os.path.basename(filename)
+                errMsg("Could not write to %s: make sure it is not open in another application!" % f)
+            else:
+                raise err
+        
+
+
 #===============================================================================
 # 
 #===============================================================================

@@ -65,8 +65,9 @@ class ThreadAwareFile(object):
             Warning: May not be thread-safe in some situations!
         """
         if len(args) > 1:
-            if isinstance(args[1], basestring) and 'w' in args[1]:
-                raise IOError("ThreadAwareFile is read-only")
+            if isinstance(args[1], basestring):
+                if 'w' in args[1] or 'a' in args[1]:
+                    raise IOError("ThreadAwareFile is read-only")
         self.initArgs = args[:]
         self.initKwargs = kwargs.copy()
         ids = self.threads.keys()
