@@ -215,7 +215,10 @@ class RecorderInfoDialog(SC.SizedDialog):
         recordingInfo = self.getRecordingInfo()
         recorderInfo = self.getRecorderInfo()
         if hasattr(self.root, "ebmldoc"):
-            ebmlInfo = util.parse_ebml(self.root.ebmldoc.roots[0]).get('EBML', None)
+            try:
+                ebmlInfo = util.parse_ebml(self.root.ebmldoc.roots[0]).get('EBML', None)
+            except AttributeError:
+                ebmlInfo = None
             if ebmlInfo is not None:
                 ebmlInfo = ebmlInfo[0]
         else:
