@@ -68,7 +68,7 @@ DOWNLOAD_URL = "http://info.mide.com/data-loggers/slam-stick-lab-software?utm_ca
 # BETA_CHANGELOG_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_beta_changelog.html")
 # BETA_DOWNLOAD_URL = DOWNLOAD_URL
 
-BETA_UPDATER_URL = UPDATER_URL
+BETA_UPDATER_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_beta.json")
 BETA_CHANGELOG_URL = CHANGELOG_URL
 BETA_DOWNLOAD_URL = DOWNLOAD_URL
 

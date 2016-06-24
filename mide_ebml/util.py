@@ -10,6 +10,7 @@ Created on Dec 10, 2013
 
 from collections import Sequence, OrderedDict
 import datetime
+import errno
 import importlib
 import pkgutil
 from StringIO import StringIO
@@ -306,7 +307,7 @@ def read_ebml(stream, schema=DEFAULT_SCHEMA, ordered=True):
             stream.seek(0)
         except IOError as e:
             # Some stream-like objects (like stdout) don't support seek.
-            if e.errno != 9:
+            if e.errno != errno.EBADF:
                 raise e
             
     doctype = getSchemaDocument(schema)

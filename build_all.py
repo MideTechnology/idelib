@@ -5,6 +5,7 @@ available to the built apps by modifying `build_info.py`.
 
 import argparse
 from datetime import datetime
+from glob import glob
 import json
 import logging
 import os
@@ -13,6 +14,7 @@ import socket
 import subprocess
 import sys
 import time
+import zipfile
 
 from docutils.examples import html_body
 from git import InvalidGitRepositoryError
@@ -83,6 +85,30 @@ def makeReleaseNotes(textfile=RELEASE_NOTES_FILE, output=None):
     return output
     
 
+def compressFiles(args):
+    """ Create zips of the executables, ready for upload.
+    """
+    for k,v in args.items():
+        if not k.startswith('dist_'):
+            continue
+        exes = glob(os.path.join(v, '*.exe'))
+        for ex in exes:
+            path, zipname = os.path.split(ex)
+            zipname = zipname.replace(' ','_').replace('(','').replace(')','')
+            zipname = os.path.splitext(zipname)[0] + '.zip'
+            zipname = os.path.join(path, zipname)
+            if os.path.exists(zipname):
+                print "Skipping existing file %s" % zipname
+                continue
+            else:
+                print "Creating zip %s" % zipname
+            z = zipfile.ZipFile(zipname, 'w', zipfile.ZIP_DEFLATED)
+            z.write(ex)
+            z.close()
+            
+        # Only one directory of exes
+        break
+                
 
 #===============================================================================
 # 
@@ -217,5 +243,10 @@ if args.release and bad == 0:
     info = updateJson(thisVersion, VERSION_INFO_FILE, preview=args.preview)
     if args.preview:
         print "PREVIEW of info file:", json.dumps(info)
+    else:
+        compressFiles(buildArgs)
+
+    # TEST
+    compressFiles(buildArgs)
         
 print "*"*78

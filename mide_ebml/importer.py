@@ -48,9 +48,8 @@ testFile = "C:\\Users\\dstokes\\workspace\\SSXViewer\\test_recordings\\shocks.ID
 
 # from parsers import AccelerometerParser
 
-# Hard-coded sensor/channel mapping. Will eventually be read from EBML file,
-# but these should be default for the standard Slam Stick X.
-# TODO: Base default sensors on the device type UID.
+# Legacy hard-coded sensor/channel mapping. Used when importing files recorded 
+# on SSX running old firmware, which does not contain self-description data.
 DEFAULTS = {
     "sensors": {
         0x00: {"name": "832M1 Accelerometer"},
@@ -307,12 +306,6 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
         data). When called by a GUI, this function should be considered 'modal,' 
         in that it shouldn't run in a background thread, unlike `readData()`. 
         
-        @note: This is (currently) just a stub; all the importing is done by
-            the `readData()` function alone.
-        @todo: Split everything that's not reading sensor data (loading
-            calibration, building the sensor list, creating the session catalog)
-            out of `readData()`.
-
         @param stream: The file or file-like object containing the EBML data.
         @keyword updater: A function (or function-like object) to notify as 
             work is done. It should take four keyword arguments: `count` (the 
@@ -329,6 +322,7 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
             base name of the file (if applicable).
         @keyword quiet: If `True`, non-fatal errors (e.g. schema/file
             version mismatches) are suppressed. 
+        @return: The opened (but still 'empty') `dataset.Dataset`
     """
     if isinstance(stream, basestring):
         stream = open(stream, 'rb')
@@ -396,19 +390,20 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             `numUpdates`.
         @keyword total: The total number of bytes in the file(s) being imported.
             Defaults to the size of the current file, but can be used to
-            display an overall progress when merging multiple recordings.
+            display an overall progress when merging multiple recordings. For
+            display purposes.
         @keyword bytesRead: The number of bytes already imported. Mainly for
-            merging multiple recordings.
+            merging multiple recordings. For display purposes.
         @keyword samplesRead: The total number of samples imported. Mainly for
             merging multiple recordings.
         @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        @keyword sessionId:
+        @keyword sessionId: The Session number to import. For future use; it
+            currently does nothing, and SSX files currently do not contain
+            multiple sessions.
         @keyword onlyChannel: If supplied, only import data from one channel.
         @keyword maxPause: If the updater's `paused` attribute is `True`, the
-            import will pause. This is the maximum pause length. 
-            
-        @keyword onlyChannel: If a number, only the channel specified will
-            be imported. Kind of a hack, to be redone later.
+            import will pause. This is the maximum pause length.
+        @return: The total number of samples read.
     """
     
     if doc._parsers is None:
@@ -523,6 +518,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     updater(done=True)
     return eventsRead
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -531,6 +527,14 @@ def estimateLength(filename, numSamples=50000, parserTypes=elementParserTypes,
                    defaults=DEFAULTS):
     """ Open and read enough of a file to get a rough estimate of its complete
         time range. 
+        
+        @param filename: The IDE file to open.
+        @keyword numSamples: The number of samples to read before generating
+            an estimated size.
+        @keyword parserTypes: A collection of `parsers.ElementHandler` classes.
+        @keyword defaults: Default Slam Stick description data, for use with
+            old SSX recordings.
+        @return: A 3-element tuple: 
     """
     
     # Fake updater that just quits after some number of samples.
