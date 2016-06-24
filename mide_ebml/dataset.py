@@ -2221,9 +2221,9 @@ class EventList(Transformable):
 
     def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
-                  raiseExceptions=False, dataFormat="%.6f", useUtcTime=False,
-                  useIsoFormat=False, headers=False, removeMean=None,
-                  meanSpan=None, display=False):
+                  raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
+                  useUtcTime=False, useIsoFormat=False, headers=False, 
+                  removeMean=None, meanSpan=None, display=False):
         """ Export events as CSV to a stream (e.g. a file).
         
             @param stream: The stream object to which to write CSV data.
@@ -2277,16 +2277,16 @@ class EventList(Transformable):
         # Create the function for formatting an entire row.
         if self.hasSubchannels:
             if isinstance(subchannels, Iterable):
-                fstr = '%s, ' + ', '.join([dataFormat] * len(subchannels))
+                fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(subchannels))
                 formatter = lambda x: fstr % ((timeFormatter(x),) + \
                                               tuple([x[-1][v] for v in subchannels]))
                 names = [self.parent.subchannels[x].name for x in subchannels]
             else:
-                fstr = '%s, ' + ', '.join([dataFormat] * len(self.parent.types))
+                fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(self.parent.types))
                 formatter = lambda x: fstr % ((timeFormatter(x),) + x[-1])
                 names = [x.name for x in self.parent.subchannels]
         else:
-            fstr = "%%s, %s" % dataFormat
+            fstr = "%%s%s%s" % (delimiter, dataFormat)
             formatter = lambda x: fstr % (timeFormatter(x),x[-1])
             names = [self.parent.name]
 
@@ -2311,7 +2311,8 @@ class EventList(Transformable):
         
         t0 = datetime.now()
         if headers:
-            stream.write('"Time",%s\n' % ','.join(['"%s"' % n for n in names]))
+            stream.write('"Time"%s%s\n' % 
+                         (delimiter, delimiter.join(['"%s"' % n for n in names])))
         try:
             for num, evt in enumerate(self.iterSlice(start, stop, step, display=display)):
                 stream.write("%s\n" % formatter(evt))

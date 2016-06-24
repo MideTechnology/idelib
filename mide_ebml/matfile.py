@@ -467,7 +467,7 @@ class MatStream(object):
     def getNamesSize(self, names, title="channel_names", noTimes=False):
         if noTimes:
             return self.getStringArraySize(title, names)
-        return self.getStringArraySize(['Time']+names)
+        return self.getStringArraySize(title, ['Time']+names)
     
         
     def writeNames(self, names, title="channel_names", noTimes=False):
