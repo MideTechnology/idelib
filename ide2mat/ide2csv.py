@@ -31,6 +31,7 @@ from build_info import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME #@UnusedImport
 __version__ = VERSION
 
 
+timeScalar = 1.0/(10**6)
 
 #===============================================================================
 #
@@ -124,35 +125,40 @@ class SimpleUpdater(object):
 #
 #===============================================================================
 
-def showInfo(ideFilename, **kwargs):
+def showInfo(ideFilename, toFile=False, **kwargs):
     """
     """
-    print ideFilename
-    print "=" * 70
+    if isinstance(toFile, basestring):
+        base = os.path.splitext(os.path.basename(ideFilename))[0] + '_info.txt'
+        filename = os.path.join(toFile, base)
+        out = open(filename, 'wb')
+    else:
+        out = sys.stdout
+    
+    def _print(*s):
+        out.write(' '.join(map(str, s)) + os.linesep)
+        
+    _print(ideFilename)
+    out.write(("=" * 70) + os.linesep)
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
-        print "Sensors"
-        print "-" * 40
+        _print("Sensors")
+        _print( "-" * 40)
         for s in sorted(doc.sensors.values()):
-            print "  Sensor %d: %s" % (s.id, s.name)
+            _print( "  Sensor %d: %s" % (s.id, s.name))
             if s.traceData:
                 for i in s.traceData.items():
-                    print "    %s: %s" % i
-        print
-        print "Channels"
-        print "-" * 40
+                    _print("    %s: %s" % i)
+        _print()
+        _print("Channels")
+        _print("-" * 40)
         for c in sorted(doc.channels.values()):
-            print "  Channel %d: %s" % (c.id, c.displayName)
+            _print("  Channel %d: %s" % (c.id, c.displayName))
             for sc in c.subchannels:
-                print "    Subchannel %d.%d: %s" % (c.id, sc.id, sc.displayName)
-    print "=" * 70
-
-
-#===============================================================================
-#
-#===============================================================================
-
-
+                _print("    Subchannel %d.%d: %s" % (c.id, sc.id, sc.displayName))
+    _print("=" * 70)
+    if out != sys.stdout:
+        out.close()
 
 
 #===============================================================================
@@ -160,12 +166,10 @@ def showInfo(ideFilename, **kwargs):
 #===============================================================================
 
 def ideExport(ideFilename, outFilename=None, channels=None,
-            startTime=0, endTime=None, updateInterval=1.5,
-            out=sys.stdout, outputType=".csv", delimiter=', ',
-            **kwargs):
+            startTime=0, endTime=None, updateInterval=1.5,  out=sys.stdout, 
+            outputType=".csv", delimiter=', ', headers=False, **kwargs):
     """ The main function that handles generating MAT files from an IDE file.
     """
-
     updater = kwargs.get('updater', importer.nullUpdater)
 #     maxSize = max(1024**2*16, min(matfile.MatStream.MAX_SIZE, 1024**2*maxSize))
 
@@ -211,7 +215,9 @@ def ideExport(ideFilename, outFilename=None, channels=None,
         print("  Exporting Channel %d (%s) to %s..." % (ch.id, ch.name, outName)),
         try:
             events = ch.getSession()
-            numSamples += exporter(events, outName, callback=updater, **exportArgs)[0]
+            numSamples += exporter(events, outName, callback=updater, 
+                                   timeScalar=timeScalar, headers=headers,
+                                   **exportArgs)[0]
 
         except None:
             pass
@@ -230,9 +236,12 @@ if __name__ == "__main__":
 
     argparser = argparse.ArgumentParser(description="Mide Batch .IDE Converter v%d.%d.%d - Copyright (c) 2016 Mide Technology")
     argparser.add_argument('-o', '--output', help="The output path to which to save the exported files. Defaults to the same as the source file.")
-    argparser.add_argument('-d', '--delimiter', choices=('comma','tab','pipe'), help="The delimiting character (not applicable to MAT export).")
+    argparser.add_argument('-n', '--names', action='store_true', help="Write channel names as the first row of text-based export (not applicable to MAT export).")
+    argparser.add_argument('-d', '--delimiter', choices=('comma','tab','pipe'), help="The delimiting character (not applicable to MAT export).", default="comma")
     argparser.add_argument('-t', '--type', help="The type of file to export.", choices=('csv','mat','txt'), default="csv")
     argparser.add_argument('-c', '--channel', action='append', type=int, help="Export the specific channel. Can be used multiple times. If not used, all channels will export.")
+    argparser.add_argument('-m', '--nomean', action='store_true', help="Do not remove mean from analog channels.")
+    argparser.add_argument('-s', '--span', type=float, default=5.0, help="Length of rolling mean span (seconds) when removing the mean from analog channels. -1 will remove the total mean.")
     argparser.add_argument('-i', '--info', action='store_true', help="Show information about the file and exit.")
     argparser.add_argument('-v', '--version', action='store_true', help="Show detailed version information and exit.")
     argparser.add_argument('source', nargs="*", help="The source .IDE file(s) to convert.")
@@ -276,12 +285,21 @@ if __name__ == "__main__":
 
     delimiter = {'tab': '\t', 'pipe': ' | '}.get(args.delimiter, ', ')
 
+    removeMean = not args.nomean
+    meanSpan = args.span
+    if meanSpan == 0:
+        removeMean = False
+    elif meanSpan != -1:
+        meanSpan /= timeScalar
+
     try:
         totalSamples = 0
         t0 = datetime.now()
         updater=SimpleUpdater()
         for f in sourceFiles:
             print ('Converting "%s"...' % f)
+            if 'mat' not in args.type.lower():
+                showInfo(f, toFile=args.output)
             updater.precision = max(0, min(2, (len(str(os.path.getsize(f)))/2)-1))
             updater(starting=True)
             totalSamples += ideExport(f,
@@ -289,7 +307,10 @@ if __name__ == "__main__":
                                       channels=args.channel,
                                       outputType=args.type,
                                       delimiter=delimiter,
-                                      updater=updater)
+                                      updater=updater,
+                                      headers=args.names,
+                                      removeMean=removeMean,
+                                      meanSpan=meanSpan)
 
         totalTime = datetime.now() - t0
         tstr = str(totalTime).rstrip('0.')
