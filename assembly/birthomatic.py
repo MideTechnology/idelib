@@ -421,7 +421,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
         propXmlFile = os.path.join(chipDirName, 'recprop.xml')
         propTemplate = firmware.makeRecPropXml(TEMPLATE_PATH, partNum, hwRev, accelSerialNum, propXmlFile)
-        if propTemplate and os.path.exists(propXmlFile):
+        if propTemplate is not None and os.path.exists(propXmlFile):
             propEbml = xml2ebml.readXml(propXmlFile, schema='mide_ebml.ebml.schema.mide') 
             with open(utils.changeFilename(propXmlFile, ext="ebml"), 'wb') as f:
                 f.write(propEbml)
@@ -470,7 +470,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     devPath = autoRename(volName, timeout=20)
     
     # 10.1 Set device clock, change DC sample rate (if present)
-    devs = devices.getDevices([devPath])
+    devs = [d for d in devices.getDevices() if d.seralInt == serialNum]
     if devs:
         dev = devs[0]
         dev.setTime()
@@ -482,6 +482,10 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
                              ('ConfigChannel', 32), 
                              ('SubChannelEnableMap', 7)])]
             dev.saveConfig(conf)
+        else:
+            print "No DC accelerometer found; continuing."
+    else:
+        print "Could not find recorder! Check configuration in Lab before calibrating!"
     
     # 11. Notify user that recorder is ready for potting/calibration
     print "*" * 60

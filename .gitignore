@@ -3,6 +3,7 @@
 
 *.7z
 *.bak
+*.cal
 *.cfg
 *.cfx
 *.csv
@@ -12,6 +13,7 @@
 *.lnk
 *.mat
 *.old
+*.plg
 *.pyc
 *.xls
 *.xlsx
@@ -25,7 +27,9 @@ profiling/*
 assembly/*.jpg
 assembly/firmware
 assembly/temp
-ide2mat/???2mat?v*
+assembly/pyftdi-master
+ide2mat/???2????v*
+ide2mat/temp
 splitter/ide_split?v*
 
 ABOUT/slam_stick_lab_changelog.html
