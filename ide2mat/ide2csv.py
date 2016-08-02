@@ -27,7 +27,7 @@ from mide_ebml import importer
 from mide_ebml.matfile import exportMat
 
 
-from build_info import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME #@UnusedImport
+from build_info_ide2csv import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME #@UnusedImport
 __version__ = VERSION
 
 
