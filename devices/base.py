@@ -269,7 +269,8 @@ class Recorder(object):
             self._config = self._loadConfig(self.configFile)
             if isinstance(default, dict):
                 d = default.copy()
-                d.update(self._config)
+                if isinstance(self._config, dict):
+                    d.update(self._config)
                 self._config = d
             return self._config
         except IOError:
