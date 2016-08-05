@@ -411,7 +411,7 @@ class CalFile(object):
             self.hasHiAccel = False
 
         loAccelChannel = self.getLowAccelerometer()
-        if False: #loAccelChannel:
+        if loAccelChannel:
             self.hasLoAccel = True
             _print("\nAnalyzing low-g data...")
             self.accelLo, self.timesLo, self.rmsLo, self.calLo, self.meansLo = self._analyze(loAccelChannel, thres=6, start=1000, length=1000)
@@ -712,8 +712,12 @@ class Calibrator(object):
         """
         sortedFiles = XYZ()
 
-        for i in range(3):
-            sortedFiles[i] = min(calFiles, key=lambda c: c.cal[i])
+        try:
+            for i in range(3):
+                sortedFiles[i] = min(calFiles, key=lambda c: c.cal[i])
+        except AttributeError:
+            for i in range(3):
+                sortedFiles[i] = min(calFiles, key=lambda c: c.calLo[i])
 
 #         for c in calFiles:
 #             if c.cal.x <= thresh:
