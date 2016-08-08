@@ -470,7 +470,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     devPath = autoRename(volName, timeout=20)
     
     # 10.1 Set device clock, change DC sample rate (if present)
-    devs = [d for d in devices.getDevices() if d.seralInt == serialNum]
+    devs = [d for d in devices.getDevices() if d.serialInt == serialNum]
     if devs:
         dev = devs[0]
         dev.setTime()
