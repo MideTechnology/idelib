@@ -33,7 +33,6 @@ from mide_ebml import importer
 from mide_ebml.parsers import ChannelDataBlock, MPL3115PressureTempParser
 from mide_ebml.calibration import Univariate, Bivariate
 
-
 import devices
 
 from build_info import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME #@UnusedImport
@@ -89,16 +88,30 @@ STRUCT_CHARS = {
 # 
 #===============================================================================
 
+def changeFilename(filename, ext=None, path=None):
+    """ Modify the path or extension of a filename. 
+    """
+    if ext is not None:
+        ext = ext.lstrip('.')
+        filename = "%s.%s" % (os.path.splitext(filename)[0], ext)
+    if path is not None:
+        filename = os.path.join(path, os.path.basename(filename))
+    return os.path.abspath(filename)
+
+#===============================================================================
+# 
+#===============================================================================
+
 class AccelDumper(object):
     """ Parser replacement that dumps accelerometer data as read. 
     """
     maxTimestamp = ChannelDataBlock.maxTimestamp
     timeScalar = 1000000.0 / 2**15
     
-    def __init__(self, source, filename=None, startTime=0, endTime=None, 
+    def __init__(self, source, filename, startTime=0, endTime=None, 
                  interleave=1024):
         
-        self.filename = filename
+        self.filename = changeFilename(filename, ext=".fid")
         self.writer = open(filename, 'wb')
         
         self.source = source
@@ -139,17 +152,17 @@ class AccelDumper(object):
                 return 0.00390625
             return 1.0
         
-        if isinstance(baseT, Univariate):
-            gain = baseT.coefficients[0]
-        elif isinstance(baseT, Bivariate):
+        if isinstance(baseT, Bivariate):
             gain = baseT.coefficients[1]
+        elif isinstance(baseT, Univariate):
+            gain = baseT.coefficients[0]
         else:
             gain = 1.0
          
-        if isinstance(subchannelT, Univariate):
-            gain *= subchannelT.coefficients[0]
-        elif isinstance(subchannelT, Bivariate):
+        if isinstance(subchannelT, Bivariate):
             gain *= subchannelT.coefficients[1]
+        elif isinstance(subchannelT, Univariate):
+            gain *= subchannelT.coefficients[0]
 
         return gain
     
@@ -158,32 +171,35 @@ class AccelDumper(object):
         """ Write the 'header' file. Done AFTER the main export (or at least
             after it has exported enough to calculate sample rate).
         """
-        if issubclass(self.dtype, np.signedinteger):
-            bits = self.outType(0).itemsize
+        if issubclass(self.outType, np.signedinteger):
+            bits = self.outType(0).itemsize * 8
         else:
             bits = 33
         
         sampRate = (self.lastTime - self.firstTime) / self.numRows
+        maxes = np.amax(self.max.reshape((-1, self.numCh)), 
+                        axis=0, keepdims=True).flatten()
+#         print "%r maxes: %r" % (self.source, maxes)
         
         config = ConfigParser.RawConfigParser()
+        config.optionxform = str
         config.add_section('Common')
         config.set('Common', 'Channels', self.numCh)
         config.set('Common', 'Interleave', self.interleave)
         config.set('Common', 'BitsPerSample', bits)
         config.set('Common', 'SampleFrequency', sampRate)
-        config.set('Common', 'DataFile', self.filename)
+        config.set('Common', 'DataFile', os.path.basename(self.filename))
         
         for c in self.source.subchannels:
             section = 'Channel %d' % (c.id+1)
-            
             config.add_section(section)
-            config.set(section, 'Name', c.name)
-            config.set(section, 'Unit', c.units[-1])
+            config.set(section, 'Name', c.displayName.encode("ascii", "ignore"))
+            config.set(section, 'Unit', c.units[-1].encode("ascii", "ignore"))
             config.set(section, 'Sensitivity', self._getCal(c.id))
             config.set(section, 'CalType', 'mV/EU')
-            config.set(section, 'Range', self.max)
+            config.set(section, 'Range', maxes[c.id])
         
-        filename = os.path.splitext(self.filename)[0] + '.fih'
+        filename = changeFilename(self.filename, ext='.fih')
         with open(filename, 'wb') as f:
             config.write(f)
     
@@ -210,7 +226,7 @@ class AccelDumper(object):
         except ValueError:
             # Short buffer. 
             if len(data) % self.dtype.itemsize > 0:
-                last = (len(data)/self.dtype.itemsize)*self.dtype.itemsize
+                last = int(len(data)/self.dtype.itemsize)*self.dtype.itemsize
                 return np.frombuffer(data[:last]).tolist()
             else:
                 raise
@@ -223,18 +239,23 @@ class AccelDumper(object):
         if len_vals == 0:
             return
         
+        d = np.array(vals, self.outType)
+        
+        if len_vals % self.interleave != 0:
+            # Pad out the end to a full block
+            padRows = self.interleave - (len_vals % self.interleave)
+            padding = [[0]*len(self.source.subchannels)] * padRows
+            d = np.append(vals, padding, axis=0)
+        
+        maxes = np.amax(d, axis=0, keepdims=True)
+        if self.max is None:
+            self.max = maxes
+        else:
+            self.max = np.append(self.max, maxes)
+            
         # Convert to flattened string of bytes. 
         # 'order="F"` makes it columns first.
-        d = np.array(vals, self.outType)
-        self.max = max(self.max, d.max())
-        d = d.tostring(order="F")
-        
-        if len_vals < self.interleave:
-            # Pad out last (presumably) block
-            p = vals[0][0].nbytes * self.interleave * self.numCh
-            d = d.just(p, '\x00')
-        
-        self.writer.write(d)
+        self.writer.write(d.tostring(order="F"))
         
 
     def write(self, el):
@@ -250,7 +271,7 @@ class AccelDumper(object):
         
         if blockStart < self.startTime:
             return False
-        
+         
         elif self.endTime is not None and blockStart > self.endTime:
             raise StopIteration
                     
@@ -264,13 +285,13 @@ class AccelDumper(object):
         else:
             self.buffer = np.append(self.buffer, vals, axis=0)
         
-        numSamp = vals.shape[0]
+        numSamp = len(vals)
         self.numRows += numSamp
         self.numSamp += numSamp * self.numCh
             
         self.numBlocks += 1
         
-        if len(self.buffer) > self.interleave:
+        if len(self.buffer) >= self.interleave:
             # write a block
             self._write(self.buffer[:self.interleave])
             self.buffer = self.buffer[self.interleave:]
@@ -283,16 +304,15 @@ class AccelDumper(object):
         """
         self._write(self.buffer)
         self.writer.close()
-        self.writeFIH()
 
 
 class OldMPL3115Dumper(AccelDumper):
     """ Parser replacement that dumps the old-style temperature/pressure data.
     """
     
-    def __init__(self, source, dtype=np.float32, **kwargs):
+    def __init__(self, source, filename, **kwargs):
         self.parser = MPL3115PressureTempParser()
-        super(OldMPL3115Dumper, self).__init__(source, dtype=dtype, **kwargs)
+        super(OldMPL3115Dumper, self).__init__(source, filename, **kwargs)
 
 
     def readData(self, data):
@@ -339,7 +359,7 @@ def makeInputType(channel):
     s = channel.parser.format
     if not s:
         # No format: probably an old file with hardcoded parser. Use floats.
-        return np.dtype(','.join(['<f4' for _ in s.subchannels]))
+        return np.dtype(','.join(['<f4' for _ in channel.subchannels]))
     
     endianCode = '<' if sys.byteorder == 'little' else '>'
     s = s.strip().replace('!','>').replace('@', endianCode).replace('=', endianCode)
@@ -403,7 +423,7 @@ class SimpleUpdater(object):
         if self.startTime is None:
             self.startTime = time.time()
         if done:
-            self.dump(" Done.".ljust(len(self.lastMsg))+'\n')
+#             self.dump(" Done.".ljust(len(self.lastMsg))+'\n')
             self.reset()
         else:
             if percent is not None:
@@ -435,6 +455,18 @@ def showInfo(ideFilename, **kwargs):
     print "=" * 70
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
+        rec = devices.fromRecording(doc)
+
+        print "Recorder Info"
+        print "-" * 40
+        print "  Serial Number: %s" % rec.serial
+        print "  Recorder Type: %s (%s)" % (rec.productName, rec.partNumber)
+        if rec.birthday:
+            print "  Date of Manufacture: %s" % datetime.fromtimestamp(rec.birthday)
+        print "  Hardware Version: %s" % rec.hardwareVersion
+        print "  Firmware Version: %s" % rec.firmwareVersion
+        
+        print
         print "Sensors"
         print "-" * 40
         for s in sorted(doc.sensors.values()):
@@ -456,9 +488,9 @@ def showInfo(ideFilename, **kwargs):
 # 
 #===============================================================================
 
-def raw2fid(ideFilename, outFilename=None, channels=None,
-            noTimes=False, startTime=0, endTime=None, updateInterval=1.5,  
-            out=sys.stdout, **kwargs):
+def raw2fid(ideFilename, savepath="", channels=None,
+            noTimes=False, startTime=0, endTime=None, interleave=1024, 
+            updateInterval=1.5, out=sys.stdout, **kwargs):
     """ The main function that handles generating MAT files from an IDE file.
     """
     
@@ -476,38 +508,19 @@ def raw2fid(ideFilename, outFilename=None, channels=None,
     else:
         _print = _printStream
     
-    if outFilename is None:
-        outFilename = os.path.splitext(ideFilename)[0] + ".mat"
-    elif os.path.isdir(outFilename):
-        outFilename = os.path.join(outFilename, os.path.splitext(os.path.basename(ideFilename))[0]+".mat")
-        
+    if savepath:
+        if not os.path.isdir(savepath):
+            raise ExportError("Save path is a file: %s" % savepath)
+    else:
+        savepath = os.path.dirname(ideFilename)
+    
+    basename = os.path.splitext(os.path.basename(ideFilename))[0] + "_Ch%d.fid"
+    basename = os.path.join(savepath, basename)
+    
     with open(ideFilename, 'rb') as stream:
         doc = importer.openFile(stream, **kwargs)
         doc.updateTransforms()
 
-        ssx = devices.fromRecording(doc)
-        
-        accelCh = ssx.getAccelChannel()
-        if accelCh is not None and len(accelCh.subchannels) > 0:
-            accelChId = accelCh.id
-            numAccelCh = len(accelCh.subchannels)
-        else:
-            accelCh = accelType = accelChId = numAccelCh = None
-
-        pressTempCh = ssx.getTempChannel().parent
-        if pressTempCh is not None and len(pressTempCh.subchannels) > 0:
-            pressTempChId = pressTempCh.id
-            numTempCh = len(pressTempCh.subchannels)
-        else:
-            pressTempCh = pressTempType = pressTempChId = numTempCh = None
-        
-        dcAccelCh = ssx.getAccelChannel(dc=True)
-        if dcAccelCh is not None and len(dcAccelCh.subchannels) > 0:
-            dcAccelChId = dcAccelCh.id
-            numDcAccelCh = len(dcAccelCh.subchannels)
-        else:
-            dcAccelCh = dcAccelType = dcAccelChId = numDcAccelCh = None
-        
         totalSize = os.path.getsize(ideFilename) + 0.0
         nextUpdate = time.time() + updateInterval
         
@@ -520,59 +533,26 @@ def raw2fid(ideFilename, outFilename=None, channels=None,
             if missing:
                 raise ExportError("Unknown channel(s): %s" % (', '.join(missing)))
         
-        # If exporting calibration by channel, exclude the temp/pressure,
-        # since it's already converted.
-        if "channel" in str(writeCal).lower():
-            calChannels = [accelChId, dcAccelChId]
-        else:
-            calChannels = None
-
+        dumpArgs = {'startTime': startTime,
+                    'endTime': endTime,
+                    'interleave': interleave}
+        dumpers = {}
         
         try:
-            # The main accelerometer gets dumped first, directly to the MAT.
-            # There may not be any analog accelerometer if it was disabled.
-            if accelCh is not None:
-                colNames = [c.displayName for c in accelCh.subchannels]
-                mat.startArray(accelCh.name, numAccelCh, dtype=accelType, 
-                               noTimes=True, colNames=colNames)
-    
-            dumpers = {}
-
-            # TODO: Make this all more generic, to work with any future recorder
-            if accelChId in channels:
-                # Analog accelerometer data is written directly to the file.
-                dumpers[accelChId] = AccelDumper(accelCh, mat.writeRow, 
-                                                 startTime, endTime, 
-                                                 dtype=accelType)
-            if pressTempChId in channels:
-                # Pressure/Temperature data is kept in memory and written later.
-                dumpers[pressTempChId] = GenericDumper(pressTempCh, None, 
-                                                       startTime, endTime)
+            for chId in channels:
+                ch = doc.channels[chId]
+                filename = basename % chId
                 
-            if dcAccelChId in channels:
-                # DC accelerometer data is written to a temporary file and
-                # appended to the main MAT file at the end.
-                # TODO: If only DC accelerometer, write directly to file.
-                tempFile = open(os.path.join(tempfile.gettempdir(), 'ch%d_temp.csv' % dcAccelChId), 'wb')
-                tempWriter = TempWriter(tempFile) #csv.writer(tempFile)
-                dumpers[dcAccelChId] = AccelDumper(dcAccelCh, tempWriter.writerow, 
-                                                   startTime, endTime, 
-                                                   dtype=dcAccelType)
-            
-            lastMat = ''
-            writeMsg = '' 
+                if doc.channels[chId].parser.format is None:
+                    dumpers[chId] = OldMPL3115Dumper(ch, filename, **dumpArgs)
+                else:
+                    dumpers[chId] = AccelDumper(ch, filename, **dumpArgs)
+
             isWriting = False
             offset = 0
             
             try:
                 for i, el in enumerate(doc.ebmldoc.iterroots()):
-                    if mat.filename != lastMat:
-                        lastMat = mat.filename
-                        msgLen = len(writeMsg)
-                        writeMsg = "  Writing %s... " % os.path.basename(lastMat)
-                        _print("%s%s" % ('\x08'*msgLen, writeMsg))
-                        nextUpdate = 0
-    
                     if el.name == "ChannelDataBlock":
                         chId = el.value[0].value
                         if chId in dumpers:
@@ -587,14 +567,14 @@ def raw2fid(ideFilename, outFilename=None, channels=None,
                     if i % 250 == 0 or time.time() > nextUpdate:
                         count = sum((x.numSamp for x in dumpers.itervalues()))
                         updater(count=count, total=None, 
-                                percent=((stream.tell()-offset)/totalSize), 
-                                filename=mat.filename)
+                                percent=((stream.tell()-offset)/totalSize))
                         nextUpdate = time.time() + updateInterval
 
-                    # Remove per-element substreams. Saves memory; a large
-                    # file may contain tens of thousands.
-                    # NOTE: This may change if the underlying EMBL library does.
-                    doc.ebmldoc.stream.substreams.clear()
+                        # Remove per-element substreams. Saves memory; a large
+                        # file may contain tens of thousands.
+                        # NOTE: This may change if the underlying EMBL library does.
+                        doc.ebmldoc.stream.substreams.clear()
+                        
                     del el
                     
                     if updater.cancelled:
@@ -602,49 +582,21 @@ def raw2fid(ideFilename, outFilename=None, channels=None,
                     
             except (IOError, StopIteration):
                 pass
-                
-            # Finished dumping the analog accelerometer data.
-            mat.endArray()
-            
-            # Dump temperature/pressure data (if applicable)
-            if pressTempChId in channels:
-                d = dumpers[pressTempChId]
-                colNames = [c.displayName for c in pressTempCh.subchannels]
-                mat.startArray(pressTempCh.name, numTempCh, dtype=pressTempType, 
-                               noTimes=True, colNames=colNames)
-                for r in izip(np.linspace(d.firstTime, d.lastTime, len(d.data)), d.data):
-                    mat.writeRow(r)
-                mat.endArray()
-
-            # Dump DC accelerometer data (if applicable)
-            if dcAccelCh is not None and dcAccelChId in channels:
-                tempFile.close()
-                d = dumpers[dcAccelChId]
-                colNames = [c.displayName for c in dcAccelCh.subchannels]
-                mat.startArray(dcAccelCh.name, numDcAccelCh, dtype=dcAccelType, 
-                               noTimes=True, colNames=colNames)
-                with open(tempFile.name, 'rb') as f:
-                    for r in f:
-                        mat.writeRow(eval(r))
-                mat.endArray()
-
-            # Calculate actual sampling rate based on total count and total time
-            # TODO: Write this for each MAT file.
-            # TODO: Write the time range in each file (reset parser.firstTime)
-            sampRates = [1000000.0/(((d.lastTime-d.firstTime)*ChannelDataBlock.timeScalar)/d.numRows) for d in dumpers.itervalues()]
-            mat.startArray("sampling_rates", len(sampRates), dtype=MP.miSINGLE, noTimes=True, hasTimes=False)
-            mat.writeRow((0,sampRates))
-            mat.endArray()
-            
-            mat.close()
+             
             return sum((x.numSamp for x in dumpers.itervalues()))
-        
+         
+        except Exception as err:
+            print "exception: %r" % err
+          
         except IOError:
-            mat.close()
-            
-        except KeyboardInterrupt as ex:
-            mat.close()
-            raise ex
+            raise
+            pass
+              
+        finally:
+            for d in dumpers.values():
+                d.close()
+                d.writeFIH()
+                
 
 #===============================================================================
 # 
@@ -660,6 +612,7 @@ if __name__ == "__main__":
     argparser.add_argument('-t', '--startTime', type=float, help="The start of the time span to export (seconds from the beginning of the recording).", default=0)
     argparser.add_argument('-e', '--endTime', type=float, help="The end of the time span to export (seconds from the beginning of the recording).")
     argparser.add_argument('-d', '--duration', type=float, help="The length of time to export, relative to the --startTime. Overrides the specified --endTime")
+    argparser.add_argument('-n', '--interleave', type=int, help="Export block size (in samples)", default=1024)
     argparser.add_argument('-i', '--info', action='store_true', help="Show information about the file and exit.")
     argparser.add_argument('-v', '--version', action='store_true', help="Show detailed version information and exit.")
     argparser.add_argument('source', nargs="*", help="The source .IDE file(s) to convert.")
@@ -719,10 +672,11 @@ if __name__ == "__main__":
             print ('Converting "%s"...' % f)
             updater.precision = max(0, min(2, (len(str(os.path.getsize(f)))/2)-1))
             updater(starting=True)
-            totalSamples += raw2mat(f, outFilename=args.output, 
-                                    channels=args.channel, maxSize=args.maxSize,
+            totalSamples += raw2fid(f, savepath=args.output, 
+                                    channels=args.channel,
+                                    interleave=args.interleave, 
                                     startTime=args.startTime, endTime=endTime,
-                                    writeCal=args.allCal, updater=updater)
+                                    updater=updater)
             updater(done=True)
     
         totalTime = datetime.now() - t0
@@ -731,6 +685,8 @@ if __name__ == "__main__":
         totSamp = locale.format("%d", totalSamples, grouping=True)
         print "Conversion complete! Exported %s samples in %s (%s samples/sec.)" % (totSamp, tstr, sampSec)
         sys.exit(0)
+    except Exception:
+        raise
     except ExportError as err:
         print "*** Export error: %s" % err
         sys.exit(1)
@@ -742,6 +698,7 @@ if __name__ == "__main__":
         if DEBUG:
             print "*** Message: %s" % err.message
         sys.exit(1)
+        
 #     except IOError as err: #Exception as err:
 #         print "\n\x07*** Conversion failed! %r" % err
 
