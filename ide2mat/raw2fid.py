@@ -6,38 +6,28 @@ Created on Dec 3, 2014
 
 __copyright__=u"Copyright (c) 2016 Mide Technology"
 
+# IMPORTANT: Import 'common' first! It does some path fixing to get at the
+# parent directory's modules. Should not matter after PyInstaller builds it.
+import common
 
 import ConfigParser
 from datetime import datetime
-from itertools import izip
-import importlib
 import locale
 import os.path
 import platform
-import struct
 import sys
-import tempfile
 import time
 
 import numpy as np
 
-# Song and dance to find libraries in sibling folder.
-# Should not matter after PyInstaller builds it.
-try:
-    _ = importlib.import_module('mide_ebml')
-except ImportError:
-    sys.path.append('..')
 
 from mide_ebml import __version__ as ebml_version    
 from mide_ebml import importer
 from mide_ebml.parsers import ChannelDataBlock, MPL3115PressureTempParser
 from mide_ebml.calibration import Univariate, Bivariate
 
-import devices
-
 from build_info import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME #@UnusedImport
 __version__ = VERSION
-
 
 
 #===============================================================================
@@ -53,8 +43,7 @@ class ExportError(Exception):
 
 # The output type for each struct formatting character. Because FID/FIH integer
 # values are signed, unsigned types are promoted to the next larger signed type. 
-SIZES = (
-         ('d', np.float64),
+SIZES = (('d', np.float64),
          ('f', np.float32),
          ('q', np.int64),
          ('Q', np.int64),
@@ -65,53 +54,39 @@ SIZES = (
          ('H', np.int32),
          ('h', np.int16), 
          ('B', np.int16),
-         ('b', np.int8),
-)
+         ('b', np.int8))
 
+# Numpy dtype formatting string equivalents to struct formatting characters.
+STRUCT_CHARS = {'B': 'u1',
+                'H': 'u2',
+                'I': 'u4',
+                'L': 'u4',
+                'Q': 'u8',
+                'b': 'i1',
+                'h': 'i2',
+                'i': 'i4',
+                'l': 'i4',
+                'q': 'i8',
+                'f': 'f4',
+                'd': 'f8'}
 
-STRUCT_CHARS = {
- 'B': 'u1',
- 'H': 'u2',
- 'I': 'u4',
- 'L': 'u4',
- 'Q': 'u8',
- 'b': 'i1',
- 'h': 'i2',
- 'i': 'i4',
- 'l': 'i4',
- 'q': 'i8',
- 'f': 'f4',
- 'd': 'f8',
-}
 
 #===============================================================================
 # 
 #===============================================================================
 
-def changeFilename(filename, ext=None, path=None):
-    """ Modify the path or extension of a filename. 
-    """
-    if ext is not None:
-        ext = ext.lstrip('.')
-        filename = "%s.%s" % (os.path.splitext(filename)[0], ext)
-    if path is not None:
-        filename = os.path.join(path, os.path.basename(filename))
-    return os.path.abspath(filename)
-
-#===============================================================================
-# 
-#===============================================================================
-
-class AccelDumper(object):
+class ChannelDumper(common.TimestampFixer):
     """ Parser replacement that dumps accelerometer data as read. 
     """
-    maxTimestamp = ChannelDataBlock.maxTimestamp
-    timeScalar = 1000000.0 / 2**15
-    
+
     def __init__(self, source, filename, startTime=0, endTime=None, 
                  interleave=1024):
         
-        self.filename = changeFilename(filename, ext=".fid")
+        # TODO: Get the correct modulus from the channel description, if any.
+        maxTimestamp = ChannelDataBlock.maxTimestamp
+        common.TimestampFixer.__init__(self, maxTimestamp=maxTimestamp)
+        
+        self.filename = common.changeFilename(filename, ext=".fid")
         self.writer = open(filename, 'wb')
         
         self.source = source
@@ -128,9 +103,6 @@ class AccelDumper(object):
         self.endTime = None if endTime is None else (endTime * 2**15)
         self.exportingRange = startTime and endTime is not None
     
-        self.timestampOffset = 0
-        self.lastStamp = 0
-        
         self.calcSampleRate = True
         self.sampleRate = 5000.0
         self.max = None
@@ -179,7 +151,6 @@ class AccelDumper(object):
         sampRate = (self.lastTime - self.firstTime) / self.numRows
         maxes = np.amax(self.max.reshape((-1, self.numCh)), 
                         axis=0, keepdims=True).flatten()
-#         print "%r maxes: %r" % (self.source, maxes)
         
         config = ConfigParser.RawConfigParser()
         config.optionxform = str
@@ -199,32 +170,19 @@ class AccelDumper(object):
             config.set(section, 'CalType', 'mV/EU')
             config.set(section, 'Range', maxes[c.id])
         
-        filename = changeFilename(self.filename, ext='.fih')
+        filename = common.changeFilename(self.filename, ext='.fih')
         with open(filename, 'wb') as f:
             config.write(f)
     
-
-    def fixOverflow(self, timestamp):
-        """ Return an adjusted, scaled time from a low-resolution timestamp.
-        """
-        timestamp += self.timestampOffset
-        while timestamp < self.lastStamp:
-            timestamp += self.maxTimestamp
-            self.timestampOffset += self.maxTimestamp
-        self.lastStamp = timestamp
-        return timestamp
-
     
     def readData(self, data):
         """ Parse data from the element payload.
         """
-#         return np.frombuffer(data, self.dtype).reshape((-1,self.numCh))
-
-        # TODO: Optimize for channels containing identical subchannels
+        # TODO: Optimize for channels containing identical subchannels?
         try:
             return np.frombuffer(data, self.dtype).tolist()
         except ValueError:
-            # Short buffer. 
+            # Short buffer. Pad it and try again.
             if len(data) % self.dtype.itemsize > 0:
                 last = int(len(data)/self.dtype.itemsize)*self.dtype.itemsize
                 return np.frombuffer(data[:last]).tolist()
@@ -247,6 +205,7 @@ class AccelDumper(object):
             padding = [[0]*len(self.source.subchannels)] * padRows
             d = np.append(vals, padding, axis=0)
         
+        # Update the subchannel maximum values.
         maxes = np.amax(d, axis=0, keepdims=True)
         if self.max is None:
             self.max = maxes
@@ -254,7 +213,7 @@ class AccelDumper(object):
             self.max = np.append(self.max, maxes)
             
         # Convert to flattened string of bytes. 
-        # 'order="F"` makes it columns first.
+        # `order="F"` makes it columns first.
         self.writer.write(d.tostring(order="F"))
         
 
@@ -292,7 +251,7 @@ class AccelDumper(object):
         self.numBlocks += 1
         
         if len(self.buffer) >= self.interleave:
-            # write a block
+            # write a block from the buffer.
             self._write(self.buffer[:self.interleave])
             self.buffer = self.buffer[self.interleave:]
 
@@ -300,14 +259,17 @@ class AccelDumper(object):
 
     
     def close(self):
-        """
+        """ Finishes and closes the FID file. Also writes the FIH 'header' file.
         """
         self._write(self.buffer)
         self.writer.close()
+        self.writeFIH()
 
 
-class OldMPL3115Dumper(AccelDumper):
+class OldMPL3115Dumper(ChannelDumper):
     """ Parser replacement that dumps the old-style temperature/pressure data.
+        Old files saved MPL3115 data in its raw form, which needs some special
+        care to parse.
     """
     
     def __init__(self, source, filename, **kwargs):
@@ -316,7 +278,7 @@ class OldMPL3115Dumper(AccelDumper):
 
 
     def readData(self, data):
-        return [[self.parser.unpack_from(data)]]
+        return [self.parser.unpack_from(data)]
 
 
 
@@ -362,7 +324,7 @@ def makeInputType(channel):
         return np.dtype(','.join(['<f4' for _ in channel.subchannels]))
     
     endianCode = '<' if sys.byteorder == 'little' else '>'
-    s = s.strip().replace('!','>').replace('@', endianCode).replace('=', endianCode)
+    s = common.multiReplace(s, '!>', '@=', ('=', endianCode))
     
     p = []
     for c in s:
@@ -448,46 +410,6 @@ class SimpleUpdater(object):
 # 
 #===============================================================================
 
-def showInfo(ideFilename, **kwargs):
-    """
-    """
-    print ideFilename
-    print "=" * 70
-    with open(ideFilename, 'rb') as stream:
-        doc = importer.openFile(stream, **kwargs)
-        rec = devices.fromRecording(doc)
-
-        print "Recorder Info"
-        print "-" * 40
-        print "  Serial Number: %s" % rec.serial
-        print "  Recorder Type: %s (%s)" % (rec.productName, rec.partNumber)
-        if rec.birthday:
-            print "  Date of Manufacture: %s" % datetime.fromtimestamp(rec.birthday)
-        print "  Hardware Version: %s" % rec.hardwareVersion
-        print "  Firmware Version: %s" % rec.firmwareVersion
-        
-        print
-        print "Sensors"
-        print "-" * 40
-        for s in sorted(doc.sensors.values()):
-            print "  Sensor %d: %s" % (s.id, s.name)
-            if s.traceData:
-                for i in s.traceData.items():
-                    print "    %s: %s" % i
-        print 
-        print "Channels"
-        print "-" * 40
-        for c in sorted(doc.channels.values()):
-            print "  Channel %d: %s" % (c.id, c.displayName)
-            for sc in c.subchannels:
-                print "    Subchannel %d.%d: %s" % (c.id, sc.id, sc.displayName)
-    print "=" * 70
-
-
-#===============================================================================
-# 
-#===============================================================================
-
 def raw2fid(ideFilename, savepath="", channels=None,
             noTimes=False, startTime=0, endTime=None, interleave=1024, 
             updateInterval=1.5, out=sys.stdout, **kwargs):
@@ -495,18 +417,6 @@ def raw2fid(ideFilename, savepath="", channels=None,
     """
     
     updater = kwargs.get('updater', importer.nullUpdater)
-    
-    def _printStream(*args):
-        out.write(" ".join(map(str, args)))
-        out.flush()
-    
-    def _printNone(*args):
-        pass
-    
-    if out is None:
-        _print = _printNone
-    else:
-        _print = _printStream
     
     if savepath:
         if not os.path.isdir(savepath):
@@ -546,7 +456,7 @@ def raw2fid(ideFilename, savepath="", channels=None,
                 if doc.channels[chId].parser.format is None:
                     dumpers[chId] = OldMPL3115Dumper(ch, filename, **dumpArgs)
                 else:
-                    dumpers[chId] = AccelDumper(ch, filename, **dumpArgs)
+                    dumpers[chId] = ChannelDumper(ch, filename, **dumpArgs)
 
             isWriting = False
             offset = 0
@@ -581,21 +491,20 @@ def raw2fid(ideFilename, savepath="", channels=None,
                         break
                     
             except (IOError, StopIteration):
+                # IOError is probably caused by a bad last data block.
+                # StopIteration is raised if the specified range is done.
                 pass
-             
-            return sum((x.numSamp for x in dumpers.itervalues()))
-         
-        except Exception as err:
-            print "exception: %r" % err
-          
+              
         except IOError:
             raise
             pass
-              
+               
         finally:
+            # Close everything and write the header files.
             for d in dumpers.values():
                 d.close()
-                d.writeFIH()
+
+    return sum((x.numSamp for x in dumpers.itervalues()))
                 
 
 #===============================================================================
@@ -604,7 +513,6 @@ def raw2fid(ideFilename, savepath="", channels=None,
 
 if __name__ == "__main__":
     import argparse
-    from glob import glob
     
     argparser = argparse.ArgumentParser(description="Mide Raw IDE to FIH/FID Converter v%d.%d.%d - %s" % (VERSION+(__copyright__,)))
     argparser.add_argument('-o', '--output', help="The output path to which to save the .MAT files. Defaults to the same as the source file.")
@@ -624,46 +532,10 @@ if __name__ == "__main__":
         print "Converter version %d.%d.%d (build %d) %s, %s" % (VERSION + (BUILD_NUMBER, platform.architecture()[0], datetime.fromtimestamp(BUILD_TIME)))
         print "MIDE EBML library version %d.%d.%d" % ebml_version
         sys.exit(0)
-    
-    if len(args.source) == 0:
-        print "Error: No source file(s) specified!"
-        sys.exit(1)
-    
-    sourceFiles = []
-    for f in args.source:
-        sourceFiles.extend(glob(f))
-    
-    if not all(map(os.path.exists, sourceFiles)):
-        # Missing a file.
-        missing = map(lambda x: not os.path.exists(x), sourceFiles)
-        print "Source file(s) could not be found:"
-        print "\n\t".join(missing)
-        sys.exit(1)
 
-    if args.info is True:
-        print "=" * 70
-        for f in sourceFiles:
-            showInfo(f)
-        sys.exit(0)
-        
-    if args.output is not None:
-        if not os.path.exists(args.output):
-            print "Output path does not exist: %s" % args.output
-            sys.exit(1)
-        if not os.path.isdir(args.output):
-            print "Specified output is not a directory: %s" % args.output
-            sys.exit(1)
-    
-    if args.duration:
-        endTime = args.startTime + args.duration
-    else:
-        endTime = args.endTime
+    # This does basic argument validation, wildcard expansion, etc.
+    sourceFiles, savepath, startTime, endTime = common.validateArguments(args)
 
-    if isinstance(endTime, float) and endTime <= args.startTime:
-        print "Specified end time (%s) occurs at or before start time (%s). " % (endTime, args.startTime)
-        print "(Did you mean to use the --duration argument instead of --endTime?)"
-        sys.exit(1)
-    
     try:
         totalSamples = 0
         t0 = datetime.now()
@@ -672,10 +544,10 @@ if __name__ == "__main__":
             print ('Converting "%s"...' % f)
             updater.precision = max(0, min(2, (len(str(os.path.getsize(f)))/2)-1))
             updater(starting=True)
-            totalSamples += raw2fid(f, savepath=args.output, 
+            totalSamples += raw2fid(f, savepath=savepath, 
                                     channels=args.channel,
                                     interleave=args.interleave, 
-                                    startTime=args.startTime, endTime=endTime,
+                                    startTime=startTime, endTime=endTime,
                                     updater=updater)
             updater(done=True)
     
@@ -683,16 +555,17 @@ if __name__ == "__main__":
         tstr = str(totalTime).rstrip('0.')
         sampSec = locale.format("%d", totalSamples/totalTime.total_seconds(), grouping=True)
         totSamp = locale.format("%d", totalSamples, grouping=True)
-        print "Conversion complete! Exported %s samples in %s (%s samples/sec.)" % (totSamp, tstr, sampSec)
+        print ("Conversion complete! Exported %s samples in %s (%s samples/sec.)" % (totSamp, tstr, sampSec))
         sys.exit(0)
-    except Exception:
-        raise
+        
     except ExportError as err:
         print "*** Export error: %s" % err
         sys.exit(1)
+        
     except KeyboardInterrupt:
         print "\n*** Conversion canceled! MAT version(s) of %s may be incomplete." % f
         sys.exit(0)
+        
     except Exception as err:
         print "*** An unexpected %s occurred. Is source an IDE file?" % err.__class__.__name__
         if DEBUG:

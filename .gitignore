@@ -9,6 +9,8 @@
 *.csv
 *.dat
 *.ebml
+*.fid
+*.fih
 *.ide
 *.lnk
 *.mat
@@ -31,6 +33,7 @@ assembly/pyftdi-master
 ide2mat/???2????v*
 ide2mat/temp
 splitter/ide_split?v*
+old builds
 
 ABOUT/slam_stick_lab_changelog.html
 
