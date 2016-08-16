@@ -25,6 +25,10 @@ LICENSES = u"""<html><body>
 %s
 </body></html>"""
 
+
+TRACKING = "?utm_source=Slam-Stick-X-Data-Logger&utm_medium=Device&utm_content=Link-to-Slam-Stick-X-web-page-from-Device-About-Us&utm_campaign=Slam-Stick-X"
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -32,6 +36,12 @@ LICENSES = u"""<html><body>
 class HtmlWindow(wx.html.HtmlWindow):
     """
     """
+    
+    def __init__(self, *args, **kwargs):
+        self.tracking = kwargs.pop('tracking', '')
+        super(HtmlWindow, self).__init__(*args, **kwargs)
+    
+    
     def OnLinkClicked(self, linkinfo):
         """ Handle a link click. Relative links and file links open in the
             same window. All others launch the default app (browser, email,
@@ -42,6 +52,9 @@ class HtmlWindow(wx.html.HtmlWindow):
             super(HtmlWindow, self).OnLinkClicked(linkinfo)
         else:
             # Launch external web browser
+            if 'mide.com' in href:
+                href += self.tracking
+                
             wx.LaunchDefaultBrowser(href)
 
 #===============================================================================
@@ -151,6 +164,8 @@ class AboutBox(SC.SizedDialog):
 
     def __init__(self, *args, **kwargs):
         self.strings = kwargs.pop('strings', None)
+        tracking = kwargs.pop('tracking', TRACKING)
+        
         kwargs.setdefault("style", 
             wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         kwargs.setdefault("size", (640, 480))
@@ -169,7 +184,7 @@ class AboutBox(SC.SizedDialog):
         notebook = wx.Notebook(pane, -1)#, style=wx.NB_BOTTOM)
         notebook.SetSizerProps(expand=True, proportion=-1)
         
-        about = HtmlWindow(notebook, -1)
+        about = HtmlWindow(notebook, -1, tracking=tracking)
         notebook.AddPage(about, self.strings.get('appName'))
         about.LoadFile(self.makeAboutFile())
         
