@@ -164,8 +164,13 @@ class ChannelDumper(common.TimestampFixer):
         for c in self.source.subchannels:
             section = 'Channel %d' % (c.id+1)
             config.add_section(section)
+            
+            # HACK: M+P expects temperature units to use degree symbol (\xb0).
+            # ConfigParser does not like Unicode.
+            units = ''.join((chr(ord(x)) for x in c.units[-1]))
+            
             config.set(section, 'Name', c.displayName.encode("ascii", "ignore"))
-            config.set(section, 'Unit', c.units[-1].encode("ascii", "ignore"))
+            config.set(section, 'Unit', units)
             config.set(section, 'Sensitivity', self._getCal(c.id))
             config.set(section, 'CalType', 'mV/EU')
             config.set(section, 'Range', maxes[c.id])
