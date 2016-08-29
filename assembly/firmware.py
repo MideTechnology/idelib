@@ -3,6 +3,7 @@ Created on Sep 25, 2014
 
 @author: dstokes
 '''
+from datetime import datetime
 import io
 import os
 from StringIO import StringIO
@@ -273,9 +274,15 @@ def readUserPage(devPath):
 # 
 #===============================================================================
 
-def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, dest):
+def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, dest,
+                    birthday=None):
     """ Create the device manifest XML file.
     """
+    if birthday is None:
+        birthday = int(time.mktime(time.gmtime()))
+    elif isinstance(birthday, datetime):
+        birthday = int(time.mktime(birthday.timetuple()))
+        
     filename = os.path.join(templatePath, partNum, str(hwRev), "manifest.template.xml")
     xmltree = ET.parse(filename)
     xmlroot = xmltree.getroot()
@@ -285,7 +292,7 @@ def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, de
     el = xmlroot.find("./SystemInfo/SerialNumber")
     el.set('value', str(device_sn))
     el = xmlroot.find("./SystemInfo/DateOfManufacture")
-    el.set('value', str(int(time.mktime(time.gmtime()))) )
+    el.set('value', str(birthday))
     
     if device_accel_sn is not None:
         el = xmlroot.find("./AnalogSensorInfo/AnalogSensorSerialNumber")

@@ -289,6 +289,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     """
     rebirth = serialNum is not None
     accelSerialNum = None
+    birthday = None
     
     if fwFile and not os.path.exists(fwFile):
         print "Could not find firmware file %s!" % fwFile
@@ -316,11 +317,10 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     # User gets prompted if they want to use existing data; those become defaults.
     logInfo = utils.findBirthLog(BIRTH_LOG_FILE, 'chipId', chipId)
     if logInfo:
-        # Get rid of info we don't care about right now
-        for k in ('timestamp','rebirth', 'bootVer'):
-            logInfo.pop(k, None)
         print "Birthing log entry for this device already exists:"
         for k,v in logInfo.items():
+            if k in ('timestamp','rebirth', 'bootVer'):
+                continue
             if k == 'serialNum': v = "SSX%07d" % v
             print "%s: %s" % (k.rjust(16), v)
         if utils.getYesNo("Use existing data (Y)?", default="Y") == "Y":
@@ -329,6 +329,9 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
             hwRev = logInfo.get('hwRev', None)
 #             fwRev = logInfo.get('fwRev', None) 
             accelSerialNum = logInfo.get('accelSerialNum', None)
+            
+            firstlog = utils.findBirthLog(BIRTH_LOG_FILE, 'chipId', chipId, last=False)
+            birthday = firstlog.get('timestamp', None)
             rebirth = True
     
     # 4. Prompt user for part number, hardware revision number, firmware rev.
@@ -408,7 +411,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     if not firmwareOnly:
         print "Creating manifest and default calibration files..."
         manXmlFile = os.path.join(chipDirName, 'manifest.xml')
-        firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, accelSerialNum, manXmlFile)
+        firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, accelSerialNum, manXmlFile, birthday=birthday)
         manEbml = xml2ebml.readXml(manXmlFile, schema='mide_ebml.ebml.schema.manifest')
         with open(utils.changeFilename(manXmlFile, ext="ebml"), 'wb') as f:
             f.write(manEbml)
@@ -467,7 +470,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
     volNameFile = os.path.join(TEMPLATE_PATH, partNum, str(hwRev), 'volume_name.txt')
     volName = utils.readFileLine(volNameFile, str, default=RECORDER_NAME)
-    devPath = autoRename(volName, timeout=20)
+    _devPath = autoRename(volName, timeout=20)
     
     # 10.1 Set device clock, change DC sample rate (if present)
     devs = [d for d in devices.getDevices() if d.serialInt == serialNum]
