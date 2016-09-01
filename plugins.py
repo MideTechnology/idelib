@@ -5,7 +5,7 @@ are imported by path (e.g. the name of the zip file) and must contain at least
 two items:
 
   * info.json:  A JSON file containing vital information about the plugin.
-                At minimum, it must contain a `"module"` and a`"type"`. 
+                At minimum, it must contain a ``module`` and a``type``. 
                 The "module" should be the name of the file defining the
                 plugin, typically the same as the directory or compressed
                 file. It must be unique. The "type" is an arbitrary string,
@@ -23,18 +23,24 @@ two items:
 Plug-ins as imported modules are explicitly imported in Python and then wrapped
 in a `Plugin` object. They are the same as the Python in a file/directory-based
 plug-in, but the metadata is stored in a `PLUGIN_INFO` attribute (a dictionary,
-the same content as a parsed `info.json` file).
+the same content as a parsed ``info.json`` file).
 
 Plug-ins embedded in a packaged Python app (PyInstaller, Py2Exe) are most 
 easily handled as modules.
 
-Additional, optional keys in `info.json` or `PLUGIN_INFO`:
+Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
   * app (string): The name of the app for which the plug-in was written. May
       contain glob-style wildcards.
-  * minVersion (tuple/list of integers): The minimum version of the app with
+  * architecture (string): The required system architecture, ``32bit`` or 
+      ``64bit``.
+  * minAppVersion (tuple/list of integers): The minimum version of the app with
       which the plug-in is compatible. 
-  * maxVersion (tuple/list of integers): The maximum version of the app with
+  * maxAppVersion (tuple/list of integers): The maximum version of the app with
       which the plug-in is compatible.
+  * minPythonVersion (tuple/list of integers): The minimum version of Python
+      required.
+  * minPythonVersion (tuple/list of integers): The maximum version of Python
+      required.
 """
 
 # TODO: Support imports of other packages in the plug-in. Possibly add a 
@@ -54,7 +60,9 @@ from glob import glob
 import imp
 import json
 import os
+import platform
 import pkgutil
+import sys
 import types
 import zipimport
 
@@ -251,6 +259,35 @@ class Plugin(object):
             raise PluginImportError('Could not find plugin info in', 
                                     self.path, err)
 
+        # Check compatibility with Python version.
+        pyVersStr = '.'.join(map(str, sys.version_info[:3]))
+        pyMinVers = self.info.get('minPyVersion', None)
+        pyMaxVers = self.info.get('maxPyVersion', None)
+        if pyMinVers and self.isNewer(pyMinVers, sys.version_info):
+            if pyMaxVers:
+                msg = " to %s" % ('.'.join(map(str, pyMaxVers)))
+            raise PluginCompatibilityError(
+               "Plugin requires Python version %s%s, this is %s" %
+               ('.'.join(map(str, pyMinVers)), msg, pyVersStr),
+               self.path)
+        
+        if pyMaxVers and self.isNewer(sys.version_info, pyMaxVers):
+            if pyMinVers:
+                msg = "%s to" % ('.'.join(map(str, pyMinVers)))
+            raise PluginCompatibilityError(
+               "Plugin requires Python version %s%s, this is %s" %
+               (msg, '.'.join(map(str, pyMaxVers)), pyVersStr),
+               self.path)
+
+        # Check for compatibility with the system architecture.
+        arch = self.info.get('architecture', None)
+        if arch:
+            sysArch = platform.architecture()[0]
+            if arch[:2] != sysArch[:2]:
+                raise PluginCompatibilityError(
+                   "Plugin requires %s system, this one is %s" % (arch, sysArch),
+                   self.path)
+
         # Check for compatibility with app.
         if app is not None and 'app' in self.info:
             if not fnmatch(app, self.info['app']):
@@ -260,14 +297,14 @@ class Plugin(object):
         
         # Check for compatibility with version
         if appVersion is not None:
-            if self.isNewer(self.info.get('minVersion', None), appVersion):
+            if self.isNewer(self.info.get('minAppVersion', None), appVersion):
                 raise PluginCompatibilityError(
                     "Plugin requires version %r or later, not %r" % \
-                    (self.info['minVersion'], appVersion), self.path)
-            if self.isNewer(appVersion, self.info.get('maxVersion', None)):
+                    (self.info['minAppVersion'], appVersion), self.path)
+            if self.isNewer(appVersion, self.info.get('maxAppVersion', None)):
                 raise PluginCompatibilityError(
                     "Plugin requires version %r or older, not %r" % \
-                    (self.info['maxVersion'], appVersion), self.path)
+                    (self.info['maxAppVersion'], appVersion), self.path)
         
         # Check for duplicate modules
         try:
@@ -384,8 +421,6 @@ class PluginSet(object):
     
     @staticmethod
     def _isWildcard(s):
-        if not isinstance(s, basestring):
-            return False
         try:
             return any([c in s for c in '*?[]'])
         except TypeError:
@@ -581,11 +616,21 @@ class PluginSet(object):
 # 
 #===============================================================================
 
-def makeInfo(mod):
+def makeInfo(mod, architecture=None):
     """ Utility function to generate the data for an plugin's `info.json` file.
+        
+        @param mod: The module for which to generate info.
+        @keyword architecture: The system architecture,``32bits``, ``64bits``, 
+            or `True` to add the current system's architecture. Added to the
+            info.  
     """
     ignore = ('__name__', '__file__', '__package__')
     items = {}
+    if architecture is not None:
+        if architecture is True:
+            architecture = platform.architecture()[0]
+        items['architecture'] = architecture
+        
     if isinstance(mod, basestring):
         if os.path.exists(mod):
             # A module name or a path
@@ -604,7 +649,8 @@ def makeInfo(mod):
             import importlib
             mod = importlib.import_module(mod)
     headerInfo = [x for x in dir(mod) if x.startswith('__') and x not in ignore]
-    items.update({x.strip('_'): getattr(mod, x) for x in headerInfo if isinstance(getattr(mod, x), basestring)})
+    items.update({x.strip('_'): getattr(mod, x) 
+                  for x in headerInfo if isinstance(getattr(mod, x), basestring)})
     items['moduleName'] = mod.__name__
     if hasattr(mod, "PLUGIN_INFO"):
         items.update(mod.PLUGIN_INFO)

@@ -34,7 +34,7 @@ __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 PLUGIN_INFO = {"type": "tool",
                "name": "Raw Data to .MAT Utility",
                "app": u"Slam\u2022Stick Lab",
-               "minVersion": (1,4,2),
+               "minAppVersion": (1,4,2),
                }
 
 

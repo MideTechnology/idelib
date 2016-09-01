@@ -5,6 +5,7 @@ Full-featured viewer for data recorded by Slam Stick and Slam Stick X data
 loggers.
 
 '''
+from datetime import datetime
 
 from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME
 from build_info import REPO_BRANCH, REPO_COMMIT_ID
@@ -12,7 +13,8 @@ from logger import logger
 
 APPNAME = u"Slam\u2022Stick Lab"
 __version__= '.'.join(map(str, VERSION))
-__copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
+__copyright__=(u"Copyright (c) %s Mid\xe9 Technology" % 
+               (datetime.fromtimestamp(BUILD_TIME).year))
 
 if DEBUG or BETA:
     __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
@@ -37,7 +39,6 @@ FEEDBACK_URL = "https://www.surveymonkey.com/s/slam-stick-x"
 #===============================================================================
 
 from collections import OrderedDict
-from datetime import datetime
 import os
 import time
 
@@ -79,7 +80,6 @@ import devices.efm32_firmware
 from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
-import mide_ebml #@UnusedImport
 import mide_ebml.classic.importer
 import mide_ebml.multi_importer
 import mide_ebml.matfile
