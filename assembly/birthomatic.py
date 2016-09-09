@@ -279,6 +279,25 @@ def copyContent(devPath, partNum=None):
         shutil.copytree(c, dest, ignore=shutil.ignore_patterns('.*','Thumbs.db'))
     
 
+def cleanDevice(dev, chipDirName):
+    """ Remove old recordings and user calibration data from device.
+        @todo: Maybe just delete everything.
+    """
+    dataDir = os.path.join(dev.path, 'DATA')
+    if os.path.exists(dataDir):
+        print "Removing old DATA directory from device..."
+        try:
+            shutil.rmtree(dataDir)
+        except WindowsError:
+            pass
+
+    userCalFile = getattr(dev, 'userCalFile', None) 
+    if os.path.exists(userCalFile):
+        shutil.copy(userCalFile, utils.changeFilename(userCalFile, path=chipDirName))
+        print "Removing usercal.dat file from device..."
+        os.remove(userCalFile)
+
+# XXX: asdsdas
 #===============================================================================
 # 
 #===============================================================================
@@ -487,6 +506,9 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
             dev.saveConfig(conf)
         else:
             print "No DC accelerometer found; continuing."
+    
+        cleanDevice(dev, chipDirName)
+            
     else:
         print "Could not find recorder! Check configuration in Lab before calibrating!"
     
