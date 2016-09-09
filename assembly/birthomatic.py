@@ -82,7 +82,7 @@ APP_VER_FILE = os.path.join(FIRMWARE_PATH, "app_version.txt")
 
 CONTENT_PATH = os.path.join(DB_PATH, '_Copy_Folder')
 
-LOCK_FILE = os.path.join(DB_PATH, 'in_use')
+LOCK_FILE = os.path.join(DB_PATH, 'birth_in_use')
 
 DC_CAL_SAMPLE_RATE = 3200
 DC_DEFAULT_SAMPLE_RATE = 400

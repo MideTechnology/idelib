@@ -476,8 +476,8 @@ class CalFile(object):
         sampRate = self.sampleRates[accelChannel] = a.getSampleRate()
         
         if sampRate < 1000:
-            raise CalibrationError("Channel %d had a low sample rate: %s Hz" 
-                                   % (accelChannel, sampRate))
+            raise CalibrationError("Channel %s (%s) had a low sample rate: %s Hz" 
+                                   % (accelChannel.id, accelChannel.name, sampRate))
         
         data = self.flattened(a, len(a))
         _print("%d samples imported. " % len(data))
@@ -495,9 +495,8 @@ class CalFile(object):
         if skipSamples:
             data = data[skipSamples:]
 
-        gt = lambda(x): x > thres
-
         _print("getting indices... ")
+        gt = lambda(x): x > thres
         # Column 0 is the time, so axis columns are offset by 1
         indices = XYZ(
             self.getFirstIndex(data, gt, axisIds.x+1),

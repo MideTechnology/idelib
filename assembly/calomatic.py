@@ -65,10 +65,11 @@ import birth_utils as utils
 
 from birthomatic import RECORDER_NAME, DC_DEFAULT_SAMPLE_RATE
 from birthomatic import TEMPLATE_PATH
-from birthomatic import DB_PATH, CONTENT_PATH, BIRTH_LOG_FILE, LOCK_FILE
+from birthomatic import DB_PATH, CONTENT_PATH, BIRTH_LOG_FILE
 from birthomatic import DB_LOG_FILE, DB_BAD_LOG_FILE
 from birthomatic import CAL_PATH, CAL_SN_FILE
 
+LOCK_FILE = os.path.join(DB_PATH, 'cal_in_use')
 
 #===============================================================================
 # 
@@ -94,6 +95,18 @@ def copyContent(devPath, partNum=None):
         else:
             print "\tCopying %s" % c
         shutil.copytree(c, dest, ignore=shutil.ignore_patterns('.*','Thumbs.db'))
+
+
+def setDCSampleRate(dev, sampRate=DC_DEFAULT_SAMPLE_RATE):
+    # Change default DC sample rate
+    if dev.getAccelChannel(dc=True):
+        print "Setting default DC accelerometer sample rate (%s Hz)..." % sampRate 
+        conf = dev.getConfig()
+        conf['SSXChannelConfiguration'] = [
+            OrderedDict([('ChannelSampleFreq', sampRate), 
+                         ('ConfigChannel', 32), 
+                         ('SubChannelEnableMap', 7)])]
+        dev.saveConfig(conf)
     
 
 #===============================================================================
@@ -151,16 +164,6 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     # Set recorder clock
     print "Setting device clock..."
     dev.setTime()
-    
-    # Change default DC sample rate
-    if dev.getAccelChannel(dc=True):
-        print "Setting default DC accelerometer sample rate (%s Hz)..." % DC_DEFAULT_SAMPLE_RATE 
-        conf = dev.getConfig()
-        conf['SSXChannelConfiguration'] = [
-            OrderedDict([('ChannelSampleFreq', DC_DEFAULT_SAMPLE_RATE), 
-                         ('ConfigChannel', 32), 
-                         ('SubChannelEnableMap', 7)])]
-        dev.saveConfig(conf)
     
     #  2. Create serial number directory in product_database/_Calibration
     calDirName = os.path.realpath(os.path.join(CAL_PATH, dev.serial))
@@ -296,6 +299,9 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
     print "Changing the volume name..."
     if os.system('label %s %s' % (devPath.strip("\\"), volName)) != 0:
         print "!!! Couldn't rename %s, continuing..."
+
+    # Reset the DC accelerometer sample rate (if present)
+    setDCSampleRate(dev)
     
     print """\x07Press and hold the %s's "%s" button to enter bootloader mode.""" % (dev.baseName, dev.baseName.split()[-1])
     # Don't count the time spent waiting for the user to press the button.
@@ -540,5 +546,5 @@ if __name__ == "__main__":
         calibrate(noCopy=noCopy, writeLog=writeLog)
     except KeyboardInterrupt:
         print "Quitting..."
-    
-    utils.releaseLockFile(LOCK_FILE)
+    finally:
+        utils.releaseLockFile(LOCK_FILE)
