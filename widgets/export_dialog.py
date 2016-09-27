@@ -169,9 +169,9 @@ class ExportDialog(sc.SizedDialog):
         wx.StaticText(rangeFieldPane, -1, self.units[1])
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
-#         self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
-#              self.removeMean, tooltip="Subtract a the mean from the data. "
-#                                       "Not applicable to all channels.")
+        self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
+             self.removeMean, tooltip="Subtract a the mean from the data. "
+                                      "Not applicable to all channels.")
 
         self.buildSpecialUI()
 
@@ -373,7 +373,7 @@ class ExportDialog(sc.SizedDialog):
                 'stop': stopIdx,
                 'subchannels': channels,
                 'numRows': stopIdx - startIdx,
-#                 'removeMean': self.removeMeanList.GetSelection(),
+                'removeMean': self.removeMeanList.GetSelection(),
                 'source': source,
                 'callbackInterval':  callbackInt,
                 }

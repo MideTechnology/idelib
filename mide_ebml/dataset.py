@@ -308,7 +308,8 @@ class Dataset(Cascading):
         
     
     def addSensor(self, sensorId=None, name=None, sensorClass=None, 
-                  traceData=None, transform=None, attributes=None):
+                  traceData=None, transform=None, attributes=None,
+                  bandwidthLimitId=None):
         """ Create a new Sensor object, and add it to the dataset, and return
             it. If the given sensor ID already exists, the existing sensor is 
             returned instead. To modify a sensor or add a sensor object created 
@@ -332,7 +333,8 @@ class Dataset(Cascading):
         
         sensorClass = Sensor if sensorClass is None else sensorClass
         sensor = sensorClass(self,sensorId,name=name, transform=transform,
-                             traceData=traceData, attributes=attributes)
+                             traceData=traceData, attributes=attributes,
+                             bandwidthLimitId=bandwidthLimitId)
         self.sensors[sensorId] = sensor
         return sensor
 
@@ -473,7 +475,7 @@ class Sensor(Cascading):
     """
     
     def __init__(self, dataset, sensorId, name=None, transform=None,
-                  traceData=None, attributes=None):
+                  traceData=None, attributes=None, bandwidthLimitId=None):
         """ Constructor. This should generally be done indirectly via
             `Dataset.addSensor()`.
         
@@ -492,6 +494,7 @@ class Sensor(Cascading):
         self.channels = {}
         self.traceData = traceData
         self.attributes = attributes
+        self.bandwidthLimitId = bandwidthLimitId
 
 
     def __getitem__(self, idx):

@@ -1130,6 +1130,10 @@ class Viewer(wx.Frame, MenuMixin):
                         "has been made.")
                     stream.closeAll()
                     return
+        
+        # XXX: REMOVE
+#         except Exception:
+#             raise
             
         except mide_ebml.parsers.ParsingError as err:
             self.ask("The file '%s' could not be opened" % name, 

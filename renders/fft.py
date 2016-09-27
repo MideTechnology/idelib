@@ -262,7 +262,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.range = (kwargs.pop("startTime",0), kwargs.pop("endTime",-1))
         self.data = kwargs.pop("data",None)
         self.sliceSize = kwargs.pop("windowSize", 2**16)
-        self.removeMean = kwargs.pop('removeMean', False)
+        self.removeMean = kwargs.pop('removeMean', True)
         self.meanSpan = kwargs.pop('meanSpan', -1)
         self.logarithmic = kwargs.pop('logarithmic', (False, False))
         self.exportPrecision = kwargs.pop('exportPrecision', 6)
@@ -286,6 +286,9 @@ class FFTView(wx.Frame, MenuMixin):
         
         if self.source is None and self.subchannels is not None:
             self.source = self.subchannels[0].parent.getSession(sessionId)
+
+        self.source = self.source.copy()
+        self.source.allowMeanRemoval = self.source.hasMinMeanMax
 
         kwargs.setdefault('title', self.makeTitle())
         super(FFTView, self).__init__(*args, **kwargs)
@@ -337,6 +340,7 @@ class FFTView(wx.Frame, MenuMixin):
         """
         try:
             self.source.removeMean = self.oldRemoveMean
+            self.source.rollingMeanSpan = self.oldRollingMeanSpan
             self.statusBar.stopProgress()
             for i in range(4):
                 self.menubar.EnableTop(i, True)
@@ -350,9 +354,12 @@ class FFTView(wx.Frame, MenuMixin):
         """ Initiates the background calculation/drawing thread.
         """
         self.drawStart = time.time()
-        subevents = [self.source.dataset.channels[self.source.parent.id][ch.id].getSession().removeMean for ch in self.subchannels]
         self.oldRemoveMean = self.source.removeMean
-        self.source.removeMean = any(subevents)
+        self.oldRollingMeanSpan = self.source.rollingMeanSpan
+#         subevents = [self.source.dataset.channels[self.source.parent.id][ch.id].getSession().removeMean for ch in self.subchannels]
+#         self.source.removeMean = any(subevents)
+        self.source.removeMean = self.removeMean
+        self.source.rollingMeanSpan = self.meanSpan
         
         for i in range(4):
             self.menubar.EnableTop(i, False)

@@ -1087,6 +1087,7 @@ class WarningListParser(ElementHandler):
             for w in data['warnings']:
                 self.doc.addWarning(**w)
     
+    
 #===============================================================================
 # RecordingProperties: RecorderInfo
 #===============================================================================
@@ -1107,6 +1108,30 @@ class RecorderInfoParser(ElementHandler):
         self.doc.recorderInfo.update(val)
         return self.doc.recorderInfo  
 
+
+#===============================================================================
+# 
+#===============================================================================
+
+class BwLimitListParser(ElementHandler):
+    """ Handle the `BwLimitList` element, child of RecordingProperties.
+    """
+    elementName = "BwLimitList"
+    isSubElement = True
+    isHeader = True
+
+    def parse(self, element, **kwargs):
+        """
+        """
+        self.doc.bandwidthLimits = limits = {}
+        val = parse_ebml(element.value)
+        for limit in val.get('BwLimit', []):
+            limitId = limit.pop('BwLimitID', None)
+            if limitId is not None:
+                limits[limitId] = limit
+        return limits  
+
+    
 #===============================================================================
 # RecordingProperties parent element parser.
 #===============================================================================
