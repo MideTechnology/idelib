@@ -148,6 +148,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_DISPLAY_NATIVE = wx.NewId()
     ID_DATA_DISPLAY_CONFIG = wx.NewId()
     ID_DATA_EDIT_CAL = wx.NewId()
+    ID_DATA_DISABLE_BIVARIATES = wx.NewId()
     ID_TOOLS = wx.NewId()
     ID_HELP_CHECK_UPDATES = wx.NewId()
     ID_HELP_FEEDBACK = wx.NewId()
@@ -183,7 +184,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.dataset = None
         self.session = None
         self.dataSources = OrderedDict()
-        self.tabTypes = {}
+        self.tabTypes = {} # Each tab shows one type of unit
         self.cancelQueue = []
         self.plotarea = None
         
@@ -193,7 +194,6 @@ class Viewer(wx.Frame, MenuMixin):
         self.Centre()
         self.Show()
         
-        self.plots = []
         self._nextColor = 0
         self.setVisibleRange(self.timerange[0], self.timerange[1])
         
@@ -243,6 +243,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.legendPos = self.app.getPref('legendPosition', 1)
         
         self.drawHollowPlot = self.app.getPref('drawHollowPlot', False)
+        self.noBivariates = self.app.getPref('noBivariates', False)
         
         self.showDebugChannels = self.app.getPref('showDebugChannels', True)
         
@@ -418,9 +419,14 @@ class Viewer(wx.Frame, MenuMixin):
                          "Native Units", "", self.OnConversionPicked, 
                          kind=wx.ITEM_RADIO)
         
+        dataMenu.AppendSeparator()
         self.addMenuItem(dataMenu, self.ID_DATA_EDIT_CAL, 
                          "Edit Calibration Polynomials...", "", 
                          self.OnEditCalibration)
+        
+        self.addMenuItem(dataMenu, self.ID_DATA_DISABLE_BIVARIATES,
+                         "Disable Bivariate References", "",
+                         self.OnDisableBivariates, kind=wx.ITEM_CHECK)
         
         dataMenu.AppendSeparator()
         self.viewWarningsMenu = self.addSubMenu(dataMenu, self.ID_DATA_WARNINGS,
@@ -428,7 +434,8 @@ class Viewer(wx.Frame, MenuMixin):
         
         
         #=======================================================================
-        #
+        # "Tools" menu, only appears if there are tools.
+        
         self.toolPlugins = {}
         if self.app.plugins is not None:
             tools = self.app.plugins.find(type='tool', isModule=True)
@@ -835,7 +842,8 @@ class Viewer(wx.Frame, MenuMixin):
                         units = subc.units
                     else:
                         p.addSource(el, True)
-        
+
+        self.setNoBivariates(self.noBivariates)
         self.enableChildren(True)
         self.buildAddChannelMenu()
         self.buildNewTabMenu()
@@ -873,6 +881,20 @@ class Viewer(wx.Frame, MenuMixin):
             return self.plotarea[idx]
 
 
+    def setNoBivariates(self, disabled=True):
+        """ 
+        """
+        self.FindItemInMenuBar(self.ID_DATA_DISABLE_BIVARIATES).Check(disabled)
+        self.noBivariates = disabled
+        for source in self.dataSources.values():
+            source.noBivariates = self.noBivariates
+            if source._childLists:
+                for cl in source._childLists:
+                    cl.noBivariates = self.noBivariates
+            if source._parentList:
+                source._parentList.noBivariates = self.noBivariates
+
+        
     #===========================================================================
     # 
     #===========================================================================
@@ -1966,7 +1988,15 @@ class Viewer(wx.Frame, MenuMixin):
         changed = live_calibration.editCalibration(self)
         if changed:
             self.plotarea.redraw(force=True)
-        
+    
+    
+    def OnDisableBivariates(self, evt):
+        """
+        """
+        self.setNoBivariates(evt.IsChecked())
+#         self.app.setPref('noBivariates', self.noBivariates)
+        self.plotarea.redraw(force=True)
+            
     
     def OnToolMenuSelection(self, evt):
         """ Handle the selection of a plug-in 'tool' (utility).

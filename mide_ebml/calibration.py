@@ -102,7 +102,7 @@ class Transform(object):
         return self._source
     
     
-    def __call__(self, event, session=None):
+    def __call__(self, event, session=None, noBivariates=False):
         if session != self._lastSession:
             self._timeOffset = 0 if session.startTime is None else session.startTime
             self._session = session
@@ -484,7 +484,7 @@ class Bivariate(Univariate):
         self._noY = (0,1) if 'y' not in src else False 
 
 
-    def __call__(self, event, session=None):
+    def __call__(self, event, session=None, noBivariates=False):
         """ Apply the polynomial to an event. 
         
             @param event: The event to process (a time/value tuple).
@@ -502,8 +502,12 @@ class Bivariate(Univariate):
                 return event
             
             x = event[-1]
+            
             # Optimization: don't check the other channel if Y is unused
-            y = self._noY or self._eventlist.getMeanNear(event[-2])
+            if noBivariates:
+                y = (0,1)
+            else:
+                y = self._noY or self._eventlist.getMeanNear(event[-2])
             return event[-2],self._function(x,y)
         
         except (IndexError, ZeroDivisionError) as err:
@@ -665,7 +669,7 @@ class PolyPoly(CombinedPoly):
         self._variables = params
 
 
-    def __call__(self, event, session=None):
+    def __call__(self, event, session=None, noBivariates=False):
         """ Apply the polynomial to an event. 
         
             @param event: The event to process (a time/value tuple or a
@@ -676,6 +680,9 @@ class PolyPoly(CombinedPoly):
             x = event[-1]
             # Optimization: don't check the other channel if Y is unused
             if self._noY is False:
+                if noBivariates:
+                    return event[-2], self._function(0, *x)
+                    
                 session = self.dataset.lastSession if session is None else session
                 sessionId = None if session is None else session.sessionId
                 
@@ -683,7 +690,7 @@ class PolyPoly(CombinedPoly):
                     channel = self.dataset.channels[self.channelId][self.subchannelId]
                     self._eventlist = channel.getSession(session.sessionId)
                     self._sessionId = session.sessionId
-                    
+                
                 # XXX: Hack! EventList length can be 0 if a thread is running.
                 # This almost immediately gets fixed. Find real cause.
                 try:    

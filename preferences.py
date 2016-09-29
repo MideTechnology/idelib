@@ -50,6 +50,7 @@ class Preferences(object):
         'removeMean': True,
         'removeRollingMean': True,
         'rollingMeanSpan': 5.0, # In seconds
+        'noBivariates': False,
         
         # Rendering
         'initialDisplayMode': 1,
@@ -75,6 +76,7 @@ class Preferences(object):
         'outOfRangeColor': wx.Colour(250,250,250),
         'warningColor': wx.Colour(255, 192, 203),
         'plotBgColor': wx.Colour(255,255,255),
+        
         # Plot colors, stored by channel:subchannel IDs.
         'plotColors': {# SSX v1
                        "00.0": "BLUE",       # Acceleration Z
@@ -521,7 +523,11 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.FloatProperty("Rolling Mean Span (seconds)", "rollingMeanSpan"),
              "The width of the time span used to compute the 'rolling mean' "
              "used when \"Remove Rolling Mean from Data\" is enabled.")
-        
+        _add(PG.BoolProperty("Disable Bivariate References by Default", "noBiovariates"), 
+             "By default, prevent bivariate calibration polynomials from "
+             "referencing other channels (e.g. accelerometer temperature "
+             "compensation). Disabling references improves performance.",
+             UseCheckbox=True)
         
         _add(PG.PropertyCategory("Drawing"))
         _add(PG.EnumProperty("Initial Display Layout", "initialDisplayMode",

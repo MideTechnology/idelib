@@ -964,16 +964,18 @@ class EventList(Transformable):
         self._firstTime = self._lastTime = None
         self._parentList = parentList
         self._childLists = []
+        
+        self.noBivariates = False
 
         if self._parentList is not None:
             self._singleSample = self._parentList._singleSample
         else:
             self._singleSample = parentChannel.singleSample
 
-        # Optimization: Keep track of indices in blocks (per 10000)
-        # The first is the earliest block with the index,
-        # The second is the latest block.
         if self.hasSubchannels or not isinstance(parentChannel.parent, Channel):
+            # Optimization: Keep track of indices in blocks (per 10000)
+            # The first is the earliest block with the index,
+            # The second is the latest block.
             self._blockIdxTable = ({},{})
             self._blockTimeTable = ({},{})
             self._blockIdxTableSize = None
@@ -986,6 +988,7 @@ class EventList(Transformable):
             self._blockTimeTable = ps._blockTimeTable
             self._blockIdxTableSize = ps._blockIdxTableSize
             self._blockTimeTableSize = ps._blockTimeTableSize
+            self.noBivariates = ps.noBivariates
         
         if self.hasSubchannels:
             self.channelId = self.parent.id
@@ -1081,6 +1084,7 @@ class EventList(Transformable):
         newList.hasMinMeanMax = self.hasMinMeanMax
         newList.removeMean = self.removeMean
         newList.allowMeanRemoval = self.allowMeanRemoval
+        newList.noBivariates = self.noBivariates
         return newList
     
 
@@ -1198,8 +1202,8 @@ class EventList(Transformable):
             @param blockIdx: The index of the block to check.
             @return: A tuple with the blocks start and end times.
         """
-        if blockIdx < 0:
-            blockIdx += len(self._data)
+#         if blockIdx < 0:
+#             blockIdx += len(self._data)
         block = self._data[blockIdx]
         try:
             return block._timeRange
@@ -1236,9 +1240,14 @@ class EventList(Transformable):
                 maximum value for an element (such as `_getBlockTimeRange`)
             @return: The index of the found block.
         """
+        if start == stop:
+            return start 
+        
         # Quick and dirty binary search.
         # TODO: Handle un-found values better (use of `stop` can make these)
         def getIdx(first, last):
+            if first == last:
+                return first
             middle = first + ((last-first)/2)
             r = rangeGetter(middle)
             if val >= r[0] and val <= r[1]:
@@ -1299,7 +1308,7 @@ class EventList(Transformable):
                                        start, stop)
         
 
-    def _getBlockRollingMean(self, blockIdx, force=False):
+    def    _getBlockRollingMean(self, blockIdx, force=False):
         """ Get the mean of a block and its neighbors within a given time span.
             Note: Values are taken pre-calibration, and all subchannels are
             returned.
@@ -1386,19 +1395,19 @@ class EventList(Transformable):
             timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
             value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
             
-            event = xform((timestamp, value), session=self.session)
+            event = xform((timestamp, value), session=self.session, noBivariates=self.noBivariates)
             if event is None:
                 logger.info( "%s: bad transform %r %r" % (self.parent.name,timestamp, value))
                 sleep(0.001)
-                event = xform((timestamp, value), session=self.session)
+                event = xform((timestamp, value), session=self.session, noBivariates=self.noBivariates)
                 
             offset = self._getBlockRollingMean(blockIdx)
             if offset is not None:
-                offsetx = xform((timestamp, offset), session=self.session)
+                offsetx = xform((timestamp, offset), session=self.session, noBivariates=self.noBivariates)
                 if offsetx is None:
                     logger.info( "%s: bad offset @%s" % (self.parent.name,timestamp))
                     sleep(0.001)
-                    offsetx = xform((timestamp, offset), session=self.session)
+                    offsetx = xform((timestamp, offset), session=self.session, noBivariates=self.noBivariates)
                 event = (timestamp, tuple(numpy.array(event[-1])-offsetx[-1]))
                 
             if not self.hasSubchannels:
@@ -1540,20 +1549,20 @@ class EventList(Transformable):
                     logger.info( "%s: bad offset (1) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
-                offsetx = xform((block.startTime,offset), session=session)
+                offsetx = xform((block.startTime,offset), session=session, noBivariates=self.noBivariates)
                 if offsetx is None:
                     logger.info( "%s: bad offset(2) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
-                    offsetx = xform((block.startTime,offset), session=session)
+                    offsetx = xform((block.startTime,offset), session=session, noBivariates=self.noBivariates)
                 if offsetx is not None:
                     offset = numpy_array(offsetx[-1])
                 
             for event in izip(times, values):
-                eventx = xform(event, session=session)
+                eventx = xform(event, session=session, noBivariates=self.noBivariates)
                 if eventx is None:
                     logger.info( "%s: bad transform @%s" % (self.parent.name,event[0]))
                     sleep(0.001)
-                    eventx = xform(event, session=session)
+                    eventx = xform(event, session=session, noBivariates=self.noBivariates)
                 event = eventx
                     
                 if offset is not None:
@@ -1644,20 +1653,20 @@ class EventList(Transformable):
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
                 
-                offsetx = xform((block.startTime,offset), session=session)
+                offsetx = xform((block.startTime,offset), session=session, noBivariates=self.noBivariates)
                 if offsetx is None:
                     # Thread-induced race condition? Try again.
                     logger.warning("iterJitterySlice: offset is None")
                     sleep(0.001)
-                    offsetx = xform((block.startTime,offset), session=session)
+                    offsetx = xform((block.startTime,offset), session=session, noBivariates=self.noBivariates)
                 offset = numpy.array(offsetx[-1])
                 
             for event in izip(times, values):
-                eventx = xform(event, session)
+                eventx = xform(event, session, noBivariates=self.noBivariates)
                 if eventx is None:
                     # Thread-induced race condition? Try again.
                     sleep(0.001)
-                    eventx = xform(event, session)
+                    eventx = xform(event, session, noBivariates=self.noBivariates)
                 event = eventx
                     
                 if offset is not None:
@@ -1817,10 +1826,10 @@ class EventList(Transformable):
                 m = _getBlockRollingMean(block.blockIndex)
             
             if m is not None:
-                mx = xform((t,m), session)
+                mx = xform((t,m), session, noBivariates=self.noBivariates)
                 if mx is None:
                     sleep(0.005)
-                    mx = xform((t,m), session)
+                    mx = xform((t,m), session, noBivariates=self.noBivariates)
                     if mx is None:
                         mx = (t,m)
                 m = numpy.array(mx[1])
@@ -1832,7 +1841,7 @@ class EventList(Transformable):
                 event=xform((t,val), session)
                 if event is None:
                     sleep(0.005)
-                    event = xform((t, val), session)
+                    event = xform((t, val), session, noBivariates=self.noBivariates)
                     if event is None:
                         event = (t,val)
                 eTime, eVals = event
