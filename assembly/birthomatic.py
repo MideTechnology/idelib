@@ -119,6 +119,7 @@ import firmware
 import jig_birther
 import ssx_namer
 
+from birth_utils import errMsg, changeFilename
 
 #===============================================================================
 # Helper functions
@@ -293,11 +294,11 @@ def cleanDevice(dev, chipDirName):
 
     userCalFile = getattr(dev, 'userCalFile', None) 
     if os.path.exists(userCalFile):
-        shutil.copy(userCalFile, utils.changeFilename(userCalFile, path=chipDirName))
+        shutil.copy(userCalFile, changeFilename(userCalFile, path=chipDirName))
         print "Removing usercal.dat file from device..."
         os.remove(userCalFile)
 
-# XXX: asdsdas
+
 #===============================================================================
 # 
 #===============================================================================
@@ -315,14 +316,14 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         exit(1)
     
     print "*" * 60
-    print "Starting Slam Stick X Auto-Birther."
-    print "Plug in a new Slam Stick X and press the button to enter bootloader mode."
+    print "Starting Slam Stick Auto-Birther."
+    print "Plug in a new Slam Stick and press the button to enter bootloader mode."
     print "*" * 60
     
     # 1. Wait for an SSX in firmware mode (getSSXSerial)
     ssxboot = firmware.getBootloaderSSX(callback=utils.spinner)
     if ssxboot is None:
-        utils.errMsg("Failed to find bootloader SSX!")
+        errMsg("Failed to find bootloader SSX!")
         return
     
     # 2. Get bootloader version, chip ID from device
@@ -361,7 +362,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
     partNum = getPartNumber(default=partNum)
     if partNum is None:
-        utils.errMsg("Failed to get part number!")
+        errMsg("Failed to get part number!")
         return
     
     if hwRev is not None:
@@ -371,17 +372,17 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
     hwRev = hwRev if hwRev else getHardwareRev(partNum)
     if hwRev is None:
-        utils.errMsg("Failed to get hardware revision number!")
+        errMsg("Failed to get hardware revision number!")
         return
     
     fwRev = fwRev if fwRev else getFirmwareRev(partNum)
     if not isinstance(fwRev, int):
-        utils.errMsg("Failed to get firmware revision number!")
+        errMsg("Failed to get firmware revision number!")
         return
     
     bootRev = getBootloaderRev(partNum)
     if not bootRev:
-        utils.errMsg("Failed to get bootloader revision number!")
+        errMsg("Failed to get bootloader revision number!")
         return
     
     # The SlamStick C has no analog accelerometer!
@@ -389,7 +390,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     if has_832M1:
         accelSerialNum = getAccelSerialNum(default=accelSerialNum)
         if not accelSerialNum:
-            utils.errMsg("Failed to get accelerometer serial number!")
+            errMsg("Failed to get accelerometer serial number!")
             return
     else:
         accelSerialNum = None
@@ -432,20 +433,20 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         manXmlFile = os.path.join(chipDirName, 'manifest.xml')
         firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, accelSerialNum, manXmlFile, birthday=birthday)
         manEbml = xml2ebml.readXml(manXmlFile, schema='mide_ebml.ebml.schema.manifest')
-        with open(utils.changeFilename(manXmlFile, ext="ebml"), 'wb') as f:
+        with open(changeFilename(manXmlFile, ext="ebml"), 'wb') as f:
             f.write(manEbml)
     
         calXmlFile = os.path.join(chipDirName, 'cal.template.xml')
         calibration.makeCalTemplateXml(TEMPLATE_PATH, partNum, hwRev, calXmlFile)
         calEbml = xml2ebml.readXml(calXmlFile, schema='mide_ebml.ebml.schema.mide') 
-        with open(utils.changeFilename(calXmlFile, ext="ebml"), 'wb') as f:
+        with open(changeFilename(calXmlFile, ext="ebml"), 'wb') as f:
             f.write(calEbml)
     
         propXmlFile = os.path.join(chipDirName, 'recprop.xml')
         propTemplate = firmware.makeRecPropXml(TEMPLATE_PATH, partNum, hwRev, accelSerialNum, propXmlFile)
         if propTemplate is not None and os.path.exists(propXmlFile):
             propEbml = xml2ebml.readXml(propXmlFile, schema='mide_ebml.ebml.schema.mide') 
-            with open(utils.changeFilename(propXmlFile, ext="ebml"), 'wb') as f:
+            with open(changeFilename(propXmlFile, ext="ebml"), 'wb') as f:
                 f.write(propEbml)
         else:
             print "No recording properties template found, skipping."
@@ -523,7 +524,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     print " Firmware Revision:", fwRev
     print "Please disconnect it now."
     
-    utils.errMsg()
+    errMsg()
 
 
 #===============================================================================
