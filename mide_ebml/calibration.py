@@ -686,12 +686,14 @@ class PolyPoly(CombinedPoly):
                     
                 # XXX: Hack! EventList length can be 0 if a thread is running.
                 # This almost immediately gets fixed. Find real cause.
-                if len(self._eventlist) == 0:
+                try:    
+                    y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
+                except IndexError:
                     sleep(0.001)
                     if len(self._eventlist) == 0:
                         return None
+                    y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
                     
-                y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
                 return event[-2],self._function(y, *x)
             
             else:
@@ -705,5 +707,5 @@ class PolyPoly(CombinedPoly):
                 logger.warning("%s occurred in combined polynomial %r" % \
                                (err.__class__.__name__, self))
                 return None
-            raise err
+            raise
 

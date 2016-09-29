@@ -16,6 +16,7 @@
 *.mat
 *.old
 *.plg
+*.pstat
 *.pyc
 *.xls
 *.xlsx

@@ -977,7 +977,8 @@ class EventList(Transformable):
             self._blockIdxTable = ({},{})
             self._blockTimeTable = ({},{})
             self._blockIdxTableSize = None
-            self._blockTimeTableSize = None
+            # XXX: EXPERIMENT. Seems to make big files faster, small ones slower
+            self._blockTimeTableSize = 1000000 #None
         else:
             s = self.session.sessionId if session is not None else None
             ps = parentChannel.parent.getSession(s)
@@ -1007,6 +1008,7 @@ class EventList(Transformable):
         self.updateTransforms(recurse=False)
         self.allowMeanRemoval = parentChannel.allowMeanRemoval    
     
+        
 #     def setTransform(self, xform, update=True):
 #         """
 #         """
@@ -1199,26 +1201,30 @@ class EventList(Transformable):
         if blockIdx < 0:
             blockIdx += len(self._data)
         block = self._data[blockIdx]
-        if block.endTime is None:
-            # Probably a SimpleChannelDataBlock, which doesn't record end.
-            if len(self._data) == 1:
-                # Can't compute without another block's start.
-                # Don't cache; another thread may still be loading document
-                # TODO: Have sensor description provide nominal sample rate?
-                return block.startTime, None
-            
-            if block.numSamples <= 1:
-                block.endTime = block.startTime + self._getBlockSampleTime(blockIdx)
-                return block.startTime, block.endTime
-
-            if blockIdx < len(self._data)-1:
-                block.endTime = self._data[blockIdx+1].startTime - \
-                                self._getBlockSampleTime(blockIdx)
-            else:
-                block.endTime = block.startTime + \
-                                (block.getNumSamples(self.parent.parser)-1) * \
-                                self._getBlockSampleTime(blockIdx)
-        return block.startTime, block.endTime
+        try:
+            return block._timeRange
+        except AttributeError:
+            if block.endTime is None:
+                # Probably a SimpleChannelDataBlock, which doesn't record end.
+                if len(self._data) == 1:
+                    # Can't compute without another block's start.
+                    # Don't cache; another thread may still be loading document
+                    # TODO: Have sensor description provide nominal sample rate?
+                    block.endTime = None
+                
+                elif block.numSamples <= 1:
+                    block.endTime = block.startTime + self._getBlockSampleTime(blockIdx)
+    
+                elif blockIdx < len(self._data)-1:
+                    block.endTime = self._data[blockIdx+1].startTime - \
+                                    self._getBlockSampleTime(blockIdx)
+                else:
+                    block.endTime = block.startTime + \
+                                    (block.getNumSamples(self.parent.parser)-1) * \
+                                    self._getBlockSampleTime(blockIdx)
+                
+            block._timeRange = block.startTime, block.endTime
+            return block._timeRange
 
 
     def _searchBlockRanges(self, val, rangeGetter, start=0, stop=-1):
