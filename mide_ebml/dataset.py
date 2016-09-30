@@ -1202,9 +1202,9 @@ class EventList(Transformable):
             @param blockIdx: The index of the block to check.
             @return: A tuple with the blocks start and end times.
         """
-#         if blockIdx < 0:
-#             blockIdx += len(self._data)
         block = self._data[blockIdx]
+        # XXX: This 'try' makes calibrated output slightly different
+        # (rounding error?). Determine if this is acceptable.
         try:
             return block._timeRange
         except AttributeError:
@@ -1214,7 +1214,7 @@ class EventList(Transformable):
                     # Can't compute without another block's start.
                     # Don't cache; another thread may still be loading document
                     # TODO: Have sensor description provide nominal sample rate?
-                    block.endTime = None
+                    return block.startTime, None
                 
                 elif block.numSamples <= 1:
                     block.endTime = block.startTime + self._getBlockSampleTime(blockIdx)
@@ -1231,7 +1231,32 @@ class EventList(Transformable):
             return block._timeRange
 
 
-    def _searchBlockRanges(self, val, rangeGetter, start=0, stop=-1):
+    def _searchBlockRanges(self, val, rangeGetter, first, last):
+        """ Quick and dirty recursive binary search of data blocks.
+            
+            @param val: The value to find
+            @param rangeGetter: A function that returns a minimum and 
+                maximum value for an element (such as `_getBlockTimeRange`)
+            @param first: The index of the first block in the range.
+            @param last: The index of the last block in the range.
+            @return: The index of the found block.
+        """
+        # TODO: Handle unfound values better (use of `stop` can make these)
+        if first == last:
+            return first
+        middle = first + ((last-first)/2)
+        r = rangeGetter(middle)
+        if val >= r[0] and val <= r[1]:
+            return middle
+        elif middle == first:
+            return last
+        elif val < r[0]:
+            return self._searchBlockRanges(val, rangeGetter, first, middle)
+        else:
+            return self._searchBlockRanges(val, rangeGetter, middle, last)
+
+
+    def x_searchBlockRanges(self, val, rangeGetter, start=0, stop=-1):
         """ Find the index of a block that (potentially) contains a subsample
             with the given value, computed with the given function. 
             
@@ -1243,26 +1268,11 @@ class EventList(Transformable):
         if start == stop:
             return start 
         
-        # Quick and dirty binary search.
-        # TODO: Handle un-found values better (use of `stop` can make these)
-        def getIdx(first, last):
-            if first == last:
-                return first
-            middle = first + ((last-first)/2)
-            r = rangeGetter(middle)
-            if val >= r[0] and val <= r[1]:
-                return middle
-            elif middle == first:
-                return last
-            elif val < r[0]:
-                return getIdx(first, middle)
-            else:
-                return getIdx(middle,last)
-
         start = len(self._data) + start if start < 0 else start
         stop = len(self._data) + stop if stop < 0 else stop
                 
-        return min(len(self._data)-1, getIdx(start, stop))
+        return min(len(self._data)-1, 
+                   self._getIdx(val, rangeGetter, start, stop))
 
     
     def _getBlockIndexWithIndex(self, idx, start=0, stop=-1):
@@ -1277,12 +1287,15 @@ class EventList(Transformable):
         if self._blockIdxTableSize is not None:
             tableIdx = idx/self._blockIdxTableSize
             if stop == -1:
-                stop = self._blockIdxTable[1].get(tableIdx, -2) + 1                
+                stop = self._blockIdxTable[1].get(tableIdx, -2) + 1
             if start == 0:
                 start = max(self._blockIdxTable[0].get(tableIdx, 0)-1, 0)
 
-        return self._searchBlockRanges(idx, self._getBlockIndexRange,
-                                       start, stop)
+        start = len(self._data) + start if start < 0 else start
+        stop = len(self._data) + stop if stop < 0 else stop
+        
+        idx = self._searchBlockRanges(idx, self._getBlockIndexRange, start, stop)
+        return min(len(self._data)-1, idx)
 
 
     def _getBlockIndexWithTime(self, t, start=0, stop=-1):
@@ -1304,8 +1317,11 @@ class EventList(Transformable):
 #         if self._singleSample is True:
 #             return start
         
-        return self._searchBlockRanges(t, self._getBlockTimeRange,
-                                       start, stop)
+        start = len(self._data) + start if start < 0 else start
+        stop = len(self._data) + stop if stop < 0 else stop
+        
+        idx = self._searchBlockRanges(t, self._getBlockTimeRange, start, stop)
+        return min(len(self._data)-1, idx)
         
 
     def    _getBlockRollingMean(self, blockIdx, force=False):
@@ -2241,7 +2257,8 @@ class EventList(Transformable):
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
                   useUtcTime=False, useIsoFormat=False, headers=False, 
-                  removeMean=None, meanSpan=None, display=False):
+                  removeMean=None, meanSpan=None, display=False,
+                  noBivariates=False):
         """ Export events as CSV to a stream (e.g. a file).
         
             @param stream: The stream object to which to write CSV data.

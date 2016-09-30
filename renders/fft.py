@@ -270,6 +270,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.yUnits = kwargs.pop('yUnits', None)#self.subchannels[0].units[1])
         self.indexRange = kwargs.pop('start', 0), kwargs.pop('stop', -1)
         self.numRows = kwargs.pop('numRows')
+        self.noBivariates = kwargs.pop('noBivariates', False)
         
         # Callback. Not currently used.
         self.callback = kwargs.pop('callback', None)
@@ -289,6 +290,7 @@ class FFTView(wx.Frame, MenuMixin):
 
         self.source = self.source.copy()
         self.source.allowMeanRemoval = self.source.hasMinMeanMax
+        self.source.noBivariates = self.noBivariates
 
         kwargs.setdefault('title', self.makeTitle())
         super(FFTView, self).__init__(*args, **kwargs)
@@ -356,8 +358,6 @@ class FFTView(wx.Frame, MenuMixin):
         self.drawStart = time.time()
         self.oldRemoveMean = self.source.removeMean
         self.oldRollingMeanSpan = self.source.rollingMeanSpan
-#         subevents = [self.source.dataset.channels[self.source.parent.id][ch.id].getSession().removeMean for ch in self.subchannels]
-#         self.source.removeMean = any(subevents)
         self.source.removeMean = self.removeMean
         self.source.rollingMeanSpan = self.meanSpan
         

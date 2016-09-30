@@ -523,7 +523,7 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.FloatProperty("Rolling Mean Span (seconds)", "rollingMeanSpan"),
              "The width of the time span used to compute the 'rolling mean' "
              "used when \"Remove Rolling Mean from Data\" is enabled.")
-        _add(PG.BoolProperty("Disable Bivariate References by Default", "noBiovariates"), 
+        _add(PG.BoolProperty("Disable Bivariate References by Default", "noBivariates"), 
              "By default, prevent bivariate calibration polynomials from "
              "referencing other channels (e.g. accelerometer temperature "
              "compensation). Disabling references improves performance.",

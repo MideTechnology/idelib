@@ -91,6 +91,7 @@ class ExportDialog(sc.SizedDialog):
         self.units = kwargs.pop("units", self.DEFAULT_UNITS)
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
         self.removeMean = kwargs.pop("removeMean", 2)
+        self.noBivariates = kwargs.pop("noBivariates", False)
 
         super(ExportDialog, self).__init__(*args, **kwargs)
         
@@ -169,9 +170,16 @@ class ExportDialog(sc.SizedDialog):
         wx.StaticText(rangeFieldPane, -1, self.units[1])
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
+        wx.StaticLine(pane, -1).SetSizerProps(expand=True)
+        
         self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
              self.removeMean, tooltip="Subtract a the mean from the data. "
                                       "Not applicable to all channels.")
+
+        self.noBivariatesCheck, _ = self._addCheck("Disable Bivariate References",
+             self.noBivariates, "Prevent bivariate calibration polynomials "
+             "from referencing other channels (e.g. accelerometer temperature "
+             "compensation). Disabling references improves performance.")
 
         self.buildSpecialUI()
 
@@ -376,6 +384,7 @@ class ExportDialog(sc.SizedDialog):
                 'removeMean': self.removeMeanList.GetSelection(),
                 'source': source,
                 'callbackInterval':  callbackInt,
+                'noBivariates': self.noBivariatesCheck.GetValue()
                 }
     
 
@@ -589,10 +598,9 @@ class CSVExportDialog(ExportDialog):
     def buildSpecialUI(self):
         """ Called before the buttons are added.
         """
-        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
-        self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
-             self.removeMean, tooltip="Subtract a the mean from the data. "
-                                      "Not applicable to all channels.")
+#         self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
+#              self.removeMean, tooltip="Subtract a the mean from the data. "
+#                                       "Not applicable to all channels.")
         self.headerCheck, subpane = self._addCheck("Include Column Headers",
                                      default=self._addHeaders)
         self.utcCheck, _ = self._addCheck("Use Absolute UTC Timestamps",
@@ -812,7 +820,7 @@ class PSDExportDialog(FFTExportDialog):
         """ Called before the OK/Cancel buttons are added.
         """
         # TODO: Fix windowed FFT calculation, re-enable window size UI
-        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
+#         wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
         self.welchCheck, _ = self._addCheck("Use windowed method", self.useWelch,
             tooltip="If checked, Welch's method is used to calculate the PSD; output will be in dB/Hz.")
         self.sizeList, _ = self._addChoice("Sampling Window Size:",
@@ -903,7 +911,7 @@ class SpectrogramExportDialog(FFTExportDialog):
 #             choices=self.WINDOW_SIZES, default=self.windowSize, 
 #             tooltip="The size of the 'window' used in Welch's method")
         
-        wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
+#         wx.StaticLine(self.GetContentsPane(), -1).SetSizerProps(expand=True)
         subpane = None
         self.resList, _parent = self._addChoice("Slices per Second:", 
             choices=self.SLICES, default=self.slicesPerSec,
@@ -987,11 +995,11 @@ if __name__ == '__main__':# or True:
     
     DIALOGS_TO_SHOW = (
 #         (ExportDialog, {'root': root}),
-#         (CSVExportDialog, {'root': root, 'exportType':'CSV'}),
-#         (CSVExportDialog, {'root': root, 'exportType':'MAT'}),
-#         (FFTExportDialog, {'root': root}),
+        (CSVExportDialog, {'root': root, 'exportType':'CSV'}),
+        (CSVExportDialog, {'root': root, 'exportType':'MAT'}),
+        (FFTExportDialog, {'root': root}),
         (PSDExportDialog, {'root': root}),
-#         (SpectrogramExportDialog, {'root': root}),
+        (SpectrogramExportDialog, {'root': root}),
     )
     
     app = FakeApp()
