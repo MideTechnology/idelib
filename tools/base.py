@@ -2,6 +2,11 @@
 Created on Aug 25, 2015
 
 @author: dstokes
+
+@todo: Implement common `ToolDialog` and `widgets.export_dialog.ExportDialog`
+    base class. They share much of the same functionality, but slightly
+    different implementations.
+
 '''
 
 import wx
@@ -35,6 +40,9 @@ class ToolDialog(SC.SizedDialog):
                 The associated widgets (the field, and units label if any)
                 are referenced by attributes added to the control.
         """
+        if name:
+            value = self.getPref(name, value)
+            
         if check:
             cb = wx.CheckBox(parent, -1, label, name=name or label)
             cb.SetValue(checked)
@@ -64,7 +72,8 @@ class ToolDialog(SC.SizedDialog):
         return cb
 
 
-    def addCheck(self, parent, label, checked=False, indent=False, tooltip=None):
+    def addCheck(self, parent, label, checked=False, indent=False, name=None,
+                 tooltip=None):
         """ Add a checkbox without a field. 
         
             @param parent: The parent `SizedPanel`.
@@ -75,6 +84,9 @@ class ToolDialog(SC.SizedDialog):
                 `None` if the parent does not use the 'form' layout.
             @keyword tooltip: A string to display as the control's tool tip. 
         """
+        if name:
+            checked = self.getPref(name, checked)
+            
         if indent is True:
             SC.SizedPanel(parent, -1)
         cb = wx.CheckBox(parent, -1, label)
@@ -87,33 +99,89 @@ class ToolDialog(SC.SizedDialog):
         return cb
         
 
-    def getValue(self, control):
+    def addChoiceField(self, parent, label, choices=[], units=None, 
+                       default=wx.NOT_FOUND, check=False, checked=True, 
+                       tooltip=None, name=None):
+        """ Add a drop down list field, with or without a checkbox.
+        
+            @param parent: The parent `SizedPanel`.
+            @param label: The text displayed.
+            @keyword units: The name of the units, if any, displayed to the
+                right of the field.
+            @keyword checked: The checkbox's initial state.
+            @keyword default: The initially displayed value.
+            @keyword check: If `False`, the field has only a label, not
+                a checkbox.
+            @keyword tooltip: A string to display as the control's tool tip.
+            @return: The checkbox control (or label if `check` is `False`). 
+                The associated widgets (the field, and units label if any)
+                are referenced by attributes added to the control.
+        """
+        if name:
+            default = self.getPref(name, default)
+            
+        enabled = not check or checked
+        if check:
+            cb = wx.CheckBox(parent, -1, label, name=name or label)
+            cb.SetValue(checked)
+        else:
+            cb = wx.StaticText(parent, -1, label, name=name or label)
+            checked = False
+        cb.SetSizerProps(valign='center')
+        
+        if units is not None:
+            parent = SC.SizedPanel(parent, -1)
+            parent.SetSizerType("horizontal")
+            
+        field = cb._field = wx.Choice(parent, -1, choices=choices)
+        field.SetSelection(default)
+        field.Enable(enabled)
+
+        if tooltip is not None:
+            cb.SetToolTipString(tooltip)
+            field.SetToolTipString(tooltip)
+        
+        if units is not None:
+            units = cb._units = wx.StaticText(parent, -1, units)
+            units.SetSizerProps(valign="center")
+            units.Enable(enabled)
+            if tooltip is not None:
+                units.SetToolTipString(tooltip)
+        
+        return cb
+
+
+    def getValue(self, control, default=False):
         """ Get the value for a control. If the control is a checkbox that is
             not checked, `False` is returned. If the control has an associated
             field, the field's value is returned. 
         """
         if isinstance(control, wx.CheckBox):
-            if control.IsChecked():
-                if hasattr(control, '_field'):
-                    return control._field.GetValue()
-                return True
-            else:
-                return False
-        else:
-            try:
-                if hasattr(control, '_field'):
-                    return control._field.GetValue()
+            if not control.IsChecked():
+                return default
+
+        try:
+            if not hasattr(control, '_field'):
                 return control.GetValue()
-            except AttributeError:
-                return None
+            elif isinstance(control._field, wx.Choice):
+                return control._field.GetSelection()
+            else:
+                return control._field.GetValue()
+        except None:#AttributeError:
+            return None
 
 
     def setValue(self, control, val, check=True):
+        """ 
+        """
         if val is None:
             self.setCheck(control, False)
             return val
         if hasattr(control, '_field'):
-            control._field.SetValue(val)
+            if isinstance(control._field, wx.Choice):
+                control._field.SetSelection(val)
+            else:
+                control._field.SetValue(val)
         if check:
             self.setCheck(control)
         return val
@@ -125,11 +193,18 @@ class ToolDialog(SC.SizedDialog):
         if not isinstance(obj, wx.CheckBox):
             return False
         obj.SetValue(checked)
-        if hasattr(obj, '_field'):
-            obj._field.Enable(checked)
-        if hasattr(obj, '_units'):
-            obj._units.Enable(checked)
+        self.enableField(obj, checked)
         return checked
+
+    
+    def enableField(self, obj, enabled=True):
+        """ 
+        """
+        obj.Enable(enabled)
+        if hasattr(obj, '_field'):
+            obj._field.Enable(enabled)
+        if hasattr(obj, '_units'):
+            obj._units.Enable(enabled)
 
     
     def getPref(self, k, default=None):

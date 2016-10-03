@@ -1179,6 +1179,8 @@ class Viewer(wx.Frame, MenuMixin):
                 stream.closeAll()
                 return False
             title = "%s (Session %d)" % (title, self.session.sessionId)
+        else:
+            self.session = newDoc.lastSession
 
         # Import external calibration file, if it has the same name as the
         # recording file.
@@ -1206,7 +1208,10 @@ class Viewer(wx.Frame, MenuMixin):
 
         # Expired calibration warning
         try:
-            if time.time() > newDoc.recorderInfo['CalibrationDate'] + 31536000:
+            # XXX: BUG: THIS NEEDS TO BE THE RECORDING TIME, NOT SYSTEM TIME!
+            recDate = self.session.startTime or self.session.utcStartTime or 0
+            calDate = newDoc.recorderInfo.get('CalibrationDate')
+            if calDate and recDate > calDate + 31536000:
                 self.ask("This file was recorded with expired calibration.",
                          "Expired Calibration Warning", 
                          wx.OK, wx.ICON_INFORMATION, pref="expiredCal", 

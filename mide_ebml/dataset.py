@@ -2299,41 +2299,41 @@ class EventList(Transformable):
             @return: Tuple: The number of rows exported and the elapsed time.
         """
         noCallback = callback is None
+        _self = self.copy()
 
         # Create a function for formatting the event time.        
-        if useUtcTime and self.session.utcStartTime:
+        if useUtcTime and _self.session.utcStartTime:
             if useIsoFormat:
-                timeFormatter = lambda x: datetime.utcfromtimestamp(x[-2] * timeScalar + self.session.utcStartTime).isoformat()
+                timeFormatter = lambda x: datetime.utcfromtimestamp(x[-2] * timeScalar + _self.session.utcStartTime).isoformat()
             else:
-                timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar + self.session.utcStartTime)
+                timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar + _self.session.utcStartTime)
         else:
             timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar)
         
         # Create the function for formatting an entire row.
-        if self.hasSubchannels:
+        if _self.hasSubchannels:
             if isinstance(subchannels, Iterable):
                 fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(subchannels))
                 formatter = lambda x: fstr % ((timeFormatter(x),) + \
                                               tuple([x[-1][v] for v in subchannels]))
-                names = [self.parent.subchannels[x].name for x in subchannels]
+                names = [_self.parent.subchannels[x].name for x in subchannels]
             else:
-                fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(self.parent.types))
+                fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(_self.parent.types))
                 formatter = lambda x: fstr % ((timeFormatter(x),) + x[-1])
-                names = [x.name for x in self.parent.subchannels]
+                names = [x.name for x in _self.parent.subchannels]
         else:
             fstr = "%%s%s%s" % (delimiter, dataFormat)
             formatter = lambda x: fstr % (timeFormatter(x),x[-1])
-            names = [self.parent.name]
+            names = [_self.parent.name]
 
-        # Save current mean removal settings, apply ones for export.
-        oldRemoveMean = self.removeMean
-        oldMeanSpan = self.rollingMeanSpan
         if removeMean is not None:
-            self.removeMean = self.allowMeanRemoval and removeMean
+            _self.removeMean = _self.allowMeanRemoval and removeMean
         if meanSpan is not None:
-            self.rollingMeanSpan = meanSpan
+            _self.rollingMeanSpan = meanSpan
         
         totalLines = (stop - start) / (step + 0.0)
+        if totalLines < 0:
+            totalLines = len(_self)
         numChannels = len(names)
         totalSamples = totalLines * numChannels
         updateInt = int(totalLines * callbackInterval)
@@ -2349,7 +2349,7 @@ class EventList(Transformable):
             stream.write('"Time"%s%s\n' % 
                          (delimiter, delimiter.join(['"%s"' % n for n in names])))
         try:
-            for num, evt in enumerate(self.iterSlice(start, stop, step, display=display)):
+            for num, evt in enumerate(_self.iterSlice(start, stop, step, display=display)):
                 stream.write("%s\n" % formatter(evt))
                 if callback is not None:
                     if getattr(callback, 'cancelled', False):
@@ -2362,10 +2362,6 @@ class EventList(Transformable):
         except ex as e:
             callback(error=e)
 
-        # Restore old removeMean        
-        self.removeMean = oldRemoveMean
-        self.rollingMeanSpan = oldMeanSpan
-        
         return num+1, datetime.now() - t0
 
         

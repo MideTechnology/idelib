@@ -44,11 +44,16 @@ class CSVExportError(Exception):
 #
 #===============================================================================
 
-def exportCsv(events, filename, **kwargs):
+def exportCsv(events, filename, callback=None, **kwargs):
     """ Wrapper for CSV export, making it like MAT export.
     """
+    # MAT export updates the callback with exported filenames, exportCSV does
+    # not. Add the filename to the list 'manually.'
+    if callback is not None:
+        callback.outputFiles.add(filename)
+        
     with open(filename, 'wb') as f:
-        return events.exportCsv(f, **kwargs)
+        return events.exportCsv(f, callback=callback, **kwargs)
 
 
 #===============================================================================
@@ -273,20 +278,23 @@ def ideExport(ideFilename, outFilename=None, channels=None,
     numSamples = 0
     for ch in exportChannels:
         outName = "%s_Ch%02d.%s" % (outFilename, ch.id, outputType.strip('.'))
-        print("  Exporting Channel %d (%s) to %s..." % (ch.id, ch.name, outName)),
+        _print("  Exporting Channel %d (%s) to %s..." % (ch.id, ch.name, outName)),
         try:
             events = ch.getSession()
-            numSamples += exporter(events, outName, callback=updater, 
+            
+            numSamples += (exporter(events, outName, callback=updater, 
                                    timeScalar=timeScalar, headers=headers,
                                    removeMean=removeMean, meanSpan=meanSpan,
                                    useUtcTime=useUtcTime,
-                                   **exportArgs)[0]
+                                   **exportArgs)[0] * len(ch.children))
 
         except None:
             pass
 
     doc.close()
-    return numSamples
+    doc = None
+    events = None
+    return numSamples 
 
 
 #===============================================================================
