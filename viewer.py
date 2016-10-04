@@ -89,6 +89,7 @@ import mide_ebml.unit_conversion
 import plugins
 import tools.raw2mat
 import tools.filesplit
+import tools.ide2csv
 
 #===============================================================================
 # 
@@ -2415,7 +2416,8 @@ class ViewerApp(wx.App):
     buildVersion = VERSION + (BUILD_NUMBER,)
     
     defaultPlugins = [tools.raw2mat,
-                      tools.filesplit]
+                      tools.filesplit,
+                      tools.ide2csv]
 
     def saveAllPrefs(self, filename=None, hideFile=None):
         self.prefs.saveAllPrefs(filename, hideFile)

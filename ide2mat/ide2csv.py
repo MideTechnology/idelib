@@ -277,15 +277,18 @@ def ideExport(ideFilename, outFilename=None, channels=None,
 
     numSamples = 0
     for ch in exportChannels:
+        
         outName = "%s_Ch%02d.%s" % (outFilename, ch.id, outputType.strip('.'))
         _print("  Exporting Channel %d (%s) to %s..." % (ch.id, ch.name, outName)),
         try:
             events = ch.getSession()
-            
+            startIdx, stopIdx = events.getRangeIndices(startTime, endTime)
+            print "startidx=%r, stopIdx=%r" % (startIdx, stopIdx)
             numSamples += (exporter(events, outName, callback=updater, 
                                    timeScalar=timeScalar, headers=headers,
                                    removeMean=removeMean, meanSpan=meanSpan,
                                    useUtcTime=useUtcTime,
+                                   start=startIdx, stop=stopIdx,
                                    **exportArgs)[0] * len(ch.children))
 
         except None:

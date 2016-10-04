@@ -72,6 +72,119 @@ class ToolDialog(SC.SizedDialog):
         return cb
 
 
+#     def xaddFloatField(self, checkText, name=None, units="", value="",
+#                       precision=0.01, digits=2, minmax=(-100,100), 
+#                       fieldSize=None, fieldStyle=None, tooltip=None,
+#                       check=True, indent=0):
+#         """ Add a numeric field with a 'spinner' control.
+# 
+#             @param checkText: The checkbox's label text.
+#             @keyword name: The name of the key in the config data, if the
+#                 field maps directly to a value.
+#             @keyword units: The units displayed, if any.
+#             @keyword value: The initial value of the field
+#             @keyword precision: 
+#             @keyword minmax: The minimum and maximum values allowed
+#             @keyword fieldSize: The size of the text field
+#             @keyword fieldStyle: The text field's wxWindows style flags.
+#             @keyword tooltip: A tooltip string for the field.
+#         """
+#         fieldSize = self.fieldSize if fieldSize is None else fieldSize
+#         
+#         indent += self.indent
+#         if indent > 0:
+#             col1 = sc.SizedPanel(self, -1)
+#             col1.SetSizerType('horizontal')
+#             col1.SetSizerProps(valign="center")
+#             pad = wx.StaticText(col1, -1, ' '*indent)
+#             pad.SetSizerProps(valign="center")
+#         else:
+#             col1 = self
+#         if check:
+#             c = wx.CheckBox(col1, -1, checkText)
+#         else:
+#             c = wx.StaticText(col1, -1, checkText)
+#         c.SetSizerProps(valign="center")
+# 
+#         col2 = sc.SizedPanel(self, -1)
+#         col2.SetSizerType("horizontal")
+#         col2.SetSizerProps(expand=True)
+#         
+#         lf = wx.SpinCtrlDouble(col2, -1, value=str(value), inc=precision,
+#                           min=minmax[0], max=minmax[1], size=fieldSize)
+#         u = wx.StaticText(col2, -1, units)
+#         u.SetSizerProps(valign="center")
+#         
+#         self.controls[c] = [lf, u]
+#         if col1 != self:
+#             self.controls[c].append(pad)
+#         
+#         if fieldSize == (-1,-1):
+#             self.fieldSize = lf.GetSize()
+#         
+#         if name is not None:
+#             self.fieldMap[name] = c
+#         
+#         if digits is not None:
+#             lf.SetDigits(digits)
+#         
+#         self.setFieldToolTip(c, tooltip)
+# 
+#         return c
+
+    def addFloatField(self, parent, label, units=None, checked=False, 
+                    value=0,  precision=0.001, minmax=None, check=True, 
+                    tooltip=None, name=None):
+        """ Add an integer 'spin' field, with or without a checkbox.
+        
+            @param parent: The parent `SizedPanel`.
+            @param label: The text displayed.
+            @keyword units: The name of the units, if any, displayed to the
+                right of the field.
+            @keyword checked: The checkbox's initial state.
+            @keyword value: The initially displayed value.
+            @keyword minmax: The allowed range of values.
+            @keyword check: If `False`, the field has only a label, not
+                a checkbox.
+            @keyword tooltip: A string to display as the control's tool tip.
+            @return: The checkbox control (or label if `check` is `False`). 
+                The associated widgets (the field, and units label if any)
+                are referenced by attributes added to the control.
+        """
+        if name:
+            value = self.getPref(name, value)
+            
+        if check:
+            cb = wx.CheckBox(parent, -1, label, name=name or label)
+            cb.SetValue(checked)
+        else:
+            cb = wx.StaticText(parent, -1, label, name=name or label)
+            checked = False
+        cb.SetSizerProps(valign='center')
+        if tooltip is not None:
+            cb.SetToolTipString(tooltip)
+        
+        if units is not None:
+            parent = SC.SizedPanel(parent, -1)
+            parent.SetSizerType("horizontal")
+            
+        field = cb._field = wx.SpinCtrlDouble(parent, -1, value=str(value), inc=precision)
+        if minmax is not None:
+            field.SetRange(*minmax)
+            
+        field.Enable(checked)
+        if tooltip is not None:
+            field.SetToolTipString(tooltip)
+        if units is not None:
+            units = cb._units = wx.StaticText(parent, -1, units)
+            units.SetSizerProps(valign="center")
+            units.Enable(checked)
+            if tooltip is not None:
+                units.SetToolTipString(tooltip)
+                
+        return cb
+
+
     def addCheck(self, parent, label, checked=False, indent=False, name=None,
                  tooltip=None):
         """ Add a checkbox without a field. 
@@ -89,7 +202,7 @@ class ToolDialog(SC.SizedDialog):
             
         if indent is True:
             SC.SizedPanel(parent, -1)
-        cb = wx.CheckBox(parent, -1, label)
+        cb = wx.CheckBox(parent, -1, label, name=name)
         cb.SetSizerProps(valign='center')
         cb.SetValue(checked)
         if tooltip is not None:

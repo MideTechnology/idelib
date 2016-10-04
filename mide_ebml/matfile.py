@@ -614,7 +614,7 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
               callback=None, callbackInterval=0.01, timeScalar=1,
               raiseExceptions=False, useUtcTime=False, headers=True, 
               removeMean=None, meanSpan=None, display=False, matArgs={},
-              **kwargs):
+              noBivariates=False, **kwargs):
     """ Export a `dataset.EventList` as a Matlab .MAT file. Works in a manner
         similar to the standard `EventList.exportCsv()` method.
     
@@ -652,10 +652,9 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
         @return: Tuple: The number of rows exported and the elapsed time.
     """
     noCallback = callback is None
+    events = events.copy()
     
-    # Save current mean removal settings, apply ones for export.
-    oldRemoveMean = events.removeMean
-    oldMeanSpan = events.rollingMeanSpan
+    events.noBivariates = noBivariates
     if removeMean is not None:
         events.removeMean = removeMean
     if meanSpan is not None:
@@ -731,9 +730,6 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
         
     matfile.close()
     
-    # Restore old removeMean        
-    events.removeMean = oldRemoveMean
-    events.rollingMeanSpan = oldMeanSpan
     return num+1, datetime.now() - t0
 
 #===============================================================================
