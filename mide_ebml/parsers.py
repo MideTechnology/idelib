@@ -280,7 +280,7 @@ class ParsingError(IOError):
 
 
 #===============================================================================
-# SENSOR DATA PARSING
+#--- SENSOR DATA PARSING
 #===============================================================================
 
 @dataParser
@@ -301,6 +301,10 @@ class MPL3115PressureTempParser(object):
         
         @todo: Make sure the unsigned fraction part is correct for negative 
             whole values. This currently assumes -1 and .5 is -0.5, not -1.5
+
+        @deprecated: Used only for really old recordings without recorder
+            description data. Later firmware writes the data padded to a more 
+            easily handled form.
             
         @cvar size: The size (in bytes) of one parsed sample. Always `5`.
         @cvar format: For compatibility with `struct.Struct`. Always `None`
@@ -345,6 +349,8 @@ class AccelerometerParser(object):
         a property of the specific accelerometer part number. This parser 
         performs the conversion on the fly.
         
+        @deprecated: Used only for really old recordings without recorder
+            description data.
         @cvar size: The size (in bytes) of one parsed sample.
         @cvar format: The `struct.Struct` parsing format string used to parse.
         @cvar ranges: A tuple containing the absolute min and max values.
@@ -366,7 +372,7 @@ class AccelerometerParser(object):
 
 ################################################################################
 #===============================================================================
-# Base element parsing and data storing classes
+#--- Base element parsing and data storing classes
 #===============================================================================
 ################################################################################
 
@@ -438,7 +444,7 @@ class ElementHandler(object):
 
 ################################################################################
 #===============================================================================
-# Data parsers and handlers
+#--- Data parsers and handlers
 #===============================================================================
 ################################################################################
 
@@ -453,7 +459,7 @@ class BaseDataBlock(object):
             clock ticks) to microseconds.
     """
     headerSize = 0
-    maxTimestamp = 2**24 #2**16
+    maxTimestamp = 2**24 
     timeScalar = 1000000.0 / 2**15
     
     def __init__(self, element, maxTimestamp=maxTimestamp, timeScalar=timeScalar):
@@ -647,6 +653,9 @@ class SimpleChannelDataBlockParser(ElementHandler):
     def fixOverflow(self, block, timestamp):
         """ Return an adjusted, scaled time from a low-resolution timestamp.
         """
+        # TODO: Identify blocks with non-modulo timestamps and just return the
+        #    unmodified timestamp. Will be slightly more efficient.
+        
         channel = block.getHeader()[1]
         modulus = self.timeModulus.setdefault(channel, block.maxTimestamp)
         offset = self.timestampOffset.setdefault(channel, 0)
@@ -705,7 +714,7 @@ class ChannelDataBlock(BaseDataBlock):
         elements with several child elements, such as full timestamps and
         and sample minimum/mean/maximum.
     """
-    maxTimestamp = 2**24 #2**32
+    maxTimestamp = 2**24
 
     def __init__(self, element):
         super(ChannelDataBlock, self).__init__(element)
@@ -733,21 +742,19 @@ class ChannelDataBlock(BaseDataBlock):
             elif el.name == 'Attribute':
                 parseAttribute(self, el)
             elif el.name == "StartTimeCodeAbs":
-                # FUTURE: Support this. Not currently generated (2014.04.23)
+                # TODO: store indicator that the start timestamp is non-modulo?
                 self.startTime = el.value
                 self._timestamp = el.value
             elif el.name == "EndTimeCodeAbs":
-                # FUTURE: Support this. Not currently generated (2014.04.23)
+                # TODO: store indicator that the end timestamp is non-modulo?
                 self.endTime = el.value
             elif el.name == "ChannelFlags":
                 # FUTURE: Handle channel flag bits
                 continue
             # Add other child element handlers here.
         
-        # Single-sample blocks have a total time of 0.
-        # Set endTime to None, so the end times will be computed.
-#         if self.startTime == self.endTime:
-#             self.endTime = None
+        # Single-sample blocks have a total time of 0. Old files did not write
+        # the end timestamp; if it's missing, duplicate the starting time.
         if self.endTime is None:
             self.endTime = self.startTime
     
@@ -788,7 +795,7 @@ class ChannelDataBlockParser(SimpleChannelDataBlockParser):
 
 ################################################################################
 #===============================================================================
-# RecordingProperties element and sub-element parsers
+#--- RecordingProperties element and sub-element parsers
 #===============================================================================
 ################################################################################
 
@@ -1153,7 +1160,7 @@ class RecordingPropertiesParser(ElementHandler):
 
 ################################################################################
 #===============================================================================
-# Miscellaneous element parsers
+#--- Miscellaneous element parsers
 #===============================================================================
 ################################################################################
 

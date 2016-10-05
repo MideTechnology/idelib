@@ -495,6 +495,8 @@ class Sensor(Cascading):
         self.traceData = traceData
         self.attributes = attributes
         self.bandwidthLimitId = bandwidthLimitId
+        self._bandwidthCutoff = None
+        self._bandwidthRolloff = None
 
 
     def __getitem__(self, idx):
@@ -504,6 +506,33 @@ class Sensor(Cascading):
     @property
     def children(self):
         return self.channels.values()
+
+    
+    @property
+    def bandwidthCutoff(self):
+        if self._bandwidthCutoff is None:
+            try:
+                bw = self.dataset.bandwidthLimits[self.bandwidthLimitId]
+                self._bandwidthCutoff = (bw.get('LowerCutoff', None),
+                                         bw.get('UpperCutoff', None))
+            except (KeyError, AttributeError):
+                pass
+    
+        return self._bandwidthCutoff
+
+
+    @property
+    def bandwidthRolloff(self):
+        if self._bandwidthRolloff is None:
+            try:
+                bw = self.dataset.bandwidthLimits[self.bandwidthLimitId]
+                self._bandwidthCutoff = (bw.get('LowerRolloff', None),
+                                         bw.get('UpperRolloff', None))
+            except (KeyError, AttributeError):
+                pass
+    
+        return self._bandwidthRolloff
+
 
 
 #===============================================================================
