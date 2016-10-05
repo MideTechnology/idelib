@@ -35,7 +35,7 @@ class ModalExportProgress(wx.ProgressDialog):
         
     
     def __call__(self, count=0, percent=None, total=None, error=None, 
-                 done=False):
+                 done=False, **kwargs):
         if done:
             return
 

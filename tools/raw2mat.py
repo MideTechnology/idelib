@@ -165,19 +165,15 @@ class Raw2Mat(ToolDialog):
         subpane = SC.SizedPanel(pane, -1)
         subpane.SetSizerType('form')
         subpane.SetSizerProps(expand=True)
-        self.allCal = self.addCheck(subpane, "Export All Calibration Polynomials")
+        self.allCal = self.addCheck(subpane, "Export All Calibration Polynomials",
+                                    name="allCal", checked=False)
         
-        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
-        self.okBtn = self.FindWindowById(wx.ID_OK)
-        self.cancelBtn = self.FindWindowById(wx.ID_CANCEL)
-
-        self.setValue(self.startTime, self.getPref("startTime", None))
-        if self.setValue(self.endTime, self.getPref("endTime", None)) is None:
-            self.setValue(self.duration, self.getPref("duration", None))
-        self.setValue(self.maxSize, self.getPref("maxSize", None))
-        self.setCheck(self.allCal, self.getPref("allCal", False))
+        self.addBottomButtons()
         
-        self.okBtn.Bind(wx.EVT_BUTTON, self.run)
+#         self.setValue(self.startTime, self.getPref("startTime", None))
+#         if self.setValue(self.endTime, self.getPref("endTime", None)) is None:
+#             self.setValue(self.duration, self.getPref("duration", None))
+#         self.setValue(self.maxSize, self.getPref("maxSize", None))
         
         self.SetMinSize((550,375))
         self.Layout()

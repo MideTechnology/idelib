@@ -256,14 +256,20 @@ def ideExport(ideFilename, outFilename=None, channels=None,
     elif os.path.isdir(outFilename):
         outFilename = os.path.join(outFilename, os.path.splitext(b)[0])
 
+    # Common keyword arguments for the exports
+    exportArgs = dict(callback=updater, 
+                      timeScalar=timeScalar, 
+                      headers=headers,
+                      removeMean=removeMean, 
+                      meanSpan=meanSpan,
+                      useUtcTime=useUtcTime)
 
     if outputType.lower().endswith('mat'):
         exporter = exportMat
-        exportArgs = {}
     else:
         exporter = exportCsv
-        exportArgs = {'delimiter': delimiter,
-                      'useIsoFormat': useIsoFormat}
+        exportArgs.update({'delimiter': delimiter,
+                           'useIsoFormat': useIsoFormat})
         if outputType.lower().endswith('csv') and ',' not in delimiter:
             outputType = '.txt'
 
@@ -274,7 +280,6 @@ def ideExport(ideFilename, outFilename=None, channels=None,
     else:
         exportChannels = [c for c in doc.channels.values if c.id in channels]
 
-
     numSamples = 0
     for ch in exportChannels:
         
@@ -283,13 +288,10 @@ def ideExport(ideFilename, outFilename=None, channels=None,
         try:
             events = ch.getSession()
             startIdx, stopIdx = events.getRangeIndices(startTime, endTime)
-            print "startidx=%r, stopIdx=%r" % (startIdx, stopIdx)
-            numSamples += (exporter(events, outName, callback=updater, 
-                                   timeScalar=timeScalar, headers=headers,
-                                   removeMean=removeMean, meanSpan=meanSpan,
-                                   useUtcTime=useUtcTime,
-                                   start=startIdx, stop=stopIdx,
-                                   **exportArgs)[0] * len(ch.children))
+#             print "startidx=%r, stopIdx=%r" % (startIdx, stopIdx)
+            numSamples += (exporter(events, outName, 
+                                    start=startIdx, stop=stopIdx, 
+                                    **exportArgs)[0] * len(ch.children))
 
         except None:
             pass

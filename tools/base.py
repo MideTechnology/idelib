@@ -202,7 +202,7 @@ class ToolDialog(SC.SizedDialog):
             
         if indent is True:
             SC.SizedPanel(parent, -1)
-        cb = wx.CheckBox(parent, -1, label, name=name)
+        cb = wx.CheckBox(parent, -1, label, name=name or label)
         cb.SetSizerProps(valign='center')
         cb.SetValue(checked)
         if tooltip is not None:
@@ -348,6 +348,20 @@ class ToolDialog(SC.SizedDialog):
         self.prefSection = "tools.%s" % self.__class__.__name__
 
         self.Bind(wx.EVT_CHECKBOX, self.OnCheck)
+
+
+    def addBottomButtons(self):
+        """
+        """
+        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
+        self.okBtn = self.FindWindowById(wx.ID_OK)
+        self.cancelBtn = self.FindWindowById(wx.ID_CANCEL)
+
+        # Kind of a hack, but the OK/Cancel labels are confusing.
+        self.okBtn.SetLabel("Run")
+        self.cancelBtn.SetLabel("Close")
+        
+        self.okBtn.Bind(wx.EVT_BUTTON, self.run)
 
 
     def OnCheck(self, evt):

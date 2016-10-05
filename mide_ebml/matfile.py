@@ -220,6 +220,8 @@ class MatStream(object):
         self.arrayHasTimes = False
         self.arrayColNames = None
         
+        self.exportedFiles = []
+        
         if filename is not None:
             self.newFile(serialize)
         else:
@@ -256,6 +258,8 @@ class MatStream(object):
         self.arrayName = None
         self.arrayColNames = None
         self.arrayStartTime = None
+        
+        self.exportedFiles.append(self.filename)
 
 
     def checkFileSize(self, size, pad=0):
@@ -705,7 +709,8 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     matfile = MatStream(filename, events.dataset, comments, 
                         timeScalar=timeScalar, **matArgs)
     
-    matfile.startArray(events.parent.name, numCols, rows=totalLines, colNames=names, noTimes=False)
+    matfile.startArray(events.parent.name, numCols, rows=totalLines, 
+                       colNames=names, noTimes=False)
     
     try:
         for num, evt in enumerate(events.iterSlice(start, stop, step, display)):
@@ -720,7 +725,8 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
                     callback(done=True)
                     break
                 if updateInt == 0 or num % updateInt == 0:
-                    callback(num*numCols, total=totalSamples)
+                    callback(num*numCols, total=totalSamples, 
+                             filename=matfile.filename)
                     
         if callback:
             callback(done=True)

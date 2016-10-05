@@ -139,18 +139,14 @@ class IdeSplitter(ToolDialog):
             name="numSplits", value=16, minmax=(1, sys.maxint),
             tooltip=("The maximum size of each generated file. "
                      "Cannot be used if a number of files is specified."))
-    
-        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
-        self.okBtn = self.FindWindowById(wx.ID_OK)
-        self.cancelBtn = self.FindWindowById(wx.ID_CANCEL)
 
-        self.setValue(self.startTime, self.getPref("startTime", None))
-        if self.setValue(self.endTime, self.getPref("endTime", None)) is None:
-            self.setValue(self.duration, self.getPref("duration", None))
-        self.setValue(self.maxSize, self.getPref("maxSize", None))
-        self.setValue(self.numSplits, self.getPref("numSplits", None))
-        
-        self.okBtn.Bind(wx.EVT_BUTTON, self.run)
+        self.addBottomButtons()
+
+#         self.setValue(self.startTime, self.getPref("startTime", None))
+#         if self.setValue(self.endTime, self.getPref("endTime", None)) is None:
+#             self.setValue(self.duration, self.getPref("duration", None))
+#         self.setValue(self.maxSize, self.getPref("maxSize", None))
+#         self.setValue(self.numSplits, self.getPref("numSplits", None))
         
         self.SetMinSize((550,375))
         self.Layout()
