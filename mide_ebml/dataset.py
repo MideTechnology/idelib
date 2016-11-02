@@ -1883,7 +1883,7 @@ class EventList(Transformable):
             result_append = result.append
             
             for val in (block.min, block.mean, block.max):
-                event=xform((t,val), session)
+                event=xform((t,val), session, noBivariates=self.noBivariates)
                 if event is None:
                     sleep(0.005)
                     event = xform((t, val), session, noBivariates=self.noBivariates)

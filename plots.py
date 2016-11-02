@@ -2079,6 +2079,7 @@ class PlotSet(aui.AuiNotebook):
         if force:
             for p in self:
                 p.plot.lineList.clear()
+                p.plot.minMeanMaxLineList.clear()
         self.Refresh()
         
     

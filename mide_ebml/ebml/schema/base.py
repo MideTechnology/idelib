@@ -2,13 +2,14 @@ import abc, os
 try:
     from cStringIO import StringIO
 except ImportError:
-    from StringIO import StringIO
+    from StringIO import StringIO #@UnusedImport (PyLint doesn't like this)
 from ..core import read_element_id, read_element_size
-from ..core import     read_signed_integer, read_unsigned_integer, read_float, read_string, read_unicode_string, read_date
+from ..core import read_signed_integer, read_unsigned_integer, read_float, read_string, read_unicode_string, read_date
 
 
 
-__all__ = ('UnknownElement', 'Element', 'Document', 'INT', 'UINT', 'FLOAT', 'STRING', 'UNICODE', 'DATE', 'BINARY', 'CONTAINER')
+__all__ = ('UnknownElement', 'Element', 'Document', 'INT', 'UINT', 'FLOAT', 
+			'STRING', 'UNICODE', 'DATE', 'BINARY', 'CONTAINER')
 
 
 INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER = range(0, 8)
@@ -163,7 +164,7 @@ class Element(object):
             if self.type in READERS:
                 self.cached_value = READERS[self.type](self.body_stream, self.body_size)
 #             elif self.type == CONTAINER:
-#                 self.cached_value = read_elements(self.body_stream, self.document, self.children)
+#                 self.cached_value = read_elements(self.body_stream, self.document, self._childDict)
             else:
                 self.cached_value = None
         return self.cached_value
@@ -208,8 +209,8 @@ class UnknownElement(Element):
     name = 'Unknown'
     type = BINARY
     
-    def __init__(self, document, stream, id):
-        self.id = id
+    def __init__(self, document, stream, id_):
+        self.id = id_
         super(UnknownElement, self).__init__(document, stream)
 
 
