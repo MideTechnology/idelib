@@ -12,6 +12,7 @@ from base import Recorder, ConfigError, ConfigVersionError, os_specific
 
 from ssx import SlamStickX
 from ssc import SlamStickC
+from sss import SlamStickS
 from classic import SlamStickClassic
 
 
@@ -20,7 +21,7 @@ from classic import SlamStickClassic
 #===============================================================================
 
 # TODO: Modularize device type registration, so new ones can be added cleanly.
-RECORDER_TYPES = [SlamStickClassic, SlamStickC, SlamStickX]
+RECORDER_TYPES = [SlamStickClassic, SlamStickC, SlamStickS, SlamStickX]
 
 
 #===============================================================================

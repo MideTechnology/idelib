@@ -38,7 +38,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         def __init__(self, parent, ID, pos=wx.DefaultPosition,
                      size=wx.DefaultSize, style=0):
             wx.ListCtrl.__init__(self, parent, ID, pos, size, style)
-            listmix.ListCtrlAutoWidthMixin.__init__(self)
+            listmix.ListCtrlAutoWidthMixin.__init__(self) #@UndefinedVariable - not sure why
             
 
     def GetListCtrl(self):
@@ -179,16 +179,17 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.listMsgs[index] = '\n'.join([u'\u2022 %s' %s for s in tips]) 
 
 
+    def _thing2string(self, dev, col):
+        try:
+            return col.formatter(getattr(dev, col.propName, col.default))
+        except TypeError:
+            return col.default
+
+
     def populateList(self):
         """ Find recorders and add them to the list.
         """
         
-        def thing2string(dev, col):
-            try:
-                return col.formatter(getattr(dev, col.propName, col.default))
-            except TypeError:
-                return col.default
-
         self.list.ClearAll()
         for i, c in enumerate(self.COLUMNS):
             self.list.InsertColumn(i, c[0])
@@ -214,7 +215,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 self.list.SetColumnWidth(0, max(pathWidth,
                                                 self.GetTextExtent(path)[0]))
                 for i, col in enumerate(self.COLUMNS[1:], 1):
-                    self.list.SetStringItem(index, i, thing2string(dev, col))
+                    self.list.SetStringItem(index, i, self._thing2string(dev, col))
                     self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
                     self.listWidth = max(self.listWidth, 
                                          self.list.GetItemRect(index)[2])

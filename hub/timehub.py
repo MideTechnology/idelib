@@ -1,6 +1,5 @@
 """
 Stand-alone clock auto-updater.
-
 """
 from datetime import datetime
 import importlib
@@ -16,15 +15,20 @@ try:
 except ImportError:
     sys.path.append('..')
 
-from widgets.device_dialog import DeviceSelectionDialog
+from widgets.device_dialog import DeviceSelectionDialog as DevSelDlg
+
 
 #===============================================================================
 # 
 #===============================================================================
 
-class HubDialog(DeviceSelectionDialog):
+class HubDialog(DevSelDlg):
     """ Stand-alone clock auto-updater.
     """
+
+    # Extra column: clock drift
+    COLUMNS = (DevSelDlg.COLUMNS +
+               (DevSelDlg.ColumnInfo("Clock Drift", "clockDrift", str, ''),))
 
     SET_INTERVAL = 60*60
     
@@ -64,6 +68,21 @@ class HubDialog(DeviceSelectionDialog):
         ts = str(datetime.now()).rsplit('.',1)[0]
         self.SetTitle("%s (last set at %s)" % (self.baseTitle, ts))
         self.nextClockSet = time.time() + self.SET_INTERVAL
+
+
+    def _thing2string(self, dev, col):
+        try:
+            # Special case: clock drift from when the recorder was first found
+            if col.propName == 'clockDrift':
+                d = getattr(dev, 'clockDrift', None)
+                if d is None:
+                    sysTime, devTime = dev.getTime()
+                    dev.clockDrift = sysTime - devTime
+            return col.formatter(getattr(dev, col.propName, col.default))
+        except TypeError:
+            return col.default
+
+
 
 
 #===============================================================================
