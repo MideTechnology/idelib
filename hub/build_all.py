@@ -9,7 +9,6 @@ from glob import glob
 import json
 import logging
 import os
-from shutil import copyfile
 import socket
 import subprocess
 import sys
@@ -19,6 +18,8 @@ import zipfile
 from docutils.examples import html_body
 from git import InvalidGitRepositoryError
 from git.repo import Repo
+
+sys.path.insert(0, os.path.realpath('..'))
 
 from assembly import birth_utils as util
 
@@ -189,7 +190,7 @@ except ImportError:
     thisDebug = True
 
 print "*"*78
-print ("*** Building Version %s, Build number %d," % (versionString,thisBuildNumber)),
+print ("*** Building Version %s, Build number %s," % (versionString,thisBuildNumber)),
 if thisDebug:
     print "DEBUG version"
 elif thisBeta:

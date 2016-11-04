@@ -6,7 +6,7 @@ import os
 import platform
 import sys
 
-# HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
+sys.path.insert(0, os.getcwd())
 HOME_DIR = os.path.realpath(os.path.join(os.getcwd(), '..'))
 
 startTime = datetime.now()
@@ -25,38 +25,8 @@ except Exception:
     DEBUG = True
     logging.logger.warning("*** Couldn't read and/or change build number!")
 
+
 DEBUG = False
-
-# Collect data files (needed for getting schema XML)
-# Modified version of http://www.pyinstaller.org/wiki/Recipe/CollectDatafiles
-def Datafiles(*filenames, **kw):
-    import os
-
-    allnames = []
-    for f in filenames:
-        allnames.extend(glob.glob(f))
-    filenames = list(set(allnames))
-
-    def datafile(path, strip_path=True):
-        parts = path.split('/')
-        path = name = os.path.join(*parts)
-        if strip_path:
-            name = os.path.basename(path)
-        return name, path, 'DATA'
-
-    strip_path = kw.get('strip_path', True)
-    return TOC(
-        datafile(filename, strip_path=strip_path)
-        for filename in filenames
-        if os.path.isfile(filename))
-
-# schemas = Datafiles('mide_ebml/ebml/schema/mide.xml',
-#                     'mide_ebml/ebml/schema/manifest.xml',
-#                     'mide_ebml/ebml/schema/matroska.xml',
-#                     'LICENSES/*.txt',
-#                     'ABOUT/*',
-#                     'resources/*',
-#                     strip_path=False)
 
 schemas = Tree('../mide_ebml/ebml/schema', 'mide_ebml/ebml/schema')
 
