@@ -17,7 +17,8 @@ logging.logger.setLevel(logging.WARN)
 try:
     import socket, sys, time
     sys.path.append(HOME_DIR)
-    from build_info import BUILD_NUMBER, DEBUG, VERSION
+    from build_info import DEBUG, VERSION
+    from hub_build_info import BUILD_NUMBER
     versionString = '.'.join(map(str,VERSION))
 except Exception:
     BUILD_NUMBER = versionString = VERSION = "Unknown"

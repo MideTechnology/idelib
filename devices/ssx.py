@@ -324,7 +324,6 @@ class SlamStickX(Recorder):
 
     def getTime(self):
         """ Read the date/time from the device. 
-
     
             @param dev: The path to the recording device.
             @return: The system time and the device time, as integer seconds 
@@ -341,7 +340,6 @@ class SlamStickX(Recorder):
         """ Set a recorder's date/time. A variety of standard time types are
             accepted. Note that the minimum unit of time is the whole second.
         
-            @param dev: The path to the recording device.
             @keyword t: The time to write, as either seconds since the epoch 
                 (i.e. 'Unix time'), `datetime.datetime` or a UTC 
                 `time.struct_time`. The current time  (from the host) is used 
@@ -372,15 +370,41 @@ class SlamStickX(Recorder):
                     while int(t) <= t0:
                         t = time.time()
                 f.write(self.TIME_PARSER.pack(t))
-        except IOError as err:
+        except IOError:
             if retries > 0:
                 time.sleep(.5)
                 return self.setTime(pause=pause, retries=retries-1)
             else:
-                raise err
+                raise
         
         return t
 
+
+    def getClockDrift(self, pause=True, retries=1):
+        """ Calculate how far the recorder's clock has drifted from the system
+            time. 
+            
+            @keyword pause: If `True` (default), the system waits until a
+                whole-numbered second before reading the device's clock. This 
+                may improve accuracy since the SSX clock is in integer seconds.
+            @keyword retries: The number of attempts to make, should the first
+                fail. Random filesystem things can potentially cause hiccups.
+            @return: The length of the drift, in seconds.
+        """
+        try:
+            if pause:
+                t = int(time.time())
+                while int(time.time()) == t:
+                    pass
+            sysTime, devTime = os_specific.readRecorderClock(self.clockFile)
+            return sysTime - self.TIME_PARSER.unpack_from(devTime)[0]
+        except IOError:
+            if retries > 0:
+                time.sleep(.25)
+                return self.getClockDrift(pause=pause, retries=retries-1)
+            else:
+                raise 
+    
 
     def _parsePolynomials(self, stream):
         """ Helper method to parse CalibrationList EBML into `Transform`

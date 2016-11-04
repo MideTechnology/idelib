@@ -35,6 +35,7 @@ class HubDialog(DevSelDlg):
     def __init__(self, *args, **kwargs):
         """
         """
+        self.drifts = {}
         super(HubDialog, self).__init__(*args, **kwargs)
         
         self.baseTitle = self.GetTitle()
@@ -74,15 +75,23 @@ class HubDialog(DevSelDlg):
         try:
             # Special case: clock drift from when the recorder was first found
             if col.propName == 'clockDrift':
-                d = getattr(dev, 'clockDrift', None)
-                if d is None:
-                    sysTime, devTime = dev.getTime()
-                    dev.clockDrift = sysTime - devTime
+                if dev.serial not in self.drifts:
+                    self.drifts[dev.serial] = dev.getClockDrift()
+                return col.formatter(self.drifts[dev.serial])
             return col.formatter(getattr(dev, col.propName, col.default))
         except TypeError:
             return col.default
 
 
+    def populateList(self):
+        DevSelDlg.populateList(self)
+        
+        # Remove time drift for unplugged devices
+        serials = [d.serial for d in self.recorders.values()]
+        for d in self.drifts.keys():
+            if d not in serials:
+                self.drifts.pop(d)
+            
 
 
 #===============================================================================

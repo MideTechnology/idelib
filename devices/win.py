@@ -11,9 +11,10 @@ from collections import namedtuple
 import ctypes
 import os
 import string
-import struct
 import sys
 import time
+
+import pywintypes
 
 #===============================================================================
 # 
@@ -58,12 +59,16 @@ def readRecorderClock(dev):
         system time and the encoded device time.
     """
     root = os.path.abspath(os.path.join(os.path.dirname(dev), '..','..'))
-    f1 = win32file.CreateFile(dev, win32con.GENERIC_READ, 
-                              win32con.FILE_SHARE_READ,
-                              None,
-                              win32con.OPEN_EXISTING,
-                              win32con.FILE_FLAG_NO_BUFFERING,
-                              0)
+    
+    try:
+        f1 = win32file.CreateFile(dev, win32con.GENERIC_READ, 
+                                  win32con.FILE_SHARE_READ,
+                                  None,
+                                  win32con.OPEN_EXISTING,
+                                  win32con.FILE_FLAG_NO_BUFFERING,
+                                  0)
+    except pywintypes.error as err: #@UndefinedVariable (error)
+        raise IOError(err.strerror)
 
     spc, bps, _fc, _tc  = win32file.GetDiskFreeSpace(root)
     bpc = spc * bps

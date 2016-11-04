@@ -177,7 +177,9 @@ class SlamStickClassic(Recorder):
             @param dev: The path to the recording device.
             @return: The time, as integer seconds since the epoch ('Unix time').
         """
-        return self.getConfig(refresh=True).get('RTCC_TIME', None)
+        t0 = time.time()
+        devTime = self.getConfig(refresh=True).get('RTCC_TIME', None)
+        return (time.time()-t0), devTime
    
     
     def setTime(self, t=None, pause=True, retries=1):

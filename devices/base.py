@@ -127,27 +127,33 @@ class Recorder(object):
         """ The recording device's manufacturer-issued name. """
         return self.baseName
     
+    
     @property
     def serial(self):
         """ The recorder's manufacturer-issued serial number. """
         return None
+
 
     @property
     def hardwareVersion(self):
         """ The recorder's manufacturer-issued hardware version number. """
         return 0
     
+    
     @property
     def firmwareVersion(self):
         """ The recorder's manufacturer-issued firmware version number. """
         return 0
 
+
     @property
     def birthday(self):
         return None
     
+    
     def _configVersion(self):
         return self.productName, self.firmwareVersion
+    
     
     def getInfo(self, default=None, refresh=False):
         """ Retrieve a recorder's device information. Subclasses need to
@@ -338,25 +344,31 @@ class Recorder(object):
         except (AttributeError, KeyError, TypeError):
             return None
 
+
     def getFactoryCalDate(self, refresh=False):
         return None
+    
     
     def getUserCalDate(self, refresh=False):
         return None
     
+    
     def getCalDate(self, refresh=False):
         return None
+
 
     def getFactoryCalExpiration(self, refresh=False):
         """ Get the expiration date of the recorder's factory calibration.
         """
         return None
 
+
     def getUserCalExpiration(self, refresh=False):
         """ Get the expiration date of the recorder's user-defined calibration.
             This data may or may not be available.
         """
         return None
+
 
     def getCalExpiration(self, refresh=False):
         """ Get the expiration date of the recorder's active calibration.
@@ -369,3 +381,22 @@ class Recorder(object):
         """ Get the recorder's factory calibration serial number.
         """
         return None
+    
+    
+    def getTime(self, *args, **kwargs):
+        raise NotImplementedError("Subclasses must implement getTime()")
+
+
+    def setTime(self, *args, **kwargs):
+        raise NotImplementedError("Subclasses must implement setTime()")
+    
+    
+    def getClockDrift(self, *args, **kwargs):
+        """ Calculate how far the recorder's clock has drifted from the system
+            time. 
+        """
+        sysTime, devTime = self.getTime()
+        return sysTime - devTime
+
+
+    
