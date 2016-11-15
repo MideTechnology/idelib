@@ -155,16 +155,16 @@ class Element(object):
     def value(self):
         # NOTE: This is my addition -DRS
         # It works around a problem with master elements not seeking properly
-        if self.type == CONTAINER:
-            return read_elements(self.body_stream, self.document, self._childDict)
+#         if self.type == CONTAINER:
+#             return read_elements(self.body_stream, self.document, self._childDict)
         
         try:
             return self.cached_value
         except AttributeError:
             if self.type in READERS:
                 self.cached_value = READERS[self.type](self.body_stream, self.body_size)
-#             elif self.type == CONTAINER:
-#                 self.cached_value = read_elements(self.body_stream, self.document, self._childDict)
+            elif self.type == CONTAINER:
+                self.cached_value = read_elements(self.body_stream, self.document, self._childDict)
             else:
                 self.cached_value = None
         return self.cached_value
