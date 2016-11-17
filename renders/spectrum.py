@@ -63,6 +63,12 @@ from __future__ import division
 from collections import Iterable
 
 import numpy as np
+
+try:
+    from pyfft.builders import rfft
+except ImportError:
+    raise ImportError("mide_ebml.fft requires pyfftw")
+
 ma = np.ma
 
 from common import nextPow2
@@ -183,14 +189,14 @@ def x_spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
         
         thisX = x[ind[i]:ind[i]+NFFT]
         thisX = windowVals * detrend(thisX)
-        fx = np.fft.fft(thisX, n=pad_to)
+        fx = rfft(thisX, n=pad_to)
 
         if same_data:
             fy = fx
         else:
             thisY = y[ind[i]:ind[i]+NFFT]
             thisY = windowVals * detrend(thisY)
-            fy = np.fft.fft(thisY, n=pad_to)
+            fy = rfft(thisY, n=pad_to)
         #Pxy[:,i] = np.conjugate(fx[:numFreqs]) * fy[:numFreqs]
         Pxy[:,i] = np.sqrt(np.conjugate(fx[:numFreqs]) * fy[:numFreqs])
 
@@ -284,14 +290,14 @@ def _spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
     for i in range(n):
         thisX = x[ind[i]:ind[i]+NFFT]
         thisX = windowVals * detrend(thisX)
-        fx = np.fft.fft(thisX, n=pad_to)
+        fx = rfft(thisX, n=pad_to)
 
         if same_data:
             fy = fx
         else:
             thisY = y[ind[i]:ind[i]+NFFT]
             thisY = windowVals * detrend(thisY)
-            fy = np.fft.fft(thisY, n=pad_to)
+            fy = rfft(thisY, n=pad_to)
         Pxy[:,i] = np.conjugate(fx[:numFreqs]) * fy[:numFreqs]
 
     # Scale the spectrum by the norm of the window to compensate for

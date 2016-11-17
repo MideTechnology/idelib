@@ -18,6 +18,7 @@ import time
 
 import numpy as np; np=np
 from numpy.core import hstack, vstack
+from pyfftw.builders import rfft
 
 # from wx.lib.plot import PolyLine, PlotGraphics, PlotCanvas
 from wx_lib_plot import PolyLine, PlotGraphics, PlotCanvas
@@ -636,7 +637,7 @@ class FFTView(wx.Frame, MenuMixin):
 
     @classmethod
     def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
-                     abortEvent=None):
+                 abortEvent=None, forPsd=False):
         """ Compute 1D FFT from one or more channels of data.
         
             @note: This is the implementation from the old viewer and does not
@@ -660,13 +661,14 @@ class FFTView(wx.Frame, MenuMixin):
         # Create frequency range (first column)
         fftData = np.arange(0, NFFT/2.0 + 1) * (fs/float(NFFT))
         fftData = fftData.reshape(-1,1)
-        
 #         print "rows: %s\tNFFT=%s" % (rows, NFFT)
         for i in xrange(cols):
             if abortEvent is not None and abortEvent():
                 return 
-            
-            tmp_fft = 2*abs(np.fft.fft(points[:,i], NFFT)/rows)[:NFFT/2+1]
+            if forPsd:
+                tmp_fft = abs(rfft(points[:,i], NFFT)[:NFFT/2+1])
+            else:
+                tmp_fft = 2*abs(rfft(points[:,i], NFFT)[:NFFT/2+1]/rows)
             fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
             
             # Remove huge DC component from displayed data; so data of interest 
@@ -1598,8 +1600,8 @@ class PSDView(FFTView):
         logger.info("Calculating PSD using regular FFT function")
 
         fftData = FFTView.generateData(data, rows=rows, cols=cols, fs=fs, sliceSize=sliceSize, 
-                     abortEvent=abortEvent)
-        fftData[:,1:] = np.square(fftData[:,1:])/fftData[1,0]
+                     abortEvent=abortEvent, forPsd=True)
+        fftData[:,1:] = np.square(fftData[:,1:])*2/(fs*len(data))
         return fftData
         
 
