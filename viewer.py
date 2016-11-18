@@ -1554,6 +1554,11 @@ class Viewer(wx.Frame, MenuMixin):
                 # Ignore errors here; openFile() should handle them instead.
                 pass
             if filename:
+                if wx.GetKeyState(wx.WXK_SHIFT):
+                    # Turn off bivariate refs if shift is held. Can allow some
+                    # types of damaged file to load.
+                    logger.info("Importing with bivariate references disabled.")
+                    self.setNoBivariates(True)                
                 self.openFile(filename)
             
         # Note to self: do this last!
