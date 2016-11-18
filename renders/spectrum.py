@@ -65,7 +65,7 @@ from collections import Iterable
 import numpy as np
 
 try:
-    from pyfft.builders import rfft
+    from pyfftw.builders import rfft
 except ImportError:
     raise ImportError("mide_ebml.fft requires pyfftw")
 
