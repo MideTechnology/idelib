@@ -272,7 +272,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.indexRange = kwargs.pop('start', 0), kwargs.pop('stop', -1)
         self.numRows = kwargs.pop('numRows')
         self.noBivariates = kwargs.pop('noBivariates', False)
-        
+
         # Callback. Not currently used.
         self.callback = kwargs.pop('callback', None)
         self.callbackInterval = kwargs.pop('callbackInterval', 0.0005)
@@ -393,7 +393,7 @@ class FFTView(wx.Frame, MenuMixin):
                 # BUG: Calculation of actual sample rate is wrong. Investigate.
     #             fs = (channel[stop][-2]-channel[start][-2]) / ((stop-start) + 0.0)
                 fs = self.source.getSampleRate()
-                self.data = self.generateData(data, rows=stop-start, 
+                self.data = self.generateData(data, rows=stop-start,
                                               cols=len(self.subchannels), fs=fs, 
                                               sliceSize=self.sliceSize)
                 
@@ -661,14 +661,17 @@ class FFTView(wx.Frame, MenuMixin):
         # Create frequency range (first column)
         fftData = np.arange(0, NFFT/2.0 + 1) * (fs/float(NFFT))
         fftData = fftData.reshape(-1,1)
-#         print "rows: %s\tNFFT=%s" % (rows, NFFT)
+
         for i in xrange(cols):
             if abortEvent is not None and abortEvent():
-                return 
+                return
+# PJS - PYFFTW stuff is not quite working yet
+#            fft_obj = rfft(points[:,i], NFFT)
+
             if forPsd:
-                tmp_fft = abs(rfft(points[:,i], NFFT)[:NFFT/2+1])
+                tmp_fft = abs(np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])
             else:
-                tmp_fft = 2*abs(rfft(points[:,i], NFFT)[:NFFT/2+1]/rows)
+                tmp_fft = 2*abs((np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])/rows)
             fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
             
             # Remove huge DC component from displayed data; so data of interest 
@@ -1539,16 +1542,17 @@ class PSDView(FFTView):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('logarithmic', (True, True))
         kwargs.setdefault('yUnits', self.yUnits)
-        
-        # XXX: TEST
+
         self.useWelch = kwargs.pop('useWelch', False)
-        
+        if self.useWelch:
+            self.NAME = self.TITLE_NAME = "Welch's PSD"
+
         super(PSDView, self).__init__(*args, **kwargs)
-        
-        if not self.useWelch:
-            sourceUnits = self.subchannels[0].units[1]
-            if sourceUnits:
-                self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits
+
+#        if not self.useWelch:
+        sourceUnits = self.subchannels[0].units[1]
+        if sourceUnits:
+            self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits
             
         self.formatter = '%E'
 
@@ -1599,9 +1603,20 @@ class PSDView(FFTView):
 
         logger.info("Calculating PSD using regular FFT function")
 
-        fftData = FFTView.generateData(data, rows=rows, cols=cols, fs=fs, sliceSize=sliceSize, 
+        fftData = FFTView.generateData(data, rows=rows, cols=cols, fs=fs, sliceSize=sliceSize,
                      abortEvent=abortEvent, forPsd=True)
-        fftData[:,1:] = np.square(fftData[:,1:])*2/(fs*len(data))
+        if rows is None:
+            if hasattr(fftData, '__len__'):
+                logger.info("PSD generateData: Using len of fftData")
+                rows = len(fftData)
+            else:
+                logger.info("PSD generateData: Problem! Setting sample length")
+                rows = 1                        # PJS: Really this is an error...
+        else:
+            logger.info("PSD generateData: Row input for size")
+
+        fftData[:,1:] = np.square(fftData[:,1:])*2/(fs*rows)
+#        fftData[:,1:] = np.square(fftData[:,1:])/fftData[1,0]
         return fftData
         
 
