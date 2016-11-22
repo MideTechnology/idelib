@@ -86,11 +86,12 @@ class ExportDialog(sc.SizedDialog):
 
         self.app = wx.GetApp()
         self.root = kwargs.pop('root', None)
+        initSettings = kwargs.pop('init', {})
         kwargs.setdefault('style', style)
         kwargs.setdefault('title', self.DEFAULT_TITLE)
         self.units = kwargs.pop("units", self.DEFAULT_UNITS)
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
-        self.removeMean = kwargs.pop("removeMean", 2)
+#        self.removeMean = kwargs.pop("removeMean", 2)
         self.noBivariates = kwargs.pop("noBivariates", False)
 
         super(ExportDialog, self).__init__(*args, **kwargs)
@@ -109,7 +110,7 @@ class ExportDialog(sc.SizedDialog):
         
         if self.root.dataset is not None:
             # This should never occur outside of testing.
-            self.InitUI()
+            self.InitUI(initSettings=initSettings)
             
         self.Layout()
         self.Centre()
@@ -161,7 +162,7 @@ class ExportDialog(sc.SizedDialog):
         wx.StaticText(pane, -1, "Range to Export:")
         rangePane = sc.SizedPanel(pane, -1)
         self._addRangeRB(rangePane, self.RB_RANGE_ALL, "All", style=wx.RB_GROUP)
-        self._addRangeRB(rangePane, self.RB_RANGE_VIS, "Visible Range").SetValue(True)
+        self._addRangeRB(rangePane, self.RB_RANGE_VIS, "Visible Range")
         rangeFieldPane = sc.SizedPanel(rangePane,-1)
         rangeFieldPane.SetSizerType("horizontal")
         self._addRangeRB(rangeFieldPane, self.RB_RANGE_CUSTOM, "Specific Range:")
@@ -171,9 +172,11 @@ class ExportDialog(sc.SizedDialog):
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
         wx.StaticLine(pane, -1).SetSizerProps(expand=True)
-        
+
+        removeMean = int()
+
         self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
-             self.removeMean, tooltip="Subtract a the mean from the data. "
+             default=self.removeMean, tooltip="Subtract a the mean from the data. "
                                       "Not applicable to all channels.")
 
         self.noBivariatesCheck, _ = self._addCheck("Disable Bivariate References",
@@ -201,7 +204,7 @@ class ExportDialog(sc.SizedDialog):
         pass
 
 
-    def InitUI(self):
+    def InitUI(self, initSettings={}):
         """ Set up and display actual data in the dialog.
         """
         self.treeRoot = self.tree.AddRoot(self.root.dataset.name)
@@ -217,9 +220,22 @@ class ExportDialog(sc.SizedDialog):
         scaledRange = self.range[0] * self.scalar, self.range[1] * self.scalar
         visStart, visEnd = self.root.getVisibleRange()
         scaledVisRange = visStart * self.scalar, visEnd * self.scalar
-        
+
         self.rangeStartT.SetValue(str(scaledVisRange[0]))
         self.rangeEndT.SetValue(str(scaledVisRange[1]))
+        # try:
+        #     self.rangeBtns[int(initSettings["ActiveRange"])].SetValue(True)
+        # except:
+        #     self.rangeBtns[1].SetValue(True)
+        # try:
+        #     removeMean = initSettings["removeMean"]
+        #     if removeMean in self.MEANS:
+        #         removeMean = self.MEANS.index(removeMean)
+        #     self.removeMeanList.Select(int(removeMean))
+        # except:
+        #     self.removeMeanList.Select(2)
+        # self.rangeStartT.SetValue(str(initSettings.get("rangeStartT", scaledVisRange[0])))
+        # self.rangeEndT.SetValue(str(initSettings.get("rangeEndT", scaledVisRange[1])))
         self.rangeBtns[0].SetLabel("All %s" % self._formatRange(scaledRange))
         self.rangeBtns[1].SetLabel("Visible Time Range %s" % \
                                    self._formatRange(scaledVisRange))
@@ -347,8 +363,8 @@ class ExportDialog(sc.SizedDialog):
         else:
             # All (presumably)
             return self.range
-        
-    
+
+
     def getSettings(self):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
@@ -523,8 +539,24 @@ class ExportDialog(sc.SizedDialog):
     #===========================================================================
     # 
     #===========================================================================
-    
+
     @classmethod
+    def makeSettings(cls, *args, **kwargs):
+        defaultSettings = {'startTime': 0,
+                'endTime': stopTime,
+                'start': startIdx,
+                'stop': stopIdx,
+                'subchannels': channels,
+                'numRows': stopIdx - startIdx,
+                'removeMean': self.removeMeanList.GetSelection(),
+                'source': source,
+                'callbackInterval': callbackInt,
+                'noBivariates': self.noBivariatesCheck.GetValue()
+                       }
+        settings['subchannels'].sort(key=lambda x: x.name)
+
+        return
+                                @classmethod
     def getExport(cls, *args, **kwargs):
         """ Display the export settings dialog and return the results. Standard
             warnings and error messages will be displayed (no data, etc).
@@ -550,7 +582,7 @@ class ExportDialog(sc.SizedDialog):
         numRows = dialog.getEventCount()
         title = dialog.GetTitle()
         dialog.Destroy()
-        
+
         if result == wx.ID_CANCEL or settings is None:
             return None
 

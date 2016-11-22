@@ -1390,7 +1390,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.resumeDrawing()
 
 
-    def renderPlot(self, evt=None, plotType=ID_RENDER_FFT):
+    def renderPlot(self, evt=None, plotType=ID_RENDER_FFT, outFile=None, settings=None):
         """ Create a plot showing multiple subchannels, an FFT, a PSD, or
             a Spectrogram after getting input from the user (range,
             window size, etc.). This method can be used as an event handler
@@ -1405,6 +1405,7 @@ class Viewer(wx.Frame, MenuMixin):
         if evtId == self.ID_RENDER_PSD:
             viewClass = PSDView
             settings = xd.PSDExportDialog.getExport(root=self)
+            logger.info("Settings: %s" % settings)
         elif evtId == self.ID_RENDER_SPEC:
             viewClass = SpectrogramView
             settings = xd.SpectrogramExportDialog.getExport(root=self)
@@ -2463,6 +2464,17 @@ class ViewerApp(wx.App):
         self.setPref(pref, dlg.getRememberCheck(), section='ask')
         dlg.Destroy()
 
+    @staticmethod
+    def translateCommandLineSettings(*args, **kwargs):
+        settingDict = {
+            "sStartT" : "rangeStartT",
+            "sEndT" : "rangeEndT",
+            "sMeanRemoval" : "removeMean"
+        }
+        settings = {}
+        for key, value in settingDict.iteritems():
+            settings[value] = kwargs.pop(key, None)
+        return settings
 
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.App` arguments, plus:
@@ -2478,6 +2490,7 @@ class ViewerApp(wx.App):
         clean = kwargs.pop('clean', False)
         safeMode = kwargs.pop('safe', False)
         loadLast = kwargs.pop('loadLastFile', False)
+        doPsd = kwargs.pop('psd', None)
         
         super(ViewerApp, self).__init__(*args, **kwargs)
         
@@ -2503,7 +2516,13 @@ class ViewerApp(wx.App):
         localeName = self.getPref('locale', 'LANGUAGE_ENGLISH_US')
         self.locale = wx.Locale(getattr(wx, localeName, wx.LANGUAGE_ENGLISH_US))
         self.createNewView(filename=self.initialFilename)
-        
+
+        if doPsd:
+            if doPsd == -1:
+                doPsd = None
+            settings = ViewerApp.translateCommandLineSettings(*args, **kwargs)
+            self.viewers[-1].renderPlot(plotType=self.viewers[-1].ID_RENDER_PSD, outFile=doPsd, settings=settings)
+
         if DEBUG or BETA:
             self.showBetaWarning()
 
@@ -2698,6 +2717,19 @@ if __name__ == '__main__':
                         help="An alternate preferences file")
     parser.add_argument('-c', '--clean', action="store_true",
                         help="Reset all preferences to their defaults")
+
+    parser.add_argument('-s', '--psd', metavar='FILENAME.csv', nargs='?', const=-1,
+                        help="Apply a PSD to the input file. If no filename is given, the output will be displayed. Must be combined with -f.")
+
+    parser.add_argument('--sStartT', metavar='S', type=float, default=-1,
+                        help="Specify start time for a PSD")
+
+    parser.add_argument('--sEndT', metavar='E', type=float, default=2**16,
+                        help="Specify end time for a PSD")
+
+    parser.add_argument('--sMeanRemoval', metavar='N', type=int, default=2,
+                        help="For use with PSD. 0 = No mean removal, 1 = Rolling mean removal, 2 = Total mean removal")
+
     args = parser.parse_args()
 
     app = ViewerApp(**vars(args))

@@ -665,13 +665,18 @@ class FFTView(wx.Frame, MenuMixin):
         for i in xrange(cols):
             if abortEvent is not None and abortEvent():
                 return
-# PJS - PYFFTW stuff is not quite working yet
-            fft_obj = rfft(points[:,i], NFFT)
 
+            fft_obj = rfft(points[:,i], NFFT, planner_effort='FFTW_ESTIMATE')
             if forPsd:
                 tmp_fft = abs(fft_obj()[:NFFT/2+1])
             else:
                 tmp_fft = 2*abs(fft_obj()[:NFFT/2+1])/rows
+
+            # if forPsd:
+            #     tmp_fft = abs(np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])
+            # else:
+            #     tmp_fft = 2*abs(np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])/rows
+
             fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
             
             # Remove huge DC component from displayed data; so data of interest 
