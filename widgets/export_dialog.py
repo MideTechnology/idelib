@@ -86,12 +86,11 @@ class ExportDialog(sc.SizedDialog):
 
         self.app = wx.GetApp()
         self.root = kwargs.pop('root', None)
-        initSettings = kwargs.pop('init', {})
         kwargs.setdefault('style', style)
         kwargs.setdefault('title', self.DEFAULT_TITLE)
         self.units = kwargs.pop("units", self.DEFAULT_UNITS)
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
-#        self.removeMean = kwargs.pop("removeMean", 2)
+        self.removeMean = kwargs.pop("removeMean", 2)
         self.noBivariates = kwargs.pop("noBivariates", False)
 
         super(ExportDialog, self).__init__(*args, **kwargs)
@@ -110,7 +109,7 @@ class ExportDialog(sc.SizedDialog):
         
         if self.root.dataset is not None:
             # This should never occur outside of testing.
-            self.InitUI(initSettings=initSettings)
+            self.InitUI()
             
         self.Layout()
         self.Centre()
@@ -162,7 +161,7 @@ class ExportDialog(sc.SizedDialog):
         wx.StaticText(pane, -1, "Range to Export:")
         rangePane = sc.SizedPanel(pane, -1)
         self._addRangeRB(rangePane, self.RB_RANGE_ALL, "All", style=wx.RB_GROUP)
-        self._addRangeRB(rangePane, self.RB_RANGE_VIS, "Visible Range")
+        self._addRangeRB(rangePane, self.RB_RANGE_VIS, "Visible Range").SetValue(True)
         rangeFieldPane = sc.SizedPanel(rangePane,-1)
         rangeFieldPane.SetSizerType("horizontal")
         self._addRangeRB(rangeFieldPane, self.RB_RANGE_CUSTOM, "Specific Range:")
@@ -172,8 +171,6 @@ class ExportDialog(sc.SizedDialog):
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
         wx.StaticLine(pane, -1).SetSizerProps(expand=True)
-
-        removeMean = int()
 
         self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
              default=self.removeMean, tooltip="Subtract a the mean from the data. "
@@ -204,7 +201,7 @@ class ExportDialog(sc.SizedDialog):
         pass
 
 
-    def InitUI(self, initSettings={}):
+    def InitUI(self):
         """ Set up and display actual data in the dialog.
         """
         self.treeRoot = self.tree.AddRoot(self.root.dataset.name)
@@ -223,19 +220,6 @@ class ExportDialog(sc.SizedDialog):
 
         self.rangeStartT.SetValue(str(scaledVisRange[0]))
         self.rangeEndT.SetValue(str(scaledVisRange[1]))
-        # try:
-        #     self.rangeBtns[int(initSettings["ActiveRange"])].SetValue(True)
-        # except:
-        #     self.rangeBtns[1].SetValue(True)
-        # try:
-        #     removeMean = initSettings["removeMean"]
-        #     if removeMean in self.MEANS:
-        #         removeMean = self.MEANS.index(removeMean)
-        #     self.removeMeanList.Select(int(removeMean))
-        # except:
-        #     self.removeMeanList.Select(2)
-        # self.rangeStartT.SetValue(str(initSettings.get("rangeStartT", scaledVisRange[0])))
-        # self.rangeEndT.SetValue(str(initSettings.get("rangeEndT", scaledVisRange[1])))
         self.rangeBtns[0].SetLabel("All %s" % self._formatRange(scaledRange))
         self.rangeBtns[1].SetLabel("Visible Time Range %s" % \
                                    self._formatRange(scaledVisRange))
@@ -542,21 +526,50 @@ class ExportDialog(sc.SizedDialog):
 
     @classmethod
     def makeSettings(cls, *args, **kwargs):
-        defaultSettings = {'startTime': 0,
+        initSettings = kwargs["initSettings"]
+        root = kwargs['root']
+        while root.dataset.loading:
+            import time
+            time.sleep(1)
+        time.sleep(1)
+        channelName = kwargs.pop('channel', 'adc').lower()
+        for key, channelCheck in root.dataset.channels.iteritems():
+            if channelCheck.displayName.lower() == channelName:
+                channels = channelCheck.children
+                break
+        source = channels[0].parent.getSession(root.session.sessionId)
+        try:
+            startTime = float(initSettings["startTime"])
+        except:
+            startTime = -1
+        try:
+            stopTime = float(initSettings["stopTime"])
+        except:
+            stopTime = 100
+        stopTime *= 1e6
+        startIdx, stopIdx = source.getRangeIndices(startTime, stopTime)
+        callbackInt = wx.GetApp().getPref('exportCallbackInterval', 0.0005)
+        try:
+            removeMean = int(initSettings["removeMean"])
+            if not 0 <= removeMean <= 2:
+                raise
+        except:
+            removeMean = 2
+        noBivariatesCheck = initSettings.get("noBivariatesCheck", False)
+        channels.sort(key=lambda x: x.name)
+        return {'startTime': startTime,
                 'endTime': stopTime,
                 'start': startIdx,
                 'stop': stopIdx,
                 'subchannels': channels,
                 'numRows': stopIdx - startIdx,
-                'removeMean': self.removeMeanList.GetSelection(),
+                'removeMean': removeMean,
                 'source': source,
                 'callbackInterval': callbackInt,
-                'noBivariates': self.noBivariatesCheck.GetValue()
-                       }
-        settings['subchannels'].sort(key=lambda x: x.name)
+                'noBivariates': noBivariatesCheck
+                }
 
-        return
-                                @classmethod
+    @classmethod
     def getExport(cls, *args, **kwargs):
         """ Display the export settings dialog and return the results. Standard
             warnings and error messages will be displayed (no data, etc).
@@ -571,6 +584,10 @@ class ExportDialog(sc.SizedDialog):
             @return: A dictionary of settings or `None`
         """
 #         title = kwargs.setdefault('title', cls.DEFAULT_TITLE)
+        initSettings = kwargs.pop("initSettings", False)
+        if initSettings:
+            return cls.makeSettings(initSettings=initSettings, *args, **kwargs)
+
         root = kwargs['root']
         parent = root if isinstance(root, wx.Window) else None
         warnSlow = kwargs.pop('warnSlow', True)
@@ -860,7 +877,19 @@ class PSDExportDialog(FFTExportDialog):
             tooltip="The size of the 'window' (in samples) used in Welch's method")
         self.welchCheck.Bind(wx.EVT_CHECKBOX, self.OnWelchChecked)
 
-        
+
+    @classmethod
+    def makeSettings(cls, *args, **kwargs):
+        result = super(PSDExportDialog, cls).makeSettings(*args, **kwargs)
+        initSettings = kwargs["initSettings"]
+        try:
+            result['windowSize'] = int(initSettings["windowSize"])
+        except:
+            result['windowSize'] = 2**14
+
+        result['useWelch'] = initSettings["useWelch"]
+        return result
+
     def OnWelchChecked(self, evt):
         """ Handle the 'use windowed' checkbox changing. Can also be called
             manually with either `True` or `False` to explicitly enable/disable
@@ -899,7 +928,7 @@ class PSDExportDialog(FFTExportDialog):
             @return: A dictionary of settings or `None` if there's a problem
                 (e.g. no channels have been selected).
         """
-        result = super(FFTExportDialog, self).getSettings()
+        result = super(PSDExportDialog, self).getSettings()
         if result is None:
             return None
         

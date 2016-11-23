@@ -1390,7 +1390,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.resumeDrawing()
 
 
-    def renderPlot(self, evt=None, plotType=ID_RENDER_FFT, outFile=None, settings=None):
+    def renderPlot(self, evt=None, plotType=ID_RENDER_FFT, outFile=None, initSettings=None):
         """ Create a plot showing multiple subchannels, an FFT, a PSD, or
             a Spectrogram after getting input from the user (range,
             window size, etc.). This method can be used as an event handler
@@ -1404,7 +1404,7 @@ class Viewer(wx.Frame, MenuMixin):
         evtId = plotType if evt is None else evt.GetId()
         if evtId == self.ID_RENDER_PSD:
             viewClass = PSDView
-            settings = xd.PSDExportDialog.getExport(root=self)
+            settings = xd.PSDExportDialog.getExport(root=self, initSettings=initSettings)
             logger.info("Settings: %s" % settings)
         elif evtId == self.ID_RENDER_SPEC:
             viewClass = SpectrogramView
@@ -1425,11 +1425,12 @@ class Viewer(wx.Frame, MenuMixin):
         # Catch no exceptions if in debug.
         ex = None if DEBUG else Exception
 
-        try:
-            self.childViews[viewId] = viewClass(self, viewId, size=size, 
-                                                root=self, **settings)
-        except ex as e:
-            self.handleError(e, what="rendering the %s" % viewClass.FULLNAME)
+        self.childViews[viewId] = viewClass(self, viewId, size=size,root=self, **settings)
+        # try:
+        #     self.childViews[viewId] = viewClass(self, viewId, size=size,
+        #
+        # except ex as e:
+        #     self.handleError(e, what="rendering the %s" % viewClass.FULLNAME)
 
 
     #===========================================================================
@@ -2467,14 +2468,20 @@ class ViewerApp(wx.App):
     @staticmethod
     def translateCommandLineSettings(*args, **kwargs):
         settingDict = {
-            "sStartT" : "rangeStartT",
-            "sEndT" : "rangeEndT",
-            "sMeanRemoval" : "removeMean"
+            "sStartT" : "startTime",
+            "sEndT" : "stopTime",
+            "sMeanRemoval" : "removeMean",
+            "sNoCal" : "noBivariatesCheck",
+            "sWindow" : "windowSize"
         }
         settings = {}
         for key, value in settingDict.iteritems():
             settings[value] = kwargs.pop(key, None)
-        return settings
+        if settings["windowSize"] is not None:
+            settings["useWelch"] = True
+        else:
+            settings["useWelch"] = False
+        return settings, kwargs
 
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.App` arguments, plus:
@@ -2491,7 +2498,8 @@ class ViewerApp(wx.App):
         safeMode = kwargs.pop('safe', False)
         loadLast = kwargs.pop('loadLastFile', False)
         doPsd = kwargs.pop('psd', None)
-        
+        settings, kwargs = ViewerApp.translateCommandLineSettings(*args, **kwargs)
+
         super(ViewerApp, self).__init__(*args, **kwargs)
         
 #         self.recentFilesMenu = wx.Menu()
@@ -2520,8 +2528,7 @@ class ViewerApp(wx.App):
         if doPsd:
             if doPsd == -1:
                 doPsd = None
-            settings = ViewerApp.translateCommandLineSettings(*args, **kwargs)
-            self.viewers[-1].renderPlot(plotType=self.viewers[-1].ID_RENDER_PSD, outFile=doPsd, settings=settings)
+            self.viewers[-1].renderPlot(plotType=self.viewers[-1].ID_RENDER_PSD, outFile=doPsd, initSettings=settings)
 
         if DEBUG or BETA:
             self.showBetaWarning()
@@ -2724,11 +2731,17 @@ if __name__ == '__main__':
     parser.add_argument('--sStartT', metavar='S', type=float, default=-1,
                         help="Specify start time for a PSD")
 
-    parser.add_argument('--sEndT', metavar='E', type=float, default=2**16,
+    parser.add_argument('--sEndT', metavar='E', type=float, default=1e2,
                         help="Specify end time for a PSD")
 
     parser.add_argument('--sMeanRemoval', metavar='N', type=int, default=2,
                         help="For use with PSD. 0 = No mean removal, 1 = Rolling mean removal, 2 = Total mean removal")
+
+    parser.add_argument('--sNoCal', action="store_true",
+                        help="Set to disregard calibration on PSD")
+
+    parser.add_argument('--sWindow', metavar='N', type=int,
+                        help="Set to use welch's method PSD with N point window")
 
     args = parser.parse_args()
 

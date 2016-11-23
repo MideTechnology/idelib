@@ -530,11 +530,14 @@ class FFTView(wx.Frame, MenuMixin):
                 'numpy.fromiter()` doesn't support 2D arrays, there may be 
                 something else in Numpy for doing this.
         """
+        logger.info("C1")
         if rows is None:
             if hasattr(data, '__len__'):
                 rows = len(data)
-        
-        # Build a 2D array. Numpy's `fromiter()` is 1D, but there's probably a 
+            else:
+                logger.info("Length Error!")
+
+        # Build a 2D array. Numpy's `fromiter()` is 1D, but there's probably a
         # better way to do this.
         dataIter = iter(data)
         row1 = dataIter.next()
@@ -543,7 +546,9 @@ class FFTView(wx.Frame, MenuMixin):
 #         print "shape=",rows,cols
         points = np.zeros(shape=(rows,cols), dtype=float)
         points[0,:] = row1
-        
+        logger.info("C5")
+        logger.info("len points: %d, %d" % (points.shape[0], points.shape[1]))
+
         for i, row in enumerate(dataIter,1):
             if abortEvent is not None and abortEvent():
                 break
@@ -552,7 +557,8 @@ class FFTView(wx.Frame, MenuMixin):
                 points[i,:] = row
             except IndexError:
                 break
-    
+        logger.info("C6")
+
         return points
     
     
@@ -654,14 +660,21 @@ class FFTView(wx.Frame, MenuMixin):
             @return: A multidimensional array, with the first column the 
                 frequency.
         """
+        logger.info("Check 1")
+        logger.info("Data: %s" % (data))
+        logger.info("Data: %s" % (rows))
+        logger.info("Data: %s" % (cols))
+        logger.info("Data: %s" % (abortEvent))
         points = cls.from2diter(data, rows, cols, abortEvent=abortEvent)
         rows, cols = points.shape
         NFFT = nextPow2(rows)
         
+        logger.info("Check 2")
         # Create frequency range (first column)
         fftData = np.arange(0, NFFT/2.0 + 1) * (fs/float(NFFT))
         fftData = fftData.reshape(-1,1)
 
+        logger.info("Check 3")
         for i in xrange(cols):
             if abortEvent is not None and abortEvent():
                 return
@@ -685,7 +698,8 @@ class FFTView(wx.Frame, MenuMixin):
             fftData[0,thisCol] = 0.0
             fftData[1,thisCol] = 0.0
             fftData[2,thisCol] = 0.0
-        
+        logger.info("Check 4")
+
         return fftData
 
 
@@ -1620,6 +1634,7 @@ class PSDView(FFTView):
         else:
             logger.info("PSD generateData: Row input for size")
 
+        logger.info("rows = %s" % (rows))
         fftData[:,1:] = np.square(fftData[:,1:])*2/(fs*rows)
 #        fftData[:,1:] = np.square(fftData[:,1:])/fftData[1,0]
         return fftData
