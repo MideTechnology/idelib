@@ -228,22 +228,25 @@ def getBootloaderRev(partNum=None):
     return utils.readFileLine(BOOT_VER_FILE, dataType=str)
 
 def isValidAccelSerial(sn):
-    """ Simple sanity-check for accelerometer serial numbers (####-##). """
+    """ Simple sanity-check for accelerometer serial numbers, either ####-###
+        (for 832M1) or ####-#### (3255A). A comma-separated series of
+        serial numbers is also acceptable.
+    """
     # TODO: This is kind of brittle. Maybe use regex and/or consult used SNs.
     if not isinstance(sn, basestring):
         return False
     sn = sn.strip()
-    return len(sn) == 8 and sn[4] == '-'
+    return sn[4] == '-' and (len(sn) == 8 or len(sn) == 9)
 
 def getAccelSerialNum(default=None):
-    """ Prompt the user for an accelerometer serial number ."""
+    """ Prompt the user for an accelerometer serial number. """
     d = "" if default is None else " (default: %s)" % default
     prompt = "Accelerometer serial number%s? " % d
     while True:
         sn = raw_input(prompt).strip() or default
-        if isValidAccelSerial(sn):
+        if all(map(isValidAccelSerial, sn.split(','))):
             return sn
-        print "Bad accelerometer number: enter in format nnnn-nnn"
+        print "Bad accelerometer number(s): enter in format nnnn-nnn or nnnn-nnnn"
         
 
 def getFirmwareFile(partNum=None, fwRev=None):

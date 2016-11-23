@@ -586,7 +586,7 @@ class Calibrator(object):
         Ref Manufacturer:         ENDEVCO
         Ref Model #:              7251A-10/133
         Ref Serial #:             12740/BL33
-        NIST #:                   683/283655-13
+        NIST #:                   683/287323
         832M1 Serial #:           3951-005
         Temp. (C):                23.5
         Rel. Hum. (%):            45
@@ -614,7 +614,7 @@ class Calibrator(object):
                  refMan="ENDEVCO",
                  refModel="7251A-10/133",
                  refSerial="12740/BL33",
-                 refNist="683/283655-13",
+                 refNist="683/287323",
                  skipSamples=5000):
         self.devPath = devPath
         self.productSerialNum = None
@@ -992,7 +992,7 @@ class Calibrator(object):
 #             ('FIELD_procedureNum', self.procedureNum),
 #             ('FIELD_productMan', 'Mide Technology Corp.'),
 #             ('FIELD_refModel', self.refModel),
-#             ('FIELD_refNist', self.refNist),
+            ('FIELD_refNist', self.refNist),
 #             ('FIELD_refSerial', self.refSerial),
 #             ('FIELD_referenceMan', self.refMan),
         ]

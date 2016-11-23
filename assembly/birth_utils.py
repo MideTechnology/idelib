@@ -7,7 +7,7 @@ Created on Nov 7, 2014
 @author: dstokes
 '''
 
-from collections import OrderedDict
+from collections import OrderedDict, Sequence
 from datetime import datetime
 import errno
 import os
@@ -471,7 +471,30 @@ def releaseLockFile(filename):
         return True
     except (WindowsError, IOError):
         return False
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def splitSerialNumbers(sn):
+    """ Take a serial number or comma-separated list of serial numbers and
+        split it up into a list of individual strings. 
+        
+        @param sn: The serial number(s) to split.
+    """
+    if not sn:
+        # None or empty string
+        return []
+    elif isinstance(sn, basestring):
+        nums = [n.strip() for n in sn.split(',')]
+    elif isinstance(sn, Sequence):
+        nums = map(str, sn)
+    else:
+        raise TypeError("Bad type for accelerometer serial numbers")
     
+    return nums
+        
     
 #===============================================================================
 # 

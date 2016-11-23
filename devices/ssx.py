@@ -8,7 +8,8 @@ from collections import OrderedDict
 from datetime import datetime
 import os
 import struct
-import time
+from time import sleep, struct_time, time
+
 
 try:
     from cStringIO import StringIO
@@ -355,10 +356,10 @@ class SlamStickX(Recorder):
             raise ConfigError('Could not set time: Not a real device!')
         
         if t is None:
-            t = int(time.time())
+            t = int(time())
         elif isinstance(t, datetime):
             t = calendar.timegm(t.timetuple())
-        elif isinstance(t, (time.struct_time, tuple)):
+        elif isinstance(t, (struct_time, tuple)):
             t = calendar.timegm(t)
         else:
             t = int(t)
@@ -366,13 +367,13 @@ class SlamStickX(Recorder):
         try:
             with open(self.clockFile, 'wb') as f:
                 if pause:
-                    t0 = int(time.time())
+                    t0 = int(time())
                     while int(t) <= t0:
-                        t = time.time()
+                        t = time()
                 f.write(self.TIME_PARSER.pack(t))
         except IOError:
             if retries > 0:
-                time.sleep(.5)
+                sleep(.5)
                 return self.setTime(pause=pause, retries=retries-1)
             else:
                 raise
@@ -393,14 +394,14 @@ class SlamStickX(Recorder):
         """
         try:
             if pause:
-                t = int(time.time())
-                while int(time.time()) == t:
+                t = int(time())
+                while int(time()) == t:
                     pass
             sysTime, devTime = os_specific.readRecorderClock(self.clockFile)
             return sysTime - self.TIME_PARSER.unpack_from(devTime)[0]
         except IOError:
             if retries > 0:
-                time.sleep(.25)
+                sleep(.25)
                 return self.getClockDrift(pause=pause, retries=retries-1)
             else:
                 raise 
@@ -561,14 +562,10 @@ class SlamStickX(Recorder):
             doc = Dataset(None)
             if not self._propData:
                 # No recorder property data; use defaults
-                if 'SystemInfo' in self._manifest:
-                    doc.recorderInfo = self._manifest['SystemInfo'].copy()
-                # Manifest uses different name for element.
-                doc.recorderInfo['RecorderTypeUID'] = doc.recorderInfo['DeviceTypeUID']
+                doc.recorderInfo = self.getInfo()
                 importer.createDefaultSensors(doc)
-                doc.transforms.setdefault(0, doc.channels[0].transform)
-#                 if self._calPolys is None:
-#                     self._calPolys = doc.transforms
+                if 0 in doc.channels:
+                    doc.transforms.setdefault(0, doc.channels[0].transform)
             else:
                 # Parse userpage recorder property data
                 parser = RecordingPropertiesParser(doc)
@@ -692,7 +689,7 @@ class SlamStickX(Recorder):
         if isinstance(transforms, dict):
             transforms = transforms.values()
         if date is None:
-            date = time.time()
+            date = time()
         if expires is None:
             expires = date + cls.CAL_LIFESPAN.total_seconds()
             

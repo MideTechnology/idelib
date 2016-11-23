@@ -3,6 +3,7 @@ Created on Sep 25, 2014
 
 @author: dstokes
 '''
+from collections import Sequence
 from datetime import datetime
 import io
 import os
@@ -17,6 +18,7 @@ import serial #@UnusedImport
 import serial.tools.list_ports
 
 import xmodem
+import birth_utils as utils
 
 CWD = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(CWD)
@@ -274,9 +276,21 @@ def readUserPage(devPath):
 # 
 #===============================================================================
 
-def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, dest,
-                    birthday=None):
+def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, 
+                    dest, birthday=None):
     """ Create the device manifest XML file.
+
+        @param templatePath: The root directory of the data templates.
+        @param partNum: The part number (subdirectory `templatePath`)
+        @param hwRev: The hardware revision number (subdirectory of `partNum`)
+        @param device_sn: The recording device's serial number.
+        @param device_accel_sn: The device's sensor serial number(s). Can be
+            `None`, a single serial number string, or a sequence of serial 
+            numbers (a list/tuple or comma-separated string). These numbers
+            will be applied to the templates sensors in order.
+        @param dest: The output file.
+        @keyword birthday: The device's creation date (defaults to current).
+        @return: The root XML element (`xml.etree.ElementTree.Element`)
     """
     if birthday is None:
         birthday = int(time.mktime(time.gmtime()))
@@ -286,6 +300,7 @@ def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, de
     filename = os.path.join(templatePath, partNum, str(hwRev), "manifest.template.xml")
     xmltree = ET.parse(filename)
     xmlroot = xmltree.getroot()
+    
     # Mostly good as-is, but need to update SerialNumber, DateOfManufacture 
     # and AnalogSensorSerialNumber. There is only one element with each name, 
     # so we can simply "find" by that name and update the value.
@@ -294,10 +309,10 @@ def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, de
     el = xmlroot.find("./SystemInfo/DateOfManufacture")
     el.set('value', str(birthday))
     
-    if device_accel_sn is not None:
-        el = xmlroot.find("./AnalogSensorInfo/AnalogSensorSerialNumber")
-        if el is not None:
-            el.set('value', device_accel_sn) # already a string
+    nums = utils.splitSerialNumbers(device_accel_sn)
+    els = xmlroot.findall("./AnalogSensorInfo/AnalogSensorSerialNumber")
+    for el, num in zip(els, nums):
+        el.set('value', num)
         
     xmltree.write(dest)
     return xmlroot
@@ -305,6 +320,16 @@ def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, de
 
 def makeRecPropXml(templatePath, partNum, hwRev, device_accel_sn, dest):
     """ Create the XML for the RecordingProperties of a device.
+    
+        @param templatePath: The root directory of the data templates.
+        @param partNum: The part number (subdirectory `templatePath`)
+        @param hwRev: The hardware revision number (subdirectory of `partNum`)
+        @param device_accel_sn: The device's sensor serial number(s). Can be
+            `None`, a single serial number string, or a sequence of serial 
+            numbers (a list/tuple or comma-separated string). These numbers
+            will be applied to the templates sensors in order.
+        @param dest: The output file.
+        @return: The root XML element (`xml.etree.ElementTree.Element`)
     """
     filename = os.path.join(templatePath, partNum, str(hwRev), "recprop.template.xml")
     if not os.path.exists(filename):
@@ -313,14 +338,12 @@ def makeRecPropXml(templatePath, partNum, hwRev, device_accel_sn, dest):
     xmltree = ET.parse(filename)
     xmlroot = xmltree.getroot()
 
-    # Update just the High-G Accelerometer. 
-    # TODO: Make this more generic. Maybe string replacement in raw XML?
-    for sensor in xmlroot.findall('./SensorList/Sensor'):
-        nameEl = sensor.find('SensorName')
-        if nameEl is not None and nameEl.get('value') == '832M1 High-G Accelerometer':
-            ssEl = sensor.find('TraceabilityData/SensorSerialNumber')
-            if ssEl is not None:
-                ssEl.set('value', str(device_accel_sn))
+    # Update all sensors with a serial number. 
+    nums = utils.splitSerialNumbers(device_accel_sn)
+    els = xmlroot.findall("./SensorList/Sensor/TraceabilityData/SensorSerialNumber")
+    for el, num in zip(els, nums):
+        el.set('value', num)
+
     xmltree.write(dest)
     return xmlroot
 
