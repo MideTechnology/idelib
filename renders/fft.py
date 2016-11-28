@@ -18,7 +18,7 @@ import time
 
 import numpy as np; np=np
 from numpy.core import hstack, vstack
-from pyfftw.builders import rfft
+#from pyfftw.builders import rfft
 
 # from wx.lib.plot import PolyLine, PlotGraphics, PlotCanvas
 from wx_lib_plot import PolyLine, PlotGraphics, PlotCanvas
@@ -666,20 +666,21 @@ class FFTView(wx.Frame, MenuMixin):
         fftData = np.arange(0, NFFT/2.0 + 1) * (fs/float(NFFT))
         fftData = fftData.reshape(-1,1)
 
+#         print "rows: %s\tNFFT=%s" % (rows, NFFT)
         for i in xrange(cols):
             if abortEvent is not None and abortEvent():
                 return
 
-            fft_obj = rfft(points[:,i], NFFT, planner_effort='FFTW_ESTIMATE')
-            if forPsd:
-                tmp_fft = abs(fft_obj()[:NFFT/2+1])
-            else:
-                tmp_fft = 2*abs(fft_obj()[:NFFT/2+1])/rows
+#            fft_obj = rfft(points[:,i], NFFT, planner_effort='FFTW_ESTIMATE')
+#            if forPsd:
+#                tmp_fft = abs(fft_obj()[:NFFT/2+1])
+#            else:
+#                tmp_fft = 2*abs(fft_obj()[:NFFT/2+1])/rows
 
-            # if forPsd:
-            #     tmp_fft = abs(np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])
-            # else:
-            #     tmp_fft = 2*abs(np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])/rows
+            if forPsd:
+                tmp_fft = abs(np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])
+            else:
+                tmp_fft = 2*abs(np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])/rows
 
             fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
 
@@ -1612,13 +1613,13 @@ class PSDView(FFTView):
                      abortEvent=abortEvent, forPsd=True)
         if rows is None:
             if hasattr(fftData, '__len__'):
-                logger.info("PSD generateData: Using len of fftData")
+#                logger.info("PSD generateData: Using len of fftData")
                 rows = len(fftData)
             else:
-                logger.info("PSD generateData: Problem! Setting sample length")
+#                logger.info("PSD generateData: Problem! Setting sample length")
                 rows = 1                        # PJS: Really this is an error...
-        else:
-            logger.info("PSD generateData: Row input for size")
+#        else:
+#            logger.info("PSD generateData: Row input for size")
 
         fftData[:,1:] = np.square(fftData[:,1:])*2/(fs*rows)
 #        fftData[:,1:] = np.square(fftData[:,1:])/fftData[1,0]

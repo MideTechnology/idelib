@@ -64,10 +64,10 @@ from collections import Iterable
 
 import numpy as np
 
-try:
-    from pyfftw.builders import rfft
-except ImportError:
-    raise ImportError("mide_ebml.fft requires pyfftw")
+#try:
+#    from pyfftw.builders import rfft
+#except ImportError:
+#    raise ImportError("mide_ebml.fft requires pyfftw")
 
 ma = np.ma
 
@@ -189,20 +189,18 @@ def x_spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
         
         thisX = x[ind[i]:ind[i]+NFFT]
         thisX = windowVals * detrend(thisX)
-        # PJS - PYFFTW stuff is not quite working yet
-        fft_obj = rfft(thisX, n=pad_to)
-        fx = fft_obj()
-#        fx = np.fft.fft(thisX, n=pad_to)
+#        fft_obj = rfft(thisX, n=pad_to)
+#        fx = fft_obj()
+        fx = np.fft.fft(thisX, n=pad_to)
 
         if same_data:
             fy = fx
         else:
             thisY = y[ind[i]:ind[i]+NFFT]
             thisY = windowVals * detrend(thisY)
-            # PJS - PYFFTW stuff is not quite working yet
-            fft_obj = rfft(thisY, n=pad_to)
-            fy = fft_obj()
-#            fy = np.fft.fft(thisY, n=pad_to)
+#            fft_obj = rfft(thisY, n=pad_to)
+#            fy = fft_obj()
+            fy = np.fft.fft(thisY, n=pad_to)
         #Pxy[:,i] = np.conjugate(fx[:numFreqs]) * fy[:numFreqs]
         Pxy[:,i] = np.sqrt(np.conjugate(fx[:numFreqs]) * fy[:numFreqs])
 
@@ -296,19 +294,18 @@ def _spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
     for i in range(n):
         thisX = x[ind[i]:ind[i]+NFFT]
         thisX = windowVals * detrend(thisX)
-# PJS - PYFFTW stuff is not quite working yet
-        fft_obj = rfft(thisX, n=pad_to)
-        fx = fft_obj()
-#        fx = np.fft.fft(thisX, n=pad_to)
+#        fft_obj = rfft(thisX, n=pad_to)
+#        fx = fft_obj()
+        fx = np.fft.fft(thisX, n=pad_to)
 
         if same_data:
             fy = fx
         else:
             thisY = y[ind[i]:ind[i]+NFFT]
             thisY = windowVals * detrend(thisY)
-            fft_obj = rfft(thisY, n=pad_to)
-            fy = fft_obj()
-#            fy = np.fft.fft(thisY, n=pad_to)
+#            fft_obj = rfft(thisY, n=pad_to)
+#            fy = fft_obj()
+            fy = np.fft.fft(thisY, n=pad_to)
         Pxy[:,i] = np.conjugate(fx[:numFreqs]) * fy[:numFreqs]
 
     # Scale the spectrum by the norm of the window to compensate for

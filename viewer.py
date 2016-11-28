@@ -1434,15 +1434,13 @@ class Viewer(wx.Frame, MenuMixin):
         viewId = wx.NewId()
         size = self.GetSize()
         
-
-        self.childViews[viewId] = viewClass(self, viewId, size=size, root=self, **settings)
         # Catch no exceptions if in debug.
-        # ex = None if DEBUG else Exception
-        # try:
-        #     self.childViews[viewId] = viewClass(self, viewId, size=size, root=self, **settings)
-        #
-        # except ex as e:
-        #     self.handleError(e, what="rendering the %s" % viewClass.FULLNAME)
+        ex = None if DEBUG else Exception
+        try:
+            self.childViews[viewId] = viewClass(self, viewId, size=size, 
+                                                root=self, **settings)
+        except ex as e:
+            self.handleError(e, what="rendering the %s" % viewClass.FULLNAME)
 
 
     #===========================================================================
@@ -2741,35 +2739,35 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--clean', action="store_true",
                         help="Reset all preferences to their defaults")
 
-    parser.add_argument('--psd', metavar='FILENAME.csv',
-                        help="Output a PSD of the input file. Must be combined with -f.")
-
-    parser.add_argument('--fft', metavar='FILENAME.csv',
-                        help="Output an FFT of the input file. Must be combined with -f.")
-
-    parser.add_argument('--spec', metavar='FILENAME.csv',
-                        help="Output a spectrogram of the input file. Must be combined with -f.")
-
-    parser.add_argument('--sStartT', metavar='S', type=float, default=-1,
-                        help="Start time for PSD/FFT/Spec")
-
-    parser.add_argument('--sEndT', metavar='E', type=float, default=1e2,
-                        help="End time for a PSD/FFT/Spec")
-
-    meanRemovalTypes = ["none", "roll", "total"]
-    parser.add_argument('--sMeanRemoval', metavar='TYPE', type=str.lower, default="total", choices= meanRemovalTypes,
-                        help="Mean removal for PSD/FFT/Spec. None = No mean removal, Roll = Rolling mean removal, Total = Total mean removal")
-
-    parser.add_argument('--sNoCal', action="store_true",
-                        help="Set to disregard calibration on for PSD/FFT/Spec")
-
-    parser.add_argument('--sWindow', metavar='N', type=int,
-                        help="Window size for PSD/Spec")
-
+    # parser.add_argument('--psd', metavar='FILENAME.csv',
+    #                     help="Output a PSD of the input file. Must be combined with -f.")
+    #
+    # parser.add_argument('--fft', metavar='FILENAME.csv',
+    #                     help="Output an FFT of the input file. Must be combined with -f.")
+    #
+    # parser.add_argument('--spec', metavar='FILENAME.csv',
+    #                     help="Output a spectrogram of the input file. Must be combined with -f.")
+    #
+    # parser.add_argument('--sStartT', metavar='S', type=float, default=-1,
+    #                     help="Start time for PSD/FFT/Spec")
+    #
+    # parser.add_argument('--sEndT', metavar='E', type=float, default=1e2,
+    #                     help="End time for a PSD/FFT/Spec")
+    #
+    # meanRemovalTypes = ["none", "roll", "total"]
+    # parser.add_argument('--sMeanRemoval', metavar='TYPE', type=str.lower, default="total", choices= meanRemovalTypes,
+    #                     help="Mean removal for PSD/FFT/Spec. None = No mean removal, Roll = Rolling mean removal, Total = Total mean removal")
+    #
+    # parser.add_argument('--sNoCal', action="store_true",
+    #                     help="Set to disregard calibration on for PSD/FFT/Spec")
+    #
+    # parser.add_argument('--sWindow', metavar='N', type=int,
+    #                     help="Window size for PSD/Spec")
+    #
     args = parser.parse_args()
     args = vars(args)
-
-    args['sMeanRemoval'] = meanRemovalTypes.index(args['sMeanRemoval'])
+    #
+    # args['sMeanRemoval'] = meanRemovalTypes.index(args['sMeanRemoval'])
 
 
     app = ViewerApp(**args)
