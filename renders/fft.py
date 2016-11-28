@@ -274,7 +274,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.noBivariates = kwargs.pop('noBivariates', False)
         self.useWelch = kwargs.pop('useWelch', False)
         if self.useWelch:
-            self.NAME = self.TITLE_NAME = "Welch's PSD"
+            self.NAME = self.TITLE_NAME = "Windowed PSD"
 
 
         # Callback. Not currently used.
