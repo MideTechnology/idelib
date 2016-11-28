@@ -214,6 +214,10 @@ def dump_csv(data, filename):
     np.savetxt(filename, stacked, delimiter=',')
 
 
+#===============================================================================
+# 
+#===============================================================================
+
 class CalFile(object):
     """ One analyzed IDE file.
     """
@@ -400,6 +404,10 @@ class CalFile(object):
             accelChannel = None
         if accelChannel:
             self.hasHiAccel = True
+            
+            # HACK: Is the analog accelerometer piezoresistive?
+            self.hasPRAccel = "3255A" in accelChannel[0].sensor.name 
+            
             _print("\nAnalyzing high-g data...")
 
             # HACK: Fix typo in template the hard way
@@ -409,6 +417,7 @@ class CalFile(object):
             self.accel, self.times, self.rms, self.cal, self.means = self._analyze(accelChannel, skipSamples=self.skipSamples)
         else:
             self.hasHiAccel = False
+            self.hasPRAccel = False
 
         loAccelChannel = self.getLowAccelerometer()
         if loAccelChannel:
@@ -638,7 +647,7 @@ class Calibrator(object):
         self.calTimestamp = time.time()
         self.productManTimestamp = 0
         self.calFilesUnsorted = self.calFiles = self.filenames = None
-        self.hasHiAccel = self.hasLoAccel = None
+        self.hasHiAccel = self.hasLoAccel = self.hasPRAccel = None
 
         self.skipSamples = skipSamples
 
@@ -776,6 +785,7 @@ class Calibrator(object):
         self.cal = XYZ([self.calFiles[i].cal[i] * prev_cal[i] for i in range(3)])
         self.hasHiAccel = all((c.hasHiAccel for c in self.calFiles))
         self.hasLoAccel = all((c.hasLoAccel for c in self.calFiles))
+        self.hasPRAccel = all((c.hasPRAccel for c in self.calFiles))
 
         self.Sxy, self.Syz, self.Sxz = self.calculateTrans(self.calFiles, self.cal)
         self.Syz_file, self.Sxz_file, self.Sxy_file = self.filenames
@@ -1213,10 +1223,18 @@ class Calibrator(object):
         calList['BivariatePolynomial'] = bivars
 
         univars = calList.get('UnivariatePolynomial', [])
-        univars = [c for c in univars if c['CalID'] not in (33,34,35)]
+        univars = [c for c in univars if c['CalID'] not in (1,2,3,33,34,35)]
         calList['UnivariatePolynomial'] = univars
 
-        if self.hasHiAccel:
+        if self.hasPRAccel:
+            for i in range(3):
+                thisCal = OrderedDict([
+                    ('CalID', i+1),
+                    ('CalReferenceValue', 0.0),
+                    ('PolynomialCoef', [self.cal[i],self.offsets[i]]),
+                ])
+                calList['UnivariatePolynomial'].append(thisCal)
+        elif self.hasHiAccel:
             for i in range(3):
                 thisCal = OrderedDict([
                     ('CalID', i+1),
