@@ -573,3 +573,43 @@ def estimateLength(filename, numSamples=50000, parserTypes=elementParserTypes,
         
     return start, start + (totalSize / chunkSize * chunkTime), numEvents/chunkTime
     
+
+#===============================================================================
+# 
+#===============================================================================
+
+def getExitCondition(recording, bytesRead=1000):
+    """ Get the ``ExitCond`` Attribute from the end of a recording, if present.
+        The result will be an integer:
+        
+        * 1: Button press
+        * 2: USB connection
+        * 3: Recording time limit reached
+        * 4: Low battery
+        * 128: I/O error (can occur if disk is full or 4GB FAT32 size limit
+          reached.
+        
+        @param recording: The IDE file, either a filename or a file-like object.
+        @keyword bytesRead: The number of bytes to read from the end of the
+            recording file.
+    """
+    result = None
+    
+    if isinstance(recording, basestring):
+        with open(recording, "rb") as fs:
+            return getExitCondition(fs)
+
+    filename = recording.name
+    offset = recording.tell()
+   
+    recording.seek(os.path.getsize(filename) - bytesRead)
+    data = recording.read()
+    try:
+        idx = data.index("ExitCond") + 11
+        if idx <= len(data):
+            result = ord(data[idx])
+    except (IndexError, ValueError):
+        pass
+
+    recording.seek(offset)
+    return result        
