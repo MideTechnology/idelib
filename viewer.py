@@ -1405,29 +1405,41 @@ class Viewer(wx.Frame, MenuMixin):
         if evtId == self.ID_RENDER_PSD:
             viewClass = PSDView
             settings = xd.PSDExportDialog.getExport(root=self, initSettings=initSettings)
-            logger.info("Settings: %s" % settings)
         elif evtId == self.ID_RENDER_SPEC:
             viewClass = SpectrogramView
-            settings = xd.SpectrogramExportDialog.getExport(root=self)
+            settings = xd.SpectrogramExportDialog.getExport(root=self, initSettings=initSettings)
         elif evtId == self.ID_RENDER_PLOTS:
             viewClass = PlotView
-            settings = xd.ExportDialog.getExport(root=self, title="Render Plot")
+            settings = xd.ExportDialog.getExport(root=self, title="Render Plot", initSettings=initSettings)
         else:
             viewClass = FFTView
-            settings = xd.FFTExportDialog.getExport(root=self)
+            settings = xd.FFTExportDialog.getExport(root=self, initSettings=initSettings)
             
         if settings is None:
             return
-        
+
+        if outFile:
+            subchannelIds = [c.id for c in settings["subchannels"]]
+            sliceSize = settings.pop("sliceSize", 2**14)
+            start = settings["start"]
+            stop  = settings["stop"]
+            source = settings["source"]
+            inputData = settings["source"].itervalues(start, stop, subchannels=subchannelIds, display=True)
+            renderData = viewClass.generateData(inputData, rows=stop-start, cols=len(subchannelIds),
+                                                fs=source.getSampleRate(), sliceSize=sliceSize, useWelch=initSettings["useWelch"])
+            import numpy as np
+            np.savetxt(outFile, renderData)
+            return
+
         viewId = wx.NewId()
         size = self.GetSize()
         
-        # Catch no exceptions if in debug.
-        ex = None if DEBUG else Exception
 
-        self.childViews[viewId] = viewClass(self, viewId, size=size,root=self, **settings)
+        self.childViews[viewId] = viewClass(self, viewId, size=size, root=self, **settings)
+        # Catch no exceptions if in debug.
+        # ex = None if DEBUG else Exception
         # try:
-        #     self.childViews[viewId] = viewClass(self, viewId, size=size,
+        #     self.childViews[viewId] = viewClass(self, viewId, size=size, root=self, **settings)
         #
         # except ex as e:
         #     self.handleError(e, what="rendering the %s" % viewClass.FULLNAME)
@@ -2498,6 +2510,8 @@ class ViewerApp(wx.App):
         safeMode = kwargs.pop('safe', False)
         loadLast = kwargs.pop('loadLastFile', False)
         doPsd = kwargs.pop('psd', None)
+        doFft = kwargs.pop('fft', None)
+        doSpec = kwargs.pop('spec', None)
         settings, kwargs = ViewerApp.translateCommandLineSettings(*args, **kwargs)
 
         super(ViewerApp, self).__init__(*args, **kwargs)
@@ -2526,9 +2540,11 @@ class ViewerApp(wx.App):
         self.createNewView(filename=self.initialFilename)
 
         if doPsd:
-            if doPsd == -1:
-                doPsd = None
             self.viewers[-1].renderPlot(plotType=self.viewers[-1].ID_RENDER_PSD, outFile=doPsd, initSettings=settings)
+        if doFft:
+            self.viewers[-1].renderPlot(plotType=self.viewers[-1].ID_RENDER_FFT, outFile=doFft, initSettings=settings)
+        if doSpec:
+            self.viewers[-1].renderPlot(plotType=self.viewers[-1].ID_RENDER_SPEC, outFile=doSpec, initSettings=settings)
 
         if DEBUG or BETA:
             self.showBetaWarning()
@@ -2725,25 +2741,36 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--clean', action="store_true",
                         help="Reset all preferences to their defaults")
 
-    parser.add_argument('-s', '--psd', metavar='FILENAME.csv', nargs='?', const=-1,
-                        help="Apply a PSD to the input file. If no filename is given, the output will be displayed. Must be combined with -f.")
+    parser.add_argument('--psd', metavar='FILENAME.csv',
+                        help="Output a PSD of the input file. Must be combined with -f.")
+
+    parser.add_argument('--fft', metavar='FILENAME.csv',
+                        help="Output an FFT of the input file. Must be combined with -f.")
+
+    parser.add_argument('--spec', metavar='FILENAME.csv',
+                        help="Output a spectrogram of the input file. Must be combined with -f.")
 
     parser.add_argument('--sStartT', metavar='S', type=float, default=-1,
-                        help="Specify start time for a PSD")
+                        help="Start time for PSD/FFT/Spec")
 
     parser.add_argument('--sEndT', metavar='E', type=float, default=1e2,
-                        help="Specify end time for a PSD")
+                        help="End time for a PSD/FFT/Spec")
 
-    parser.add_argument('--sMeanRemoval', metavar='N', type=int, default=2,
-                        help="For use with PSD. 0 = No mean removal, 1 = Rolling mean removal, 2 = Total mean removal")
+    meanRemovalTypes = ["none", "roll", "total"]
+    parser.add_argument('--sMeanRemoval', metavar='TYPE', type=str.lower, default="total", choices= meanRemovalTypes,
+                        help="Mean removal for PSD/FFT/Spec. None = No mean removal, Roll = Rolling mean removal, Total = Total mean removal")
 
     parser.add_argument('--sNoCal', action="store_true",
-                        help="Set to disregard calibration on PSD")
+                        help="Set to disregard calibration on for PSD/FFT/Spec")
 
     parser.add_argument('--sWindow', metavar='N', type=int,
-                        help="Set to use welch's method PSD with N point window")
+                        help="Window size for PSD/Spec")
 
     args = parser.parse_args()
+    args = vars(args)
 
-    app = ViewerApp(**vars(args))
+    args['sMeanRemoval'] = meanRemovalTypes.index(args['sMeanRemoval'])
+
+
+    app = ViewerApp(**args)
     app.MainLoop()

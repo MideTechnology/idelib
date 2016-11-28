@@ -528,8 +528,8 @@ class ExportDialog(sc.SizedDialog):
     def makeSettings(cls, *args, **kwargs):
         initSettings = kwargs["initSettings"]
         root = kwargs['root']
+        import time
         while root.dataset.loading:
-            import time
             time.sleep(1)
         time.sleep(1)
         channelName = kwargs.pop('channel', 'adc').lower()
@@ -890,6 +890,7 @@ class PSDExportDialog(FFTExportDialog):
         result['useWelch'] = initSettings["useWelch"]
         return result
 
+
     def OnWelchChecked(self, evt):
         """ Handle the 'use windowed' checkbox changing. Can also be called
             manually with either `True` or `False` to explicitly enable/disable
@@ -988,6 +989,19 @@ class SpectrogramExportDialog(FFTExportDialog):
             return None
         events = subchannels[0].getSession(self.root.session.sessionId)
         return events.getSampleRate()
+
+
+    @classmethod
+    def makeSettings(cls, *args, **kwargs):
+        initSettings = kwargs["initSettings"]
+        result = super(SpectrogramExportDialog, cls).makeSettings(*args, **kwargs)
+        try:
+            result['slicesPerSec'] = int(initSettings["windowSize"])
+        except:
+            result['slicesPerSec'] = 2**14
+
+        result['useWelch'] = initSettings["useWelch"]
+        return result
 
 
     def getSettings(self):
