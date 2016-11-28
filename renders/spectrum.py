@@ -64,6 +64,8 @@ from collections import Iterable
 
 import numpy as np
 
+# The fftw code included here works, but shows no compelling improvement 
+# over what exists. Re-evaluate if we decide to stop padding data
 #try:
 #    from pyfftw.builders import rfft
 #except ImportError:

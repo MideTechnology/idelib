@@ -655,6 +655,7 @@ class FFTView(wx.Frame, MenuMixin):
             @keyword cols: The number of columns (channels) in the set; a
                 default if the dataset does not contain multiple columns.
             @keyword fs: Frequency of sample, i.e. the sample rate (Hz)
+            @keyword forPsd: Return just PSD, without 2/rows gain
             @return: A multidimensional array, with the first column the
                 frequency.
         """
@@ -1555,7 +1556,6 @@ class PSDView(FFTView):
 
         super(PSDView, self).__init__(*args, **kwargs)
 
-#        if not self.useWelch:
         sourceUnits = self.subchannels[0].units[1]
         if sourceUnits:
             self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits

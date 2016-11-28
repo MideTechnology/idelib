@@ -526,6 +526,8 @@ class ExportDialog(sc.SizedDialog):
 
     @classmethod
     def makeSettings(cls, *args, **kwargs):
+        """ Create a settings dict based on an input from initSettings
+        """
         initSettings = kwargs["initSettings"]
         root = kwargs['root']
         import time
@@ -880,6 +882,8 @@ class PSDExportDialog(FFTExportDialog):
 
     @classmethod
     def makeSettings(cls, *args, **kwargs):
+        """ Create a settings dict based on an input from initSettings
+        """
         result = super(PSDExportDialog, cls).makeSettings(*args, **kwargs)
         initSettings = kwargs["initSettings"]
         try:
@@ -993,6 +997,8 @@ class SpectrogramExportDialog(FFTExportDialog):
 
     @classmethod
     def makeSettings(cls, *args, **kwargs):
+        """ Create a settings dict based on an input from initSettings
+        """
         initSettings = kwargs["initSettings"]
         result = super(SpectrogramExportDialog, cls).makeSettings(*args, **kwargs)
         try:

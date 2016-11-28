@@ -2477,6 +2477,9 @@ class ViewerApp(wx.App):
 
     @staticmethod
     def translateCommandLineSettings(*args, **kwargs):
+        """ Translates settings from the argparse name to the internal name. 
+            Make sure every setting is present
+        """
         settingDict = {
             "sStartT" : "startTime",
             "sEndT" : "stopTime",
