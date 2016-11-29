@@ -16,7 +16,7 @@ import os.path
 import sys
 import time
 
-import numpy as np; np=np
+import numpy as np
 from numpy.core import hstack, vstack
 #from pyfftw.builders import rfft
 
