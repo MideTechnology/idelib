@@ -171,9 +171,9 @@ class ExportDialog(sc.SizedDialog):
         self.rangeMsg = wx.StaticText(rangePane, 0)
 
         wx.StaticLine(pane, -1).SetSizerProps(expand=True)
-        
+
         self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
-             self.removeMean, tooltip="Subtract a the mean from the data. "
+             default=self.removeMean, tooltip="Subtract a the mean from the data. "
                                       "Not applicable to all channels.")
 
         self.noBivariatesCheck, _ = self._addCheck("Disable Bivariate References",
@@ -217,7 +217,7 @@ class ExportDialog(sc.SizedDialog):
         scaledRange = self.range[0] * self.scalar, self.range[1] * self.scalar
         visStart, visEnd = self.root.getVisibleRange()
         scaledVisRange = visStart * self.scalar, visEnd * self.scalar
-        
+
         self.rangeStartT.SetValue(str(scaledVisRange[0]))
         self.rangeEndT.SetValue(str(scaledVisRange[1]))
         self.rangeBtns[0].SetLabel("All %s" % self._formatRange(scaledRange))
@@ -347,8 +347,8 @@ class ExportDialog(sc.SizedDialog):
         else:
             # All (presumably)
             return self.range
-        
-    
+
+
     def getSettings(self):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
@@ -523,7 +523,54 @@ class ExportDialog(sc.SizedDialog):
     #===========================================================================
     # 
     #===========================================================================
-    
+
+    @classmethod
+    def makeSettings(cls, *args, **kwargs):
+        """ Create a settings dict based on an input from initSettings
+        """
+        initSettings = kwargs["initSettings"]
+        root = kwargs['root']
+        import time
+        while root.dataset.loading:
+            time.sleep(1)
+        time.sleep(1)
+        channelName = kwargs.pop('channel', 'adc').lower()
+        for key, channelCheck in root.dataset.channels.iteritems():
+            if channelCheck.displayName.lower() == channelName:
+                channels = channelCheck.children
+                break
+        source = channels[0].parent.getSession(root.session.sessionId)
+        try:
+            startTime = float(initSettings["startTime"])
+        except:
+            startTime = -1
+        try:
+            stopTime = float(initSettings["stopTime"])
+        except:
+            stopTime = 100
+        stopTime *= 1e6
+        startIdx, stopIdx = source.getRangeIndices(startTime, stopTime)
+        callbackInt = wx.GetApp().getPref('exportCallbackInterval', 0.0005)
+        try:
+            removeMean = int(initSettings["removeMean"])
+            if not 0 <= removeMean <= 2:
+                raise
+        except:
+            removeMean = 2
+        noBivariatesCheck = initSettings.get("noBivariatesCheck", False)
+        channels.sort(key=lambda x: x.name)
+        return {'startTime': startTime,
+                'endTime': stopTime,
+                'start': startIdx,
+                'stop': stopIdx,
+                'subchannels': channels,
+                'numRows': stopIdx - startIdx,
+                'removeMean': removeMean,
+                'source': source,
+                'callbackInterval': callbackInt,
+                'noBivariates': noBivariatesCheck
+                }
+
     @classmethod
     def getExport(cls, *args, **kwargs):
         """ Display the export settings dialog and return the results. Standard
@@ -539,6 +586,10 @@ class ExportDialog(sc.SizedDialog):
             @return: A dictionary of settings or `None`
         """
 #         title = kwargs.setdefault('title', cls.DEFAULT_TITLE)
+        initSettings = kwargs.pop("initSettings", False)
+        if initSettings:
+            return cls.makeSettings(initSettings=initSettings, *args, **kwargs)
+
         root = kwargs['root']
         parent = root if isinstance(root, wx.Window) else None
         warnSlow = kwargs.pop('warnSlow', True)
@@ -550,7 +601,7 @@ class ExportDialog(sc.SizedDialog):
         numRows = dialog.getEventCount()
         title = dialog.GetTitle()
         dialog.Destroy()
-        
+
         if result == wx.ID_CANCEL or settings is None:
             return None
 
@@ -828,7 +879,22 @@ class PSDExportDialog(FFTExportDialog):
             tooltip="The size of the 'window' (in samples) used in Welch's method")
         self.welchCheck.Bind(wx.EVT_CHECKBOX, self.OnWelchChecked)
 
-        
+
+    @classmethod
+    def makeSettings(cls, *args, **kwargs):
+        """ Create a settings dict based on an input from initSettings
+        """
+        result = super(PSDExportDialog, cls).makeSettings(*args, **kwargs)
+        initSettings = kwargs["initSettings"]
+        try:
+            result['windowSize'] = int(initSettings["windowSize"])
+        except:
+            result['windowSize'] = 2**14
+
+        result['useWelch'] = initSettings["useWelch"]
+        return result
+
+
     def OnWelchChecked(self, evt):
         """ Handle the 'use windowed' checkbox changing. Can also be called
             manually with either `True` or `False` to explicitly enable/disable
@@ -867,7 +933,7 @@ class PSDExportDialog(FFTExportDialog):
             @return: A dictionary of settings or `None` if there's a problem
                 (e.g. no channels have been selected).
         """
-        result = super(FFTExportDialog, self).getSettings()
+        result = super(PSDExportDialog, self).getSettings()
         if result is None:
             return None
         
@@ -927,6 +993,21 @@ class SpectrogramExportDialog(FFTExportDialog):
             return None
         events = subchannels[0].getSession(self.root.session.sessionId)
         return events.getSampleRate()
+
+
+    @classmethod
+    def makeSettings(cls, *args, **kwargs):
+        """ Create a settings dict based on an input from initSettings
+        """
+        initSettings = kwargs["initSettings"]
+        result = super(SpectrogramExportDialog, cls).makeSettings(*args, **kwargs)
+        try:
+            result['slicesPerSec'] = int(initSettings["windowSize"])
+        except:
+            result['slicesPerSec'] = 2**14
+
+        result['useWelch'] = initSettings["useWelch"]
+        return result
 
 
     def getSettings(self):

@@ -16,8 +16,9 @@ import os.path
 import sys
 import time
 
-import numpy as np; np=np
+import numpy as np
 from numpy.core import hstack, vstack
+#from pyfftw.builders import rfft
 
 # from wx.lib.plot import PolyLine, PlotGraphics, PlotCanvas
 from wx_lib_plot import PolyLine, PlotGraphics, PlotCanvas
@@ -271,7 +272,11 @@ class FFTView(wx.Frame, MenuMixin):
         self.indexRange = kwargs.pop('start', 0), kwargs.pop('stop', -1)
         self.numRows = kwargs.pop('numRows')
         self.noBivariates = kwargs.pop('noBivariates', False)
-        
+        self.useWelch = kwargs.pop('useWelch', False)
+        if self.useWelch:
+            self.NAME = self.TITLE_NAME = "Windowed PSD"
+
+
         # Callback. Not currently used.
         self.callback = kwargs.pop('callback', None)
         self.callbackInterval = kwargs.pop('callbackInterval', 0.0005)
@@ -392,9 +397,9 @@ class FFTView(wx.Frame, MenuMixin):
                 # BUG: Calculation of actual sample rate is wrong. Investigate.
     #             fs = (channel[stop][-2]-channel[start][-2]) / ((stop-start) + 0.0)
                 fs = self.source.getSampleRate()
-                self.data = self.generateData(data, rows=stop-start, 
+                self.data = self.generateData(data, rows=stop-start,
                                               cols=len(self.subchannels), fs=fs, 
-                                              sliceSize=self.sliceSize)
+                                              sliceSize=self.sliceSize, useWelch=self.useWelch)
                 
             if self.data is not None:
                 self.makeLineList()
@@ -532,8 +537,8 @@ class FFTView(wx.Frame, MenuMixin):
         if rows is None:
             if hasattr(data, '__len__'):
                 rows = len(data)
-        
-        # Build a 2D array. Numpy's `fromiter()` is 1D, but there's probably a 
+
+        # Build a 2D array. Numpy's `fromiter()` is 1D, but there's probably a
         # better way to do this.
         dataIter = iter(data)
         row1 = dataIter.next()
@@ -542,7 +547,7 @@ class FFTView(wx.Frame, MenuMixin):
 #         print "shape=",rows,cols
         points = np.zeros(shape=(rows,cols), dtype=float)
         points[0,:] = row1
-        
+
         for i, row in enumerate(dataIter,1):
             if abortEvent is not None and abortEvent():
                 break
@@ -551,7 +556,7 @@ class FFTView(wx.Frame, MenuMixin):
                 points[i,:] = row
             except IndexError:
                 break
-    
+
         return points
     
     
@@ -635,47 +640,58 @@ class FFTView(wx.Frame, MenuMixin):
 #         return fftData
 
     @classmethod
-    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
-                     abortEvent=None):
+    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2 ** 16,
+                     abortEvent=None, forPsd=False, useWelch=False):
         """ Compute 1D FFT from one or more channels of data.
-        
+
             @note: This is the implementation from the old viewer and does not
-                scale well to massive datasets. This *will* run of of memory; 
+                scale well to massive datasets. This *will* run of of memory;
                 the exact number of samples/RAM has yet to be determined.
-                
+
             @param data: An iterable collection of event values (no times!). The
                 data can have one or more channels (e.g. accelerometer X or XYZ
                 together). This can be an iterator, generator, or array.
             @keyword rows: The number of rows (samples) in the set, if known.
-            @keyword cols: The number of columns (channels) in the set; a 
+            @keyword cols: The number of columns (channels) in the set; a
                 default if the dataset does not contain multiple columns.
             @keyword fs: Frequency of sample, i.e. the sample rate (Hz)
-            @return: A multidimensional array, with the first column the 
+            @keyword forPsd: Return just PSD, without 2/rows gain
+            @return: A multidimensional array, with the first column the
                 frequency.
         """
         points = cls.from2diter(data, rows, cols, abortEvent=abortEvent)
         rows, cols = points.shape
         NFFT = nextPow2(rows)
-        
+
         # Create frequency range (first column)
         fftData = np.arange(0, NFFT/2.0 + 1) * (fs/float(NFFT))
         fftData = fftData.reshape(-1,1)
-        
+
 #         print "rows: %s\tNFFT=%s" % (rows, NFFT)
         for i in xrange(cols):
             if abortEvent is not None and abortEvent():
-                return 
-            
-            tmp_fft = 2*abs(np.fft.fft(points[:,i], NFFT)/rows)[:NFFT/2+1]
+                return
+
+#            fft_obj = rfft(points[:,i], NFFT, planner_effort='FFTW_ESTIMATE')
+#            if forPsd:
+#                tmp_fft = abs(fft_obj()[:NFFT/2+1])
+#            else:
+#                tmp_fft = 2*abs(fft_obj()[:NFFT/2+1])/rows
+
+            if forPsd:
+                tmp_fft = abs(np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])
+            else:
+                tmp_fft = 2*abs(np.fft.fft(points[:,i], NFFT)[:NFFT/2+1])/rows
+
             fftData = hstack((fftData, tmp_fft.reshape(-1,1)))
-            
-            # Remove huge DC component from displayed data; so data of interest 
+
+            # Remove huge DC component from displayed data; so data of interest
             # can be seen after auto axis fitting
             thisCol = i+1
             fftData[0,thisCol] = 0.0
             fftData[1,thisCol] = 0.0
             fftData[2,thisCol] = 0.0
-        
+
         return fftData
 
 
@@ -1537,22 +1553,18 @@ class PSDView(FFTView):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('logarithmic', (True, True))
         kwargs.setdefault('yUnits', self.yUnits)
-        
-        # XXX: TEST
-        self.useWelch = kwargs.pop('useWelch', False)
-        
+
         super(PSDView, self).__init__(*args, **kwargs)
-        
-        if not self.useWelch:
-            sourceUnits = self.subchannels[0].units[1]
-            if sourceUnits:
-                self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits
+
+        sourceUnits = self.subchannels[0].units[1]
+        if sourceUnits:
+            self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits
             
         self.formatter = '%E'
 
-
-    def generateData(self, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
-                     abortEvent=None):
+    @classmethod
+    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16,
+                     abortEvent=None, useWelch=False):
         """ Compute 1D FFT from one or more channels of data.
         
             @note: This is the implementation from the old viewer and does not
@@ -1569,13 +1581,13 @@ class PSDView(FFTView):
             @return: A multidimensional array, with the first column the 
                 frequency.
         """
-        if self.useWelch:
+        if useWelch:
             logger.info("Calculating PSD using Welch's Method")
-            points = self.from2diter(data, rows, cols, abortEvent=abortEvent)
+            points = cls.from2diter(data, rows, cols, abortEvent=abortEvent)
             rows, cols = points.shape
             NFFT = nextPow2(sliceSize)
             logger.info("PSD calculation: NFFT = %s" % NFFT)
-               
+
             fftData = None
             for i in xrange(cols):
                 if abortEvent is not None and abortEvent():
@@ -1597,9 +1609,20 @@ class PSDView(FFTView):
 
         logger.info("Calculating PSD using regular FFT function")
 
-        fftData = FFTView.generateData(data, rows=rows, cols=cols, fs=fs, sliceSize=sliceSize, 
-                     abortEvent=abortEvent)
-        fftData[:,1:] = np.square(fftData[:,1:])/fftData[1,0]
+        fftData = FFTView.generateData(data, rows=rows, cols=cols, fs=fs, sliceSize=sliceSize,
+                     abortEvent=abortEvent, forPsd=True)
+        if rows is None:
+            if hasattr(fftData, '__len__'):
+#                logger.info("PSD generateData: Using len of fftData")
+                rows = len(fftData)
+            else:
+#                logger.info("PSD generateData: Problem! Setting sample length")
+                rows = 1                        # PJS: Really this is an error...
+#        else:
+#            logger.info("PSD generateData: Row input for size")
+
+        fftData[:,1:] = np.square(fftData[:,1:])*2/(fs*rows)
+#        fftData[:,1:] = np.square(fftData[:,1:])/fftData[1,0]
         return fftData
         
 

@@ -63,6 +63,14 @@ from __future__ import division
 from collections import Iterable
 
 import numpy as np
+
+# The fftw code included here works, but shows no compelling improvement 
+# over what exists. Re-evaluate if we decide to stop padding data
+#try:
+#    from pyfftw.builders import rfft
+#except ImportError:
+#    raise ImportError("mide_ebml.fft requires pyfftw")
+
 ma = np.ma
 
 from common import nextPow2
@@ -183,6 +191,8 @@ def x_spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
         
         thisX = x[ind[i]:ind[i]+NFFT]
         thisX = windowVals * detrend(thisX)
+#        fft_obj = rfft(thisX, n=pad_to)
+#        fx = fft_obj()
         fx = np.fft.fft(thisX, n=pad_to)
 
         if same_data:
@@ -190,6 +200,8 @@ def x_spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
         else:
             thisY = y[ind[i]:ind[i]+NFFT]
             thisY = windowVals * detrend(thisY)
+#            fft_obj = rfft(thisY, n=pad_to)
+#            fy = fft_obj()
             fy = np.fft.fft(thisY, n=pad_to)
         #Pxy[:,i] = np.conjugate(fx[:numFreqs]) * fy[:numFreqs]
         Pxy[:,i] = np.sqrt(np.conjugate(fx[:numFreqs]) * fy[:numFreqs])
@@ -284,6 +296,8 @@ def _spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
     for i in range(n):
         thisX = x[ind[i]:ind[i]+NFFT]
         thisX = windowVals * detrend(thisX)
+#        fft_obj = rfft(thisX, n=pad_to)
+#        fx = fft_obj()
         fx = np.fft.fft(thisX, n=pad_to)
 
         if same_data:
@@ -291,6 +305,8 @@ def _spectral_helper(x, y, NFFT=256, Fs=2, detrend=detrend_none,
         else:
             thisY = y[ind[i]:ind[i]+NFFT]
             thisY = windowVals * detrend(thisY)
+#            fft_obj = rfft(thisY, n=pad_to)
+#            fy = fft_obj()
             fy = np.fft.fft(thisY, n=pad_to)
         Pxy[:,i] = np.conjugate(fx[:numFreqs]) * fy[:numFreqs]
 

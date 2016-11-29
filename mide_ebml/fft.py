@@ -12,6 +12,12 @@ try:
 except ImportError:
     raise ImportError("mide_ebml.fft requires Numpy")
 
+#try:
+#    from pyfft.builders import rfft
+#except ImportError:
+#    raise ImportError("mide_ebml.fft requires pyfftw")
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -36,6 +42,8 @@ def rfft(events, length=None):
         length = len(events)
     # http://mail.scipy.org/pipermail/numpy-discussion/2007-August/028898.html
     i = np.fromiter((e[-1] for e in events), float, count=length)
+#    fft_obj = rfft(i)
+#    return fft_obj()
     return np.fft.rfft(i)
 
 #===============================================================================
@@ -138,6 +146,8 @@ class FFTList(object):
     def rfft(self, events):
         """ Simple real FFT. Copied here for reference. Remove me. """
         i = np.fromiter((e[-1] for e in events), float, count=len(events))
+#        fft_obj = rfft(i)
+#        return fft_obj()
         return np.fft.rfft(i)
     
     
@@ -168,6 +178,8 @@ class FFTList(object):
             if len(vals) < windowSize:
                 vals.resize(windowSize)
             thisWindowVals = self.detrend(vals) * window
+#            fft_obj = rfft(thisWindowVals, n=windowSize)
+#            result[:, col] = fft_obj()[:numFreqs]
             result[:, col] = np.fft.fft(thisWindowVals, n=windowSize)[:numFreqs]
             col += 1
             if col == numSubsamples:
