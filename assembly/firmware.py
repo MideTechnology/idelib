@@ -3,7 +3,7 @@ Created on Sep 25, 2014
 
 @author: dstokes
 '''
-from collections import Sequence
+# from collections import Sequence
 from datetime import datetime
 import io
 import os
