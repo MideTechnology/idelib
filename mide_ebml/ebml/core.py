@@ -52,6 +52,8 @@ def maximum_element_size_for_length(length):
 
 
 def decode_vint_length(byte):
+	"""
+	"""
 	# The brute force version. 370% faster on average.
 	if byte >= 128:
 		return 1, byte & 0b1111111
@@ -70,7 +72,9 @@ def decode_vint_length(byte):
 	return 8, 0
 
 
-def decode_vint_length_unmasked(byte):
+def decode_id_length(byte):
+	"""
+	"""
 	if byte >= 128:
 		return 1, byte
 	if byte >= 64:
@@ -79,14 +83,9 @@ def decode_vint_length_unmasked(byte):
 		return 3, byte
 	if byte >= 16:
 		return 4, byte
-	if byte >= 8:
-		return 5, byte
-	if byte >= 4:
-		return 6, byte
-	if byte >= 2:
-		return 7, byte
-	return 8, 0
-
+	
+	length, _ = decode_vint_length(byte)
+	raise IOError('Invalid length for ID: %d' % length)
 	
 
 def read_element_id(stream):
@@ -101,14 +100,8 @@ def read_element_id(stream):
 	"""
 	ch = stream.read(1)
 	byte = ord(ch)
-# 	length, id_ = decode_vint_length(byte, False)
-	length, id_ = decode_vint_length_unmasked(byte)
-	if length > 4:
-		raise IOError('Cannot decode element ID with length > 8.')
+	length, id_ = decode_id_length(byte)
 	if length > 1:
-# 		for i in stream.read(length - 1):
-# 			byte = ord(i)
-# 			id_ = (id_ * 256) + byte
 		id_ = _struct_uint32.unpack((ch + stream.read(length-1)).rjust(4,'\x00'))[0]
 	return id_, length
 
@@ -128,10 +121,8 @@ def read_element_size(stream):
 	length, size = decode_vint_length(byte)
 	
 	if length > 1:
-# 		for i in stream.read(length - 1):
-# 			byte = ord(i)
-# 			size = (size * 256) + byte
-		size = _struct_uint64.unpack((chr(size) + stream.read(length-1)).rjust(8,'\x00'))[0]
+		size = _struct_uint64.unpack((chr(size) + 
+									stream.read(length-1)).rjust(8,'\x00'))[0]
 	
 	if size == maximum_element_size_for_length(length) + 1:
 		size = None
