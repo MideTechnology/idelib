@@ -28,6 +28,14 @@ MAXIMUM_UNSIGNED_INTEGER_LENGTH = 8
 MAXIMUM_SIGNED_INTEGER_LENGTH = 8
 
 
+_struct_uint32 = struct.Struct(">I")
+_struct_uint64 = struct.Struct(">Q")
+_struct_int64 = struct.Struct(">q")
+_struct_float32 = struct.Struct(">f")
+_struct_float64 = struct.Struct(">d")
+
+
+
 def maximum_element_size_for_length(length):
 	"""
 	
@@ -43,21 +51,43 @@ def maximum_element_size_for_length(length):
 	return (2**(7*length)) - 2
 
 
-def decode_vint_length(byte, mask=True):
-	length = None
-	value_mask = None
-	for n in xrange(1, 9):
-		x = 2**(8 - n)
-		if byte & (256 - (x)) == x:
-			length = n
-			value_mask = (x) - 1
-			break
-	if length is None:
-		raise IOError('Cannot decode invalid varible-length integer.')
-	if mask:
-		byte = byte & value_mask
-	return length, byte
+def decode_vint_length(byte):
+	# The brute force version. 370% faster on average.
+	if byte >= 128:
+		return 1, byte & 0b1111111
+	if byte >= 64:
+		return 2, byte & 0b111111
+	if byte >= 32:
+		return 3, byte & 0b11111
+	if byte >= 16:
+		return 4, byte & 0b1111
+	if byte >= 8:
+		return 5, byte & 0b111
+	if byte >= 4:
+		return 6, byte & 0b11
+	if byte >= 2:
+		return 7, byte & 0b1
+	return 8, 0
 
+
+def decode_vint_length_unmasked(byte):
+	if byte >= 128:
+		return 1, byte
+	if byte >= 64:
+		return 2, byte
+	if byte >= 32:
+		return 3, byte
+	if byte >= 16:
+		return 4, byte
+	if byte >= 8:
+		return 5, byte
+	if byte >= 4:
+		return 6, byte
+	if byte >= 2:
+		return 7, byte
+	return 8, 0
+
+	
 
 def read_element_id(stream):
 	"""
@@ -69,18 +99,17 @@ def read_element_id(stream):
 	:rtype: tuple
 	
 	"""
-	
-	byte = ord(stream.read(1))
-	length, id_ = decode_vint_length(byte, False)
+	ch = stream.read(1)
+	byte = ord(ch)
+# 	length, id_ = decode_vint_length(byte, False)
+	length, id_ = decode_vint_length_unmasked(byte)
 	if length > 4:
 		raise IOError('Cannot decode element ID with length > 8.')
-# 	for i in xrange(0, length - 1):
-# 		byte = ord(stream.read(1))
-# 		id_ = (id_ * 256) + byte
 	if length > 1:
-		for i in stream.read(length - 1):
-			byte = ord(i)
-			id_ = (id_ * 256) + byte
+# 		for i in stream.read(length - 1):
+# 			byte = ord(i)
+# 			id_ = (id_ * 256) + byte
+		id_ = _struct_uint32.unpack((ch + stream.read(length-1)).rjust(4,'\x00'))[0]
 	return id_, length
 
 
@@ -94,17 +123,15 @@ def read_element_size(stream):
 	:rtype: tuple
 	
 	"""
-	
-	byte = ord(stream.read(1))
+	ch = stream.read(1)
+	byte = ord(ch)
 	length, size = decode_vint_length(byte)
 	
-# 	for i in xrange(0, length - 1):
-# 		byte = ord(stream.read(1))
-# 		size = (size * 256) + byte
 	if length > 1:
-		for i in stream.read(length - 1):
-			byte = ord(i)
-			size = (size * 256) + byte
+# 		for i in stream.read(length - 1):
+# 			byte = ord(i)
+# 			size = (size * 256) + byte
+		size = _struct_uint64.unpack((chr(size) + stream.read(length-1)).rjust(8,'\x00'))[0]
 	
 	if size == maximum_element_size_for_length(length) + 1:
 		size = None
@@ -124,16 +151,11 @@ def read_unsigned_integer(stream, size):
 	:rtype: int
 	
 	"""
-	
-	value = 0
-# 	for i in xrange(0, size):
-# 		byte = ord(stream.read(1))
-# 		value = (value * 256) | byte
-	if size > 0:
-		for i in stream.read(size):
-			byte = ord(i)
-			value = (value * 256) | byte
-	return value
+
+	if size == 0:
+		return 0
+	data = stream.read(size)
+	return _struct_uint64.unpack_from(data.rjust(_struct_uint64.size,'\x00'))[0]
 
 
 def read_signed_integer(stream, size):
@@ -148,20 +170,12 @@ def read_signed_integer(stream, size):
 	:rtype: int
 	
 	"""
-	
-	value = 0
-	if size > 0:
-		first_byte = ord(stream.read(1))
-		value = first_byte
-# 		for i in xrange(1, size):
-# 			byte = ord(stream.read(1))
-# 			value = (value * 256) | byte
-		for i in stream.read(size):
-			byte = ord(i)
-			value = (value * 256) | byte
-		if (first_byte & 0b10000000) == 0b10000000:
-			value = -(2**(size*8) - value)
-	return value
+
+	if size == 0:
+		return 0
+	data = stream.read(size)
+	return _struct_uint64.unpack_from(data.rjust(_struct_int64.size,'\x00'))[0]
+
 
 
 def read_float(stream, size):
@@ -176,18 +190,17 @@ def read_float(stream, size):
 	:rtype: float
 	
 	"""
-	
-	if size not in (0, 4, 8):
-		raise IOError('Cannot read floating point values with lengths other than 0, 4, or 8 bytes.')
-	value = 0.0
-	if size in (4, 8):
-		data = stream.read(size)
-		value = struct.unpack({
-			4: '>f',
-			8: '>d'
-		}[size], data)[0]
-	return value
 
+	if size == 4:
+		return _struct_float32.unpack(stream.read(size))[0]
+	if size == 8:
+		return _struct_float64.unpack(stream.read(size))[0]
+	if size == 0:
+		return 0.0
+	
+	raise IOError('Cannot read floating point values with lengths other than 0, 4, or 8 bytes.')
+		
+	
 
 def read_string(stream, size):
 	"""
@@ -202,10 +215,11 @@ def read_string(stream, size):
 	
 	"""
 	
-	value = ''
-	if size > 0:
-		value = stream.read(size)
-		value = value.partition(chr(0))[0]
+	if size == 0:
+		return ''
+	
+	value = stream.read(size)
+	value = value.partition(chr(0))[0]
 	return value
 
 
@@ -222,12 +236,12 @@ def read_unicode_string(stream, size):
 	
 	"""
 	
-	value = u''
-	if size > 0:
-		data = stream.read(size)
-		data = data.partition(chr(0))[0]
-		value = unicode(data, 'utf_8')
-	return value
+	if size == 0:
+		return u''
+	
+	data = stream.read(size)
+	data = data.partition(chr(0))[0]
+	return unicode(data, 'utf_8')
 
 
 def read_date(stream, size):
@@ -479,7 +493,7 @@ def encode_string(string, length=None):
 		if length < len(string):
 			raise ValueError('Cannot encode ASCII string value \'%s\' as it would have an encoded representation longer than %i bytes.' % (string, length))
 		elif length > len(string):
-			for i in xrange(0, (length - len(string))):
+			for _i in xrange(0, (length - len(string))):
 				string += chr(0)
 	
 	return bytearray(string)
