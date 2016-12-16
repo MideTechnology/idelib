@@ -1371,6 +1371,7 @@ class Viewer(wx.Frame, MenuMixin):
                                      maximum=numRows*len(subchannels), 
                                      parent=self)
         
+        settings['subchannels'] = subchannels
         settings['callback'] = dlg
         settings['raiseExceptions'] = True
         settings.setdefault('display', True)
