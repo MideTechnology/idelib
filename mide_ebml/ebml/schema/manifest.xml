@@ -134,6 +134,8 @@ default="123" or a text value that may or may not be the name of another tag
 		<element name="DigitalSensorADXL362" level="1" id="0x4D90" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of an ADXL362 on the SPI bus.</element>
 		<element name="DigitalSensorADXL345" level="1" id="0x4D91" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of an ADXL345 on the SPI bus.</element>
 		<element name="DigitalSensorADXL375" level="1" id="0x4D92" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of an ADXL375 on the SPI bus.</element>
+		<!-- IMU inputs -->
+		<element name="DigitalSensorBNO055" level="1" id="0x4D93" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a GPS with full data (location) broken out on UART.</element>
 		<!-- Digital pressure/other sensors -->
 		<element name="DigitalSensorMPL3115A2" level="1" id="0x4DA0" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of an MPL3115A2 on the I2C bus.</element>
 		<!-- Timing/Sync inputs -->

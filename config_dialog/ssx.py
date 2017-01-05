@@ -777,7 +777,7 @@ class CalibrationPanel(InfoPanel):
                         calType = "%s; references %s" % (calType, _chName(self.channels[cal.channelId][cal.subchannelId]))
                     else:
                         calType = "%s; references %s" % (calType, _chName(self.channels[cal.channelId]))
-                except (IndexError, AttributeError):
+                except (IndexError, AttributeError, KeyError):
                     pass
             self.html.append('<ul>')
             self.html.append('<li>%s</li>' % calType)
