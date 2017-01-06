@@ -137,6 +137,8 @@ def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev,
                       device_accel_sn, partnum):
     """
     """
+    if isinstance(device_accel_sn, list):
+        device_accel_sn = " ".join(device_accel_sn)
     data = map(str, (time.asctime(), 
                      int(time.mktime(time.gmtime())), 
                      chipid, 
@@ -487,7 +489,8 @@ def splitSerialNumbers(sn):
         # None or empty string
         return []
     elif isinstance(sn, basestring):
-        nums = [n.strip() for n in sn.split(',')]
+        sn = sn.replace(',',' ').strip()
+        nums = [n.strip() for n in sn.split(' ')]
     elif isinstance(sn, Sequence):
         nums = map(str, sn)
     else:
@@ -495,7 +498,41 @@ def splitSerialNumbers(sn):
     
     return nums
         
-    
+
+#===============================================================================
+# 
+#===============================================================================
+
+def getSerialPrefix(partNum):
+    # TODO: Implement better means of getting serial number prefix
+    try:
+        if "LOG-0002" in partNum:
+            return "SSX"
+        if "LOG-0003" in partNum:
+            return "SSC"
+        if "LOG-0004" in partNum:
+            return "SSS"
+    except TypeError:
+        pass
+    print "Unknown part number: %r" % partNum
+    return "SSX"
+
+
+def getNewVolumeLabel(partNum):
+    # TODO: Implement better means of getting serial number prefix
+    try:
+        if "LOG-0002" in partNum:
+            return "SlamStick X"
+        if "LOG-0003" in partNum:
+            return "SlamStick C"
+        if "LOG-0004" in partNum:
+            return "SlamStick S"
+    except TypeError:
+        pass
+    print "Unknown part number: %r" % partNum
+    return "SSX"
+
+
 #===============================================================================
 # 
 #===============================================================================

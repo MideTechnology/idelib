@@ -119,7 +119,7 @@ import firmware
 import jig_birther
 import ssx_namer
 
-from birth_utils import errMsg, changeFilename
+from birth_utils import errMsg, changeFilename, getSerialPrefix
 
 #===============================================================================
 # Helper functions
@@ -184,6 +184,7 @@ def getPartNumber(default=None):
     p = utils.getNumber(prompt, dataType=int, minmax=(0, len(dirs)-1), default=default)
     return dirs[p]
 
+
 def getHardwareRevs(partNum, default=None):
     """ Get a list of all known Hardware Revisions. """
     revs = filter(os.path.isdir, glob(os.path.join(TEMPLATE_PATH, partNum, '*')))
@@ -197,6 +198,7 @@ def getHardwareRevs(partNum, default=None):
     if len(result) == 0:
         raise ValueError("Found no hardware rev dirs for %r!" % partNum)
     return result
+
 
 def getHardwareRev(partNum, default=None):
     """ Prompt the user for a Hardware Revision number. """
@@ -213,19 +215,23 @@ def getHardwareRev(partNum, default=None):
     except TypeError:
         return None
 
+
 def getFirmwareRevs(partNum):
     """ Get a list of all known Firmware Revisions. """
     # There's only one:
     return [utils.readFileLine(APP_VER_FILE)]
+
 
 def getFirmwareRev(partNum=None):
     """ Prompt the user for a Firmware Revision number. """
     # There's only one:
     return utils.readFileLine(APP_VER_FILE)
 
+
 def getBootloaderRev(partNum=None):
     """ Get the latest bootloader revision number. """
     return utils.readFileLine(BOOT_VER_FILE, dataType=str)
+
 
 def isValidAccelSerial(sn):
     """ Simple sanity-check for accelerometer serial numbers, either ####-###
@@ -326,7 +332,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     # 1. Wait for an SSX in firmware mode (getSSXSerial)
     ssxboot = firmware.getBootloaderSSX(callback=utils.spinner)
     if ssxboot is None:
-        errMsg("Failed to find bootloader SSX!")
+        errMsg("Failed to find SlamStick bootloader!")
         return
     
     # 2. Get bootloader version, chip ID from device
@@ -341,10 +347,12 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     logInfo = utils.findBirthLog(BIRTH_LOG_FILE, 'chipId', chipId)
     if logInfo:
         print "Birthing log entry for this device already exists:"
+        serPrefix = getSerialPrefix(logInfo.get('partNum', "LOG-0002"))
         for k,v in logInfo.items():
             if k in ('timestamp','rebirth', 'bootVer'):
                 continue
-            if k == 'serialNum': v = "SSX%07d" % v
+            if k == 'serialNum': 
+                v = "%s%07d" % (serPrefix, v)
             print "%s: %s" % (k.rjust(16), v)
         if utils.getYesNo("Use existing data (Y)?", default="Y") == "Y":
             serialNum = logInfo.get('serialNum', None)
@@ -407,8 +415,9 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         # In case the serial number is the print version ("SSXxxxxxxx")
         print "(Re-)Using serial number %s" % serialNum
         serialNum = int(serialNum.strip(string.ascii_letters + string.punctuation + string.whitespace))
-    
-    serialNumStr = "SSX%07d" % serialNum
+
+    # HACK: Use better means of getting the serial number prefix!
+    serialNumStr = "%s%07d" % (getSerialPrefix(partNum), serialNum)
     print "SN: %s, accelerometer SN: %s" % (serialNumStr, accelSerialNum)
         
     # 6. Create chip ID directory in product_database
@@ -490,8 +499,9 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     # 10. Reset device, immediately start autoRename
     print "Exiting bootloader..."
     ssxboot.disconnect()
-    
-    volNameFile = os.path.join(TEMPLATE_PATH, partNum, str(hwRev), 'volume_name.txt')
+
+    # TODO: Improve this    
+    volNameFile = os.path.join(TEMPLATE_PATH, partNum, 'volume_name.txt')
     volName = utils.readFileLine(volNameFile, str, default=RECORDER_NAME)
     _devPath = autoRename(volName, timeout=20)
     

@@ -84,8 +84,6 @@ class CalibrationError(ValueError):
 class XYZ(list):
     """ Helper for making arrays of XYZ less ugly. A mutable named tuple. """
 
-    names = ('x','y','z')
-
     def __init__(self, *args, **kwargs):
         if len(args) == 3:
             super(XYZ, self).__init__(args, **kwargs)
@@ -120,6 +118,7 @@ class XYZ(list):
     @z.setter
     def z(self, val):
         self[2] = val
+
 
 #===============================================================================
 #
@@ -201,6 +200,7 @@ def from2diter(data, rows=None, cols=1):
         points[i,:] = row
 
     return points
+
 
 #===============================================================================
 #
@@ -702,8 +702,11 @@ class Calibrator(object):
         systemInfo['FwRev'] = self.device.firmwareVersion
         self.productManTimestamp = systemInfo['DateOfManufacture']
 
-        sensorInfo = manifest.get('AnalogSensorInfo', {})
-        self.accelSerial = sensorInfo.get('AnalogSensorSerialNumber', None)
+        sensorInfo = manifest.get('AnalogSensorInfo', [])
+        if len(sensorInfo) > 0:
+            self.accelSerial = ' '.join([si.get('AnalogSensorSerialNumber', None) for si in sensorInfo])
+        else:
+            self.accelSerial = None
 
         self.productManDate = datetime.utcfromtimestamp(self.productManTimestamp).strftime("%m/%d/%Y")
         self.productSerialNum = self.device.serial
@@ -897,7 +900,12 @@ class Calibrator(object):
         if not isinstance(device, devices.SlamStickX):
             raise TypeError("%r is a SlamStick derivative!" % \
                             device.__class__.__name__)
-        if isinstance(device, devices.SlamStickC):
+        if isinstance(device, devices.SlamStickS):
+            if device.getAccelChannel(dc=True):
+                n = "Slam-Stick-S+DC-Calibration-template.svg"
+            else:
+                n = "Slam-Stick-S-Calibration-template.svg"
+        elif isinstance(device, devices.SlamStickC):
             n = "Slam-Stick-C-Calibration-template.svg"
         elif device.getAccelChannel(dc=True):
             n = "Slam-Stick-X+DC-Calibration-template.svg"
@@ -1216,6 +1224,9 @@ class Calibrator(object):
 
         # Z axis is flipped on the PCB. Negate.
         self.cal.z *= -1
+        if self.hasPRAccel:
+            # SSS also has X axis flipped.
+            self.cal.x *= -1
 
         # Remove the default high-g accelerometer polynomials.
         bivars = calList.get('BivariatePolynomial', [])

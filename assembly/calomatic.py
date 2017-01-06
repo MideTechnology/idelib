@@ -83,7 +83,10 @@ def copyContent(devPath, partNum=None):
         contentPath = CONTENT_PATH
     else:
         contentPath = os.path.join(DB_PATH, '_%s_Contents' % partNum[:8])
-        
+    
+    if not os.path.exists(contentPath):
+        contentPath = os.path.join(DB_PATH, "_LOG-0002_Contents")
+    
     files = filter(lambda x: not (x.startswith('.') or x == "Thumbs.db"), 
                    glob(os.path.join(contentPath, '*')))
     for c in files:
@@ -223,7 +226,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
         pass
 
     try:
-        volNameFile = os.path.join(*map(str, (TEMPLATE_PATH, birthInfo['partNum'], birthInfo['hwRev'], 'volume_name.txt')))
+        volNameFile = os.path.join(*map(str, (TEMPLATE_PATH, birthInfo['partNum'], 'volume_name.txt')))
         volName = utils.readFileLine(volNameFile, str, default=RECORDER_NAME)
     except (TypeError, KeyError, WindowsError, IOError) as err:
         volName = RECORDER_NAME
