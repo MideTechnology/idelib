@@ -25,15 +25,15 @@
    inkscape:pageopacity="0"
    inkscape:pageshadow="2"
    inkscape:window-width="1080"
-   inkscape:window-height="1858"
+   inkscape:window-height="1898"
    id="namedview219"
    showgrid="true"
    showguides="true"
    inkscape:guide-bbox="true"
-   inkscape:zoom="1.3485026"
-   inkscape:cx="420.01149"
-   inkscape:cy="632.61945"
-   inkscape:window-x="-8"
+   inkscape:zoom="1.9070707"
+   inkscape:cx="500.0739"
+   inkscape:cy="637.06759"
+   inkscape:window-x="1072"
    inkscape:window-y="-8"
    inkscape:window-maximized="1"
    inkscape:current-layer="svg3440" /><metadata
@@ -127,12 +127,13 @@
    d="m 82.2,882.72 643.025,0 0,-5.55 -643.025,0 0,5.55 z"
    id="path3466"
    style="fill:#f2f2f2;fill-opacity:1;fill-rule:evenodd;stroke:none" />
-     
+
 <text
    x="198.325"
    y="231.02499"
    id="FIELD_documentNum"
    inkscape:label="#text14"> LOG-0002-604 </text>
+
 
 
 
@@ -154,6 +155,7 @@
 
 
 
+
 <text
    x="666.875"
    y="231.02499"
@@ -163,6 +165,7 @@
    id="text_certificateNum"
    class="valueText">C00048</tspan>
 </text>
+
 
 
 
@@ -183,6 +186,7 @@
 
 
 
+
 <text
    x="435.0625"
    y="298.46082"
@@ -191,6 +195,7 @@
    id="text_referenceMan"
    class="valueText"
    style="font-size:11.25px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">ENDEVCO</tspan> </text>
+
 
 
 
@@ -213,6 +218,7 @@
 
 
 
+
 <text
    x="198.325"
    y="318.51251"
@@ -227,6 +233,7 @@
 
 
 
+
 <text
    x="435.0625"
    y="318.51251"
@@ -235,6 +242,7 @@
    id="text_refModel"
    class="valueText"
    style="font-size:11.25px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">7251A-10 /133</tspan> </text>
+
 
 
 
@@ -257,6 +265,7 @@
 
 
 
+
 <text
    x="198.325"
    y="340.26251"
@@ -265,6 +274,7 @@
    id="text_productSerial"
    class="valueText"
    style="font-size:11.25px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">SSX0000042</tspan> </text>
+
 
 
 
@@ -285,6 +295,7 @@
 
 
 
+
 <text
    x="685.72778"
    y="318.51251"
@@ -294,7 +305,8 @@
    inkscape:label="#text47"><tspan
      class="valueText"
      id="tspan13152"
-     style="font-size:11.25px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">0.0000</tspan></text>
+     style="font-size:12px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">0.0000</tspan></text>
+
 
 
 
@@ -309,6 +321,7 @@
    id="text_productPartNum"
    class="valueText"
    style="font-size:11.25px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">LOG-0002-500G</tspan> </text>
+
 
 
 
@@ -335,6 +348,7 @@
 
 
 
+
 <text
    x="198.325"
    y="383.76251"
@@ -349,14 +363,16 @@
 
 
 
+
 <text
-   x="666.875"
-   y="383.7291"
+   x="668.44812"
+   y="405.22803"
    id="FIELD_calTemp"
    inkscape:label="#text62"> <tspan
    id="text_calTemp"
    class="valueText"
    style="font-size:11.25px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">22.8</tspan> </text>
+
 
 
 
@@ -377,9 +393,10 @@
 
 
 
+
 <text
-   x="666.875"
-   y="403.84149"
+   x="668.44812"
+   y="425.34042"
    id="FIELD_calHumidity"
    inkscape:label="#text68"> <tspan
    id="text_calHumidity"
@@ -392,9 +409,10 @@
 
 
 
+
 <text
    x="596.69153"
-   y="340.26251"
+   y="361.76144"
    id="FIELD_cal_x_dc"
    style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Sans;-inkscape-font-specification:Sans"
    sodipodi:linespacing="125%"
@@ -409,15 +427,18 @@
 
 
 
+
 <text
    x="639.96936"
-   y="340.26251"
+   y="361.76144"
    id="FIELD_cal_y_dc"
    style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Sans;-inkscape-font-specification:Sans"
    sodipodi:linespacing="125%"
    inkscape:label="#text74"><tspan
-   class="valueText"
-   id="tspan13171">0.0000</tspan>  </text>
+     class="valueText"
+     id="tspan13171"
+     style="font-size:12px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">0.0000  </tspan></text>
+
 
 
 
@@ -427,13 +448,15 @@
 
 <text
    x="685.72778"
-   y="340.26251"
+   y="361.76144"
    id="FIELD_cal_z_dc"
    style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Sans;-inkscape-font-specification:Sans"
    sodipodi:linespacing="125%"
    inkscape:label="#text77"><tspan
-   class="valueText"
-   id="tspan13174">0.0000 </tspan> </text>
+     class="valueText"
+     id="tspan13174"
+     style="font-size:12px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">0.0000  </tspan></text>
+
 
 
 
@@ -454,12 +477,14 @@
 
 
 
+
 <text
    x="551.48749"
    y="231.02499"
    id="text84"><tspan
      class="labelText"
      id="tspan86">Certificate Number: </tspan></text>
+
 
 
 
@@ -479,12 +504,14 @@
 
 
 
+
 <text
    x="124.5"
    y="272.27499"
    id="text92"><tspan
      class="headerText"
      id="tspan94">Product Information</tspan></text>
+
 
 
 
@@ -504,6 +531,7 @@
 
 
 
+
 <text
    x="118.65"
    y="318.51251"
@@ -511,6 +539,7 @@
      class="labelText"
      id="tspan102"
      style="font-size:11.25px;font-variant:normal;font-weight:bolder;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial-Bold">Manufacturer:</tspan></text>
+
 
 
 
@@ -530,6 +559,7 @@
 
 
 
+
 <text
    x="122.55"
    y="362.59799"
@@ -543,6 +573,7 @@
 
 
 
+
 <text
    x="81.599998"
    y="383.76251"
@@ -550,6 +581,7 @@
      class="labelText"
      id="tspan114"
      style="font-size:11.25px;font-variant:normal;font-weight:bolder;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial-Bold">Date of Manufacture:</tspan></text>
+
 
 
 
@@ -570,12 +602,14 @@
 
 
 
+
 <text
    x="331.71249"
    y="272.27499"
    id="text120"><tspan
      class="headerText"
      id="tspan122">Reference Accelerometer</tspan></text>
+
 
 
 
@@ -595,6 +629,7 @@
 
 
 
+
 <text
    x="327.21249"
    y="318.51251"
@@ -608,6 +643,7 @@
 
 
 
+
 <text
    x="321.66251"
    y="362.59799"
@@ -615,6 +651,7 @@
      class="labelText"
      id="tspan134"
      style="font-size:11.25px;font-variant:normal;font-weight:bolder;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial-Bold">Ref N.I.S.T. Number:</tspan></text>
+
 
 
 
@@ -635,12 +672,14 @@
 
 
 
+
 <text
    x="555.23749"
    y="272.27499"
    id="text140"><tspan
      class="headerText"
      id="tspan142">Calibration Parameters</tspan></text>
+
 
 
 
@@ -661,9 +700,10 @@
 
 
 
+
 <text
-   x="590.11975"
-   y="340.26251"
+   x="591.69287"
+   y="361.76144"
    id="text148"
    style="text-align:end;text-anchor:end"><tspan
      class="labelText"
@@ -675,9 +715,10 @@
 
 
 
+
 <text
-   x="590.11975"
-   y="362.59799"
+   x="591.69287"
+   y="384.09692"
    id="text152"
    style="text-align:end;text-anchor:end"><tspan
      class="labelText"
@@ -704,9 +745,10 @@
 
 
 
+
 <text
-   x="658.77502"
-   y="383.76251"
+   x="660.34814"
+   y="405.26144"
    id="text176"><tspan
      class="labelText"
      id="tspan178"
@@ -717,9 +759,10 @@
 
 
 
+
 <text
-   x="567.08752"
-   y="383.7291"
+   x="568.66064"
+   y="405.22803"
    id="text180"><tspan
      class="labelText"
      id="tspan182"
@@ -730,9 +773,10 @@
 
 
 
+
 <text
-   x="638.65253"
-   y="383.7291"
+   x="640.22565"
+   y="405.22803"
    id="text184"><tspan
      class="valueText"
      id="tspan186"
@@ -743,9 +787,10 @@
 
 
 
+
 <text
-   x="658.77502"
-   y="383.7291"
+   x="660.34814"
+   y="405.22803"
    id="text188"><tspan
      class="labelText"
      id="tspan190"
@@ -756,9 +801,10 @@
 
 
 
+
 <text
-   x="574.13751"
-   y="403.84149"
+   x="575.71063"
+   y="425.34042"
    id="text192"><tspan
      class="labelText"
      id="tspan194"
@@ -769,9 +815,10 @@
 
 
 
+
 <text
-   x="624.77502"
-   y="403.84149"
+   x="626.34814"
+   y="425.34042"
    id="text196"><tspan
      class="valueText"
      id="tspan198"
@@ -782,13 +829,15 @@
 
 
 
+
 <text
-   x="658.77502"
-   y="403.84149"
+   x="660.34814"
+   y="425.34042"
    id="text200"><tspan
      class="labelText"
      id="tspan202"
      style="font-size:11.25px;font-variant:normal;font-weight:bolder;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial-Bold">:</tspan></text>
+
 
 
 
@@ -808,12 +857,14 @@
 
 
 
+
 <text
    x="313.69"
    y="907.62"
    id="text208"><tspan
      class="valueText"
      id="tspan210">200 Boston Avenue, Suite 1000, Medford MA 02155, U.S.A </tspan></text>
+
 
 
 
@@ -832,6 +883,7 @@
 
 
 
+
 <path
    d="m 104.76776,895.06097 0,9.13273 13.11619,0 0,-1.93349 -8.58514,0 0,-1.666 7.45809,0 0,-1.93348 -7.45809,0 0,-1.64572 8.58514,0 0,-1.95404 -13.11619,0 z m -16.845808,0 0,2.98285 8.910625,0 0.04336,0 0.108398,0.0206 0.152046,0.0205 0.194973,0.0411 0.216652,0.0822 0.217085,0.10277 0.216652,0.16443 0.195117,0.20582 0.151613,0.26721 0.08701,0.32928 0.04336,0.39081 -0.04336,0.4115 -0.08701,0.32887 -0.151613,0.26748 -0.195117,0.20554 -0.216652,0.16485 -0.217085,0.12333 -0.216652,0.0617 -0.194973,0.0411 -0.152046,0.0411 -0.108398,0 -0.04336,0 -8.910625,0 0,2.87967 8.910625,0 0.04336,0 0.152046,0 0.194972,-0.0206 0.281691,-0.0411 0.325484,-0.0411 0.368265,-0.0822 0.412203,-0.0822 0.433304,-0.12374 0.455417,-0.14388 0.455417,-0.18499 0.433304,-0.22637 0.43388,-0.26721 0.41206,-0.30872 0.36826,-0.37026 0.32549,-0.4115 0.28169,-0.45219 0.19497,-0.5351 0.13008,-0.5758 0.0434,-0.65815 -0.0434,-0.65802 -0.13008,-0.5762 -0.21665,-0.53483 -0.26001,-0.45247 -0.32549,-0.43205 -0.38994,-0.34943 -0.39038,-0.32914 -0.43388,-0.26762 -0.454984,-0.2261 -0.455417,-0.18499 -0.433737,-0.16471 -0.433304,-0.12332 -0.412203,-0.10278 -0.368265,-0.0617 -0.325484,-0.0617 -0.281691,-0.0411 -0.194972,-0.021 -0.152046,0 -0.04336,-0.0205 -8.910625,0 z m -7.522694,0 0,9.13273 4.509223,0 0,-9.13273 -4.509223,0 z m -20.054399,0 0,9.13273 3.425529,0 0,-6.56138 2.970112,6.56138 3.815908,0 3.07851,-6.56138 0,6.56138 3.750435,0 0,-9.13273 -5.94008,0 -2.623526,5.821 -2.536664,-5.821 -5.940224,0 z m 57.539091,-2.44762 -11.14363,1.91293 11.14363,-0.90508 0,-1.00785 z m -64.476727,-2.96189 71.414507,0 0,19.35539 -71.414507,0 0,-19.35539 z"
    id="MideLogo"
@@ -840,7 +892,7 @@
    sodipodi:linespacing="125%"
    style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Sans;-inkscape-font-specification:Sans"
    id="FIELD_offset_x_dc"
-   y="362.59799"
+   y="384.09692"
    x="596.69153"
    inkscape:label="#text3220"><tspan
      style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
@@ -851,16 +903,18 @@
 
 
 
+
 <text
    sodipodi:linespacing="125%"
    style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Sans;-inkscape-font-specification:Sans"
    id="FIELD_offset_y_dc"
-   y="362.59799"
+   y="384.09692"
    x="639.96936"
    inkscape:label="#text3224"><tspan
-   class="valueText"
-   id="tspan13243"
-   style="font-size:11.25px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">0.0000</tspan>  </text>
+     class="valueText"
+     id="tspan13243"
+     style="font-size:12px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">0.0000  </tspan></text>
+
 
 
 
@@ -870,12 +924,13 @@
    sodipodi:linespacing="125%"
    style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Sans;-inkscape-font-specification:Sans"
    id="FIELD_offset_z_dc"
-   y="362.59799"
+   y="384.09692"
    x="685.72778"
    inkscape:label="#text3226"><tspan
-   class="valueText"
-   id="tspan13246"
-   style="font-size:11.25px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">0.0000 </tspan> </text>
+     class="valueText"
+     id="tspan13246"
+     style="font-size:12px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial">0.0000  </tspan></text>
+
 
 
 
@@ -895,6 +950,7 @@
 
 
 
+
 <text
    sodipodi:linespacing="125%"
    style="font-size:11px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:center;line-height:125%;writing-mode:lr-tb;text-anchor:middle;font-family:Sans;-inkscape-font-specification:Sans Bold"
@@ -909,12 +965,14 @@
 
 
 
+
 <text
    sodipodi:linespacing="125%"
    style="font-size:11px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:center;line-height:125%;writing-mode:lr-tb;text-anchor:middle;font-family:Sans;-inkscape-font-specification:Sans Bold"
    id="text3236"
    y="298.46082"
    x="706.21362">Z-Axis</text>
+
 
 
 
@@ -936,6 +994,7 @@
 
 
 
+
 <text
    xml:space="preserve"
    style="font-size:25px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;line-height:125%;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;font-family:Century Gothic;-inkscape-font-specification:Century Gothic"
@@ -946,6 +1005,7 @@
      sodipodi:role="line"
      id="tspan3708"
      style="font-size:11.25px;font-variant:normal;font-weight:normal;writing-mode:lr-tb;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial" /></text>
+
 
 
 
@@ -975,6 +1035,7 @@
      x="569.46454"
      style="font-size:11.25px;font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;text-align:end;writing-mode:lr-tb;text-anchor:end;fill:#5e5f62;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Segoe WP;-inkscape-font-specification:Segoe WP Bold"
      sodipodi:role="line" /></text>
+
 
 
 
@@ -1011,6 +1072,7 @@
      style="font-size:11.25px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:end;writing-mode:lr-tb;text-anchor:end;fill:#5e5f62;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Segoe WP;-inkscape-font-specification:Segoe WP"
      x="569.46454"
      y="82.868744">United States</tspan></text>
+
 
 
 
@@ -2038,11 +2100,12 @@
      transform="translate(500.5,469.3194)"
      style="font-size:13px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g395"><text
-       x="-37.590801"
-       xml:space="preserve"
-       y="12.5176"
-       style="stroke:none"
-       id="text397">Frequency (Hz)</text>
+   x="-37.590801"
+   xml:space="preserve"
+   y="12.5176"
+   style="stroke:none"
+   id="text397">Frequency (Hz)</text>
+
 </g><g
      style="fill:#262626;stroke:#262626;stroke-width:1.32157195"
      id="g399"><line
@@ -2121,56 +2184,62 @@
      transform="translate(100,455.8)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g425-4"><text
-       x="-2.7393"
-       xml:space="preserve"
-       y="10.5918"
-       style="stroke:none"
-       id="text427-1">1</text>
+   x="-2.7393"
+   xml:space="preserve"
+   y="10.5918"
+   style="stroke:none"
+   id="text427-1">1</text>
+
 </g><g
      transform="translate(300.25,455.8)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g429-4"><text
-       x="-5.4784999"
-       xml:space="preserve"
-       y="10.5918"
-       style="stroke:none"
-       id="text431-3">10</text>
+   x="-5.4784999"
+   xml:space="preserve"
+   y="10.5918"
+   style="stroke:none"
+   id="text431-3">10</text>
+
 </g><g
      transform="translate(500.5,455.8)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g433-9"><text
-       x="-8.2178001"
-       xml:space="preserve"
-       y="10.5918"
-       style="stroke:none"
-       id="text435-8">100</text>
+   x="-8.2178001"
+   xml:space="preserve"
+   y="10.5918"
+   style="stroke:none"
+   id="text435-8">100</text>
+
 </g><g
      transform="translate(700.75,455.8)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g437-8"><text
-       x="-12.332"
-       xml:space="preserve"
-       y="10.5918"
-       style="stroke:none"
-       id="text439">1,000</text>
+   x="-12.332"
+   xml:space="preserve"
+   y="10.5918"
+   style="stroke:none"
+   id="text439">1,000</text>
+
 </g><g
      transform="translate(901,455.8)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g441"><text
-       x="-15.0713"
-       xml:space="preserve"
-       y="10.5918"
-       style="stroke:none"
-       id="text443">10,000</text>
+   x="-15.0713"
+   xml:space="preserve"
+   y="10.5918"
+   style="stroke:none"
+   id="text443">10,000</text>
+
 </g><g
      transform="matrix(0,-1,1,0,76.6121,250.5)"
      style="font-size:13px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g445"><text
-       x="-59.309299"
-       xml:space="preserve"
-       y="-3.0659001"
-       style="stroke:none"
-       id="text447">Amplitude Deviation (%)</text>
+   x="-59.309299"
+   xml:space="preserve"
+   y="-3.0659001"
+   style="stroke:none"
+   id="text447">Amplitude Deviation (%)</text>
+
 </g><g
      style="fill:#262626;stroke:#262626;stroke-width:1.32157195"
      id="g449"><line
@@ -2321,101 +2390,112 @@
      transform="translate(95.2,451)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g499-0"><text
-       x="-14.5879"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text501-9">-40</text>
+   x="-14.5879"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text501-9">-40</text>
+
 </g><g
      transform="translate(95.2,410.9)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g503-9"><text
-       x="-14.5879"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text505-6">-30</text>
+   x="-14.5879"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text505-6">-30</text>
+
 </g><g
      transform="translate(95.2,370.8)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g507-8"><text
-       x="-14.5879"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text509-3">-20</text>
+   x="-14.5879"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text509-3">-20</text>
+
 </g><g
      transform="translate(95.2,330.7)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g511-4"><text
-       x="-14.5879"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text513-8">-10</text>
+   x="-14.5879"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text513-8">-10</text>
+
 </g><g
      transform="translate(95.2,290.6)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g515-4"><text
-       x="-5.4784999"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text517-9">0</text>
+   x="-5.4784999"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text517-9">0</text>
+
 </g><g
      transform="translate(95.2,250.5)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g519-9"><text
-       x="-10.957"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text521-2">10</text>
+   x="-10.957"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text521-2">10</text>
+
 </g><g
      transform="translate(95.2,210.4)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g523-5"><text
-       x="-10.957"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text525-5">20</text>
+   x="-10.957"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text525-5">20</text>
+
 </g><g
      transform="translate(95.2,170.3)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g527-3"><text
-       x="-10.957"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text529-3">30</text>
+   x="-10.957"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text529-3">30</text>
+
 </g><g
      transform="translate(95.2,130.2)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g531-3"><text
-       x="-10.957"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text533">40</text>
+   x="-10.957"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text533">40</text>
+
 </g><g
      transform="translate(95.2,90.1)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g535-7"><text
-       x="-10.957"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text537">50</text>
+   x="-10.957"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text537">50</text>
+
 </g><g
      transform="translate(95.2,50)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g539-4"><text
-       x="-10.957"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text541">60</text>
+   x="-10.957"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text541">60</text>
+
 </g><g
      style="fill:#3399cc;stroke:#3399cc;stroke-width:5.28628778;stroke-linecap:butt;stroke-linejoin:bevel;stroke-miterlimit:1;stroke-dasharray:5.28628765, 5.28628765"
      id="g543-3"><path
@@ -2436,11 +2516,12 @@
      transform="translate(500.5,45.8334)"
      style="font-size:17px;font-weight:bold;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g553"><text
-       x="-114.8455"
-       xml:space="preserve"
-       y="-4.0258999"
-       style="stroke:none"
-       id="text555">Slam Stick S Frequency Response</text>
+   x="-114.8455"
+   xml:space="preserve"
+   y="-4.0258999"
+   style="stroke:none"
+   id="text555">Slam Stick S Frequency Response</text>
+
 </g><g
      style="fill:#ffffff;stroke:#ffffff;stroke-width:1.32157195"
      id="g557"><path
@@ -2451,11 +2532,12 @@
      transform="translate(165.1936,70.7358)"
      style="font-size:10px;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g561"><text
-       x="0"
-       xml:space="preserve"
-       y="3.6352999"
-       style="stroke:none"
-       id="text563">DC MEMS - X&amp;Y Axis</text>
+   x="0"
+   xml:space="preserve"
+   y="3.6352999"
+   style="stroke:none"
+   id="text563">DC MEMS - X&amp;Y Axis</text>
+
 </g><g
      style="fill:#3399cc;stroke:#3399cc;stroke-width:5.28628778;stroke-linecap:butt;stroke-linejoin:bevel;stroke-miterlimit:1;stroke-dasharray:5.28628765, 5.28628765"
      id="g565"><line
@@ -2468,11 +2550,12 @@
      transform="translate(165.1936,83.5)"
      style="font-size:10px;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g569"><text
-       x="0"
-       xml:space="preserve"
-       y="3.6352999"
-       style="stroke:none"
-       id="text571">DC MEMS - Z Axis</text>
+   x="0"
+   xml:space="preserve"
+   y="3.6352999"
+   style="stroke:none"
+   id="text571">DC MEMS - Z Axis</text>
+
 </g><g
      style="fill:#3399cc;stroke:#3399cc;stroke-width:5.28628778"
      id="g573"><line
@@ -2485,11 +2568,12 @@
      transform="translate(165.1936,96.2642)"
      style="font-size:10px;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g577"><text
-       x="0"
-       xml:space="preserve"
-       y="3.6352999"
-       style="stroke:none"
-       id="text579">Piezoresistive - X, Y, &amp; Z Axis</text>
+   x="0"
+   xml:space="preserve"
+   y="3.6352999"
+   style="stroke:none"
+   id="text579">Piezoresistive - X, Y, &amp; Z Axis</text>
+
 </g><g
      style="fill:#f8991d;stroke:#f8991d;stroke-width:5.28628778"
      id="g581"><line
@@ -3046,56 +3130,62 @@
      transform="translate(905.8,451)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g767"><text
-       x="0"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text769">-4.4 dB</text>
+   x="0"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text769">-4.4 dB</text>
+
 </g><g
      transform="translate(905.8,370.8)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g771"><text
-       x="0"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text773">-1.9 dB</text>
+   x="0"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text773">-1.9 dB</text>
+
 </g><g
      transform="translate(905.8,290.6)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g775"><text
-       x="0"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text777">0 dB</text>
+   x="0"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text777">0 dB</text>
+
 </g><g
      transform="translate(905.8,210.4)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g779"><text
-       x="0"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text781">1.6 dB</text>
+   x="0"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text781">1.6 dB</text>
+
 </g><g
      transform="translate(905.8,130.2)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g783"><text
-       x="0"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text785">2.9 dB</text>
+   x="0"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text785">2.9 dB</text>
+
 </g><g
      transform="translate(905.8,50)"
      style="font-size:11px;fill:#262626;stroke:#262626;stroke-width:1.32157195;font-family:Swis721 Cn BT"
      id="g787"><text
-       x="0"
-       xml:space="preserve"
-       y="4.4987998"
-       style="stroke:none"
-       id="text789">4.1 dB</text>
+   x="0"
+   xml:space="preserve"
+   y="4.4987998"
+   style="stroke:none"
+   id="text789">4.1 dB</text>
+
 </g></g><g
    transform="matrix(0.38249006,0,0,0.38249006,79.0505,-45.169865)"
    id="Layer_5_copy_2"><g
@@ -3155,4 +3245,42 @@
        style="fill:#f15a29"
        inkscape:connector-curvature="0"
        d="m 711.2,373.1 c -20.9,0 -34.3,-2.6 -41.3,-7.8 -5.8,-4.4 -9.4,-12 -10.4,-23.1 l 27.9,-15.6 0.2,5.2 c 0,10.4 2.2,13.4 3.4,14.2 1.6,1 6.6,2.6 24.1,2.6 13.4,0 17.8,-1.8 19.3,-3 1.6,-1.2 3.4,-4.6 3.4,-13.8 0,-6.6 -1.4,-9.2 -2.6,-10.4 -1,-1 -4,-2.6 -13.2,-3 l -13.4,-0.8 c -20.9,-1.2 -33.9,-4.2 -39.9,-9 -6.2,-5 -9.4,-14.8 -9.4,-30.5 0,-15.6 3.8,-26.3 11.2,-31.7 7.2,-5.2 20.9,-7.8 41.9,-7.8 19.9,0 32.9,2.4 40.1,7.2 5.6,3.8 9.2,10.4 10.4,19.5 l -27.9,16.3 -0.2,-2.2 c -0.2,-1.2 -0.2,-2.2 -0.2,-2.8 -0.6,-8 -2.6,-10.6 -3.6,-11.4 -1.2,-0.8 -5,-2.2 -17,-2.2 -13.6,0 -19.1,1.6 -21.1,2.8 -2.6,1.6 -4,5.4 -4,11.2 0,9.4 2,11.6 3,12.2 1.4,0.8 6.8,2.2 27.3,3.4 19.7,1 32.1,4 38.1,8.6 6.2,4.8 9.2,14.4 9.2,29.1 0,17.8 -3.6,29.3 -10.8,34.7 -6.8,5.5 -21.5,8.1 -44.5,8.1 z"
-       id="path191" /></g></g></svg>
+       id="path191" /></g></g><text
+   inkscape:label="#text71"
+   sodipodi:linespacing="125%"
+   style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Sans;-inkscape-font-specification:Sans"
+   id="FIELD_offset_x"
+   y="340.26251"
+   x="596.69153"><tspan
+     style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+     class="valueText"
+     id="tspan3558">0.0000  </tspan></text>
+<text
+   inkscape:label="#text74"
+   sodipodi:linespacing="125%"
+   style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Sans;-inkscape-font-specification:Sans"
+   id="FIELD_offset_y"
+   y="340.26251"
+   x="639.96936"><tspan
+     style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+     class="valueText"
+     >0.0000  </tspan></text>
+<text
+   inkscape:label="#text77"
+   sodipodi:linespacing="125%"
+   style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;font-family:Sans;-inkscape-font-specification:Sans"
+   id="FIELD_offset_z"
+   y="340.26251"
+   x="685.72778"><tspan
+     style="font-size:12px;font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;text-align:start;line-height:125%;writing-mode:lr-tb;text-anchor:start;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Sans;-inkscape-font-specification:Sans"
+     class="valueText"
+     >0.0000  </tspan></text>
+<text
+   style="text-align:end;text-anchor:end"
+   id="text3568"
+   y="340.26251"
+   x="590.11975"><tspan
+     style="font-size:11.25px;font-variant:normal;font-weight:bolder;text-align:end;writing-mode:lr-tb;text-anchor:end;fill:#000000;fill-opacity:1;fill-rule:nonzero;stroke:none;font-family:Arial;-inkscape-font-specification:Arial-Bold"
+     id="tspan3570"
+     class="labelText">Offset:</tspan></text>
+</svg>

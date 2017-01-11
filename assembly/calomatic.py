@@ -456,7 +456,7 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
     
     print c.createTxt()
     
-    if c.hasHiAccel and not utils.allInRange(c.cal, 0.5, 2.5):
+    if c.hasHiAccel and not utils.allInRange(c.cal, 0.5, 2.5, absolute=True):
         print "!!! Out-of-range calibration coefficient(s) detected!"
         q = utils.getYesNo("Continue with device calibration (Y/N)? ")
         if q == "N":

@@ -789,12 +789,21 @@ class Calibrator(object):
         self.hasHiAccel = all((c.hasHiAccel for c in self.calFiles))
         self.hasLoAccel = all((c.hasLoAccel for c in self.calFiles))
         self.hasPRAccel = all((c.hasPRAccel for c in self.calFiles))
+        
+        # XXX: REMOVE THIS
+        self.hasPRAccel = True
 
         self.Sxy, self.Syz, self.Sxz = self.calculateTrans(self.calFiles, self.cal)
         self.Syz_file, self.Sxz_file, self.Sxy_file = self.filenames
 
         self.meanCalTemp = np.mean([cal.cal_temp for cal in self.calFiles])
         self.meanCalPress = np.mean([cal.cal_press for cal in self.calFiles])
+
+        # Invert flipped axes
+        if self.hasHiAccel:
+            self.cal.z *= -1
+            if self.hasPRAccel:
+                self.cal.x *= -1
 
         self.offsets = XYZ()
         for i in range(3):
@@ -848,9 +857,14 @@ class Calibrator(object):
         result.extend(map(str, self.calFiles))
         if self.hasHiAccel:
             result.append("Analog Accelerometer:")
-            result.append("%s, X Axis Calibration Constant %.6f" % (self.filenames.x, self.cal.x))
-            result.append("%s, Y Axis Calibration Constant %.6f" % (self.filenames.y, self.cal.y))
-            result.append("%s, Z Axis Calibration Constant %.6f" % (self.filenames.z, self.cal.z))
+            if self.hasPRAccel:
+                result.append("%s, X Axis Calibration Constant %.6f, offset %.6f" % (self.filenames.x, self.cal.x, self.offsets.x))
+                result.append("%s, Y Axis Calibration Constant %.6f, offset %.6f" % (self.filenames.y, self.cal.y, self.offsets.y))
+                result.append("%s, Z Axis Calibration Constant %.6f, offset %.6f" % (self.filenames.z, self.cal.z, self.offsets.z))
+            else:
+                result.append("%s, X Axis Calibration Constant %.6f" % (self.filenames.x, self.cal.x))
+                result.append("%s, Y Axis Calibration Constant %.6f" % (self.filenames.y, self.cal.y))
+                result.append("%s, Z Axis Calibration Constant %.6f" % (self.filenames.z, self.cal.z))
             result.append("%s, Transverse Sensitivity in XY = %.6f percent" % (self.Sxy_file, self.Sxy))
             result.append("%s, Transverse Sensitivity in YZ = %.6f percent" % (self.Syz_file, self.Syz))
             result.append("%s, Transverse Sensitivity in ZX = %.6f percent" % (self.Sxz_file, self.Sxz))
@@ -956,6 +970,12 @@ class Calibrator(object):
                 'FIELD_offset_x_dc',
                 'FIELD_offset_y_dc',
                 'FIELD_offset_z_dc'
+            
+            For piezoresistive accelerometer:
+                'FIELD_offset_x',
+                'FIELD_offset_y',
+                'FIELD_offset_z'
+            
         """
         xd = ET.parse(template)
         xr = xd.getroot()
@@ -976,7 +996,7 @@ class Calibrator(object):
             if el is not None:
                 el.text=t
             else:
-                print "could not find field %r in template" % elId
+                print "could not find field %r in template (probably okay)" % elId
 
         def setText(elId, t):
             t = saxutils.escape(str(t).strip())
@@ -984,7 +1004,7 @@ class Calibrator(object):
             if el is not None:
                 el.text = t
             else:
-                print "could not find field %r in template" % elId
+                print "could not find field %r in template (probably okay)" % elId
 
         certTxt = "C%05d" % self.certNum
 
@@ -1023,6 +1043,13 @@ class Calibrator(object):
                 ('FIELD_offset_x_dc', "%.4f" % self.offsetsLo.x),
                 ('FIELD_offset_y_dc', "%.4f" % self.offsetsLo.y),
                 ('FIELD_offset_z_dc', "%.4f" % self.offsetsLo.z)
+            ])
+
+        if self.hasPRAccel:
+            fieldIds.extend([
+                ('FIELD_offset_x', "%.4f" % self.offsets.x),
+                ('FIELD_offset_y', "%.4f" % self.offsets.y),
+                ('FIELD_offset_z', "%.4f" % self.offsets.z)
             ])
 
 
@@ -1184,6 +1211,7 @@ class Calibrator(object):
         """
         if xmlTemplate is None:
             # No template; generate from scratch. Generally not used.
+            print "No template specified; generating calibration from scratch."
             g = round(self.device.getAccelRange()[1])
 
             calList = OrderedDict([
@@ -1210,12 +1238,6 @@ class Calibrator(object):
         calList['CalibrationDate'] = self.calTimestamp
 
         # TODO: Calculate from device calibration data?
-        # TODO: Get rid of this code debt.
-#         channels = self.device.getChannels()
-#         if 36 in channels:
-#             tempChannelId = 36
-#         else:
-#             tempChannelId = 1
         tempSubchannelId = 1
         tempChannelId = 36
 
@@ -1223,10 +1245,10 @@ class Calibrator(object):
         #----------------------------
 
         # Z axis is flipped on the PCB. Negate.
-        self.cal.z *= -1
-        if self.hasPRAccel:
-            # SSS also has X axis flipped.
-            self.cal.x *= -1
+#         self.cal.z *= -1
+#         if self.hasPRAccel:
+#             # SSS also has X axis flipped.
+#             self.cal.x *= -1
 
         # Remove the default high-g accelerometer polynomials.
         bivars = calList.get('BivariatePolynomial', [])
@@ -1257,8 +1279,10 @@ class Calibrator(object):
                 ])
                 calList['BivariatePolynomial'].append(thisCal)
 
-        # Flip Z back, just in case.
-        self.cal.z *= -1
+        # Flip Z (and X, if PR) back, just in case.
+#         self.cal.z *= -1
+#         if self.hasPRAccel:
+#             self.cal.x *= -1
 
         # DIGITAL DC ACCELEROMETER
         #-------------------------
@@ -1285,7 +1309,7 @@ class Calibrator(object):
         axisIds = ideFile.getAxisIds(accelHi)
 
         # Z axis is flipped on the PCB. Negate.
-        self.cal.z *= -1
+#         self.cal.z *= -1
 
         # High-g accelerometer calibration
         for i in range(3):
@@ -1296,7 +1320,7 @@ class Calibrator(object):
             t.references = (0.0, self.calFiles[i].cal_temp)
 
         # Flip Z back, just in case.
-        self.cal.z *= -1
+#         self.cal.z *= -1
 
         # Low-g accelerometer calibration
         accelLo = ideFile.getLowAccelerometer()

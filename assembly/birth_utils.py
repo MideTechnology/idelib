@@ -26,12 +26,14 @@ import ssx_namer
 # 
 #===============================================================================
 
-def inRange(v, minVal, maxVal):
+def inRange(v, minVal, maxVal, absolute=False):
+    if absolute:
+        v = abs(v)
     return v >= minVal and v <= maxVal
 
 
-def allInRange(vals, minVal, maxVal):
-    return all((inRange(x, minVal, maxVal) for x in vals))
+def allInRange(vals, minVal, maxVal, absolute=False):
+    return all((inRange(x, minVal, maxVal, absolute) for x in vals))
 
 
 #===============================================================================
@@ -139,16 +141,17 @@ def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev,
     """
     if isinstance(device_accel_sn, list):
         device_accel_sn = " ".join(device_accel_sn)
-    data = map(str, (time.asctime(), 
-                     int(time.mktime(time.gmtime())), 
-                     chipid, 
-                     device_sn, 
-                     int(rebirth), 
-                     bootver, 
-                     hwrev, 
-                     fwrev, 
-                     device_accel_sn, 
-                     partnum))
+    data = map(lambda x: str(x).replace(',',' '), 
+               (time.asctime(), 
+                int(time.mktime(time.gmtime())), 
+                chipid, 
+                device_sn, 
+                int(rebirth), 
+                bootver, 
+                hwrev, 
+                fwrev, 
+                device_accel_sn, 
+                partnum))
     return ','.join(data)+'\n'
 
 

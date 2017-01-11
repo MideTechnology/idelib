@@ -244,13 +244,15 @@ def isValidAccelSerial(sn):
     sn = sn.strip()
     return sn[4] == '-' and (len(sn) == 8 or len(sn) == 9)
 
+
 def getAccelSerialNum(default=None):
     """ Prompt the user for an accelerometer serial number. """
     d = "" if default is None else " (default: %s)" % default
     prompt = "Accelerometer serial number%s? " % d
     while True:
         sn = raw_input(prompt).strip() or default
-        if all(map(isValidAccelSerial, sn.split(','))):
+        sn = str(sn).replace(',', ' ')
+        if all(map(isValidAccelSerial, sn.split())):
             return sn
         print "Bad accelerometer number(s): enter in format nnnn-nnn or nnnn-nnnn"
         
@@ -378,7 +380,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
     if hwRev is not None:
         if str(hwRev) not in getHardwareRevs(partNum):
-            print "Invalid hardware revision number: %s" % hwRev
+#             print "Invalid hardware revision number: %s" % hwRev
             hwRev = None
     
     hwRev = hwRev if hwRev else getHardwareRev(partNum)
