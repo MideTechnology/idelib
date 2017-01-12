@@ -285,7 +285,12 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
 
     # 11. Copy documentation and software folders
     copyStart = datetime.now()
-    if not noCopy:
+    if noCopy:
+        print "Not copying standard contents."
+        if not os.path.isdir(docsPath):
+            print "Creating directory %s..." % docsPath
+            os.mkdir(docsPath)
+    else:
         print "Copying standard %s content to device..." % dev.partNumber
         copyContent(devPath, dev.partNumber)
     print "Copying calibration documentation to device..."
