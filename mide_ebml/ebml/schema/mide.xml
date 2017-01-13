@@ -99,6 +99,9 @@
 			<element name="FwRev" level="2" id="0x5217" type="uinteger" mandatory="0" multiple="0" minver="1">Firmware revision level</element>
 			<element name="PartNumber" level="2" id="0x5218" type="string" mandatory="0" multiple="0" minver="1">Device part .number. (text product identifier e.g. VR002-100-XYZ).</element>
 			<element name="DateOfManufacture" level="2" id="0x5219" type="uinteger" mandatory="0" multiple="0" minver="1">Device .birthdate. (manufacture date) in UTC seconds since the Epoch.</element>
+			<element name="HwCustomStr" level="2" id="0x521A" type="string" mandatory="0" multiple="0" minver="1">Custom hardware identifier. Hardware is a custom version if present.</element>
+			<element name="FwCustomStr" level="2" id="0x521B" type="string" mandatory="0" multiple="0" minver="1">Custom firmware build. Firmware is a custom build if present. Name should match FW branch/tag name as applicable for identification purposes, but is mainly present so FW updater can generate a warning if a custom build will be replaced by a standard one.</element>
+			<element name="FwRevStr" level="2" id="0x521C" type="string" mandatory="0" multiple="0" minver="1">Firmware revision string.</element>
 
         <!-- SensorList and PlotList are optional; there are defaults that will be used. The use of defaults is all-or-nothing; the file should define all sensors or have no SensorList at all. -->
 		<element name="SensorList" level="1" id="0x5240" type="master" mandatory="0" multiple="0" minver="2">Master element for the SensorList items</element>

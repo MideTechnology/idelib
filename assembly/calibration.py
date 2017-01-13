@@ -84,8 +84,6 @@ class CalibrationError(ValueError):
 class XYZ(list):
     """ Helper for making arrays of XYZ less ugly. A mutable named tuple. """
 
-    names = ('x','y','z')
-
     def __init__(self, *args, **kwargs):
         if len(args) == 3:
             super(XYZ, self).__init__(args, **kwargs)
@@ -120,6 +118,7 @@ class XYZ(list):
     @z.setter
     def z(self, val):
         self[2] = val
+
 
 #===============================================================================
 #
@@ -202,6 +201,7 @@ def from2diter(data, rows=None, cols=1):
 
     return points
 
+
 #===============================================================================
 #
 #===============================================================================
@@ -213,6 +213,10 @@ def dump_csv(data, filename):
                          data[:,1].reshape((-1,1))))
     np.savetxt(filename, stacked, delimiter=',')
 
+
+#===============================================================================
+# 
+#===============================================================================
 
 class CalFile(object):
     """ One analyzed IDE file.
@@ -400,6 +404,10 @@ class CalFile(object):
             accelChannel = None
         if accelChannel:
             self.hasHiAccel = True
+            
+            # HACK: Is the analog accelerometer piezoresistive?
+            self.hasPRAccel = "3255A" in accelChannel[0].sensor.name 
+            
             _print("\nAnalyzing high-g data...")
 
             # HACK: Fix typo in template the hard way
@@ -409,6 +417,7 @@ class CalFile(object):
             self.accel, self.times, self.rms, self.cal, self.means = self._analyze(accelChannel, skipSamples=self.skipSamples)
         else:
             self.hasHiAccel = False
+            self.hasPRAccel = False
 
         loAccelChannel = self.getLowAccelerometer()
         if loAccelChannel:
@@ -586,7 +595,7 @@ class Calibrator(object):
         Ref Manufacturer:         ENDEVCO
         Ref Model #:              7251A-10/133
         Ref Serial #:             12740/BL33
-        NIST #:                   683/283655-13
+        NIST #:                   683/287323
         832M1 Serial #:           3951-005
         Temp. (C):                23.5
         Rel. Hum. (%):            45
@@ -614,7 +623,7 @@ class Calibrator(object):
                  refMan="ENDEVCO",
                  refModel="7251A-10/133",
                  refSerial="12740/BL33",
-                 refNist="683/283655-13",
+                 refNist="683/287323",
                  skipSamples=5000):
         self.devPath = devPath
         self.productSerialNum = None
@@ -638,7 +647,7 @@ class Calibrator(object):
         self.calTimestamp = time.time()
         self.productManTimestamp = 0
         self.calFilesUnsorted = self.calFiles = self.filenames = None
-        self.hasHiAccel = self.hasLoAccel = None
+        self.hasHiAccel = self.hasLoAccel = self.hasPRAccel = None
 
         self.skipSamples = skipSamples
 
@@ -693,8 +702,11 @@ class Calibrator(object):
         systemInfo['FwRev'] = self.device.firmwareVersion
         self.productManTimestamp = systemInfo['DateOfManufacture']
 
-        sensorInfo = manifest.get('AnalogSensorInfo', {})
-        self.accelSerial = sensorInfo.get('AnalogSensorSerialNumber', None)
+        sensorInfo = manifest.get('AnalogSensorInfo', [])
+        if len(sensorInfo) > 0:
+            self.accelSerial = ' '.join([si.get('AnalogSensorSerialNumber', None) for si in sensorInfo])
+        else:
+            self.accelSerial = None
 
         self.productManDate = datetime.utcfromtimestamp(self.productManTimestamp).strftime("%m/%d/%Y")
         self.productSerialNum = self.device.serial
@@ -776,12 +788,22 @@ class Calibrator(object):
         self.cal = XYZ([self.calFiles[i].cal[i] * prev_cal[i] for i in range(3)])
         self.hasHiAccel = all((c.hasHiAccel for c in self.calFiles))
         self.hasLoAccel = all((c.hasLoAccel for c in self.calFiles))
+        self.hasPRAccel = all((c.hasPRAccel for c in self.calFiles))
+        
+        # XXX: REMOVE THIS
+        self.hasPRAccel = True
 
         self.Sxy, self.Syz, self.Sxz = self.calculateTrans(self.calFiles, self.cal)
         self.Syz_file, self.Sxz_file, self.Sxy_file = self.filenames
 
         self.meanCalTemp = np.mean([cal.cal_temp for cal in self.calFiles])
         self.meanCalPress = np.mean([cal.cal_press for cal in self.calFiles])
+
+        # Invert flipped axes
+        if self.hasHiAccel:
+            self.cal.z *= -1
+            if self.hasPRAccel:
+                self.cal.x *= -1
 
         self.offsets = XYZ()
         for i in range(3):
@@ -835,9 +857,14 @@ class Calibrator(object):
         result.extend(map(str, self.calFiles))
         if self.hasHiAccel:
             result.append("Analog Accelerometer:")
-            result.append("%s, X Axis Calibration Constant %.6f" % (self.filenames.x, self.cal.x))
-            result.append("%s, Y Axis Calibration Constant %.6f" % (self.filenames.y, self.cal.y))
-            result.append("%s, Z Axis Calibration Constant %.6f" % (self.filenames.z, self.cal.z))
+            if self.hasPRAccel:
+                result.append("%s, X Axis Calibration Constant %.6f, offset %.6f" % (self.filenames.x, self.cal.x, self.offsets.x))
+                result.append("%s, Y Axis Calibration Constant %.6f, offset %.6f" % (self.filenames.y, self.cal.y, self.offsets.y))
+                result.append("%s, Z Axis Calibration Constant %.6f, offset %.6f" % (self.filenames.z, self.cal.z, self.offsets.z))
+            else:
+                result.append("%s, X Axis Calibration Constant %.6f" % (self.filenames.x, self.cal.x))
+                result.append("%s, Y Axis Calibration Constant %.6f" % (self.filenames.y, self.cal.y))
+                result.append("%s, Z Axis Calibration Constant %.6f" % (self.filenames.z, self.cal.z))
             result.append("%s, Transverse Sensitivity in XY = %.6f percent" % (self.Sxy_file, self.Sxy))
             result.append("%s, Transverse Sensitivity in YZ = %.6f percent" % (self.Syz_file, self.Syz))
             result.append("%s, Transverse Sensitivity in ZX = %.6f percent" % (self.Sxz_file, self.Sxz))
@@ -887,7 +914,12 @@ class Calibrator(object):
         if not isinstance(device, devices.SlamStickX):
             raise TypeError("%r is a SlamStick derivative!" % \
                             device.__class__.__name__)
-        if isinstance(device, devices.SlamStickC):
+        if isinstance(device, devices.SlamStickS):
+            if device.getAccelChannel(dc=True):
+                n = "Slam-Stick-S+DC-Calibration-template.svg"
+            else:
+                n = "Slam-Stick-S-Calibration-template.svg"
+        elif isinstance(device, devices.SlamStickC):
             n = "Slam-Stick-C-Calibration-template.svg"
         elif device.getAccelChannel(dc=True):
             n = "Slam-Stick-X+DC-Calibration-template.svg"
@@ -938,6 +970,12 @@ class Calibrator(object):
                 'FIELD_offset_x_dc',
                 'FIELD_offset_y_dc',
                 'FIELD_offset_z_dc'
+            
+            For piezoresistive accelerometer:
+                'FIELD_offset_x',
+                'FIELD_offset_y',
+                'FIELD_offset_z'
+            
         """
         xd = ET.parse(template)
         xr = xd.getroot()
@@ -958,7 +996,7 @@ class Calibrator(object):
             if el is not None:
                 el.text=t
             else:
-                print "could not find field %r in template" % elId
+                print "could not find field %r in template (probably okay)" % elId
 
         def setText(elId, t):
             t = saxutils.escape(str(t).strip())
@@ -966,7 +1004,7 @@ class Calibrator(object):
             if el is not None:
                 el.text = t
             else:
-                print "could not find field %r in template" % elId
+                print "could not find field %r in template (probably okay)" % elId
 
         certTxt = "C%05d" % self.certNum
 
@@ -992,7 +1030,7 @@ class Calibrator(object):
 #             ('FIELD_procedureNum', self.procedureNum),
 #             ('FIELD_productMan', 'Mide Technology Corp.'),
 #             ('FIELD_refModel', self.refModel),
-#             ('FIELD_refNist', self.refNist),
+            ('FIELD_refNist', self.refNist),
 #             ('FIELD_refSerial', self.refSerial),
 #             ('FIELD_referenceMan', self.refMan),
         ]
@@ -1005,6 +1043,13 @@ class Calibrator(object):
                 ('FIELD_offset_x_dc', "%.4f" % self.offsetsLo.x),
                 ('FIELD_offset_y_dc', "%.4f" % self.offsetsLo.y),
                 ('FIELD_offset_z_dc', "%.4f" % self.offsetsLo.z)
+            ])
+
+        if self.hasPRAccel:
+            fieldIds.extend([
+                ('FIELD_offset_x', "%.4f" % self.offsets.x),
+                ('FIELD_offset_y', "%.4f" % self.offsets.y),
+                ('FIELD_offset_z', "%.4f" % self.offsets.z)
             ])
 
 
@@ -1166,6 +1211,7 @@ class Calibrator(object):
         """
         if xmlTemplate is None:
             # No template; generate from scratch. Generally not used.
+            print "No template specified; generating calibration from scratch."
             g = round(self.device.getAccelRange()[1])
 
             calList = OrderedDict([
@@ -1192,12 +1238,6 @@ class Calibrator(object):
         calList['CalibrationDate'] = self.calTimestamp
 
         # TODO: Calculate from device calibration data?
-        # TODO: Get rid of this code debt.
-#         channels = self.device.getChannels()
-#         if 36 in channels:
-#             tempChannelId = 36
-#         else:
-#             tempChannelId = 1
         tempSubchannelId = 1
         tempChannelId = 36
 
@@ -1205,7 +1245,10 @@ class Calibrator(object):
         #----------------------------
 
         # Z axis is flipped on the PCB. Negate.
-        self.cal.z *= -1
+#         self.cal.z *= -1
+#         if self.hasPRAccel:
+#             # SSS also has X axis flipped.
+#             self.cal.x *= -1
 
         # Remove the default high-g accelerometer polynomials.
         bivars = calList.get('BivariatePolynomial', [])
@@ -1213,10 +1256,18 @@ class Calibrator(object):
         calList['BivariatePolynomial'] = bivars
 
         univars = calList.get('UnivariatePolynomial', [])
-        univars = [c for c in univars if c['CalID'] not in (33,34,35)]
+        univars = [c for c in univars if c['CalID'] not in (1,2,3,33,34,35)]
         calList['UnivariatePolynomial'] = univars
 
-        if self.hasHiAccel:
+        if self.hasPRAccel:
+            for i in range(3):
+                thisCal = OrderedDict([
+                    ('CalID', i+1),
+                    ('CalReferenceValue', 0.0),
+                    ('PolynomialCoef', [self.cal[i],self.offsets[i]]),
+                ])
+                calList['UnivariatePolynomial'].append(thisCal)
+        elif self.hasHiAccel:
             for i in range(3):
                 thisCal = OrderedDict([
                     ('CalID', i+1),
@@ -1228,8 +1279,10 @@ class Calibrator(object):
                 ])
                 calList['BivariatePolynomial'].append(thisCal)
 
-        # Flip Z back, just in case.
-        self.cal.z *= -1
+        # Flip Z (and X, if PR) back, just in case.
+#         self.cal.z *= -1
+#         if self.hasPRAccel:
+#             self.cal.x *= -1
 
         # DIGITAL DC ACCELEROMETER
         #-------------------------
@@ -1256,7 +1309,7 @@ class Calibrator(object):
         axisIds = ideFile.getAxisIds(accelHi)
 
         # Z axis is flipped on the PCB. Negate.
-        self.cal.z *= -1
+#         self.cal.z *= -1
 
         # High-g accelerometer calibration
         for i in range(3):
@@ -1267,7 +1320,7 @@ class Calibrator(object):
             t.references = (0.0, self.calFiles[i].cal_temp)
 
         # Flip Z back, just in case.
-        self.cal.z *= -1
+#         self.cal.z *= -1
 
         # Low-g accelerometer calibration
         accelLo = ideFile.getLowAccelerometer()

@@ -79,11 +79,14 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="DeviceTypeUID" level="2" id="0x4D02" type="uinteger" mandatory="1" multiple="0" minver="1" length="4">4-byte Unique hardware configuration ID used to distinguish recorder types/variants.</element>
 			<element name="ProductName" level="2" id="0x4D03" type="string" mandatory="1" multiple="0" minver="1" length="40">20-byte Displayable text name for this product/variant.</element>
 			<element name="HwRev" level="2" id="0x4D04" type="uinteger" mandatory="1" multiple="0" minver="1" length="2">2-byte hardware revision code for this DeviceTypeUID.</element>
+			<!-- FwRev and FwRevString, if applicable, are hardcoded in the FW itself and don't need a Manifest schema entry, They do, however, have a MIDE schema entry under RecorderInfo. -->
 			<element name="MinFwRev" level="2" id="0x4D05" type="uinteger" mandatory="1" multiple="0" minver="1" length="2">2-byte Minimum FW revision code required to support this hardware.</element>
 			<element name="DateOfManufacture" level="2" id="0x4D06" type="uinteger" mandatory="1" multiple="0" minver="1" length="8">8-byte date/time of manufacture (initial programming) in UTC seconds since the Epoch.</element>
 			<element name="Vdd" level="2" id="0x4D07" type="uinteger" mandatory="1" multiple="0" minver="1" length="3">3-byte (1 integer, 2 fractional) Vdd value.</element>
 			<element name="Vref" level="2" id="0x4D08" type="uinteger" mandatory="1" multiple="0" minver="1" length="3">3-byte (1 integer, 2 fractional) ADC Vref value.</element>
 			<element name="PartNumber" level="2" id="0x4D09" type="string" mandatory="1" multiple="0" minver="1">Device part .number. (text product identifier e.g. VR002-100-XYZ).</element>
+			<element name="HwCustomStr" level="2" id="0x4D0A" type="string" mandatory="0" multiple="0" minver="1">Custom hardware identifier. Hardware is a custom version if present.</element>
+			<element name="FwCustomStr" level="2" id="0x4D0B" type="string" mandatory="0" multiple="0" minver="1">Custom firmware build. Firmware is a custom build if present. Name should match FW branch/tag name as applicable for identification purposes, but is mainly present so FW updater can generate a warning if a custom build will be replaced by a standard one.</element>
 
 		<!-- Battery Info -->
 		<element name="Battery" level="1" id="0x4D10" type="master" mandatory="0" multiple="0" minver="1">Class B (2 byte + 2 length) Master element for battery info.</element>
@@ -105,7 +108,7 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="Bypassable" level="2" id="0x4D26" type="uinteger" mandatory="1" multiple="0" minver="1">1-byte Boolean specifying that filter bypass is supported (low-fidelity data acquisition allowed in the disabled state). Nonzero = true.</element>
 
 		<!-- Specifies one arbitrary analog sensor. -->
-		<element name="AnalogSensorInfo" level="1" id="0x4D30" type="master" mandatory="0" multiple="0" minver="1">Class B (2 byte + 2 length) Master element for one analog sensor of one or more channels.</element>
+		<element name="AnalogSensorInfo" level="1" id="0x4D30" type="master" mandatory="0" multiple="1" minver="1">Class B (2 byte + 2 length) Master element for one analog sensor of one or more channels.</element>
 			<element name="AnalogSensorEntryID" level="2" id="0x4D31" type="uinteger" mandatory="0" multiple="0" minver="1">1-byte Locally unique ID for referencing this entry. Used as ChannelID.</element>
 			<element name="AnalogSensorDeviceCode" level="2" id="0x4D32" type="uinteger" mandatory="0" multiple="0" minver="1">1-byte Code identifying the analog sensor. 0 = ADXL001, 1 = 832M1, others=TBD.</element>
 			<element name="AnalogSensorSerialNumber" level="2" id="0x4D33" type="string" mandatory="0" multiple="0" minver="1">16-byte string for the sensor manufacturer's serial #. This is a string because some vendors (including that of 832M1) love to mix in letters, hyphens and other nonnumeric elements.</element>

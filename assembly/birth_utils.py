@@ -7,7 +7,7 @@ Created on Nov 7, 2014
 @author: dstokes
 '''
 
-from collections import OrderedDict
+from collections import OrderedDict, Sequence
 from datetime import datetime
 import errno
 import os
@@ -26,12 +26,14 @@ import ssx_namer
 # 
 #===============================================================================
 
-def inRange(v, minVal, maxVal):
+def inRange(v, minVal, maxVal, absolute=False):
+    if absolute:
+        v = abs(v)
     return v >= minVal and v <= maxVal
 
 
-def allInRange(vals, minVal, maxVal):
-    return all((inRange(x, minVal, maxVal) for x in vals))
+def allInRange(vals, minVal, maxVal, absolute=False):
+    return all((inRange(x, minVal, maxVal, absolute) for x in vals))
 
 
 #===============================================================================
@@ -137,16 +139,19 @@ def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev,
                       device_accel_sn, partnum):
     """
     """
-    data = map(str, (time.asctime(), 
-                     int(time.mktime(time.gmtime())), 
-                     chipid, 
-                     device_sn, 
-                     int(rebirth), 
-                     bootver, 
-                     hwrev, 
-                     fwrev, 
-                     device_accel_sn, 
-                     partnum))
+    if isinstance(device_accel_sn, list):
+        device_accel_sn = " ".join(device_accel_sn)
+    data = map(lambda x: str(x).replace(',',' '), 
+               (time.asctime(), 
+                int(time.mktime(time.gmtime())), 
+                chipid, 
+                device_sn, 
+                int(rebirth), 
+                bootver, 
+                hwrev, 
+                fwrev, 
+                device_accel_sn, 
+                partnum))
     return ','.join(data)+'\n'
 
 
@@ -471,8 +476,66 @@ def releaseLockFile(filename):
         return True
     except (WindowsError, IOError):
         return False
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def splitSerialNumbers(sn):
+    """ Take a serial number or comma-separated list of serial numbers and
+        split it up into a list of individual strings. 
+        
+        @param sn: The serial number(s) to split.
+    """
+    if not sn:
+        # None or empty string
+        return []
+    elif isinstance(sn, basestring):
+        sn = sn.replace(',',' ').strip()
+        nums = [n.strip() for n in sn.split(' ')]
+    elif isinstance(sn, Sequence):
+        nums = map(str, sn)
+    else:
+        raise TypeError("Bad type for accelerometer serial numbers")
     
-    
+    return nums
+        
+
+#===============================================================================
+# 
+#===============================================================================
+
+def getSerialPrefix(partNum):
+    # TODO: Implement better means of getting serial number prefix
+    try:
+        if "LOG-0002" in partNum:
+            return "SSX"
+        if "LOG-0003" in partNum:
+            return "SSC"
+        if "LOG-0004" in partNum:
+            return "SSS"
+    except TypeError:
+        pass
+    print "Unknown part number: %r" % partNum
+    return "SSX"
+
+
+def getNewVolumeLabel(partNum):
+    # TODO: Implement better means of getting serial number prefix
+    try:
+        if "LOG-0002" in partNum:
+            return "SlamStick X"
+        if "LOG-0003" in partNum:
+            return "SlamStick C"
+        if "LOG-0004" in partNum:
+            return "SlamStick S"
+    except TypeError:
+        pass
+    print "Unknown part number: %r" % partNum
+    return "SSX"
+
+
 #===============================================================================
 # 
 #===============================================================================
