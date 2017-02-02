@@ -8,11 +8,13 @@ Created on Nov 21, 2013
 '''
 
 import locale
+import os.path
 # import sys
 
 import wx.lib.agw.customtreectrl as CT
 import wx; wx=wx
 import wx.lib.sized_controls as sc
+from collections import defaultdict
 
 # from base import TimeValidator
 
@@ -92,6 +94,8 @@ class ExportDialog(sc.SizedDialog):
         self.scalar = kwargs.pop("scalar", self.root.timeScalar)
         self.removeMean = kwargs.pop("removeMean", 2)
         self.noBivariates = kwargs.pop("noBivariates", False)
+        self.byType = kwargs.pop("byType", False)
+        self.showIds = kwargs.pop('showIds', True)
 
         super(ExportDialog, self).__init__(*args, **kwargs)
         
@@ -104,7 +108,7 @@ class ExportDialog(sc.SizedDialog):
         self.okButton = self.FindWindowById(wx.ID_OK)
 
         self.SetMinSize((340,450))
-        self.SetMaxSize((500,600))
+        self.SetMaxSize((600,1000))
         self.Fit()
         
         if self.root.dataset is not None:
@@ -150,7 +154,7 @@ class ExportDialog(sc.SizedDialog):
     
         self.tree  = CT.CustomTreeCtrl(pane, -1, 
                                        style=wx.SUNKEN_BORDER,
-                                       agwStyle=CT.TR_HAS_BUTTONS)
+                                       agwStyle=CT.TR_HAS_BUTTONS|CT.TR_HIDE_ROOT)
         self.tree.SetSizerProps(expand=True, proportion=1)
         self.treeMsg = wx.StaticText(pane, 0, "")
         
@@ -201,17 +205,70 @@ class ExportDialog(sc.SizedDialog):
         pass
 
 
-    def InitUI(self):
-        """ Set up and display actual data in the dialog.
+    def populateChannelTree(self):
+        """ Build the tree view, divided up by channel. Used for export.
         """
-        self.treeRoot = self.tree.AddRoot(self.root.dataset.name)
         for channel in self.root.dataset.channels.itervalues():
             if not channel.subchannels:
                 continue
             self._addTreeItems(self.treeRoot, channel, 
                                types=(CT.TREE_ITEMTYPE_RADIO, 
                                       CT.TREE_ITEMTYPE_CHECK))
-        self.tree.Expand(self.treeRoot)
+#         self.tree.Expand(self.treeRoot)
+        self.tree.ExpandAll()
+    
+    
+    def _getChannelName(self, ch):
+        if not self.showIds:
+            return ch.displayName
+        if ch.parent is None:
+            return "Channel %d: %s" % (ch.id, ch.displayName)
+        return "Channel %d.%d: %s" % (ch.parent.id, ch.id, ch.displayName)
+        
+    
+    
+    def populateTypeTree(self):
+        """ Build the tree view, divided up by data type. Used for rendering.
+        """
+        types = defaultdict(list)
+        for ch in self.root.dataset.channels.itervalues():
+            if not self.root.showDebugChannels and ch.name.startswith("DEBUG"):
+                continue
+            for subc in ch.subchannels:
+                types[subc.units[0]].append(subc)
+        
+        first = True
+        for plotType in sorted(types.keys()):
+            objs = types[plotType]
+            if not objs:
+                continue
+            
+            parentItem = self.tree.AppendItem(self.treeRoot, plotType, 
+                                              ct_type=CT.TREE_ITEMTYPE_RADIO)
+            if first:
+                parentItem.Set3StateValue(wx.CHK_CHECKED)
+                first = False
+                
+            for subc in sorted(objs, key=self._getChannelName):
+                item = self.tree.AppendItem(parentItem, 
+                                            self._getChannelName(subc), 
+                                            ct_type=CT.TREE_ITEMTYPE_CHECK, 
+                                            data=subc)
+                item.Set3StateValue(wx.CHK_CHECKED)
+        self.tree.ExpandAll()
+            
+            
+
+    def InitUI(self):
+        """ Set up and display actual data in the dialog.
+        """
+#         self.treeRoot = self.tree.AddRoot(self.root.dataset.name)
+        self.treeRoot = self.tree.AddRoot(os.path.basename(self.root.dataset.filename))
+        
+        if self.byType:
+            self.populateTypeTree()
+        else:
+            self.populateChannelTree()
         
         self.range = self.root.getTimeRange()
         scaledRange = self.range[0] * self.scalar, self.range[1] * self.scalar
@@ -255,13 +312,13 @@ class ExportDialog(sc.SizedDialog):
         else:
             ct_type = defaultType
             
-        childItem = self.tree.AppendItem(parentItem, obj.displayName, 
+        childItem = self.tree.AppendItem(parentItem, self._getChannelName(obj), 
                                          ct_type=ct_type, data=obj)
         if ct_type == CT.TREE_ITEMTYPE_CHECK or self.tree.GetPrevSibling(childItem) is None:
             childItem.Set3StateValue(wx.CHK_CHECKED)
         for c in obj.children:
             self._addTreeItems(childItem, c, types=types[1:])
-        if ct_type == CT.TREE_ITEMTYPE_RADIO:
+        if parentItem is not self.treeRoot and ct_type == CT.TREE_ITEMTYPE_RADIO:
             self.tree.Expand(parentItem)
 
 
@@ -1076,11 +1133,11 @@ if __name__ == '__main__':# or True:
     
     DIALOGS_TO_SHOW = (
 #         (ExportDialog, {'root': root}),
-        (CSVExportDialog, {'root': root, 'exportType':'CSV'}),
+        (CSVExportDialog, {'root': root, 'exportType':'CSV', 'byType': False}),
         (CSVExportDialog, {'root': root, 'exportType':'MAT'}),
-        (FFTExportDialog, {'root': root}),
-        (PSDExportDialog, {'root': root}),
-        (SpectrogramExportDialog, {'root': root}),
+        (FFTExportDialog, {'root': root, 'byType': True}),
+        (PSDExportDialog, {'root': root, 'byType': True}),
+        (SpectrogramExportDialog, {'root': root, 'byType': True}),
     )
     
     app = FakeApp()
