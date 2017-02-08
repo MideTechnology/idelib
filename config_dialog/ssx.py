@@ -466,7 +466,10 @@ class OptionsPanel(BaseConfigPanel):
 
     
     def OnSetTZ(self, event):
-        val = int(-time.timezone / 60 / 60) + time.daylight
+#         val = int(-time.timezone / 60 / 60) + time.daylight
+        gt = time.gmtime()
+        lt = time.localtime()
+        val = (time.mktime(lt) - time.mktime(gt)) / 60 / 60
         self.setField(self.utcCheck, val)
 
 
@@ -681,8 +684,8 @@ class CalibrationPanel(InfoPanel):
     
     
     def addEditButton(self, cal):
-        """ Helper method to embed Buttons in the HTML display (the widget
-            does not support forms, so it can't be done in HTML).
+        """ Helper method to embed wxPython Buttons in the HTML display (the
+            widget does not support forms, so it can't be done in HTML).
         """
         wxid = self.calWxIds.setdefault(cal.id, wx.NewId())
         wxrevid = self.revertWxIds.setdefault(cal.id, wx.NewId())
