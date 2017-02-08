@@ -576,7 +576,7 @@ if __name__ == "__main__":
 #     global TEMPLATE_PATH
     
     parser = argparse.ArgumentParser(description="Improved SSX Birthing/Calibration Suite")
-    parser.add_argument("mode", help="The job to do", choices=["birth", "calibrate", "cal"])
+    parser.add_argument("mode", help="The job to do", choices=["birth", "rebirth", "calibrate", "cal"])
     parser.add_argument("--jig", "-j", action="store_true", help="Use the jig for birthing.")
     parser.add_argument("--serialNum", "-s", help="Serial number of the device being birthed. Defaults to a fresh one.")
 #     parser.add_argument("--partNum", "-p", help="Part number to birth.")
@@ -598,7 +598,7 @@ if __name__ == "__main__":
     print "*" * 78
     
     try:
-        if args.mode == "birth":
+        if "birth" in str(args.mode):
             if not utils.checkLockFile(LOCK_FILE):
                 exit(0)
             if args.jig:
