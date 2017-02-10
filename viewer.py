@@ -1402,7 +1402,7 @@ class Viewer(wx.Frame, MenuMixin):
         # FUTURE: Make this conform to the plugin system, and keep a dictionary
         # mapping the dynamically added menu items to the renderer plugin,
         # rather than a chain of 'if' statements.
-        kwargs = {'root': self, 'initSettings': initSettings, 'byType': True}
+        kwargs = {'root': self, 'initSettings': initSettings}
         evtId = plotType if evt is None else evt.GetId()
         if evtId == self.ID_RENDER_PSD:
             viewClass = PSDView
@@ -1412,7 +1412,8 @@ class Viewer(wx.Frame, MenuMixin):
             settings = xd.SpectrogramExportDialog.getExport(**kwargs)
         elif evtId == self.ID_RENDER_PLOTS:
             viewClass = PlotView
-            settings = xd.ExportDialog.getExport(title="Render Plot", **kwargs)
+            settings = xd.ExportDialog.getExport(title="Render Plot", 
+                                                 byType=True, **kwargs)
         else:
             viewClass = FFTView
             settings = xd.FFTExportDialog.getExport(**kwargs)
