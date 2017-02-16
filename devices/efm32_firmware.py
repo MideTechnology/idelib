@@ -44,6 +44,14 @@ RECORDER_TYPES = [devices.SlamStickC, devices.SlamStickX]
 #===============================================================================
 
 def findItem(container, path):
+    """ Retrieve an item in a nested dictionary, list, or combination of
+        the two.
+
+        @param container: A list or dictionary, possibly containing other
+            lists/dictionaries.
+        @param path: The 'path' of the item to find, with keys/indices
+            delimited by a slash (``/``).
+    """
     d = container
     for key in path.strip("\n\r\t /").split('/'):
         try:
@@ -54,8 +62,20 @@ def findItem(container, path):
 
 
 def changeItem(container, path, val):
+    """ Replace an item in a nested dictionary, list, or combination of
+        the two.
+
+        @param container: A list or dictionary, possibly containing other
+            lists/dictionaries.
+        @param path: The 'path' of the item to find, with keys/indices
+            delimited by a slash (``/``).
+        @param val: The replacement value.
+    """
     p, k = os.path.split(path.strip("\n\r\t /"))
-    findItem(container, p)[k] = val
+    parent = findItem(container, p)
+    if not isinstance(parent, dict):
+        k = int(k)
+    parent[k] = val
 
 
 #===============================================================================
@@ -487,20 +507,28 @@ class FirmwareUpdater(object):
         if not all((manTemplate, calTemplate)):
             raise ValueError("Could not find template")
 
-        try:
-            accelSn = findItem(self.device.getManifest(), 'AnalogSensorInfo/AnalogSensorSerialNumber')
-        except (KeyError, IndexError):
-            accelSn = None
+        # Collect sensor serial numbers (which are now 'multiple' elements)
+        accelSerials = []
+        manifest = self.device.getManifest()
+        for s in manifest.get('AnalogSensorInfo', []):
+            accelSerials.append(s.get('AnalogSensorSerialNumber', None))
             
-        manChanges = (
+        manChanges = [
             ('DeviceManifest/SystemInfo/SerialNumber', self.device.serialInt),
             ('DeviceManifest/SystemInfo/DateOfManufacture', self.device.birthday),
-            ('DeviceManifest/AnalogSensorInfo/AnalogSensorSerialNumber', accelSn),
-        )
-        propChanges = (
-            ('RecordingProperties/SensorList/Sensor/0/TraceabilityData/SensorSerialNumber', accelSn),
-        )
+        ]
+        propChanges = []
         
+        # Add (analog) sensor serial numbers to change lists for the manifest
+        # and recorder properties. 
+        for i, sn in enumerate(accelSerials):
+            if sn is None:
+                continue
+            manChanges.append(('DeviceManifest/AnalogSensorInfo/%d/AnalogSensorSerialNumber' % i, sn))
+            propChanges.append(('RecordingProperties/SensorList/Sensor/%d/TraceabilityData/SensorSerialNumber' %i, sn))
+        
+
+        # Apply manifest changes
         for k,v in manChanges:
             try:
                 changeItem(manTemplate, k, v)
@@ -508,6 +536,8 @@ class FirmwareUpdater(object):
                 logger.info("Missing manifest item %s, probably okay." %
                             os.path.basename(k))
                 pass
+            
+        # Apply recorder properties changes
         if propTemplate is not None:
             for k,v in propChanges:
                 try:
