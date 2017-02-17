@@ -7,6 +7,7 @@ Created on Sep 2, 2015
 @author: dstokes
 '''
 
+from collections import Sequence
 from fnmatch import fnmatch
 from glob import glob
 import io
@@ -54,10 +55,9 @@ def findItem(container, path):
     """
     d = container
     for key in path.strip("\n\r\t /").split('/'):
-        try:
-            d = d[key]
-        except TypeError:
-            d = d[int(key)]
+        if isinstance(d, Sequence):
+            key = int(key)
+        d = d[key]
     return d
 
 
@@ -73,7 +73,7 @@ def changeItem(container, path, val):
     """
     p, k = os.path.split(path.strip("\n\r\t /"))
     parent = findItem(container, p)
-    if not isinstance(parent, dict):
+    if isinstance(parent, Sequence):
         k = int(k)
     parent[k] = val
 
