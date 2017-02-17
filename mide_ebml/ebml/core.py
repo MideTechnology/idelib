@@ -165,7 +165,11 @@ def read_signed_integer(stream, size):
 	if size == 0:
 		return 0
 	data = stream.read(size)
-	return _struct_uint64.unpack_from(data.rjust(_struct_int64.size,'\x00'))[0]
+	if ord(data[0]) & 0b10000000:
+		pad = '\xff'
+	else:
+		pad = '\x00'
+	return _struct_int64.unpack_from(data.rjust(_struct_int64.size,pad))[0]
 
 
 
