@@ -33,6 +33,7 @@ if DEBUG:
 # The feedback form URL. Will show up as an item in the Help menu if provided.
 FEEDBACK_URL = "https://www.surveymonkey.com/s/slam-stick-x"
 
+RESOURCES_URL = "http://info.mide.com/data-loggers/slam-stick-data-logger-resources?utm_source=Slam-Stick-X-Data-Logger&utm_medium=Device&utm_content=Link-to-Slam-Stick-Resources-web-page-from-Device&utm_campaign=Slam-Stick-X"
 
 #===============================================================================
 # 
@@ -153,6 +154,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_TOOLS = wx.NewId()
     ID_HELP_CHECK_UPDATES = wx.NewId()
     ID_HELP_FEEDBACK = wx.NewId()
+    ID_HELP_RESOURCES = wx.NewId()
 
     ID_DEBUG_SUBMENU = wx.NewId()
     ID_DEBUG_SAVEPREFS = wx.NewId()
@@ -468,6 +470,13 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(helpMenu, self.ID_HELP_CHECK_UPDATES,
                          "Check for Updates", "", self.OnHelpCheckUpdates)
         
+        if RESOURCES_URL or FEEDBACK_URL:
+            helpMenu.AppendSeparator()
+            
+        if RESOURCES_URL:
+            self.addMenuItem(helpMenu, self.ID_HELP_RESOURCES,
+                             "Slam Stick Resources", "", self.OnHelpResources)
+        
         if FEEDBACK_URL:
             self.addMenuItem(helpMenu, self.ID_HELP_FEEDBACK,
                              "Send Feedback", "", self.OnHelpFeedback)
@@ -567,6 +576,7 @@ class Viewer(wx.Frame, MenuMixin):
                  self.ID_DEVICE_CONFIG, self.ID_DEVICE_UPDATE, wx.ID_ABOUT, 
                  wx.ID_PREFERENCES,
                  self.ID_HELP_CHECK_UPDATES, self.ID_HELP_FEEDBACK,
+                 self.ID_HELP_RESOURCES,
                  self.ID_FILE_MULTI, self.ID_TOOLS,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, 
                  self.ID_DEBUG_CONSOLE, self.ID_DEBUG0, self.ID_DEBUG1, 
@@ -1708,6 +1718,12 @@ class Viewer(wx.Frame, MenuMixin):
         """
         wx.LaunchDefaultBrowser(FEEDBACK_URL)
 
+
+    def OnHelpResources(self, evt):
+        """
+        """
+        wx.LaunchDefaultBrowser(RESOURCES_URL)
+        
 
     def OnDontRemoveMeanCheck(self, evt):
         """ Handler for ID_DATA_NOMEAN menu item selection. The method can
