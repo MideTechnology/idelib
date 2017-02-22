@@ -8,8 +8,8 @@ from ..core import read_signed_integer, read_unsigned_integer, read_float, read_
 
 
 
-__all__ = ('UnknownElement', 'Element', 'Document', 'INT', 'UINT', 'FLOAT', 
-			'STRING', 'UNICODE', 'DATE', 'BINARY', 'CONTAINER')
+__all__ = ('UnknownElement', 'Element', 'Document', 'INT', 'UINT', 'FLOAT',
+           'STRING', 'UNICODE', 'DATE', 'BINARY', 'CONTAINER')
 
 
 INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER = range(0, 8)
@@ -27,13 +27,13 @@ READERS = {
 
 
 class Stream(object):
-    
+
     class Substream(object):
         def __init__(self, stream, offset, size):
             self.stream = stream
             self.offset = offset
             self.size = size
-        
+
         def read(self, size):
             current_offset = self.tell()
             if current_offset == 0:
@@ -51,7 +51,7 @@ class Stream(object):
                         return self.stream.read(size)
                     else:
                         return self.stream.read(max_size)
-        
+
         def seek(self, offset, whence=os.SEEK_SET):
             if whence == os.SEEK_SET:
                 desired_offset = self.offset + offset
@@ -59,25 +59,25 @@ class Stream(object):
                 desired_offset = self.stream.tell() + offset
             elif whence == os.SEEK_END:
                 desired_offset = self.offset + self.size + offset
-            
+
             if not self.offset <= desired_offset:
                 raise IOError("Bad offset for seek()")
-            
+
             self.stream.seek(desired_offset, os.SEEK_SET)
-        
+
         def tell(self):
             stream_offset = self.stream.tell()
             if stream_offset <= self.offset:
                 return 0
             else:
                 return stream_offset - self.offset
-        
+
         def substream(self, offset, size):
             if offset + size <= self.size:
                 return self.stream.substream(self.offset + offset, size)
             else:
                 raise IOError("Bad offset/size for substream")
-        
+
         def __getitem__(self, key):
             if isinstance(key, (int, long)):
                 self.seek(key)
@@ -92,23 +92,23 @@ class Stream(object):
                     raise IndexError("Slice had no start and/or stop")
             else:
                 raise TypeError("Bad type for index/key: %r" % key)
-    
+
     def __init__(self, file_like):
         self.file = file_like
         self.file.seek(0, os.SEEK_END)
         self.size = self.file.tell()
         self.file.seek(0, os.SEEK_SET)
         self.substreams = {}
-    
+
     def read(self, size):
         return self.file.read(size)
-    
+
     def seek(self, offset, whence=os.SEEK_SET):
         return self.file.seek(offset, whence)
-    
+
     def tell(self):
         return self.file.tell()
-    
+
     def substream(self, offset, size):
         if offset + size <= self.size:
             if (offset, size) not in self.substreams:
@@ -116,7 +116,7 @@ class Stream(object):
             return self.substreams[(offset, size)]
         else:
             raise IOError("Bad offset/size for substream")
-    
+
     def __getitem__(self, key):
         if isinstance(key, (int, long)):
             self.seek(key)
@@ -135,7 +135,7 @@ class Stream(object):
 
 class Element(object):
     __metaclass__ = abc.ABCMeta
-    
+
     id = abc.abstractproperty()
     name = abc.abstractproperty()
     type = abc.abstractproperty()
@@ -143,21 +143,15 @@ class Element(object):
     children = ()
     mandatory = False
     multiple = False
-    
-    # NOTE: My optimization -DRS
+
     _childDict = {}
 
     def __init__(self, document, stream):
         self.document = document
         self.stream = stream
-    
+
     @property
     def value(self):
-        # NOTE: This is my addition -DRS
-        # It works around a problem with master elements not seeking properly
-#         if self.type == CONTAINER:
-#             return read_elements(self.body_stream, self.document, self._childDict)
-        
         try:
             return self.cached_value
         except AttributeError:
@@ -168,7 +162,7 @@ class Element(object):
             else:
                 self.cached_value = None
         return self.cached_value
-    
+
     @property
     def id_size(self):
         try:
@@ -177,7 +171,7 @@ class Element(object):
             self.stream.seek(0)
             _, self.cached_id_size = read_element_id(self.stream)
         return self.cached_id_size
-    
+
     @property
     def size_size(self):
         try:
@@ -186,19 +180,19 @@ class Element(object):
             self.stream.seek(self.id_size)
             _, self.cached_size_size = read_element_size(self.stream)
         return self.cached_size_size
-    
+
     @property
     def head_size(self):
         return self.id_size + self.size_size
-    
+
     @property
     def body_size(self):
         return self.size - self.head_size
-    
+
     @property
     def body_stream(self):
         return self.stream.substream(self.head_size, self.body_size)
-    
+
     @property
     def size(self):
         return self.stream.size
@@ -208,7 +202,7 @@ class UnknownElement(Element):
     id = None
     name = 'Unknown'
     type = BINARY
-    
+
     def __init__(self, document, stream, id_):
         self.id = id_
         super(UnknownElement, self).__init__(document, stream)
@@ -225,25 +219,24 @@ def read_elements(stream, document, children):
         element_stream_size = element_id_size + element_size_size + element_size
         element_stream = stream.substream(element_offset, element_stream_size)
         size -= element_stream_size
-        
+
 #         element_class = None
 #         for child in (children + document.globals):
 #             if child.id == element_id:
 #                 element_class = child
 #                 break
-        
+
         element_class = children.get(element_id, None)
-        
+
         if element_class is None:
             element = UnknownElement(document, element_stream, element_id)
         else:
             element = element_class(document, element_stream)
-        
+
         elements.append(element)
     return elements
 
 
-# NOTE: This is my addition -DRS
 def iter_elements(stream, document, children):
     size = stream.size
     while size:
@@ -254,7 +247,7 @@ def iter_elements(stream, document, children):
         element_stream_size = element_id_size + element_size_size + element_size
         element_stream = stream.substream(element_offset, element_stream_size)
         size -= element_stream_size
-        
+
 #         element_class = None
 #         for child in (children + document.globals):
 #             if child.id == element_id:
@@ -262,27 +255,27 @@ def iter_elements(stream, document, children):
 #                 break
 
         element_class = children.get(element_id, None)
-        
+
         if element_class is None:
             element = UnknownElement(document, element_stream, element_id)
         else:
             element = element_class(document, element_stream)
-        
+
         yield(element)
 
 
 class Document(object):
     __metaclass__ = abc.ABCMeta
-    
+
     type = abc.abstractproperty()
     version = abc.abstractproperty()
     children = ()
     globals = ()
-    
+
     def __init__(self, file_like):
         self.stream = Stream(file_like)
         self._roots = None
-    
+
     @property
     def roots(self):
         if self._roots is None:
@@ -291,11 +284,10 @@ class Document(object):
             for r in iter_elements(self.stream, self, self._childDict):
                 self._roots.append(r)
         return self._roots
-    
-    # NOTE: This is my addition -DRS
+
+
     def iterroots(self):
         """ Iterate over the document's root elements. Allows use of a
             damaged file; just catch an `IOError` in the root-reading loop.
         """
         return iter_elements(self.stream, self, self._childDict)
-    
