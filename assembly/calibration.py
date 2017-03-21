@@ -624,9 +624,10 @@ class Calibrator(object):
                  refModel="7251A-10/133",
                  refSerial="12740/BL33",
                  refNist="683/287323",
-                 skipSamples=5000):
+                 skipSamples=5000,
+                 productSerialNum=None):
         self.devPath = devPath
-        self.productSerialNum = None
+        self.productSerialNum = productSerialNum
         self.productSerialInt = None
         self.certNum = certNum
         self.isUpdate=False
@@ -790,9 +791,6 @@ class Calibrator(object):
         self.hasLoAccel = all((c.hasLoAccel for c in self.calFiles))
         self.hasPRAccel = all((c.hasPRAccel for c in self.calFiles))
         
-        # XXX: REMOVE THIS
-        self.hasPRAccel = True
-
         self.Sxy, self.Syz, self.Sxz = self.calculateTrans(self.calFiles, self.cal)
         self.Syz_file, self.Sxz_file, self.Sxy_file = self.filenames
 
@@ -1111,6 +1109,9 @@ class Calibrator(object):
         c.offsetsLo.x = caldata.get('X Offset (DC)', None)
         c.offsetsLo.y = caldata.get('Y Offset (DC)', None)
         c.offsetsLo.z = caldata.get('Z Offset (DC)', None)
+        c.offsets.x = caldata.get('X Offset', None)
+        c.offsets.y = caldata.get('Y Offset', None)
+        c.offsets.z = caldata.get('Z Offset', None)
 
         c.productManDate = mandate.split()[0]
         c.calTimestamp = caldate.split(' ',1)[0]
@@ -1190,6 +1191,9 @@ class Calibrator(object):
                 ("X Offset (DC)",        self.offsetsLo.x),
                 ("Y Offset (DC)",        self.offsetsLo.y),
                 ("Z Offset (DC)",        self.offsetsLo.z),
+                ("X Offset",             self.offsets.x),
+                ("Y Offset",             self.offsets.y),
+                ("Z Offset",             self.offsets.z),
                 ])
 
         if err is not None:
