@@ -151,4 +151,7 @@ default="123" or a text value that may or may not be the name of another tag
 		<!-- Misc. -->
 		<element name="DigitalSensorReset" level="1" id="0x4DD0" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a hardware pushbutton reset controller.</element>
 		<element name="DigitalPowerMAX77801" level="1" id="0x4DD1" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a MAX77801 power management IC on the I2C1 bus.</element>
+		<element name="DigitalLedThree" level="1" id="0x4DD2" type="master" mandatory="0" multiple="0" minver="1">Indicates that the membrane has a 3rd LED driven by the MCU.</element>
+		<element name="DigitalSensorSI1133" level="1" id="0x4DD3" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a SI1133 light sensor on the I2C1 bus.</element>
+		
 </table>
