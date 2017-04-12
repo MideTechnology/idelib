@@ -64,6 +64,9 @@ class StatusBar(wx.StatusBar):
     when the Viewer is doing something in the background (i.e. file import or
     export). The progress bar can show an actual value, or it can just run 
     continuously.
+    
+    @todo: Move logo to right side, have Cancel button cover it when visible,
+        freeing up field 0, which automatically displays menu item tool tips.
     """
     frameDelay = 30
     numFields = 7
@@ -113,6 +116,18 @@ class StatusBar(wx.StatusBar):
 
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.TimerHandler)
+
+    
+    def setPositionDisplay(self, x=None, y=None, time=None):
+        """ Wrapper for setting the X, Y, and/or UTC time fields of the status 
+            bar.
+        """
+        if x is not None:
+            self.SetStatusText(x, self.xFieldNum)
+        if y is not None:
+            self.SetStatusText(y, self.yFieldNum)
+        if time is not None:
+            self.SetStatusText(time, self.utcFieldNum)
 
 
     def __del__(self):

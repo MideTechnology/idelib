@@ -2213,8 +2213,8 @@ class Viewer(wx.Frame, MenuMixin):
             job = self.getCurrentOperation()
         
         # TODO: Hook this back up once race condition resolved!
-#         logger.info("Paused operation %r" % job)
-#         return job, job.pause(True)
+        logger.info("Paused operation %r" % job)
+        return job, job.pause(True)
         return job, True
 
 
@@ -2276,21 +2276,20 @@ class Viewer(wx.Frame, MenuMixin):
             within the same PlotArea use the same horizontal axis scale/units.
         """
         if pos is None:
-            self.statusBar.SetStatusText("", self.statusBar.xFieldNum)
-            self.statusBar.SetStatusText("", self.statusBar.utcFieldNum)
+            self.statusBar.setPositionDisplay(x="", time="")
             return
         
         units = self.units[1] if units is None else units
         t = self.timeline.getValueAt(pos) * self.timeScalar
-        msg = self.xFormatter % (t, units)
-        self.statusBar.SetStatusText(msg, self.statusBar.xFieldNum)
+        msgX = self.xFormatter % (t, units)
         
         if self.showUtcTime and self.session.utcStartTime is not None:
             utc = str(datetime.utcfromtimestamp(self.session.utcStartTime+t))
-            msg = "X (UTC): %s" % utc[:-2]
+            msgT = "X (UTC): %s" % utc[:-2]
         else:
-            msg = ""
-        self.statusBar.SetStatusText(msg, self.statusBar.utcFieldNum)
+            msgT = ""
+            
+        self.statusBar.setPositionDisplay(x=msgX, time=msgT)
         
     
     def showMouseVPos(self, pos, units=""):
@@ -2300,11 +2299,8 @@ class Viewer(wx.Frame, MenuMixin):
             
             @param h: 
         """
-        if pos is None:
-            msg = ""
-        else:
-            msg = self.yFormatter % (pos, units)
-        self.statusBar.SetStatusText(msg, self.statusBar.yFieldNum)
+        msg = "" if pos is None else self.yFormatter % (pos, units)
+        self.statusBar.setPositionDisplay(y=msg)
 
 
     #===========================================================================
