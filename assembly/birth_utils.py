@@ -237,7 +237,11 @@ def parseCalLog(l):
               ("Z-Axis (DC)",       float),
               ("X Offset (DC)",     float),
               ("Y Offset (DC)",     float),
-              ("Z Offset (DC)",     float))
+              ("Z Offset (DC)",     float),
+              ("X Offset",     float),
+              ("Y Offset",     float),
+              ("Z Offset",     float)
+              )
     
     result = OrderedDict()
     for val, field in zip(sp, fields):
