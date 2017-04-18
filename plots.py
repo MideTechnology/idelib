@@ -36,7 +36,12 @@ def constrainInt(val):
     """ Helper function to prevent an `OverflowError` when plotting at extreme
         magnification.
     """
-    return max(-2147483648L, min(2147483647L, val))
+    if val > 2147483647L:
+        return 2147483647L
+    if val < -2147483648L:
+        return -2147483648L
+    return val
+
 
 #===============================================================================
 # 
@@ -275,6 +280,7 @@ class PlotCanvas(wx.ScrolledWindow):
     
         @todo: Make drawing asynchronous and interruptible.
     """
+    # Drawing styles: (preference name, color, width, style, dash style) 
     GRID_ORIGIN_STYLE = ("originHLineColor", "GRAY", 1, wx.SOLID, None)
     GRID_MAJOR_STYLE = ("majorHLineColor", "LIGHT GRAY", 1, wx.SOLID, None)
     GRID_MINOR_STYLE = ("minorHLineColor", "LIGHT GRAY", 1, wx.USER_DASH, [2,2])
@@ -1238,6 +1244,7 @@ class Plot(ViewerPanel, MenuMixin):
     ID_MENU_MOVE_TOP = wx.NewId()
     ID_MENU_MOVE_BOTTOM = wx.NewId()
     ID_MENU_REMOVE = wx.NewId()
+    ID_MENU_HIDE_LEGEND = wx.NewId()
     LEGEND_POS_IDS = [ID_MENU_SETPOS_UL, ID_MENU_SETPOS_UR,
                       ID_MENU_SETPOS_LL, ID_MENU_SETPOS_LR]
         
@@ -1329,6 +1336,7 @@ class Plot(ViewerPanel, MenuMixin):
                          "Move Plot to Bottom", "", self.OnMenuMoveBottom)
         self.addMenuItem(self.legendMenu, self.ID_MENU_REMOVE,
                          "Remove Source", "", self.OnMenuRemoveSource)
+        
         self.legendMenu.AppendSeparator()
         posMenu = self.addSubMenu(self.legendMenu, -1, "Legend Position")
         self.addMenuItem(posMenu, self.ID_MENU_SETPOS_UL, "Upper Left", "",
@@ -1339,6 +1347,9 @@ class Plot(ViewerPanel, MenuMixin):
                          self.OnMenuLegendPos)
         self.addMenuItem(posMenu, self.ID_MENU_SETPOS_LR, "Lower Right", "",
                          self.OnMenuLegendPos)
+        
+        self.addMenuItem(self.legendMenu, self.ID_MENU_HIDE_LEGEND, 
+                         "Hide Legend", "", self.OnMenuHideLegend)
        
 
     def showLegendPopup(self, item):
@@ -1813,6 +1824,7 @@ class Plot(ViewerPanel, MenuMixin):
             self.plot.legendRect=None
             self.Refresh()
     
+    
     def OnMenuMoveBottom(self, evt):
         """ Handle plot legend context menu selection event.
         """
@@ -1822,6 +1834,7 @@ class Plot(ViewerPanel, MenuMixin):
             self.sources.insert(0, item)
             self.plot.legendRect=None
             self.Refresh()
+    
     
     def OnMenuLegendPos(self, evt):
         """ Handle plot legend context menu selection event.
@@ -1835,6 +1848,7 @@ class Plot(ViewerPanel, MenuMixin):
         except ValueError:
             pass
             
+            
     def OnMenuRemoveSource(self, evt):
         """ Handle plot legend context menu selection event.
         """
@@ -1843,6 +1857,13 @@ class Plot(ViewerPanel, MenuMixin):
         self.legendRect = None
         self.Refresh()
 
+
+    def OnMenuHideLegend(self, evt):
+        self.root.showLegend = False
+        self.root.app.setPref("showLegend", False)
+        self.root.setMenuItem(self.root.menubar, self.root.ID_VIEW_LEGEND, checked=False)
+        self.Parent.redraw()
+        
 
 #===============================================================================
 # 
@@ -1856,10 +1877,10 @@ class WarningRangeIndicator(object):
                 wx.HORIZONTAL_HATCH, wx.VERTICAL_HATCH)
 
     
-    def __init__(self, parent, warning, color=None, 
-                 style=None):
-        """ 
-            @type source: `mide_ebml.dataset.WarningRange`
+    def __init__(self, parent, warning, color=None, style=None):
+        """ Constructor.
+            @param parent: The parent plot.
+            @type warning: `mide_ebml.dataset.WarningRange`
             @keyword color: The warning area drawing color.
             @keyword style: The warning area fill style.
         """
