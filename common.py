@@ -25,9 +25,8 @@ def expandRange(l, *vals):
     """ Given a two element list containing a minimum and maximum value, 
         expand it if the given value is outside that range. 
     """
-    for v in vals:
-        l[0] = min(l[0],v)
-        l[1] = max(l[1],v)
+    l[0] = min(l[0], *vals)
+    l[1] = max(l[1], *vals)
 
 
 def mapRange(x, in_min, in_max, out_min, out_max):
@@ -45,10 +44,10 @@ def nextPow2(x):
     if x & (x-1L) == 0L:
         # already a power of 2
         return x
-    x -= 1L
-    for i in xrange(5):
-        x |= x >> (2**long(i))
-    return x+1L
+    
+    # Kind of a hack, but it's fast (the 'right' way uses slow bit shifting).
+    return 2L**(len(bin(x))-2L)
+
 
 #===============================================================================
 # Formatting and parsing helpers
@@ -112,6 +111,7 @@ def cleanUnicode(obj, encoding='utf8', errors='replace'):
 #     except ValueError:
 #         return int(val, 16)
 
+
 def datetime2int(val, tzOffset=0):
     """ Convert a date/time object (either a standard Python datetime.datetime
         or wx.DateTime) into the UTC epoch time (i.e. UNIX time stamp).
@@ -160,15 +160,24 @@ def parseTime(val):
     return result
 
 
-def wordJoin(words, conj="and"):
+def wordJoin(words, conj="and", oxford=True):
     """ Function to do an English joining of list items.
+        @param words: A list (or other iterable) of items. Items will be cast
+            to Unicode.
+        @keyword conj: The conjunction to use, e.g. ``and`` or ``or``.
+        @keyword oxford: If `True`, insert a comma after the penultimate word,
+            if ``words`` contains three or more items.
     """
-    if len(words) < 2:
-        return words
-    result = '%s %s %s' % (words[-2], conj, words[-1])
-    if len(words) > 2:
-        result = "%s, %s" % (', '.join(words[:-2]), result)
-    return result
+    words = map(cleanUnicode, words)
+    numWords = len(words)
+    if numWords > 2:
+        if oxford:
+            return "%s, %s %s" % (', '.join(words[:-1]), conj, words[-1])
+        else:
+            return "%s %s %s" % (', '.join(words[:-1]), conj, words[-1])
+    else:
+        return (" %s " % conj).join(words)
+
 
 #===============================================================================
 # 
@@ -182,6 +191,7 @@ def inRect(x, y, rect):
     if x > rect[0]+rect[2] or y > rect[1]+rect[3]:
         return False
     return True
+
 
 #===============================================================================
 # Field validators
