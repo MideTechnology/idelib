@@ -14,7 +14,6 @@ __all__ = ('UnknownElement', 'Element', 'Document', 'INT', 'UINT', 'FLOAT',
 
 INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER = range(0, 8)
 
-
 READERS = {
     INT: read_signed_integer,
     UINT: read_unsigned_integer,
@@ -111,9 +110,12 @@ class Stream(object):
 
     def substream(self, offset, size):
         if offset + size <= self.size:
-            if (offset, size) not in self.substreams:
-                self.substreams[(offset, size)] = self.Substream(self, offset, size)
-            return self.substreams[(offset, size)]
+            # XXX: TEST: Caching disabled; it doesn't seem to do much good.
+#             k = (offset, size)
+#             if k not in self.substreams:
+#                 self.substreams[k] = self.Substream(self, offset, size)
+#             return self.substreams[k]
+            return self.Substream(self, offset, size)
         else:
             raise IOError("Bad offset/size for substream")
 
@@ -155,12 +157,13 @@ class Element(object):
         try:
             return self.cached_value
         except AttributeError:
-            if self.type in READERS:
-                self.cached_value = READERS[self.type](self.body_stream, self.body_size)
-            elif self.type == CONTAINER:
+            if self.type == CONTAINER:
                 self.cached_value = read_elements(self.body_stream, self.document, self._childDict)
             else:
-                self.cached_value = None
+                try:
+                    self.cached_value = READERS[self.type](self.body_stream, self.body_size)
+                except KeyError:
+                    self.cached_value = None
         return self.cached_value
 
     @property
