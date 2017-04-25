@@ -1298,8 +1298,7 @@ class Plot(ViewerPanel, MenuMixin):
         dispRange = [sys.maxint, -sys.maxint]
         for s in self.sources:
             if getattr(s, 'hasDisplayRange', False):
-                expandRange(dispRange, s.displayRange[0])
-                expandRange(dispRange, s.displayRange[1])
+                expandRange(dispRange, *s.displayRange)
         if dispRange != [sys.maxint, -sys.maxint]:
             self.range = dispRange
         
