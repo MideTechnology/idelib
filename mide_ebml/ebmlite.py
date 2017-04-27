@@ -1,5 +1,5 @@
 '''
-Module mide_ebml.ebmlite
+EBMLite: A lightweight EBML library.
 
 Created on Apr 27, 2017
 '''
@@ -11,9 +11,9 @@ import os.path
 from StringIO import StringIO
 from xml.etree import ElementTree as ET
 
-# import sys
-# LAB_PATH = r"C:\Users\dstokes\workspace\SSXViewer"
-# sys.path.insert(0, LAB_PATH)
+import sys
+LAB_PATH = r"C:\Users\dstokes\workspace\SSXViewer"
+sys.path.insert(0, LAB_PATH)
 # 
 # from mide_ebml.ebml import core
 
@@ -44,7 +44,8 @@ class DummyStream(object):
 #===============================================================================
 
 class Element(object):
-    """ Base class for all EBML elements.
+    """ Base class for all EBML elements. Also used for unknown elements (i.e.
+        those with IDs not in the schema.
     """
     # python-ebml type ID. PyLint won't like this.
     type = UNKNOWN
@@ -52,19 +53,24 @@ class Element(object):
     children = None
     
     def parse(self, stream, size):
+        # Document-wide caching could be implemented here.
         return  bytearray(stream.read(size))
 
 
     def __init__(self, eid, ename="UnknownElement", stream=None, offset=0,
-                 size=0, payloadOffset=0, schema=None, parent=None):
+                 size=0, payloadOffset=0, document=None, schema=None):
+        """
+        """
+        # TODO: Determine if memory used to store element name is worth the
+        # time savings (importer currently works using element names).
         self.id = eid
         self.name = ename
         self._stream = stream
         self.offset = offset
         self.size = size
         self.payloadOffset = payloadOffset
-        self.schema = schema
-        self.parent = parent
+        self.schema = schema or document.schema
+        self.document = document
         self._value = None
 
         # For python-ebml compatibility. Remove later.
@@ -76,6 +82,15 @@ class Element(object):
         return "<%s %r (0x%02X) at 0x%08X>" % (self.__class__.__name__,
                                                self.name, self.id, id(self))
 
+#     
+#     @property
+#     def name(self):
+#         # Get the object name from the schema, avoiding redundant strings
+#         try:
+#             return self.schema.elements[self.id][0]
+#         except (KeyError, IndexError):
+#             return 'UnknownElement'
+    
 
     @property
     def value(self):
@@ -113,6 +128,24 @@ class Element(object):
         return self._getSchemaInfo('mandatory','0') == '1'
 
 
+    #===========================================================================
+    # Caching (experimental)
+    #===========================================================================
+
+    def gc(self, recurse=False):
+        """ Clear any cached values. To save memory and/or force values to be
+            re-read from the file.
+        """
+        if self._value is None:
+            return 0
+        self._value = None
+        
+        return 1
+        
+
+
+#===============================================================================
+
 class IntegerElement(Element):
     """ Representation of an EBML signed integer element.
     """
@@ -121,6 +154,8 @@ class IntegerElement(Element):
     def parse(self, stream, size):
         return core.read_signed_integer(stream, size)
 
+
+#===============================================================================
 
 class UIntegerElement(Element):
     """ Representation of an EBML unsigned integer element.
@@ -131,6 +166,8 @@ class UIntegerElement(Element):
         return core.read_unsigned_integer(stream, size)
 
 
+#===============================================================================
+
 class FloatElement(Element):
     """ Representation of an EBML floating point element.
     """
@@ -139,6 +176,8 @@ class FloatElement(Element):
     def parse(self, stream, size):
         return core.read_float(stream, size)
 
+
+#===============================================================================
 
 class StringElement(Element):
     """ Representation of an EBML ASCII string element.
@@ -149,14 +188,18 @@ class StringElement(Element):
         return core.read_string(stream, size)
 
 
+#===============================================================================
+
 class UnicodeElement(Element):
-    """ Repesentation of an EBML UTF-8 string element.
+    """ Representation of an EBML UTF-8 string element.
     """
     type = UNICODE
 
     def parse(self, stream, size):
         return core.read_unicode_string(stream, size)
 
+
+#===============================================================================
 
 class DateElement(Element):
     """ Representation of an EBML 'date' element.
@@ -167,11 +210,15 @@ class DateElement(Element):
         return core.read_date(stream, size)
 
 
+#===============================================================================
+
 class BinaryElement(Element):
     """ Representation of an EBML 'binary' element.
     """
     type = BINARY
 
+
+#===============================================================================
 
 class MasterElement(Element):
     """ Representation of an EBML 'master' element, a container for other
@@ -188,7 +235,7 @@ class MasterElement(Element):
         payloadOffset = offset + idlen + sizelen
 
         ename, etype = self.schema.elements.get(eid, ("UnknownElement", Element))
-        el = etype(eid, ename, stream, offset, esize, payloadOffset, self.schema, self)
+        el = etype(eid, ename, stream, offset, esize, payloadOffset, self.document)
 
         return el, payloadOffset + esize
 
@@ -203,7 +250,7 @@ class MasterElement(Element):
             el, pos = self.parseElement(self._stream)
             yield el
 
-
+    
     @property
     def value(self):
         """
@@ -218,27 +265,54 @@ class MasterElement(Element):
         return self.value.__getitem__(*args)
 
 
+    #===========================================================================
+    # Caching (experimental!)
+    #===========================================================================
+    
+    def gc(self, recurse=False):
+        """ Clear any cached values. To save memory and/or force values to be
+            re-read from the file.
+        """
+        cleared = 0
+        if self._value is not None:
+            if recurse:
+                cleared = sum(ch.gc(recurse) for ch in self._value) + 1
+            self._value = None
+        return cleared
+            
+
+#===============================================================================
+# 
+#===============================================================================
+
 class Document(MasterElement):
     """ Representation of an EBML document, containing multiple 'root'
         elements.
     """
 
     def __init__(self, stream, schema, name=None, size=None):
-        """
+        """ Constructor.
+        
+            @param stream: A stream object (e.g. a file) from which to read 
+                the EBML content, or a filename.
+            @param schema: The EBML schema used by the file.
+            @keyword name: The name of the document. Defaults to the filename
+                (if applicable).
         """
         self._value = None
         self.schema = schema
+        self.document = self
         self._stream = stream
         self.size = size
-        self.name = name
+        self._name = name
         self.id = None
         self.offset =  self.payloadOffset = 0
 
         if name is None:
             try:
-                self.name = self._stream.name
+                self._name = self._stream.name
             except AttributeError:
-                self.name = ""
+                self._name = ""
 
         if size is None:
             if isinstance(stream, StringIO):
@@ -251,7 +325,7 @@ class Document(MasterElement):
 
         startPos = self._stream.tell()
         el, pos = self.parseElement(self._stream)
-        if el.name == "EBML":
+        if el.id == 0x1A45DFA3: # "EBML":
             # Load 'header' info from the file
             self.info = {c.name: c.value for c in el.value}
             self.payloadOffset = pos
@@ -262,9 +336,22 @@ class Document(MasterElement):
         # For python-ebml compatibility. Remove later.
         self.stream = DummyStream(stream, 0, self.size)
         self.body_size = self.size - self.payloadOffset
-        
+    
+    
+    @property
+    def name(self):
+        return self._name
+
+
+    def __repr__(self):
+        return "<%s %r (%s) at 0x%08X>" % (self.__class__.__name__,
+                                               self._name, self.type, id(self))
+
 
     def close(self):
+        """ Close the EBML file. Should generally be used only if the object was
+            created using a filename, rather than a stream.
+        """
         self._stream.close()
 
 
@@ -315,15 +402,25 @@ class Document(MasterElement):
 
     @property
     def version(self):
+        """ The document's type version (i.e. the EBML ``DocTypeVersion``). """
         return self.info.get('DocTypeVersion')
 
 
     @property
     def type(self):
-        """ The document's type (string). """
+        """ The document's type name (i.e. the EBML ``DocType``). """
         # NOTE: in python-ebml, an element's 'type' is numeric, while the
         # document's 'type' is a string. This follows that model.
         return self.info.get('DocType')
+
+
+    #===========================================================================
+    # Caching (experimental!)
+    #===========================================================================
+    
+    def gc(self, recurse=False):
+        return 0
+
 
 
 #===============================================================================
@@ -347,6 +444,11 @@ class Schema(object):
 
 
     def __init__(self, filename, name=None):
+        """ Constructor.
+        
+            @param filename: The full path and name of the schema XML file.
+            @keyword name: The schema's name. Defaults to the filename.
+        """
         self.filename = filename
         self.name = name
         if name is None:
@@ -354,6 +456,7 @@ class Schema(object):
 
         self.elements = {}
         self.elementInfo = {}
+        self.elementIds = {}
         schema = ET.parse(filename)
 
         for el in schema.findall('element'):
@@ -365,6 +468,7 @@ class Schema(object):
                 raise ValueError("Unknown type for %r: %r" % (ename, etype))
             self.elements[eid] = (ename, self.ELEMENT_TYPES[etype])
             self.elementInfo[eid] = attribs
+            self.elementIds[ename] = eid
 
 
     def __repr__(self):
@@ -378,7 +482,6 @@ class Schema(object):
         if isinstance(fp, basestring):
             fp = open(fp, 'rb')
 
-        name = name or self.type
         return Document(fp, self, name=name)
 
 
@@ -407,34 +510,34 @@ class Schema(object):
 #
 #===============================================================================
 
-# # TEST
-# schemaFile = os.path.join(LAB_PATH, r"mide_ebml\ebml\schema\mide.xml")
-# testFile = 'test_recordings/5kHz_Full.IDE'
-# 
-# from time import clock
-# from mide_ebml.ebml.schema.mide import MideDocument
-# 
-# def crawl(el):
-#     v = el.value
-#     if isinstance(v, list):
-#         return sum(map(crawl, v))
-#     return 1
-# 
-# def testOld():
-#     total = 0
-#     t0 = clock()
-#     with open(testFile, 'rb') as f:
-#         doc = MideDocument(f)
-#         for el in doc.iterroots():
-#             total += crawl(el)
-#     return total, clock() - t0
-# 
-# def testNew():
-#     total = 0
-#     t0 = clock()
-#     schema = Schema(schemaFile)
-#     with open(testFile, 'rb') as f:
-#         doc = schema.load(f)
-#         for el in doc.iterroots():
-#             total += crawl(el)
-#     return total, clock() - t0
+# TEST
+schemaFile = os.path.join(LAB_PATH, r"mide_ebml\ebml\schema\mide.xml")
+testFile = 'test_recordings/5kHz_Full.IDE'
+ 
+from time import clock
+from mide_ebml.ebml.schema.mide import MideDocument
+ 
+def crawl(el):
+    v = el.value
+    if isinstance(v, list):
+        return sum(map(crawl, v))
+    return 1
+ 
+def testOld():
+    total = 0
+    t0 = clock()
+    with open(testFile, 'rb') as f:
+        doc = MideDocument(f)
+        for el in doc.iterroots():
+            total += crawl(el)
+    return doc, total, clock() - t0
+ 
+def testNew():
+    total = 0
+    t0 = clock()
+    schema = Schema(schemaFile)
+    with open(testFile, 'rb') as f:
+        doc = schema.load(f)
+        for el in doc.iterroots():
+            total += crawl(el)
+    return doc, total, clock() - t0
