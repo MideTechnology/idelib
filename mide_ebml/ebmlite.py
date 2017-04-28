@@ -38,6 +38,8 @@ class DummyStream(object):
         self.file = stream
         self.offset = offset
         self.size = size
+        self.substreams = {}
+
 
 #===============================================================================
 #
@@ -220,6 +222,17 @@ class BinaryElement(Element):
 
 #===============================================================================
 
+class VoidElement(BinaryElement):
+    """ Special case ``Void`` element. Its contents are ignored.
+    """
+    type = BINARY
+    
+    def parse(self, stream, size):
+        return bytearray()
+
+
+#===============================================================================
+
 class MasterElement(Element):
     """ Representation of an EBML 'master' element, a container for other
         elements.
@@ -242,6 +255,7 @@ class MasterElement(Element):
 
     def iterChildren(self):
         """
+        
         """
         pos = self.payloadOffset
         payloadEnd = pos + self.size
@@ -308,20 +322,19 @@ class Document(MasterElement):
         self.id = None
         self.offset =  self.payloadOffset = 0
 
+        try:
+            self.filename = stream.name
+        except AttributeError:
+            self.filename = ""
+            
         if name is None:
-            try:
-                self._name = self._stream.name
-            except AttributeError:
-                self._name = ""
+            self._name = os.path.splitext(os.path.basename(self.filename))[0]
 
         if size is None:
             if isinstance(stream, StringIO):
                 self.size = stream.len
-            else:
-                try:
-                    self.size = os.path.getsize(self._stream.name)
-                except (AttributeError, IOError, WindowsError):
-                    pass
+            elif os.path.exists(self.filename):
+                self.size = os.path.getsize(self._stream.name)
 
         startPos = self._stream.tell()
         el, pos = self.parseElement(self._stream)
@@ -335,6 +348,7 @@ class Document(MasterElement):
 
         # For python-ebml compatibility. Remove later.
         self.stream = DummyStream(stream, 0, self.size)
+        
         self.body_size = self.size - self.payloadOffset
     
     
@@ -344,8 +358,8 @@ class Document(MasterElement):
 
 
     def __repr__(self):
-        return "<%s %r (%s) at 0x%08X>" % (self.__class__.__name__,
-                                               self._name, self.type, id(self))
+        return "<%s %r (%s) at 0x%08X>" % (self.__class__.__name__, self._name,
+                                           self.type, id(self))
 
 
     def close(self):
@@ -358,6 +372,7 @@ class Document(MasterElement):
     def __iter__(self):
         """ Iterate root elements.
         """
+        # TODO: Cache root elements, prevent unnecessary duplicates.
         pos = self.payloadOffset
         while True:
             self._stream.seek(pos)
@@ -371,20 +386,20 @@ class Document(MasterElement):
     def iterroots(self):
         """ Iterate root elements. For working like old python-ebml.
         """
-        return self.__iter__()
+        return iter(self)
 
 
     @property
     def roots(self):
         """ The document's root elements. For python-ebml compatibility.
         """
-        # TODO: Cache roots
+        # TODO: Cache roots (see `__iter__()`
         return list(self)
 
 
     @property
     def value(self):
-        return self
+        return iter(self)
 
 
     def __getitem__(self, idx):
@@ -395,7 +410,7 @@ class Document(MasterElement):
                     return el
             raise IndexError("list index out of range (0-%d)" % n)
         elif isinstance(idx, slice):
-            raise IndexError("Document root slicing not (yet) supported!")
+            raise IndexError("Document root slicing not (yet) supported")
         else:
             raise TypeError("list indices must be integers, not %s" % type(idx))
 
@@ -429,8 +444,14 @@ class Document(MasterElement):
 
 class Schema(object):
     """ An EBML schema, mapping element IDs to names and data types.
+    
+        @ivar elements: A dictionary mapping element IDs to the corresponding
+            name and data type (an `Element` subclass).
+        @ivar elementInfo: A dictionary mapping IDs to the raw schema data.
+        @ivar elementIds: A dictionary mapping element names to IDs.
     """
 
+    # Mapping of schema type names to the corresponding Element subclasses.
     ELEMENT_TYPES = {
         'integer': IntegerElement,
         'uinteger': UIntegerElement,
@@ -444,15 +465,12 @@ class Schema(object):
 
 
     def __init__(self, filename, name=None):
-        """ Constructor.
+        """ Constructor. Creates a new Schema from a schema description XML.
         
             @param filename: The full path and name of the schema XML file.
             @keyword name: The schema's name. Defaults to the filename.
         """
         self.filename = filename
-        self.name = name
-        if name is None:
-            self.name = os.path.splitext(os.path.basename(filename))[0]
 
         self.elements = {}
         self.elementInfo = {}
@@ -470,6 +488,17 @@ class Schema(object):
             self.elementInfo[eid] = attribs
             self.elementIds[ename] = eid
 
+        # Special case: `Void` is a standard EBML element, but not its own
+        # type (it's technically binary). Use the special `VoidElement` type.
+        if 'Void' in self.elementIds:
+            self.elements[self.elementIds['Void']] = ("Void", VoidElement)
+                    
+        if name is None:
+            name = self.type
+            if name is None:
+                name = os.path.splitext(os.path.basename(filename))[0]
+        self.name = name
+        
 
     def __repr__(self):
         return "<%s %r from '%s'>" % (self.__class__.__name__, self.name,
@@ -478,6 +507,10 @@ class Schema(object):
 
     def load(self, fp, name=None):
         """ Load an EBML file using this Schema.
+            
+            @param fp: A file-like object containing the EBML to load, or the
+                name of an EBML file.
+            @keyword name: The name of the document. Defaults to filename.
         """
         if isinstance(fp, basestring):
             fp = open(fp, 'rb')
@@ -490,6 +523,7 @@ class Schema(object):
     #===========================================================================
 
     def _getInfo(self, eid, dtype):
+        """ Helper method to get the 'default' value of an element. """
         try:
             return dtype(self.elementInfo[eid]['default'])
         except (KeyError, ValueError):
