@@ -61,12 +61,20 @@ class Element(object):
 
     def __init__(self, eid, ename="UnknownElement", stream=None, offset=0,
                  size=0, payloadOffset=0, document=None, schema=None):
+        """ Constructor. Instantiate a new Element from a file.
+        
+            @param eid: The element's EBML ID, as defined in the Schema.
+            @keyword ename: The element's name, defined in the Schema.
+            @keyword stream: A file-like object containing EBML data.
+            @keyword offset: The element's starting location in the file.
+            @keyword size: The size of the whole element.
+            @keyword payloadOffset: The starting location of the element's
+                payload (i.e. immediately after the element's header).
+            @keyword document: The parent EBML document.
+            @keyword schema: The Schema defining the element. Defaults to the
+                document's schema.
         """
-        """
-        # TODO: Determine if memory used to store element name is worth the
-        # time savings (importer currently works using element names).
         self.id = eid
-        self.name = ename
         self._stream = stream
         self.offset = offset
         self.size = size
@@ -74,6 +82,10 @@ class Element(object):
         self.schema = schema or document.schema
         self.document = document
         self._value = None
+
+        # TODO: Determine if memory used to store element name is worth the
+        # time savings (importer currently works using element names).
+        self.name = ename
 
         # For python-ebml compatibility. Remove later.
         self.stream = DummyStream(stream, offset, size)
@@ -96,6 +108,7 @@ class Element(object):
 
     @property
     def value(self):
+        """ Parse and cache the element's value. """
         if self._value is not None:
             return self._value
         self._stream.seek(self.payloadOffset)
@@ -240,7 +253,9 @@ class MasterElement(Element):
     type = CONTAINER
 
     def parseElement(self, stream):
-        """
+        """ Read the next element from a stream, instantiate an `Element` 
+            object, and then return it and the offset of the next element
+            (if any).
         """
         offset = stream.tell()
         eid, idlen = core.read_element_id(stream)
@@ -254,8 +269,7 @@ class MasterElement(Element):
 
 
     def iterChildren(self):
-        """
-        
+        """ Create an iterator to iterate over the element's children.
         """
         pos = self.payloadOffset
         payloadEnd = pos + self.size
@@ -318,7 +332,7 @@ class Document(MasterElement):
         self.document = self
         self._stream = stream
         self.size = size
-        self._name = name
+        self.name = name
         self.id = None
         self.offset =  self.payloadOffset = 0
 
@@ -328,7 +342,7 @@ class Document(MasterElement):
             self.filename = ""
             
         if name is None:
-            self._name = os.path.splitext(os.path.basename(self.filename))[0]
+            self.name = os.path.splitext(os.path.basename(self.filename))[0]
 
         if size is None:
             if isinstance(stream, StringIO):
@@ -350,15 +364,11 @@ class Document(MasterElement):
         self.stream = DummyStream(stream, 0, self.size)
         
         self.body_size = self.size - self.payloadOffset
-    
-    
-    @property
-    def name(self):
-        return self._name
+
 
 
     def __repr__(self):
-        return "<%s %r (%s) at 0x%08X>" % (self.__class__.__name__, self._name,
+        return "<%s %r (%s) at 0x%08X>" % (self.__class__.__name__, self.name,
                                            self.type, id(self))
 
 
@@ -393,12 +403,13 @@ class Document(MasterElement):
     def roots(self):
         """ The document's root elements. For python-ebml compatibility.
         """
-        # TODO: Cache roots (see `__iter__()`
+        # TODO: Cache roots (see `__iter__()`)
         return list(self)
 
 
     @property
     def value(self):
+        # 'value' not really applicable to a document; return an iterator.
         return iter(self)
 
 
@@ -434,6 +445,7 @@ class Document(MasterElement):
     #===========================================================================
     
     def gc(self, recurse=False):
+        # TODO: Implement this if/when caching of root elements  is implemented.
         return 0
 
 
