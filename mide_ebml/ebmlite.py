@@ -1,7 +1,12 @@
 '''
-EBMLite: A lightweight EBML library.
+EBMLite: A lightweight EBML parsing library.
 
 Created on Apr 27, 2017
+
+@todo: Refactor other code and remove python-ebml compatibility cruft.
+@todo: EBML encoding, making it a full replacement for python-ebml.
+@todo: Validation. Extract valid child element info from the schema.
+@todo: Document-wide caching, for future handling of streamed data.
 '''
 
 __author__ = "dstokes"
@@ -11,9 +16,9 @@ import os.path
 from StringIO import StringIO
 from xml.etree import ElementTree as ET
 
-import sys
-LAB_PATH = r"C:\Users\dstokes\workspace\SSXViewer"
-sys.path.insert(0, LAB_PATH)
+# import sys
+# LAB_PATH = r"C:\Users\dstokes\workspace\SSXViewer"
+# sys.path.insert(0, LAB_PATH)
 # 
 # from mide_ebml.ebml import core
 
@@ -55,6 +60,7 @@ class Element(object):
     children = None
     
     def parse(self, stream, size):
+        """ Type-specific helper function for parsing the element's payload. """
         # Document-wide caching could be implemented here.
         return  bytearray(stream.read(size))
 
@@ -96,7 +102,24 @@ class Element(object):
         return "<%s %r (0x%02X) at 0x%08X>" % (self.__class__.__name__,
                                                self.name, self.id, id(self))
 
-#     
+
+    def __eq__(self, other):
+        """ Equality check. Elements are considered equal if they are the same
+            type and have the same ID, size, offset, and schema. Note: element
+            value is not considered! 
+        """
+        if other is self:
+            return True
+        try:
+            return (isinstance(other, self.__class__) 
+                    and self.schema == other.schema
+                    and self.id == other.id 
+                    and self.offset == other.offset 
+                    and self.size == other.size)
+        except AttributeError:
+            return False
+
+
 #     @property
 #     def name(self):
 #         # Get the object name from the schema, avoiding redundant strings
@@ -253,9 +276,9 @@ class MasterElement(Element):
     type = CONTAINER
 
     def parseElement(self, stream):
-        """ Read the next element from a stream, instantiate an `Element` 
+        """ Read the next element from a stream, instantiate a `MasterElement` 
             object, and then return it and the offset of the next element
-            (if any).
+            (element position + element size).
         """
         offset = stream.tell()
         eid, idlen = core.read_element_id(stream)
@@ -516,6 +539,13 @@ class Schema(object):
         return "<%s %r from '%s'>" % (self.__class__.__name__, self.name,
                                       os.path.realpath(self.filename))
 
+    
+    def __eq__(self, other):
+        try:
+            return self is other or self.elementInfo == other.elementInfo
+        except AttributeError:
+            return False
+
 
     def load(self, fp, name=None):
         """ Load an EBML file using this Schema.
@@ -557,18 +587,18 @@ class Schema(object):
 #===============================================================================
 
 # TEST
-schemaFile = os.path.join(LAB_PATH, r"mide_ebml\ebml\schema\mide.xml")
+schemaFile = os.path.join(os.path.dirname(__file__), r"ebml\schema\mide.xml")
 testFile = 'test_recordings/5kHz_Full.IDE'
- 
+  
 from time import clock
 from mide_ebml.ebml.schema.mide import MideDocument
- 
+  
 def crawl(el):
     v = el.value
     if isinstance(v, list):
         return sum(map(crawl, v))
     return 1
- 
+  
 def testOld():
     total = 0
     t0 = clock()
@@ -577,7 +607,7 @@ def testOld():
         for el in doc.iterroots():
             total += crawl(el)
     return doc, total, clock() - t0
- 
+  
 def testNew():
     total = 0
     t0 = clock()
