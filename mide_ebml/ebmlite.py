@@ -3,7 +3,10 @@ EBMLite: A lightweight EBML parsing library.
 
 Created on Apr 27, 2017
 
+@todo: Remove benchmarking code from end of script.
+@todo: Unit tests.
 @todo: Refactor other code and remove python-ebml compatibility cruft.
+@todo: New schema format, getting further away from python-ebml. 
 @todo: EBML encoding, making it a full replacement for python-ebml.
 @todo: Validation. Extract valid child element info from the schema.
 @todo: Document-wide caching, for future handling of streamed data.
@@ -39,11 +42,25 @@ UNKNOWN = -1 # not in python-ebml
 class DummyStream(object):
     """ Placeholder for python-ebml compatibility.
     """ 
-    def __init__(self, stream, offset, size):
-        self.file = stream
-        self.offset = offset
-        self.size = size
-        self.substreams = {}
+    substreams = {}
+    
+    def __init__(self, parent):
+        self.parent = parent
+    
+    @property
+    def file(self):
+        return self.parent._stream
+    
+    @property
+    def offset(self):
+        return self.parent.offset
+    
+    @property
+    def size(self):
+        return self.parent.size
+    
+    def close(self):
+        return self.parent._stream.close()
 
 
 #===============================================================================
@@ -54,19 +71,24 @@ class Element(object):
     """ Base class for all EBML elements. Also used for unknown elements (i.e.
         those with IDs not in the schema.
     """
-    # python-ebml type ID. PyLint won't like this.
+    # python-ebml type ID. 
     type = UNKNOWN
 
+    # Should this element's value be read/cached when the element is parsed?
+    precache = False
+
+    # For python-ebml compatibility; not currently used.
     children = None
     
     def parse(self, stream, size):
-        """ Type-specific helper function for parsing the element's payload. """
+        """ Type-specific helper function for parsing the element's payload.
+            It is assumed the file pointer is at the start of the payload.
+        """
         # Document-wide caching could be implemented here.
         return  bytearray(stream.read(size))
 
 
-    def __init__(self, eid, ename="UnknownElement", stream=None, offset=0,
-                 size=0, payloadOffset=0, document=None, schema=None):
+    def __init__(self, stream=None, offset=0, size=0, payloadOffset=0):
         """ Constructor. Instantiate a new Element from a file.
         
             @param eid: The element's EBML ID, as defined in the Schema.
@@ -80,27 +102,20 @@ class Element(object):
             @keyword schema: The Schema defining the element. Defaults to the
                 document's schema.
         """
-        self.id = eid
         self._stream = stream
         self.offset = offset
         self.size = size
         self.payloadOffset = payloadOffset
-        self.schema = schema or document.schema
-        self.document = document
         self._value = None
 
-        # TODO: Determine if memory used to store element name is worth the
-        # time savings (importer currently works using element names).
-        self.name = ename
-
         # For python-ebml compatibility. Remove later.
-        self.stream = DummyStream(stream, offset, size)
+        self.stream = DummyStream(self)
         self.body_size = size - (payloadOffset - offset)
 
 
     def __repr__(self):
-        return "<%s %r (0x%02X) at 0x%08X>" % (self.__class__.__name__,
-                                               self.name, self.id, id(self))
+        return "<%s (ID:0x%02X) at 0x%08X>" % (self.__class__.__name__,
+                                               self.id, id(self))
 
 
     def __eq__(self, other):
@@ -111,23 +126,14 @@ class Element(object):
         if other is self:
             return True
         try:
-            return (isinstance(other, self.__class__) 
-                    and self.schema == other.schema
+            return (self.type == other.type
                     and self.id == other.id 
-                    and self.offset == other.offset 
-                    and self.size == other.size)
+                    and self.offset == other.offset
+                    and self.size == other.size 
+                    and self.schema == other.schema)
         except AttributeError:
             return False
 
-
-#     @property
-#     def name(self):
-#         # Get the object name from the schema, avoiding redundant strings
-#         try:
-#             return self.schema.elements[self.id][0]
-#         except (KeyError, IndexError):
-#             return 'UnknownElement'
-    
 
     @property
     def value(self):
@@ -137,33 +143,6 @@ class Element(object):
         self._stream.seek(self.payloadOffset)
         self._value = self.parse(self._stream, self.size)
         return self._value
-
-
-    def _getSchemaInfo(self, attrib, default):
-        """ Helper method to wrap getting element info from the schema. """
-        try:
-            return self.schema.elementInfo[self.id].get(attrib, default)
-        except AttributeError:
-            raise ValueError("Element %r has no schema!" % (self.name))
-        except KeyError:
-            raise ValueError("Element %r not in schema %r!" % \
-                             (self.name, self.schema.name))
-
-
-    @property
-    def multiple(self):
-        """ Are multiples of this element allowed? For python-ebml
-            compatibility.
-        """
-        return self._getSchemaInfo('multiple','1') == '1'
-
-
-    @property
-    def mandatory(self):
-        """ Is the element required in all documents? For python-ebml
-            compatibility.
-        """
-        return self._getSchemaInfo('mandatory','0') == '1'
 
 
     #===========================================================================
@@ -185,31 +164,40 @@ class Element(object):
 #===============================================================================
 
 class IntegerElement(Element):
-    """ Representation of an EBML signed integer element.
+    """ Base class for an EBML signed integer element.
     """
     type = INT
+    precache = True
 
     def parse(self, stream, size):
+        """ Type-specific helper function for parsing the element's payload.
+            It is assumed the file pointer is at the start of the payload.
+        """
         return core.read_signed_integer(stream, size)
 
 
 #===============================================================================
 
 class UIntegerElement(Element):
-    """ Representation of an EBML unsigned integer element.
+    """ Base class for an EBML unsigned integer element.
     """
     type = UINT
+    precache = True
 
     def parse(self, stream, size):
+        """ Type-specific helper function for parsing the element's payload.
+            It is assumed the file pointer is at the start of the payload.
+        """
         return core.read_unsigned_integer(stream, size)
 
 
 #===============================================================================
 
 class FloatElement(Element):
-    """ Representation of an EBML floating point element.
+    """ Base class for an EBML floating point element.
     """
     type = FLOAT
+    precache = True
 
     def parse(self, stream, size):
         return core.read_float(stream, size)
@@ -218,40 +206,49 @@ class FloatElement(Element):
 #===============================================================================
 
 class StringElement(Element):
-    """ Representation of an EBML ASCII string element.
+    """ Base class for an EBML ASCII string element.
     """
     type = STRING
 
     def parse(self, stream, size):
+        """ Type-specific helper function for parsing the element's payload. 
+            It is assumed the file pointer is at the start of the payload.
+        """
         return core.read_string(stream, size)
 
 
 #===============================================================================
 
 class UnicodeElement(Element):
-    """ Representation of an EBML UTF-8 string element.
+    """ Base class for an EBML UTF-8 string element.
     """
     type = UNICODE
 
     def parse(self, stream, size):
+        """ Type-specific helper function for parsing the element's payload. 
+            It is assumed the file pointer is at the start of the payload.
+        """
         return core.read_unicode_string(stream, size)
 
 
 #===============================================================================
 
 class DateElement(Element):
-    """ Representation of an EBML 'date' element.
+    """ Base class for an EBML 'date' element.
     """
     type = DATE
 
     def parse(self, stream, size):
+        """ Type-specific helper function for parsing the element's payload. 
+            It is assumed the file pointer is at the start of the payload.
+        """
         return core.read_date(stream, size)
 
 
 #===============================================================================
 
 class BinaryElement(Element):
-    """ Representation of an EBML 'binary' element.
+    """ Base class for an EBML 'binary' element.
     """
     type = BINARY
 
@@ -262,7 +259,7 @@ class VoidElement(BinaryElement):
     """ Special case ``Void`` element. Its contents are ignored.
     """
     type = BINARY
-    
+   
     def parse(self, stream, size):
         return bytearray()
 
@@ -270,23 +267,34 @@ class VoidElement(BinaryElement):
 #===============================================================================
 
 class MasterElement(Element):
-    """ Representation of an EBML 'master' element, a container for other
+    """ Base class for an EBML 'master' element, a container for other
         elements.
     """
     type = CONTAINER
 
+    def parse(self):
+        """ Type-specific helper function for parsing the element's payload. """
+        # Special case; unlike other elements, value() property doesn't call 
+        # parse(). Used only when pre-caching. 
+        return self.value
+
+
     def parseElement(self, stream):
         """ Read the next element from a stream, instantiate a `MasterElement` 
             object, and then return it and the offset of the next element
-            (element position + element size).
+            (this element's position + size).
         """
         offset = stream.tell()
         eid, idlen = core.read_element_id(stream)
         esize, sizelen = core.read_element_size(stream)
         payloadOffset = offset + idlen + sizelen
 
-        ename, etype = self.schema.elements.get(eid, ("UnknownElement", Element))
-        el = etype(eid, ename, stream, offset, esize, payloadOffset, self.document)
+        etype = self.schema.elements.get(eid, ("UnknownElement", Element))
+        el = etype(stream, offset, esize, payloadOffset)
+        
+        if el.precache:
+            # Read the value now, avoiding a seek later.
+            el._value = el.parse(stream, esize)
 
         return el, payloadOffset + esize
 
@@ -304,7 +312,7 @@ class MasterElement(Element):
     
     @property
     def value(self):
-        """
+        """ Parse and cache the element's value. 
         """
         if self._value is not None:
             return self._value
@@ -352,7 +360,6 @@ class Document(MasterElement):
         """
         self._value = None
         self.schema = schema
-        self.document = self
         self._stream = stream
         self.size = size
         self.name = name
@@ -375,7 +382,7 @@ class Document(MasterElement):
 
         startPos = self._stream.tell()
         el, pos = self.parseElement(self._stream)
-        if el.id == 0x1A45DFA3: # "EBML":
+        if el.name == "EBML":
             # Load 'header' info from the file
             self.info = {c.name: c.value for c in el.value}
             self.payloadOffset = pos
@@ -384,15 +391,14 @@ class Document(MasterElement):
         self._stream.seek(startPos)
 
         # For python-ebml compatibility. Remove later.
-        self.stream = DummyStream(stream, 0, self.size)
+        self.stream = DummyStream(self)
         
         self.body_size = self.size - self.payloadOffset
 
 
-
     def __repr__(self):
-        return "<%s %r (%s) at 0x%08X>" % (self.__class__.__name__, self.name,
-                                           self.type, id(self))
+        return "<%s %r (type %r) at 0x%08X>" % (self.__class__.__name__, 
+                                                self.name, self.type, id(self))
 
 
     def close(self):
@@ -426,17 +432,21 @@ class Document(MasterElement):
     def roots(self):
         """ The document's root elements. For python-ebml compatibility.
         """
-        # TODO: Cache roots (see `__iter__()`)
         return list(self)
 
 
     @property
     def value(self):
+        """ An iterator for iterating the document's root elements. Same as
+            `Document.__iter__()`.
+        """
         # 'value' not really applicable to a document; return an iterator.
         return iter(self)
 
 
     def __getitem__(self, idx):
+        """ Get one of the document's root elements by index. 
+        """
         # TODO: Cache parsed root elements, handle indexing dynamically.
         if isinstance(idx, (int, long)):
             for n, el in enumerate(self):
@@ -482,8 +492,10 @@ class Schema(object):
     
         @ivar elements: A dictionary mapping element IDs to the corresponding
             name and data type (an `Element` subclass).
-        @ivar elementInfo: A dictionary mapping IDs to the raw schema data.
         @ivar elementIds: A dictionary mapping element names to IDs.
+        @ivar elementInfo: A dictionary mapping IDs to the raw schema attribute
+            data. Is likely to have additional items not present in the created
+            element class' attributes.
     """
 
     # Mapping of schema type names to the corresponding Element subclasses.
@@ -503,35 +515,81 @@ class Schema(object):
         """ Constructor. Creates a new Schema from a schema description XML.
         
             @param filename: The full path and name of the schema XML file.
-            @keyword name: The schema's name. Defaults to the filename.
+            @keyword name: The schema's name. Defaults to the document type
+                element's default value (if defined) or the base file name.
         """
+        
+        # Helper function to cast schema attributes to Booleans.
+        def _bool(v, default=False):
+            try:
+                return str(v).strip()[0] in 'Tt1'
+            except (TypeError, IndexError, ValueError):
+                return default
+            
         self.filename = filename
 
-        self.elements = {}
-        self.elementInfo = {}
-        self.elementIds = {}
+        self.elements = {}    # Element types, keyed by ID
+        self.elementInfo = {} # Raw element schema attributes, keyed by ID
+        self.elementIds = {}  # Element IDs, keyed by element name
+        
         schema = ET.parse(filename)
 
         for el in schema.findall('element'):
             attribs = el.attrib.copy()
-            eid = int(el.attrib['id'],16)
-            ename = el.attrib['name']
-            etype = el.attrib['type'].lower()
+            
+            # Mandatory element attributes
+            try:
+                eid = int(attribs['id'],16)
+                ename = el.attrib['name'].strip()
+                etype = el.attrib['type'].lower().strip()
+            except KeyError as err:
+                raise KeyError("Element definition missing required attribute: %s" %
+                               err)
+            
             if etype not in self.ELEMENT_TYPES:
-                raise ValueError("Unknown type for %r: %r" % (ename, etype))
-            self.elements[eid] = (ename, self.ELEMENT_TYPES[etype])
+                raise ValueError("Unknown type for element %s (ID 0x%02x): %r" %
+                                 (ename, eid, etype))
+
+            if eid in self.elements:
+                # Already appeared in schema. Duplicates are permitted, so long
+                # as they have the same attributes. Second appearance may 
+                # omit everything but the ID, name, and type.
+                newatts = self.elementInfo[eid].copy()
+                newatts.update(attribs)
+                if self.elementInfo[eid] == newatts:
+                    continue
+                else:
+                    raise TypeError('Element %s (ID 0x%02x) redefined with different attributes' %
+                                    (ename, eid))
+                        
+            baseClass = self.ELEMENT_TYPES[etype]
+
+            mandatory = _bool(attribs.get('mandatory', False))
+            multiple = _bool(attribs.get('multiple', False))
+            precache = _bool(attribs.get('precache', baseClass.precache))
+            
+            # Create a new Element subclass
+            eclass = type('%sElement' % ename, (baseClass,),
+                          {'id':eid, 'name':ename, 'schema':self,
+                           'mandatory': mandatory, 'multiple': multiple, 
+                           'precache': precache})
+             
+            self.elements[eid] = eclass
             self.elementInfo[eid] = attribs
             self.elementIds[ename] = eid
 
         # Special case: `Void` is a standard EBML element, but not its own
         # type (it's technically binary). Use the special `VoidElement` type.
         if 'Void' in self.elementIds:
-            self.elements[self.elementIds['Void']] = ("Void", VoidElement)
-                    
+            eid = self.elementIds['Void']
+            void = type('VoidElement', (VoidElement,), 
+                        {'id':eid, 'name':'Void', 'schema':self})
+            self.elements[eid] = void
+        
+        # Schema name. Defaults to the schema's default EBML 'DocType' or
+        # the schema file's base name.
         if name is None:
-            name = self.type
-            if name is None:
-                name = os.path.splitext(os.path.basename(filename))[0]
+            name = self.type or os.path.splitext(os.path.basename(filename))[0]
         self.name = name
         
 
@@ -541,6 +599,9 @@ class Schema(object):
 
     
     def __eq__(self, other):
+        """ Equality check. Schemata are considered equal if the attributes of
+            their elements match.
+        """
         try:
             return self is other or self.elementInfo == other.elementInfo
         except AttributeError:
@@ -574,12 +635,14 @@ class Schema(object):
 
     @property
     def version(self):
-        return self._getInfo(0x4287, int) # EBML 'DocTypeVersion'
+        """ Schema version, extracted from EBML ``DocTypeVersion`` default. """
+        return self._getInfo(0x4287, int) # ID of EBML 'DocTypeVersion'
 
 
     @property
     def type(self):
-        return self._getInfo(0x4282, str) # EBML 'DocType'
+        """ Schema type name, extracted from EBML ``DocType`` default. """
+        return self._getInfo(0x4282, str) # ID of EBML 'DocType'
 
 
 #===============================================================================
