@@ -9,21 +9,23 @@ Created on Apr 27, 2017
 @todo: New schema format, getting further away from python-ebml. 
 @todo: EBML encoding, making it a full replacement for python-ebml.
 @todo: Validation. Extract valid child element info from the schema.
+@todo: Proper support for 'infinite' Documents (i.e `size` is None).
 @todo: Document-wide caching, for future handling of streamed data.
+@todo: Some sort of schema caching, to prevent redundant element types.
 '''
 
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
+__all__ = ['BINARY', 'BinaryElement', 'CONTAINER', 'DATE', 'DateElement', 
+           'Document', 'Element', 'FLOAT', 'FloatElement', 'INT', 
+           'IntegerElement', 'MasterElement', 'MideDocument', 'STRING', 
+           'Schema', 'StringElement', 'UINT', 'UIntegerElement', 'UNICODE', 
+           'UNKNOWN', 'UnicodeElement', 'VoidElement']
+
 import os.path
 from StringIO import StringIO
 from xml.etree import ElementTree as ET
-
-# import sys
-# LAB_PATH = r"C:\Users\dstokes\workspace\SSXViewer"
-# sys.path.insert(0, LAB_PATH)
-# 
-# from mide_ebml.ebml import core
 
 from ebml import core
 
@@ -70,6 +72,19 @@ class DummyStream(object):
 class Element(object):
     """ Base class for all EBML elements. Also used for unknown elements (i.e.
         those with IDs not in the schema.
+        
+        @cvar id: The element's EBML ID.
+        @cvar name: The element's name. 
+        @cvar schema: The `Schema` to which this element belongs.
+        @cvar multiple: Can this element be appear multiple times? Note: 
+            Not currently enforced.
+        @cvar mandatory: Must this element appear in all EBML files using
+            this element's schema? Note: Not currently enforced.
+        @cvar type: The element's numeric EBML type (from python-ebml).
+        @cvar precache: If `True`, the Element's value is read when the Element
+            is parsed. if `False`, the value is lazy-loaded when needed.
+        @cvar length: An explicit length (in bytes) of the element when
+            encoding. `None` will use standard EBML variable-length encoding.
     """
     # python-ebml type ID. 
     type = UNKNOWN
@@ -77,6 +92,9 @@ class Element(object):
     # Should this element's value be read/cached when the element is parsed?
     precache = False
 
+    # Explicit length for this Element subclass, used for encoding.
+    length = None
+    
     # For python-ebml compatibility; not currently used.
     children = None
     
@@ -158,6 +176,43 @@ class Element(object):
         self._value = None
         
         return 1
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    @classmethod
+    def encodePayload(cls, data, length=None):
+        """ Type-specific payload encoder. """
+        if isinstance(data, basestring):
+            return core.encode_unicode_string(data, length)
+        return core.encode_string(bytearray(data), length)
+         
+     
+    @classmethod
+    def encode(cls, value, length=None, lengthSize=None):
+        """ Encode an EBML element.
+            
+            @param value: The value to encode, or a list of values to encode.
+                If a list is provided, each item will be encoded as its own
+                element.
+            @keyword length: An explicit length for the encoded data, 
+                overriding the variable length encoding. For producing
+                byte-aligned structures.
+            @keyword lengthSize: An explicit length for the encoded element
+                size, overriding the variable length encoding.
+            @return: A bytearray containing the encoded EBML data.
+        """ 
+        length = length or cls.length
+        if isinstance(value, (list, tuple)):
+            result = bytearray()
+            for v in value:
+                result.extend(cls.encode(v, length, lengthSize))
+            return result
+        payload = cls.encodePayload(value, length=length)
+        length = length or len(payload)
+        encId = core.encode_element_id(cls.id) 
+        return encId + core.encode_element_size(length, lengthSize) + payload
         
 
 
@@ -176,6 +231,12 @@ class IntegerElement(Element):
         return core.read_signed_integer(stream, size)
 
 
+    @classmethod
+    def encodePayload(cls, data, length=None):
+        """ Type-specific payload encoder for signed integer elements. """
+        return core.encode_signed_integer(data, length)
+
+
 #===============================================================================
 
 class UIntegerElement(Element):
@@ -191,6 +252,12 @@ class UIntegerElement(Element):
         return core.read_unsigned_integer(stream, size)
 
 
+    @classmethod
+    def encodePayload(cls, data, length=None):
+        """ Type-specific payload encoder for unsigned integer elements. """
+        return core.encode_unsigned_integer(data, length)
+
+
 #===============================================================================
 
 class FloatElement(Element):
@@ -200,7 +267,16 @@ class FloatElement(Element):
     precache = True
 
     def parse(self, stream, size):
+        """ Type-specific helper function for parsing the element's payload. 
+            It is assumed the file pointer is at the start of the payload.
+        """
         return core.read_float(stream, size)
+
+
+    @classmethod
+    def encodePayload(cls, data, length=None):
+        """ Type-specific payload encoder for floating point elements. """
+        return core.encode_float(data, length)
 
 
 #===============================================================================
@@ -217,6 +293,13 @@ class StringElement(Element):
         return core.read_string(stream, size)
 
 
+    @classmethod
+    def encodePayload(cls, data, length=None):
+        """ Type-specific payload encoder for ASCII string elements. """
+        return core.encode_string(data, length)
+
+
+
 #===============================================================================
 
 class UnicodeElement(Element):
@@ -231,6 +314,12 @@ class UnicodeElement(Element):
         return core.read_unicode_string(stream, size)
 
 
+    @classmethod
+    def encodePayload(cls, data, length=None):
+        """ Type-specific payload encoder for Unicode string elements. """
+        return core.encode_unicode_string(data, length)
+
+
 #===============================================================================
 
 class DateElement(Element):
@@ -243,6 +332,13 @@ class DateElement(Element):
             It is assumed the file pointer is at the start of the payload.
         """
         return core.read_date(stream, size)
+
+
+    @classmethod
+    def encodePayload(cls, data, length=None):
+        """ Type-specific payload encoder for date elements. """
+        return core.encode_date(data, length)
+
 
 
 #===============================================================================
@@ -262,6 +358,12 @@ class VoidElement(BinaryElement):
    
     def parse(self, stream, size):
         return bytearray()
+
+
+    @classmethod
+    def encodePayload(cls, data, length=0):
+        """ Type-specific payload encoder for Void elements. """
+        return bytearray('\xff' * length)
 
 
 #===============================================================================
@@ -340,26 +442,67 @@ class MasterElement(Element):
         return cleared
             
 
+    #===========================================================================
+    # Encoding (very experimental!)
+    #===========================================================================
+    
+    @classmethod
+    def encodePayload(cls, data, length=None):
+        """ Type-specific payload encoder for 'master' elements. 
+        """
+        if isinstance(data, dict):
+            data = data.items()
+        elif not isinstance(data, (list, tuple)):
+            raise TypeError("wrong type for %s payload: %s" % (cls.name, 
+                                                               type(data)))
+        result = bytearray()
+        for k,v in data:
+            if k not in cls.schema:
+                raise TypeError("Element type %r not found in schema" % k)
+            # TODO: Validation of hierarchy, multiplicity, mandate, etc.
+            result.extend(cls.schema[k].encode(v))
+         
+        return result
+
+    
+    @classmethod
+    def encode(cls, data, **kwargs):
+        """ Encode an EBML master element.
+            
+            @param data: The data to encode, provided as a dictionary keyed by
+                element name, a list of two-item name/value tuples, or a list
+                of either. Note: individual items in a list of name/value pairs
+                *must* be tuples!
+            @return: A bytearray containing the encoded EBML binary.
+        """ 
+        if isinstance(data, list) and len(data)>0 and isinstance(data[0],list):
+            # List of lists: special case for 'master' elements.
+            # Encode as multiple 'master' elements.
+            result = bytearray()
+            if isinstance(data[0], dict):
+                for v in data:
+                    result.extend(cls.encode(v))
+            return result
+        return super(MasterElement, cls).encode(data)
+
+
 #===============================================================================
 # 
 #===============================================================================
 
 class Document(MasterElement):
-    """ Representation of an EBML document, containing multiple 'root'
-        elements.
+    """ Base class for an EBML document, containing multiple 'root' elements.
     """
 
-    def __init__(self, stream, schema, name=None, size=None):
+    def __init__(self, stream, name=None, size=None):
         """ Constructor.
         
             @param stream: A stream object (e.g. a file) from which to read 
                 the EBML content, or a filename.
-            @param schema: The EBML schema used by the file.
             @keyword name: The name of the document. Defaults to the filename
                 (if applicable).
         """
         self._value = None
-        self.schema = schema
         self._stream = stream
         self.size = size
         self.name = name
@@ -393,12 +536,15 @@ class Document(MasterElement):
         # For python-ebml compatibility. Remove later.
         self.stream = DummyStream(self)
         
-        self.body_size = self.size - self.payloadOffset
+        if self.size is not None:
+            self.body_size = self.size - self.payloadOffset
+        else:
+            self.body_size = None
 
 
     def __repr__(self):
-        return "<%s %r (type %r) at 0x%08X>" % (self.__class__.__name__, 
-                                                self.name, self.type, id(self))
+        return "<%s %r at 0x%08X>" % (self.__class__.__name__, self.name, 
+                                      id(self))
 
 
     def close(self):
@@ -419,6 +565,7 @@ class Document(MasterElement):
                 el, pos = self.parseElement(self._stream)
                 yield el
             except TypeError:
+                # Occurs when trying to parse zero-length file (EOF)
                 break
 
 
@@ -431,6 +578,7 @@ class Document(MasterElement):
     @property
     def roots(self):
         """ The document's root elements. For python-ebml compatibility.
+            Using this is not recommended.
         """
         return list(self)
 
@@ -471,7 +619,7 @@ class Document(MasterElement):
         # NOTE: in python-ebml, an element's 'type' is numeric, while the
         # document's 'type' is a string. This follows that model.
         return self.info.get('DocType')
-
+        
 
     #===========================================================================
     # Caching (experimental!)
@@ -482,6 +630,21 @@ class Document(MasterElement):
         return 0
 
 
+    #===========================================================================
+    # Encoding (very experimental!)
+    #===========================================================================
+    
+    @classmethod
+    def encode(cls, value, **kwargs):
+        """ Encode an EBML document.
+            
+            @param value: The data to encode, provided as a dictionary keyed by
+                element name, or a list of two-item name/value tuples. Note: 
+                individual items in a list of name/value pairs *must* be tuples!
+            @return: A bytearray containing the encoded EBML binary.
+        """ 
+        return super(Document, cls).encodePayload(value)
+
 
 #===============================================================================
 #
@@ -490,9 +653,11 @@ class Document(MasterElement):
 class Schema(object):
     """ An EBML schema, mapping element IDs to names and data types.
     
-        @ivar elements: A dictionary mapping element IDs to the corresponding
-            name and data type (an `Element` subclass).
-        @ivar elementIds: A dictionary mapping element names to IDs.
+        @ivar document: The schema's Document subclass.
+        @ivar elements: A dictionary mapping element IDs to the schema's
+            corresponding `Element` subclasses.
+        @ivar elementIds: A dictionary mapping element names to the schema's
+            corresponding `Element` subclasses.
         @ivar elementInfo: A dictionary mapping IDs to the raw schema attribute
             data. Is likely to have additional items not present in the created
             element class' attributes.
@@ -518,7 +683,6 @@ class Schema(object):
             @keyword name: The schema's name. Defaults to the document type
                 element's default value (if defined) or the base file name.
         """
-        
         # Helper function to cast schema attributes to Booleans.
         def _bool(v, default=False):
             try:
@@ -529,8 +693,8 @@ class Schema(object):
         self.filename = filename
 
         self.elements = {}    # Element types, keyed by ID
+        self.elementIds = {}  # Element types, keyed by element name
         self.elementInfo = {} # Raw element schema attributes, keyed by ID
-        self.elementIds = {}  # Element IDs, keyed by element name
         
         schema = ET.parse(filename)
 
@@ -542,12 +706,13 @@ class Schema(object):
                 eid = int(attribs['id'],16)
                 ename = el.attrib['name'].strip()
                 etype = el.attrib['type'].lower().strip()
+                # TODO: Validate IDs and names: length, special characters, etc.
             except KeyError as err:
-                raise KeyError("Element definition missing required attribute: %s" %
-                               err)
+                raise KeyError("Element definition missing required "
+                               "attribute: %s" % err)
             
             if etype not in self.ELEMENT_TYPES:
-                raise ValueError("Unknown type for element %s (ID 0x%02x): %r" %
+                raise ValueError("Unknown type for element %r (ID 0x%02x): %r" %
                                  (ename, eid, etype))
 
             if eid in self.elements:
@@ -557,34 +722,37 @@ class Schema(object):
                 newatts = self.elementInfo[eid].copy()
                 newatts.update(attribs)
                 if self.elementInfo[eid] == newatts:
+                    # TODO: Update hierarchy information. Not currently used.
                     continue
                 else:
-                    raise TypeError('Element %s (ID 0x%02x) redefined with different attributes' %
-                                    (ename, eid))
+                    raise TypeError('Element %r (ID 0x%02x) redefined with '
+                                    'different attributes' % (ename, eid))
                         
             baseClass = self.ELEMENT_TYPES[etype]
 
             mandatory = _bool(attribs.get('mandatory', False))
             multiple = _bool(attribs.get('multiple', False))
             precache = _bool(attribs.get('precache', baseClass.precache))
+            length = int(attribs.get('length', 0)) or None
             
             # Create a new Element subclass
             eclass = type('%sElement' % ename, (baseClass,),
                           {'id':eid, 'name':ename, 'schema':self,
                            'mandatory': mandatory, 'multiple': multiple, 
-                           'precache': precache})
+                           'precache': precache, 'length':length})
              
             self.elements[eid] = eclass
             self.elementInfo[eid] = attribs
-            self.elementIds[ename] = eid
+            self.elementIds[ename] = eclass
 
         # Special case: `Void` is a standard EBML element, but not its own
         # type (it's technically binary). Use the special `VoidElement` type.
         if 'Void' in self.elementIds:
-            eid = self.elementIds['Void']
+            eid = self.elementIds['Void'].id
             void = type('VoidElement', (VoidElement,), 
                         {'id':eid, 'name':'Void', 'schema':self})
             self.elements[eid] = void
+            self.elementIds['Void'] = void
         
         # Schema name. Defaults to the schema's default EBML 'DocType' or
         # the schema file's base name.
@@ -592,6 +760,10 @@ class Schema(object):
             name = self.type or os.path.splitext(os.path.basename(filename))[0]
         self.name = name
         
+        # Create the schema's Document subclass.
+        self.document = type('%sDocument' % self.name.title(), (Document,),
+                             {'schema': self})
+
 
     def __repr__(self):
         return "<%s %r from '%s'>" % (self.__class__.__name__, self.name,
@@ -618,7 +790,7 @@ class Schema(object):
         if isinstance(fp, basestring):
             fp = open(fp, 'rb')
 
-        return Document(fp, self, name=name)
+        return self.document(fp, name=name)
 
 
     #===========================================================================
@@ -643,6 +815,21 @@ class Schema(object):
     def type(self):
         """ Schema type name, extracted from EBML ``DocType`` default. """
         return self._getInfo(0x4282, str) # ID of EBML 'DocType'
+
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def encode(self, data):
+        """ Create an EBML document using this Schema.
+            
+            @param value: The data to encode, provided as a dictionary keyed by
+                element name, or a list of two-item name/value tuples. Note: 
+                individual items in a list of name/value pairs *must* be tuples!
+            @return: A bytearray containing the encoded EBML binary.
+        """ 
+        return self.document.encode(data)
 
 
 #===============================================================================
