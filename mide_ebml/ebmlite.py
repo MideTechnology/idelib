@@ -1,17 +1,19 @@
 '''
-EBMLite: A lightweight EBML parsing library.
+EBMLite: A lightweight EBML parsing library. It is designed to crawl through
+EBML files quickly and efficiently, and that's about it.
 
 Created on Apr 27, 2017
 
 @todo: Remove benchmarking code from end of script.
 @todo: Unit tests.
 @todo: Refactor other code and remove python-ebml compatibility cruft.
+@todo: Complete EBML encoding, making it a full replacement for python-ebml.
 @todo: New schema format, getting further away from python-ebml. 
-@todo: EBML encoding, making it a full replacement for python-ebml.
 @todo: Validation. Extract valid child element info from the schema.
-@todo: Proper support for 'infinite' Documents (i.e `size` is None).
+@todo: Proper support for 'infinite' Documents (i.e `size` is `None`).
 @todo: Document-wide caching, for future handling of streamed data.
 @todo: Some sort of schema caching, to prevent redundant element types.
+@todo: Utilities for conversion to/from XML, etc.
 '''
 
 __author__ = "dstokes"
@@ -92,6 +94,10 @@ class Element(object):
     # Should this element's value be read/cached when the element is parsed?
     precache = False
 
+    mandatory = False
+    
+    multiple = False
+
     # Explicit length for this Element subclass, used for encoding.
     length = None
     
@@ -169,7 +175,7 @@ class Element(object):
 
     def gc(self, recurse=False):
         """ Clear any cached values. To save memory and/or force values to be
-            re-read from the file.
+            re-read from the file. Returns the number of cached values cleared.
         """
         if self._value is None:
             return 0
@@ -178,7 +184,7 @@ class Element(object):
         return 1
 
     #===========================================================================
-    # 
+    # Encoding (WIP)
     #===========================================================================
     
     @classmethod
@@ -352,7 +358,8 @@ class BinaryElement(Element):
 #===============================================================================
 
 class VoidElement(BinaryElement):
-    """ Special case ``Void`` element. Its contents are ignored.
+    """ Special case ``Void`` element. Its contents are ignored; they are never
+        even read. 
     """
     type = BINARY
    
@@ -651,7 +658,9 @@ class Document(MasterElement):
 #===============================================================================
 
 class Schema(object):
-    """ An EBML schema, mapping element IDs to names and data types.
+    """ An EBML schema, mapping element IDs to names and data types. Unlike the
+        document and element types, this is not a base class; all schemata are
+        actual instances of this class.
     
         @ivar document: The schema's Document subclass.
         @ivar elements: A dictionary mapping element IDs to the schema's
@@ -830,6 +839,21 @@ class Schema(object):
             @return: A bytearray containing the encoded EBML binary.
         """ 
         return self.document.encode(data)
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+SCHEMATA = {}
+
+def loadSchema(filename, reload=False, **kwargs):
+    global SCHEMATA
+    
+    filename = os.path.realpath(filename)
+    if filename in SCHEMATA and not reload:
+        return SCHEMATA[filename]
+    return SCHEMATA.setdefault(filename, Schema(filename, **kwargs))
 
 
 #===============================================================================
