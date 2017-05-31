@@ -21,6 +21,7 @@ import  wx.lib.wxpTag #@UnusedImport - simply importing it does the work.
 
 from base import BaseConfigPanel, InfoPanel
 from build_info import DEBUG
+from devices import ConfigError
 
 from widgets.calibration_editor import PolyEditDialog
 
@@ -233,12 +234,24 @@ class SSXTriggerConfigPanel(BaseConfigPanel):
                 "Time between the button press and the start of the recording, "
                 "in seconds.")
         
-        if self.accelChannel is None:
+        try:
+            if self.accelChannel is None:
+                self.hideField(self.accelTrigCheck)
+            else:
+                accelTransform = self.root.device._unpackAccel
+                self.controls[self.accelLoCheck][0].SetRange(accelTransform(0), 0)
+                self.controls[self.accelHiCheck][0].SetRange(0,accelTransform(65535))
+        except ConfigError as err:
+            # Something's wrong with the polynomials, probably no such ID.
             self.hideField(self.accelTrigCheck)
-        else:
-            accelTransform = self.root.device._unpackAccel
-            self.controls[self.accelLoCheck][0].SetRange(accelTransform(0), 0)
-            self.controls[self.accelHiCheck][0].SetRange(0,accelTransform(65535))
+            msg = (u"There appears to be an error in the recorder's manifest.\n\n"
+                   u"Acceleration triggers cannot be configured. Re-installing\n"
+                   u"the firmware may correct this problem.\n\n"
+                   u"Contact Mid\xe9 for technical support.")
+            if wx.GetApp().getPref('showAdvancedOptions', False):
+                msg += u'\n\nError message: "%s"' % err
+            wx.MessageBox(msg, "Configuration Error", wx.ICON_WARNING,
+                          parent=self)
             
         if self.dcAccelChannel is None:
             self.hideField(self.dcAccelTrigCheck)

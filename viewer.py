@@ -1143,8 +1143,8 @@ class Viewer(wx.Frame, MenuMixin):
             # SSX: Check EBML schema version
             if newDoc.schemaVersion is not None and newDoc.schemaVersion < newDoc.ebmldoc.version:
                 q = self.ask("The data file was created using a newer "
-                  "version of the MIDE data schema (viewer version is %s, "
-                  "file version is %s); this could potentially cause problems. "
+                  "version of the MIDE data schema.\n\nLab's version is %s, "
+                  "file's version is %s; this could potentially cause problems."
                   "\n\nOpen anyway?" % (newDoc.schemaVersion, 
                                         newDoc.ebmldoc.version), 
                   "Schema Version Mismatch", wx.YES|wx.CANCEL, wx.ICON_WARNING,

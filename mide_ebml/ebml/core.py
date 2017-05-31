@@ -102,7 +102,7 @@ def read_element_id(stream):
     byte = ord(ch)
     length, id_ = decode_id_length(byte)
     if length > 4:
-        raise IOError('Cannot decode element ID with length > 8.')
+        raise IOError('Cannot decode element ID with length > 4.')
     if length > 1:
         id_ = _struct_uint32.unpack((ch + stream.read(length-1)).rjust(4,'\x00'))[0]
     return id_, length
@@ -125,7 +125,8 @@ def read_element_size(stream):
     if length > 1:
         size = _struct_uint64.unpack((chr(size) + stream.read(length-1)).rjust(8,'\x00'))[0]
 
-    if size == maximum_element_size_for_length(length) + 1:
+#     if size == maximum_element_size_for_length(length) + 1:
+    if size == (2**(7*length)) - 1:
         size = None
 
     return size, length
@@ -215,7 +216,7 @@ def read_string(stream, size):
         return ''
 
     value = stream.read(size)
-    value = value.partition(chr(0))[0]
+    value = value.partition('\x00')[0]
     return value
 
 
@@ -236,7 +237,7 @@ def read_unicode_string(stream, size):
         return u''
 
     data = stream.read(size)
-    data = data.partition(chr(0))[0]
+    data = data.partition('\x00')[0]
     return unicode(data, 'utf_8')
 
 
@@ -256,7 +257,7 @@ def read_date(stream, size):
     if size != 8:
         raise IOError('Cannot read date values with lengths other than 8 bytes.')
     data = stream.read(size)
-    nanoseconds = struct.unpack('>q', data)[0]
+    nanoseconds = _struct_int64.unpack(data)[0]
     delta = datetime.timedelta(microseconds=(nanoseconds // 1000))
     return datetime.datetime(2001, 1, 1, tzinfo=None) + delta
 

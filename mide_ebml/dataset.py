@@ -51,6 +51,10 @@ from ebml.schema.mide import MideDocument
 from calibration import Transform, CombinedPoly, PolyPoly
 from parsers import getParserTypes, getParserRanges
 
+import ebml.schema
+from ebmlite import Schema
+
+SCHEMA_FILE = os.path.join(os.path.dirname(ebml.schema.__file__), 'mide.xml')
 
 #===============================================================================
 # DEBUGGING: XXX: Remove later!
@@ -247,8 +251,11 @@ class Dataset(Cascading):
             self.name = name
 
         if stream is not None:
-            self.ebmldoc = MideDocument(stream)
-            self.schemaVersion = self.ebmldoc.__class__.version
+#             self.ebmldoc = MideDocument(stream)
+#             self.schemaVersion = self.ebmldoc.__class__.version
+            schema = Schema(SCHEMA_FILE)
+            self.schemaVersion = schema.version
+            self.ebmldoc = schema.load(stream, 'MideDocument')
             if not quiet:
                 # It is currently assumed future versions will be backwards
                 # compatible. Change if/when not, or if certain old versions aren't.
@@ -256,6 +263,7 @@ class Dataset(Cascading):
                     raise IOError("EBML schema version mismatch: file is %d, "
                                   "library is %d" % (self.schemaVersion, 
                                                      self.ebmldoc.version))
+            
 
 
     def close(self):

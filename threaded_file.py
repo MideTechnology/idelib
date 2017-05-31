@@ -6,7 +6,7 @@ Created on Nov 8, 2013
 
 import threading
 
-class ThreadAwareFile(object):
+class ThreadAwareFile(file):
     """ A 'replacement' for the standard file stream that supports reading
         by multiple threads. Each thread actually gets its own stream, so it
         can perform its own seeks without affecting other threads. This
@@ -169,6 +169,12 @@ class ThreadAwareFile(object):
 
     def xreadlines(self, *args, **kwargs):
         return self.getThreadStream().xreadlines(*args, **kwargs)
+
+    def __enter__(self, *args, **kwargs):
+        return self.getThreadStream().__enter__(*args, **kwargs)
+
+    def __exit__(self, *args, **kwargs):
+        return self.getThreadStream().__exit__(*args, **kwargs)
 
 
     # Standard file attributes, as properties for transparency with 'real'
