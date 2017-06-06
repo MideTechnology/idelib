@@ -2750,9 +2750,9 @@ if __name__ == '__main__':
     desc = cleanUnicode("%s v%s \n%s" % (APPNAME.replace(u'\u2022', ' '), 
                                          __version__, __copyright__))
     parser = argparse.ArgumentParser(description=desc)
-    parser.add_argument('-f', '--filename',  
+    parser.add_argument('filename', nargs="?", 
                         help="The name of the MIDE (*.IDE) file to import")
-    parser.add_argument("-p", "--prefsFile", 
+    parser.add_argument("-p", "--prefsFile",
                         help="An alternate preferences file")
     parser.add_argument('-c', '--clean', action="store_true",
                         help="Reset all preferences to their defaults")

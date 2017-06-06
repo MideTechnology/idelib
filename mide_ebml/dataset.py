@@ -7,6 +7,9 @@ Created on Sep 26, 2013
 @author: dstokes
 
 '''
+# TODO: Remove any lingering ties to the old python-ebml library. Mostly in
+#    other modules (importer, parsers).
+#
 # TODO: Clean out some of the unused features. They make the code less clear,
 #    creating more than one way to do the same thing. More often than not, 
 #    they are the result of over-engineering things.
@@ -47,7 +50,7 @@ from time import sleep
 
 import numpy
 
-from ebml.schema.mide import MideDocument
+# from ebml.schema.mide import MideDocument
 from calibration import Transform, CombinedPoly, PolyPoly
 from parsers import getParserTypes, getParserRanges
 
@@ -211,7 +214,7 @@ class Dataset(Cascading):
             for adjusting/calibrating sensor data.
     """
         
-    def __init__(self, stream, name=None, quiet=False):
+    def __init__(self, stream, name=None, quiet=True):
         """ Constructor. 
             @param stream: A file-like stream object containing EBML data.
             @keyword name: An optional name for the Dataset. Defaults to the
@@ -259,10 +262,10 @@ class Dataset(Cascading):
             if not quiet:
                 # It is currently assumed future versions will be backwards
                 # compatible. Change if/when not, or if certain old versions aren't.
-                if self.schemaVersion > self.ebmldoc.version:
+                if self.schemaVersion < self.ebmldoc.version:
                     raise IOError("EBML schema version mismatch: file is %d, "
-                                  "library is %d" % (self.schemaVersion, 
-                                                     self.ebmldoc.version))
+                                  "library is %d" % (self.ebmldoc.version,
+                                                     self.schemaVersion))
             
 
 
