@@ -4,6 +4,7 @@ Slam Stick Lab Data Viewer
 Full-featured viewer for data recorded by Slam Stick and Slam Stick X data
 loggers.
 
+TODO: Add help text to menu items (after moving the logo in the status bar)
 '''
 from datetime import datetime
 
@@ -45,7 +46,7 @@ import time
 
 import wx
 from wx.lib.rcsizer import RowColSizer #@UnresolvedImport - not sure why
-from wx.lib.wordwrap import wordwrap
+from wx.lib.wordwrap import wordwrap #@UnresolvedImport - also not sure why
 
 # Graphics (icons, etc.)
 import images
@@ -179,7 +180,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         displaySize = wx.DisplaySize()
         windowSize = int(displaySize[0]*.66), int(displaySize[1]*.66)
-        kwargs['size'] = kwargs.get('size', windowSize)
+        kwargs.setdefault('size', windowSize)
         
         super(Viewer, self).__init__(*args, **kwargs)
         
@@ -360,7 +361,6 @@ class Viewer(wx.Frame, MenuMixin):
                          "Zoom In Y\tAlt+=", '', self.OnZoomInY)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y, 
                         "Zoom to Fit Y\tAlt+0", '', self.OnZoomFitY)
-        # ID_VIEW_ZOOM_FIT_ALL
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_ALL, 
                         "Zoom to Fit All\tAlt+Ctrl+0", '', self.OnZoomFitAll)
         viewMenu.AppendSeparator()
@@ -1163,10 +1163,6 @@ class Viewer(wx.Frame, MenuMixin):
                         "has been made.")
                     stream.closeAll()
                     return
-        
-        # XXX: REMOVE
-#         except Exception:
-#             raise
             
         except mide_ebml.parsers.ParsingError as err:
             self.ask("The file '%s' could not be opened" % name, 
@@ -2212,7 +2208,6 @@ class Viewer(wx.Frame, MenuMixin):
         if job is None:
             job = self.getCurrentOperation()
         
-        # TODO: Hook this back up once race condition resolved!
         logger.info("Paused operation %r" % job)
         return job, job.pause(True)
         return job, True
@@ -2583,7 +2578,7 @@ class ViewerApp(wx.App):
             return
 
         logger.info("Searching for plug-ins...")
-        self.plugins.add(self.defaultPlugins)
+        self.plugins.add(self.defaultPlugins, builtin=True)
         numPlugins = len(self.plugins)
         logger.info("Found %d standard plug-in(s)" % numPlugins)
 
@@ -2595,7 +2590,8 @@ class ViewerApp(wx.App):
         if self.getPref('plugins.loadUserPlugins', False):
             dirs = [os.path.join(self.docsDir, 'plugins', '*')]
             dirs.extend(self.getPref('plugins.searchPaths', []))
-            self.plugins.add(dirs, app=APPNAME, appVersion=VERSION, quiet=True)
+            self.plugins.add(dirs, app=APPNAME, appVersion=VERSION, quiet=True,
+                             builtin=False)
             newNum = len(self.plugins) - numPlugins
             logger.info("Found %d external plug-in(s)" % newNum)
             
@@ -2606,12 +2602,33 @@ class ViewerApp(wx.App):
         else:
             logger.info("External plug-ins disabled.")
 
-        # TODO: Better reporting of bad/incompatible plugins
+        if not (self.plugins.incompatible or self.plugins.bad):
+            return
+        
+        logger.warning("Skipped loading %d incompatible and %d bad plug-ins!" %
+                       (len(self.plugins.incompatible), len(self.plugins.bad)))
+        
+        # Display warning that some plug-ins failed to load
+        numIncomp = len(self.plugins.incompatible)
+        numBad = len(self.plugins.bad)
+        
+        msg = ["Some plug-in modules (%d of %d) could not be loaded." % 
+               (numIncomp + numBad, numIncomp + numBad + len(self.plugins))]
+        
         if len(self.plugins.incompatible) > 0:
-            logger.warning("%d incompatible plugin(s) were skipped!" % len(self.plugins.incompatible))
+            msg.append('\nIncompatible Plug-ins (%d):' % numIncomp)
+            for p in self.plugins.incompatible:
+                ppath = "built-in" if getattr(p, 'builtin', False) else p.path
+                msg.append('    * %s (%s)' % (p.name, ppath))
         
         if len(self.plugins.bad) > 0:
-            logger.warning("!!! %d plugin(s) were 'bad'!" % len(self.plugins.bad))
+            msg.append('\nBad/Damaged Plug-ins (%d):' % numBad)
+            for p in self.plugins.bad:
+                ppath = "built-in" if getattr(p, 'builtin', False) else p.path
+                msg.append('    * %s (%s)' % (p.name, ppath))
+
+        wx.MessageBox('\n'.join(msg), "Plug-in Error", 
+                      style=wx.ICON_WARNING|wx.OK)
         
 
     def createNewView(self, filename=None, title=None):
