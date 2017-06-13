@@ -742,54 +742,93 @@ class Schema(object):
                 element's default value (if defined) or the base file name.
         """
         # Helper function to cast schema attributes to Booleans.
-        def _bool(v, default=False):
-            try:
-                return str(v).strip()[0] in 'Tt1'
-            except (TypeError, IndexError, ValueError):
-                return default
-            
         self.filename = filename
 
         self.elements = {}    # Element types, keyed by ID
         self.elementIds = {}  # Element types, keyed by element name
         self.elementInfo = {} # Raw element schema attributes, keyed by ID
         
+        # Parse. 
         schema = ET.parse(filename)
+        self._parseSchema(schema)
 
+        # Special case: `Void` is a standard EBML element, but not its own
+        # type (it's technically binary). Use the special `VoidElement` type.
+        if 'Void' in self.elementIds:
+            el = self.elementIds['Void']
+            void = type('VoidElement', (VoidElement,), 
+                        {'id':el.id, 'name':'Void', 'schema':self, 
+                         'mandatory': el.mandatory, 'multiple': el.multiple})
+            self.elements[el.id] = void
+            self.elementIds['Void'] = void
+        
+        # Schema name. Defaults to the schema's default EBML 'DocType' or
+        # the schema file's base name.
+        if name is None:
+            name = self.type or os.path.splitext(os.path.basename(filename))[0]
+        self.name = name
+        
+        # Create the schema's Document subclass.
+        self.document = type('%sDocument' % self.name.title(), (Document,),
+                             {'schema': self})
+
+    
+    def _parseSchema(self, schema):
+        """ Parse a python-ebml schema XML file. Isolated from `__init__()` for
+            alternative future schema format.
+        """
+        def _bool(v, default=False):
+            try:
+                return str(v).strip()[0] in 'Tt1'
+            except (TypeError, IndexError, ValueError):
+                return default
+            
         for el in schema.findall('element'):
             attribs = el.attrib.copy()
             
-            # Mandatory element attributes
-            try:
-                eid = int(attribs['id'],16)
-                ename = el.attrib['name'].strip()
-                etype = el.attrib['type'].lower().strip()
-                # TODO: Validate IDs and names: length, special characters, etc.
-            except KeyError as err:
-                raise KeyError("Element definition missing required "
-                               "attribute: %s" % err)
+            eid = int(attribs['id'],16) if 'id' in attribs else None
+            ename = el.attrib['name'].strip() if 'name' in attribs else None
+            etype = el.attrib['type'].strip() if 'type' in attribs else None
             
-            if etype not in self.ELEMENT_TYPES:
-                raise ValueError("Unknown type for element %r (ID 0x%02x): %r" %
-                                 (ename, eid, etype))
-
+            # Duplicate elements are permitted, for defining a child element
+            # that can appear as a child to multiple master elements. Additional
+            # definitions only need to specify the element ID or name.
+            if ename in self.elementIds:
+                eid = eid or self.elementIds[ename].id
+            
             if eid in self.elements:
                 # Already appeared in schema. Duplicates are permitted, so long
                 # as they have the same attributes. Second appearance may 
-                # omit everything but the ID, name, and type.
+                # omit everything the ID and/or the name.
                 newatts = self.elementInfo[eid].copy()
                 newatts.update(attribs)
                 if self.elementInfo[eid] == newatts:
                     # TODO: Update hierarchy information. Not currently used.
                     continue
                 else:
-                    raise TypeError('Element %r (ID 0x%02x) redefined with '
+                    raise TypeError('Element %r (ID 0x%02X) redefined with '
                                     'different attributes' % (ename, eid))
-                        
+            
+            # Mandatory element attributes
+            if eid is None:
+                raise ValueError('Element definition missing required '
+                                 '"id" attribute')
+            elif ename is None:
+                raise ValueError('Element ID 0x%02X missing required '
+                                 '"name" attribute' % eid)
+            elif etype is None:
+                raise ValueError('Element "%s" (ID 0x%02X) missing required '
+                                 '"type" attribute' % (ename, eid))
+            
+            if etype not in self.ELEMENT_TYPES:
+                raise ValueError("Unknown type for element %r (ID 0x%02x): %r" %
+                                 (ename, eid, etype))
+
+            etype = etype.lower()
             baseClass = self.ELEMENT_TYPES[etype]
 
             mandatory = _bool(attribs.get('mandatory', False))
-            multiple = _bool(attribs.get('multiple', False))
+            multiple = _bool(attribs.get('multiple', True))
             precache = _bool(attribs.get('precache', baseClass.precache))
             length = int(attribs.get('length', 0)) or None
             
@@ -802,25 +841,6 @@ class Schema(object):
             self.elements[eid] = eclass
             self.elementInfo[eid] = attribs
             self.elementIds[ename] = eclass
-
-        # Special case: `Void` is a standard EBML element, but not its own
-        # type (it's technically binary). Use the special `VoidElement` type.
-        if 'Void' in self.elementIds:
-            eid = self.elementIds['Void'].id
-            void = type('VoidElement', (VoidElement,), 
-                        {'id':eid, 'name':'Void', 'schema':self})
-            self.elements[eid] = void
-            self.elementIds['Void'] = void
-        
-        # Schema name. Defaults to the schema's default EBML 'DocType' or
-        # the schema file's base name.
-        if name is None:
-            name = self.type or os.path.splitext(os.path.basename(filename))[0]
-        self.name = name
-        
-        # Create the schema's Document subclass.
-        self.document = type('%sDocument' % self.name.title(), (Document,),
-                             {'schema': self})
 
 
     def __repr__(self):

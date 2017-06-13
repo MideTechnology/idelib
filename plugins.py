@@ -453,9 +453,10 @@ class PluginSet(object):
                  quiet=quiet)
         
 
-    def add(self, paths, app=None, appVersion=None, useSource=True, quiet=False):
+    def add(self, paths, app=None, appVersion=None, useSource=True, quiet=False,
+            **kwargs):
         """ Add one or more plugins. The plugin will be imported but not
-            loaded (i.e. its `load()` method will not be called).
+            loaded (i.e. its `load()` method will not be called). 
             
             @param paths: The path to a plugin file or directory, an imported
                 module containing a plugin, or a collection of the two. Paths
@@ -465,6 +466,9 @@ class PluginSet(object):
             @keyword quiet: If `True`, plugin import errors will be suppressed.
                 Bad imports will be added to the object's `bad` and `dupes` 
                 lists, regardless.
+            
+            Additional keyword arguments will be applied to the plugins as 
+            attributes, provided they do not already exist.
         """
         if isinstance(paths, basestring) or not isinstance(paths, Sequence):
             paths = [paths]
@@ -482,6 +486,9 @@ class PluginSet(object):
                 else:
                     self.plugins[p.moduleName] = p
                     self.pluginTypes[p.type].append(p)
+                for k,v in kwargs.items():
+                    if not hasattr(p, k):
+                        setattr(p, k, v)
             except PluginCompatibilityError as err:
                 self.incompatible.append((path, err))
             except PluginDupeError as err:
