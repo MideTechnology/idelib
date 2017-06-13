@@ -59,7 +59,7 @@ if DEBUG:
 #===============================================================================
 
 # UPDATER_BASE = "http://10.0.0.166/"
-UPDATER_BASE = "http://info.mide.com/hubfs/software/"
+UPDATER_BASE = "http://mide.services/software/"
 UPDATER_URL = os.path.join(UPDATER_BASE, "slam_stick_lab.json")
 CHANGELOG_URL = os.path.join(UPDATER_BASE, "slam_stick_lab_changelog.html")
 DOWNLOAD_URL = "http://info.mide.com/data-loggers/slam-stick-lab-software?utm_campaign=Slam-Stick-X&utm_content=Link-to-software-page-from-Device-About-Us&utm_medium=Device&utm_source=Slam-Stick-X-Data-Logger"
