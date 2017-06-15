@@ -19,10 +19,13 @@ try:
 except ImportError:
     sys.path.append('..')
     
-from mide_ebml.ebml.schema.mide import MideDocument
+# from mide_ebml.ebml.schema.mide import MideDocument
 from mide_ebml import parsers
 from mide_ebml import util
 from mide_ebml.importer import nullUpdater
+
+from mide_ebml import ebmlite
+MideDocument = ebmlite.loadSchema('../mide_ebml/ebml/schema/mide.xml')
 
 #===============================================================================
 # 
@@ -115,7 +118,7 @@ class ChannelDataBlockParser(parsers.ChannelDataBlockParser):
             timestamp, _ = block.getHeader()
         except struct.error, e:
             raise parsers.ParsingError("Element would not parse: %s (ID %02x) @%d (%s)" % 
-                               (element.name, element.id, element.stream.offset, e))
+                               (element.name, element.id, element.offset, e))
         
         block.startTime = int(self.fixOverflow(block, timestamp))
         if block.endTime is not None:
@@ -169,7 +172,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None,
 
     try:
         if basename is None:
-            basename = doc.stream.file.name
+            basename = doc.stream.name
         name, ext = os.path.splitext(os.path.basename(basename))
         if savePath is None:
             savePath = os.path.dirname = os.path.dirname(basename)
@@ -183,7 +186,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None,
     elementCount = 0
     
     # For seeking and reading elements, separate from doc to prevent conflicts
-    oldFile = open(doc.stream.file.name, 'rb')
+    oldFile = open(doc.stream.name, 'rb')
     
     i = doc.iterroots()
     el = None
@@ -276,10 +279,6 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None,
 
             el = i.next()
             
-            # XXX: EXPERIMENTAL
-            # NOTE: This is messing with internals of python_ebml. May change!
-            doc.stream.substreams.clear()
-
     
     except IOError as e:
 #     except None as e:

@@ -330,12 +330,12 @@ def getRawData(el, fs=None):
         @return: The EBML element's binary data, headers and payload and all.
     """
     if fs is None:
-        fs = el.document.stream.file
+        fs = el.stream
     closed = fs.closed
     if closed:
         fs = file(fs.name, 'rb') 
     oldPos = fs.tell()
-    fs.seek(el.stream.offset)
+    fs.seek(el.offset)
     data = bytearray(fs.read(el.size))
     fs.seek(oldPos)
     if closed:
@@ -361,7 +361,7 @@ def dump_ebml(el, stream=None, indent=0, tabsize=4):
             dump_ebml(r, stream, indent, tabsize)
         return
     
-    stream.write("%6d  %s%s:" % (el.stream.offset," "*indent, el.name))
+    stream.write("%6d  %s%s:" % (el.offset," "*indent, el.name))
     if not el.children:
         stream.write("%r\n" % el.value)
     else:
@@ -473,7 +473,7 @@ def build_attributes(data):
 if __name__ == "__main__":
     # TODO: Move this testing into a real unit test.
     from pprint import pprint
-    from dataset import MideDocument
+    from ebml.schema.mide import MideDocument
     
     print "\n*** Testing configuration EBML input and output"
     

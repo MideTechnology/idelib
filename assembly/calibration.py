@@ -170,7 +170,7 @@ def ide2csv(filename, savePath=None, importCallback=SimpleUpdater(),
     a = doc.channels[channel].getSession()
     with open(saveFilename, 'wb') as fp:
         rows, _ = a.exportCsv(fp, subchannels=subchannels)
-    doc.ebmldoc.stream.file.close()
+    doc.ebmldoc.close()
     return saveFilename, rows
 
 

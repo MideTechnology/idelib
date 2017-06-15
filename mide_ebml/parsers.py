@@ -432,7 +432,7 @@ class ElementHandler(object):
             for debugging/error reporting.
         """
         return "%r (0x%x) @%r" % (element.name, element.id, 
-                                  element.stream.offset)
+                                  element.offset)
 
 
     def makesData(self):
@@ -688,7 +688,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
             timestamp, channel = block.getHeader()
         except struct.error, e:
             raise ParsingError("Element would not parse: %s (ID %d) @%d (%s)" % 
-                               (element.name, element.id, element.stream.offset, e))
+                               (element.name, element.id, element.offset, e))
         
         block.startTime = timeOffset + int(self.fixOverflow(block, timestamp))
         if block.endTime is not None:

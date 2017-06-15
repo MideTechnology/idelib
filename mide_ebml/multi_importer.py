@@ -123,10 +123,9 @@ def multiRead(doc, updater=nullUpdater, **kwargs):
             of sensors, channels, and subchannels. These will only be used if
             the dataset contains no sensor/channel/subchannel definitions. 
     """
-    
     kwargs['numUpdates'] = kwargs.get('numUpdates', 500) / (len(doc.subsets)+1)
-    totalSize = sum([x.ebmldoc.stream.size for x in doc.subsets])
-    bytesRead = doc.ebmldoc.stream.size
+    totalSize = sum([x.ebmldoc.size for x in doc.subsets])
+    bytesRead = doc.ebmldoc.size
     samplesRead = readData(doc, total=totalSize, **kwargs)
     if not doc.loadCancelled:
         for f in doc.subsets:
@@ -135,7 +134,7 @@ def multiRead(doc, updater=nullUpdater, **kwargs):
             samplesRead += readData(doc, source=f, total=totalSize, 
                                     bytesRead=bytesRead, samplesRead=samplesRead, 
                                     **kwargs)
-            bytesRead += f.ebmldoc.stream.size
+            bytesRead += f.ebmldoc.size
             updater(count=bytesRead, total=totalSize, 
                     percent=bytesRead/(totalSize+0.0))
         

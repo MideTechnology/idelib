@@ -416,7 +416,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     
     # Progress display stuff
     if total is None:
-        total = doc.ebmldoc.stream.size + bytesRead
+        total = doc.ebmldoc.size + bytesRead
         
     dataSize = total
     
@@ -463,7 +463,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             if r_name not in elementParsers:
                 # Unknown block type, but probably okay.
                 logger.info("unknown block %r (ID 0x%02x) @%d" % \
-                            (r_name, r.id, r.stream.offset))
+                            (r_name, r.id, r.offset))
                 continue
             
             # HACK: Not the best implementation. Should be moved somewhere.
@@ -492,7 +492,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             # More progress display stuff -------------------------------------
             # FUTURE: Possibly do the update check every nth elements; that
             # would have slightly less work per cycle.
-            thisOffset = r.stream.offset + bytesRead
+            thisOffset = r.offset + bytesRead
             thisTime = time_time()
             if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:
                 # Update progress bar

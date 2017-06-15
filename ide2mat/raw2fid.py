@@ -484,11 +484,6 @@ def raw2fid(ideFilename, savepath="", channels=None,
                         updater(count=count, total=None, 
                                 percent=((stream.tell()-offset)/totalSize))
                         nextUpdate = time.time() + updateInterval
-
-                        # Remove per-element substreams. Saves memory; a large
-                        # file may contain tens of thousands.
-                        # NOTE: This may change if the underlying EMBL library does.
-                        doc.ebmldoc.stream.substreams.clear()
                         
                     del el
                     

@@ -507,23 +507,30 @@ class PluginSet(object):
     def __getitem__(self, k):
         return self.plugins[k]
 
+    
     def get(self, *args, **kwargs):
         return self.plugins.get(*args, **kwargs)
+    
     
     def items(self):
         return self.plugins.items()
 
+    
     def keys(self):
         return self.plugins.keys()
 
+    
     def values(self):
         return self.plugins.values()
+    
     
     def __iter__(self, *args, **kwargs):
         return self.plugins.__iter__(*args, **kwargs)
     
+    
     def __contains__(self, k):
         return self.plugins.__contains__(k)
+    
     
     @property
     def types(self):

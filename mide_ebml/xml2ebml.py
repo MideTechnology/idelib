@@ -127,7 +127,7 @@ def dumpXmlElement(el, indent=0, tabsize=4):
     tab = u" " * tabsize * indent
     if el.children:
         results = [u'%s<%s offset="%d" body_size="%s">' % \
-                   (tab, el.name, el.stream.offset, el.size)]
+                   (tab, el.name, el.offset, el.size)]
         for child in el.value:
             results.append(dumpXmlElement(child, indent+1, tabsize))
         results.append(u'%s</%s>' % (tab, el.name))
@@ -135,7 +135,7 @@ def dumpXmlElement(el, indent=0, tabsize=4):
     
     if el.name == 'Void':
         return u'%s<%s offset="%d" size="%s" />' % \
-            (tab, el.name, el.stream.offset, el.size)
+            (tab, el.name, el.offset, el.size)
     
     val = el.value
     if isinstance(el.value, (str, bytearray)):
@@ -145,7 +145,7 @@ def dumpXmlElement(el, indent=0, tabsize=4):
             val = repr(str(val))[1:-1]
         val = xml.sax.saxutils.escape(val)
     return u'%s<%s offset="%d" size="%s" value="%s" />' % \
-        (tab, el.name, el.stream.offset, el.size, val)
+        (tab, el.name, el.offset, el.size, val)
 
 
 def dumpXml(ebmldoc, indent=0, tabsize=2):

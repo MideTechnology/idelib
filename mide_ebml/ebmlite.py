@@ -19,11 +19,11 @@ Created on Apr 27, 2017
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
-__all__ = ['BINARY', 'BinaryElement', 'CONTAINER', 'DATE', 'DateElement', 
-           'Document', 'Element', 'FLOAT', 'FloatElement', 'INT', 
-           'IntegerElement', 'MasterElement', 'MideDocument', 'STRING', 
-           'Schema', 'StringElement', 'UINT', 'UIntegerElement', 'UNICODE', 
-           'UNKNOWN', 'UnicodeElement', 'VoidElement']
+__all__ = ['BinaryElement', 'DateElement', 
+           'Document', 'Element', 'FloatElement', 
+           'IntegerElement', 'MasterElement',  
+           'Schema', 'StringElement', 'UIntegerElement', 
+           'UnicodeElement', 'VoidElement']
 
 from collections import OrderedDict
 from datetime import datetime
@@ -32,6 +32,9 @@ from StringIO import StringIO
 from xml.etree import ElementTree as ET
 
 from ebml import core
+from ebml.core import read_element_id, read_element_size
+from ebml.core import read_float, read_signed_integer, read_unsigned_integer
+from ebml.core import read_date, read_string, read_unicode_string
 
 #===============================================================================
 #
@@ -40,33 +43,6 @@ from ebml import core
 # Type IDs, for python-ebml compatibility
 INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER = range(0, 8)
 UNKNOWN = -1 # not in python-ebml
-
-#===============================================================================
-#
-#===============================================================================
-
-class DummyStream(object):
-    """ Placeholder for python-ebml compatibility.
-    """ 
-    substreams = {}
-    
-    def __init__(self, parent):
-        self.parent = parent
-    
-    @property
-    def file(self):
-        return self.parent._stream
-    
-    @property
-    def offset(self):
-        return self.parent.offset
-    
-    @property
-    def size(self):
-        return self.parent.size
-    
-    def close(self):
-        return self.parent._stream.close()
 
 
 #===============================================================================
@@ -98,8 +74,10 @@ class Element(object):
     # Should this element's value be read/cached when the element is parsed?
     precache = False
 
+    # Do valid EBML documents require this element?
     mandatory = False
     
+    # Does a valid EBML document permit more than one of the element?
     multiple = False
 
     # Explicit length for this Element subclass, used for encoding.
@@ -126,14 +104,14 @@ class Element(object):
             @keyword payloadOffset: The starting location of the element's
                 payload (i.e. immediately after the element's header).
         """
-        self._stream = stream
+#         self._stream = stream
+        self.stream = stream
         self.offset = offset
         self.size = size
         self.payloadOffset = payloadOffset
         self._value = None
 
         # For python-ebml compatibility. Remove later.
-        self.stream = DummyStream(self)
         self.body_size = size - (payloadOffset - offset)
 
 
@@ -164,8 +142,8 @@ class Element(object):
         """ Parse and cache the element's value. """
         if self._value is not None:
             return self._value
-        self._stream.seek(self.payloadOffset)
-        self._value = self.parse(self._stream, self.size)
+        self.stream.seek(self.payloadOffset)
+        self._value = self.parse(self.stream, self.size)
         return self._value
 
 
@@ -238,7 +216,7 @@ class IntegerElement(Element):
         """ Type-specific helper function for parsing the element's payload.
             It is assumed the file pointer is at the start of the payload.
         """
-        return core.read_signed_integer(stream, size)
+        return read_signed_integer(stream, size)
 
 
     @classmethod
@@ -260,7 +238,7 @@ class UIntegerElement(Element):
         """ Type-specific helper function for parsing the element's payload.
             It is assumed the file pointer is at the start of the payload.
         """
-        return core.read_unsigned_integer(stream, size)
+        return read_unsigned_integer(stream, size)
 
 
     @classmethod
@@ -282,7 +260,7 @@ class FloatElement(Element):
         """ Type-specific helper function for parsing the element's payload. 
             It is assumed the file pointer is at the start of the payload.
         """
-        return core.read_float(stream, size)
+        return read_float(stream, size)
 
 
     @classmethod
@@ -303,7 +281,7 @@ class StringElement(Element):
         """ Type-specific helper function for parsing the element's payload. 
             It is assumed the file pointer is at the start of the payload.
         """
-        return core.read_string(stream, size)
+        return read_string(stream, size)
 
 
     @classmethod
@@ -325,7 +303,7 @@ class UnicodeElement(Element):
         """ Type-specific helper function for parsing the element's payload. 
             It is assumed the file pointer is at the start of the payload.
         """
-        return core.read_unicode_string(stream, size)
+        return read_unicode_string(stream, size)
 
 
     @classmethod
@@ -346,7 +324,7 @@ class DateElement(Element):
         """ Type-specific helper function for parsing the element's payload. 
             It is assumed the file pointer is at the start of the payload.
         """
-        return core.read_date(stream, size)
+        return read_date(stream, size)
 
 
     @classmethod
@@ -403,8 +381,8 @@ class MasterElement(Element):
             (this element's position + size).
         """
         offset = stream.tell()
-        eid, idlen = core.read_element_id(stream)
-        esize, sizelen = core.read_element_size(stream)
+        eid, idlen = read_element_id(stream)
+        esize, sizelen = read_element_size(stream)
         payloadOffset = offset + idlen + sizelen
 
         etype = self.schema.elements.get(eid, ("UnknownElement", Element))
@@ -423,8 +401,10 @@ class MasterElement(Element):
         pos = self.payloadOffset
         payloadEnd = pos + self.size
         while pos < payloadEnd:
-            self._stream.seek(pos)
-            el, pos = self.parseElement(self._stream)
+#             self._stream.seek(pos)
+#             el, pos = self.parseElement(self._stream)
+            self.stream.seek(pos)
+            el, pos = self.parseElement(self.stream)
             yield el
 
     
@@ -519,6 +499,7 @@ class Document(MasterElement):
         """
         self._value = None
         self._stream = stream
+        self.stream = stream
         self.size = size
         self.name = name
         self.id = None
@@ -539,21 +520,18 @@ class Document(MasterElement):
             if isinstance(stream, StringIO):
                 self.size = stream.len
             elif os.path.exists(self.filename):
-                self.size = os.path.getsize(self._stream.name)
+                self.size = os.path.getsize(self.stream.name)
 
-        startPos = self._stream.tell()
-        el, pos = self.parseElement(self._stream)
+        startPos = self.stream.tell()
+        el, pos = self.parseElement(self.stream)
         if el.name == "EBML":
             # Load 'header' info from the file
             self.info = {c.name: c.value for c in el.value}
             self.payloadOffset = pos
         else:
             self.info = {}
-        self._stream.seek(startPos)
+        self.stream.seek(startPos)
 
-        # For python-ebml compatibility. Remove later.
-        self.stream = DummyStream(self)
-        
         if self.size is not None:
             self.body_size = self.size - self.payloadOffset
         else:
@@ -569,7 +547,7 @@ class Document(MasterElement):
         """ Close the EBML file. Should generally be used only if the object was
             created using a filename, rather than a stream.
         """
-        self._stream.close()
+        self.stream.close()
 
 
     def __iter__(self):
@@ -578,9 +556,9 @@ class Document(MasterElement):
         # TODO: Cache root elements, prevent unnecessary duplicates.
         pos = self.payloadOffset
         while True:
-            self._stream.seek(pos)
+            self.stream.seek(pos)
             try:
-                el, pos = self.parseElement(self._stream)
+                el, pos = self.parseElement(self.stream)
                 yield el
             except TypeError:
                 # Occurs when trying to parse zero-length file (EOF)
@@ -773,7 +751,7 @@ class Schema(object):
                              {'schema': self})
 
     
-    def _parseSchema(self, schema):
+    def old_parseSchema(self, schema):
         """ Parse a python-ebml schema XML file. Isolated from `__init__()` for
             alternative future schema format.
         """
@@ -843,6 +821,103 @@ class Schema(object):
             self.elementIds[ename] = eclass
 
 
+    def _parseSchema(self, schema):
+        def _bool(v, default=False):
+            try:
+                return str(v).strip()[0] in 'Tt1'
+            except (TypeError, IndexError, ValueError):
+                return default
+            
+        for el in schema.findall('element'):
+            attribs = el.attrib.copy()
+            
+            eid = int(attribs['id'],16) if 'id' in attribs else None
+            ename = attribs['name'].strip() if 'name' in attribs else None
+            etype = attribs['type'].strip() if 'type' in attribs else None
+            mandatory = _bool(attribs.get('mandatory', False))
+            multiple = _bool(attribs.get('multiple', True))
+            precache = _bool(attribs['precache']) if 'precache' in attribs else None
+            length = int(attribs['length']) if 'length' in attribs else None
+        
+            self.addElement(eid, ename, etype, multiple, mandatory, length, precache, attribs)
+        
+
+    def addElement(self, eid, ename, etype, multiple=True, mandatory=False,
+                   length=None, precache=None, attribs={}):
+        """ Create a new `Element` subclass and add it to the schema. 
+        
+            Duplicate elements are permitted (e.g. if one kind of element can 
+            appear in different master elements), provided their attributes do 
+            not conflict. The first appearance of an element definition in the
+            schema must contain the required ID, name, and type; successive 
+            appearances only need the ID and/or name.
+        
+            @param eid: The element's EBML ID.
+            @param ename: The element's name.
+            @param etype: The element's type (string, see `ELEMENT_TYPES`)
+            @keyword multiple: If `True`, an EBML document can contain more
+                than one of this element. Not currently enforced.
+            @keyword mandatory: If `True`, a valid EBML document requires one 
+                (or more) of this element. Not currently enforced.
+            @keyword length: A fixed length to use when writing the element.
+                `None` will use the minimum length required.
+            @keyword precache: If `True`, the element's value will be read
+                when the element is parsed, rather than when the value is
+                explicitly accessed. Can save time for small elements.
+            @keyword attribs: A dictionary of raw element attributes, as read
+                from the schema file.
+        """
+        # Duplicate elements are permitted, for defining a child element
+        # that can appear as a child to multiple master elements. Additional
+        # definitions only need to specify the element ID or name.
+        if ename in self.elementIds:
+            eid = eid or self.elementIds[ename].id
+        
+        if eid in self.elements:
+            # Already appeared in schema. Duplicates are permitted, so long
+            # as they have the same attributes. Second appearance may 
+            # omit everything the ID and/or the name.
+            newatts = self.elementInfo[eid].copy()
+            newatts.update(attribs)
+            if self.elementInfo[eid] == newatts:
+                # TODO: Update hierarchy information. Not currently used.
+                return self.elements[eid]
+            else:
+                raise TypeError('Element %r (ID 0x%02X) redefined with '
+                                'different attributes' % (ename, eid))
+        
+        # Mandatory element attributes
+        if eid is None:
+            raise ValueError('Element definition missing required '
+                             '"id" attribute')
+        elif ename is None:
+            raise ValueError('Element ID 0x%02X missing required '
+                             '"name" attribute' % eid)
+        elif etype is None:
+            raise ValueError('Element "%s" (ID 0x%02X) missing required '
+                             '"type" attribute' % (ename, eid))
+        
+        if etype not in self.ELEMENT_TYPES:
+            raise ValueError("Unknown type for element %r (ID 0x%02x): %r" %
+                             (ename, eid, etype))
+
+        etype = etype.lower()
+        baseClass = self.ELEMENT_TYPES[etype]
+        precache = baseClass.precache if precache is None else precache
+        
+        # Create a new Element subclass
+        eclass = type('%sElement' % ename, (baseClass,),
+                      {'id':eid, 'name':ename, 'schema':self,
+                       'mandatory': mandatory, 'multiple': multiple, 
+                       'precache': precache, 'length':length})
+         
+        self.elements[eid] = eclass
+        self.elementInfo[eid] = attribs
+        self.elementIds[ename] = eclass
+
+        return eclass
+        
+
     def __repr__(self):
         return "<%s %r from '%s'>" % (self.__class__.__name__, self.name,
                                       os.path.realpath(self.filename))
@@ -880,6 +955,10 @@ class Schema(object):
             fp = open(fp, 'rb')
 
         return self.document(fp, name=name)
+
+
+    def __call__(self, fp, name=None):
+        return self.load(fp, name=name)
 
 
     #===========================================================================

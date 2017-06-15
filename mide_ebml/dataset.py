@@ -272,7 +272,7 @@ class Dataset(Cascading):
     def close(self):
         """ Close the recording file.
         """
-        stream = self.ebmldoc.stream.file
+        stream = self.ebmldoc.stream
         if hasattr(stream, 'closeAll'):
             # File is a ThreadAwareFile; close for all threads.
             result = stream.closeAll()
@@ -290,7 +290,7 @@ class Dataset(Cascading):
     
     @property
     def closed(self):
-        return getattr(self.ebmldoc.stream.file, "closed", True)
+        return getattr(self.ebmldoc.stream, "closed", True)
 
     def addSession(self, startTime=None, endTime=None, utcStartTime=None):
         """ Create a new session, add it to the Dataset, and return it.

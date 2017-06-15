@@ -475,10 +475,6 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
                                 filename=mat.filename)
                         nextUpdate = time.time() + updateInterval
 
-                    # Remove per-element substreams. Saves memory; a large
-                    # file may contain tens of thousands.
-                    # NOTE: This may change if the underlying EMBL library does.
-                    doc.ebmldoc.stream.substreams.clear()
                     del el
                     
                     if updater.cancelled:
