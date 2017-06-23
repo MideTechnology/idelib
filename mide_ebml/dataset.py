@@ -225,7 +225,7 @@ class Dataset(Cascading):
         self.lastUtcTime = None
         self.sessions = []
         self.sensors = {}
-        self.channels = {}
+        self._channels = {}
         self.warningRanges = {}
         self.plots = {}
         self.transforms = {}
@@ -266,7 +266,13 @@ class Dataset(Cascading):
                     raise IOError("EBML schema version mismatch: file is %d, "
                                   "library is %d" % (self.ebmldoc.version,
                                                      self.schemaVersion))
-            
+
+
+    @property
+    def channels(self):
+        # Only return channels with subchannels. If all analog subchannels are
+        # disabled, the recording properties will still show the parent channel.
+        return {k:v for k,v in self._channels.items() if v.subchannels}
 
 
     def close(self):
@@ -291,6 +297,7 @@ class Dataset(Cascading):
     @property
     def closed(self):
         return getattr(self.ebmldoc.stream.file, "closed", True)
+
 
     def addSession(self, startTime=None, endTime=None, utcStartTime=None):
         """ Create a new session, add it to the Dataset, and return it.
@@ -363,11 +370,11 @@ class Dataset(Cascading):
         if parser is None:
             raise TypeError("addChannel() requires a parser")
         
-        if channelId in self.channels:
-            return self.channels[channelId]
+        if channelId in self._channels:
+            return self._channels[channelId]
         channelClass = channelClass or Channel
         channel = channelClass(self, channelId, parser, **kwargs)
-        self.channels[channelId] = channel
+        self._channels[channelId] = channel
             
         return channel
 
@@ -433,7 +440,7 @@ class Dataset(Cascading):
         if plots:
             result = [p for p in self.plots.values() if test(p)]
         if subchannels:
-            for c in self.channels.itervalues():
+            for c in self._channels.itervalues():
                 for i in xrange(len(c.subchannels)):
                     subc = c.getSubChannel(i)
                     if test(subc):
@@ -449,7 +456,8 @@ class Dataset(Cascading):
         """
         for ch in self.channels.values():
             ch.updateTransforms()
-        
+
+
 #===============================================================================
 # 
 #===============================================================================
