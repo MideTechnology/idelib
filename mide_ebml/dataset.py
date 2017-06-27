@@ -1372,7 +1372,7 @@ class EventList(Transformable):
         return min(len(self._data)-1, idx)
         
 
-    def    _getBlockRollingMean(self, blockIdx, force=False):
+    def _getBlockRollingMean(self, blockIdx, force=False):
         """ Get the mean of a block and its neighbors within a given time span.
             Note: Values are taken pre-calibration, and all subchannels are
             returned.
@@ -1865,7 +1865,7 @@ class EventList(Transformable):
         # OPTIMIZATION: Local variables for things used in inner loops
         hasSubchannels = self.hasSubchannels
         session = self.session
-        removeMean = self.removeMean
+        removeMean = self.removeMean and self.allowMeanRemoval
         _getBlockRollingMean = self._getBlockRollingMean
         if not hasSubchannels:
             parent_id = self.subchannelId
@@ -1885,9 +1885,13 @@ class EventList(Transformable):
             
             # HACK: Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
+            tries = 0
             if removeMean and m is None:
-                sleep(0.005)
+                sleep(0.01)
                 m = _getBlockRollingMean(block.blockIndex)
+                tries += 1
+                if tries > 10:
+                    break
             
             if m is not None:
                 mx = xform((t,m), session, noBivariates=self.noBivariates)
@@ -1981,6 +1985,8 @@ class EventList(Transformable):
         
     
     def _getBlockRange(self, startTime=None, endTime=None):
+        """
+        """
         if startTime is None:
             startBlockIdx = 0
         else:
