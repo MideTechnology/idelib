@@ -3,7 +3,7 @@ Created on Aug 5, 2015
 
 @author: dstokes
 '''
-from ssx import SSXTriggerConfigPanel #, ChannelConfigPanel
+from ssx import SSXTriggerConfigPanel, ChannelConfigPanel
 from ssx import OptionsPanel, CalibrationPanel, EditableCalibrationPanel, SSXInfoPanel
 
 #===============================================================================
@@ -14,6 +14,7 @@ class SSCOptionsPanel(OptionsPanel):
     """
     """
     SAMPLE_RATE = (12,3200,400) # Min, max, default
+    SHOW_ANALOG = False
 
     def getDeviceData(self):
         OptionsPanel.getDeviceData(self)
@@ -39,6 +40,7 @@ class SSCOptionsPanel(OptionsPanel):
             data.pop('SSXChannelConfiguration', None)
         return data
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -62,9 +64,9 @@ def buildUI_SSC(parent):
     parent.triggers = SSXTriggerConfigPanel(parent.notebook, -1, root=parent)
     parent.notebook.AddPage(parent.triggers, "Triggers")
 
-#     if parent.device.firmwareVersion >= 3:
-#         parent.channels = ChannelConfigPanel(parent.notebook, -1, root=parent)
-#         parent.notebook.AddPage(parent.channels, "Channels")
+    if parent.device.firmwareVersion >= 3:
+        parent.channels = ChannelConfigPanel(parent.notebook, -1, root=parent)
+        parent.notebook.AddPage(parent.channels, "Channels")
             
     if factorycal is not None:
         parent.factorycal = CalibrationPanel(parent.notebook, -1, root=parent,
@@ -79,6 +81,7 @@ def buildUI_SSC(parent):
 
     info = SSXInfoPanel(parent.notebook, -1, root=parent, info=parent.deviceInfo)
     parent.notebook.AddPage(info, "Device Info")
+
 
 #===============================================================================
 # 

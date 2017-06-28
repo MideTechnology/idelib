@@ -31,7 +31,7 @@ from mide_ebml.parsers import ChannelDataBlock
 from mide_ebml.calibration import CombinedPoly, PolyPoly
 
 from devices import SlamStickX
-from common import SimpleUpdater, showIdeInfo, validateArguments
+from common import SimpleUpdater, validateArguments
 
 from build_info import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME 
 __version__ = VERSION
@@ -308,6 +308,7 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
         # If exporting calibration by channel, exclude the temp/pressure,
         # since it's already converted.
         if "channel" in str(writeCal).lower():
+            
             calChannels = [accelChId, dcAccelChId]
         else:
             calChannels = None
