@@ -27,7 +27,7 @@ from mide_ebml import __version__ as ebml_version
 from mide_ebml import matfile
 from mide_ebml import importer
 from mide_ebml.matfile import MP
-from mide_ebml.parsers import ChannelDataBlock
+from mide_ebml.parsers import ChannelDataBlock, MPL3115PressureTempParser
 from mide_ebml.calibration import CombinedPoly, PolyPoly
 
 from devices import SlamStickX
@@ -305,11 +305,14 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
             if missing:
                 raise MATExportError("Unknown channel(s): %s" % (', '.join(missing)))
         
-        # If exporting calibration by channel, exclude the temp/pressure,
-        # since it's already converted.
         if "channel" in str(writeCal).lower():
-            
-            calChannels = [accelChId, dcAccelChId]
+            # Include all channels' calibration, unless it's an old file that
+            # uses the special-case pressure/temperature parser, which
+            # does the conversion on the fly.
+            if pressTempCh is not None and not isinstance(pressTempCh.parser, MPL3115PressureTempParser):
+                calChannels = [accelChId, dcAccelChId, pressTempChId]
+            else:
+                calChannels = [accelChId, dcAccelChId]
         else:
             calChannels = None
         
@@ -412,6 +415,13 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
                     for r in f:
                         mat.writeRow(eval(r))
                 mat.endArray()
+
+            try:
+                if dcAccelChId in channels:
+                    os.remove(tempFile.name)
+            except IOError:
+                pass
+            
 
             # Calculate actual sampling rate based on total count and total time
             # TODO: Write this for each MAT file.
