@@ -16,29 +16,29 @@ class SSCOptionsPanel(OptionsPanel):
     SAMPLE_RATE = (12,3200,400) # Min, max, default
     SHOW_ANALOG = False
 
-    def getDeviceData(self):
-        OptionsPanel.getDeviceData(self)
-        
-        # Semi-hack: Remove analog accelerometer sample frequency item, and/or
-        # replace it with the DC accelerometer's per-channel sample rate
-        self.data.pop('SampleFreq', None)
-        
-        self.accelChannelDC = self.root.device.getAccelChannel(dc=True)
-        if self.accelChannelDC is not None: 
-            for ch in self.root.deviceConfig.get('SSXChannelConfiguration', []):
-                if ch['ConfigChannel'] == self.accelChannelDC.id:
-                    self.data['SampleFreq'] = ch.get('ChannelSampleFreq', 400)
-        
-
-    def getData(self):
-        data = OptionsPanel.getData(self)
-        if self.samplingCheck.GetValue():
-            sampRate = self.controls[self.samplingCheck][0].GetValue()
-            data['SSXChannelConfiguration'] = {'ConfigChannel': self.accelChannelDC.id,
-                                               'ChannelSampleFreq': sampRate}
-        else:
-            data.pop('SSXChannelConfiguration', None)
-        return data
+#     def getDeviceData(self):
+#         OptionsPanel.getDeviceData(self)
+#         
+#         # Semi-hack: Remove analog accelerometer sample frequency item, and/or
+#         # replace it with the DC accelerometer's per-channel sample rate
+#         self.data.pop('SampleFreq', None)
+#         
+#         self.accelChannelDC = self.root.device.getAccelChannel(dc=True)
+#         if self.accelChannelDC is not None: 
+#             for ch in self.root.deviceConfig.get('SSXChannelConfiguration', []):
+#                 if ch['ConfigChannel'] == self.accelChannelDC.id:
+#                     self.data['SampleFreq'] = ch.get('ChannelSampleFreq', 400)
+#         
+# 
+#     def getData(self):
+#         data = OptionsPanel.getData(self)
+#         if self.samplingCheck.GetValue():
+#             sampRate = self.controls[self.samplingCheck][0].GetValue()
+#             data['SSXChannelConfiguration'] = {'ConfigChannel': self.accelChannelDC.id,
+#                                                'ChannelSampleFreq': sampRate}
+#         else:
+#             data.pop('SSXChannelConfiguration', None)
+#         return data
 
 
 #===============================================================================
