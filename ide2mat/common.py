@@ -10,8 +10,10 @@ __copyright__ = "Copyright 2016 Mide Technology Corporation"
 from datetime import datetime
 from glob import glob
 import importlib
+import locale
 import os.path
 import sys
+import time
 
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
@@ -23,7 +25,7 @@ except ImportError:
 
 from mide_ebml import importer
 from mide_ebml.parsers import ChannelDataBlock
-import devices
+
 
 #===============================================================================
 # 
@@ -124,18 +126,25 @@ def validateArguments(args):
         if not os.path.isdir(args.output):
             showError("Specified output is not a directory:", [args.output])
     
-    if args.duration:
-        endTime = args.startTime + args.duration
-    else:
-        endTime = args.endTime
+    try:
+        if args.duration:
+            endTime = args.startTime + args.duration
+        else:
+            endTime = args.endTime
+    except AttributeError:
+        endTime = None
 
-    if isinstance(endTime, float) and endTime <= args.startTime:
-        msg = ("Specified end time (%s) occurs at or before start time (%s).\n"
-               "(Did you mean to use the --duration argument instead of "
-               "--endTime?)" % (endTime, args.startTime))
-        showError(msg)
+    try:
+        startTime = args.startTime
+        if isinstance(endTime, float) and endTime <= args.startTime:
+            msg = ("Specified end time (%s) occurs at or before start time (%s).\n"
+                   "(Did you mean to use the --duration argument instead of "
+                   "--endTime?)" % (endTime, args.startTime))
+            showError(msg)
+    except AttributeError:
+        startTime = None
     
-    return sourceFiles, args.output, args.startTime, endTime
+    return sourceFiles, args.output, startTime, endTime
 
 
 
@@ -143,40 +152,92 @@ def validateArguments(args):
 # 
 #===============================================================================
 
-def showIdeInfo(ideFilename, **kwargs):
-    """ Show properties of an IDE file.
-    """
-    print ideFilename
-    print "=" * 70
-    with open(ideFilename, 'rb') as stream:
-        doc = importer.openFile(stream, **kwargs)
-        rec = devices.fromRecording(doc)
-
-        print "Recorder Info"
-        print "-" * 40
-        print "  Serial Number: %s" % rec.serial
-        print "  Recorder Type: %s (%s)" % (rec.productName, rec.partNumber)
-        if rec.birthday:
-            print "  Date of Manufacture: %s" % datetime.fromtimestamp(rec.birthday)
-        print "  Hardware Version: %s" % rec.hardwareVersion
-        print "  Firmware Version: %s" % rec.firmwareVersion
+def showIdeInfo(ideFilename, toFile=False, extra=None, **kwargs):
+    """ Show information about an IDE file.
+    
+        @param ideFilename: The IDE file to show.
+        @keyword toFile: if `True`, the info will be written to a file with
+            the name of the IDE file plus ``_info.txt``.
+        @keyword extra: A dictionary of extra data to display (i.e. export
+            settings).
         
-        print
-        print "Sensors"
-        print "-" * 40
-        for s in sorted(doc.sensors.values()):
-            print "  Sensor %d: %s" % (s.id, s.name)
+        Other keyword arguments are passed to `importer.openFile`.
+    """
+    ideFilename = os.path.realpath(ideFilename)
+    if isinstance(toFile, basestring):
+        base = os.path.splitext(os.path.basename(ideFilename))[0] + '_info.txt'
+        filename = os.path.join(toFile, base)
+        out = open(filename, 'wb')
+    else:
+        out = sys.stdout
+    
+    idsort = lambda x: x.id
+    
+    def _print(*s):
+        out.write(' '.join(map(str, s)) + os.linesep)
+        
+    with open(ideFilename, 'rb') as stream:
+        _print(ideFilename)
+        out.write(("=" * 70) + os.linesep)
+        doc = importer.openFile(stream, **kwargs)
+        if len(doc.sessions) > 0:
+            st = doc.sessions[0].utcStartTime
+            if st:
+                _print('Start time: %s UTC' % (datetime.utcfromtimestamp(st)))
+        try:
+            info = doc.recorderInfo
+            partNum = info.get('PartNumber', '')
+            sn = info.get('RecorderSerial')
+            if partNum.startswith('LOG-0002'):
+                info['RecorderSerial'] = "SSX%07d" % sn
+            elif partNum.startswith('LOG-0003'):
+                info['RecorderSerial'] = "SSC%07d" % sn
+            _print('Recorder: %(ProductName)s, serial number %(RecorderSerial)s' % info)
+        except KeyError:
+            pass
+        _print()
+        
+        _print("Sensors")
+        _print( "-" * 40)
+        for s in sorted(doc.sensors.values(), key=idsort):
+            _print( "  Sensor %d: %s" % (s.id, s.name))
             if s.traceData:
                 for i in s.traceData.items():
-                    print "    %s: %s" % i
-        print 
-        print "Channels"
-        print "-" * 40
-        for c in sorted(doc.channels.values()):
-            print "  Channel %d: %s" % (c.id, c.displayName)
+                    _print("    %s: %s" % i)
+        _print()
+        
+        _print("Channels")
+        _print("-" * 40)
+        for c in sorted(doc.channels.values(), key=idsort):
+            _print("  Channel %d: %s" % (c.id, c.displayName))
             for sc in c.subchannels:
-                print "    Subchannel %d.%d: %s" % (c.id, sc.id, sc.displayName)
-    print "=" * 70
+                _print("    Subchannel %d.%d: %s" % (c.id, sc.id, sc.displayName))
+
+        if extra is not None:
+            _print()
+            _print("Export Options")
+            _print("-" * 40)
+            if extra.get('headers'):
+                _print("  * Column headers")
+            if extra.get('removeMean'):
+                if extra.get('meanSpan', 5.0) == -1:
+                    ms = 'Total mean removal'
+                else:
+                    ms = 'Rolling mean removal (%0.2f s)' % extra['meanSpan']
+                _print('  * %s on analog channels' % ms)
+            else:
+                _print('  * No mean removal from analog channels')
+                
+            if extra.get('useUtcTime'):
+                if extra.get('useIsoFormat'):
+                    _print('  * Timestamps in ISO format (yyyy-mm-ddThh:mm:ss.s')
+                else:
+                    _print("  * Timestamps in absolute UTC 'Unix' time")
+        
+    _print("=" * 70)
+    if out != sys.stdout:
+        out.close()
+
 
 
 #===============================================================================
@@ -225,4 +286,74 @@ class TimestampFixer(object):
         self.lastStamp = timestamp
         timestamp += self.timestampOffset
         return timestamp
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class SimpleUpdater(object):
+    """ A simple text-based progress updater. Simplified version of the one in
+        `mide_ebml.importer`
+    """
+    
+    def __init__(self, cancelAt=1.0, quiet=False, out=sys.stdout, precision=0):
+        """ Constructor.
+            @keyword cancelAt: A percentage at which to abort the import. For
+                testing purposes.
+        """
+        locale.setlocale(0,'English_United States.1252')
+        self.outputFiles = set()
+        self.out = out
+        self.cancelAt = cancelAt
+        self.quiet = quiet
+        self.precision = precision
+        self.reset()
+
+
+    def reset(self):
+        self.startTime = None
+        self.cancelled = False
+        self.estSum = None
+        self.lastMsg = ''
+        
+        if self.precision == 0:
+            self.formatter = " %d%%"
+        else:
+            self.formatter = " %%.%df%%%%" % self.precision
+
+    def dump(self, s):
+        if not self.quiet:
+            self.out.write(s)
+            self.out.flush()
+    
+    def __call__(self, count=0, total=None, percent=None, error=None, 
+                 starting=False, done=False, **kwargs):
+        if starting:
+            self.reset()
+            return
+        if percent >= self.cancelAt:
+            self.cancelled=True
+        if self.startTime is None:
+            self.startTime = time.time()
+        if done:
+            self.dump(" Done.".ljust(len(self.lastMsg))+'\n')
+            self.reset()
+        else:
+            if percent is not None:
+                num = locale.format("%d", count, grouping=True)
+                msg = "%s samples read" % num
+                if msg != self.lastMsg:
+                    self.lastMsg = msg
+                    msg = "%s (%s)" % (msg, self.formatter % (percent*100))
+                    dt = time.time() - self.startTime
+                    if dt > 0:
+                        sampSec = count/dt
+                        msg = "%s - %s samples/sec." % (msg, locale.format("%d", sampSec, grouping=True))
+                    self.dump(msg)
+                    self.dump('\x08' * len(msg))
+                    self.lastMsg = msg
+                if percent >= self.cancelAt:
+                    self.cancelled=True
+            sys.stdout.flush()
 

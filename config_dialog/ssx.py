@@ -381,6 +381,8 @@ class OptionsPanel(BaseConfigPanel):
                        'Complete recording before appearing as drive',
                        'Ignore: Stop recording when button is pressed']
 
+    SHOW_ANALOG = True
+
     def getDeviceData(self):
         cfg = self.root.device.getConfig()
         self.data = cfg.get('SSXBasicRecorderConfiguration', {}).copy()
@@ -408,26 +410,33 @@ class OptionsPanel(BaseConfigPanel):
         self.noteField.SetSizerProps(expand=True)
 
         self.addSpacer()
-      
-        self.samplingCheck = self.addIntField("Sampling Frequency:",
-            "SampleFreq", "Hz", minmax=self.SAMPLE_RATE[:2], value=self.SAMPLE_RATE[2],
-            tooltip="Checking this field overrides the device's default.")
         
-#         self.osrCheck = self.addChoiceField("Oversampling Ratio:", "OSR", 
-#             self.OVERSAMPLING, tooltip="Checking this field overrides the "
-#             "device's default.")
+        if self.SHOW_ANALOG:
+            self.samplingCheck = self.addIntField("Sampling Frequency:",
+                "SampleFreq", "Hz", minmax=self.SAMPLE_RATE[:2], value=self.SAMPLE_RATE[2],
+                tooltip="Checking this field overrides the device's default.")
 
-        self.aaCornerCheck = self.addIntField(
-            "Override Antialiasing Filter Cutoff:", "AAFilterCornerFreq", "Hz",
-            minmax=(1,20000), value=1000, 
-            tooltip="If checked and a value is provided, the input low-pass "
-            "filter cutoff will be set to this value.")
-
-        if wx.GetApp().getPref('showAdvancedOptions', False):
-            self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
-             tooltip="If checked, data recorder will not apply oversampling.")
+    
+            self.aaCornerCheck = self.addIntField(
+                "Override Antialiasing Filter Cutoff:", "AAFilterCornerFreq", "Hz",
+                minmax=(1,20000), value=1000, 
+                tooltip="If checked and a value is provided, the input low-pass "
+                "filter cutoff will be set to this value.")
+     
+            if wx.GetApp().getPref('showAdvancedOptions', False):
+                self.aaCheck = self.addCheck("Disable oversampling", "OSR", 
+                 tooltip="If checked, data recorder will not apply oversampling.")
         
-        self.addSpacer()
+#             self.osrCheck = self.addChoiceField("Oversampling Ratio:", "OSR", 
+#                 self.OVERSAMPLING, tooltip="Checking this field overrides the "
+#                 "device's default.")
+             
+            self.addSpacer()
+        else:
+            # HACK: Field size is calculated from added fields. Not adding the
+            # analog stuff makes it come out wrong. This ugly hack is good
+            # enough, since the UI hints will replace it completely.
+            self.fieldSize = (140,-1)
       
         self.plugPolicy = self.addChoiceField("Plug-in Action", name="PlugPolicy",
             choices=self.PLUGIN_POLICIES, units=None, selected=0,
@@ -472,10 +481,14 @@ class OptionsPanel(BaseConfigPanel):
         """ Reset the device's fields to their factory default.
         """
         # NOTE: This hard-coding is really not very pretty. Revise later.
+        self.OnSetTZ(None)
+        
+        if not self.SHOW_ANALOG:
+            return
+        
         self.setField(self.samplingCheck, 5000, False)
         self.setField(self.aaCornerCheck, 1000, False)
         self.aaCheck.SetValue(False)
-        self.OnSetTZ(None)
 
     
     def OnSetTZ(self, event):
@@ -910,7 +923,11 @@ class EditableCalibrationPanel(wx.Panel):
 #             print "Unknown button ID: %r" % evtId
             evt.Skip()
 
-        
+    
+    def getData(self):
+        return {}
+    
+    
 #===============================================================================
 # 
 #===============================================================================
@@ -920,24 +937,37 @@ class ChannelConfigPanel(BaseConfigPanel):
     """
     
     DC_ACCEL_FREQS = [3200, 1600, 800, 400, 200, 100, 50, 25, 12]
+    MEMBRANE_PT_FREQS = range(1,11)
     
     def getDeviceData(self):
-        self.accelChannel = self.root.device.getAccelChannel()
+        self.accelChannel = self.root.device.getAccelChannel(dc=False)
         self.accelChannelDC = self.root.device.getAccelChannel(dc=True)
         self.info = self.root.device.getChannels()
-    
+        
+        fwRev = self.root.device.firmwareVersion
+        if fwRev >= 9:
+            self.intPressureTemp = self.info.get(36, None)
+            self.membranePressureTemp = self.info.get(59, None)
+        else:
+            self.intPressureTemp = self.membranePressureTemp = None
+        
     
     def buildUI(self):
         """ Create the UI elements within the page. Every subclass should
             implement this. Called after __init__() and before initUI().
         """
         self.getDeviceData()
-
-        self.startGroup("Channel %d: %s" % (self.accelChannel.id, self.accelChannel.displayName))
-        self.indent += 2
-        self.accelEnables = [self.addCheck("Enable %s (%d:%d)" % (c.displayName, self.accelChannel.id, c.id)) for c in self.accelChannel.subchannels]
-        self.indent -= 2
-        self.endGroup()
+        
+        self.accelEnables = []
+        self.membranePTEnables = []
+        self.intPTEnables = []
+        
+        if self.accelChannel is not None:
+            self.startGroup("Channel %d: %s" % (self.accelChannel.id, self.accelChannel.displayName))
+            self.indent += 2
+            self.accelEnables = [self.addCheck("Enable %s (%d:%d)" % (c.displayName, self.accelChannel.id, c.id)) for c in self.accelChannel.subchannels]
+            self.indent -= 2
+            self.endGroup()
         
         if self.accelChannelDC is not None:
             # NOTE: Explicit size may not work in future cross-platform versions
@@ -947,11 +977,30 @@ class ChannelConfigPanel(BaseConfigPanel):
             self.indent += 2
             self.dcEnabled = self.addCheck("Enable (all axes)")
             self.dcSampRate = self.addChoiceField("Sample Rate", units="Hz", 
-                                                  choices=self.DC_ACCEL_FREQS, selected=3)
+                                      choices=self.DC_ACCEL_FREQS, selected=3)
 #             self.controls[self.dcSampRate][0].SetSizerProps(expand=True)
             self.indent -= 2
             self.endGroup()
             self.makeChild(self.dcEnabled, self.dcSampRate)
+        
+        if self.membranePressureTemp is not None:
+            pt = self.membranePressureTemp
+            self.startGroup("Channel %d: %s" % (pt.id, pt.displayName))
+            self.indent += 2
+            self.membranePTEnables = [self.addCheck("Enable %s (%d:%d)" % (c.displayName, pt.id, c.id)) for c in pt.subchannels]
+            self.membranePTSampRate = self.addChoiceField("Sample Rate", 
+                        units="Hz", choices=self.MEMBRANE_PT_FREQS, selected=9)
+            self.indent -= 2
+            self.endGroup()
+
+        if self.intPressureTemp is not None and self.accelChannel is None:
+            # No analog accelerometer; allow pressure/temperature to be disabled
+            pt = self.intPressureTemp
+            self.startGroup("Channel %d: %s" % (pt.id, pt.displayName))
+            self.indent += 2
+            self.intPTEnables = [self.addCheck("Enable %s (%d:%d)" % (c.displayName, pt.id, c.id)) for c in pt.subchannels]
+            self.indent -= 2
+            self.endGroup()
             
 #         self.fieldSize = (200, -1)
         self.addSpacer()
@@ -968,23 +1017,39 @@ class ChannelConfigPanel(BaseConfigPanel):
         super(ChannelConfigPanel, self).initUI()
         self.OnDefaultsBtn()
         
+        # This is all very ugly, but will be completely refactored for the new
+        # "UI Hints" configuration system.
         enableMap = 0xff
+        memPTEnableMap = 0xff
+        intPTEnableMap = 0xff
         for conf in self.root.deviceConfig.get("SSXChannelConfiguration", []):
             ch = conf.get('ConfigChannel', None)
-            if ch == self.accelChannel.id:
+            if self.accelChannel is not None and ch == self.accelChannel.id:
                 # High-g accelerometer
                 enableMap = conf.get("SubChannelEnableMap", enableMap)
-                pass
             elif self.accelChannelDC is not None and ch == self.accelChannelDC.id:
                 # DC/Low-g accelerometer
                 dcEnable = conf.get("SubChannelEnableMap", 0b111) != 0
                 self.setField(self.dcEnabled, dcEnable, dcEnable)
                 if "ChannelSampleFreq" in conf:
                     self.setField(self.dcSampRate, conf["ChannelSampleFreq"])
+            elif self.membranePressureTemp is not None and ch == self.membranePressureTemp.id:
+                # Membrane pressure/temperature sensor
+                memPTEnableMap = conf.get("SubChannelEnableMap", memPTEnableMap)
+            elif self.accelChannel is None and self.intPressureTemp is not None and ch == self.intPressureTemp.id:
+                intPTEnableMap = conf.get("SubChannelEnableMap", intPTEnableMap)
         
         for c in self.accelEnables:
             c.SetValue(enableMap & 1 == 1)
-            enableMap = enableMap >> 1
+            enableMap >>= 1
+
+        for c in self.membranePTEnables:
+            c.SetValue(memPTEnableMap & 1 == 1)
+            memPTEnableMap >>= 1
+
+        for c in self.intPTEnables:
+            c.SetValue(intPTEnableMap & 1 == 1)
+            intPTEnableMap >>= 1
 
 
     def getData(self):
@@ -996,14 +1061,15 @@ class ChannelConfigPanel(BaseConfigPanel):
         
         # This is assuming that the default is channel enabled if there is no
         # SubChannelEnableMap element.
-        enableMap = 0
-        checks = [ch.GetValue() for ch in reversed(self.accelEnables)]
-        if not all(checks):
-            for en in checks:
-                enableMap = (enableMap << 1) | en
-            accelData['ConfigChannel'] = self.accelChannel.id
-            accelData['SubChannelEnableMap'] = enableMap
-            data.append(accelData)
+        if self.accelChannel is not None:
+            enableMap = 0
+            checks = [ch.GetValue() for ch in reversed(self.accelEnables)]
+            if not all(checks):
+                for en in checks:
+                    enableMap = (enableMap << 1) | en
+                accelData['ConfigChannel'] = self.accelChannel.id
+                accelData['SubChannelEnableMap'] = enableMap
+                data.append(accelData)
         
         # DC accelerometer doesn't have per-channel enable, so any nonzero
         # value enables the whole thing. Using 0b111 for consistency.
@@ -1015,6 +1081,33 @@ class ChannelConfigPanel(BaseConfigPanel):
                 dcData['SubChannelEnableMap'] = dcEnable
                 data.append(dcData)
 
+        if self.membranePressureTemp is not None:
+            memPTData = OrderedDict()
+            enableMap = 0
+            checks = [ch.GetValue() for ch in reversed(self.membranePTEnables)]
+            self.addVal(self.membranePTSampRate, memPTData, "ChannelSampleFreq", kind=int)
+            if not all(checks):
+                for en in checks:
+                    enableMap = (enableMap << 1) | en
+                memPTData['SubChannelEnableMap'] = enableMap
+            if len(memPTData) > 0:
+                memPTData['ConfigChannel'] = self.membranePressureTemp.id
+                data.append(memPTData)
+
+        if self.accelChannel is None and self.intPressureTemp is not None:
+            # Configuration of internal pressure/temperature only if there is
+            # no analog accelerometer
+            intPTData = OrderedDict()
+            enableMap = 0
+            checks = [ch.GetValue() for ch in reversed(self.intPTEnables)]
+            if not all(checks):
+                for en in checks:
+                    enableMap = (enableMap << 1) | en
+                intPTData['SubChannelEnableMap'] = enableMap
+            if len(intPTData) > 0:
+                intPTData['ConfigChannel'] = self.intPressureTemp.id
+                data.append(intPTData)
+        
         if len(data) > 0:
             return {"SSXChannelConfiguration": data}
         else:
@@ -1028,7 +1121,14 @@ class ChannelConfigPanel(BaseConfigPanel):
             self.setField(self.dcEnabled, True, True)
             self.setField(self.dcSampRate, 400, checked=False)
             self.dcSampRate.Enable(True)
-
+        if self.membranePressureTemp is not None:
+            for c in self.membranePTEnables:
+                c.SetValue(True)
+            self.setField(self.membranePTSampRate, 10, checked=False)
+            self.membranePTSampRate.Enable(True)
+        if self.accelChannel is None and self.intPressureTemp is not None:
+            for c in self.intPTEnables:
+                c.SetValue(True)
 
 
 #===============================================================================

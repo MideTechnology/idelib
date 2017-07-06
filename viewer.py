@@ -893,7 +893,8 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def setNoBivariates(self, disabled=True):
-        """ 
+        """ Disable (or enable) bivariate calibration polynomials. Disabling
+            them makes things faster.
         """
         self.FindItemInMenuBar(self.ID_DATA_DISABLE_BIVARIATES).Check(disabled)
         self.noBivariates = disabled

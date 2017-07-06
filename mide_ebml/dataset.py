@@ -225,7 +225,7 @@ class Dataset(Cascading):
         self.lastUtcTime = None
         self.sessions = []
         self.sensors = {}
-        self.channels = {}
+        self._channels = {}
         self.warningRanges = {}
         self.plots = {}
         self.transforms = {}
@@ -266,7 +266,13 @@ class Dataset(Cascading):
                     raise IOError("EBML schema version mismatch: file is %d, "
                                   "library is %d" % (self.ebmldoc.version,
                                                      self.schemaVersion))
-            
+
+
+    @property
+    def channels(self):
+        # Only return channels with subchannels. If all analog subchannels are
+        # disabled, the recording properties will still show the parent channel.
+        return {k:v for k,v in self._channels.items() if v.subchannels}
 
 
     def close(self):
@@ -291,6 +297,7 @@ class Dataset(Cascading):
     @property
     def closed(self):
         return getattr(self.ebmldoc.stream, "closed", True)
+
 
     def addSession(self, startTime=None, endTime=None, utcStartTime=None):
         """ Create a new session, add it to the Dataset, and return it.
@@ -363,11 +370,11 @@ class Dataset(Cascading):
         if parser is None:
             raise TypeError("addChannel() requires a parser")
         
-        if channelId in self.channels:
-            return self.channels[channelId]
+        if channelId in self._channels:
+            return self._channels[channelId]
         channelClass = channelClass or Channel
         channel = channelClass(self, channelId, parser, **kwargs)
-        self.channels[channelId] = channel
+        self._channels[channelId] = channel
             
         return channel
 
@@ -433,7 +440,7 @@ class Dataset(Cascading):
         if plots:
             result = [p for p in self.plots.values() if test(p)]
         if subchannels:
-            for c in self.channels.itervalues():
+            for c in self._channels.itervalues():
                 for i in xrange(len(c.subchannels)):
                     subc = c.getSubChannel(i)
                     if test(subc):
@@ -449,7 +456,8 @@ class Dataset(Cascading):
         """
         for ch in self.channels.values():
             ch.updateTransforms()
-        
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -1364,7 +1372,7 @@ class EventList(Transformable):
         return min(len(self._data)-1, idx)
         
 
-    def    _getBlockRollingMean(self, blockIdx, force=False):
+    def _getBlockRollingMean(self, blockIdx, force=False):
         """ Get the mean of a block and its neighbors within a given time span.
             Note: Values are taken pre-calibration, and all subchannels are
             returned.
@@ -1857,7 +1865,7 @@ class EventList(Transformable):
         # OPTIMIZATION: Local variables for things used in inner loops
         hasSubchannels = self.hasSubchannels
         session = self.session
-        removeMean = self.removeMean
+        removeMean = self.removeMean and self.allowMeanRemoval
         _getBlockRollingMean = self._getBlockRollingMean
         if not hasSubchannels:
             parent_id = self.subchannelId
@@ -1877,9 +1885,13 @@ class EventList(Transformable):
             
             # HACK: Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
+            tries = 0
             if removeMean and m is None:
-                sleep(0.005)
+                sleep(0.01)
                 m = _getBlockRollingMean(block.blockIndex)
+                tries += 1
+                if tries > 10:
+                    break
             
             if m is not None:
                 mx = xform((t,m), session, noBivariates=self.noBivariates)
@@ -1973,6 +1985,8 @@ class EventList(Transformable):
         
     
     def _getBlockRange(self, startTime=None, endTime=None):
+        """
+        """
         if startTime is None:
             startBlockIdx = 0
         else:

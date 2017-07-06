@@ -3,7 +3,7 @@ Created on Aug 5, 2015
 
 @author: dstokes
 '''
-from ssx import SSXTriggerConfigPanel #, ChannelConfigPanel
+from ssx import SSXTriggerConfigPanel, ChannelConfigPanel
 from ssx import OptionsPanel, CalibrationPanel, EditableCalibrationPanel, SSXInfoPanel
 
 #===============================================================================
@@ -14,30 +14,32 @@ class SSCOptionsPanel(OptionsPanel):
     """
     """
     SAMPLE_RATE = (12,3200,400) # Min, max, default
+    SHOW_ANALOG = False
 
-    def getDeviceData(self):
-        OptionsPanel.getDeviceData(self)
-        
-        # Semi-hack: Remove analog accelerometer sample frequency item, and/or
-        # replace it with the DC accelerometer's per-channel sample rate
-        self.data.pop('SampleFreq', None)
-        
-        self.accelChannelDC = self.root.device.getAccelChannel(dc=True)
-        if self.accelChannelDC is not None: 
-            for ch in self.root.deviceConfig.get('SSXChannelConfiguration', []):
-                if ch['ConfigChannel'] == self.accelChannelDC.id:
-                    self.data['SampleFreq'] = ch.get('ChannelSampleFreq', 400)
-        
+#     def getDeviceData(self):
+#         OptionsPanel.getDeviceData(self)
+#         
+#         # Semi-hack: Remove analog accelerometer sample frequency item, and/or
+#         # replace it with the DC accelerometer's per-channel sample rate
+#         self.data.pop('SampleFreq', None)
+#         
+#         self.accelChannelDC = self.root.device.getAccelChannel(dc=True)
+#         if self.accelChannelDC is not None: 
+#             for ch in self.root.deviceConfig.get('SSXChannelConfiguration', []):
+#                 if ch['ConfigChannel'] == self.accelChannelDC.id:
+#                     self.data['SampleFreq'] = ch.get('ChannelSampleFreq', 400)
+#         
+# 
+#     def getData(self):
+#         data = OptionsPanel.getData(self)
+#         if self.samplingCheck.GetValue():
+#             sampRate = self.controls[self.samplingCheck][0].GetValue()
+#             data['SSXChannelConfiguration'] = {'ConfigChannel': self.accelChannelDC.id,
+#                                                'ChannelSampleFreq': sampRate}
+#         else:
+#             data.pop('SSXChannelConfiguration', None)
+#         return data
 
-    def getData(self):
-        data = OptionsPanel.getData(self)
-        if self.samplingCheck.GetValue():
-            sampRate = self.controls[self.samplingCheck][0].GetValue()
-            data['SSXChannelConfiguration'] = {'ConfigChannel': self.accelChannelDC.id,
-                                               'ChannelSampleFreq': sampRate}
-        else:
-            data.pop('SSXChannelConfiguration', None)
-        return data
 
 #===============================================================================
 # 
@@ -62,9 +64,9 @@ def buildUI_SSC(parent):
     parent.triggers = SSXTriggerConfigPanel(parent.notebook, -1, root=parent)
     parent.notebook.AddPage(parent.triggers, "Triggers")
 
-#     if parent.device.firmwareVersion >= 3:
-#         parent.channels = ChannelConfigPanel(parent.notebook, -1, root=parent)
-#         parent.notebook.AddPage(parent.channels, "Channels")
+    if parent.device.firmwareVersion >= 3:
+        parent.channels = ChannelConfigPanel(parent.notebook, -1, root=parent)
+        parent.notebook.AddPage(parent.channels, "Channels")
             
     if factorycal is not None:
         parent.factorycal = CalibrationPanel(parent.notebook, -1, root=parent,
@@ -79,6 +81,7 @@ def buildUI_SSC(parent):
 
     info = SSXInfoPanel(parent.notebook, -1, root=parent, info=parent.deviceInfo)
     parent.notebook.AddPage(info, "Device Info")
+
 
 #===============================================================================
 # 
