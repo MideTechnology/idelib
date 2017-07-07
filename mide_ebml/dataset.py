@@ -2540,8 +2540,17 @@ class WarningRange(object):
         self.low = low
         self.attributes = attributes
         
-        self.source = dataset.channels[channelId][subchannelId]
         self._sessions = {}
+        try:
+            self.source = dataset.channels[channelId][subchannelId]
+        except (KeyError, IndexError):
+            if warningId is not None:
+                wid = "0x%02X" % warningId
+            else:
+                wid = "with no ID"
+            logger.warning("WarningRange %s references a non-existent "
+                           "subchannel: %s.%s" % (wid, channelId, subchannelId))
+            self.source = None
         
         if low is None:
             self.valid = lambda x: x < high
@@ -2569,6 +2578,9 @@ class WarningRange(object):
             
             @return: A list of invalid periods' [start, end] times.
         """
+        if self.source is None:
+            return []
+        
         source = self.getSessionSource(sessionId)
 
         if start is None:
@@ -2606,6 +2618,9 @@ class WarningRange(object):
     def getValueAt(self, at, sessionId=None, source=None):
         """ Retrieve the value at a specific time. 
         """
+        if self.source is None:
+            return at, True
+        
         source = self.getSessionSource(sessionId) if source is None else source
         t = max(min(at, source[0][-2]),source[1][-2])
         val = source.getValueAt(t, outOfRange=True)
