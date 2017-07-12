@@ -1893,7 +1893,11 @@ class WarningRangeIndicator(object):
         self.pen = wx.Pen(color, style=wx.TRANSPARENT)
         self.oldDraw = None
         self.rects = None
-        self.sourceList = warning.getSessionSource(self.sessionId)
+        try:
+            self.sourceList = warning.getSessionSource(self.sessionId)
+        except AttributeError:
+            # Happens if the source is bad (wrong IDs in the `WarningRange`)
+            self.sourceList = None
         
     
     def draw(self, dc, hRange, hScale, scale=1.0, size=None):
@@ -1905,7 +1909,7 @@ class WarningRangeIndicator(object):
             
             @param dc: TThe drawing context (a `wx.DC` subclass). 
         """
-        if len(self.sourceList) < 2:
+        if self.sourceList is None or len(self.sourceList) < 2:
             return
         
         oldPen = dc.GetPen()
@@ -2138,6 +2142,9 @@ class PlotSet(aui.AuiNotebook):
         """
         self.warningRanges.clear()
         for warn in self.root.dataset.warningRanges.values():
+            if warn.source is None:
+                # Invalid `WarningRange`, probably bad channel/subchannel IDs 
+                continue
             self.warningRanges[warn.id] = WarningRangeIndicator(self, warn)
 
 
