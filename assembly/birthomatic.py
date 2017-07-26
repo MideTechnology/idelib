@@ -261,9 +261,20 @@ def getFirmwareFile(partNum=None, fwRev=None):
     """ Get the path and name of the latest firmware file. """
     return APP_FILE
 
+
 def getBootloaderFile(partNum=None, fwRev=None):
     """ Get the path and name of the latest bootloader file. """
     return BOOT_FILE
+
+
+def getBatchId(default=None):
+    """ Get the batch number. """
+    prompt = "Batch Number"
+    if default is not None:
+        prompt += " (default: '%s')" % default
+    prompt += "? "
+    return utils.getString(prompt, default=default, minmax=(0,100))
+
 
 #===============================================================================
 # 
@@ -346,6 +357,8 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     
     # 3. Get previous birth info from log (if any exists)
     # User gets prompted if they want to use existing data; those become defaults.
+    lastBirth = utils.getLastBirthLog(BIRTH_LOG_FILE)
+    batchId = lastBirth.get('batchId', '')
     logInfo = utils.findBirthLog(BIRTH_LOG_FILE, 'chipId', chipId)
     if logInfo:
         print "Birthing log entry for this device already exists:"
@@ -362,6 +375,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
             hwRev = logInfo.get('hwRev', None)
 #             fwRev = logInfo.get('fwRev', None) 
             accelSerialNum = logInfo.get('accelSerialNum', None)
+            batchId = logInfo.get('batchId', batchId)
             
             firstlog = utils.findBirthLog(BIRTH_LOG_FILE, 'chipId', chipId, last=False)
             birthday = firstlog.get('timestamp', None)
@@ -397,6 +411,8 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     if not bootRev:
         errMsg("Failed to get bootloader revision number!")
         return
+    
+    batchId = getBatchId(batchId)
     
     # The SlamStick C has no analog accelerometer!
     has_832M1 = utils.hasAnalogAccel(TEMPLATE_PATH, partNum, hwRev)
@@ -445,7 +461,9 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     if not firmwareOnly:
         print "Creating manifest and default calibration files..."
         manXmlFile = os.path.join(chipDirName, 'manifest.xml')
-        firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, accelSerialNum, manXmlFile, birthday=birthday)
+        firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, 
+                                 accelSerialNum, manXmlFile, birthday=birthday,
+                                 batchId=batchId)
         manEbml = xml2ebml.readXml(manXmlFile, schema='mide_ebml.ebml.schema.manifest')
         with open(changeFilename(manXmlFile, ext="ebml"), 'wb') as f:
             f.write(manEbml)

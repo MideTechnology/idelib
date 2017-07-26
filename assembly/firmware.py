@@ -277,7 +277,7 @@ def readUserPage(devPath):
 #===============================================================================
 
 def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn, 
-                    dest, birthday=None):
+                    dest, birthday=None, batchId=''):
     """ Create the device manifest XML file.
 
         @param templatePath: The root directory of the data templates.
@@ -313,6 +313,14 @@ def makeManifestXml(templatePath, partNum, hwRev, device_sn, device_accel_sn,
     els = xmlroot.findall("./AnalogSensorInfo/AnalogSensorSerialNumber")
     for el, num in zip(els, nums):
         el.set('value', num)
+
+    if batchId:
+        el = xmlroot.find('./SystemInfo/BatchIDStr')
+        if el:
+            el.set('value', batchId)
+        else:
+            el = ET.Element('BatchIDStr', {'value': batchId})
+            xmlroot.find('./SystemInfo').append(el)
         
     xmltree.write(dest)
     return xmlroot

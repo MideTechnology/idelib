@@ -13,6 +13,7 @@ import errno
 import os
 import shutil
 import socket
+import string
 import sys
 import time
 from xml.etree import ElementTree as ET
@@ -136,7 +137,7 @@ def writeFile(filename, data):
 #===============================================================================
 
 def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev, 
-                      device_accel_sn, partnum):
+                      device_accel_sn, partnum, batchnum=''):
     """
     """
     if isinstance(device_accel_sn, list):
@@ -151,7 +152,8 @@ def makeBirthLogEntry(chipid, device_sn, rebirth, bootver, hwrev, fwrev,
                 hwrev, 
                 fwrev, 
                 device_accel_sn, 
-                partnum))
+                partnum,
+                batchnum))
     return ','.join(data)+'\n'
 
 
@@ -173,7 +175,8 @@ def parseBirthLog(l):
         ('hwRev', int),
         ('fwRev', int),
         ('accelSerialNum', str),
-        ('partNum', str)
+        ('partNum', str),
+        ('batchId', str)
     )
     result = OrderedDict()
     for val, field in zip(sp, fields):
@@ -202,6 +205,19 @@ def findBirthLog(filename, key="serialNum", val=None, last=True):
                     if not last:
                         break
     return result
+
+
+def getLastBirthLog(filename):
+    """ Hack to get the last entry in the birth log.
+    """
+    # TODO: This will eventually 
+    result = None
+    with open(filename, 'rb') as f:
+        for l in f:
+            l = l.strip()
+            if l:
+                result = l
+    return parseBirthLog(result)
 
 #===============================================================================
 # 
@@ -411,7 +427,32 @@ def getNumber(prompt, dataType=float, default=None, minmax=None):
                 return val
         except ValueError as err:
             print str(err).capitalize()
-            
+
+
+def getString(prompt, dataType=str, default=None, minmax=None, 
+              goodChars=string.letters+string.digits+".: "):
+    """ Prompt the user for a string. """
+    while True:
+        try:
+            q = raw_input(prompt).strip()
+            if q == '':
+                if default is not None:
+                    return default
+                continue
+            if goodChars is not None:
+                badChars = [c for c in q if c not in goodChars]
+                if badChars:
+                    print "Invalid characters: %s" % (''.join(badChars))
+                    continue
+            if minmax is not None and not inRange(len(q), *minmax):
+                print "Enter a string of length %s to %s." % minmax
+            else:
+                return dataType(q)
+        except ValueError as err:
+            print str(err).capitalize()
+    
+    
+
 #===============================================================================
 # 
 #===============================================================================
