@@ -6,6 +6,10 @@ into the EBML ID; in the future, this will be used to create appropriate
 default widgets for new elements.
 
 Created on Jul 6, 2017
+
+TODO: Finish this! Requires the schema to be completed, and some test EBML
+    generated.
+TODO: Make sure all the items have reasonable sizes compared to each other.
 '''
 
 __author__ = "dstokes"
@@ -15,6 +19,7 @@ __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
 from fnmatch import fnmatch
 import string
+import sys
 
 import wx
 
@@ -44,7 +49,7 @@ def field(cls):
 
 class ConfigBase(object):
     """ Base/mix-in class for configuration items. Handles parsing attributes
-        from EBML.
+        from EBML. Doesn't do any of the GUI-specific widget work.
         
         @cvar ARGS: A dictionary mapping EBML element names to object attribute
             names. Wildcards are allowed in the element names.
@@ -113,8 +118,9 @@ class ConfigBase(object):
         return not eval(self.disableIf, {'config': self.root.config})
         
 
-class ConfigPanel(wx.Panel, ConfigBase):
-    """ Base class for configuration UI items.
+
+class ConfigWidget(wx.Panel, ConfigBase):
+    """ Base class for a configuration field.
     """
     
     CHECK = False
@@ -146,19 +152,6 @@ class ConfigPanel(wx.Panel, ConfigBase):
         ConfigBase.__init__(self, element, root)
         wx.Panel.__init__(self, *args, **kwargs)
 
-        if getattr(self, 'tooltip', None):
-            self.SetToolTipString(self.tooltip)
-
-
-class ConfigWidget(ConfigPanel):
-    """ Base class for a configuration field.
-    """
-    
-    def __init__(self, *args, **kwargs):
-        """
-        """
-        super(ConfigWidget, self).__init__(*args, **kwargs)
-        
         if not self.displayFormat:
             self.displayFormat = self.noEffect
         else:
@@ -173,7 +166,8 @@ class ConfigWidget(ConfigPanel):
     
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
-            Should be overridden in subclasses.
+            Separated from `initUi()` for subclassing. This method should be 
+            overridden in subclasses.
         """
         self.field = None
         p = wx.Panel(self, -1)
@@ -182,7 +176,9 @@ class ConfigWidget(ConfigPanel):
 
     
     def initUi(self):
-        """ Build the user interface.
+        """ Build the user interface, adding the item label and/or checkbox,
+            the appropriate UI control(s) and a 'units' label (if applicable). 
+            Separated from `__init__()` for the sake of subclassing.
         """
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         if self.CHECK:
@@ -200,6 +196,7 @@ class ConfigWidget(ConfigPanel):
         self.sizer.Add(units, 0)
 
         if self.tooltip:
+            self.SetToolTipString(self.tooltip)
             label.SetToolTipString(self.tooltip)
             units.SetToolTipString(self.tooltip)
             if self.field is not None:
@@ -334,7 +331,7 @@ class FloatField(IntField):
         self.field = wx.SpinCtrlDouble(self, -1, size=(60,-1), 
                                        inc=self.increment,
                                        min=self.min, max=self.max, 
-                                       value=self.default)
+                                       value=str(self.default))
         self.sizer.Add(self.field)
         return self.field
 
@@ -423,6 +420,9 @@ class UTCOffsetField(IntField):
     """
     
     def addField(self):
+        """ Class-specific method for adding the appropriate type of widget.
+            The UTC offset field consists of a 'spinner' control and a button.
+        """
         p = wx.Panel(self, -1)
         innerSizer = wx.BoxSizer(wx.HORIZONTAL)
         innerSizer.Add(p, 1)
@@ -444,7 +444,7 @@ class UTCOffsetField(IntField):
 
     
     def OnGetOffset(self, evt):
-        """
+        """ Handle button press: get the computer's local UTC offset.
         """
         # XXX: IMPLEMENT OnGetOffset()!
 
@@ -531,11 +531,12 @@ class CheckBinaryField(BinaryField):
 #--- Container fields 
 #===============================================================================
 
-class ConfigContainer(ConfigPanel):
+@field
+class Group(ConfigWidget):
     """
     """
     # Do the contents of the panel appear indented?
-    INDENT = False
+    INDENT = True
     
     @classmethod
     def getWidgetClass(cls, el):
@@ -562,7 +563,7 @@ class ConfigContainer(ConfigPanel):
         """
         """
         kwargs.setdefault('root', kwargs.pop('root', self))
-        super(ConfigContainer, self).__init__(*args, **kwargs)
+        super(Group, self).__init__(*args, **kwargs)
         
         self.widgets = []
         
@@ -588,22 +589,8 @@ class ConfigContainer(ConfigPanel):
             self.SetSizer(outersizer)
         else:
             self.SetSizer(sizer)
+
         
-
-
-class Tab(ConfigContainer):
-    """ One tab of configuration items. All configuration dialogs contain
-        at least one.
-    """
-
-
-@field
-class Group(ConfigContainer):
-    """ A group of configuration items. Its children appear indented.
-    """
-    INDENT = True
-
-
 @field
 class CheckGroup(Group):
     """ A group of configuration items with a checkbox to enable/disable them
@@ -612,7 +599,31 @@ class CheckGroup(Group):
     CHECK = True
 
 
+@field
+class Tab(Group):
+    """ One tab of configuration items. All configuration dialogs contain
+        at least one.
+    """
+    INDENT = False
+
+
 #===============================================================================
 # 
 #===============================================================================
 
+class ConfigDialog(wx.Frame):
+    """
+    """
+
+    def __init__(self, *args, **kwargs):
+        """
+        """
+        self.device = kwargs.pop('device', None)
+    
+
+#===============================================================================
+# 
+#===============================================================================
+
+if __name__ == "__main__":
+    sys.exit(0)
