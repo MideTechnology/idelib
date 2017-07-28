@@ -385,8 +385,13 @@ class MasterElement(Element):
         esize, sizelen = read_element_size(stream)
         payloadOffset = offset + idlen + sizelen
 
-        etype = self.schema.elements.get(eid, ("UnknownElement", Element))
-        el = etype(stream, offset, esize, payloadOffset)
+        try:
+            etype = self.schema.elements[eid]
+            el = etype(stream, offset, esize, payloadOffset)
+        except KeyError:
+            el = Element(stream, offset, esize, payloadOffset)
+            el.name = "UnknownElement"
+            el.id = eid
         
         if el.precache:
             # Read the value now, avoiding a seek later.
