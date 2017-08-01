@@ -507,7 +507,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     # 9. Update birth log
     print "Updating birthing logs and serial number..."
     if writeLog:
-        logline = utils.makeBirthLogEntry(chipId, serialNum, rebirth, bootVer, hwRev, fwRev, accelSerialNum, partNum)
+        logline = utils.makeBirthLogEntry(chipId, serialNum, rebirth, bootVer, hwRev, fwRev, accelSerialNum, partNum, batchId)
         utils.writeFileLine(BIRTH_LOG_FILE, logline, mode='at')
         utils.writeFileLine(os.path.join(calDirName, 'birth_log.txt'), logline)
         if not rebirth:
@@ -549,6 +549,8 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
     # 11. Notify user that recorder is ready for potting/calibration
     print "*" * 60
     print "\x07%s SN:%s ready for calibration and potting!" % (volName, serialNumStr)
+    if batchId:
+        print "          Batch ID:", batchId
     print "       Part Number:", partNum
     print "       Hardware ID:", chipId
     if accelSerialNum is not None:
