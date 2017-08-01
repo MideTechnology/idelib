@@ -50,8 +50,7 @@ UNKNOWN = -1 # not in python-ebml
 #===============================================================================
 
 class Element(object):
-    """ Base class for all EBML elements. Also used for unknown elements (i.e.
-        those with IDs not in the schema.
+    """ Base class for all EBML elements. 
         
         @cvar id: The element's EBML ID.
         @cvar name: The element's name. 
@@ -61,6 +60,7 @@ class Element(object):
         @cvar mandatory: Must this element appear in all EBML files using
             this element's schema? Note: Not currently enforced.
         @cvar type: The element's numeric EBML type (from python-ebml).
+        @cvar dtype: The element's native Python data type.
         @cvar precache: If `True`, the Element's value is read when the Element
             is parsed. if `False`, the value is lazy-loaded when needed.
         @cvar length: An explicit length (in bytes) of the element when
@@ -69,6 +69,7 @@ class Element(object):
     # python-ebml type ID. 
     type = UNKNOWN
 
+    # Python native data type.
     dtype = bytearray
 
     # Should this element's value be read/cached when the element is parsed?
@@ -85,6 +86,7 @@ class Element(object):
     
     # For python-ebml compatibility; not currently used.
     children = None
+    
     
     def parse(self, stream, size):
         """ Type-specific helper function for parsing the element's payload.
@@ -104,7 +106,6 @@ class Element(object):
             @keyword payloadOffset: The starting location of the element's
                 payload (i.e. immediately after the element's header).
         """
-#         self._stream = stream
         self.stream = stream
         self.offset = offset
         self.size = size
@@ -123,7 +124,8 @@ class Element(object):
     def __eq__(self, other):
         """ Equality check. Elements are considered equal if they are the same
             type and have the same ID, size, offset, and schema. Note: element
-            value is not considered! 
+            value is not considered! Check for value equality explicitly 
+            (e.g. ``el1.value == el2.value``).
         """
         if other is self:
             return True
@@ -160,6 +162,7 @@ class Element(object):
         self._value = None
         
         return 1
+
 
     #===========================================================================
     # Encoding (WIP)
@@ -206,7 +209,8 @@ class Element(object):
 #===============================================================================
 
 class IntegerElement(Element):
-    """ Base class for an EBML signed integer element.
+    """ Base class for an EBML signed integer element. Schema-specific
+        subclasses are generated when a `Schema` is loaded.
     """
     type = INT
     dtype = int
@@ -228,7 +232,8 @@ class IntegerElement(Element):
 #===============================================================================
 
 class UIntegerElement(Element):
-    """ Base class for an EBML unsigned integer element.
+    """ Base class for an EBML unsigned integer element. Schema-specific
+        subclasses are generated when a `Schema` is loaded.
     """
     type = UINT
     dtype = int
@@ -250,7 +255,8 @@ class UIntegerElement(Element):
 #===============================================================================
 
 class FloatElement(Element):
-    """ Base class for an EBML floating point element.
+    """ Base class for an EBML floating point element. Schema-specific
+        subclasses are generated when a `Schema` is loaded.
     """
     type = FLOAT
     dtype = float
@@ -272,7 +278,8 @@ class FloatElement(Element):
 #===============================================================================
 
 class StringElement(Element):
-    """ Base class for an EBML ASCII string element.
+    """ Base class for an EBML ASCII string element. Schema-specific
+        subclasses are generated when a `Schema` is loaded.
     """
     type = STRING
     dtype = str
@@ -294,7 +301,8 @@ class StringElement(Element):
 #===============================================================================
 
 class UnicodeElement(Element):
-    """ Base class for an EBML UTF-8 string element.
+    """ Base class for an EBML UTF-8 string element. Schema-specific subclasses
+        are generated when a `Schema` is loaded.
     """
     type = UNICODE
     dtype = unicode
@@ -315,7 +323,8 @@ class UnicodeElement(Element):
 #===============================================================================
 
 class DateElement(Element):
-    """ Base class for an EBML 'date' element.
+    """ Base class for an EBML 'date' element. Schema-specific subclasses are
+        generated when a `Schema` is loaded.
     """
     type = DATE
     dtype = datetime
@@ -337,7 +346,8 @@ class DateElement(Element):
 #===============================================================================
 
 class BinaryElement(Element):
-    """ Base class for an EBML 'binary' element.
+    """ Base class for an EBML 'binary' element. Schema-specific subclasses are
+        generated when a `Schema` is loaded.
     """
     type = BINARY
 
@@ -357,6 +367,29 @@ class VoidElement(BinaryElement):
     def encodePayload(cls, data, length=0):
         """ Type-specific payload encoder for Void elements. """
         return bytearray('\xff' * length)
+
+
+#===============================================================================
+
+class UnknownElement(Element):
+    """ Special case ``Unknown`` element, used for elements with IDs not present
+        in a schema. Unlike other elements, each instance has its own ID. 
+    """
+    type = UNKNOWN
+
+    def __eq__(self, other):
+        """ Equality check. Unknown elements are considered equal if they have
+            the same ID and value. Note that this differs from the criteria
+            used for other element classes! 
+        """
+        if other is self:
+            return True
+        try:
+            return (self.name == other.name
+                    and self.id == other.id
+                    and self.value == other.value)
+        except AttributeError:
+            return False
 
 
 #===============================================================================
@@ -389,9 +422,9 @@ class MasterElement(Element):
             etype = self.schema.elements[eid]
             el = etype(stream, offset, esize, payloadOffset)
         except KeyError:
-            el = Element(stream, offset, esize, payloadOffset)
-            el.name = "UnknownElement"
+            el = UnknownElement(stream, offset, esize, payloadOffset)
             el.id = eid
+            el.schema = getattr(self, "schema", None)
         
         if el.precache:
             # Read the value now, avoiding a seek later.
@@ -406,12 +439,14 @@ class MasterElement(Element):
         pos = self.payloadOffset
         payloadEnd = pos + self.size
         while pos < payloadEnd:
-#             self._stream.seek(pos)
-#             el, pos = self.parseElement(self._stream)
             self.stream.seek(pos)
             el, pos = self.parseElement(self.stream)
             yield el
 
+
+    def __iter__(self):
+        return self.iterChildren()
+    
     
     @property
     def value(self):
@@ -492,6 +527,7 @@ class MasterElement(Element):
 
 class Document(MasterElement):
     """ Base class for an EBML document, containing multiple 'root' elements.
+        Loading a `Schema` generates a subclass.
     """
 
     def __init__(self, stream, name=None, size=None):
@@ -702,6 +738,11 @@ class Schema(object):
         @ivar elementInfo: A dictionary mapping IDs to the raw schema attribute
             data. Is likely to have additional items not present in the created
             element class' attributes.
+        
+        @ivar source: The source from which the Schema was loaded; either a
+            filename or a file-like stream.
+        @ivar filename: The absolute path of the source file, if the source
+            was a file or a filename.
     """
 
     # Mapping of schema type names to the corresponding Element subclasses.
@@ -717,22 +758,28 @@ class Schema(object):
     }
 
 
-    def __init__(self, filename, name=None):
+    def __init__(self, source, name=None):
         """ Constructor. Creates a new Schema from a schema description XML.
         
-            @param filename: The full path and name of the schema XML file.
+            @param source: The Schema's source, either a string with the full 
+                path and name of the schema XML file, or a file-like stream.
             @keyword name: The schema's name. Defaults to the document type
                 element's default value (if defined) or the base file name.
         """
-        # Helper function to cast schema attributes to Booleans.
-        self.filename = filename
+        self.source = source
+        self.filename = None
+        
+        if isinstance(source, basestring):
+            self.filename = os.path.realpath(source)
+        elif hasattr(source, "name"):
+            self.filename = os.path.realpath(source.name)
 
         self.elements = {}    # Element types, keyed by ID
         self.elementIds = {}  # Element types, keyed by element name
         self.elementInfo = {} # Raw element schema attributes, keyed by ID
         
         # Parse. 
-        schema = ET.parse(filename)
+        schema = ET.parse(source)
         self._parseSchema(schema)
 
         # Special case: `Void` is a standard EBML element, but not its own
@@ -745,88 +792,18 @@ class Schema(object):
             self.elements[el.id] = void
             self.elementIds['Void'] = void
         
-        # Schema name. Defaults to the schema's default EBML 'DocType' or
-        # the schema file's base name.
-        if name is None:
-            name = self.type or os.path.splitext(os.path.basename(filename))[0]
-        self.name = name
+        # Schema name. Defaults to the schema's default EBML 'DocType'
+        self.name = name or self.type
         
         # Create the schema's Document subclass.
         self.document = type('%sDocument' % self.name.title(), (Document,),
                              {'schema': self})
 
     
-    def old_parseSchema(self, schema):
-        """ Parse a python-ebml schema XML file. Isolated from `__init__()` for
-            alternative future schema format.
-        """
-        def _bool(v, default=False):
-            try:
-                return str(v).strip()[0] in 'Tt1'
-            except (TypeError, IndexError, ValueError):
-                return default
-            
-        for el in schema.findall('element'):
-            attribs = el.attrib.copy()
-            
-            eid = int(attribs['id'],16) if 'id' in attribs else None
-            ename = el.attrib['name'].strip() if 'name' in attribs else None
-            etype = el.attrib['type'].strip() if 'type' in attribs else None
-            
-            # Duplicate elements are permitted, for defining a child element
-            # that can appear as a child to multiple master elements. Additional
-            # definitions only need to specify the element ID or name.
-            if ename in self.elementIds:
-                eid = eid or self.elementIds[ename].id
-            
-            if eid in self.elements:
-                # Already appeared in schema. Duplicates are permitted, so long
-                # as they have the same attributes. Second appearance may 
-                # omit everything the ID and/or the name.
-                newatts = self.elementInfo[eid].copy()
-                newatts.update(attribs)
-                if self.elementInfo[eid] == newatts:
-                    # TODO: Update hierarchy information. Not currently used.
-                    continue
-                else:
-                    raise TypeError('Element %r (ID 0x%02X) redefined with '
-                                    'different attributes' % (ename, eid))
-            
-            # Mandatory element attributes
-            if eid is None:
-                raise ValueError('Element definition missing required '
-                                 '"id" attribute')
-            elif ename is None:
-                raise ValueError('Element ID 0x%02X missing required '
-                                 '"name" attribute' % eid)
-            elif etype is None:
-                raise ValueError('Element "%s" (ID 0x%02X) missing required '
-                                 '"type" attribute' % (ename, eid))
-            
-            if etype not in self.ELEMENT_TYPES:
-                raise ValueError("Unknown type for element %r (ID 0x%02x): %r" %
-                                 (ename, eid, etype))
-
-            etype = etype.lower()
-            baseClass = self.ELEMENT_TYPES[etype]
-
-            mandatory = _bool(attribs.get('mandatory', False))
-            multiple = _bool(attribs.get('multiple', True))
-            precache = _bool(attribs.get('precache', baseClass.precache))
-            length = int(attribs.get('length', 0)) or None
-            
-            # Create a new Element subclass
-            eclass = type('%sElement' % ename, (baseClass,),
-                          {'id':eid, 'name':ename, 'schema':self,
-                           'mandatory': mandatory, 'multiple': multiple, 
-                           'precache': precache, 'length':length})
-             
-            self.elements[eid] = eclass
-            self.elementInfo[eid] = attribs
-            self.elementIds[ename] = eclass
-
-
     def _parseSchema(self, schema):
+        """ Parse a python-ebml schema XML file. Isolated from `__init__()` for
+            future alternative schema format.
+        """
         def _bool(v, default=False):
             try:
                 return str(v).strip()[0] in 'Tt1'
@@ -844,7 +821,8 @@ class Schema(object):
             precache = _bool(attribs['precache']) if 'precache' in attribs else None
             length = int(attribs['length']) if 'length' in attribs else None
         
-            self.addElement(eid, ename, etype, multiple, mandatory, length, precache, attribs)
+            self.addElement(eid, ename, etype, multiple, mandatory, length, 
+                            precache, attribs)
         
 
     def addElement(self, eid, ename, etype, multiple=True, mandatory=False,
@@ -924,8 +902,11 @@ class Schema(object):
         
 
     def __repr__(self):
+        source = self.filename or self.source
+        if source is None:
+            return "<%s %r from '%s'>" % (self.__class__.__name__, self.name)
         return "<%s %r from '%s'>" % (self.__class__.__name__, self.name,
-                                      os.path.realpath(self.filename))
+                                      self.filename or self.source)
 
     
     def __eq__(self, other):
@@ -947,6 +928,10 @@ class Schema(object):
             return self.elementIds[key]
         return self.elements[key]
 
+    
+    @property
+    def children(self):
+        return self.elements.values()
 
 
     def load(self, fp, name=None):

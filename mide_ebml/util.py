@@ -6,12 +6,16 @@ Most important are `build_ebml()` and `parse_ebml()`.
 Created on Dec 10, 2013
 
 @author: dstokes
+
+@todo: Full refactoring to use `ebmlite`. 
+
 '''
 
 from collections import Sequence, OrderedDict
 import datetime
 import errno
 import importlib
+import os.path
 import pkgutil
 from StringIO import StringIO
 import sys
@@ -23,7 +27,9 @@ import ebml #@UnusedImport
 from ebml import core as ebml_core
 from ebml.schema import base as schema_base
 from ebml.schema import specs as schema_specs
-from ebml.schema.base import INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
+
+from ebmlite import Schema
+from ebmlite import INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER
 
 #===============================================================================
 # 
@@ -120,9 +126,9 @@ def getSchemaModule(schema=DEFAULT_SCHEMA):
     schema = str(schema).strip()
     try:
         return importlib.import_module(schema)
-    except ImportError as err:
+    except ImportError:
         if __package__ is None:
-            raise err
+            raise
         return importlib.import_module("%s.%s" % (__package__, schema))
             
     
@@ -308,7 +314,7 @@ def read_ebml(stream, schema=DEFAULT_SCHEMA, ordered=True):
         except IOError as e:
             # Some stream-like objects (like stdout) don't support seek.
             if e.errno != errno.EBADF:
-                raise e
+                raise
             
     doctype = getSchemaDocument(schema)
     result = parse_ebml(doctype(stream).roots, ordered)
@@ -465,6 +471,55 @@ def build_attributes(data):
         inferred.
     """
     return build_ebml('Attribute', encode_attributes(data))
+
+#===============================================================================
+# 
+#===============================================================================
+
+SCHEMATA = {}
+
+def getSchema(schema, reload=False):
+    """ Attempt to load a schema, using a filename, a module, or the name of
+        a module. For backwards compatibility with old code.
+    """
+    global SCHEMATA
+    
+    if isinstance(schema, Schema):
+        return schema
+    
+    if schema in SCHEMATA and not reload:
+        return SCHEMATA[schema]
+        
+    if isinstance(schema, types.ModuleType):
+        # python-ebml schema, probably; load from module path.
+        schema = schema.__name__
+        
+    if isinstance(schema, basestring):
+        # First, try it as a filename.
+        filename = os.path.realpath(schema)
+        if os.path.exists(filename):
+            s = Schema(filename)
+            SCHEMATA[filename] = s
+            return s
+        
+        # Second, try it as a module name (like old mide_ebml.util functions)
+        modname, _, filename = schema.rpartition('.')
+        try:
+            if pkgutil.get_loader(modname) is not None:
+                filename = "%s.xml" % filename
+                data = pkgutil.get_data(modname, filename)
+                if data:
+                    s = Schema(StringIO(data))
+                    SCHEMATA[schema] = s
+                    s.source = schema
+                    return s
+                else:
+                    raise IOError("Could not read %s from module %s" % (modname, filename))
+        except ImportError:
+            raise IOError("Could not load schema from module %s" % schema)
+                
+    raise IOError("Could not load schema from %s" % schema)
+
 
 #===============================================================================
 # 

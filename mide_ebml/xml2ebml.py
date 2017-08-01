@@ -125,7 +125,7 @@ def dumpXmlElement(el, indent=0, tabsize=4):
         converted back to EBML. 
     """
     tab = u" " * tabsize * indent
-    if el.children:
+    if el.type == CONTAINER:
         results = [u'%s<%s offset="%d" body_size="%s">' % \
                    (tab, el.name, el.offset, el.size)]
         for child in el.value:
