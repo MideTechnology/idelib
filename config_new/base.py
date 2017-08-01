@@ -22,9 +22,17 @@ import string
 import sys
 
 import wx
+import wx.lib.sized_controls as SC
 
 from widgets.shared import DateTimeCtrl
 
+from mide_ebml.ebmlite import Schema
+
+# XXX:
+import wx.lib.colourdb
+from random import choice as random_choice
+
+colors = [x[1:] for x in wx.lib.colourdb.getColourInfoList()]
 
 #===============================================================================
 #--- Utility functions
@@ -95,7 +103,7 @@ class ConfigBase(object):
         for v in args.values():
             if not hasattr(self, v):
                 setattr(self, v, None)
-                
+        
         for el in self.element.value:
             if el.name in FIELD_TYPES:
                 # Child field: handle separately.
@@ -105,10 +113,11 @@ class ConfigBase(object):
                 setattr(self, args[el.name], el.value)
             else:
                 # Match wildcards and set attribute
-                for k,v in args:
+                for k,v in args.items():
                     if fnmatch(el.name, k):
                         setattr(self, v, el.value)
-        
+    
+
 
     def isEnabled(self):
         """
@@ -161,8 +170,16 @@ class ConfigWidget(wx.Panel, ConfigBase):
         else:
             self.valueFormat = eval("lambda x: %s" % self.displayFormat)
 
-        self.initUi()
+        # XXX: remove
+        cid = "None" if self.configId is None else ("0x%04x" % self.configId)
+        print "%s (%s) %r" % (cid, self.element.name, self.label)
+#         c = random_choice(colors)
+#         self.SetBackgroundColour(c)
+#         if self.configId is not None:
+#             self.tooltip = "0x%04X" % self.configId
 
+        self.initUi()
+    
     
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
@@ -171,7 +188,7 @@ class ConfigWidget(wx.Panel, ConfigBase):
         """
         self.field = None
         p = wx.Panel(self, -1)
-        self.sizer.Add(p, 1)
+        self.sizer.Add(p, 3)
         return p
 
     
@@ -182,18 +199,18 @@ class ConfigWidget(wx.Panel, ConfigBase):
         """
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         if self.CHECK:
-            self.checkbox = wx.CheckBox(self, -1, self.label)
+            self.checkbox = wx.CheckBox(self, -1, self.label or '')
             label = self.checkbox
-            self.sizer.Add(self.checkbox, 0)
+            self.sizer.Add(self.checkbox, 2)
         else:
             self.checkbox = None
-            label = wx.StaticText(self, -1, self.label)
-            self.sizer.Add(label, 0)
+            label = wx.StaticText(self, -1, self.label or '')
+            self.sizer.Add(label, 2)
         
         self.addField()
         
         units = wx.StaticText(self, -1, self.units or '')
-        self.sizer.Add(units, 0)
+        self.sizer.Add(units, 1)
 
         if self.tooltip:
             self.SetToolTipString(self.tooltip)
@@ -248,7 +265,7 @@ class TextField(ConfigWidget):
 
     def __init__(self, *args, **kwargs):
         self.textLines = 1
-        super(IntField, self).__init__(*args, **kwargs)
+        super(TextField, self).__init__(*args, **kwargs)
 
     
     @classmethod
@@ -261,7 +278,12 @@ class TextField(ConfigWidget):
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
-        self.field = wx.TextCtrl(self, -1, str(self.default or ''))
+        if self.textLines > 1:
+            self.field = wx.TextCtrl(self, -1, str(self.default or ''),
+                                     style=wx.TE_MULTILINE|wx.TE_PROCESS_ENTER)
+        else:
+            self.field = wx.TextCtrl(self, -1, str(self.default or ''))
+            
         self.sizer.Add(self.field, 1)
         return self.field
 
@@ -340,19 +362,15 @@ class FloatField(IntField):
 class EnumField(ConfigWidget):
     """ UI widget for selecting one of several items from a list.
     """
-    
-    def __init__(self, *args, **kwargs):
-        """
-        """
-        optionEls = [el for el in self.element.value if el.name=="EnumOption"]
-        self.options = [EnumOption(el, self) for el in optionEls]
-        
-        super(EnumField, self).__init__(*args, **kwargs)
 
+        
     
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
+        optionEls = [el for el in self.element.value if el.name=="EnumOption"]
+        self.options = [EnumOption(el, self) for el in optionEls]
+        
         self.field = wx.Choice(self, -1, choices=[o.label for o in self.options])
         self.sizer.Add(self.field, 1)
         return self.field
@@ -461,6 +479,8 @@ class BinaryField(ConfigWidget):
 # Container fields excluded (see below).
 #===============================================================================
 
+FIELD_TYPES['CheckBooleanField'] = BooleanField
+
 @field
 class CheckTextField(TextField):
     """ UI widget (with a checkbox) for editing Unicode text.
@@ -562,12 +582,12 @@ class Group(ConfigWidget):
     def __init__(self, *args, **kwargs):
         """
         """
+        self.widgets = []
+        
         kwargs.setdefault('root', kwargs.pop('root', self))
         super(Group, self).__init__(*args, **kwargs)
         
-        self.widgets = []
-        
-        self.initUi()
+#         self.initUi()
         
         
     def initUi(self):
@@ -579,9 +599,12 @@ class Group(ConfigWidget):
             cls = self.getWidgetClass(el)
             if cls is None:
                 continue
+            if not el.value:
+                print "%s with no children! Skipping." % el.name
+                continue
             widget = cls(self, -1, element=el, root=self.root)
-            self.widgets.append[widget]
-            sizer.Add(widget, 1)
+            self.widgets.append(widget)
+            sizer.Add(widget, 0, wx.ALIGN_LEFT|wx.EXPAND|wx.ALL, border=4)
 
         if self.INDENT:
             outersizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -611,7 +634,7 @@ class Tab(Group):
 # 
 #===============================================================================
 
-class ConfigDialog(wx.Frame):
+class ConfigDialog(SC.SizedDialog):
     """
     """
 
@@ -619,11 +642,68 @@ class ConfigDialog(wx.Frame):
         """
         """
         self.device = kwargs.pop('device', None)
-    
+        
+        # XXX: TEMP
+        self.hints = kwargs.pop('hints', None)
+        
+        kwargs.setdefault("style", 
+            wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
+        
+        super(ConfigDialog, self).__init__(*args, **kwargs)
+
+        pane = self.GetContentsPane()
+        self.notebook = wx.Notebook(pane, -1)#, style=wx.NB_BOTTOM)
+        self.notebook.SetSizerProps(expand=True, proportion=-1)
+
+        # build UI
+        self.buildUI()
+
+        self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK|wx.CANCEL))
+        self.SetMinSize((640, 480))
+        self.Fit()
+        self.SetSize((640, 480))
+        
+
+    def buildUI(self):
+        """
+        """
+        for el in self.hints.roots[0]:
+            if el.name == "Tab":
+                if not el.value:
+                    print "%s with no children! skipping." % el.name
+                    continue
+                print "!!! Tab"
+                tab = Tab(self.notebook, -1, element=el)
+                self.notebook.AddPage(tab, str(tab.label))
+
 
 #===============================================================================
 # 
 #===============================================================================
 
+def crawl(el, indent=-1):
+    if indent > -1:
+        print "%s %s:" % ((" "*indent*2), el.name),
+    if indent < 0 or isinstance(el.value, list):
+        print
+        for i in el:
+            crawl(i, indent+1)
+    else:
+        if isinstance(el.value, float):
+            print el.value
+#             print "%12.8f" % el.value
+        else:
+            print repr(el.value)
+
+        
+#===============================================================================
+# 
+#===============================================================================
+
 if __name__ == "__main__":
-    sys.exit(0)
+    schema = Schema("../mide_ebml/ebml/schema/config_ui.xml")
+    testDoc = schema.load('CONFIG.UI')
+    crawl(testDoc)
+    app = wx.App()
+    dlg = ConfigDialog(None, hints=testDoc)
+    dlg.ShowModal()
