@@ -25,7 +25,7 @@
         <element name="SignedElement" level="3" id="0x6532" type="binary" multiple="1" webm="0">An element ID whose data will be used to compute the signature.</element>
 
 <element name="ConfigUI" level="0" id="0x7777" type="master" mandatory="1" multiple="0"></element>
-  <element name="Tab" level="1" id="0x4028" type="master" multiple="1" mandatory="1"></element>
+  <element name="Tab" level="-1" id="0x4028" type="master" multiple="1" mandatory="1"></element>
     <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
     <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
     
@@ -51,7 +51,7 @@
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
             <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
             <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
-            <element name="Units" level="-1" id="0x5025" type="utf-8" multiple="0"></element>
+            <element name="Units" level="1" id="0x5025" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
             <element name="UIntMin" level="1" id="0x5111" type="uinteger" multiple="0"></element>
@@ -63,7 +63,7 @@
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
             <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
             <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
-            <element name="Units" level="-1" id="0x5025" type="utf-8" multiple="0"></element>
+            <element name="Units" level="1" id="0x5025" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="IntMin" level="1" id="0x5112" type="integer" multiple="0"></element>
             <element name="IntMax" level="1" id="0x5122" type="integer" multiple="0"></element>
@@ -76,7 +76,7 @@
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
             <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
             <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
-            <element name="Units" level="-1" id="0x5025" type="utf-8" multiple="0"></element>
+            <element name="Units" level="1" id="0x5025" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="FloatMin" level="1" id="0x5113" type="float" multiple="0"></element>
             <element name="FloatMax" level="1" id="0x5123" type="float" multiple="0"></element>
@@ -115,7 +115,7 @@
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
             <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
             <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
-            <element name="Units" level="-1" id="0x5025" type="utf-8" multiple="0"></element>
+            <element name="Units" level="1" id="0x5025" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="ASCIIValue" level="1" id="0x5104" type="string" multiple="0"></element>
             <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
@@ -174,7 +174,7 @@
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
             <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
             <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
-            <element name="Units" level="-1" id="0x5025" type="utf-8" multiple="0"></element>
+            <element name="Units" level="1" id="0x5025" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
             <element name="UIntMin" level="1" id="0x5111" type="uinteger" multiple="0"></element>
@@ -186,7 +186,7 @@
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
             <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
             <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
-            <element name="Units" level="-1" id="0x5025" type="utf-8" multiple="0"></element>
+            <element name="Units" level="1" id="0x5025" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="IntMin" level="1" id="0x5112" type="integer" multiple="0"></element>
             <element name="IntMax" level="1" id="0x5122" type="integer" multiple="0"></element>
@@ -199,7 +199,7 @@
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
             <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
             <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
-            <element name="Units" level="-1" id="0x5025" type="utf-8" multiple="0"></element>
+            <element name="Units" level="1" id="0x5025" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="FloatMin" level="1" id="0x5113" type="float" multiple="0"></element>
             <element name="FloatMax" level="1" id="0x5123" type="float" multiple="0"></element>
@@ -234,7 +234,7 @@
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
             <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
             <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
-            <element name="Units" level="-1" id="0x5025" type="utf-8" multiple="0"></element>
+            <element name="Units" level="1" id="0x5025" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="ASCIIValue" level="1" id="0x5104" type="string" multiple="0"></element>
             <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
