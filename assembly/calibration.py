@@ -327,7 +327,7 @@ class CalFile(object):
         elif 8 in self.doc.channels:
             # New SSX firmware.
             return self.doc.channels[8]
-        elif len(self.doc.channels) == 2:
+        elif self.doc.recorderInfo['PartNumber'].startswith('LOG-0003'):
             # Probably a Slam Stick C.
             return None
 
