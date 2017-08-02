@@ -19,27 +19,23 @@ __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
 from fnmatch import fnmatch
 import string
-import sys
 
 import wx
+import wx.lib.filebrowsebutton as FB
+import wx.lib.scrolledpanel as SP
 import wx.lib.sized_controls as SC
 
 from widgets.shared import DateTimeCtrl
 
 from mide_ebml.ebmlite import Schema
 
-# XXX:
-import wx.lib.colourdb
-from random import choice as random_choice
-
-colors = [x[1:] for x in wx.lib.colourdb.getColourInfoList()]
 
 #===============================================================================
 #--- Utility functions
 #===============================================================================
 
 # Dictionary of all known field types. The `@field` class decorator adds them.
-# See `field()`, below.
+# See `field()` decorator function, below.
 FIELD_TYPES = {}
 
 
@@ -50,7 +46,68 @@ def field(cls):
     FIELD_TYPES[cls.__name__] = cls
     return cls
 
+#===============================================================================
+# 
+#===============================================================================
 
+
+class TextValidator(wx.PyValidator):
+    """ Validator for TextField and ASCIIField text widgets.
+    
+        @todo: Make it validate pasted text (currently only validates typing).
+    """
+    
+    def __init__(self, validator=None, maxLen=None):
+        """ Instantiate a text field validator.
+        
+            @keyword validChars: A string of chars 
+        """
+        self.maxLen = maxLen
+        self.isValid = validator 
+        wx.PyValidator.__init__(self)
+        self.Bind(wx.EVT_CHAR, self.OnChar)
+
+
+    def Clone(self):
+        return TextValidator(self.isValid, self.maxLen)
+    
+    
+    def TransferToWindow(self):
+        """ Required in wx.PyValidator subclasses. """
+        return True
+    
+    
+    def TransferFromWindow(self):
+        """ Required in wx.PyValidator subclasses. """
+        return True
+    
+    
+    def Validate(self, win):
+        return self.isValid(self.GetWindow().GetValue())
+
+
+    def OnChar(self, event):
+        key = event.GetKeyCode()
+        char = unichr(key)
+        tc = self.GetWindow()
+        val = tc.GetValue()
+
+        if key < wx.WXK_SPACE or key == wx.WXK_DELETE:
+            event.Skip()
+            return
+
+        if self.isValid(char) and len(val) < self.maxLen:
+            event.Skip()
+            return
+
+        if not wx.Validator_IsSilent():
+            wx.Bell()
+
+        # Returning without calling even.Skip eats the event before it
+        # gets to the text control
+        return
+    
+    
 #===============================================================================
 #--- Base classes
 #===============================================================================
@@ -71,6 +128,8 @@ class ConfigBase(object):
             "ConfigID": "configId",
             "ToolTip": "tooltip",
             "DisableIf": "disableIf",
+            "DisplayFormat": "displayFormat",
+            "ValueFormat": "valueFormat",
             "*Min": "min",
             "*Max": "max",
             "*Value": "default",
@@ -98,6 +157,7 @@ class ConfigBase(object):
         self.root = root
         self.element = element
         
+        # Convert element children to object attributes
         args = self.ARGS.copy()
         args.update(self.CLASS_ARGS)
         for v in args.values():
@@ -106,7 +166,7 @@ class ConfigBase(object):
         
         for el in self.element.value:
             if el.name in FIELD_TYPES:
-                # Child field: handle separately.
+                # Child field: skip now, handle later (if applicable)
                 continue
             elif el.name in args:
                 # Known element name (verbatim): set attribute
@@ -116,11 +176,21 @@ class ConfigBase(object):
                 for k,v in args.items():
                     if fnmatch(el.name, k):
                         setattr(self, v, el.value)
-    
+
+        # Default expressions for converting values between native and display
+        if not self.displayFormat:
+            self.displayFormat = self.noEffect
+        else:
+            self.displayFormat = eval("lambda x: %s" % self.displayFormat)
+        if not self.valueFormat:
+            self.valueFormat = self.noEffect
+        else:
+            self.valueFormat = eval("lambda x: %s" % self.displayFormat)
 
 
     def isEnabled(self):
-        """
+        """ Check the Field's `disableIf` expression (if any) to determine if
+            the Field should be enabled.
         """
         if self.disableIf is None:
             return True
@@ -132,8 +202,14 @@ class ConfigWidget(wx.Panel, ConfigBase):
     """ Base class for a configuration field.
     """
     
+    # Does this widget subclass have a checkbox?
     CHECK = False
     
+    # Should this widget subclass always leave space for 'units' label?
+    UNITS = True
+    
+    # Mapping of element names to object attributes. May contain glob-style
+    # wildcards.
     ARGS = {"Label": "label",
             "ConfigID": "configId",
             "ToolTip": "tooltip",
@@ -154,29 +230,14 @@ class ConfigWidget(wx.Panel, ConfigBase):
             @keyword element: The EBML element for which the UI element is
                 being generated.
             @keyword root: The main dialog.
+            @keyword group: The parent group containing the Field.
         """
         element = kwargs.pop('element', None)
         root = kwargs.pop('root', None)
+        self.group = kwargs.pop('group', None)
         
         ConfigBase.__init__(self, element, root)
         wx.Panel.__init__(self, *args, **kwargs)
-
-        if not self.displayFormat:
-            self.displayFormat = self.noEffect
-        else:
-            self.displayFormat = eval("lambda x: %s" % self.displayFormat)
-        if not self.valueFormat:
-            self.valueFormat = self.noEffect
-        else:
-            self.valueFormat = eval("lambda x: %s" % self.displayFormat)
-
-        # XXX: remove
-        cid = "None" if self.configId is None else ("0x%04x" % self.configId)
-        print "%s (%s) %r" % (cid, self.element.name, self.label)
-#         c = random_choice(colors)
-#         self.SetBackgroundColour(c)
-#         if self.configId is not None:
-#             self.tooltip = "0x%04X" % self.configId
 
         self.initUi()
     
@@ -201,29 +262,56 @@ class ConfigWidget(wx.Panel, ConfigBase):
         if self.CHECK:
             self.checkbox = wx.CheckBox(self, -1, self.label or '')
             label = self.checkbox
-            self.sizer.Add(self.checkbox, 2)
+            self.sizer.Add(self.checkbox, 2, wx.ALIGN_CENTER_VERTICAL)
         else:
             self.checkbox = None
             label = wx.StaticText(self, -1, self.label or '')
-            self.sizer.Add(label, 2)
+            self.sizer.Add(label, 2, wx.ALIGN_CENTER_VERTICAL)
         
         self.addField()
         
-        units = wx.StaticText(self, -1, self.units or '')
-        self.sizer.Add(units, 1)
+        if self.UNITS or self.units:
+            self.unitLabel = wx.StaticText(self, -1, self.units or '')
+            self.sizer.Add(self.unitLabel, 1, wx.WEST|wx.ALIGN_CENTER_VERTICAL, border=8)
+        else:
+            self.unitLabel = None
 
         if self.tooltip:
             self.SetToolTipString(self.tooltip)
             label.SetToolTipString(self.tooltip)
-            units.SetToolTipString(self.tooltip)
+            if self.units:
+                self.unitLabel.SetToolTipString(self.tooltip)
             if self.field is not None:
                 self.field.SetToolTipString(self.tooltip)
         
+        if self.checkbox is not None:
+            self.Bind(wx.EVT_CHECKBOX, self.OnCheck)
+        
         self.SetSizer(self.sizer)
+        
+        self.setToDefault()
+
+
+    def setCheck(self, checked=True):
+        """ Set the Field's checkbox, if applicable.
+        """
+        if self.checkbox is not None:
+            self.checkbox.SetValue(checked)
+            self.enableChildren(checked)
+            
+    
+    def enableChildren(self, enabled=True):
+        """ Enable/Disable the Field's children.
+        """
+        if self.field is not None:
+            self.field.Enable(enabled)
+        if self.unitLabel is not None:
+            self.unitLabel.Enable(enabled)
 
 
     def setRawValue(self, val, check=True):
-        """
+        """ Set the Field's value, using the data type native to the config
+            file. 
         """
         if self.field is not None:
             self.field.SetValue(val)
@@ -231,16 +319,23 @@ class ConfigWidget(wx.Panel, ConfigBase):
             check = bool(val)
         self.setCheck(check)
 
+
+    def setToDefault(self, check=False):
+        """ Reset the Field to its default value.
+        """
+        if self.default is not None:
+            self.setRawValue(self.default, check)
+            
+        self.setCheck(check)
+
     
-    def setCheck(self, checked=True):
+    def OnCheck(self, evt):
+        """ Handle checkbox changing.
         """
-        """
-        if self.checkox is None:
-            return
-        self.checkbox.SetValue(checked)
-        self.Enable(checked)
-
-
+        self.enableChildren(evt.Checked())
+        evt.Skip()
+        
+        
 #===============================================================================
 #--- Non-check fields 
 # Container fields excluded (see below).
@@ -262,29 +357,37 @@ class TextField(ConfigWidget):
     CLASS_ARGS = {'MaxLength': 'maxLength',
                   'TextLines': 'textLines'}
 
+    UNITS = False
+    
+    # String of valid characters. 'None' means all are valid.
+    VALID_CHARS = None
 
     def __init__(self, *args, **kwargs):
         self.textLines = 1
         super(TextField, self).__init__(*args, **kwargs)
 
     
-    @classmethod
-    def isValidChar(cls, c):
+    def isValid(self, s):
         """ Filter for characters valid in the text field. """
         # All characters are permitted in UTF-8 fields.
-        return True
+        if self.VALID_CHARS is None:
+            return True
+        return all(c in self.VALID_CHARS for c in s)
 
 
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
+        validator = TextValidator(self.isValid, self.maxLength)
         if self.textLines > 1:
             self.field = wx.TextCtrl(self, -1, str(self.default or ''),
-                                     style=wx.TE_MULTILINE|wx.TE_PROCESS_ENTER)
+                                     style=wx.TE_MULTILINE|wx.TE_PROCESS_ENTER,
+                                     validator=validator)
         else:
-            self.field = wx.TextCtrl(self, -1, str(self.default or ''))
+            self.field = wx.TextCtrl(self, -1, str(self.default or ''),
+                                     validator=validator)
             
-        self.sizer.Add(self.field, 1)
+        self.sizer.Add(self.field, 3)
         return self.field
 
 
@@ -292,11 +395,10 @@ class TextField(ConfigWidget):
 class ASCIIField(TextField):
     """ UI widget for editing ASCII text.
     """
-    @classmethod
-    def isValidChar(cls, c):
-        """ Filter for characters valid in the text field. """
-        # Limit to printable ASCII characters.
-        return c in string.printable
+    
+    # String of valid characters, limited to the printable part of 7b ASCII.
+    VALID_CHARS = string.printable
+
 
 
 @field
@@ -305,6 +407,8 @@ class IntField(ConfigWidget):
     """
     
     def __init__(self, *args, **kwargs):
+        """ 
+        """
         # Set some default values
         self.min = -2**16
         self.max = 2**16
@@ -315,10 +419,11 @@ class IntField(ConfigWidget):
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
-        self.field = wx.SpinCtrl(self, -1, size=(60,-1), style=wx.SP_VERTICAL,
+        self.field = wx.SpinCtrl(self, -1, size=(40,-1), 
+                                 style=wx.SP_VERTICAL|wx.TE_RIGHT,
                                  min=self.min, max=self.max, 
                                  initial=self.default)
-        self.sizer.Add(self.field, 1)
+        self.sizer.Add(self.field, 2)
         return self.field
 
 
@@ -343,6 +448,8 @@ class FloatField(IntField):
     CLASS_ARGS = {'FloatIncrement': 'increment'}
         
     def __init__(self, *args, **kwargs):
+        """ 
+        """
         self.increment = 0.25
         super(FloatField, self).__init__(*args, **kwargs)
 
@@ -350,7 +457,7 @@ class FloatField(IntField):
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
-        self.field = wx.SpinCtrlDouble(self, -1, size=(60,-1), 
+        self.field = wx.SpinCtrlDouble(self, -1, 
                                        inc=self.increment,
                                        min=self.min, max=self.max, 
                                        value=str(self.default))
@@ -362,22 +469,30 @@ class FloatField(IntField):
 class EnumField(ConfigWidget):
     """ UI widget for selecting one of several items from a list.
     """
-
         
-    
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
         optionEls = [el for el in self.element.value if el.name=="EnumOption"]
         self.options = [EnumOption(el, self) for el in optionEls]
+        choices = [u"%s" % o.label for o in self.options]
         
-        self.field = wx.Choice(self, -1, choices=[o.label for o in self.options])
-        self.sizer.Add(self.field, 1)
+        self.field = wx.Choice(self, -1, choices=choices)
+        self.sizer.Add(self.field, 3)
+        
+        self.Bind(wx.EVT_CHOICE, self.OnChoice)
         return self.field
 
 
-    def setRawValue(self, val, check=True):
+    def OnChoice(self, evt):
+        """ Handle option selected.
         """
+        self.updateToolTips()
+        evt.Skip()
+        
+
+    def setRawValue(self, val, check=True):
+        """ 
         """
         index = -1
         for i,o in enumerate(self.options):
@@ -397,13 +512,16 @@ class EnumField(ConfigWidget):
         tt = self.tooltip or ''
         index = self.field.GetSelection()
         if index != wx.NOT_FOUND and index < len(self.options):
-            tt = self.options[index] or tt
+            tt = self.options[index].tooltip or tt
+            
         self.field.SetToolTipString(tt)
-    
+
+        
+        
 
 class EnumOption(ConfigBase):
     """ One choice in an enumeration (e.g. an item in a drop-down list). Note:
-        unlike the other classes, this is not itself a UI widget.
+        unlike the other classes, this is not itself a UI field.
     """
     
     def __init__(self, element, parent, **kwargs):
@@ -426,8 +544,10 @@ class DateTimeField(IntField):
     """
     
     def addField(self):
+        """ Class-specific method for adding the appropriate type of widget.
+        """
         self.field = DateTimeCtrl(self, -1)
-        self.sizer.Add(self.field, 1)
+        self.sizer.Add(self.field, 3)
         return self.field
 
 
@@ -473,6 +593,13 @@ class BinaryField(ConfigWidget):
         FOR FUTURE IMPLEMENTATION.
     """
     
+    def addField(self):
+        """ Class-specific method for adding the appropriate type of widget.
+        """
+        self.field = FB.FileBrowseButton(self, -1)
+        self.sizer.Add(self.field, 3)
+        return self.field
+
 
 #===============================================================================
 #--- Check fields 
@@ -553,81 +680,144 @@ class CheckBinaryField(BinaryField):
 
 @field
 class Group(ConfigWidget):
-    """
+    """ A labeled group of configuration items. Children appear indented.
     """
     # Do the contents of the panel appear indented?
     INDENT = True
     
+    # Should this group get a heading label?
+    LABEL = True
+    
+    # Default types for Fields in the EBML schema with no specialized 
+    # subclasses. The low byte of a Field's EBML ID denotes its type.
+    DEFAULT_FIELDS = {
+        0x00: BooleanField,
+        0x01: UIntField,
+        0x02: IntField,
+        0x03: FloatField,
+        0x04: ASCIIField,
+        0x05: TextField,
+        0x06: BinaryField,
+        0x07: EnumField,
+        
+        0x10: BooleanField,
+        0x11: CheckUIntField,
+        0x12: CheckIntField,
+        0x13: CheckFloatField,
+        0x14: CheckASCIIField,
+        0x15: CheckTextField,
+        0x16: CheckBinaryField,
+        0x17: CheckEnumField,
+
+        0x22: DateTimeField,
+        0x42: CheckDateTimeField
+    }
+    
+    
     @classmethod
     def getWidgetClass(cls, el):
+        """ Get the appropriate class for an EBML *Field element. Elements
+            without a specialized subclass will get a generic widget for their
+            basic data type.
+            
+            Note: does not handle IDs not present in the schema!
         """
-        """
-        if not cls.isField(el):
-            return None
-        try:
+        if el.name in FIELD_TYPES:
             return FIELD_TYPES[el.name]
-        except KeyError:
-            # TODO: try to use 'generic' field for type based on low bits of ID
-            raise NameError("Unknown field type: %s" % el.name)
+        
+        elif el.id & 0xFF00 == 0x4000:
+            # All field EBML IDs have 0x40 as their 2nd byte.
+            baseId = el.id & 0x00FF
+            if baseId in cls.DEFAULT_FIELDS:
+                return cls.DEFAULT_FIELDS[baseId]
+            else:
+                raise NameError("Unknown field type: %s" % el.name)
+        
+        return None
     
-    
-    @classmethod
-    def isField(cls, el):
-        """
-        """
-        # TODO: determine if the element is a field based on its ID.
-        return el.name.endswith('Field')
-    
-        
-    def __init__(self, *args, **kwargs):
-        """
-        """
-        self.widgets = []
-        
-        kwargs.setdefault('root', kwargs.pop('root', self))
-        super(Group, self).__init__(*args, **kwargs)
-        
-#         self.initUi()
-        
         
     def initUi(self):
+        """ Build the user interface, adding the item label and/or checkbox
+            (if applicable) and all the child Fields.
         """
-        """
+        self.fields = []
         sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(sizer)
+        
+        if self.LABEL:
+            if self.CHECK:
+                self.checkbox = wx.CheckBox(self, -1, self.label or '')
+                label = self.checkbox
+                sizer.Add(self.checkbox, 0, wx.ALIGN_CENTER_VERTICAL)
+                self.Bind(wx.EVT_CHECKBOX, self.OnCheck, self.checkbox)
+                self.enableChildren(False)
+            else:
+                self.checkbox = None
+                label = wx.StaticText(self, -1, self.label or '')
+                sizer.Add(label, 0, wx.ALIGN_CENTER_VERTICAL)
+        
+            label.SetFont(label.GetFont().Bold())
+        
+        if self.INDENT:
+            # Indent all the child Fields by sticking them in a nested sizer.
+            innersizer = wx.BoxSizer(wx.VERTICAL)
+            sizer.Add(innersizer, 1, wx.WEST|wx.EXPAND, 24)
+            sizer = innersizer
         
         for el in self.element.value:
             cls = self.getWidgetClass(el)
             if cls is None:
+                # Not a field (could be Label, ConfigID, etc.)
                 continue
-            if not el.value:
-                print "%s with no children! Skipping." % el.name
-                continue
-            widget = cls(self, -1, element=el, root=self.root)
-            self.widgets.append(widget)
+            widget = cls(self, -1, element=el, root=self.root, group=self)
+            self.fields.append(widget)
             sizer.Add(widget, 0, wx.ALIGN_LEFT|wx.EXPAND|wx.ALL, border=4)
 
-        if self.INDENT:
-            outersizer = wx.BoxSizer(wx.HORIZONTAL)
-            outersizer.Add(sizer, 1, wx.WEST, 24)
-            self.SetSizer(outersizer)
-        else:
-            self.SetSizer(sizer)
+        
+
+    def enableChildren(self, enabled=True):
+        """ Enable/Disable the Field's children.
+        """
+        for f in self.fields:
+            if hasattr(f, 'Enable'):
+                f.Enable(enabled)
+
+
+    def setToDefault(self, check=False):
+        """ Reset the Field to the default values. Calls `setToDefault()` 
+            method of each of its children.
+        """
+        for f in self.fields:
+            if hasattr(f, 'setToDefault'):
+                f.setToDefault(check)
 
         
 @field
 class CheckGroup(Group):
-    """ A group of configuration items with a checkbox to enable/disable them
-        all. Children appear indented.
+    """ A labeled group of configuration items with a checkbox to enable or 
+        disable them all. Children appear indented.
     """
     CHECK = True
 
 
-@field
-class Tab(Group):
-    """ One tab of configuration items. All configuration dialogs contain
-        at least one.
+class Tab(SP.ScrolledPanel, Group):
+    """ One tab of configuration items. All configuration dialogs contain at 
+        least one. The Tab's label is used as the name shown on the tab.
     """
     INDENT = False
+    LABEL = False
+
+    def __init__(self, *args, **kwargs):
+        """
+        """
+        element = kwargs.pop('element', None)
+        root = kwargs.pop('root', self)
+        
+        # Explicitly call __init__ of base classes to avoid ConfigWidget stuff
+        ConfigBase.__init__(self, element, root)
+        SP.ScrolledPanel.__init__(self, *args, **kwargs)
+
+        self.initUi()
 
 
 #===============================================================================
@@ -643,7 +833,7 @@ class ConfigDialog(SC.SizedDialog):
         """
         self.device = kwargs.pop('device', None)
         
-        # XXX: TEMP
+        # XXX: TEMP - eventually, get this from the device.
         self.hints = kwargs.pop('hints', None)
         
         kwargs.setdefault("style", 
@@ -652,36 +842,42 @@ class ConfigDialog(SC.SizedDialog):
         super(ConfigDialog, self).__init__(*args, **kwargs)
 
         pane = self.GetContentsPane()
-        self.notebook = wx.Notebook(pane, -1)#, style=wx.NB_BOTTOM)
+        self.notebook = wx.Notebook(pane, -1)
         self.notebook.SetSizerProps(expand=True, proportion=-1)
 
-        # build UI
         self.buildUI()
 
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK|wx.CANCEL))
-        self.SetMinSize((640, 480))
-        self.Fit()
-        self.SetSize((640, 480))
+        self.Bind(wx.EVT_BUTTON, self.OnOK, id=wx.ID_OK)
         
+        self.Fit()
+        self.SetMinSize((500, 400))
+        self.SetSize((680, 600))
+
 
     def buildUI(self):
-        """
+        """ Construct and populate the UI based on the ConfigUI element.
         """
         for el in self.hints.roots[0]:
             if el.name == "Tab":
-                if not el.value:
-                    print "%s with no children! skipping." % el.name
-                    continue
-                print "!!! Tab"
-                tab = Tab(self.notebook, -1, element=el)
+                tab = Tab(self.notebook, -1, element=el, root=self)
                 self.notebook.AddPage(tab, str(tab.label))
 
+    
+    def OnOK(self, evt):
+        """ Handle dialog OK, cleaning and resolving the entered host and port.
+        """
+        print "XXX: ConfigDialog.OnOK(): Handle save config."
+        self.EndModal(wx.ID_OK)
+        
 
 #===============================================================================
 # 
 #===============================================================================
 
 def crawl(el, indent=-1):
+    """ Test function to dump the structure of a CONFIG.UI EBML file. 
+    """
     if indent > -1:
         print "%s %s:" % ((" "*indent*2), el.name),
     if indent < 0 or isinstance(el.value, list):
@@ -689,11 +885,7 @@ def crawl(el, indent=-1):
         for i in el:
             crawl(i, indent+1)
     else:
-        if isinstance(el.value, float):
-            print el.value
-#             print "%12.8f" % el.value
-        else:
-            print repr(el.value)
+        print repr(el.value)
 
         
 #===============================================================================
@@ -704,6 +896,7 @@ if __name__ == "__main__":
     schema = Schema("../mide_ebml/ebml/schema/config_ui.xml")
     testDoc = schema.load('CONFIG.UI')
     crawl(testDoc)
+    
     app = wx.App()
     dlg = ConfigDialog(None, hints=testDoc)
     dlg.ShowModal()
