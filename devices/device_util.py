@@ -13,8 +13,15 @@ __copyright__ = "Copyright 2017 Mide Technology Corporation"
 import os
 import shutil
 
-from mide_ebml import util
-import mide_ebml.ebml.schema.mide as schema_mide
+# from mide_ebml import util
+# import mide_ebml.ebml.schema.mide as schema_mide
+
+import mide_ebml
+from mide_ebml.ebmlite import loadSchema
+
+SCHEMA_PATH = os.path.join(os.path.dirname(mide_ebml.__file__), 'ebml/schema')
+schema_mide = loadSchema(os.path.join(SCHEMA_PATH, 'mide.xml'))
+schema_manifest = loadSchema(os.path.join(SCHEMA_PATH, 'manifest.xml'))
 
 #===============================================================================
 # 
@@ -111,7 +118,8 @@ def updateUserCal(dev, backup=True):
         shutil.copy2(dev.userCalFile, filename)
     
     with open(dev.userCalFile, 'wb') as f:
-        f.write(util.build_ebml('CalibrationList', cal, schema=schema_mide))
+#         f.write(util.build_ebml('CalibrationList', cal, schema=schema_mide))
+        schema_mide.encode(f, {'CalibrationList': cal})
         
     dev._userCalPolys = None
     

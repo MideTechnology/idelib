@@ -31,14 +31,26 @@ import xmodem
 from widgets import device_dialog
 import devices
 from logger import logger
-from mide_ebml import util
-import mide_ebml.ebml.schema.mide as schema_mide
-import mide_ebml.ebml.schema.manifest as schema_manifest
+
+# from mide_ebml import util
+# import mide_ebml.ebml.schema.mide as schema_mide
+# import mide_ebml.ebml.schema.manifest as schema_manifest
+
+import mide_ebml
+from mide_ebml.ebmlite import loadSchema
 
 from updater import isNewer
 
 # TODO: Better way of identifying valid devices, probably part of the class.
 RECORDER_TYPES = [devices.SlamStickC, devices.SlamStickX]
+
+#===============================================================================
+# 
+#===============================================================================
+
+SCHEMA_PATH = os.path.join(os.path.dirname(mide_ebml.__file__), 'ebml/schema')
+schema_mide = loadSchema(os.path.join(SCHEMA_PATH, 'mide.xml'))
+schema_manifest = loadSchema(os.path.join(SCHEMA_PATH, 'manifest.xml'))
 
 #===============================================================================
 # 
@@ -488,7 +500,8 @@ class FirmwareUpdater(object):
     def readTemplate(self, z, name, schema, password=None):
         if name not in self.contents:
             return None
-        return util.read_ebml(StringIO(z.read(name, password)), schema=schema)
+#         return util.read_ebml(StringIO(z.read(name, password)), schema=schema)
+        return schema.loads(z.read(name, password)).dump()
     
     
     def updateManifest(self):
@@ -589,16 +602,26 @@ class FirmwareUpdater(object):
         if calEx:
             calTemplate['CalibrationList']['CalibrationExpiry'] = int(calEx)
         
-        self.manifest = util.build_ebml('DeviceManifest', 
-                                        manTemplate['DeviceManifest'], 
-                                        schema=schema_manifest)
-        self.cal = util.build_ebml('CalibrationList', 
-                                   calTemplate['CalibrationList'], 
-                                   schema=schema_mide)
+#         self.manifest = util.build_ebml('DeviceManifest', 
+#                                         manTemplate['DeviceManifest'], 
+#                                         schema=schema_manifest)
+#         self.cal = util.build_ebml('CalibrationList', 
+#                                    calTemplate['CalibrationList'], 
+#                                    schema=schema_mide)
+        
+        manData = {'DeviceManifest': manTemplate['DeviceManifest']}
+        self.manifest = schema_manifest.encodes(manData)
+        
+        calData = {'CalibrationList': calTemplate['CalibrationList']}
+        self.cal = schema_mide.encodes(calData)
+        
         if propTemplate is not None:
-            self.props = util.build_ebml('RecordingProperties', 
-                                         propTemplate['RecordingProperties'], 
-                                         schema=schema_mide)
+#             self.props = util.build_ebml('RecordingProperties', 
+#                                          propTemplate['RecordingProperties'], 
+#                                          schema=schema_mide)
+            
+            propData = {'RecordingProperties': propTemplate['RecordingProperties']}
+            self.props = schema_mide.encodes(propData)
         else:
             self.props = ''
         

@@ -8,11 +8,13 @@ Created on Apr 27, 2017
 @todo: Unit tests.
 @todo: Refactor other code and remove python-ebml compatibility cruft.
 @todo: Complete EBML encoding, making it a full replacement for python-ebml.
+    Specifically, make 'master' elements write directly to the stream, rather 
+    than build bytearrays, so huge 'master' elements can be handled.
 @todo: New schema format, getting further away from python-ebml. 
-@todo: Validation. Extract valid child element info from the schema.
+@todo: Validation. Extract valid child element info from the schema. Do after
+    new schema format.
 @todo: Proper support for 'infinite' Documents (i.e `size` is `None`).
 @todo: Document-wide caching, for future handling of streamed data.
-@todo: Some sort of schema caching, to prevent redundant element types.
 @todo: Utilities for conversion to/from XML, etc.
 '''
 
@@ -23,7 +25,8 @@ __all__ = ['BinaryElement', 'DateElement',
            'Document', 'Element', 'FloatElement', 
            'IntegerElement', 'MasterElement',  
            'Schema', 'StringElement', 'UIntegerElement', 
-           'UnicodeElement', 'VoidElement']
+           'UnicodeElement', 'UnknownElement', 'VoidElement',
+           'loadSchema']
 
 from collections import OrderedDict
 from datetime import datetime
@@ -31,10 +34,11 @@ import os.path
 from StringIO import StringIO
 from xml.etree import ElementTree as ET
 
-from ebml import core
-from ebml.core import read_element_id, read_element_size
-from ebml.core import read_float, read_signed_integer, read_unsigned_integer
-from ebml.core import read_date, read_string, read_unicode_string
+# TODO: Remove all this
+from ebml import core 
+from ebml.core import read_element_id, read_element_size 
+from ebml.core import read_float, read_signed_integer, read_unsigned_integer 
+from ebml.core import read_date, read_string, read_unicode_string 
 
 #===============================================================================
 #
@@ -149,6 +153,20 @@ class Element(object):
         return self._value
 
 
+    def getRaw(self):
+        """ Get the element's raw binary data, including EBML headers.
+        """
+        self.stream.seek(self.offset)
+        return self.stream.read(self.size)
+        
+    
+    def getRawValue(self):
+        """ Get the raw binary of the element's value.
+        """
+        self.stream.seek(self.offset)
+        return self.stream.read(self.size - (self.payloadOffset - self.offset))
+
+
     #===========================================================================
     # Caching (experimental)
     #===========================================================================
@@ -204,6 +222,9 @@ class Element(object):
         encId = core.encode_element_id(cls.id) 
         return encId + core.encode_element_size(length, lengthSize) + payload
         
+
+    def dump(self):
+        return self.value
 
 
 #===============================================================================
@@ -521,6 +542,15 @@ class MasterElement(Element):
         return super(MasterElement, cls).encode(data)
 
 
+    def dump(self):
+        result = OrderedDict()
+        for el in self:
+            if el.multiple:
+                result.setdefault(el.name, []).append(el.dump())
+            else:
+                result[el.name] = el.dump()
+        return result
+
 #===============================================================================
 # 
 #===============================================================================
@@ -558,6 +588,7 @@ class Document(MasterElement):
                 self.name = self.__class__.__name__
 
         if size is None:
+            # Note: this doesn't work for cStringIO!
             if isinstance(stream, StringIO):
                 self.size = stream.len
             elif os.path.exists(self.filename):
@@ -719,6 +750,39 @@ class Document(MasterElement):
                     stream.write(cls.encodePayload(v))
         else:
             stream.write(cls.encodePayload(data))
+
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    
+#     def dump(self):
+#         """ Dump the contents of the EBML file as nested dictionaries/lists.
+#         
+#             @todo: Decide if this is of general interest. If not, move to a
+#                 project-specific utility script.
+#         """
+#         def _crawl(el, d):
+#             if isinstance(el, MasterElement):
+#                 val = OrderedDict()
+#                 for subEl in el:
+#                     _crawl(subEl, val)
+#             else:
+#                 val = el.value
+#         
+#             if el.multiple:
+#                 d.setdefault(el.name, []).append(val)
+#             else:
+#                 d[el.name] = val 
+#             return d
+#         
+#         result = _crawl(self, OrderedDict())
+#         
+#         # Exclude the document from the results.
+#         return result.itervalues().next()
+
+#         return [{el.name: el.dump()} for el in self]
 
 
 #===============================================================================
@@ -947,7 +1011,20 @@ class Schema(object):
         return self.document(fp, name=name)
 
 
+    def loads(self, data, name=None):
+        """ Load EBML from a string using this Schema.
+        
+            @param data: A string or bytearray containing raw EBML data.
+            @keyword name: The name of the document. Defaults to filename.
+        """
+        return self.load(StringIO(data), name=name)
+        
+
     def __call__(self, fp, name=None):
+        """ Calling a loaded Schema is the same as loading.
+        
+            @todo: Decide if this is necessary
+        """
         return self.load(fp, name=name)
 
 
@@ -1006,6 +1083,20 @@ class Schema(object):
         return stream.getvalue()
 
 
+    def verify(self, data):
+        """ 
+        """
+        
+        def _crawl(el):
+            if isinstance(el, MasterElement):
+                for subel in el:
+                    _crawl(subel)
+            else:
+                _ = el.value
+
+        return _crawl(self.loads(data))
+        
+
 #===============================================================================
 # 
 #===============================================================================
@@ -1029,6 +1120,8 @@ def loadSchema(filename, reload=False, **kwargs):
     return SCHEMATA.setdefault(filename, Schema(filename, **kwargs))
 
 
+
+
 #===============================================================================
 #
 #===============================================================================
@@ -1038,7 +1131,6 @@ schemaFile = os.path.join(os.path.dirname(__file__), r"ebml\schema\mide.xml")
 testFile = 'test_recordings/5kHz_Full.IDE'
   
 from time import clock
-from mide_ebml.ebml.schema.mide import MideDocument
   
 def crawl(el):
     v = el.value
@@ -1047,6 +1139,7 @@ def crawl(el):
     return 1
   
 def testOld():
+    from mide_ebml.ebml.schema.mide import MideDocument
     total = 0
     t0 = clock()
     with open(testFile, 'rb') as f:

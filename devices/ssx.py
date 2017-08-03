@@ -16,17 +16,22 @@ try:
 except ImportError:
     from StringIO import StringIO
 
-from mide_ebml import util
 from mide_ebml.dataset import Dataset
 from mide_ebml import importer
 from mide_ebml.parsers import CalibrationListParser, RecordingPropertiesParser
 from mide_ebml.parsers import getParserRanges
-from mide_ebml.ebml.schema.mide import MideDocument
-import mide_ebml.ebml.schema.mide as schema_mide
-import mide_ebml.ebml.schema.manifest as schema_manifest
+
+from mide_ebml.ebmlite import loadSchema
 
 from base import Recorder, os_specific
 from devices.base import ConfigError
+
+#===============================================================================
+# 
+#===============================================================================
+
+mideSchema = loadSchema('mide_ebml/ebml/schema/mide.xml')
+manifestSchema = loadSchema('mide_ebml/ebml/schema/manifest.xml')
 
 
 #===============================================================================
@@ -96,7 +101,8 @@ class SlamStickX(Recorder):
                 if os.path.exists(infoFile):
                     if not strict:
                         return True
-                    devinfo = util.read_ebml(infoFile, schema=schema_mide)
+                    devinfo = mideSchema.load(infoFile).dump()
+#                     devinfo = util.read_ebml(infoFile, schema=schema_mide)
                     props = devinfo['RecordingProperties']['RecorderInfo']
                     return "Slam Stick X" in props['ProductName']
         except (KeyError, TypeError, AttributeError, IOError):
@@ -116,7 +122,8 @@ class SlamStickX(Recorder):
         if self._info is not None and not refresh:
             return self._info
         try:
-            devinfo = util.read_ebml(self.infoFile, schema=schema_mide)
+            devinfo = mideSchema.load(self.infoFile).dump()
+#             devinfo = util.read_ebml(self.infoFile, schema=schema_mide)
             props = devinfo.get('RecordingProperties', '')
             if 'RecorderInfo' in props:
                 self._info = props['RecorderInfo']
@@ -131,7 +138,8 @@ class SlamStickX(Recorder):
         """ Helper method to read configuration info from a file. Used
             internally.
         """
-        devinfo = util.read_ebml(source, schema=schema_mide)
+        devinfo = mideSchema.load(source).dump()
+#         devinfo = util.read_ebml(source, schema=schema_mide)
         return devinfo.get('RecorderConfiguration', default)
 
 
@@ -139,9 +147,18 @@ class SlamStickX(Recorder):
         """ Device-specific configuration file saver. Used internally; call
             `SlamStickX.saveConfig()` instead.
         """
-        ebml = util.build_ebml("RecorderConfiguration", data, schema=schema_mide)
-        if verify and not util.verify(ebml, schema=schema_mide):
-            raise ValueError("Generated config EBML could not be verified")
+#         ebml = util.build_ebml("RecorderConfiguration", data, schema=schema_mide)
+#         if verify and not util.verify(ebml, schema=schema_mide):
+#             raise ValueError("Generated config EBML could not be verified")
+
+        ebml = mideSchema.encodes({'RecorderConfiguration': data})
+        
+        if verify:
+            try:
+                mideSchema.verify(ebml)
+            except Exception:
+                raise ValueError("Generated config EBML could not be verified")
+            
         if isinstance(dest, basestring):
             with open(dest, 'wb') as f:
                 f.write(ebml)
@@ -414,7 +431,8 @@ class SlamStickX(Recorder):
         try:
             PP = CalibrationListParser(None)
             stream.seek(0)
-            cal = MideDocument(stream)
+#             cal = MideDocument(stream)
+            cal = mideSchema.load(stream)
             calPolys = PP.parse(cal.roots[0])
             if calPolys:
                 calPolys = {p.id: p for p in calPolys if p is not None}
@@ -462,11 +480,15 @@ class SlamStickX(Recorder):
         self._propData = data[propOffset:propOffset+propSize]
         
         try:
-            self._manifest = util.read_ebml(manData, schema=schema_manifest
-                                            ).get('DeviceManifest', None)
-            self._calibration = util.read_ebml(self._calData, schema=schema_mide,
-                                               ).get('CalibrationList', None)
+#             self._manifest = util.read_ebml(manData, schema=schema_manifest
+#                                             ).get('DeviceManifest', None)
+#             self._calibration = util.read_ebml(self._calData, schema=schema_mide,
+#                                                ).get('CalibrationList', None)
+            self._manifest = manifestSchema.load(manData).dump().get('DeviceManifest')
+            self._calibration = mideSchema.load(self._calData).dump().get('CalibrationList')
         except (AttributeError, KeyError):
+            # XXXL
+            raise
             pass
         
         return self._manifest
@@ -498,7 +520,8 @@ class SlamStickX(Recorder):
             return None
         if self._userCalDict is None or refresh:
             with open(self.userCalFile, 'rb') as f:
-                d = util.read_ebml(f, schema=schema_mide)
+#                 d = util.read_ebml(f, schema=schema_mide)
+                d = mideSchema.load(f).dump()
                 self._userCalDict = d.get('CalibrationList', None)
         return self._userCalDict
 
@@ -542,7 +565,8 @@ class SlamStickX(Recorder):
         """
         # TODO: Optimize. Cache data like getManifest and such.
         self.getManifest(refresh=refresh)
-        data = util.read_ebml(StringIO(self._propData), schema=schema_mide)
+#         data = util.read_ebml(StringIO(self._propData), schema=schema_mide)
+        data = mideSchema.load(StringIO(self._propData)).dump()
         return data.get('RecordingProperties', {})
         
 
@@ -570,7 +594,8 @@ class SlamStickX(Recorder):
                 # Parse userpage recorder property data
                 parser = RecordingPropertiesParser(doc)
                 doc._parsers = {'RecordingProperties': parser}
-                parser.parse(MideDocument(StringIO(self._propData)).roots[0])
+#                 parser.parse(MideDocument(StringIO(self._propData)).roots[0])
+                parser.parse(mideSchema.loads(self._propData).roots[0])
             self._channels = doc.channels
             self._sensors = doc.sensors
             self._warnings = doc.warningRanges
@@ -706,9 +731,9 @@ class SlamStickX(Recorder):
             data['CalibrationExpiry'] = int(expires)
         if isinstance(calSerial, int):
             data['CalibrationSerialNumber'] = calSerial
-            
-        return util.build_ebml('CalibrationList', data, schema=schema_mide)
-    
+        
+#         return util.build_ebml('CalibrationList', data, schema=schema_mide)
+        return mideSchema.encodes({'CalibrationList': data})
     
     def writeUserCal(self, transforms, filename=None):
         """ Write user calibration to the SSX.

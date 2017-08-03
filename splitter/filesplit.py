@@ -20,12 +20,14 @@ except ImportError:
     sys.path.append('..')
     
 # from mide_ebml.ebml.schema.mide import MideDocument
+import mide_ebml
 from mide_ebml import parsers
-from mide_ebml import util
+# from mide_ebml import util
 from mide_ebml.importer import nullUpdater
 
 from mide_ebml import ebmlite
-MideDocument = ebmlite.loadSchema('../mide_ebml/ebml/schema/mide.xml')
+mideSchema = ebmlite.loadSchema(os.path.join(os.path.dirname(mide_ebml.__file__), 
+                                             'ebml/schema/mide.xml'))
 
 #===============================================================================
 # 
@@ -197,7 +199,8 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None,
         if 'ChannelDataBlock' in el.name:
             break
         else:
-            header.extend(util.getRawData(el, oldFile))
+#             header.extend(util.getRawData(el, oldFile))
+            header.extend(el.getRaw())
     
     num = 0
     filesize = len(header)
@@ -255,19 +258,22 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None,
 #                     if (startTime > 0 or num > 1) and not wroteFirst.get(block.channel, False):
                     if not wroteFirst.get(block.channel, False):
                         wroteFirst[block.channel] = True
-                        data = util.parse_ebml(el)[el.name][0]
+#                         data = util.parse_ebml(el)[el.name][0]
+                        data = el.dump()
                         data['StartTimeCodeAbsMod'] = int(blockStart/ parser.timeScalar)
                         if getattr(block, 'endTime', None):
                             blockEnd = int(block.endTime / parser.timeScalar)
                             data['EndTimeCodeAbsMod'] = blockEnd
                         else:
                             blockEnd = None
-                        raw = util.build_ebml(el.name, data)
+#                         raw = util.build_ebml(el.name, data)
+                        raw = mideSchema.encodes({el.name: data})
                 except parsers.ParsingError as err:
                     logger.error("Parsing error during import: %s" % err)
 
             if raw is None:
-                raw = util.getRawData(el, oldFile)
+#                 raw = util.getRawData(el, oldFile)
+                raw = el.getRaw()
                 
             fs.write(raw)
             filesize += len(raw)
@@ -329,7 +335,8 @@ def splitFile(filename=testFile, savePath=None, basename=None, numDigits=3,
     """
     
     with open(filename, 'rb') as fp:
-        doc = MideDocument(fp)
+#         doc = MideDocument(fp)
+        doc = mideSchema.load(fp)
         return splitDoc(doc, savePath=savePath, basename=basename, 
                         numDigits=numDigits, startTime=startTime, 
                         endTime=endTime, maxSize=maxSize, numSplits=numSplits,

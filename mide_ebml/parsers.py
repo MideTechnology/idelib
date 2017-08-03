@@ -431,8 +431,14 @@ class ElementHandler(object):
         """ Generate a string with an element's name, ID, and file position
             for debugging/error reporting.
         """
-        return "%r (0x%x) @%r" % (element.name, element.id, 
-                                  element.offset)
+        try:
+            return "%r (0x%x) @%r" % (element.name, element.id, 
+                                      element.offset)
+        except AttributeError:
+            # Possibly an old python-ebml element
+            # TODO: Remove legacy code
+            return "%r (0x%x) @%r" % (element.name, element.id, 
+                                      element.stream.offset)
 
 
     def makesData(self):
