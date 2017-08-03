@@ -11,6 +11,7 @@ TODO: Finish this! Requires the schema to be completed, and some test EBML
     generated.
 TODO: Make sure all the items have reasonable sizes compared to each other.
 '''
+from wx import MessageDialog
 
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
@@ -49,7 +50,6 @@ def field(cls):
 #===============================================================================
 # 
 #===============================================================================
-
 
 class TextValidator(wx.PyValidator):
     """ Validator for TextField and ASCIIField text widgets.
@@ -200,6 +200,10 @@ class ConfigBase(object):
 
 class ConfigWidget(wx.Panel, ConfigBase):
     """ Base class for a configuration field.
+    
+        @cvar CHECK: Does this field have a checkbox?
+        @cvar UNITS: Should this widget always leave space for the 'units'
+            label, even when its EBML description doesn't contain a ``Label``?
     """
     
     # Does this widget subclass have a checkbox?
@@ -272,7 +276,8 @@ class ConfigWidget(wx.Panel, ConfigBase):
         
         if self.UNITS or self.units:
             self.unitLabel = wx.StaticText(self, -1, self.units or '')
-            self.sizer.Add(self.unitLabel, 1, wx.WEST|wx.ALIGN_CENTER_VERTICAL, border=8)
+            self.sizer.Add(self.unitLabel, 1, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
+                           border=8)
         else:
             self.unitLabel = None
 
@@ -318,7 +323,7 @@ class ConfigWidget(wx.Panel, ConfigBase):
         else:
             check = bool(val)
         self.setCheck(check)
-
+        
 
     def setToDefault(self, check=False):
         """ Reset the Field to its default value.
@@ -328,13 +333,13 @@ class ConfigWidget(wx.Panel, ConfigBase):
             
         self.setCheck(check)
 
-    
+        
     def OnCheck(self, evt):
         """ Handle checkbox changing.
         """
         self.enableChildren(evt.Checked())
         evt.Skip()
-        
+
         
 #===============================================================================
 #--- Non-check fields 
@@ -348,6 +353,18 @@ class BooleanField(ConfigWidget):
         it is a checkbox, it is not considered a 'check' field
     """
     CHECK = True
+
+
+    def setRawValue(self, val):
+        """
+        """
+        self.checkbox.SetValue(bool(val))
+    
+    
+    def getRawValue(self):
+        """ 
+        """
+        return self.checkbox.GetValue()
 
 
 @field
@@ -379,10 +396,13 @@ class TextField(ConfigWidget):
         """ Class-specific method for adding the appropriate type of widget.
         """
         validator = TextValidator(self.isValid, self.maxLength)
+#         self.textLines=4
         if self.textLines > 1:
             self.field = wx.TextCtrl(self, -1, str(self.default or ''),
                                      style=wx.TE_MULTILINE|wx.TE_PROCESS_ENTER,
                                      validator=validator)
+#             s = self.field.GetSize()
+#             self.field.SetSizeWH(-1, s[1] * self.textLines)
         else:
             self.field = wx.TextCtrl(self, -1, str(self.default or ''),
                                      validator=validator)
@@ -606,8 +626,6 @@ class BinaryField(ConfigWidget):
 # Container fields excluded (see below).
 #===============================================================================
 
-FIELD_TYPES['CheckBooleanField'] = BooleanField
-
 @field
 class CheckTextField(TextField):
     """ UI widget (with a checkbox) for editing Unicode text.
@@ -682,14 +700,14 @@ class CheckBinaryField(BinaryField):
 class Group(ConfigWidget):
     """ A labeled group of configuration items. Children appear indented.
     """
-    # Do the contents of the panel appear indented?
-    INDENT = True
-    
+
     # Should this group get a heading label?
     LABEL = True
     
     # Default types for Fields in the EBML schema with no specialized 
     # subclasses. The low byte of a Field's EBML ID denotes its type.
+    # Note: The Field must appear in the EBML schema, so it will be identified
+    # as a CONTAINER ('master') type.
     DEFAULT_FIELDS = {
         0x00: BooleanField,
         0x01: UIntField,
@@ -735,44 +753,51 @@ class Group(ConfigWidget):
         
         return None
     
+    
+    def addField(self):
+        """ Create all child fields. Returns a sizer containing the children.
+        """
+        sizer = wx.BoxSizer(wx.VERTICAL)
+            
+        for el in self.element.value:
+            cls = self.getWidgetClass(el)
+            if cls is None:
+                # Not a field (could be Label, ConfigID, etc.)
+                continue
+            
+            # XXX: REMOVE
+            if not el.value:
+                continue
+            
+            widget = cls(self, -1, element=el, root=self.root, group=self)
+            self.fields.append(widget)
+            sizer.Add(widget, 0, wx.ALIGN_LEFT|wx.EXPAND|wx.ALL, border=4)
         
+        return sizer
+
+            
     def initUi(self):
         """ Build the user interface, adding the item label and/or checkbox
             (if applicable) and all the child Fields.
         """
         self.fields = []
         sizer = wx.BoxSizer(wx.VERTICAL)
-        self.SetSizer(sizer)
         
         if self.LABEL:
             if self.CHECK:
                 self.checkbox = wx.CheckBox(self, -1, self.label or '')
                 label = self.checkbox
-                sizer.Add(self.checkbox, 0, wx.ALIGN_CENTER_VERTICAL)
                 self.Bind(wx.EVT_CHECKBOX, self.OnCheck, self.checkbox)
                 self.enableChildren(False)
             else:
                 self.checkbox = None
                 label = wx.StaticText(self, -1, self.label or '')
-                sizer.Add(label, 0, wx.ALIGN_CENTER_VERTICAL)
         
+            sizer.Add(label, 0, wx.NORTH, 4)
             label.SetFont(label.GetFont().Bold())
-        
-        if self.INDENT:
-            # Indent all the child Fields by sticking them in a nested sizer.
-            innersizer = wx.BoxSizer(wx.VERTICAL)
-            sizer.Add(innersizer, 1, wx.WEST|wx.EXPAND, 24)
-            sizer = innersizer
-        
-        for el in self.element.value:
-            cls = self.getWidgetClass(el)
-            if cls is None:
-                # Not a field (could be Label, ConfigID, etc.)
-                continue
-            widget = cls(self, -1, element=el, root=self.root, group=self)
-            self.fields.append(widget)
-            sizer.Add(widget, 0, wx.ALIGN_LEFT|wx.EXPAND|wx.ALL, border=4)
 
+        sizer.Add(self.addField(), 1, wx.WEST|wx.EXPAND, 24)
+        self.SetSizer(sizer)
         
 
     def enableChildren(self, enabled=True):
@@ -804,8 +829,8 @@ class Tab(SP.ScrolledPanel, Group):
     """ One tab of configuration items. All configuration dialogs contain at 
         least one. The Tab's label is used as the name shown on the tab.
     """
-    INDENT = False
     LABEL = False
+    CHECK = False
 
     def __init__(self, *args, **kwargs):
         """
@@ -817,7 +842,16 @@ class Tab(SP.ScrolledPanel, Group):
         ConfigBase.__init__(self, element, root)
         SP.ScrolledPanel.__init__(self, *args, **kwargs)
 
+        self.SetupScrolling()
+
         self.initUi()
+
+
+    def initUi(self):
+        """ 
+        """
+        self.fields = []
+        self.SetSizer(self.addField())
 
 
 #===============================================================================
@@ -825,30 +859,39 @@ class Tab(SP.ScrolledPanel, Group):
 #===============================================================================
 
 class ConfigDialog(SC.SizedDialog):
-    """
+    """ Root window for recorder configuration.
     """
 
     def __init__(self, *args, **kwargs):
-        """
+        """ Constructor. Takes standard `SizedDialog` arguments, plus:
+        
+            @keyword device: The recorder to configure (an instance of a 
+                `devices.Recorder` subclass)
         """
         self.device = kwargs.pop('device', None)
-        
-        # XXX: TEMP - eventually, get this from the device.
-        self.hints = kwargs.pop('hints', None)
+        try:
+            devName = self.device.productName
+            if self.device.path:
+                devName += (" (%s)" % self.device.path) 
+        except AttributeError:
+            devName = "Recorder"
+
+        kwargs.setdefault("title", "Configure %s" % devName)
         
         kwargs.setdefault("style", 
             wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         
+        # XXX: TEMP - eventually, get this from the device.
+        self.hints = kwargs.pop('hints', None)
+                
         super(ConfigDialog, self).__init__(*args, **kwargs)
 
-        pane = self.GetContentsPane()
-        self.notebook = wx.Notebook(pane, -1)
-        self.notebook.SetSizerProps(expand=True, proportion=-1)
-
+        self.loadConfigData()
         self.buildUI()
-
+        
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK|wx.CANCEL))
         self.Bind(wx.EVT_BUTTON, self.OnOK, id=wx.ID_OK)
+        self.Bind(wx.EVT_BUTTON, self.OnCancel, id=wx.ID_CANCEL)
         
         self.Fit()
         self.SetMinSize((500, 400))
@@ -858,18 +901,51 @@ class ConfigDialog(SC.SizedDialog):
     def buildUI(self):
         """ Construct and populate the UI based on the ConfigUI element.
         """
+        pane = self.GetContentsPane()
+        self.notebook = wx.Notebook(pane, -1)
+        self.notebook.SetSizerProps(expand=True, proportion=-1)
+
         for el in self.hints.roots[0]:
             if el.name == "Tab":
                 tab = Tab(self.notebook, -1, element=el, root=self)
                 self.notebook.AddPage(tab, str(tab.label))
 
+
+    def loadConfigData(self):
+        """ Load config data from the recorder.
+        """
+        print "XXX: Implement loadConfig()"
+        
+        self.configData = {}
+        self.origConfigData = None #self.configData.copy()
+    
+    
+    def saveConfigData(self):
+        """ Save edited config data to the recorder.
+        """
+        print "XXX: Implement saveConfig()"
+    
     
     def OnOK(self, evt):
-        """ Handle dialog OK, cleaning and resolving the entered host and port.
+        """ Handle dialog OK, saving changes.
         """
-        print "XXX: ConfigDialog.OnOK(): Handle save config."
-        self.EndModal(wx.ID_OK)
-        
+        self.saveConfigData()
+        evt.Skip()
+
+
+    def OnCancel(self, evt):
+        """ Handle dialog cancel, prompting the user to save any changes.
+        """
+        if self.configData != self.origConfigData:
+            q = wx.MessageBox("Save configuration changes before exiting?",
+                              "Configure Device", 
+                              wx.YES_NO|wx.CANCEL|wx.CANCEL_DEFAULT, self)
+            if q == wx.CANCEL:
+                return
+            elif q == wx.YES:
+                self.saveConfigData()
+                
+        evt.Skip()
 
 #===============================================================================
 # 

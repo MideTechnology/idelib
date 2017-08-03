@@ -140,6 +140,10 @@
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="ValueFormat" level="1" id="0x5024" type="string" multiple="0"></element>
             <element name="DisplayFormat" level="1" id="0x5034" type="string" multiple="0"></element>
+            <element name="ASCIIValue" level="1" id="0x5104" type="string" multiple="0"></element>
+            <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
+            <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
+            <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
             
         <element name="UTCOffsetField" level="-1" id="0x4023" type="master" multiple="1"></element>
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
@@ -148,6 +152,10 @@
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="ValueFormat" level="1" id="0x5024" type="string" multiple="0"></element>
             <element name="DisplayFormat" level="1" id="0x5034" type="string" multiple="0"></element>
+            <element name="ASCIIValue" level="1" id="0x5104" type="string" multiple="0"></element>
+            <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
+            <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
+            <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
         
         <!-- 
         Note: The Check*Field elements should match the *Field elements. Any differences are probably
@@ -181,6 +189,8 @@
             <element name="UIntMax" level="1" id="0x5121" type="uinteger" multiple="0"></element>
             <element name="ValueFormat" level="1" id="0x5024" type="string" multiple="0"></element>
             <element name="DisplayFormat" level="1" id="0x5034" type="string" multiple="0"></element>
+            <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
+            <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
 
         <element name="CheckIntField" level="-1" id="0x4012" type="master" multiple="1"></element>
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
@@ -194,6 +204,8 @@
             <element name="ValueFormat" level="1" id="0x5024" type="string" multiple="0"></element>
             <element name="IntIncrement" level="1" id="0x5131" type="uinteger" multiple="0"></element>
             <element name="DisplayFormat" level="1" id="0x5034" type="string" multiple="0"></element>
+            <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
+            <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
             
         <element name="CheckFloatField" level="-1" id="0x4013" type="master" multiple="1"></element>
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
@@ -207,6 +219,8 @@
             <element name="FloatIncrement" level="1" id="0x5133" type="float" multiple="0"></element>
             <element name="ValueFormat" level="1" id="0x5024" type="string" multiple="0"></element>
             <element name="DisplayFormat" level="1" id="0x5034" type="string" multiple="0"></element>
+            <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
+            <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
             
         <element name="CheckASCIIField" level="-1" id="0x4014" type="master" multiple="1"></element>
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
@@ -237,6 +251,7 @@
             <element name="Units" level="1" id="0x5025" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="ASCIIValue" level="1" id="0x5104" type="string" multiple="0"></element>
+            <element name="TextValue" level="1" id="0x5105" type="utf-8" multiple="0"></element>
             <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
             <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
             <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
@@ -259,16 +274,28 @@
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
             <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
             <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
+            <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
             
         <element name="CheckUTCOffsetField" level="-1" id="0x4033" type="master" multiple="1"></element>
             <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
             <element name="Label" level="1" id="0x5005" type="utf-8" multiple="0"></element>
             <element name="ToolTip" level="1" id="0x5015" type="utf-8" multiple="0"></element>
             <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
+            <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
+            <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
             <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
         
 
-                    
+    <element name="HiddenField" level="-1" id="0x040FF" type="master" multiple="1">A 'field' for config items without individual UI widgets (e.g. created from multiple other fields)</element>
+        <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
+        <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
+        <element name="ValueFormat" level="1" id="0x5024" type="string" multiple="0"></element>
+        <element name="ASCIIValue" level="1" id="0x5104" type="string" multiple="0"></element>
+        <element name="TextValue" level="1" id="0x5105" type="utf-8" multiple="0"></element>
+        <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
+        <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
+        <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
+   
     <!-- 
     Attributes: a way to insert an arbitrary key/value into a structure, 
     without revising (and potentially bloating) the schema itself. This data
