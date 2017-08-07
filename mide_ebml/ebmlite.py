@@ -101,7 +101,9 @@ class Element(object):
 
 
     def __init__(self, stream=None, offset=0, size=0, payloadOffset=0):
-        """ Constructor. Instantiate a new Element from a file.
+        """ Constructor. Instantiate a new Element from a file. In most cases,
+            elements should be created when a `Document` is loaded, rather
+            than instantiated explicitly.
         
             @param eid: The element's EBML ID, as defined in the Schema.
             @keyword stream: A file-like object containing EBML data.
@@ -117,12 +119,12 @@ class Element(object):
         self._value = None
 
         # For python-ebml compatibility. Remove later.
-        self.body_size = size - (payloadOffset - offset)
+        self.body_size = size + (payloadOffset - offset)
 
 
     def __repr__(self):
-        return "<%s (ID:0x%02X) at 0x%08X>" % (self.__class__.__name__,
-                                               self.id, id(self))
+        return "<%s (ID:0x%02X), offset %s>" % (self.__class__.__name__,
+                                                  self.id, self.offset)
 
 
     def __eq__(self, other):
@@ -157,14 +159,14 @@ class Element(object):
         """ Get the element's raw binary data, including EBML headers.
         """
         self.stream.seek(self.offset)
-        return self.stream.read(self.size)
+        return self.stream.read(self.size + (self.payloadOffset - self.offset))
         
     
     def getRawValue(self):
         """ Get the raw binary of the element's value.
         """
-        self.stream.seek(self.offset)
-        return self.stream.read(self.size - (self.payloadOffset - self.offset))
+        self.stream.seek(self.payloadOffset)
+        return self.stream.read(self.size)
 
 
     #===========================================================================
@@ -177,8 +179,8 @@ class Element(object):
         """
         if self._value is None:
             return 0
-        self._value = None
         
+        self._value = None
         return 1
 
 
@@ -208,7 +210,7 @@ class Element(object):
                 size, overriding the variable length encoding.
             @return: A bytearray containing the encoded EBML data.
         """ 
-        length = length or cls.length
+        length = cls.length if length is None else length
         if isinstance(value, (list, tuple)):
             if not cls.multiple:
                 raise ValueError("Multiple %s elements per parent not permitted" 
@@ -224,6 +226,8 @@ class Element(object):
         
 
     def dump(self):
+        """ 
+        """
         return self.value
 
 
@@ -387,6 +391,7 @@ class VoidElement(BinaryElement):
     @classmethod
     def encodePayload(cls, data, length=0):
         """ Type-specific payload encoder for Void elements. """
+        length = 0 if length is None else length
         return bytearray('\xff' * length)
 
 
@@ -543,6 +548,12 @@ class MasterElement(Element):
 
 
     def dump(self):
+        """ Dump this element's value as nested dictionaries, keyed by
+            element name. The values of 'multiple' elements return as lists.
+            
+            @todo: Decide if this should be in a 'utilities' submodule.
+                It isn't totally necessary for the core library.
+        """
         result = OrderedDict()
         for el in self:
             if el.multiple:
@@ -561,20 +572,21 @@ class Document(MasterElement):
     """
 
     def __init__(self, stream, name=None, size=None):
-        """ Constructor.
+        """ Constructor. Instantiate a `Document` from a file-like stream.
+            In most cases, `Schema.load()` should be used instead of 
+            explicitly instantiating a `Document`.
         
             @param stream: A stream object (e.g. a file) from which to read 
-                the EBML content, or a filename.
+                the EBML content, or a filename. 
             @keyword name: The name of the document. Defaults to the filename
                 (if applicable).
         """
         self._value = None
-        self._stream = stream
         self.stream = stream
         self.size = size
         self.name = name
-        self.id = None
-        self.offset =  self.payloadOffset = 0
+        self.id = None # Not applicable to Documents.
+        self.offset = self.payloadOffset = 0
 
         try:
             self.filename = stream.name
@@ -763,25 +775,6 @@ class Document(MasterElement):
 #             @todo: Decide if this is of general interest. If not, move to a
 #                 project-specific utility script.
 #         """
-#         def _crawl(el, d):
-#             if isinstance(el, MasterElement):
-#                 val = OrderedDict()
-#                 for subEl in el:
-#                     _crawl(subEl, val)
-#             else:
-#                 val = el.value
-#         
-#             if el.multiple:
-#                 d.setdefault(el.name, []).append(val)
-#             else:
-#                 d[el.name] = val 
-#             return d
-#         
-#         result = _crawl(self, OrderedDict())
-#         
-#         # Exclude the document from the results.
-#         return result.itervalues().next()
-
 #         return [{el.name: el.dump()} for el in self]
 
 
@@ -810,6 +803,7 @@ class Schema(object):
     """
 
     # Mapping of schema type names to the corresponding Element subclasses.
+    # For python-ebml compatibility.
     ELEMENT_TYPES = {
         'integer': IntegerElement,
         'uinteger': UIntegerElement,
@@ -1084,15 +1078,21 @@ class Schema(object):
 
 
     def verify(self, data):
-        """ 
+        """ Perform basic tests on EBML binary data, ensuring it can be parsed
+            using this `Schema`. Failure will raise an expression.
         """
         
         def _crawl(el):
             if isinstance(el, MasterElement):
                 for subel in el:
                     _crawl(subel)
+            elif isinstance(el, UnknownElement):
+                raise NameError("Verification failed, unknown element ID %x" %
+                                el.id)
             else:
                 _ = el.value
+                
+            return True
 
         return _crawl(self.loads(data))
         
@@ -1109,8 +1109,8 @@ def loadSchema(filename, reload=False, **kwargs):
         
         @param filename: The full path and name of the Schema XML file.
         @keyword reload: If `True`, the resulting Schema is guaranteed to be
-            new. Note: references to previous instances of the Schema will not
-            update.
+            new. Note: references to previous instances of the Schema and its
+            elements will not update.
     """
     global SCHEMATA
     
