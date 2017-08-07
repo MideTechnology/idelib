@@ -6,17 +6,10 @@ into the EBML ID; in the future, this will be used to create appropriate
 default widgets for new elements.
 
 Created on Jul 6, 2017
-
-TODO: Finish this! Requires the schema to be completed, and some test EBML
-    generated.
-TODO: Make sure all the items have reasonable sizes compared to each other.
 '''
-from wx import MessageDialog
 
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
-
-# from collections import OrderedDict
 
 from fnmatch import fnmatch
 import string
@@ -30,6 +23,9 @@ from widgets.shared import DateTimeCtrl
 
 from mide_ebml.ebmlite import Schema
 
+
+MAX_SIGNED_INT = 2**31 - 1
+MIN_SIGNED_INT = -2**31
 
 #===============================================================================
 #--- Utility functions
@@ -51,11 +47,26 @@ def field(cls):
 # 
 #===============================================================================
 
+def getClipboardText():
+    if not wx.TheClipboard.IsOpened(): 
+        wx.TheClipboard.Open()
+    
+    obj = wx.TextDataObject()
+    if (wx.TheClipboard.GetData(obj)):
+        return obj.GetText()
+    return ""
+
+#===============================================================================
+# 
+#===============================================================================
+
 class TextValidator(wx.PyValidator):
     """ Validator for TextField and ASCIIField text widgets.
-    
-        @todo: Make it validate pasted text (currently only validates typing).
     """
+    
+    VALID_KEYS = (wx.WXK_LEFT, wx.WXK_UP, wx.WXK_RIGHT, wx.WXK_DOWN,
+                  wx.WXK_HOME, wx.WXK_END, wx.WXK_PAGEUP, wx.WXK_PAGEDOWN,
+                  wx.WXK_INSERT, wx.WXK_DELETE)
     
     def __init__(self, validator=None, maxLen=None):
         """ Instantiate a text field validator.
@@ -66,7 +77,8 @@ class TextValidator(wx.PyValidator):
         self.isValid = validator 
         wx.PyValidator.__init__(self)
         self.Bind(wx.EVT_CHAR, self.OnChar)
-
+        self.Bind(wx.EVT_TEXT_PASTE, self.OnPaste)
+        
 
     def Clone(self):
         return TextValidator(self.isValid, self.maxLen)
@@ -83,21 +95,23 @@ class TextValidator(wx.PyValidator):
     
     
     def Validate(self, win):
-        return self.isValid(self.GetWindow().GetValue())
+        txt = self.GetWindow().GetValue()
+        return self.isValid(txt)
 
 
-    def OnChar(self, event):
-        key = event.GetKeyCode()
-        char = unichr(key)
-        tc = self.GetWindow()
-        val = tc.GetValue()
+    def OnChar(self, evt):
+        """ Validate a character being typed.
+        """
+        key = evt.GetKeyCode()
 
-        if key < wx.WXK_SPACE or key == wx.WXK_DELETE:
-            event.Skip()
+        if key < wx.WXK_SPACE or key in self.VALID_KEYS:
+            evt.Skip()
             return
+        
+        val = self.GetWindow().GetValue()
 
-        if self.isValid(char) and len(val) < self.maxLen:
-            event.Skip()
+        if self.isValid(unichr(key)) and len(val) < self.maxLen:
+            evt.Skip()
             return
 
         if not wx.Validator_IsSilent():
@@ -106,6 +120,17 @@ class TextValidator(wx.PyValidator):
         # Returning without calling even.Skip eats the event before it
         # gets to the text control
         return
+    
+    
+    def OnPaste(self, evt):
+        """ Validate text pasted into the field.
+        """
+        txt = getClipboardText()
+        current = self.GetWindow().GetValue()
+        if self.isValid(current + txt):
+            evt.Skip()
+        elif not wx.Validator_IsSilent():
+            wx.Bell()
     
     
 #===============================================================================
@@ -185,7 +210,7 @@ class ConfigBase(object):
         if not self.valueFormat:
             self.valueFormat = self.noEffect
         else:
-            self.valueFormat = eval("lambda x: %s" % self.displayFormat)
+            self.valueFormat = eval("lambda x: %s" % self.valueFormat)
 
 
     def isEnabled(self):
@@ -377,7 +402,7 @@ class TextField(ConfigWidget):
     UNITS = False
     
     # String of valid characters. 'None' means all are valid.
-    VALID_CHARS = None
+    VALID_CHARS = string.ascii_letters #None
 
     def __init__(self, *args, **kwargs):
         self.textLines = 1
@@ -387,6 +412,8 @@ class TextField(ConfigWidget):
     def isValid(self, s):
         """ Filter for characters valid in the text field. """
         # All characters are permitted in UTF-8 fields.
+        if self.maxLength is not None and len(s) > self.maxLength:
+            return False
         if self.VALID_CHARS is None:
             return True
         return all(c in self.VALID_CHARS for c in s)
@@ -396,18 +423,18 @@ class TextField(ConfigWidget):
         """ Class-specific method for adding the appropriate type of widget.
         """
         validator = TextValidator(self.isValid, self.maxLength)
-#         self.textLines=4
         if self.textLines > 1:
             self.field = wx.TextCtrl(self, -1, str(self.default or ''),
                                      style=wx.TE_MULTILINE|wx.TE_PROCESS_ENTER,
                                      validator=validator)
-#             s = self.field.GetSize()
-#             self.field.SetSizeWH(-1, s[1] * self.textLines)
+            # XXX: This is supposed to set multi-line field height, doesn't work
+            s = self.field.GetSize()[1]
+            self.field.SetSizeWH(-1, s * self.textLines)
         else:
             self.field = wx.TextCtrl(self, -1, str(self.default or ''),
                                      validator=validator)
             
-        self.sizer.Add(self.field, 3)
+        self.sizer.Add(self.field, 3, wx.EXPAND)
         return self.field
 
 
@@ -420,7 +447,6 @@ class ASCIIField(TextField):
     VALID_CHARS = string.printable
 
 
-
 @field
 class IntField(ConfigWidget):
     """ UI widget for editing a signed integer.
@@ -430,8 +456,8 @@ class IntField(ConfigWidget):
         """ 
         """
         # Set some default values
-        self.min = -2**16
-        self.max = 2**16
+        self.min = MIN_SIGNED_INT
+        self.max = MAX_SIGNED_INT
         self.default = 0
         super(IntField, self).__init__(*args, **kwargs)
     
@@ -439,6 +465,11 @@ class IntField(ConfigWidget):
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
+        # wxPython SpinCtrl values limited to 32b signed integer range
+        self.min = int(max(self.min, MIN_SIGNED_INT))
+        self.max = int(min(self.max, MAX_SIGNED_INT))
+        self.default = max(min(self.default, MAX_SIGNED_INT), MIN_SIGNED_INT)
+        
         self.field = wx.SpinCtrl(self, -1, size=(40,-1), 
                                  style=wx.SP_VERTICAL|wx.TE_RIGHT,
                                  min=self.min, max=self.max, 
@@ -489,6 +520,8 @@ class FloatField(IntField):
 class EnumField(ConfigWidget):
     """ UI widget for selecting one of several items from a list.
     """
+    
+    UNITS = False
         
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
@@ -512,9 +545,9 @@ class EnumField(ConfigWidget):
         
 
     def setRawValue(self, val, check=True):
-        """ 
+        """ Select the appropriate item for the 
         """
-        index = -1
+        index = wx.NOT_FOUND
         for i,o in enumerate(self.options):
             if o.value == val:
                 index = i
@@ -572,39 +605,32 @@ class DateTimeField(IntField):
 
 
 @field
-class UTCOffsetField(IntField):
+class UTCOffsetField(FloatField):
     """ Special-case UI widget for entering the local UTC offset, with the
         ability to get the value from the computer.
     """
-    
-    def addField(self):
-        """ Class-specific method for adding the appropriate type of widget.
-            The UTC offset field consists of a 'spinner' control and a button.
+
+    def initUi(self):
+        """ Build the user interface, adding the item label and/or checkbox,
+            the appropriate UI control(s) and a 'units' label (if applicable). 
+            The UTC Offset fields have an extra button to the right of the
+            units label.
         """
-        p = wx.Panel(self, -1)
-        innerSizer = wx.BoxSizer(wx.HORIZONTAL)
-        innerSizer.Add(p, 1)
-        
-        self.field = wx.SpinCtrlDouble(p, -1, size=(60,-1), 
-                                       inc=0.25,
-                                       min=-12, max=12, 
-                                       value=self.default)
-        self.getOffsetBtn = wx.Button(p, -1, "Get Local Offset")
-        innerSizer.Add(self.field, 1)
-        innerSizer.Add(self.getOffsetBtn, 0)
-        
-        p.SetSizer(innerSizer)
-        self.sizer.Add(p, 1)
-        
+        super(UTCOffsetField, self).initUi()
+
+        self.getOffsetBtn = wx.Button(self, -1, "Get Local Offset")
+        self.getOffsetBtn.SetSizeWH(-1, self.field.GetSizeTuple()[1])
         self.getOffsetBtn.Bind(wx.EVT_BUTTON, self.OnGetOffset)
-        
-        return p
+        self.sizer.Add(self.getOffsetBtn, 0)
+
+        if self.tooltip:
+            self.getOffsetBtn.SetToolTipString(self.tooltip)
 
     
     def OnGetOffset(self, evt):
         """ Handle button press: get the computer's local UTC offset.
         """
-        # XXX: IMPLEMENT OnGetOffset()!
+        print "XXX: IMPLEMENT OnGetOffset()!"
 
 
 @field
@@ -743,7 +769,7 @@ class Group(ConfigWidget):
         if el.name in FIELD_TYPES:
             return FIELD_TYPES[el.name]
         
-        elif el.id & 0xFF00 == 0x4000:
+        if el.id & 0xFF00 == 0x4000:
             # All field EBML IDs have 0x40 as their 2nd byte.
             baseId = el.id & 0x00FF
             if baseId in cls.DEFAULT_FIELDS:
@@ -762,11 +788,7 @@ class Group(ConfigWidget):
         for el in self.element.value:
             cls = self.getWidgetClass(el)
             if cls is None:
-                # Not a field (could be Label, ConfigID, etc.)
-                continue
-            
-            # XXX: REMOVE
-            if not el.value:
+                # Not a field (could be Label, ConfigID, etc.). Handle later.
                 continue
             
             widget = cls(self, -1, element=el, root=self.root, group=self)
@@ -955,7 +977,7 @@ def crawl(el, indent=-1):
     """ Test function to dump the structure of a CONFIG.UI EBML file. 
     """
     if indent > -1:
-        print "%s %s:" % ((" "*indent*2), el.name),
+        print "%s %s (0x%04X):" % ((" "*indent*2), el.name, el.id),
     if indent < 0 or isinstance(el.value, list):
         print
         for i in el:
@@ -972,6 +994,13 @@ if __name__ == "__main__":
     schema = Schema("../mide_ebml/ebml/schema/config_ui.xml")
     testDoc = schema.load('CONFIG.UI')
     crawl(testDoc)
+
+#     FIELD_TYPES.pop('IntField', None)
+#     FIELD_TYPES.pop('UIntField', None)
+#     FIELD_TYPES.pop('CheckIntField', None)
+#     FIELD_TYPES.pop('CheckUIntField', None)
+#     FIELD_TYPES.pop('UTCOffsetField', None)
+#     FIELD_TYPES.pop('CheckUTCOffsetField', None)
     
     app = wx.App()
     dlg = ConfigDialog(None, hints=testDoc)
