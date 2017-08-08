@@ -30,9 +30,10 @@ from devices.base import ConfigError
 # 
 #===============================================================================
 
-mideSchema = loadSchema('mide_ebml/ebml/schema/mide.xml')
-manifestSchema = loadSchema('mide_ebml/ebml/schema/manifest.xml')
+SCHEMA_ROOT = os.path.join(os.path.dirname(__file__), '../mide_ebml/ebml/schema')
 
+mideSchema = loadSchema(os.path.join(SCHEMA_ROOT, 'mide.xml'))
+manifestSchema = loadSchema(os.path.join(SCHEMA_ROOT, 'manifest.xml'))
 
 #===============================================================================
 # 
@@ -47,6 +48,9 @@ class SlamStickX(Recorder):
     CLOCK_FILE = os.path.join(SYSTEM_PATH, "DEV", "CLOCK")
     CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
     USERCAL_FILE = os.path.join(SYSTEM_PATH, "usercal.dat")
+    RECPROP_FILE = os.path.join(SYSTEM_PATH, "RECPROP.DAT")
+    CONFIG_UI_FILE = os.path.join(SYSTEM_PATH, "CONFIG.UI")
+    
     TIME_PARSER = struct.Struct("<L")
 
     # TODO: This really belongs in the configuration UI
@@ -70,6 +74,8 @@ class SlamStickX(Recorder):
         self._factoryCalPolys = None
         self._factoryCalDict = None
         self._accelChannels = None
+        self._properties = None
+        
         if self.path is not None:
             self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
             self.userCalFile = os.path.join(self.path, self.USERCAL_FILE)
@@ -477,17 +483,24 @@ class SlamStickX(Recorder):
         # _propData is read here but parsed in `getSensors()`
         # Zero offset means no property data. Size should also be zero, but JIC:
         propSize = 0 if propOffset == 0 else propSize
-        self._propData = data[propOffset:propOffset+propSize]
+        
+        if os.path.exists(self.RECPROP_FILE):
+            with open(self.RECPROP_FILE, 'rb') as f:
+                self._propData = f.read()
+        else:
+            self._propData = data[propOffset:propOffset+propSize]
         
         try:
 #             self._manifest = util.read_ebml(manData, schema=schema_manifest
 #                                             ).get('DeviceManifest', None)
 #             self._calibration = util.read_ebml(self._calData, schema=schema_mide,
 #                                                ).get('CalibrationList', None)
-            self._manifest = manifestSchema.load(manData).dump().get('DeviceManifest')
-            self._calibration = mideSchema.load(self._calData).dump().get('CalibrationList')
+            manDict = manifestSchema.load(manData).dump()
+            calDict = mideSchema.load(self._calData).dump()
+            self._manifest = manDict.get('DeviceManifest')
+            self._calibration = calDict.get('CalibrationList')
         except (AttributeError, KeyError):
-            # XXXL
+            # XXX: REMOVE THIS
             raise
             pass
         
@@ -563,11 +576,26 @@ class SlamStickX(Recorder):
     def getProperties(self, refresh=False):
         """ Get the raw Recording Properties from the device. 
         """
-        # TODO: Optimize. Cache data like getManifest and such.
-        self.getManifest(refresh=refresh)
-#         data = util.read_ebml(StringIO(self._propData), schema=schema_mide)
-        data = mideSchema.load(StringIO(self._propData)).dump()
-        return data.get('RecordingProperties', {})
+        if self.path is None:
+            # No path: probably a recorder description from a recording.
+            return self._properties
+        
+        if refresh:
+            self._properties = None
+        
+        if self._properties is not None:
+            return self._properties
+        
+        if os.path.exists(self.RECPROP_FILE):
+            doc = mideSchema.load(self.RECPROP_FILE)
+            props = doc.dump()
+        else:
+            # TODO: Optimize. Cache data like getManifest and such.
+            self.getManifest(refresh=refresh)
+            props = mideSchema.load(StringIO(self._propData)).dump()
+            
+        self._properties = props.get('RecordingProperties', {})
+        return self._properties
         
 
     def getSensors(self, refresh=False):

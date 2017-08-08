@@ -30,6 +30,7 @@ __all__ = ['BinaryElement', 'DateElement',
 
 from collections import OrderedDict
 from datetime import datetime
+import errno
 import os.path
 from StringIO import StringIO
 from xml.etree import ElementTree as ET
@@ -48,6 +49,17 @@ from ebml.core import read_date, read_string, read_unicode_string
 INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER = range(0, 8)
 UNKNOWN = -1 # not in python-ebml
 
+
+#===============================================================================
+# 
+#===============================================================================
+
+# SCHEMA_PATH: A list of paths for schema XML files, similar to `sys.path`.
+SCHEMA_PATH = ['', os.path.dirname(__file__)]
+
+# SCHEMATA: A dictionary of loaded schemata, keyed by filename. Used by
+# `loadSchema`. In most cases, SCHEMATA should not be otherwise modified.
+SCHEMATA = {}
 
 #===============================================================================
 #
@@ -105,7 +117,6 @@ class Element(object):
             elements should be created when a `Document` is loaded, rather
             than instantiated explicitly.
         
-            @param eid: The element's EBML ID, as defined in the Schema.
             @keyword stream: A file-like object containing EBML data.
             @keyword offset: The element's starting location in the file.
             @keyword size: The size of the whole element.
@@ -645,7 +656,7 @@ class Document(MasterElement):
                 el, pos = self.parseElement(self.stream)
                 yield el
             except TypeError:
-                # Occurs when trying to parse zero-length file (EOF)
+                # Occurs at end of file (parsing 0 length string), it's okay.
                 break
 
 
@@ -1009,7 +1020,8 @@ class Schema(object):
         """ Load EBML from a string using this Schema.
         
             @param data: A string or bytearray containing raw EBML data.
-            @keyword name: The name of the document. Defaults to filename.
+            @keyword name: The name of the document. Defaults to the Schema's
+                document class name.
         """
         return self.load(StringIO(data), name=name)
         
@@ -1107,19 +1119,36 @@ def loadSchema(filename, reload=False, **kwargs):
     """ Import a Schema XML file. Loading the same file more than once will
         return the initial instantiation, unless `reload` is `True`.
         
-        @param filename: The full path and name of the Schema XML file.
+        @param filename: The name of the Schema XML file. If the file cannot
+            be found and file's path is not absolute, the paths listed in
+            `SCHEMA_PATH` will be searched (similar to `sys.path` when importing
+            modules).
         @keyword reload: If `True`, the resulting Schema is guaranteed to be
-            new. Note: references to previous instances of the Schema and its
-            elements will not update.
+            new. Note: existing references to previous instances of the Schema
+            and its elements will not update.
+        
+        Additional keyword arguments are sent verbatim to the `Schema`
+        constructor.
     """
     global SCHEMATA
     
-    filename = os.path.realpath(filename)
+    origName = filename
+    if not filename.startswith(('.','/','\\','~')):
+        # Not a specific path and file not found: search paths in SCHEMA_PATH
+        for p in SCHEMA_PATH:
+            f = os.path.join(p, origName)
+            if os.path.exists(f):
+                filename = f
+                break
+    
+    filename = os.path.realpath(os.path.expanduser(filename))
     if filename in SCHEMATA and not reload:
         return SCHEMATA[filename]
+    
+    if not os.path.exists(filename):
+        raise IOError(errno.ENOENT, 'Could not find schema XML', origName)
+    
     return SCHEMATA.setdefault(filename, Schema(filename, **kwargs))
-
-
 
 
 #===============================================================================
