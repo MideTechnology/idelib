@@ -284,17 +284,27 @@
             <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
             <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
             <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
+            <element name="FloatMin" level="1" id="0x5113" type="float" multiple="0"></element>
+            <element name="FloatMax" level="1" id="0x5123" type="float" multiple="0"></element>
+            <element name="FloatIncrement" level="1" id="0x5133" type="float" multiple="0"></element>
+            
         
 
     <element name="HiddenField" level="-1" id="0x040FF" type="master" multiple="1">A 'field' for config items without individual UI widgets (e.g. created from multiple other fields)</element>
         <element name="ConfigID" level="1" id="0x5001" type="uinteger" multiple="0"></element>
-        <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0"></element>
+        <element name="DisableIf" level="1" id="0x5014" type="string" multiple="0">For hidden fields, this determines if the config item will be written.</element>
         <element name="ValueFormat" level="1" id="0x5024" type="string" multiple="0"></element>
         <element name="ASCIIValue" level="1" id="0x5104" type="string" multiple="0"></element>
         <element name="TextValue" level="1" id="0x5105" type="utf-8" multiple="0"></element>
         <element name="UIntValue" level="1" id="0x5101" type="uinteger" multiple="0"></element>
         <element name="IntValue" level="1" id="0x5102" type="integer" multiple="0"></element>
         <element name="FloatValue" level="1" id="0x5103" type="float" multiple="0"></element>
+        
+    <element name="CheckDriftButton" level="-1" id="0x400F" type="master" multiple="0"></element>
+    
+    <element name="FactoryCalibrationTab" level="-1" id="0x4A08" type="master" multiple="1"></element>
+    <element name="UserCalibrationTab" level="-1" id="0x4A28" type="master" multiple="1"></element>
+    <element name="DeviceInfoTab" level="-1" id="0x4A48" type="master" multiple="1"></element>
    
     <!-- 
     Attributes: a way to insert an arbitrary key/value into a structure, 
