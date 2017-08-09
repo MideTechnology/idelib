@@ -7,6 +7,7 @@ default widgets for new elements.
 
 Created on Jul 6, 2017
 '''
+from openpyxl.packaging.manifest import DEFAULT_TYPES
 
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
@@ -143,7 +144,33 @@ class TextValidator(wx.PyValidator):
         elif not wx.Validator_IsSilent():
             wx.Bell()
     
-    
+#===============================================================================
+# 
+#===============================================================================
+
+def castToBoolean(x):
+    return int(bool(x))
+
+def castToInt(x):
+    return int(x)
+
+def castToUInt(x):
+    return max(0, int(x))
+
+def castToFloat(x):
+    return float(x)
+
+def castToASCII(x):
+    if isinstance(x, unicode):
+        return x.encode('ascii', 'replace')
+    return str(x)
+
+def castToText(x):
+    if isinstance(x, bytearray):
+        x = str(x)
+    return unicode(x)
+
+
 #===============================================================================
 #--- Base classes
 #===============================================================================
@@ -158,6 +185,7 @@ class ConfigBase(object):
             to object attribute names. Subclasses can add their own unique
             attributes to this dictionary.
     """
+
     # Mapping of element names to object attributes. May contain glob-style
     # wildcards.
     ARGS = {"Label": "label",
@@ -174,6 +202,15 @@ class ConfigBase(object):
     # Class-specific element/attribute mapping. Subclasses can use this for
     # their unique attributes without clobbering the common ones in ARGS.
     CLASS_ARGS = {}
+    
+    # The name of the default *Value EBML element type used when writing this 
+    # item's value to the config file. Used if the definition does not include
+    # a *Value element.
+    DEFAULT_TYPE = None
+    
+    # Default expression code objects for 
+    noEffect = compile("x", "<string>", "eval")
+    noValue = compile("None", "<string>", "eval")
     
     
     @staticmethod
@@ -194,15 +231,15 @@ class ConfigBase(object):
     
     
     def makeExpression(self, val):
-        """ Helper method for creating a function from an expression string.
-            Used internally.
+        """ Helper method for compiling an expression in a string into a code
+            object that can later be used with `eval()`. Used internally.
         """
         if val is None:
             return self.noEffect
         if val is '':
             return self.noValue
         try:
-            return eval("lambda x: %s" % val)
+            return compile(val, "<ConfigBase.makeExpression>", "eval")
         except SyntaxError as err:
             print ("Ignoring bad expression (%s) for %s %r: %r" % 
                    (err.msg, self.__class__.__name__, self.label, err.text))
@@ -225,11 +262,17 @@ class ConfigBase(object):
             if not hasattr(self, v):
                 setattr(self, v, None)
         
+        self.valueType = self.DEFAULT_TYPE
+        
         for el in self.element.value:
             if el.name in FIELD_TYPES:
                 # Child field: skip now, handle later (if applicable)
                 continue
-            elif el.name in args:
+            
+            if el.name.endswith('Value'):
+                self.valueType = el.name
+                
+            if el.name in args:
                 # Known element name (verbatim): set attribute
                 setattr(self, args[el.name], el.value)
             else:
@@ -390,6 +433,11 @@ class ConfigWidget(wx.Panel, ConfigBase):
             
         self.setCheck(check)
 
+
+    def updateConfigData(self):
+        """ Update the `Config` variable.
+        """
+        
         
     def OnCheck(self, evt):
         """ Handle checkbox changing.
@@ -411,6 +459,7 @@ class BooleanField(ConfigWidget):
     """
     CHECK = True
 
+    DEFAULT_TYPE = "BooleanValue"
 
     def setRawValue(self, val, check=False):
         """
@@ -424,6 +473,7 @@ class BooleanField(ConfigWidget):
         return self.checkbox.GetValue()
 
 
+
 @field
 class TextField(ConfigWidget):
     """ UI widget for editing Unicode text.
@@ -432,6 +482,8 @@ class TextField(ConfigWidget):
                   'TextLines': 'textLines'}
 
     UNITS = False
+
+    DEFAULT_TYPE = "TextValue"
     
     # String of valid characters. 'None' means all are valid.
     VALID_CHARS = string.ascii_letters #None
@@ -474,6 +526,7 @@ class TextField(ConfigWidget):
 class ASCIIField(TextField):
     """ UI widget for editing ASCII text.
     """
+    DEFAULT_TYPE = "ASCIIValue"    
     
     # String of valid characters, limited to the printable part of 7b ASCII.
     VALID_CHARS = string.printable
@@ -483,6 +536,7 @@ class ASCIIField(TextField):
 class IntField(ConfigWidget):
     """ UI widget for editing a signed integer.
     """
+    DEFAULT_TYPE = "IntValue"
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.Panel` arguments, plus:
@@ -519,6 +573,7 @@ class IntField(ConfigWidget):
 class UIntField(IntField):
     """ UI widget for editing an unsigned integer.
     """
+    DEFAULT_TYPE = "UIntValue"
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.Panel` arguments, plus:
@@ -537,6 +592,7 @@ class UIntField(IntField):
 class FloatField(IntField):
     """ UI widget for editing a floating-point value.
     """
+    DEFAULT_TYPE = "FloatValue"
     
     CLASS_ARGS = {'FloatIncrement': 'increment'}
         
@@ -567,6 +623,7 @@ class FloatField(IntField):
 class EnumField(ConfigWidget):
     """ UI widget for selecting one of several items from a list.
     """
+    DEFAULT_TYPE = "UIntValue"
     
     UNITS = False
         
@@ -623,6 +680,7 @@ class EnumOption(ConfigBase):
     """ One choice in an enumeration (e.g. an item in a drop-down list). Note:
         unlike the other classes, this is not itself a UI field.
     """
+    DEFAULT_TYPE = "UIntValue"
     
     def __init__(self, element, parent, **kwargs):
         """ Constructor.
@@ -642,6 +700,7 @@ class EnumOption(ConfigBase):
 class DateTimeField(IntField):
     """ UI widget for editing a date/time value.
     """
+    DEFAULT_TYPE = "IntValue"
     
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
@@ -656,6 +715,7 @@ class UTCOffsetField(FloatField):
     """ Special-case UI widget for entering the local UTC offset, with the
         ability to get the value from the computer.
     """
+    DEFAULT_TYPE = "IntValue"
 
     def initUI(self):
         """ Build the user interface, adding the item label and/or checkbox,
@@ -685,6 +745,7 @@ class BinaryField(ConfigWidget):
     """ Special-case UI widget for selecting binary data.
         FOR FUTURE IMPLEMENTATION.
     """
+    DEFAULT_TYPE = "BinaryValue"
     
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
@@ -775,6 +836,7 @@ class CheckDriftButton(ConfigWidget):
         clock versus the host computer's time.
     """
     UNITS = False
+    DEFAULT_TYPE = None
 
     def initUI(self):
         """ Build the user interface, adding the item label and/or checkbox,
@@ -813,7 +875,6 @@ class CheckDriftButton(ConfigWidget):
 class Group(ConfigWidget):
     """ A labeled group of configuration items. Children appear indented.
     """
-
     # Should this group get a heading label?
     LABEL = True
     
@@ -844,6 +905,8 @@ class Group(ConfigWidget):
         0x42: CheckDateTimeField
     }
     
+    DEFAULT_TYPE = None
+    
     
     @classmethod
     def getWidgetClass(cls, el):
@@ -867,22 +930,16 @@ class Group(ConfigWidget):
         return None
     
     
-    def addField(self):
-        """ Create all child fields. Returns a sizer containing the children.
+    def addChild(self, el):
         """
-        sizer = wx.BoxSizer(wx.VERTICAL)
-            
-        for el in self.element.value:
-            cls = self.getWidgetClass(el)
-            if cls is None:
-                # Not a field (could be Label, ConfigID, etc.). Handle later.
-                continue
-            
-            widget = cls(self, -1, element=el, root=self.root, group=self)
-            self.fields.append(widget)
-            sizer.Add(widget, 0, wx.ALIGN_LEFT|wx.EXPAND|wx.ALL, border=4)
+        """
+        cls = self.getWidgetClass(el)
+        if cls is None:
+            return
         
-        return sizer
+        widget = cls(self, -1, element=el, root=self.root, group=self)
+        self.fields.append(widget)
+        self.sizer.Add(widget, 0, wx.ALIGN_LEFT|wx.EXPAND|wx.ALL, border=4)
 
             
     def initUI(self):
@@ -890,7 +947,7 @@ class Group(ConfigWidget):
             (if applicable) and all the child Fields.
         """
         self.fields = []
-        sizer = wx.BoxSizer(wx.VERTICAL)
+        outerSizer = wx.BoxSizer(wx.VERTICAL)
         
         if self.LABEL:
             if self.CHECK:
@@ -901,15 +958,20 @@ class Group(ConfigWidget):
                 self.checkbox = None
                 label = wx.StaticText(self, -1, self.label or '')
         
-            sizer.Add(label, 0, wx.NORTH, 4)
+            outerSizer.Add(label, 0, wx.NORTH, 4)
             label.SetFont(label.GetFont().Bold())
 
-        sizer.Add(self.addField(), 1, wx.WEST|wx.EXPAND, 24)
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        
+        for el in self.element.value:
+            self.addChild(el)
+            
+        outerSizer.Add(self.sizer, 1, wx.WEST|wx.EXPAND, 24)
         
         if self.checkbox is not None:
             self.setCheck(False)
 
-        self.SetSizer(sizer)
+        self.SetSizer(outerSizer)
         
 
     def enableChildren(self, enabled=True):
@@ -976,7 +1038,10 @@ class Tab(SP.ScrolledPanel, Group):
         """ Build the contents of the tab.
         """
         self.fields = []
-        self.SetSizer(self.addField())
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        for el in self.element.value:
+            self.addChild(el)
+        self.SetSizer(self.sizer)
 
 
 #===============================================================================
