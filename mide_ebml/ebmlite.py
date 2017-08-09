@@ -40,6 +40,7 @@ from ebml import core
 from ebml.core import read_element_id, read_element_size 
 from ebml.core import read_float, read_signed_integer, read_unsigned_integer 
 from ebml.core import read_date, read_string, read_unicode_string 
+import ebml.schema
 
 #===============================================================================
 #
@@ -55,7 +56,10 @@ UNKNOWN = -1 # not in python-ebml
 #===============================================================================
 
 # SCHEMA_PATH: A list of paths for schema XML files, similar to `sys.path`.
-SCHEMA_PATH = ['', os.path.dirname(__file__)]
+SCHEMA_PATH = ['', 
+               os.path.dirname(__file__),
+               os.path.dirname(ebml.schema.__file__), # XXX: TEST, REMOVE.
+               ]
 
 # SCHEMATA: A dictionary of loaded schemata, keyed by filename. Used by
 # `loadSchema`. In most cases, SCHEMATA should not be otherwise modified.
@@ -267,7 +271,7 @@ class IntegerElement(Element):
 
 #===============================================================================
 
-class UIntegerElement(Element):
+class UIntegerElement(IntegerElement):
     """ Base class for an EBML unsigned integer element. Schema-specific
         subclasses are generated when a `Schema` is loaded.
     """
@@ -336,7 +340,7 @@ class StringElement(Element):
 
 #===============================================================================
 
-class UnicodeElement(Element):
+class UnicodeElement(StringElement):
     """ Base class for an EBML UTF-8 string element. Schema-specific subclasses
         are generated when a `Schema` is loaded.
     """
@@ -358,7 +362,7 @@ class UnicodeElement(Element):
 
 #===============================================================================
 
-class DateElement(Element):
+class DateElement(IntegerElement):
     """ Base class for an EBML 'date' element. Schema-specific subclasses are
         generated when a `Schema` is loaded.
     """
