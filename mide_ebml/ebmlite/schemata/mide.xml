@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Schema type="mide" version="2" readversion="2">
     <!-- Base EBML elements. Required. -->
-    <MasterElement name="EBML" id="0x1A45DFA3" mandatory="1" multiple="1" minver="1">Set the EBML characteristics of the data<b>test</b> to follow. Each EBML document has to start with this.
+    <MasterElement name="EBML" id="0x1A45DFA3" mandatory="1" multiple="1" minver="1">Set the EBML characteristics of the data to follow. Each EBML document has to start with this.
         <UIntegerElement name="EBMLVersion" id="0x4286" mandatory="1" default="1" minver="1">The version of EBML parser used to create the file.</UIntegerElement>
         <UIntegerElement name="EBMLReadVersion" id="0x42F7" mandatory="1" default="1" minver="1">The minimum EBML version a parser has to support to read this file.</UIntegerElement>
         <UIntegerElement name="EBMLMaxIDLength" id="0x42F2" mandatory="1" default="4" minver="1">The maximum length of the IDs you'll find in this file (4 or less in Matroska).</UIntegerElement>
@@ -183,9 +183,9 @@
         <UIntegerElement name="UIntAttribute" id="0x6121" multiple="0" minver="2"> Unsigned integer Attribute. Should always be child of Atrribute. </UIntegerElement>
         <FloatElement name="FloatAttribute" id="0x6122" multiple="0" minver="2"> Floating point Attribute. Should always be child of Atrribute. </FloatElement>
         <StringElement name="StringAttribute" id="0x6123" multiple="0" minver="2"> ASCII String Attribute. Should always be child of Atrribute. </StringElement>
-        <UnicodeElement name="UnicodeAttribute" id="0x6123" multiple="0" minver="2"> ASCII String Attribute. Should always be child of Atrribute. </UnicodeElement>
         <DateElement name="DateAttribute" id="0x6124" multiple="0" minver="2"> Date Attribute. Should always be child of Atrribute. </DateElement>
         <BinaryElement name="BinaryAttribute" id="0x6125" multiple="0" minver="2"> Binary Attribute. Should always be child of Atrribute. </BinaryElement>
+        <UnicodeElement name="UnicodeAttribute" id="0x6126" multiple="0" minver="2"> ASCII String Attribute. Should always be child of Atrribute. </UnicodeElement>
     </MasterElement>
 
 

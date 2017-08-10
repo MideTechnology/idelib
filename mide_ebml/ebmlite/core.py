@@ -889,10 +889,17 @@ class Schema(object):
         self.elements = {}    # Element types, keyed by ID
         self.elementIds = {}  # Element types, keyed by element name
         self.elementInfo = {} # Raw element schema attributes, keyed by ID
+
+        self.globals = {}   # Elements valid for any parent, by ID
+        self.children = {}  # Valid root elements, by ID
         
-        # Parse. 
+        # Parse, using the correct method for the schema format.
         schema = ET.parse(source)
-        self._parseLegacySchema(schema)
+        root = schema.getroot()
+        if root.tag == "table":
+            self._parseLegacySchema(root)
+        elif root.tag == "Schema":
+            self._parseSchema(root, self)
 
         # Special case: `Void` is a standard EBML element, but not its own
         # type (it's technically binary). Use the special `VoidElement` type.
@@ -913,34 +920,59 @@ class Schema(object):
 
     
     def _parseLegacySchema(self, schema):
-        """ Parse a python-ebml schema XML file. Isolated from `__init__()` for
-            future alternative schema format.
+        """ Parse a legacy python-ebml schema XML file.
         """
-        def _bool(v, default=False):
-            try:
-                return str(v).strip()[0] in 'Tt1'
-            except (TypeError, IndexError, ValueError):
-                return default
-            
         for el in schema.findall('element'):
             attribs = el.attrib.copy()
             
             eid = int(attribs['id'],16) if 'id' in attribs else None
             ename = attribs['name'].strip() if 'name' in attribs else None
             etype = attribs['type'].strip() if 'type' in attribs else None
-            mandatory = _bool(attribs.get('mandatory', False))
-            multiple = _bool(attribs.get('multiple', True))
-            precache = _bool(attribs['precache']) if 'precache' in attribs else None
-            length = int(attribs['length']) if 'length' in attribs else None
-        
-            self.addElement(eid, ename, etype, multiple, mandatory, length, 
-                            precache, attribs)
 
+            if etype is None:
+                raise ValueError('Element "%s" (ID 0x%02X) missing required '
+                                 '"type" attribute' % (ename, eid))
+            
+            if etype not in self.ELEMENT_TYPES:
+                raise ValueError("Unknown type for element %r (ID 0x%02x): %r" %
+                                 (ename, eid, etype))
+            
+            etype = self.ELEMENT_TYPES[etype] 
+            
+            self.addElement(eid, ename, etype, attribs)
+
+
+    def _parseSchema(self, el, parent=None):
+        """ Recursively crawl a schema XML definition file.
+        """
+        if el.tag == "Schema":
+            for chEl in el.getchildren():
+                self._parseSchema(chEl, self)
+            return
+            
+        if el.tag not in _ELEMENT_TYPES:
+            if el.tag.endswith('Element'):
+                raise ValueError('Unknown element type: %s' % el.tag)
+            
+            # The Schema may contain documentation, and it may contain HTML.
+            # TODO: Show error/warning?
+            return
+        
+        attribs = el.attrib.copy()
+        eid = int(attribs['id'],16) if 'id' in attribs else None
+        ename = attribs['name'].strip() if 'name' in attribs else None
+        baseClass = _ELEMENT_TYPES[el.tag]
+
+        cls = self.addElement(eid, ename, baseClass, attribs, parent)
+        
+        if baseClass is MasterElement:
+            for chEl in el.getchildren():
+                self._parseSchema(chEl, cls)
         
         
 
-    def addElement(self, eid, ename, etype, multiple=True, mandatory=False,
-                   length=None, precache=None, attribs={}):
+    def addElement(self, eid, ename, baseClass, attribs={}, 
+                   parent=None):
         """ Create a new `Element` subclass and add it to the schema. 
         
             Duplicate elements are permitted (e.g. if one kind of element can 
@@ -964,6 +996,20 @@ class Schema(object):
             @keyword attribs: A dictionary of raw element attributes, as read
                 from the schema file.
         """
+        def _bool(v, default=False):
+            try:
+                return str(v).strip()[0] in 'Tt1'
+            except (TypeError, IndexError, ValueError):
+                return default
+            
+        parent = parent or self
+
+        mandatory = _bool(attribs.get('mandatory', False))
+        multiple = _bool(attribs.get('multiple', True))
+        precache = _bool(attribs['precache']) if 'precache' in attribs else None
+        length = int(attribs['length']) if 'length' in attribs else None
+        level = attribs.get('level')
+
         # Duplicate elements are permitted, for defining a child element
         # that can appear as a child to multiple master elements. Additional
         # definitions only need to specify the element ID or name.
@@ -974,11 +1020,16 @@ class Schema(object):
             # Already appeared in schema. Duplicates are permitted, so long
             # as they have the same attributes. Second appearance may 
             # omit everything the ID and/or the name.
+            oldEl = self.elements[eid]
+            if not issubclass(self.elements[eid], baseClass):
+                raise TypeError('%s %r (ID 0x%02X) redefined with '
+                                'as %s' % (oldEl.__name__, ename, 
+                                           eid, baseClass.__name__))
             newatts = self.elementInfo[eid].copy()
             newatts.update(attribs)
             if self.elementInfo[eid] == newatts:
                 # TODO: Update hierarchy information. Not currently used.
-                return self.elements[eid]
+                return oldEl
             else:
                 raise TypeError('Element %r (ID 0x%02X) redefined with '
                                 'different attributes' % (ename, eid))
@@ -990,28 +1041,25 @@ class Schema(object):
         elif ename is None:
             raise ValueError('Element ID 0x%02X missing required '
                              '"name" attribute' % eid)
-        elif etype is None:
-            raise ValueError('Element "%s" (ID 0x%02X) missing required '
-                             '"type" attribute' % (ename, eid))
-        
-        if etype not in self.ELEMENT_TYPES:
-            raise ValueError("Unknown type for element %r (ID 0x%02x): %r" %
-                             (ename, eid, etype))
 
-        etype = etype.lower()
-        baseClass = self.ELEMENT_TYPES[etype]
         precache = baseClass.precache if precache is None else precache
         
         # Create a new Element subclass
         eclass = type('%sElement' % ename, (baseClass,),
                       {'id':eid, 'name':ename, 'schema':self,
                        'mandatory': mandatory, 'multiple': multiple, 
-                       'precache': precache, 'length':length})
+                       'precache': precache, 'length':length,
+                       'children': dict()})
          
         self.elements[eid] = eclass
         self.elementInfo[eid] = attribs
         self.elementIds[ename] = eclass
-
+        
+        parent.children[eid] = eclass
+        
+        if level == "-1":
+            self.globals[eid] = eclass
+        
         return eclass
         
 
@@ -1043,9 +1091,9 @@ class Schema(object):
         return self.elements[key]
 
     
-    @property
-    def children(self):
-        return self.elements.values()
+#     @property
+#     def children(self):
+#         return self.elements.values()
 
 
     def load(self, fp, name=None):
