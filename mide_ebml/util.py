@@ -367,7 +367,11 @@ def dump_ebml(el, stream=None, indent=0, tabsize=4):
             dump_ebml(r, stream, indent, tabsize)
         return
     
-    stream.write("%6d  %s%s:" % (el.offset," "*indent, el.name))
+    try:
+        stream.write("%6d  %s%s:" % (el.offset," "*indent, el.name))
+    except AttributeError:
+        # Old python-ebml
+        stream.write("%6d  %s%s:" % (el.stream.offset," "*indent, el.name))
     if not el.children:
         stream.write("%r\n" % el.value)
     else:

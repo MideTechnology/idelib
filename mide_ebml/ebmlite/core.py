@@ -26,7 +26,8 @@ __all__ = ['BinaryElement', 'DateElement',
            'IntegerElement', 'MasterElement',  
            'Schema', 'StringElement', 'UIntegerElement', 
            'UnicodeElement', 'UnknownElement', 'VoidElement',
-           'loadSchema']
+           'loadSchema', 'INT','UINT','FLOAT','STRING','UNICODE','DATE',
+           'BINARY','CONTAINER','UNKNOWN']
 
 from collections import OrderedDict
 from datetime import datetime
@@ -36,11 +37,18 @@ from StringIO import StringIO
 from xml.etree import ElementTree as ET
 
 # TODO: Remove all this
-from ebml import core 
-from ebml.core import read_element_id, read_element_size 
-from ebml.core import read_float, read_signed_integer, read_unsigned_integer 
-from ebml.core import read_date, read_string, read_unicode_string 
-import ebml.schema
+import sys
+sys.path.insert(0,'..')
+# from ebml import core 
+# from ebml.core import read_element_id, read_element_size 
+# from ebml.core import read_float, read_signed_integer, read_unsigned_integer 
+# from ebml.core import read_date, read_string, read_unicode_string 
+# import ebml.schema
+
+from decoding import readElementID, readElementSize
+from decoding import readFloat, readInt, readUInt, readDate
+from decoding import readString, readUnicode
+import decoding
 
 #===============================================================================
 #
@@ -57,13 +65,25 @@ UNKNOWN = -1 # not in python-ebml
 
 # SCHEMA_PATH: A list of paths for schema XML files, similar to `sys.path`.
 SCHEMA_PATH = ['', 
-               os.path.dirname(__file__),
-               os.path.dirname(ebml.schema.__file__), # XXX: TEST, REMOVE.
+#                os.path.join(os.path.dirname(__file__), 'schemata'),
+               os.path.realpath(os.path.join(os.path.dirname(decoding.__file__), '../ebml/schema')), # XXX: TEST, REMOVE.
                ]
 
 # SCHEMATA: A dictionary of loaded schemata, keyed by filename. Used by
 # `loadSchema`. In most cases, SCHEMATA should not be otherwise modified.
 SCHEMATA = {}
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+_ELEMENT_TYPES = {}
+
+def element(cls):
+    _ELEMENT_TYPES[cls.__name__] = cls
+    return cls
+
 
 #===============================================================================
 #
@@ -206,9 +226,12 @@ class Element(object):
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder. """
+#         if isinstance(data, basestring):
+#             return core.encode_unicode_string(data, length)
+#         return core.encode_string(bytearray(data), length)
         if isinstance(data, basestring):
-            return core.encode_unicode_string(data, length)
-        return core.encode_string(bytearray(data), length)
+            return decoding.encodeUnicode(data, length)
+        return decoding.encodeString(bytearray(data), length)
          
      
     @classmethod
@@ -236,8 +259,10 @@ class Element(object):
             return result
         payload = cls.encodePayload(value, length=length)
         length = length or len(payload)
-        encId = core.encode_element_id(cls.id) 
-        return encId + core.encode_element_size(length, lengthSize) + payload
+#         encId = core.encode_element_id(cls.id) 
+#         return encId + core.encode_element_size(length, lengthSize) + payload
+        encId = decoding.encodeId(cls.id) 
+        return encId + decoding.encodeSize(length, lengthSize) + payload
         
 
     def dump(self):
@@ -248,6 +273,7 @@ class Element(object):
 
 #===============================================================================
 
+@element
 class IntegerElement(Element):
     """ Base class for an EBML signed integer element. Schema-specific
         subclasses are generated when a `Schema` is loaded.
@@ -260,17 +286,19 @@ class IntegerElement(Element):
         """ Type-specific helper function for parsing the element's payload.
             It is assumed the file pointer is at the start of the payload.
         """
-        return read_signed_integer(stream, size)
+        return readInt(stream, size)
 
 
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for signed integer elements. """
-        return core.encode_signed_integer(data, length)
+#         return core.encode_signed_integer(data, length)
+        return decoding.encodeInt(data, length)
 
 
 #===============================================================================
 
+@element
 class UIntegerElement(IntegerElement):
     """ Base class for an EBML unsigned integer element. Schema-specific
         subclasses are generated when a `Schema` is loaded.
@@ -283,17 +311,19 @@ class UIntegerElement(IntegerElement):
         """ Type-specific helper function for parsing the element's payload.
             It is assumed the file pointer is at the start of the payload.
         """
-        return read_unsigned_integer(stream, size)
+        return readUInt(stream, size)
 
 
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for unsigned integer elements. """
-        return core.encode_unsigned_integer(data, length)
+#         return core.encode_unsigned_integer(data, length)
+        return decoding.encodeUInt(data, length)
 
 
 #===============================================================================
 
+@element
 class FloatElement(Element):
     """ Base class for an EBML floating point element. Schema-specific
         subclasses are generated when a `Schema` is loaded.
@@ -306,17 +336,19 @@ class FloatElement(Element):
         """ Type-specific helper function for parsing the element's payload. 
             It is assumed the file pointer is at the start of the payload.
         """
-        return read_float(stream, size)
+        return readFloat(stream, size)
 
 
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for floating point elements. """
-        return core.encode_float(data, length)
+#         return core.encode_float(data, length)
+        return decoding.encodeFloat(data, length)
 
 
 #===============================================================================
 
+@element
 class StringElement(Element):
     """ Base class for an EBML ASCII string element. Schema-specific
         subclasses are generated when a `Schema` is loaded.
@@ -328,18 +360,20 @@ class StringElement(Element):
         """ Type-specific helper function for parsing the element's payload. 
             It is assumed the file pointer is at the start of the payload.
         """
-        return read_string(stream, size)
+        return readString(stream, size)
 
 
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for ASCII string elements. """
-        return core.encode_string(data, length)
+#         return core.encode_string(data, length)
+        return decoding.encodeString(data, length)
 
 
 
 #===============================================================================
 
+@element
 class UnicodeElement(StringElement):
     """ Base class for an EBML UTF-8 string element. Schema-specific subclasses
         are generated when a `Schema` is loaded.
@@ -351,17 +385,19 @@ class UnicodeElement(StringElement):
         """ Type-specific helper function for parsing the element's payload. 
             It is assumed the file pointer is at the start of the payload.
         """
-        return read_unicode_string(stream, size)
+        return readUnicode(stream, size)
 
 
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for Unicode string elements. """
-        return core.encode_unicode_string(data, length)
+#         return core.encode_unicode_string(data, length)
+        return decoding.encodeUnicode(data, length)
 
 
 #===============================================================================
 
+@element
 class DateElement(IntegerElement):
     """ Base class for an EBML 'date' element. Schema-specific subclasses are
         generated when a `Schema` is loaded.
@@ -373,18 +409,20 @@ class DateElement(IntegerElement):
         """ Type-specific helper function for parsing the element's payload. 
             It is assumed the file pointer is at the start of the payload.
         """
-        return read_date(stream, size)
+        return readDate(stream, size)
 
 
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for date elements. """
-        return core.encode_date(data, length)
+#         return core.encode_date(data, length)
+        return decoding.encodeDate(data, length)
 
 
 
 #===============================================================================
 
+@element
 class BinaryElement(Element):
     """ Base class for an EBML 'binary' element. Schema-specific subclasses are
         generated when a `Schema` is loaded.
@@ -435,6 +473,7 @@ class UnknownElement(Element):
 
 #===============================================================================
 
+@element
 class MasterElement(Element):
     """ Base class for an EBML 'master' element, a container for other
         elements.
@@ -455,8 +494,8 @@ class MasterElement(Element):
             (this element's position + size).
         """
         offset = stream.tell()
-        eid, idlen = read_element_id(stream)
-        esize, sizelen = read_element_size(stream)
+        eid, idlen = readElementID(stream)
+        esize, sizelen = readElementSize(stream)
         payloadOffset = offset + idlen + sizelen
 
         try:
@@ -829,7 +868,7 @@ class Schema(object):
         'binary': BinaryElement,
         'master': MasterElement,
     }
-
+    
 
     def __init__(self, source, name=None):
         """ Constructor. Creates a new Schema from a schema description XML.
@@ -853,7 +892,7 @@ class Schema(object):
         
         # Parse. 
         schema = ET.parse(source)
-        self._parseSchema(schema)
+        self._parseLegacySchema(schema)
 
         # Special case: `Void` is a standard EBML element, but not its own
         # type (it's technically binary). Use the special `VoidElement` type.
@@ -873,7 +912,7 @@ class Schema(object):
                              {'schema': self})
 
     
-    def _parseSchema(self, schema):
+    def _parseLegacySchema(self, schema):
         """ Parse a python-ebml schema XML file. Isolated from `__init__()` for
             future alternative schema format.
         """
@@ -896,6 +935,8 @@ class Schema(object):
         
             self.addElement(eid, ename, etype, multiple, mandatory, length, 
                             precache, attribs)
+
+        
         
 
     def addElement(self, eid, ename, etype, multiple=True, mandatory=False,
@@ -1159,6 +1200,7 @@ def loadSchema(filename, reload=False, **kwargs):
 #
 #===============================================================================
 
+
 # TEST
 schemaFile = os.path.join(os.path.dirname(__file__), r"ebml\schema\mide.xml")
 testFile = 'test_recordings/5kHz_Full.IDE'
@@ -1184,7 +1226,7 @@ def testOld():
 def testNew():
     total = 0
     t0 = clock()
-    schema = Schema(schemaFile)
+    schema = loadSchema('mide.xml')
     with open(testFile, 'rb') as f:
         doc = schema.load(f)
         for el in doc.iterroots():
