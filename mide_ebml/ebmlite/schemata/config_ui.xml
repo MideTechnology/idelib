@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Schema type="mide" version="2" readversion="2">
+<Schema type="mide.ss.config" version="2" readversion="2">
+    <SchemaInfo>
+        <Author></Author>
+        <Description></Description>
+    </SchemaInfo>
+
     <!-- Base EBML elements. Required. -->
     <MasterElement name="EBML" id="0x1A45DFA3" mandatory="1" multiple="1" minver="1">Set the EBML characteristics of the data to follow. Each EBML document has to start with this.
         <UIntegerElement name="EBMLVersion" id="0x4286" mandatory="1" default="1" minver="1">The version of EBML parser used to create the file.</UIntegerElement>
@@ -55,11 +60,12 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UnicodeElement name="Units" id="0x5025" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
                 <UIntegerElement name="UIntMin" id="0x5111" multiple="0"></UIntegerElement>
                 <UIntegerElement name="UIntMax" id="0x5121" multiple="0"></UIntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
+                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
                 <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
             </MasterElement>
 
@@ -71,10 +77,11 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <IntegerElement name="IntMin" id="0x5112" multiple="0"></IntegerElement>
                 <IntegerElement name="IntMax" id="0x5122" type="integer" multiple="0"></IntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <UIntegerElement name="IntIncrement" id="0x5131" multiple="0"></UIntegerElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
+                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
                 <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
             </MasterElement>
 
@@ -86,10 +93,12 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <FloatElement name="FloatMin" id="0x5113" multiple="0"></FloatElement>
                 <FloatElement name="FloatMax" id="0x5123" multiple="0"></FloatElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
                 <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
+                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
+                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
             </MasterElement>
 
             <MasterElement name="ASCIIField" level="-1" id="0x4004" multiple="1">
@@ -97,14 +106,14 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
-                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
                 <UIntegerElement name="MaxLength" id="0x5124" multiple="0"></UIntegerElement>
                 <UIntegerElement name="TextLines" id="0x5134" multiple="0"></UIntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
             <MasterElement name="TextField" level="-1" id="0x4005" multiple="1">
@@ -112,13 +121,14 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
-                <UnicodeElement name="TextValue" id="0x5105" multiple="0"></UnicodeElement>
                 <UIntegerElement name="MaxLength" id="0x5124" multiple="0"></UIntegerElement>
                 <UIntegerElement name="TextLines" id="0x5134" multiple="0"></UIntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
+                <UnicodeElement name="TextValue" id="0x5105" multiple="0"></UnicodeElement>
+                <StringElement name="ASCIIValue" />
                 <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
                 <FloatElement name="FloatValue" />
             </MasterElement>
 
@@ -128,21 +138,22 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UnicodeElement name="Units" id="0x5025" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
-                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
                 <MasterElement name="EnumOption" level="-1" id="0x4107" multiple="1">
                     <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                     <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
-                    <UnicodeElement name="TextValue" id="0x5105" multiple="0"></UnicodeElement>
-                    <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
-                    <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                    <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                    <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
                     <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                    <UnicodeElement name="TextValue" />
+                    <StringElement name="ASCIIValue" />
+                    <IntegerElement name="IntValue" />
+                    <UIntegerElement name="UIntValue" />
+                    <FloatElement name="FloatValue" />
                 </MasterElement>
             </MasterElement>
 
@@ -153,10 +164,11 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
-                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
             <MasterElement name="UTCOffsetField" level="-1" id="0x4023" multiple="1">
@@ -166,10 +178,11 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
-                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
             <!--
@@ -192,12 +205,13 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UnicodeElement name="Units" id="0x5025" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
                 <UIntegerElement name="UIntMin" id="0x5111" multiple="0"></UIntegerElement>
                 <UIntegerElement name="UIntMax" id="0x5121" multiple="0"></UIntegerElement>
-                <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
-                <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
             <MasterElement name="CheckIntField" level="-1" id="0x4012" multiple="1">
@@ -208,11 +222,14 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <IntegerElement name="IntMin" id="0x5112" multiple="0"></IntegerElement>
                 <IntegerElement name="IntMax" id="0x5122" type="integer" multiple="0"></IntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <UIntegerElement name="IntIncrement" id="0x5131" multiple="0"></UIntegerElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
             <MasterElement name="CheckFloatField" level="-1" id="0x4013" multiple="1">
@@ -223,10 +240,14 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <FloatElement name="FloatMin" id="0x5113" multiple="0"></FloatElement>
                 <FloatElement name="FloatMax" id="0x5123" multiple="0"></FloatElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
                 <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
             <MasterElement name="CheckASCIIField" level="-1" id="0x4014" multiple="1">
@@ -234,14 +255,15 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
-                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
                 <UIntegerElement name="MaxLength" id="0x5124" multiple="0"></UIntegerElement>
                 <UIntegerElement name="TextLines" id="0x5134" multiple="0"></UIntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
             <MasterElement name="CheckTextField" level="-1" id="0x4015" multiple="1">
@@ -249,13 +271,15 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
-                <UnicodeElement name="TextValue" id="0x5105" multiple="0"></UnicodeElement>
                 <UIntegerElement name="MaxLength" id="0x5124" multiple="0"></UIntegerElement>
                 <UIntegerElement name="TextLines" id="0x5134" multiple="0"></UIntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
                 <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
                 <FloatElement name="FloatValue" />
             </MasterElement>
 
@@ -265,20 +289,21 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UnicodeElement name="Units" id="0x5025" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
-                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <MasterElement name="EnumOption" level="-1" id="0x4107" multiple="1">
                     <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                     <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
-                    <UnicodeElement name="TextValue" id="0x5105" multiple="0"></UnicodeElement>
-                    <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
-                    <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                    <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                    <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                    <UnicodeElement name="TextValue" />
+                    <StringElement name="ASCIIValue" />
+                    <IntegerElement name="IntValue" />
+                    <UIntegerElement name="UIntValue" />
+                    <FloatElement name="FloatValue" />
                     <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 </MasterElement>
             </MasterElement>
@@ -290,10 +315,11 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
-                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
             <MasterElement name="CheckUTCOffsetField" level="-1" id="0x4033" multiple="1">
@@ -303,10 +329,11 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
-                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
 
@@ -314,11 +341,11 @@
                 <UIntegerElement name="ConfigID" id="0x5001" multiple="0"></UIntegerElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0">For hidden fields, this determines if the config item will be written.</StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
-                <StringElement name="ASCIIValue" id="0x5104" multiple="0"></StringElement>
-                <UnicodeElement name="TextValue" id="0x5105" multiple="0"></UnicodeElement>
-                <UIntegerElement name="UIntValue" id="0x5101" multiple="0"></UIntegerElement>
-                <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
-                <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
+                <UnicodeElement name="TextValue" />
+                <StringElement name="ASCIIValue" />
+                <IntegerElement name="IntValue" />
+                <UIntegerElement name="UIntValue" />
+                <FloatElement name="FloatValue" />
             </MasterElement>
 
             <MasterElement name="CheckDriftButton" level="-1" id="0x400F" multiple="0">Special-case control that compares device time to system time.</MasterElement>
@@ -347,12 +374,13 @@
             <MasterElement name="CheckDateTimeField" />
             <MasterElement name="CheckUTCOffsetField" />
             <MasterElement name="HiddenField" />
-            <<MasterElement name="CheckDriftButton" />
+            <MasterElement name="CheckDriftButton" />
         </MasterElement>
 
 
     </MasterElement> <!-- Tab -->
 
+    <!-- Special-case Tabs. These do no require child elements. -->
     <MasterElement name="FactoryCalibrationTab" level="-1" id="0x4A08" multiple="1"></MasterElement>
     <MasterElement name="UserCalibrationTab" level="-1" id="0x4A28" multiple="1"></MasterElement>
     <MasterElement name="DeviceInfoTab" level="-1" id="0x4A48" multiple="1"></MasterElement>

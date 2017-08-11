@@ -53,9 +53,9 @@ UNKNOWN = -1 # not in python-ebml
 # SCHEMA_PATH: A list of paths for schema XML files, similar to `sys.path`.
 SCHEMA_PATH = ['', 
                os.path.realpath(os.path.dirname(schemata.__file__)),
-               os.path.realpath(os.path.join(os.path.dirname(encoding.__file__), '../ebml/schema')), # XXX: TEST, REMOVE.
+               # XXX: TEST, REMOVE NEXT LINE.
+               os.path.realpath(os.path.join(os.path.dirname(encoding.__file__), '../ebml/schema')), 
                ]
-
 
 # SCHEMATA: A dictionary of loaded schemata, keyed by filename. Used by
 # `loadSchema`. In most cases, SCHEMATA should not be otherwise modified.
@@ -442,12 +442,13 @@ class VoidElement(BinaryElement):
 
 #===============================================================================
 
-class UnknownElement(Element):
+class UnknownElement(BinaryElement):
     """ Special case ``Unknown`` element, used for elements with IDs not present
         in a schema. Unlike other elements, each instance has its own ID. 
     """
     type = UNKNOWN
     name = "UnknownElement"
+    precache = False
 
     def __eq__(self, other):
         """ Equality check. Unknown elements are considered equal if they have
@@ -492,6 +493,7 @@ class MasterElement(Element):
         payloadOffset = offset + idlen + sizelen
 
         try:
+            # TODO: Enforce structure dictated by the schema
             etype = self.schema.elements[eid]
             el = etype(stream, offset, esize, payloadOffset)
         except KeyError:
@@ -609,6 +611,7 @@ class MasterElement(Element):
                 result[el.name] = el.dump()
         return result
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -684,7 +687,8 @@ class Document(MasterElement):
     def __iter__(self):
         """ Iterate root elements.
         """
-        # TODO: Cache root elements, prevent unnecessary duplicates.
+        # TODO: Cache root elements, prevent unnecessary duplicates. Maybe a 
+        # dict keyed by offset?
         pos = self.payloadOffset
         while True:
             self.stream.seek(pos)
@@ -705,7 +709,7 @@ class Document(MasterElement):
     @property
     def roots(self):
         """ The document's root elements. For python-ebml compatibility.
-            Using this is not recommended.
+            Using this is not recommended; consider iterating instead.
         """
         return list(self)
 
@@ -920,7 +924,7 @@ class Schema(object):
             
             eid = int(attribs['id'],16) if 'id' in attribs else None
             ename = attribs['name'].strip() if 'name' in attribs else None
-            etype = self.attribs['type'].strip() if 'type' in attribs else None
+            etype = attribs['type'].strip() if 'type' in attribs else None
 
             # Use text in the element as its docstring. Note: embedded HTML tags
             # (as in the Matroska schema) will cause the text to be truncated.
