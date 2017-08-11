@@ -6,13 +6,10 @@ Created on Apr 27, 2017
 
 @todo: Remove benchmarking code from end of script.
 @todo: Unit tests.
-@todo: Refactor other code and remove python-ebml compatibility cruft.
 @todo: Complete EBML encoding, making it a full replacement for python-ebml.
     Specifically, make 'master' elements write directly to the stream, rather 
     than build bytearrays, so huge 'master' elements can be handled.
-@todo: New schema format, getting further away from python-ebml. 
-@todo: Validation. Extract valid child element info from the schema. Do after
-    new schema format.
+@todo: Validation. Enforce hierarchy defined in new schema format.
 @todo: Proper support for 'infinite' Documents (i.e `size` is `None`).
 @todo: Document-wide caching, for future handling of streamed data.
 @todo: Utilities for conversion to/from XML, etc.
@@ -21,13 +18,11 @@ Created on Apr 27, 2017
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
-__all__ = ['BinaryElement', 'DateElement', 
-           'Document', 'Element', 'FloatElement', 
-           'IntegerElement', 'MasterElement',  
-           'Schema', 'StringElement', 'UIntegerElement', 
-           'UnicodeElement', 'UnknownElement', 'VoidElement',
-           'loadSchema', 'INT','UINT','FLOAT','STRING','UNICODE','DATE',
-           'BINARY','CONTAINER','UNKNOWN']
+__all__ = ['BinaryElement', 'DateElement', 'Document', 'Element', 
+           'FloatElement', 'IntegerElement', 'MasterElement', 'Schema', 
+           'StringElement', 'UIntegerElement','UnicodeElement', 
+           'UnknownElement', 'VoidElement', 'loadSchema', 'INT','UINT',
+           'FLOAT','STRING','UNICODE','DATE', 'BINARY','CONTAINER','UNKNOWN']
 
 from collections import OrderedDict
 from datetime import datetime
@@ -36,19 +31,11 @@ import os.path
 from StringIO import StringIO
 from xml.etree import ElementTree as ET
 
-# TODO: Remove all this
-import sys
-sys.path.insert(0,'..')
-# from ebml import core 
-# from ebml.core import read_element_id, read_element_size 
-# from ebml.core import read_float, read_signed_integer, read_unsigned_integer 
-# from ebml.core import read_date, read_string, read_unicode_string 
-# import ebml.schema
-
 from decoding import readElementID, readElementSize
 from decoding import readFloat, readInt, readUInt, readDate
 from decoding import readString, readUnicode
-import decoding
+import encoding
+import schemata
 
 #===============================================================================
 #
@@ -65,9 +52,10 @@ UNKNOWN = -1 # not in python-ebml
 
 # SCHEMA_PATH: A list of paths for schema XML files, similar to `sys.path`.
 SCHEMA_PATH = ['', 
-#                os.path.join(os.path.dirname(__file__), 'schemata'),
-               os.path.realpath(os.path.join(os.path.dirname(decoding.__file__), '../ebml/schema')), # XXX: TEST, REMOVE.
+               os.path.realpath(os.path.dirname(schemata.__file__)),
+               os.path.realpath(os.path.join(os.path.dirname(encoding.__file__), '../ebml/schema')), # XXX: TEST, REMOVE.
                ]
+
 
 # SCHEMATA: A dictionary of loaded schemata, keyed by filename. Used by
 # `loadSchema`. In most cases, SCHEMATA should not be otherwise modified.
@@ -78,9 +66,13 @@ SCHEMATA = {}
 # 
 #===============================================================================
 
+# Dictionary of all EBML element type base classes. The `@element` decorator
+# adds classes to it.
 _ELEMENT_TYPES = {}
 
 def element(cls):
+    """ Decorator for gathering EBML element base classes.
+    """
     _ELEMENT_TYPES[cls.__name__] = cls
     return cls
 
@@ -230,8 +222,8 @@ class Element(object):
 #             return core.encode_unicode_string(data, length)
 #         return core.encode_string(bytearray(data), length)
         if isinstance(data, basestring):
-            return decoding.encodeUnicode(data, length)
-        return decoding.encodeString(bytearray(data), length)
+            return encoding.encodeUnicode(data, length)
+        return encoding.encodeString(bytearray(data), length)
          
      
     @classmethod
@@ -261,8 +253,8 @@ class Element(object):
         length = length or len(payload)
 #         encId = core.encode_element_id(cls.id) 
 #         return encId + core.encode_element_size(length, lengthSize) + payload
-        encId = decoding.encodeId(cls.id) 
-        return encId + decoding.encodeSize(length, lengthSize) + payload
+        encId = encoding.encodeId(cls.id) 
+        return encId + encoding.encodeSize(length, lengthSize) + payload
         
 
     def dump(self):
@@ -293,7 +285,7 @@ class IntegerElement(Element):
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for signed integer elements. """
 #         return core.encode_signed_integer(data, length)
-        return decoding.encodeInt(data, length)
+        return encoding.encodeInt(data, length)
 
 
 #===============================================================================
@@ -318,7 +310,7 @@ class UIntegerElement(IntegerElement):
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for unsigned integer elements. """
 #         return core.encode_unsigned_integer(data, length)
-        return decoding.encodeUInt(data, length)
+        return encoding.encodeUInt(data, length)
 
 
 #===============================================================================
@@ -343,7 +335,7 @@ class FloatElement(Element):
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for floating point elements. """
 #         return core.encode_float(data, length)
-        return decoding.encodeFloat(data, length)
+        return encoding.encodeFloat(data, length)
 
 
 #===============================================================================
@@ -367,7 +359,7 @@ class StringElement(Element):
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for ASCII string elements. """
 #         return core.encode_string(data, length)
-        return decoding.encodeString(data, length)
+        return encoding.encodeString(data, length)
 
 
 
@@ -392,7 +384,7 @@ class UnicodeElement(StringElement):
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for Unicode string elements. """
 #         return core.encode_unicode_string(data, length)
-        return decoding.encodeUnicode(data, length)
+        return encoding.encodeUnicode(data, length)
 
 
 #===============================================================================
@@ -416,7 +408,7 @@ class DateElement(IntegerElement):
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for date elements. """
 #         return core.encode_date(data, length)
-        return decoding.encodeDate(data, length)
+        return encoding.encodeDate(data, length)
 
 
 
@@ -455,6 +447,7 @@ class UnknownElement(Element):
         in a schema. Unlike other elements, each instance has its own ID. 
     """
     type = UNKNOWN
+    name = "UnknownElement"
 
     def __eq__(self, other):
         """ Equality check. Unknown elements are considered equal if they have
@@ -927,7 +920,12 @@ class Schema(object):
             
             eid = int(attribs['id'],16) if 'id' in attribs else None
             ename = attribs['name'].strip() if 'name' in attribs else None
-            etype = attribs['type'].strip() if 'type' in attribs else None
+            etype = self.attribs['type'].strip() if 'type' in attribs else None
+
+            # Use text in the element as its docstring. Note: embedded HTML tags
+            # (as in the Matroska schema) will cause the text to be truncated.
+            docs = el.text.strip() if isinstance(el.text, basestring) else None
+            
 
             if etype is None:
                 raise ValueError('Element "%s" (ID 0x%02X) missing required '
@@ -937,9 +935,8 @@ class Schema(object):
                 raise ValueError("Unknown type for element %r (ID 0x%02x): %r" %
                                  (ename, eid, etype))
             
-            etype = self.ELEMENT_TYPES[etype] 
-            
-            self.addElement(eid, ename, etype, attribs)
+            self.addElement(eid, ename, self.ELEMENT_TYPES[etype], attribs, 
+                            docs=docs)
 
 
     def _parseSchema(self, el, parent=None):
@@ -961,18 +958,22 @@ class Schema(object):
         attribs = el.attrib.copy()
         eid = int(attribs['id'],16) if 'id' in attribs else None
         ename = attribs['name'].strip() if 'name' in attribs else None
+        
+        # Use text in the element as its docstring. Note: embedded HTML tags
+        # (as in the Matroska schema) will cause the text to be truncated.
+        docs = el.text.strip() if isinstance(el.text, basestring) else None
+        
         baseClass = _ELEMENT_TYPES[el.tag]
 
-        cls = self.addElement(eid, ename, baseClass, attribs, parent)
+        cls = self.addElement(eid, ename, baseClass, attribs, parent, docs)
         
         if baseClass is MasterElement:
             for chEl in el.getchildren():
                 self._parseSchema(chEl, cls)
-        
-        
+                
 
-    def addElement(self, eid, ename, baseClass, attribs={}, 
-                   parent=None):
+    def addElement(self, eid, ename, baseClass, attribs={}, parent=None,
+                   docs=None):
         """ Create a new `Element` subclass and add it to the schema. 
         
             Duplicate elements are permitted (e.g. if one kind of element can 
@@ -996,70 +997,78 @@ class Schema(object):
             @keyword attribs: A dictionary of raw element attributes, as read
                 from the schema file.
         """
-        def _bool(v, default=False):
-            try:
-                return str(v).strip()[0] in 'Tt1'
-            except (TypeError, IndexError, ValueError):
-                return default
-            
-        parent = parent or self
-
-        mandatory = _bool(attribs.get('mandatory', False))
-        multiple = _bool(attribs.get('multiple', True))
-        precache = _bool(attribs['precache']) if 'precache' in attribs else None
-        length = int(attribs['length']) if 'length' in attribs else None
-        level = attribs.get('level')
-
-        # Duplicate elements are permitted, for defining a child element
-        # that can appear as a child to multiple master elements. Additional
-        # definitions only need to specify the element ID or name.
-        if ename in self.elementIds:
-            eid = eid or self.elementIds[ename].id
         
-        if eid in self.elements:
-            # Already appeared in schema. Duplicates are permitted, so long
-            # as they have the same attributes. Second appearance may 
-            # omit everything the ID and/or the name.
-            oldEl = self.elements[eid]
+        def _getBool(d, k, default):
+            " Helper function to get a dictionary value cast to bool. "
+            try:
+                return str(d[k]).strip()[0] in 'Tt1'
+            except (KeyError, TypeError, IndexError, ValueError):
+                pass
+            return default
+
+        def _getInt(d, k, default):
+            " Helper function to get a dictionary value cast to int. "
+            try:
+                return int(d[k].strip())
+            except (KeyError, TypeError, ValueError):
+                pass
+            return default
+        
+        if eid in self.elements or ename in self.elementIds:
+            # Already appeared in schema. Duplicates are permitted, for 
+            # defining a child element that can appear as a child to multiple 
+            # master elements, so long as they have the same attributes. 
+            # Additional definitions only need to specify the element ID and/or
+            # element name.
+            oldEl = self[ename or eid]
+            ename = oldEl.name
+            eid = oldEl.id
+            
             if not issubclass(self.elements[eid], baseClass):
-                raise TypeError('%s %r (ID 0x%02X) redefined with '
-                                'as %s' % (oldEl.__name__, ename, 
-                                           eid, baseClass.__name__))
+                raise TypeError('%s %r (ID 0x%02X) redefined as %s' %
+                                (oldEl.__name__, ename, eid, baseClass.__name__))
+                
             newatts = self.elementInfo[eid].copy()
             newatts.update(attribs)
             if self.elementInfo[eid] == newatts:
-                # TODO: Update hierarchy information. Not currently used.
-                return oldEl
+                eclass = self.elements[eid]
             else:
                 raise TypeError('Element %r (ID 0x%02X) redefined with '
                                 'different attributes' % (ename, eid))
+        else:
+            # New element class. It requires both a name and an ID.
+            if eid is None:
+                raise ValueError('Element definition missing required '
+                                 '"id" attribute')
+            elif ename is None:
+                raise ValueError('Element ID 0x%02X missing required '
+                                 '"name" attribute' % eid)
+    
+            mandatory = _getBool(attribs, 'mandatory', False)
+            multiple = _getBool(attribs, 'multiple', True)
+            precache = _getBool(attribs, 'precache', baseClass.precache)
+            length = _getInt(attribs, 'length', None)
+            level = _getInt(attribs, 'level', None)
+            
+            # Create a new Element subclass
+            eclass = type('%sElement' % ename, (baseClass,),
+                          {'id':eid, 'name':ename, 'schema':self,
+                           'mandatory': mandatory, 'multiple': multiple, 
+                           'precache': precache, 'length':length,
+                           'children': dict(), '__doc__': docs})
+                             
+            self.elements[eid] = eclass
+            self.elementInfo[eid] = attribs
+            self.elementIds[ename] = eclass
         
-        # Mandatory element attributes
-        if eid is None:
-            raise ValueError('Element definition missing required '
-                             '"id" attribute')
-        elif ename is None:
-            raise ValueError('Element ID 0x%02X missing required '
-                             '"name" attribute' % eid)
-
-        precache = baseClass.precache if precache is None else precache
-        
-        # Create a new Element subclass
-        eclass = type('%sElement' % ename, (baseClass,),
-                      {'id':eid, 'name':ename, 'schema':self,
-                       'mandatory': mandatory, 'multiple': multiple, 
-                       'precache': precache, 'length':length,
-                       'children': dict()})
-         
-        self.elements[eid] = eclass
-        self.elementInfo[eid] = attribs
-        self.elementIds[ename] = eclass
-        
+            # Element 'level'. EBMLite schemata explicitly define the hierarchy
+            # (i.e. what elements are valid children), so only the value -1 has
+            # any meaning: level -1 elements can appear anywhere in the file. 
+            if level == -1:
+                self.globals[eid] = eclass
+                
+        parent = parent or self
         parent.children[eid] = eclass
-        
-        if level == "-1":
-            self.globals[eid] = eclass
-        
         return eclass
         
 
@@ -1082,18 +1091,16 @@ class Schema(object):
 
 
     def __contains__(self, key):
+        """ Does the Schema contain a given element name or ID? """
         return (key in self.elementIds) or (key in self.elements)
     
     
     def __getitem__(self, key):
-        if isinstance(key, basestring):
+        """ Get an Element class from the schema, by name or by ID. """
+        try:
+            self.elements[key]
+        except KeyError:
             return self.elementIds[key]
-        return self.elements[key]
-
-    
-#     @property
-#     def children(self):
-#         return self.elements.values()
 
 
     def load(self, fp, name=None):
@@ -1206,6 +1213,7 @@ class Schema(object):
 # 
 #===============================================================================
 
+# Global dictionary of imported schemata, for caching by `loadSchema()`.
 SCHEMATA = {}
 
 def loadSchema(filename, reload=False, **kwargs):
@@ -1247,7 +1255,6 @@ def loadSchema(filename, reload=False, **kwargs):
 #===============================================================================
 #
 #===============================================================================
-
 
 # TEST
 schemaFile = os.path.join(os.path.dirname(__file__), r"ebml\schema\mide.xml")
