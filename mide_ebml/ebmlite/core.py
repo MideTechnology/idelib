@@ -12,7 +12,7 @@ Created on Apr 27, 2017
 @todo: Validation. Enforce hierarchy defined in new schema format.
 @todo: Proper support for 'infinite' Documents (i.e `size` is `None`).
 @todo: Document-wide caching, for future handling of streamed data.
-@todo: Utilities for conversion to/from XML, etc.
+@todo: Clean up and standardize usage of the term 'size' versus 'length.'
 '''
 
 __author__ = "dstokes"
@@ -58,7 +58,7 @@ SCHEMA_PATH = ['',
                ]
 
 # SCHEMATA: A dictionary of loaded schemata, keyed by filename. Used by
-# `loadSchema`. In most cases, SCHEMATA should not be otherwise modified.
+# `loadSchema()`. In most cases, SCHEMATA should not be otherwise modified.
 SCHEMATA = {}
 
 
@@ -218,12 +218,7 @@ class Element(object):
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder. """
-#         if isinstance(data, basestring):
-#             return core.encode_unicode_string(data, length)
-#         return core.encode_string(bytearray(data), length)
-        if isinstance(data, basestring):
-            return encoding.encodeUnicode(data, length)
-        return encoding.encodeString(bytearray(data), length)
+        return encoding.encodeBinary(data, length)
          
      
     @classmethod
@@ -493,7 +488,8 @@ class MasterElement(Element):
         payloadOffset = offset + idlen + sizelen
 
         try:
-            # TODO: Enforce structure dictated by the schema
+            # TODO: Enforce structure dictated by the schema by using only the
+            # elements that are children of this one, or are 'global.' 
             etype = self.schema.elements[eid]
             el = etype(stream, offset, esize, payloadOffset)
         except KeyError:
@@ -1216,9 +1212,6 @@ class Schema(object):
 #===============================================================================
 # 
 #===============================================================================
-
-# Global dictionary of imported schemata, for caching by `loadSchema()`.
-SCHEMATA = {}
 
 def loadSchema(filename, reload=False, **kwargs):
     """ Import a Schema XML file. Loading the same file more than once will

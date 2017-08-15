@@ -92,7 +92,6 @@
 			<!-- NOTE: Several of the RecorderInfo tags are pulled from the Manifest and regurgitated here with a new tag ID to comply with this schema. -->
 			<element name="RecorderTypeUID" level="2" id="0x5211" type="uinteger" mandatory="0" multiple="0" minver="1">Unique Type ID assigned to each recorder variation. May be used to lookup remaining RecordingProperties when streaming.</element>
 			<element name="RecorderSerial" level="2" id="0x5212" type="uinteger" mandatory="0" multiple="0" minver="1">Recorder unique serial number</element>
-			<element name="SchemaID" level="2" id="0x5213" type="uinteger" mandatory="0" multiple="0" minver="1">ID referencing Schema in use by recorder</element>
 			<element name="ProductName" level="2" id="0x5214" type="string" mandatory="0" multiple="0" minver="1">Product designation of the recording device</element>
 			<element name="UserDeviceName" level="2" id="0x5215" type="string" mandatory="0" multiple="0" minver="1">Text name of this recorder, if any. Probably set by the user.</element>
 			<element name="HwRev" level="2" id="0x5216" type="uinteger" mandatory="0" multiple="0" minver="1">Hardware revision level</element>
