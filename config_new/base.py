@@ -21,6 +21,7 @@ import wx.lib.scrolledpanel as SP
 import wx.lib.sized_controls as SC
 
 from widgets.shared import DateTimeCtrl
+from common import makeWxDateTime
 
 from mide_ebml.ebmlite import loadSchema
 
@@ -147,6 +148,7 @@ class TextValidator(wx.PyValidator):
         elif not wx.Validator_IsSilent():
             wx.Bell()
     
+    
 #===============================================================================
 # 
 #===============================================================================
@@ -205,10 +207,14 @@ class ConfigContainer(object):
         self.root = root
     
     
-    def __getitem__(self, k, default=None):
+    def get(self, k, default=None):
         if k in self.root.configItems:
             return self.root.configItems[k].getDisplayValue()
         return default
+
+
+    def __getitem__(self, k):
+        return self.root.configItems[k].getDisplayValue()
 
 
     def __contains__(self, k):
@@ -270,7 +276,7 @@ class ConfigBase(object):
     # a *Value element.
     DEFAULT_TYPE = None
     
-    # Default expression code objects for 
+    # Default expression code objects for DisableIf, ValueFormat, DisplayFormat
     noEffect = compile("x", "<ConfigBase.noEffect>", "eval")
     noValue = compile("None", "<ConfigBase.noValue>", "eval")
     
@@ -280,9 +286,13 @@ class ConfigBase(object):
             object that can later be used with `eval()`. Used internally.
         """
         if val is None:
+            # Value is unmodified (e.g. it matches the config item's type)
             return self.noEffect
         if val is '':
+            # Always `None` (e.g. the field is used to calculate a different
+            # config item, not a config item itself)
             return self.noValue
+        
         try:
             return compile(val, "<ConfigBase.makeExpression>", "eval")
         except SyntaxError as err:
@@ -326,17 +336,23 @@ class ConfigBase(object):
                     if fnmatch(el.name, k):
                         setattr(self, v, el.value)
 
+        # If the ValueFormat is an empty string, this item does not write
+        # to the config file, so its valueType is None.
+        if self.valueFormat == '':
+            self.valueType = None
+        elif self.valueType is not None:
+            self.valueType = element.schema[self.valueType]
+
         # Default expressions for converting values between native and display
+        # These are compiled code objects for use with `eval()`.
         self.displayFormat = self.makeExpression(self.displayFormat)
         self.valueFormat = self.makeExpression(self.valueFormat)
         
         # Add this item to the root's dictionary of config items
         if self.configId is not None and self.root is not None:
             self.root.configItems[self.configId] = self
-
-        # Function to cast 
-        self.valueCaster = DATA_TYPES.get(self.valueType, castToSame)
-            
+        
+        self.expressionVariables = self.root.expresionVariables.copy()
 
 
     def isEnabled(self):
@@ -345,7 +361,7 @@ class ConfigBase(object):
         """
         if self.disableIf is None:
             return True
-        return not eval(self.disableIf, {'config': self.root.config})
+        return not eval(self.disableIf, self.expressionVariables)
         
     
     def getDisplayValue(self):
@@ -358,8 +374,8 @@ class ConfigBase(object):
         """
         """
         # TODO: Handle errors
-        return eval(self.valueFormat, {'x': self.getDisplayValue(),
-                                       'Config': self.root.configValues})
+        self.expressionVariables['x'] = self.getDisplayValue()
+        return eval(self.valueFormat, self.expressionVariables)
 
 
 class ConfigWidget(wx.Panel, ConfigBase):
@@ -430,12 +446,12 @@ class ConfigWidget(wx.Panel, ConfigBase):
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         if self.CHECK:
             self.checkbox = wx.CheckBox(self, -1, self.label or '')
-            label = self.checkbox
+            self.labelWidget = self.checkbox
             self.sizer.Add(self.checkbox, 2, wx.ALIGN_CENTER_VERTICAL)
         else:
             self.checkbox = None
-            label = wx.StaticText(self, -1, self.label or '')
-            self.sizer.Add(label, 2, wx.ALIGN_CENTER_VERTICAL)
+            self.labelWidget = wx.StaticText(self, -1, self.label or '')
+            self.sizer.Add(self.labelWidget, 2, wx.ALIGN_CENTER_VERTICAL)
         
         self.addField()
         
@@ -448,7 +464,7 @@ class ConfigWidget(wx.Panel, ConfigBase):
 
         if self.tooltip:
             self.SetToolTipString(self.tooltip)
-            label.SetToolTipString(self.tooltip)
+            self.labelWidget.SetToolTipString(self.tooltip)
             if self.units:
                 self.unitLabel.SetToolTipString(self.tooltip)
             if self.field is not None:
@@ -509,8 +525,14 @@ class ConfigWidget(wx.Panel, ConfigBase):
     def getDisplayValue(self):
         """ 
         """
+        if not self.isEnabled():
+            return None
+        elif self.checkbox is not None and not self.checkbox.GetValue():
+            return None
+        
         if self.field is not None:
             return self.field.GetValue()
+        
         return self.default
     
         
@@ -546,6 +568,9 @@ class BooleanField(ConfigWidget):
     def getDisplayValue(self):
         """ 
         """
+        if not self.isEnabled():
+            return None
+        
         return int(self.checkbox.GetValue())
 
 
@@ -765,9 +790,14 @@ class EnumField(ConfigWidget):
     def getDisplayValue(self):
         """ 
         """
+        if not self.isEnabled():
+            return None
+        elif self.checkbox is not None and not self.checkbox.GetValue():
+            return None
+        
         index = self.field.GetSelection()
         if index != wx.NOT_FOUND and index < len(self.options):
-            return self.options[index].value
+            return self.options[index].getDisplayValue()
         return self.default
     
     
@@ -803,14 +833,22 @@ class DateTimeField(IntField):
     """ UI widget for editing a date/time value.
     """
     DEFAULT_TYPE = "IntValue"
+    LABEL = False
     
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
-        self.field = DateTimeCtrl(self, -1)
+        h = int(1.6*self.labelWidget.GetSizeTuple()[1])
+        self.field = DateTimeCtrl(self, -1, size=(-1,h))
         self.sizer.Add(self.field, 3)
         return self.field
 
+    
+    def setRawValue(self, val, check=True):
+        if val == 0:
+            val = time.time()
+        super(DateTimeField, self).setRawValue(makeWxDateTime(val), check)
+    
 
 #===============================================================================
 
@@ -843,6 +881,7 @@ class UTCOffsetField(FloatField):
             time zone offset.
         """
 #         val = int(-time.timezone / 60 / 60) + time.daylight
+        # `time.timezone` and `time.daylight` not reliable under Windows.
         gt = time.gmtime()
         lt = time.localtime()
         val = (time.mktime(lt) - time.mktime(gt)) / 60.0 / 60.0
@@ -1088,9 +1127,7 @@ class Group(ConfigWidget):
     def enableChildren(self, enabled=True):
         """ Enable/Disable the Field's children.
         """
-        print "enableChildren", self.fields
         for f in self.fields:
-            print f
             if hasattr(f, 'Enable'):
                 f.Enable(enabled)
 
@@ -1103,6 +1140,17 @@ class Group(ConfigWidget):
             if hasattr(f, 'setToDefault'):
                 f.setToDefault(check)
 
+
+    def getDisplayValue(self):
+        """ 
+        """
+        if not self.isEnabled():
+            return None
+        elif self.checkbox is not None and not self.checkbox.GetValue():
+            return None
+        
+        return self.getConfigValue()
+        
         
 @registerField
 class CheckGroup(Group):
@@ -1231,16 +1279,23 @@ class ConfigDialog(SC.SizedDialog):
         
         self.configItems = {}
         self.configValues = ConfigContainer(self)
-        self.expresionVariables = {'Config': self.configValues}
+        
+        # Variables to be accessible by field expressions. Includes mapping
+        # None to ``null``, making the expressions less specific to Python. 
+        self.expresionVariables = {'Config': self.configValues,
+                                   'null': None}
                 
 #         self.buildUI()
         
         # XXX: HACK: Load UIHints from multiple files.
-        schema = loadSchema("config_ui.xml")
-        for f in ('General.UI', 'Triggers.UI', 'Channel.UI'):
-            self.hints = schema.load(f)
-            print f, ("*" * 40)
-            crawl(self.hints)
+        if self.hints is None:
+            schema = loadSchema("config_ui.xml")
+            for f in ('General.UI', 'Triggers.UI', 'Channel.UI'):
+                self.hints = schema.load(f)
+                print f, ("*" * 40)
+                crawl(self.hints)
+                self.buildUI()
+        else:
             self.buildUI()
         
         self.loadConfigData()
@@ -1334,11 +1389,30 @@ def crawl(el, indent=-1):
 # 
 #===============================================================================
 
+__DEBUG__ = False
+# __DEBUG__ = True
+
 if __name__ == "__main__":
     schema = loadSchema("../mide_ebml/ebml/schema/config_ui.xml")
-    testDoc = schema.load('CONFIG.UI')
-    crawl(testDoc)
+#     testDoc = schema.load('CONFIG.UI')
+#     crawl(testDoc)
+    
+    from mide_ebml.ebmlite import util
+    from StringIO import StringIO
+    s = StringIO()
+    util.xml2ebml('defaults/LOG-0002-100G.xml', s, schema)
+    s.seek(0)
+    testDoc = schema.load(s)
     
     app = wx.App()
     dlg = ConfigDialog(None, hints=testDoc)
-    dlg.ShowModal()
+    
+    if __DEBUG__:
+        import wx.py.shell
+        con = wx.py.shell.ShellFrame()
+        con.Show()
+    
+#     dlg.ShowModal()
+    dlg.Show()
+
+    app.MainLoop()

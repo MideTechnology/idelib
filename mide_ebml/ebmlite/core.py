@@ -150,8 +150,8 @@ class Element(object):
 
 
     def __repr__(self):
-        return "<%s (ID:0x%02X), offset %s>" % (self.__class__.__name__,
-                                                  self.id, self.offset)
+        return "<%s (ID:0x%02X), offset %s, size %s>" % \
+            (self.__class__.__name__, self.id, self.offset, self.size)
 
 
     def __eq__(self, other):

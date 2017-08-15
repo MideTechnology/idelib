@@ -1,6 +1,8 @@
 '''
 Module mide_ebml.ebmlite.util
 
+Some utilities for manipulating EBML documents: translate to/from XML, etc.
+
 Created on Aug 11, 2017
 
 @todo: Clean up and standardize usage of the term 'size' versus 'length.'
@@ -10,6 +12,7 @@ __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
 from base64 import b64encode, b64decode
+import sys
 from xml.etree import ElementTree as ET
 
 import core, encoding
@@ -120,7 +123,7 @@ def xmlElement2ebml(xmlEl, ebmlFile, schema, sizeLength=4, unknown=True):
     
     sl = int(xmlEl.get('sizeLength', sizeLength))
     
-    if issubclass(cls, core.MasterElement): #.type == core.CONTAINER:
+    if issubclass(cls, core.MasterElement):
         ebmlFile.write(encId)
         sizePos = ebmlFile.tell()
         ebmlFile.write(encoding.encodeSize(None, sl))
@@ -133,7 +136,7 @@ def xmlElement2ebml(xmlEl, ebmlFile, schema, sizeLength=4, unknown=True):
         ebmlFile.seek(endPos)
         return len(encId) + (endPos - sizePos)
     
-    elif issubclass(cls, core.BinaryElement): #.type == core.BINARY:
+    elif issubclass(cls, core.BinaryElement):
         val = b64decode(xmlEl.text)
     else:
         val = cls.dtype(xmlEl.get('value'))
@@ -176,13 +179,14 @@ def xml2ebml(xmlFile, ebmlFile, schema, sizeLength=4, headers=True,
     else:
         openedEbml = False
     
-    if isinstance(schema, basestring):
+    if not isinstance(schema, core.Schema):
         schema = core.loadSchema(schema)
     
     if isinstance(xmlFile, ET.Element):
-        # Already a parsed 
+        # Already a parsed XML element
         xmlRoot = xmlFile
     elif isinstance(xmlFile, ET.ElementTree):
+        # Already a parsed XML document
         xmlRoot = xmlFile.getroot()
     else:
         xmlDoc = ET.parse(xmlFile)
@@ -192,18 +196,15 @@ def xml2ebml(xmlFile, ebmlFile, schema, sizeLength=4, headers=True,
         raise NameError("XML element %s not an element or document in "
                         "schema %s (wrong schema)" % (xmlRoot.tag, schema.name))
 
-    numBytes = 0
-    
     headers = headers and 'EBML' in schema
     if headers and 'EBML' not in (el.tag for el in xmlRoot):
         pos = ebmlFile.tell()
         cls = schema.document
         ebmlFile.write(cls.encodePayload(cls._createHeaders()))
         numBytes = ebmlFile.tell() - pos
+    else:
+        numBytes = 0
 
-    # TODO: Check schema Document type vs. XML root element attributes.
-    # Need to update `ebmlite.core.Document` so it is more consistent.
-    
     if xmlRoot.tag == schema.document.__name__:
         for el in xmlRoot:
             numBytes += xmlElement2ebml(el, ebmlFile, schema, sizeLength, 
@@ -216,4 +217,31 @@ def xml2ebml(xmlFile, ebmlFile, schema, sizeLength=4, headers=True,
         ebmlFile.close()
     
     return numBytes
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def dump(el, values=True, out=sys.stdout, indent="  ", _depth=0):
+    """ Test function to recursively crawl an EBML document or element and
+        print its structure. 
+        
+        @param el: An instance of a `Document` or `Element` subclass.
+        @keyword values: If `True`, show elements' values.
+    """
+    tab = indent * _depth
+    txt = repr(el).strip("<>")
+
+    if isinstance(el, core.MasterElement):
+        out.write("%s%s\n" % (tab, txt))
+        for i in el:
+            dump(i, values, out, indent, _depth+1)
+    elif values:
+        out.write("%s%s: %r\n" % (tab, txt, el.value))
+    else:
+        out.write("%s%s\n" % (tab, txt))
+
+    out.flush()
+
 
