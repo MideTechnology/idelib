@@ -29,39 +29,30 @@
                 <ConfigID id="0x5001" value="589576"/>
                 <UIntValue id="0x5101" value="1000"/>
                 <Units id="0x5025" value="Hz"/>
-                <UIntMin id="0x5111" value="0"/>
                 <UIntMax id="0x5121" value="5000"/>
                 <ToolTip id="0x5015" value="Set this value to override default filter of one-fifth the sample frequency."/>
             </CheckUIntField>
             <CheckEnumField id="0x4017">
                 <Label id="0x5005" value="Plug-In Action"/>
                 <ConfigID id="0x5001" value="720767"/>
-                <UIntValue id="0x5101" value="0"/>
                 <ToolTip id="0x5015" value="Set action for device when plugged in to USB while recording."/>
                 <EnumOption id="0x4107">
                     <Label id="0x5005" value="Immediately stop recording and appear as USB drive"/>
-                    <UIntValue id="0x5101" value="0"/>
+<!--                    <UIntValue id="0x5101" value="0"/> -->
                 </EnumOption>
                 <EnumOption id="0x4107">
                     <Label id="0x5005" value="Complete recording before appearing as USB drive"/>
-                    <UIntValue id="0x5101" value="1"/>
+<!--                    <UIntValue id="0x5101" value="1"/> -->
                 </EnumOption>
                 <EnumOption id="0x4107">
                     <Label id="0x5005" value="Ignore: stop recording when button is pressed"/>
-                    <UIntValue id="0x5101" value="2"/>
+<!--                    <UIntValue id="0x5101" value="2"/> -->
                 </EnumOption>
             </CheckEnumField>
             <UTCOffsetField id="0x4023">
                 <Label id="0x5005" value="Local UTC Offset"/>
                 <ConfigID id="0x5001" value="786303"/>
-                <IntValue id="0x5102" value="0"/>
-                <Units id="0x5025" value="Hours"/>
-                <FloatMin id="0x5113" value="-23.0"/>
-                <FloatMax id="0x5123" value="23.0"/>
                 <ToolTip id="0x5015" value="Enter local timezone's offset from UTC time. Impacts timestamp information on recording files."/>
-                <DisplayFormat id="0x5034" value="x/3600"/>
-                <ValueFormat id="0x5024" value="x*3600"/>
-                <FloatIncrement id="0x5133" value="0.5"/>
             </UTCOffsetField>
         </Tab>
 
@@ -84,7 +75,6 @@
                 <ConfigID id="0x5001" value="917375"/>
                 <UIntValue id="0x5101" value="0"/>
                 <Units id="0x5025" value="Seconds"/>
-                <UIntMin id="0x5111" value="0"/>
                 <UIntMax id="0x5121" value="4294967280"/>
             </CheckUIntField>
             <CheckBooleanField id="0x4010">
@@ -110,7 +100,6 @@
                     <ConfigID id="0x5001" value="262180"/>
                     <UIntValue id="0x5101" value="110000"/>
                     <Units id="0x5025" value="Pa"/>
-                    <UIntMin id="0x5111" value="0"/>
                     <UIntMax id="0x5121" value="120000"/>
                     <DisplayFormat id="0x5034" value="x*0.015625"/>
                     <ValueFormat id="0x5024" value="x/0.015625"/>
@@ -123,7 +112,7 @@
                     <Label id="0x5005" value="Temperature Trigger, Low"/>
                     <ConfigID id="0x5001" value="196900"/>
                     <IntValue id="0x5102" value="3846"/>
-                    <Units id="0x5025" value="C"/>
+                    <Units id="0x5025" value="&#176;C"/>
                     <FloatMin id="0x5113" value="-40.0"/>
                     <FloatMax id="0x5123" value="80.0"/>
                     <DisplayFormat id="0x5034" value="x*0.00390625"/>
@@ -133,7 +122,7 @@
                     <Label id="0x5005" value="Temperature Trigger, High"/>
                     <ConfigID id="0x5001" value="262436"/>
                     <IntValue id="0x5102" value="3846"/>
-                    <Units id="0x5025" value="C"/>
+                    <Units id="0x5025" value="&#176;C"/>
                     <FloatMin id="0x5113" value="-40.0"/>
                     <FloatMax id="0x5123" value="80.0"/>
                     <DisplayFormat id="0x5034" value="x*0.00390625"/>
@@ -173,32 +162,29 @@
                     <ConfigID id="0x5001" value="327456"/>
                     <IntValue id="0x5102" value="5"/>
                     <Units id="0x5025" value="g"/>
-                    <FloatMin id="0x5113" value="0.0"/>
                     <FloatMax id="0x5123" value="16.0"/>
                     <ToolTip id="0x5015" value="The minimum acceleration (positive or negative) to trigger a recording. Must be greater than 0."/>
                 </FloatField>
                 <BooleanField id="0x4000">
                     <Label id="0x5005" value="X Axis Trigger"/>
                     <ConfigID id="0x5001" value="327712"/>
-                    <BooleanValue id="0x5100" value="0"/>
-                    <ValueFormat id="0x5024" value="0"/>
+                    <ValueFormat id="0x5024" value=""/>
                 </BooleanField>
                 <BooleanField id="0x4000">
                     <Label id="0x5005" value="Y Axis Trigger"/>
                     <ConfigID id="0x5001" value="327968"/>
-                    <BooleanValue id="0x5100" value="0"/>
-                    <ValueFormat id="0x5024" value="0"/>
+                    <ValueFormat id="0x5024" value=""/>
                 </BooleanField>
                 <BooleanField id="0x4000">
                     <Label id="0x5005" value="Z Axis Trigger"/>
                     <ConfigID id="0x5001" value="328224"/>
-                    <BooleanValue id="0x5100" value="0"/>
-                    <ValueFormat id="0x5024" value="0"/>
+                    <ValueFormat id="0x5024" value=""/>
                 </BooleanField>
             </CheckGroup>
         </Tab>
 
         <Tab id="0x4028">
+            <Label id="0x5005" value="Channels"/>
             <Group id="0x4008">
                 <Label id="0x5005" value="Main Accelerometer"/>
                 <ConfigID id="0x5001" value="130824"/>
@@ -206,20 +192,18 @@
                 <CheckBooleanField id="0x4010">
                     <Label id="0x5005" value="Enable X Axis"/>
                     <ConfigID id="0x5001" value="65544"/>
-                    <BooleanValue id="0x5100" value="0"/>
-                    <ValueFormat id="0x5024" value="0"/>
+                    <ValueFormat id="0x5024" value=""/>
                 </CheckBooleanField>
                 <CheckBooleanField id="0x4010">
                     <Label id="0x5005" value="Enable X Axis"/>
                     <ConfigID id="0x5001" value="65800"/>
-                    <BooleanValue id="0x5100" value="0"/>
-                    <ValueFormat id="0x5024" value="0"/>
+                    <ValueFormat id="0x5024" value=""/>
                 </CheckBooleanField>
                 <CheckBooleanField id="0x4010">
                     <Label id="0x5005" value="Enable X Axis"/>
                     <ConfigID id="0x5001" value="66056"/>
                     <BooleanValue id="0x5100" value="0"/>
-                    <ValueFormat id="0x5024" value="0"/>
+                    <ValueFormat id="0x5024" value=""/>
                 </CheckBooleanField>
             </Group>
             <Group id="0x4008">
@@ -228,7 +212,6 @@
                 <CheckBooleanField id="0x4010">
                     <Label id="0x5005" value="Enable (All Axis)"/>
                     <ConfigID id="0x5001" value="130848"/>
-                    <BooleanValue id="0x5100" value="0"/>
                 </CheckBooleanField>
             </Group>
             <Group id="0x4008">
@@ -252,5 +235,18 @@
                 </CheckBooleanField>
             </Group>
         </Tab>
+        
+        <FactoryCalibrationTab>
+            <!-- This should be generated almost entirely by software -->
+        </FactoryCalibrationTab>
+        
+        <UserCalibrationTab>
+            <!-- This should be generated almost entirely by software -->
+        </UserCalibrationTab>
+        
+        <DeviceInfoTab>
+            <!-- This should be generated almost entirely by software -->
+        </DeviceInfoTab>
+        
     </ConfigUI>
 </Mide.Ss.ConfigDocument>

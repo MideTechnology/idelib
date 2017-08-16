@@ -25,6 +25,14 @@ from common import makeWxDateTime
 
 from mide_ebml.ebmlite import loadSchema
 
+import logging
+logger = logging.getLogger('SlamStickLab.ConfigUI')
+logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+
+#===============================================================================
+# 
+#===============================================================================
+
 # Min/max integers supported by wxPython SpinCtrl
 MAX_SIGNED_INT = 2**31 - 1
 MIN_SIGNED_INT = -2**31
@@ -200,7 +208,8 @@ class ConfigContainer(object):
     """ A wrapper for the dialog's dictionary of configuration items, which
         dynamically gets values from the corresponding widget. It simplifies
         the field's ``DisplayFormat``, ``ValueFormat``, and ``DisableIf`` 
-        expressions. 
+        expressions. Iterating over it is performed in the order of the
+        keys, low to high.
     """
     
     def __init__(self, root):
@@ -296,9 +305,17 @@ class ConfigBase(object):
         try:
             return compile(val, "<ConfigBase.makeExpression>", "eval")
         except SyntaxError as err:
-            print ("Ignoring bad expression (%s) for %s %r: %r" % 
+            logger.error("Ignoring bad expression (%s) for %s %r: %r" % 
                    (err.msg, self.__class__.__name__, self.label, err.text))
             return self.noValue
+
+    
+    def setAttribDefault(self, att, val):
+        """ Sets an attribute, if the attribute has not yet been set. Allows
+            subclasses to set defaults that differ from their superclasses.
+        """
+        if not hasattr(self, att):
+            setattr(self, att, val)
 
     
     def __init__(self, element, root):
@@ -310,12 +327,12 @@ class ConfigBase(object):
         self.root = root
         self.element = element
         
-        # Convert element children to object attributes
+        # Convert element children to object attributes.
+        # First, set any previously undefined attributes to None.
         args = self.ARGS.copy()
         args.update(self.CLASS_ARGS)
         for v in args.values():
-            if not hasattr(self, v):
-                setattr(self, v, None)
+            self.setAttribDefault(v, None)
         
         self.valueType = self.DEFAULT_TYPE
         
@@ -591,7 +608,7 @@ class TextField(ConfigWidget):
     VALID_CHARS = string.ascii_letters #None
 
     def __init__(self, *args, **kwargs):
-        self.textLines = 1
+        self.setAttribDefault('textLines', 1)
         super(TextField, self).__init__(*args, **kwargs)
 
     
@@ -654,9 +671,9 @@ class IntField(ConfigWidget):
             @keyword group: The parent group containing the Field.
         """
         # Set some default values
-        self.min = MIN_SIGNED_INT
-        self.max = MAX_SIGNED_INT
-        self.default = 0
+        self.setAttribDefault('min', MIN_SIGNED_INT)
+        self.setAttribDefault('max', MAX_SIGNED_INT)
+        self.setAttribDefault('default', 0)
         super(IntField, self).__init__(*args, **kwargs)
     
     
@@ -715,7 +732,7 @@ class FloatField(IntField):
             @keyword root: The main dialog.
             @keyword group: The parent group containing the Field.
         """
-        self.increment = 0.25
+        self.setAttribDefault('increment', 0.25)
         super(FloatField, self).__init__(*args, **kwargs)
 
         
@@ -840,14 +857,33 @@ class DateTimeField(IntField):
         """
         h = int(1.6*self.labelWidget.GetSizeTuple()[1])
         self.field = DateTimeCtrl(self, -1, size=(-1,h))
+        self.utcCheck = wx.CheckBox(self, -1, "UTC")
         self.sizer.Add(self.field, 3)
+        self.sizer.Add(self.utcCheck, 0, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
+                           border=8)
         return self.field
 
+    
+    def enableChildren(self, enabled=True):
+        super(DateTimeField, self).enableChildren(enabled=enabled)
+        self.utcCheck.Enable(enabled)
+    
     
     def setRawValue(self, val, check=True):
         if val == 0:
             val = time.time()
         super(DateTimeField, self).setRawValue(makeWxDateTime(val), check)
+    
+    
+    def getDisplayValue(self):
+        """
+        """
+        val = super(DateTimeField, self).getDisplayValue()
+        if val is None:
+            return None
+        if not self.utcCheck.GetValue():
+            val = val.ToUTC()
+        return val.GetTicks()
     
 
 #===============================================================================
@@ -858,6 +894,16 @@ class UTCOffsetField(FloatField):
         ability to get the value from the computer.
     """
     DEFAULT_TYPE = "IntValue"
+
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault('min', -23.0)
+        self.setAttribDefault('max', 23.0)
+        self.setAttribDefault('units', "Hours")
+        self.setAttribDefault('increment', 0.5)
+        self.setAttribDefault('displayFormat', "x/3600")
+        self.setAttribDefault('valueFormat', "x*3600")
+        super(UTCOffsetField, self).__init__(*args, **kwargs)
+        
 
     def initUI(self):
         """ Build the user interface, adding the item label and/or checkbox,
@@ -1170,9 +1216,6 @@ class Tab(SP.ScrolledPanel, Group):
     LABEL = False
     CHECK = False
 
-    DEFAULT_NAME = None
-
-
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.Panel` arguments, plus:
             
@@ -1181,7 +1224,6 @@ class Tab(SP.ScrolledPanel, Group):
                 the class.
             @keyword root: The main dialog.
         """
-        self.label = None
         element = kwargs.pop('element', None)
         root = kwargs.pop('root', self)
         
@@ -1191,7 +1233,6 @@ class Tab(SP.ScrolledPanel, Group):
 
         self.SetupScrolling()
 
-        self.label = self.label or self.DEFAULT_NAME
         self.initUI()
 
 
@@ -1217,7 +1258,9 @@ class FactoryCalibrationTab(Tab):
         
         TODO: Implement FactoryCalibrationTab!
     """
-    DEFAULT_NAME = "Factory Calibration"
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault("label", "Factory Calibration")
+        super(FactoryCalibrationTab, self).__init__(*args, **kwargs)
 
 
 @registerTab
@@ -1228,7 +1271,9 @@ class UserCalibrationTab(FactoryCalibrationTab):
         
         TODO: Implement FactoryCalibrationTab!
     """
-    DEFAULT_NAME = "User Calibration"
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault("label", "User Calibration")
+        super(UserCalibrationTab, self).__init__(*args, **kwargs)
 
 
 @registerTab
@@ -1239,7 +1284,9 @@ class DeviceInfoTab(Tab):
         
         TODO: Implement FactoryCalibrationTab!
     """
-    DEFAULT_NAME = "Device Info"
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault("label", "Recorder Info")
+        super(DeviceInfoTab, self).__init__(*args, **kwargs)
 
 
 #===============================================================================
@@ -1293,7 +1340,7 @@ class ConfigDialog(SC.SizedDialog):
             for f in ('General.UI', 'Triggers.UI', 'Channel.UI'):
                 self.hints = schema.load(f)
                 print f, ("*" * 40)
-                crawl(self.hints)
+                util.dump(self.hints)
                 self.buildUI()
         else:
             self.buildUI()
@@ -1364,38 +1411,18 @@ class ConfigDialog(SC.SizedDialog):
                 
         evt.Skip()
 
-        
-#===============================================================================
-# 
-#===============================================================================
-
-def crawl(el, indent=-1):
-    """ Test function to dump the structure of a CONFIG.UI EBML file. 
-    """
-    if indent > -1:
-        if el.type == -1:
-            print "%s (0x%04X, size %d):" % ((" "*indent*2), "**Unknown**", el.id, el.size),
-        else:
-            print "%s %s (0x%04X, size %d):" % ((" "*indent*2), el.name, el.id, el.size),
-    if indent < 0 or isinstance(el.value, list):
-        print
-        for i in el:
-            crawl(i, indent+1)
-    else:
-        print repr(el.value)
-
 
 #===============================================================================
 # 
 #===============================================================================
 
-__DEBUG__ = False
-# __DEBUG__ = True
+# __DEBUG__ = False
+__DEBUG__ = True
 
 if __name__ == "__main__":
-    schema = loadSchema("../mide_ebml/ebml/schema/config_ui.xml")
+    schema = loadSchema("config_ui.xml")
+#     schema = loadSchema("../mide_ebml/ebml/schema/config_ui.xml")
 #     testDoc = schema.load('CONFIG.UI')
-#     crawl(testDoc)
     
     from mide_ebml.ebmlite import util
     from StringIO import StringIO
@@ -1403,16 +1430,22 @@ if __name__ == "__main__":
     util.xml2ebml('defaults/LOG-0002-100G.xml', s, schema)
     s.seek(0)
     testDoc = schema.load(s)
+
+#     util.dump(testDoc)
     
     app = wx.App()
     dlg = ConfigDialog(None, hints=testDoc)
     
     if __DEBUG__:
+        dlg.Show()
+        
         import wx.py.shell
         con = wx.py.shell.ShellFrame()
         con.Show()
-    
-#     dlg.ShowModal()
-    dlg.Show()
 
-    app.MainLoop()
+        app.MainLoop()
+
+            
+    else:
+        dlg.ShowModal() 
+
