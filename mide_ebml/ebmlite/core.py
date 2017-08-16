@@ -656,7 +656,7 @@ class Document(MasterElement):
         el, pos = self.parseElement(self.stream)
         if el.name == "EBML":
             # Load 'header' info from the file
-            self.info = {c.name: c.value for c in el.value}
+            self.info = el.dump()#{c.name: c.value for c in el.value}
             self.payloadOffset = pos
         else:
             self.info = {}
@@ -705,7 +705,8 @@ class Document(MasterElement):
     @property
     def roots(self):
         """ The document's root elements. For python-ebml compatibility.
-            Using this is not recommended; consider iterating instead.
+            Using this with large files is not recommended; consider iterating
+            instead.
         """
         return list(self)
 
@@ -753,7 +754,7 @@ class Document(MasterElement):
     #===========================================================================
     
     def gc(self, recurse=False):
-        # TODO: Implement this if/when caching of root elements  is implemented.
+        # TODO: Implement this if/when caching of root elements is implemented.
         return 0
 
 
@@ -1127,9 +1128,14 @@ class Schema(object):
         
 
     def __call__(self, fp, name=None):
-        """ Calling a loaded Schema is the same as loading.
+        """ Load an EBML file using this Schema. Same as `Schema.load()`.
         
-            @todo: Decide if this is necessary
+            @todo: Decide if this is worth keeping. It exists for historical
+                reasons.
+            
+            @param fp: A file-like object containing the EBML to load, or the
+                name of an EBML file.
+            @keyword name: The name of the document. Defaults to filename.
         """
         return self.load(fp, name=name)
 
