@@ -161,49 +161,6 @@ class TextValidator(wx.PyValidator):
 # 
 #===============================================================================
 
-# XXX: These are supposed to cast to the correct type for writing the config
-# file. This conversion should probably be done by the encoding, so we should
-# only keep track of the output element type (BooleanValue, IntValue, etc.).
-def castToBoolean(x):
-    return int(bool(x))
-
-def castToInt(x):
-    return int(x)
-
-def castToUInt(x):
-    return max(0, int(x))
-
-def castToFloat(x):
-    return float(x)
-
-def castToASCII(x):
-    if isinstance(x, unicode):
-        return x.encode('ascii', 'replace')
-    return str(x)
-
-def castToText(x):
-    if isinstance(x, bytearray):
-        x = str(x)
-    return unicode(x)
-
-def castToSame(x):
-    return x
-
-DATA_TYPES = {
-    "BooleanValue": castToBoolean,
-    "UIntValue": castToUInt,
-    "IntValue": castToInt,
-    "FloatValue": castToFloat,
-    "ASCIIValue": castToASCII,
-    "TextValue": castToText,
-    "BinaryValue": castToSame
-}
-
-
-#===============================================================================
-# 
-#===============================================================================
-
 class ConfigContainer(object):
     """ A wrapper for the dialog's dictionary of configuration items, which
         dynamically gets values from the corresponding widget. It simplifies
@@ -246,6 +203,10 @@ class ConfigContainer(object):
     def iteritems(self):
         for k in self.iterkeys():
             yield (k, self[k])
+
+    
+    def pop(self, k, default=None):
+        return self
     
 
 #===============================================================================
@@ -268,13 +229,18 @@ class ConfigBase(object):
     ARGS = {"Label": "label",
             "ConfigID": "configId",
             "ToolTip": "tooltip",
+            "Units": "units",
             "DisableIf": "disableIf",
             "DisplayFormat": "displayFormat",
             "ValueFormat": "valueFormat",
+            "MaxLength": "maxLength",
             "*Min": "min",
             "*Max": "max",
             "*Value": "default",
+            "*Gain": "gain",
+            "*Offset": "offset"
     }
+
     
     # Class-specific element/attribute mapping. Subclasses can use this for
     # their unique attributes without clobbering the common ones in ARGS.
@@ -290,32 +256,59 @@ class ConfigBase(object):
     noValue = compile("None", "<ConfigBase.noValue>", "eval")
     
     
-    def makeExpression(self, val):
+    def makeExpression(self, exp, name):
         """ Helper method for compiling an expression in a string into a code
             object that can later be used with `eval()`. Used internally.
         """
-        if val is None:
-            # Value is unmodified (e.g. it matches the config item's type)
+        if exp is None:
+            # No expression defined: value is returned unmodified (it matches 
+            # the config item's type)
             return self.noEffect
-        if val is '':
-            # Always `None` (e.g. the field is used to calculate a different
-            # config item, not a config item itself)
+        if exp is '':
+            # Empty string expression: always returns `None` (e.g. the field is
+            # used to calculate another config item, not a config item itself)
             return self.noValue
         
+        # Create a nicely formatted, informative string for the compiled 
+        # expression's "filename" and for display if the expression is bad.
+        idstr = ("(ID 0x%0X) " % self.configId) if self.configId else ""
+        msg = "%r %s%s" % (self.label, idstr, name)
+        
         try:
-            return compile(val, "<ConfigBase.makeExpression>", "eval")
+            return compile(exp, "<%s>" % msg, "eval")
         except SyntaxError as err:
-            logger.error("Ignoring bad expression (%s) for %s %r: %r" % 
-                   (err.msg, self.__class__.__name__, self.label, err.text))
+            logger.error("Ignoring bad expression (%s) for %s %s: %r" % 
+                         (err.msg, self.__class__.__name__, msg, err.text))
             return self.noValue
 
+
+    def makeGainOffsetFormat(self):
+        """ Helper method for generating `displayFormat` and `valueFormat`
+            expressions using the field's `gain` and `offset`. Used internally.
+        """
+        # Create a nicely formatted, informative string for the compiled 
+        # expression's "filename" and for display if the expression is bad.
+        idstr = (" (ID 0x%0X)" % self.configId) if self.configId else ""
+        msg = "%r%s" % (self.label, idstr)
+        
+        gain = 1.0 if self.gain is None else self.gain
+        offset = 0.0 if self.offset is None else self.offset
+        
+        self.displayFormat = compile("(x+%.8f)*%.8f" % (offset, gain), 
+                                     "%s displayFormat" % msg, "eval")
+        self.valueFormat = compile("(x/%.8f)-%.8f" % (gain, offset), 
+                                   "%s valueFormat" % msg, "eval")
+        
     
     def setAttribDefault(self, att, val):
-        """ Sets an attribute, if the attribute has not yet been set. Allows
-            subclasses to set defaults that differ from their superclasses.
+        """ Sets an attribute, if the attribute has not yet been set, similar to
+            `dict.setdefault()`. Allows subclasses to set defaults that differ 
+            from their superclass.
         """
         if not hasattr(self, att):
             setattr(self, att, val)
+            return val
+        return getattr(self, att)
 
     
     def __init__(self, element, root):
@@ -334,7 +327,7 @@ class ConfigBase(object):
         for v in args.values():
             self.setAttribDefault(v, None)
         
-        self.valueType = self.DEFAULT_TYPE
+        self.valueType = element.schema.get(self.DEFAULT_TYPE)
         
         for el in self.element.value:
             if el.name in FIELD_TYPES:
@@ -342,7 +335,7 @@ class ConfigBase(object):
                 continue
             
             if el.name.endswith('Value'):
-                self.valueType = el.name
+                self.valueType = el.__class__
                 
             if el.name in args:
                 # Known element name (verbatim): set attribute
@@ -353,46 +346,50 @@ class ConfigBase(object):
                     if fnmatch(el.name, k):
                         setattr(self, v, el.value)
 
-        # If the ValueFormat is an empty string, this item does not write
-        # to the config file, so its valueType is None.
-        if self.valueFormat == '':
-            self.valueType = None
-        elif self.valueType is not None:
-            self.valueType = element.schema[self.valueType]
-
-        # Default expressions for converting values between native and display
-        # These are compiled code objects for use with `eval()`.
-        self.displayFormat = self.makeExpression(self.displayFormat)
-        self.valueFormat = self.makeExpression(self.valueFormat)
+        # Compile expressions for converting to/from raw and display values.
+        if self.gain is None and self.offset is None:
+            # No gain and/or offset: use displayFormat/valueFormat if defined.
+            self.displayFormat = self.makeExpression(self.displayFormat, 'displayFormat')
+            self.valueFormat = self.makeExpression(self.valueFormat, 'valueFormat')
+        else:
+            # Generate expressions using the field's gain and offset.
+            self.makeGainOffsetFormat()
         
-        # Add this item to the root's dictionary of config items
         if self.configId is not None and self.root is not None:
             self.root.configItems[self.configId] = self
         
         self.expressionVariables = self.root.expresionVariables.copy()
 
 
-    def isEnabled(self):
+    def isDisabled(self):
         """ Check the Field's `disableIf` expression (if any) to determine if
             the Field should be enabled.
         """
         if self.disableIf is None:
-            return True
-        return not eval(self.disableIf, self.expressionVariables)
+            return False
+        
+        return eval(self.disableIf, self.expressionVariables)
         
     
     def getDisplayValue(self):
+        """ Get the object's displayed value. 
         """
-        """
+        if self.isDisabled():
+            return None
         return self.default
     
     
     def getConfigValue(self):
         """
         """
-        # TODO: Handle errors
-        self.expressionVariables['x'] = self.getDisplayValue()
-        return eval(self.valueFormat, self.expressionVariables)
+        if self.configId is None:
+            return
+        try:
+            self.expressionVariables['x'] = self.getDisplayValue()
+            return eval(self.valueFormat, self.expressionVariables)
+        except (KeyError, ValueError, TypeError):
+            return None
+
 
 
 class ConfigWidget(wx.Panel, ConfigBase):
@@ -408,21 +405,6 @@ class ConfigWidget(wx.Panel, ConfigBase):
     
     # Should this widget subclass always leave space for 'units' label?
     UNITS = True
-    
-    # Mapping of element names to object attributes. May contain glob-style
-    # wildcards.
-    ARGS = {"Label": "label",
-            "ConfigID": "configId",
-            "ToolTip": "tooltip",
-            "Units": "units",
-            "DisableIf": "disableIf",
-            "DisplayFormat": "displayFormat",
-            "ValueFormat": "valueFormat",
-            "MaxLength": "maxLength",
-            "*Min": "min",
-            "*Max": "max",
-            "*Value": "default",
-    }
 
     
     def __init__(self, *args, **kwargs):
@@ -495,6 +477,12 @@ class ConfigWidget(wx.Panel, ConfigBase):
         
         self.setToDefault()
 
+    
+    def isDisabled(self):
+        if not self.IsEnabled():
+            return True
+        return super(ConfigWidget, self).isDisabled()
+
 
     def setCheck(self, checked=True):
         """ Set the Field's checkbox, if applicable.
@@ -532,17 +520,11 @@ class ConfigWidget(wx.Panel, ConfigBase):
             
         self.setCheck(check)
 
-    
-    def updateConfigData(self):
-        """ Update the `Config` variable.
-        """
-        # TODO: this
-
 
     def getDisplayValue(self):
         """ 
         """
-        if not self.isEnabled():
+        if self.isDisabled():
             return None
         elif self.checkbox is not None and not self.checkbox.GetValue():
             return None
@@ -559,6 +541,12 @@ class ConfigWidget(wx.Panel, ConfigBase):
         self.enableChildren(evt.Checked())
         evt.Skip()
 
+
+    def OnValueChanged(self, evt):
+        self.updateConfigData()
+        for k,v in sorted(self.root.configItems.items()):
+            if k != self.configId:
+                v.updateConfigData()
 
         
 #===============================================================================
@@ -585,7 +573,7 @@ class BooleanField(ConfigWidget):
     def getDisplayValue(self):
         """ 
         """
-        if not self.isEnabled():
+        if self.isDisabled():
             return None
         
         return int(self.checkbox.GetValue())
@@ -756,7 +744,8 @@ class EnumField(ConfigWidget):
     DEFAULT_TYPE = "UIntValue"
     
     UNITS = False
-        
+
+    
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
@@ -807,7 +796,7 @@ class EnumField(ConfigWidget):
     def getDisplayValue(self):
         """ 
         """
-        if not self.isEnabled():
+        if self.isDisabled():
             return None
         elif self.checkbox is not None and not self.checkbox.GetValue():
             return None
@@ -841,8 +830,83 @@ class EnumOption(ConfigBase):
     
     def getDisplayValue(self):
         return self.value
+
     
+#===============================================================================
+
+@registerField
+class BitField(EnumField):
+    """
+    """
+
+    def addField(self):
+        """ Class-specific method for adding the appropriate type of widget.
+        """
+        optionEls = [el for el in self.element.value if el.name=="EnumOption"]
+        self.options = [EnumOption(el, self, n) for n,el in enumerate(optionEls)]
+        
+        for o in self.options:
+            o.checkbox = wx.CheckBox(self, -1, o.label)
+            self.sizer.Add(o.checkbox, 1, wx.EXPAND|wx.WEST, 8)
+        
+        return self.sizer
+        
+
+    def setRawValue(self, val, check=True):
+        """ Select the appropriate item for the 
+        """
+        for o in self.options:
+            o.checkbox.SetValue(bool(val & (1 << o.value)))
+        self.setCheck(check)
     
+
+    def initUI(self):
+        """ Build the user interface, adding the item label and/or checkbox,
+            the appropriate UI control(s) and a 'units' label (if applicable). 
+            Separated from `__init__()` for the sake of subclassing.
+        """
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        if self.CHECK:
+            self.checkbox = wx.CheckBox(self, -1, self.label or '')
+            self.labelWidget = self.checkbox
+            self.sizer.Add(self.checkbox, 2, wx.ALIGN_CENTER_VERTICAL)
+        else:
+            self.checkbox = None
+            self.labelWidget = wx.StaticText(self, -1, self.label or '')
+            self.sizer.Add(self.labelWidget, 2, wx.ALIGN_CENTER_VERTICAL)
+        
+        self.addField()
+        
+        self.unitLabel = None
+
+        if self.tooltip:
+            self.SetToolTipString(self.tooltip)
+        
+        if self.checkbox is not None:
+            self.Bind(wx.EVT_CHECKBOX, self.OnCheck)
+            self.setCheck(False)
+        
+        self.SetSizer(self.sizer)
+        
+        self.setToDefault()
+
+
+    def getDisplayValue(self):
+        """ 
+        """
+        if self.isDisabled():
+            return None
+        elif self.checkbox is not None and not self.checkbox.GetValue():
+            return None
+        
+        val = 0
+        for o in self.options:
+            if o.checkbox.GetValue():
+                val = val | (1 << o.value)
+        
+        return val
+    
+
 #===============================================================================
     
 @registerField
@@ -902,6 +966,7 @@ class UTCOffsetField(FloatField):
         self.setAttribDefault('increment', 0.5)
         self.setAttribDefault('displayFormat', "x/3600")
         self.setAttribDefault('valueFormat', "x*3600")
+        self.setAttribDefault("label", "Local UTC Offset")
         super(UTCOffsetField, self).__init__(*args, **kwargs)
         
 
@@ -1027,20 +1092,46 @@ class CheckBinaryField(BinaryField):
 #===============================================================================
 
 @registerField
+class FloatTemperatureField(FloatField):
+    """
+    """
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault("units", u"\u00b0C")
+        self.setAttribDefault("label", "Temperature")
+        self.setAttribDefault("min", -40.0)
+        self.setAttribDefault("max", 80.0)
+        super(FloatTemperatureField, self).__init__(*args, **kwargs)
+
+
+
+@registerField
+class CheckFloatTemperatureField(FloatTemperatureField):
+    """
+    """
+    CHECK = True
+        
+        
+@registerField
 class CheckDriftButton(ConfigWidget):
     """ Special-case "field" consisting of a button that checks the recorder's
-        clock versus the host computer's time.
+        clock versus the host computer's time. It does not affect the config
+        data.
     """
     UNITS = False
     DEFAULT_TYPE = None
+
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault("label", "Check Clock Drift")
+        self.setAttribDefault("tooltip", "Read the recorder's clock and "
+                                         "compare to the current system time.")
+        super(CheckDriftButton, self).__init__(*args, **kwargs)
+        
 
     def initUI(self):
         """ Build the user interface, adding the item label and/or checkbox,
             the appropriate UI control(s) and a 'units' label (if applicable). 
             Separated from `__init__()` for the sake of subclassing.
         """
-        self.label = self.label or "Check Clock Drift"
-        
         self.sizer = wx.BoxSizer(wx.HORIZONTAL)
         self.field = wx.Button(self, -1, self.label)
         self.sizer.Add(self.field, 0)
@@ -1055,11 +1146,21 @@ class CheckDriftButton(ConfigWidget):
 
 
     def OnCheckDrift(self, evt):
+        """ Handle button press: perform the clock drift test.
+        """
         self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
-        times = self.root.device.getTime()
+        try:
+            times = self.root.device.getTime()
+        except Exception:
+            if __DEBUG__:
+                raise
+            wx.MessageBox("Could not read the recorder's clock!", self.label,
+                          parent=self, style=wx.OK|wx.ICON_ERROR)
+            return
+        
         drift = times[0] - times[1]
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
-        wx.MessageBox("Clock drift: %.4f seconds" % drift, "Check Clock Drift",
+        wx.MessageBox("Clock drift: %.4f seconds" % drift, self.label,
                       parent=self, style=wx.OK|wx.ICON_INFORMATION)
 
 
@@ -1098,7 +1199,7 @@ class Group(ConfigWidget):
         0x17: CheckEnumField,
 
         0x22: DateTimeField,
-        0x42: CheckDateTimeField
+        0x32: CheckDateTimeField
     }
     
     DEFAULT_TYPE = None
@@ -1116,8 +1217,9 @@ class Group(ConfigWidget):
             return FIELD_TYPES[el.name]
         
         if el.id & 0xFF00 == 0x4000:
-            # All field EBML IDs have 0x40 as their 2nd byte.
-            baseId = el.id & 0x00FF
+            # All field EBML IDs have 0x40 as their 2nd byte. Bits 0-3 denote
+            # the 'base' type; bit 4 denotes if the field has a checkbox.
+            baseId = el.id & 0x001F
             if baseId in cls.DEFAULT_FIELDS:
                 return cls.DEFAULT_FIELDS[baseId]
             else:
@@ -1190,7 +1292,7 @@ class Group(ConfigWidget):
     def getDisplayValue(self):
         """ 
         """
-        if not self.isEnabled():
+        if self.isDisabled():
             return None
         elif self.checkbox is not None and not self.checkbox.GetValue():
             return None
@@ -1345,6 +1447,7 @@ class ConfigDialog(SC.SizedDialog):
         else:
             self.buildUI()
         
+        self.useLegacyConfig = False
         self.loadConfigData()
         
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK|wx.CANCEL))
@@ -1389,6 +1492,21 @@ class ConfigDialog(SC.SizedDialog):
         """
         print "XXX: Implement saveConfig()"
     
+    
+    def loadLegacyConfigData(self):
+        """ Load old-style configuration data (i.e. not ConfigID/value pairs),
+            as used by firmware versions prior to [XXX: add FwRev].
+        """
+        self.useLegacyConfig = True
+        print "XXX: Implement loadLegacyConfigData()!"
+    
+    
+    def saveLegacyConfigData(self):
+        """ Save old-style configuration data (i.e. not ConfigID/value pairs),
+            as used by firmware versions prior to [XXX: add FwRev].
+        """
+        print "XXX: Implement saveLegacyConfigData()!"
+   
     
     def OnOK(self, evt):
         """ Handle dialog OK, saving changes.

@@ -11,27 +11,12 @@ Created on Aug 11, 2017
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
+import ast
 from base64 import b64encode, b64decode
 import sys
 from xml.etree import ElementTree as ET
 
 import core, encoding
-
-#===============================================================================
-# 
-#===============================================================================
-
-TYPE_NAMES = {
-    core.CONTAINER: 'master',
-    core.INT:       'int',
-    core.UINT:      'uint',
-    core.FLOAT:     'float',
-    core.STRING:    'str',
-    core.UNICODE:   'utf-8',
-    core.DATE:      'date', 
-    core.BINARY:    'binary',
-    core.UNKNOWN:   'binary'
-}
 
 #===============================================================================
 # 
@@ -69,7 +54,7 @@ def toXml(el, parent=None, offsets=True, sizes=True, types=True, ids=True):
         if ids and isinstance(el.id, (int, long)):
             xmlEl.set('id', "0x%X" % el.id)
         if types:
-            xmlEl.set('type', TYPE_NAMES.get(el.type, el.type))
+            xmlEl.set('type', el.dtype.__name__)
     
     if offsets:
         xmlEl.set('offset', str(el.offset))
@@ -95,8 +80,8 @@ def xmlElement2ebml(xmlEl, ebmlFile, schema, sizeLength=4, unknown=True):
     """ Convert an XML element to EBML, recursing if necessary. For converting
         an entire XML document, use `xml2ebml()`.
         
-        @param xmlEl: The XML element. Its tag must match an element specified
-            in the schema. 
+        @param xmlEl: The XML element. Its tag must match an element defined
+            in the `schema`. 
         @param ebmlFile: An open file-like stream, to which the EBML data will
             be written.
         @param schema: An `ebmlite.core.Schema` instance to use when
@@ -138,6 +123,8 @@ def xmlElement2ebml(xmlEl, ebmlFile, schema, sizeLength=4, unknown=True):
     
     elif issubclass(cls, core.BinaryElement):
         val = b64decode(xmlEl.text)
+    elif issubclass(cls, (core.IntegerElement, core.FloatElement)):
+        val = ast.literal_eval(xmlEl.get('value'))
     else:
         val = cls.dtype(xmlEl.get('value'))
     
@@ -157,6 +144,9 @@ def xml2ebml(xmlFile, ebmlFile, schema, sizeLength=4, headers=True,
              unknown=True):
     """ Convert an XML file to EBML. 
     
+        @todo: Convert XML on the fly, rather than parsing it first, allowing
+            for the conversion of arbitrarily huge files.
+    
         @param xmlFile: The XML source. Can be a filename, an open file-like
             stream, or a parsed XML document.
         @param ebmlFile: The EBML file to write. Can be a filename or an open
@@ -166,7 +156,7 @@ def xml2ebml(xmlFile, ebmlFile, schema, sizeLength=4, headers=True,
         @keyword sizeLength: The default length of each element's size
             descriptor. Must be large enough to store the largest 'master' 
             element. If an XML element has a ``sizeLength`` attribute, it will
-            override this
+            override this.
         @keyword headers: If `True`, generate the standard ``EBML`` EBML
             element if the XML document does not contain one.
         @param unknown: If `True`, unknown element names will be allowed, 

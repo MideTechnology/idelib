@@ -38,22 +38,23 @@
                 <ToolTip id="0x5015" value="Set action for device when plugged in to USB while recording."/>
                 <EnumOption id="0x4107">
                     <Label id="0x5005" value="Immediately stop recording and appear as USB drive"/>
-<!--                    <UIntValue id="0x5101" value="0"/> -->
+                    <!-- <UIntValue id="0x5101" value="0"/> -->
                 </EnumOption>
                 <EnumOption id="0x4107">
                     <Label id="0x5005" value="Complete recording before appearing as USB drive"/>
-<!--                    <UIntValue id="0x5101" value="1"/> -->
+                    <!-- <UIntValue id="0x5101" value="1"/> -->
                 </EnumOption>
                 <EnumOption id="0x4107">
                     <Label id="0x5005" value="Ignore: stop recording when button is pressed"/>
-<!--                    <UIntValue id="0x5101" value="2"/> -->
+                    <!-- <UIntValue id="0x5101" value="2"/> -->
                 </EnumOption>
             </CheckEnumField>
             <UTCOffsetField id="0x4023">
-                <Label id="0x5005" value="Local UTC Offset"/>
+                <!-- <Label id="0x5005" value="Local UTC Offset"/> -->
                 <ConfigID id="0x5001" value="786303"/>
                 <ToolTip id="0x5015" value="Enter local timezone's offset from UTC time. Impacts timestamp information on recording files."/>
             </UTCOffsetField>
+            <CheckDriftButton></CheckDriftButton>
         </Tab>
 
         <Tab id="0x4028">
@@ -62,7 +63,6 @@
                 <Label id="0x5005" value="Recording Delay/Interval"/>
                 <ConfigID id="0x5001" value="851839"/>
                 <Units id="0x5025" value="Seconds"/>
-                <UIntMin id="0x5111" value="0"/>
                 <UIntMax id="0x5121" value="86400"/>
                 <ToolTip id="0x5015" value="The time between recordings if 'Re-triggerable' is checked. If no wake date/time is specified, recording will start this many seconds after the button is pressed."/>
             </CheckUIntField>
@@ -73,7 +73,6 @@
             <CheckUIntField id="0x4011">
                 <Label id="0x5005" value="Recording Time Limit"/>
                 <ConfigID id="0x5001" value="917375"/>
-                <UIntValue id="0x5101" value="0"/>
                 <Units id="0x5025" value="Seconds"/>
                 <UIntMax id="0x5121" value="4294967280"/>
             </CheckUIntField>
@@ -85,99 +84,120 @@
             <CheckGroup id="0x4018">
                 <Label id="0x5005" value="Pressure Trigger"/>
                 <ConfigID id="0x5001" value="327716"/>
-                <UIntField id="0x4001">
+                <IntPressureField id="0x4001">
                     <Label id="0x5005" value="Pressure Trigger, Low"/>
                     <ConfigID id="0x5001" value="196644"/>
                     <UIntValue id="0x5101" value="90000"/>
-                    <Units id="0x5025" value="Pa"/>
-                    <UIntMin id="0x5111" value="0"/>
                     <UIntMax id="0x5121" value="120000"/>
+                    <FloatGain value="0.015625"/>
+                    <!--
+                    <UIntMin id="0x5111" value="0"/>
+                    <Units id="0x5025" value="Pa"/>
                     <DisplayFormat id="0x5034" value="x*0.015625"/>
                     <ValueFormat id="0x5024" value="x/0.015625"/>
-                </UIntField>
-                <UIntField id="0x4001">
+                    -->
+                </IntPressureField>
+                <IntPressureField id="0x4001">
                     <Label id="0x5005" value="Pressure Trigger, High"/>
                     <ConfigID id="0x5001" value="262180"/>
                     <UIntValue id="0x5101" value="110000"/>
-                    <Units id="0x5025" value="Pa"/>
                     <UIntMax id="0x5121" value="120000"/>
+                    <FloatGain value="0.015625"/>
+                    <!--
+                    <Units id="0x5025" value="Pa"/>
                     <DisplayFormat id="0x5034" value="x*0.015625"/>
                     <ValueFormat id="0x5024" value="x/0.015625"/>
-                </UIntField>
+                    -->
+                </IntPressureField>
             </CheckGroup>
             <CheckGroup id="0x4018">
                 <Label id="0x5005" value="Temperature Trigger"/>
                 <ConfigID id="0x5001" value="327972"/>
-                <FloatField id="0x4003">
+                <FloatTemperatureField id="0x4003">
                     <Label id="0x5005" value="Temperature Trigger, Low"/>
                     <ConfigID id="0x5001" value="196900"/>
                     <IntValue id="0x5102" value="3846"/>
-                    <Units id="0x5025" value="&#176;C"/>
                     <FloatMin id="0x5113" value="-40.0"/>
                     <FloatMax id="0x5123" value="80.0"/>
+                    <FloatGain value="0.00390625" />
+                    <!--
+                    <Units id="0x5025" value="&#176;C"/> 
                     <DisplayFormat id="0x5034" value="x*0.00390625"/>
                     <ValueFormat id="0x5024" value="x/0.00390625"/>
-                </FloatField>
-                <FloatField id="0x4003">
+                    -->
+                </FloatTemperatureField>
+                <FloatTemperatureField id="0x4003">
                     <Label id="0x5005" value="Temperature Trigger, High"/>
                     <ConfigID id="0x5001" value="262436"/>
                     <IntValue id="0x5102" value="3846"/>
-                    <Units id="0x5025" value="&#176;C"/>
                     <FloatMin id="0x5113" value="-40.0"/>
                     <FloatMax id="0x5123" value="80.0"/>
+                    <FloatGain value="0.00390625" />
+                    <!--
+                    <Units id="0x5025" value="&#176;C"/> 
                     <DisplayFormat id="0x5034" value="x*0.00390625"/>
                     <ValueFormat id="0x5024" value="x/0.00390625"/>
-                </FloatField>
+                    -->
+                </FloatTemperatureField>
             </CheckGroup>
             <CheckGroup id="0x4018">
                 <Label id="0x5005" value="Acceleration Trigger (Main)"/>
                 <ConfigID id="0x5001" value="392968"/>
-                <UIntField id="0x4001">
+                <FloatAccelerationField id="0x4001">
                     <Label id="0x5005" value="Acceleration Trigger, Low"/>
                     <ConfigID id="0x5001" value="261896"/>
                     <IntValue id="0x5102" value="4294965658"/>
                     <Units id="0x5025" value="g"/>
                     <FloatMin id="0x5113" value="-100.0"/>
                     <FloatMax id="0x5123" value="100.0"/>
+                    <FloatGain value="0.003051804" />
+                    <!--
                     <DisplayFormat id="0x5034" value="x*0.003051804"/>
                     <ValueFormat id="0x5024" value="x/0.003051804"/>
-                </UIntField>
-                <UIntField id="0x4001">
+                    -->
+                </FloatAccelerationField>
+                <FloatAccelerationField id="0x4001">
                     <Label id="0x5005" value="Acceleration Trigger, High"/>
                     <ConfigID id="0x5001" value="261896"/>
                     <IntValue id="0x5102" value="1638"/>
                     <Units id="0x5025" value="g"/>
                     <FloatMin id="0x5113" value="-100.0"/>
                     <FloatMax id="0x5123" value="100.0"/>
+                    <FloatGain value="0.003051804" />
+                    <!--
                     <DisplayFormat id="0x5034" value="x*0.003051804"/>
                     <ValueFormat id="0x5024" value="x/0.003051804"/>
-                </UIntField>
+                    -->
+                </FloatAccelerationField>
             </CheckGroup>
             <CheckGroup id="0x4018">
                 <Label id="0x5005" value="Acceleration Trigger"/>
-                <ConfigID id="0x5001" value="392992"/>
+                <ConfigID id="0x5001" value="0x5ff20"/>
                 <ValueFormat id="0x5024" value="(Config[0x050020]) | (Config[0x050120] &lt;&lt; 1) | (Config[0x050220] &lt;&lt; 2)"/>
-                <FloatField id="0x4003">
+                <FloatAccelerationField id="0x4003">
                     <Label id="0x5005" value="Accelerometer Threshold"/>
                     <ConfigID id="0x5001" value="327456"/>
-                    <IntValue id="0x5102" value="5"/>
+                    <UIntValue id="0x5102" value="5"/>
                     <Units id="0x5025" value="g"/>
                     <FloatMax id="0x5123" value="16.0"/>
                     <ToolTip id="0x5015" value="The minimum acceleration (positive or negative) to trigger a recording. Must be greater than 0."/>
-                </FloatField>
+                </FloatAccelerationField>
                 <BooleanField id="0x4000">
                     <Label id="0x5005" value="X Axis Trigger"/>
-                    <ConfigID id="0x5001" value="327712"/>
+                    <ConfigID id="0x5001" value="0x050020"/>
+                    <DisplayFormat value="Config[0x5ff20] &amp; 1"/>
                     <ValueFormat id="0x5024" value=""/>
                 </BooleanField>
                 <BooleanField id="0x4000">
                     <Label id="0x5005" value="Y Axis Trigger"/>
-                    <ConfigID id="0x5001" value="327968"/>
+                    <ConfigID id="0x5001" value="0x50120"/>
+                    <DisplayFormat value="Config[0x05ff20] &amp; 2"/>
                     <ValueFormat id="0x5024" value=""/>
                 </BooleanField>
                 <BooleanField id="0x4000">
                     <Label id="0x5005" value="Z Axis Trigger"/>
-                    <ConfigID id="0x5001" value="328224"/>
+                    <ConfigID id="0x5001" value="0x050220"/>
+                    <DisplayFormat value="Config[0x5ff20] &amp; 4"/>
                     <ValueFormat id="0x5024" value=""/>
                 </BooleanField>
             </CheckGroup>
@@ -185,27 +205,46 @@
 
         <Tab id="0x4028">
             <Label id="0x5005" value="Channels"/>
+            <!--
             <Group id="0x4008">
                 <Label id="0x5005" value="Main Accelerometer"/>
-                <ConfigID id="0x5001" value="130824"/>
+                <ConfigID id="0x5001" value="0x01ff08"/>
                 <ValueFormat id="0x5024" value="(Config[0x010008]) | (Config[0x010108] &lt;&lt; 1) | (Config[0x010208] &lt;&lt; 2)"/>
                 <CheckBooleanField id="0x4010">
                     <Label id="0x5005" value="Enable X Axis"/>
-                    <ConfigID id="0x5001" value="65544"/>
+                    <ConfigID id="0x5001" value="0x010008"/>
+                    <DisplayFormat value="Config[0x01ff08] & 1"/>
                     <ValueFormat id="0x5024" value=""/>
                 </CheckBooleanField>
                 <CheckBooleanField id="0x4010">
-                    <Label id="0x5005" value="Enable X Axis"/>
-                    <ConfigID id="0x5001" value="65800"/>
+                    <Label id="0x5005" value="Enable Y Axis"/>
+                    <ConfigID id="0x5001" value="0x010108"/>
+                    <DisplayFormat value="Config[0x01ff08] & 2"/>
                     <ValueFormat id="0x5024" value=""/>
                 </CheckBooleanField>
                 <CheckBooleanField id="0x4010">
-                    <Label id="0x5005" value="Enable X Axis"/>
-                    <ConfigID id="0x5001" value="66056"/>
+                    <Label id="0x5005" value="Enable Z Axis"/>
+                    <ConfigID id="0x5001" value="0x010208"/>
                     <BooleanValue id="0x5100" value="0"/>
+                    <DisplayFormat value="Config[0x01ff08] & 4"/>
                     <ValueFormat id="0x5024" value=""/>
                 </CheckBooleanField>
             </Group>
+            -->
+            <BitField>
+                <Label id="0x5005" value="Main Accelerometer"/>
+                <ConfigID id="0x5001" value="0x01ff08"/>
+                <EnumOption>
+                    <Label value="X"/>
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Y"/>
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Z"/>
+                </EnumOption>
+            </BitField>
+            
             <Group id="0x4008">
                 <Label id="0x5005" value="Low-g Accelerometer"/>
                 <ConfigID id="0x5001" value="458528"/>
@@ -216,7 +255,7 @@
             </Group>
             <Group id="0x4008">
                 <Label id="0x5005" value="Control Pad Temperature/Pressure"/>
-                <ConfigID id="0x5001" value="458555"/>
+                <ConfigID id="0x5001" value="0x06ff3b"/>
                 <ValueFormat id="0x5024" value="(Config[0x01003B]) | (Config[0x01013B] &lt;&lt; 1)"/>
                 <CheckBooleanField id="0x4010">
                     <Label id="0x5005" value="Enable Pressure"/>
@@ -226,11 +265,13 @@
                 <CheckBooleanField id="0x4010">
                     <Label id="0x5005" value="Enable Temperature"/>
                     <ConfigID id="0x5001" value="65851"/>
+                    <DisplayFormat value="Config[0x6ff3b] &amp; 1"/>
                     <ValueFormat id="0x5024" value=""/>
                 </CheckBooleanField>
                 <CheckBooleanField id="0x4010">
                     <Label id="0x5005" value="Enable X Axis"/>
                     <ConfigID id="0x5001" value="196411"/>
+                    <DisplayFormat value="Config[0x6ff3b] &amp; 2"/>
                     <ValueFormat id="0x5024" value=""/>
                 </CheckBooleanField>
             </Group>

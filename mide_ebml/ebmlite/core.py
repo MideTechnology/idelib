@@ -595,9 +595,13 @@ class MasterElement(Element):
     def dump(self):
         """ Dump this element's value as nested dictionaries, keyed by
             element name. The values of 'multiple' elements return as lists.
+            Note: The order of 'multiple' elements relative to other elements
+            will be lost; a file containing elements ``A1 B1 A2 B2 A3 B3`` will
+            result in``[A1 A2 A3][B1 B2 B3]``.
             
-            @todo: Decide if this should be in a 'utilities' submodule.
-                It isn't totally necessary for the core library.
+            @todo: Decide if this should be in the `util` submodule. It is
+                very specific, and it isn't totally necessary for the core 
+                library.
         """
         result = OrderedDict()
         for el in self:
@@ -1102,6 +1106,12 @@ class Schema(object):
             self.elements[key]
         except KeyError:
             return self.elementIds[key]
+
+
+    def get(self, key, default=None):
+        if key in self:
+            return self[key]
+        return default
 
 
     def load(self, fp, name=None):
