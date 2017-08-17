@@ -54,7 +54,8 @@ def nextPow2(x):
 #===============================================================================
 
 def multiReplace(s, *replacements):
-    """
+    """ Perform multiple substring replacements, provided as one or more 
+        two-item tuples containing pairs of old and new substrings.
     """
     for old, new in replacements:
         s = s.replace(old, new)
@@ -172,11 +173,11 @@ def wordJoin(words, conj="and", oxford=True):
     numWords = len(words)
     if numWords > 2:
         if oxford:
-            return "%s, %s %s" % (', '.join(words[:-1]), conj, words[-1])
+            return u"%s, %s %s" % (', '.join(words[:-1]), conj, words[-1])
         else:
-            return "%s %s %s" % (', '.join(words[:-1]), conj, words[-1])
+            return u"%s %s %s" % (', '.join(words[:-1]), conj, words[-1])
     else:
-        return (" %s " % conj).join(words)
+        return (u" %s " % conj).join(words)
 
 
 #===============================================================================
@@ -184,6 +185,13 @@ def wordJoin(words, conj="and", oxford=True):
 #===============================================================================
 
 def inRect(x, y, rect):
+    """ Does a point fall within the specified rectangle?
+    
+        @param x: Point X coordinate.
+        @param y: Point Y coordinate.
+        @param rect: A four-item list/tuple containing the coordinates of the
+            rectangle's upper left corner and its width/height.
+    """
     if rect is None:
         return False
     if x < rect[0] or y < rect[1]:

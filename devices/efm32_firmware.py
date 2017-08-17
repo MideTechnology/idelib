@@ -501,7 +501,11 @@ class FirmwareUpdater(object):
         if name not in self.contents:
             return None
 #         return util.read_ebml(StringIO(z.read(name, password)), schema=schema)
-        return schema.loads(z.read(name, password)).dump()
+        try:
+            return schema.loads(z.read(name, password)).dump()
+        except (IOError, TypeError):
+            logger.info("Error reading %s; probably okay, ignoring.")
+            return {}
     
     
     def updateManifest(self):
