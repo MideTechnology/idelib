@@ -596,6 +596,7 @@ class TextField(ConfigWidget):
     VALID_CHARS = string.ascii_letters #None
 
     def __init__(self, *args, **kwargs):
+        self.setAttribDefault('default', '')
         self.setAttribDefault('textLines', 1)
         super(TextField, self).__init__(*args, **kwargs)
 
@@ -680,6 +681,13 @@ class IntField(ConfigWidget):
         self.sizer.Add(self.field, 2)
         return self.field
 
+    
+    def Enable(self, enabled=True):
+        # Fields nested within groups look different when their parent is
+        # disabled; disable explicitly to make it look right.
+        self.field.Enable(enabled)
+        wx.Panel.Enable(self, enabled)
+
 
 #===============================================================================
 
@@ -697,9 +705,8 @@ class UIntField(IntField):
             @keyword root: The main dialog.
             @keyword group: The parent group containing the Field.
         """
+        self.setAttribDefault('min', 0)
         super(UIntField, self).__init__(*args, **kwargs)
-        self.min = max(0, self.min)
-        self.field.SetRange(self.min, self.max)
         
 
 #===============================================================================
@@ -746,11 +753,34 @@ class EnumField(ConfigWidget):
     UNITS = False
 
     
+    def __init__(self, *args, **kwargs):
+        """ Constructor. Takes standard `wx.Panel` arguments, plus:
+            
+            @keyword element: The EBML element for which the UI element is
+                being generated. The element's name typically matches that of
+                the class.
+            @keyword root: The main dialog.
+            @keyword group: The parent group containing the Field (if any).
+        """
+        element = kwargs.pop('element', None)
+        root = kwargs.pop('root', None)
+        self.group = kwargs.pop('group', None)
+        
+        self.setAttribDefault('default', 0) 
+        
+        # Call explicitly to postpone `initUI()` until options gathered.
+        ConfigBase.__init__(self, element, root)
+        wx.Panel.__init__(self, *args, **kwargs)
+
+        optionEls = [el for el in self.element.value if el.name=="EnumOption"]
+        self.options = [EnumOption(el, self, n) for n,el in enumerate(optionEls)]
+        
+        self.initUI()
+    
+    
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
-        optionEls = [el for el in self.element.value if el.name=="EnumOption"]
-        self.options = [EnumOption(el, self, n) for n,el in enumerate(optionEls)]
         choices = [u"%s" % o.label for o in self.options]
         
         self.field = wx.Choice(self, -1, choices=choices)
@@ -836,20 +866,37 @@ class EnumOption(ConfigBase):
 
 @registerField
 class BitField(EnumField):
+    """ A widget representing a set of bits in an unsigned integer, with 
+        individual checkboxes for each bit. A subclass of `EnumField`, each
+        `EnumOption` creates a checkbox; its value indicates the index of the
+        corresponding bit (0 is the first bit, 1 is the second, 2 is the third,
+        etc.). 
     """
-    """
+    DEFAULT_TYPE = "UIntValue"
 
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
-        optionEls = [el for el in self.element.value if el.name=="EnumOption"]
-        self.options = [EnumOption(el, self, n) for n,el in enumerate(optionEls)]
+        if self.labelWidget is None:
+            # No label or checkbox; add checks directly to main sizer.
+            childSizer = self.sizer
+        else:
+            childSizer = wx.BoxSizer(wx.VERTICAL)
         
         for o in self.options:
             o.checkbox = wx.CheckBox(self, -1, o.label)
-            self.sizer.Add(o.checkbox, 1, wx.EXPAND|wx.WEST, 8)
+            childSizer.Add(o.checkbox, 0, 
+                           wx.ALIGN_LEFT|wx.EXPAND|wx.NORTH|wx.SOUTH, 4)
+            
+            tooltip = o.tooltip or self.tooltip
+            if tooltip:
+                o.checkbox.SetToolTipString(tooltip)
         
-        return self.sizer
+        if self.labelWidget is not None:
+            # Label or checkbox: indent the child checkboxes 
+            self.sizer.Add(childSizer, 1, wx.WEST, 24)
+            
+        return childSizer
         
 
     def setRawValue(self, val, check=True):
@@ -866,25 +913,30 @@ class BitField(EnumField):
             Separated from `__init__()` for the sake of subclassing.
         """
         self.sizer = wx.BoxSizer(wx.VERTICAL)
-        if self.CHECK:
-            self.checkbox = wx.CheckBox(self, -1, self.label or '')
-            self.labelWidget = self.checkbox
-            self.sizer.Add(self.checkbox, 2, wx.ALIGN_CENTER_VERTICAL)
+        
+        if self.label:
+            if self.CHECK:
+                self.checkbox = wx.CheckBox(self, -1, self.label or '')
+                self.labelWidget = self.checkbox
+                self.sizer.Add(self.checkbox, 0, wx.ALIGN_CENTER_VERTICAL)
+                self.Bind(wx.EVT_CHECKBOX, self.OnCheck)
+                self.setCheck(False)
+            else:
+                self.checkbox = None
+                self.labelWidget = wx.StaticText(self, -1, self.label or '')
+                self.sizer.Add(self.labelWidget, 0, wx.ALIGN_CENTER_VERTICAL)
+        
+            self.labelWidget.SetFont(self.labelWidget.GetFont().Bold())
         else:
-            self.checkbox = None
-            self.labelWidget = wx.StaticText(self, -1, self.label or '')
-            self.sizer.Add(self.labelWidget, 2, wx.ALIGN_CENTER_VERTICAL)
-        
-        self.addField()
-        
+            self.checkbox = self.labelWidget = None
+
+        self.addField() 
         self.unitLabel = None
 
         if self.tooltip:
             self.SetToolTipString(self.tooltip)
-        
-        if self.checkbox is not None:
-            self.Bind(wx.EVT_CHECKBOX, self.OnCheck)
-            self.setCheck(False)
+            if self.labelWidget is not None:
+                self.labelWidget.SetToolTipString(self.tooltip)
         
         self.SetSizer(self.sizer)
         
@@ -1060,6 +1112,17 @@ class CheckFloatField(FloatField):
 class CheckEnumField(EnumField):
     """ UI widget (with a checkbox) for selecting one of several items from a 
         list.
+    """
+    CHECK = True
+
+
+@registerField
+class CheckBitField(BitField):
+    """ A widget (with a checkbox) representing a set of bits in an unsigned 
+        integer, with individual checkboxes for each bit. A subclass of 
+        `EnumField`, each `EnumOption` creates a checkbox; its value indicates
+        the index of the corresponding bit (0 is the first bit, 1 is the 
+        second, 2 is the third, etc.). 
     """
     CHECK = True
 
@@ -1353,7 +1416,27 @@ class Tab(SP.ScrolledPanel, Group):
 #===============================================================================
 
 @registerTab
-class FactoryCalibrationTab(Tab):
+class DeviceInfoTab(Tab):
+    """ Special-case Tab for showing device info. The tab's default behavior
+        shows the appropriate info for Slam Stick recorders, no child fields
+        required.
+        
+        TODO: Implement FactoryCalibrationTab!
+    """
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault("label", "Recorder Info")
+        super(DeviceInfoTab, self).__init__(*args, **kwargs)
+
+
+    def initUI(self):
+        super(DeviceInfoTab, self).initUI()
+        label = wx.StaticText(self, -1, "TO BE IMPLEMENTED")
+        label.SetFont(label.GetFont().Bold().Larger())
+        self.sizer.Add(label, 1, wx.EXPAND|wx.ALL, 24)
+
+
+@registerTab
+class FactoryCalibrationTab(DeviceInfoTab):
     """ Special-case Tab for showing recorder calibration polynomials. The 
         tab's default behavior shows the appropriate info for Slam Stick 
         recorders, no child fields required.
@@ -1376,20 +1459,6 @@ class UserCalibrationTab(FactoryCalibrationTab):
     def __init__(self, *args, **kwargs):
         self.setAttribDefault("label", "User Calibration")
         super(UserCalibrationTab, self).__init__(*args, **kwargs)
-
-
-@registerTab
-class DeviceInfoTab(Tab):
-    """ Special-case Tab for showing device info. The tab's default behavior
-        shows the appropriate info for Slam Stick recorders, no child fields
-        required.
-        
-        TODO: Implement FactoryCalibrationTab!
-    """
-    def __init__(self, *args, **kwargs):
-        self.setAttribDefault("label", "Recorder Info")
-        super(DeviceInfoTab, self).__init__(*args, **kwargs)
-
 
 #===============================================================================
 # 
@@ -1534,8 +1603,8 @@ class ConfigDialog(SC.SizedDialog):
 # 
 #===============================================================================
 
-# __DEBUG__ = False
-__DEBUG__ = True
+__DEBUG__ = False
+# __DEBUG__ = True
 
 if __name__ == "__main__":
     schema = loadSchema("config_ui.xml")

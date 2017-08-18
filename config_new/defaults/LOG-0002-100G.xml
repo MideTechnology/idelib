@@ -38,7 +38,7 @@
                 <ToolTip id="0x5015" value="Set action for device when plugged in to USB while recording."/>
                 <EnumOption id="0x4107">
                     <Label id="0x5005" value="Immediately stop recording and appear as USB drive"/>
-                    <!-- <UIntValue id="0x5101" value="0"/> -->
+                    <!-- <UIntValue id="0x5101" value="0"/> unnecessary: defaults to option's index -->
                 </EnumOption>
                 <EnumOption id="0x4107">
                     <Label id="0x5005" value="Complete recording before appearing as USB drive"/>
@@ -90,7 +90,7 @@
                     <UIntValue id="0x5101" value="90000"/>
                     <UIntMax id="0x5121" value="120000"/>
                     <FloatGain value="0.015625"/>
-                    <!--
+                    <!-- Unnecessary
                     <UIntMin id="0x5111" value="0"/>
                     <Units id="0x5025" value="Pa"/>
                     <DisplayFormat id="0x5034" value="x*0.015625"/>
@@ -147,11 +147,11 @@
                     <Label id="0x5005" value="Acceleration Trigger, Low"/>
                     <ConfigID id="0x5001" value="261896"/>
                     <IntValue id="0x5102" value="4294965658"/>
-                    <Units id="0x5025" value="g"/>
                     <FloatMin id="0x5113" value="-100.0"/>
                     <FloatMax id="0x5123" value="100.0"/>
                     <FloatGain value="0.003051804" />
                     <!--
+                    <Units id="0x5025" value="g"/>
                     <DisplayFormat id="0x5034" value="x*0.003051804"/>
                     <ValueFormat id="0x5024" value="x/0.003051804"/>
                     -->
@@ -160,11 +160,11 @@
                     <Label id="0x5005" value="Acceleration Trigger, High"/>
                     <ConfigID id="0x5001" value="261896"/>
                     <IntValue id="0x5102" value="1638"/>
-                    <Units id="0x5025" value="g"/>
                     <FloatMin id="0x5113" value="-100.0"/>
                     <FloatMax id="0x5123" value="100.0"/>
                     <FloatGain value="0.003051804" />
                     <!--
+                    <Units id="0x5025" value="g"/>
                     <DisplayFormat id="0x5034" value="x*0.003051804"/>
                     <ValueFormat id="0x5024" value="x/0.003051804"/>
                     -->
@@ -173,7 +173,6 @@
             <CheckGroup id="0x4018">
                 <Label id="0x5005" value="Acceleration Trigger"/>
                 <ConfigID id="0x5001" value="0x5ff20"/>
-                <ValueFormat id="0x5024" value="(Config[0x050020]) | (Config[0x050120] &lt;&lt; 1) | (Config[0x050220] &lt;&lt; 2)"/>
                 <FloatAccelerationField id="0x4003">
                     <Label id="0x5005" value="Accelerometer Threshold"/>
                     <ConfigID id="0x5001" value="327456"/>
@@ -182,6 +181,20 @@
                     <FloatMax id="0x5123" value="16.0"/>
                     <ToolTip id="0x5015" value="The minimum acceleration (positive or negative) to trigger a recording. Must be greater than 0."/>
                 </FloatAccelerationField>
+                <!-- XXX: VERIFY IDs FOR CheckGroup AND BITFIELD -->
+                <BitField>
+                    <ConfigID value="0x050020"/>
+                    <EnumOption>
+                        <Label value="X Axis Trigger"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <Label value="Y Axis Trigger"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <Label value="Z Axis Trigger"/>
+                    </EnumOption>
+                </BitField>
+                <!--
                 <BooleanField id="0x4000">
                     <Label id="0x5005" value="X Axis Trigger"/>
                     <ConfigID id="0x5001" value="0x050020"/>
@@ -200,81 +213,49 @@
                     <DisplayFormat value="Config[0x5ff20] &amp; 4"/>
                     <ValueFormat id="0x5024" value=""/>
                 </BooleanField>
+                -->
             </CheckGroup>
         </Tab>
 
         <Tab id="0x4028">
             <Label id="0x5005" value="Channels"/>
-            <!--
-            <Group id="0x4008">
-                <Label id="0x5005" value="Main Accelerometer"/>
-                <ConfigID id="0x5001" value="0x01ff08"/>
-                <ValueFormat id="0x5024" value="(Config[0x010008]) | (Config[0x010108] &lt;&lt; 1) | (Config[0x010208] &lt;&lt; 2)"/>
-                <CheckBooleanField id="0x4010">
-                    <Label id="0x5005" value="Enable X Axis"/>
-                    <ConfigID id="0x5001" value="0x010008"/>
-                    <DisplayFormat value="Config[0x01ff08] & 1"/>
-                    <ValueFormat id="0x5024" value=""/>
-                </CheckBooleanField>
-                <CheckBooleanField id="0x4010">
-                    <Label id="0x5005" value="Enable Y Axis"/>
-                    <ConfigID id="0x5001" value="0x010108"/>
-                    <DisplayFormat value="Config[0x01ff08] & 2"/>
-                    <ValueFormat id="0x5024" value=""/>
-                </CheckBooleanField>
-                <CheckBooleanField id="0x4010">
-                    <Label id="0x5005" value="Enable Z Axis"/>
-                    <ConfigID id="0x5001" value="0x010208"/>
-                    <BooleanValue id="0x5100" value="0"/>
-                    <DisplayFormat value="Config[0x01ff08] & 4"/>
-                    <ValueFormat id="0x5024" value=""/>
-                </CheckBooleanField>
-            </Group>
-            -->
             <BitField>
                 <Label id="0x5005" value="Main Accelerometer"/>
+                <!-- TEST: REMOVE TOOLTIP OR ADD TOOLTIPS TO OTHERS -->
+                <ToolTip value="Enable/Disable accelerometer axes"/>
                 <ConfigID id="0x5001" value="0x01ff08"/>
+                <UIntValue value="7"/>
                 <EnumOption>
-                    <Label value="X"/>
+                    <Label value="Enable X Axis"/>
+                    <!-- TEST: REMOVE TOOLTIP OR ADD TOOLTIPS TO OTHERS -->
+                    <ToolTip value="Enable the accelerometer X axis" />
                 </EnumOption>
                 <EnumOption>
-                    <Label value="Y"/>
+                    <Label value="Enable Y Axis"/>
                 </EnumOption>
                 <EnumOption>
-                    <Label value="Z"/>
+                    <Label value="Enable Z Axis"/>
                 </EnumOption>
             </BitField>
-            
-            <Group id="0x4008">
+            <BitField>
                 <Label id="0x5005" value="Low-g Accelerometer"/>
                 <ConfigID id="0x5001" value="458528"/>
-                <CheckBooleanField id="0x4010">
-                    <Label id="0x5005" value="Enable (All Axis)"/>
-                    <ConfigID id="0x5001" value="130848"/>
-                </CheckBooleanField>
-            </Group>
-            <Group id="0x4008">
+                <UIntValue value="1"/>
+                <EnumOption>
+                    <Label value="Enable All Axes"/>
+                </EnumOption>
+            </BitField>
+            <BitField>
                 <Label id="0x5005" value="Control Pad Temperature/Pressure"/>
                 <ConfigID id="0x5001" value="0x06ff3b"/>
-                <ValueFormat id="0x5024" value="(Config[0x01003B]) | (Config[0x01013B] &lt;&lt; 1)"/>
-                <CheckBooleanField id="0x4010">
-                    <Label id="0x5005" value="Enable Pressure"/>
-                    <ConfigID id="0x5001" value="65595"/>
-                    <ValueFormat id="0x5024" value=""/>
-                </CheckBooleanField>
-                <CheckBooleanField id="0x4010">
-                    <Label id="0x5005" value="Enable Temperature"/>
-                    <ConfigID id="0x5001" value="65851"/>
-                    <DisplayFormat value="Config[0x6ff3b] &amp; 1"/>
-                    <ValueFormat id="0x5024" value=""/>
-                </CheckBooleanField>
-                <CheckBooleanField id="0x4010">
-                    <Label id="0x5005" value="Enable X Axis"/>
-                    <ConfigID id="0x5001" value="196411"/>
-                    <DisplayFormat value="Config[0x6ff3b] &amp; 2"/>
-                    <ValueFormat id="0x5024" value=""/>
-                </CheckBooleanField>
-            </Group>
+                <UIntValue value="3"/>
+                <EnumOption>
+                    <Label value="Enable Pressure"/>
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Enable Temperature"/>
+                </EnumOption>
+            </BitField>
         </Tab>
         
         <FactoryCalibrationTab>
