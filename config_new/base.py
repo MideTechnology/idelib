@@ -12,6 +12,7 @@ __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
 from fnmatch import fnmatch
+import os.path
 import string
 import time
 
@@ -23,10 +24,12 @@ import wx.lib.sized_controls as SC
 from widgets.shared import DateTimeCtrl
 from common import makeWxDateTime
 
+import legacy
 from mide_ebml.ebmlite import loadSchema
 
 import logging
 logger = logging.getLogger('SlamStickLab.ConfigUI')
+logger.setLevel(logging.INFO)
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 #===============================================================================
@@ -36,6 +39,8 @@ logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 # Min/max integers supported by wxPython SpinCtrl
 MAX_SIGNED_INT = 2**31 - 1
 MIN_SIGNED_INT = -2**31
+
+SCHEMA = loadSchema('config_ui.xml')
 
 #===============================================================================
 #--- Utility functions
@@ -222,6 +227,9 @@ class ConfigBase(object):
         @cvar CLASS_ARGS: A dictionary mapping additional EBML element names
             to object attribute names. Subclasses can add their own unique
             attributes to this dictionary.
+        @cvar DEFAULT_TYPE: The name of the EBML ``*Value`` element type used
+            when writing this item's value to the config file. Used if the
+            defining EBML element does not contain a ``*Value`` sub-element.
     """
 
     # Mapping of element names to object attributes. May contain glob-style
@@ -254,6 +262,7 @@ class ConfigBase(object):
     # Default expression code objects for DisableIf, ValueFormat, DisplayFormat
     noEffect = compile("x", "<ConfigBase.noEffect>", "eval")
     noValue = compile("None", "<ConfigBase.noValue>", "eval")
+    alwaysFalse = compile("False", "<ConfigBase.alwaysFalse>", "eval")
     
     
     def makeExpression(self, exp, name):
@@ -355,6 +364,9 @@ class ConfigBase(object):
             # Generate expressions using the field's gain and offset.
             self.makeGainOffsetFormat()
         
+        if self.disableIf is not None:
+            self.disableIf = self.makeExpression(self.disableIf, 'disableIf')
+        
         if self.configId is not None and self.root is not None:
             self.root.configItems[self.configId] = self
         
@@ -376,20 +388,47 @@ class ConfigBase(object):
         """
         if self.isDisabled():
             return None
-        return self.default
+        try:
+            return self.value
+        except AttributeError:
+            return self.default
     
     
     def getConfigValue(self):
-        """
+        """ Get the widget's value, as written to the config file.
         """
         if self.configId is None:
             return
         try:
-            self.expressionVariables['x'] = self.getDisplayValue()
+            val = self.getDisplayValue()
+            if val is None:
+                return None
+            self.expressionVariables['x'] = val
             return eval(self.valueFormat, self.expressionVariables)
         except (KeyError, ValueError, TypeError):
             return None
+    
+    
+    def setDisplayValue(self, val, **kwargs):
+        """ 
+        """
+        # This is overridden by ConfigWidget subclasses; they have no `value`.
+        self.value = val
 
+
+    def setConfigValue(self, val, **kwargs):
+        """ Set the Field's value, using the data type native to the config
+            file. 
+        """
+        self.expressionVariables['x'] = val
+        val = eval(self.displayFormat, self.expressionVariables)
+        self.setDisplayValue(val, **kwargs)
+
+
+    def setToDefault(self, **kwargs):
+        """
+        """
+        self.setConfigValue(self.default, **kwargs)
 
 
 class ConfigWidget(wx.Panel, ConfigBase):
@@ -477,6 +516,15 @@ class ConfigWidget(wx.Panel, ConfigBase):
         
         self.setToDefault()
 
+
+    def enableChildren(self, enabled=True):
+        """ Enable/Disable the Field's children.
+        """
+        if self.field is not None:
+            self.field.Enable(enabled)
+        if self.unitLabel is not None:
+            self.unitLabel.Enable(enabled)
+
     
     def isDisabled(self):
         if not self.IsEnabled():
@@ -492,32 +540,22 @@ class ConfigWidget(wx.Panel, ConfigBase):
             self.enableChildren(checked)
             
     
-    def enableChildren(self, enabled=True):
-        """ Enable/Disable the Field's children.
-        """
-        if self.field is not None:
-            self.field.Enable(enabled)
-        if self.unitLabel is not None:
-            self.unitLabel.Enable(enabled)
-
-
-    def setRawValue(self, val, check=True):
+    def setDisplayValue(self, val, check=True):
         """ Set the Field's value, using the data type native to the config
             file. 
         """
-        if self.field is not None:
-            self.field.SetValue(val)
-        else:
-            check = bool(val)
+        if val is not None:
+            if self.field is not None:
+                self.field.SetValue(val)
+            else:
+                check = bool(val)
         self.setCheck(check)
         
 
     def setToDefault(self, check=False):
         """ Reset the Field to its default value.
         """
-        if self.default is not None:
-            self.setRawValue(self.default, check=check)
-            
+        super(ConfigWidget, self).setToDefault()
         self.setCheck(check)
 
 
@@ -533,14 +571,17 @@ class ConfigWidget(wx.Panel, ConfigBase):
             return self.field.GetValue()
         
         return self.default
+
     
+    #===========================================================================
+    # Event handlers
+    #===========================================================================
         
     def OnCheck(self, evt):
         """ Handle checkbox changing.
         """
         self.enableChildren(evt.Checked())
         evt.Skip()
-
 
     def OnValueChanged(self, evt):
         self.updateConfigData()
@@ -564,7 +605,7 @@ class BooleanField(ConfigWidget):
 
     DEFAULT_TYPE = "BooleanValue"
 
-    def setRawValue(self, val, check=False):
+    def setDisplayValue(self, val, check=False):
         """
         """
         self.checkbox.SetValue(bool(val))
@@ -810,7 +851,7 @@ class EnumField(ConfigWidget):
         evt.Skip()
         
 
-    def setRawValue(self, val, check=True):
+    def setDisplayValue(self, val, check=True):
         """ Select the appropriate item for the 
         """
         index = wx.NOT_FOUND
@@ -899,7 +940,7 @@ class BitField(EnumField):
         return childSizer
         
 
-    def setRawValue(self, val, check=True):
+    def setDisplayValue(self, val, check=True):
         """ Select the appropriate item for the 
         """
         for o in self.options:
@@ -985,10 +1026,10 @@ class DateTimeField(IntField):
         self.utcCheck.Enable(enabled)
     
     
-    def setRawValue(self, val, check=True):
-        if val == 0:
+    def setDisplayValue(self, val, check=True):
+        if not val:
             val = time.time()
-        super(DateTimeField, self).setRawValue(makeWxDateTime(val), check)
+        super(DateTimeField, self).setDisplayValue(makeWxDateTime(val), check)
     
     
     def getDisplayValue(self):
@@ -1048,7 +1089,7 @@ class UTCOffsetField(FloatField):
         gt = time.gmtime()
         lt = time.localtime()
         val = (time.mktime(lt) - time.mktime(gt)) / 60.0 / 60.0
-        self.setRawValue(val)
+        self.setDisplayValue(val)
 
 
 #===============================================================================
@@ -1382,7 +1423,8 @@ class Tab(SP.ScrolledPanel, Group):
     CHECK = False
 
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes standard `wx.Panel` arguments, plus:
+        """ Constructor. Takes standard `wx.lib.scrolledpanel.ScrolledPanel`
+            arguments, plus:
             
             @keyword element: The EBML element for which the UI element is
                 being generated. The element's name typically matches that of
@@ -1460,6 +1502,7 @@ class UserCalibrationTab(FactoryCalibrationTab):
         self.setAttribDefault("label", "User Calibration")
         super(UserCalibrationTab, self).__init__(*args, **kwargs)
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -1503,20 +1546,18 @@ class ConfigDialog(SC.SizedDialog):
         self.expresionVariables = {'Config': self.configValues,
                                    'null': None}
                 
-#         self.buildUI()
-        
         # XXX: HACK: Load UIHints from multiple files.
-        if self.hints is None:
-            schema = loadSchema("config_ui.xml")
-            for f in ('General.UI', 'Triggers.UI', 'Channel.UI'):
-                self.hints = schema.load(f)
-                print f, ("*" * 40)
-                util.dump(self.hints)
-                self.buildUI()
-        else:
-            self.buildUI()
+#         if self.hints is None:
+#             schema = loadSchema("config_ui.xml")
+#             for f in ('General.UI', 'Triggers.UI', 'Channel.UI'):
+#                 self.hints = schema.load(f)
+#                 print f, ("*" * 40)
+#                 util.dump(self.hints)
+#                 self.buildUI()
+#         else:
+#             self.buildUI()
         
-        self.useLegacyConfig = False
+        self.buildUI()
         self.loadConfigData()
         
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK|wx.CANCEL))
@@ -1524,8 +1565,8 @@ class ConfigDialog(SC.SizedDialog):
         self.Bind(wx.EVT_BUTTON, self.OnCancel, id=wx.ID_CANCEL)
         
         self.Fit()
-        self.SetMinSize((500, 400))
-        self.SetSize((680, 600))
+        self.SetMinSize((500, 480))
+        self.SetSize((680, 700))
 
 
     def buildUI(self):
@@ -1543,38 +1584,41 @@ class ConfigDialog(SC.SizedDialog):
             firmware that doesn't generate a UI description, an appropriate
             generic version is created.
         """
-        print "XXX: Implement loadConfigUI()!"
         self.hints = defaults
+        self.useLegacyConfig = False
+        
+        filename = getattr(self.device, 'CONFIG_UI_FILE', None)
+        if filename is None or not os.path.exists(filename):
+            # Load default ConfigUI for the device from static XML.
+            self.useLegacyConfig = True
+            self.hints = legacy.loadConfigUI(self.device)
+        else:
+            logger.info('Loading ConfigUI from %s' % filename)
+            self.hints = SCHEMA.load(filename)
         
 
     def loadConfigData(self):
         """ Load config data from the recorder.
         """
-        print "XXX: Implement loadConfig()"
-        
         self.configData = {}
+        
+        if self.useLegacyConfig:
+            self.configData = legacy.loadConfigData(self.device)
+            self.origConfigData = self.configData.copy()
+            return self.configData
+        
+        print "XXX: Implement loadConfig()"
+            
         self.origConfigData = self.configData.copy()
     
     
     def saveConfigData(self):
         """ Save edited config data to the recorder.
         """
+        if self.useLegacyConfig:
+            return legacy.saveConfigData(self.configData, self.device)
+        
         print "XXX: Implement saveConfig()"
-    
-    
-    def loadLegacyConfigData(self):
-        """ Load old-style configuration data (i.e. not ConfigID/value pairs),
-            as used by firmware versions prior to [XXX: add FwRev].
-        """
-        self.useLegacyConfig = True
-        print "XXX: Implement loadLegacyConfigData()!"
-    
-    
-    def saveLegacyConfigData(self):
-        """ Save old-style configuration data (i.e. not ConfigID/value pairs),
-            as used by firmware versions prior to [XXX: add FwRev].
-        """
-        print "XXX: Implement saveLegacyConfigData()!"
    
     
     def OnOK(self, evt):
@@ -1603,25 +1647,22 @@ class ConfigDialog(SC.SizedDialog):
 # 
 #===============================================================================
 
-__DEBUG__ = False
-# __DEBUG__ = True
+__DEBUG__ = not True
 
 if __name__ == "__main__":
-    schema = loadSchema("config_ui.xml")
+#     schema = loadSchema("config_ui.xml")
 #     schema = loadSchema("../mide_ebml/ebml/schema/config_ui.xml")
 #     testDoc = schema.load('CONFIG.UI')
     
-    from mide_ebml.ebmlite import util
-    from StringIO import StringIO
-    s = StringIO()
-    util.xml2ebml('defaults/LOG-0002-100G.xml', s, schema)
-    s.seek(0)
-    testDoc = schema.load(s)
+#     s = StringIO()
+#     util.xml2ebml('defaults/LOG-0002-100G.xml', s, schema)
+#     s.seek(0)
+#     testDoc = schema.load(s)
 
 #     util.dump(testDoc)
     
     app = wx.App()
-    dlg = ConfigDialog(None, hints=testDoc)
+    dlg = ConfigDialog(None)#, hints=testDoc)
     
     if __DEBUG__:
         dlg.Show()

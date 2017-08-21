@@ -85,18 +85,18 @@ def encodeSize(val, length=None):
 #--- Encoding
 #===============================================================================
 
-def encodeId(val, length=None):
+def encodeId(eid, length=None):
     """ Encode an element ID.
 
-        @param val: The EBML ID to encode.
+        @param eid: The EBML ID to encode.
         @keyword length: An explicit length for the encoded data. A `ValueError`
             will be raised if the length is too short to encode the value.
     """
     if length is not None:
         if length < 1 or length > 4:
             raise ValueError("Cannot encode an ID 0x%0x to length %d" % 
-                             (val, length))
-    return encodeUInt(val, length)
+                             (eid, length))
+    return encodeUInt(eid, length)
 
 
 def encodeUInt(val, length=None):

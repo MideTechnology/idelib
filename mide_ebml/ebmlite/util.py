@@ -7,6 +7,7 @@ Created on Aug 11, 2017
 
 @todo: Clean up and standardize usage of the term 'size' versus 'length.'
 '''
+from StringIO import StringIO
 
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
@@ -14,6 +15,7 @@ __copyright__ = "Copyright 2017 Mide Technology Corporation"
 import ast
 from base64 import b64encode, b64decode
 import sys
+import tempfile
 from xml.etree import ElementTree as ET
 
 import core, encoding
@@ -207,6 +209,30 @@ def xml2ebml(xmlFile, ebmlFile, schema, sizeLength=4, headers=True,
         ebmlFile.close()
     
     return numBytes
+
+#===============================================================================
+# 
+#===============================================================================
+
+def loadXml(xmlFile, schema, ebmlFile=None):
+    """ Helpful utility to load an EBML document from an XML file.
+    
+        @param xmlFile: The XML source. Can be a filename, an open file-like
+            stream, or a parsed XML document.
+        @param schema: The EBML schema to use. Can be a filename or an
+            instance of a `Schema`.
+        @keyword ebmlFile: The name of the temporary EBML file to write, or
+            ``:memory:`` to use RAM.  
+    """
+    if ebmlFile == ":memory:":
+        ebmlFile = StringIO()
+        xml2ebml(xmlFile, ebmlFile, schema)
+        ebmlFile.seek(0)
+    else:
+        ebmlFile = tempfile.mktemp() if ebmlFile is None else ebmlFile
+        xml2ebml(xmlFile, ebmlFile, schema)
+        
+    return schema.load(ebmlFile)
 
 
 #===============================================================================

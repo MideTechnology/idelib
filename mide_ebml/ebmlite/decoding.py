@@ -66,14 +66,14 @@ def readElementID(stream):
         @return: The decoded element ID and its length in bytes.
     """
     ch = stream.read(1)
-    length, id_ = decodeIDLength(ord(ch))
+    length, eid = decodeIDLength(ord(ch))
 
     if length > 4:
         raise IOError('Cannot decode element ID with length > 4.')
     if length > 1:
-        id_ = _struct_uint32.unpack((ch + stream.read(length-1)
+        eid = _struct_uint32.unpack((ch + stream.read(length-1)
                                      ).rjust(4,'\x00'))[0]
-    return id_, length
+    return eid, length
 
 
 def readElementSize(stream):
