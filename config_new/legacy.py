@@ -38,6 +38,8 @@ def loadConfigUI(device):
 def loadConfigData(device):
     """ Load old configuration data.
     """
+    # XXX: REMOVE
+    return {}
     config = device.getConfig()
     newData = {}
     
@@ -64,6 +66,8 @@ def loadConfigData(device):
 def saveConfigData(configData, device):
     """ Save old configuration data.
     """
+    # XXX: REMOVE
+    return
     data = OrderedDict()
     basicConfig = OrderedDict()
     userData = OrderedDict()

@@ -575,9 +575,8 @@
                 <FloatElement name="FloatOffset" />
             </MasterElement>
 
-
-
-            <MasterElement name="HiddenField" level="-1" id="0x040FF" multiple="1">A 'field' for config items without individual UI widgets (e.g. created from multiple other fields)
+            <MasterElement name="HiddenField" level="-1" id="0x040FF" multiple="1">
+                A 'field' for config items without individual UI widgets (e.g. created from multiple other fields)
                 <UIntegerElement name="ConfigID" id="0x5001" multiple="0"></UIntegerElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0">For hidden fields, this determines if the config item will be written.</StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
@@ -590,7 +589,17 @@
                 <FloatElement name="FloatOffset" />
             </MasterElement>
 
-            <MasterElement name="CheckDriftButton" level="-1" id="0x400F" multiple="0">Special-case control that compares device time to system time.</MasterElement>
+            <MasterElement name="VerticalPadding" level="-1" id="0x400F" multiple="1">
+                Special-case widget that creates a resizable vertical spacer, placing the fields following it on the bottom of the dialog.
+            </MasterElement>
+
+            <MasterElement name="CheckDriftButton" level="-1" id="0x402F" multiple="0">
+                Special-case control that compares device time to system time.
+            </MasterElement>
+
+            <MasterElement name="ResetButton" level="-1" id="404F" multiple="1">
+                Special-case control that resets all the siblings in its group or tab to their factory default values.
+            </MasterElement>
 
         </MasterElement> <!-- Group -->
 
@@ -629,8 +638,43 @@
             <MasterElement name="CheckFloatPressureField" />
             <MasterElement name="HiddenField" />
             <MasterElement name="CheckDriftButton" />
+            <MasterElement name="VerticalPadding" />
+            <MasterElement name="ResetButton" />
         </MasterElement>
 
+        <MasterElement name="BooleanField" />
+        <MasterElement name="UIntField" />
+        <MasterElement name="IntField" />
+        <MasterElement name="FloatField" />
+        <MasterElement name="ASCIIField" />
+        <MasterElement name="TextField" />
+        <MasterElement name="EnumField" />
+        <MasterElement name="DateTimeField" />
+        <MasterElement name="UTCOffsetField" />
+        <MasterElement name="CheckUIntField" />
+        <MasterElement name="CheckIntField" />
+        <MasterElement name="CheckFloatField" />
+        <MasterElement name="CheckASCIIField" />
+        <MasterElement name="CheckTextField" />
+        <MasterElement name="CheckEnumField" />
+        <MasterElement name="CheckDateTimeField" />
+        <MasterElement name="CheckUTCOffsetField" />
+        <MasterElement name="IntAccelerationField" />
+        <MasterElement name="CheckIntAccelerationField" />
+        <MasterElement name="FloatAccelerationField" />
+        <MasterElement name="CheckFloatAccelerationField" />
+        <MasterElement name="IntTemperatureField" />
+        <MasterElement name="CheckIntTemperatureField" />
+        <MasterElement name="FloatTemperatureField" />
+        <MasterElement name="CheckFloatTemperatureField" />
+        <MasterElement name="IntPressureField" />
+        <MasterElement name="CheckIntPressureField" />
+        <MasterElement name="FloatPressureField" />
+        <MasterElement name="CheckFloatPressureField" />
+        <MasterElement name="HiddenField" />
+        <MasterElement name="CheckDriftButton" />
+        <MasterElement name="VerticalPadding" />
+        <MasterElement name="ResetButton" />
 
     </MasterElement> <!-- Tab -->
 
