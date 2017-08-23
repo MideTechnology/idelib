@@ -239,7 +239,7 @@ def loadXml(xmlFile, schema, ebmlFile=None):
 # 
 #===============================================================================
 
-def dump(el, values=True, out=sys.stdout, indent="  ", _depth=0):
+def pprint(el, values=True, out=sys.stdout, indent="  ", _depth=0):
     """ Test function to recursively crawl an EBML document or element and
         print its structure. 
         
@@ -252,7 +252,7 @@ def dump(el, values=True, out=sys.stdout, indent="  ", _depth=0):
     if isinstance(el, core.MasterElement):
         out.write("%s%s\n" % (tab, txt))
         for i in el:
-            dump(i, values, out, indent, _depth+1)
+            pprint(i, values, out, indent, _depth+1)
     elif values:
         out.write("%s%s: %r\n" % (tab, txt, el.value))
     else:

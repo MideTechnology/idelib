@@ -1667,7 +1667,7 @@ class ConfigDialog(SC.SizedDialog):
         
         self.Fit()
         self.SetMinSize((500, 480))
-        self.SetSize((570, 670))
+        self.SetSize((570, 680))
 
 
     def buildUI(self):

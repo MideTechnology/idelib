@@ -141,18 +141,18 @@
             </CheckGroup>
             <CheckGroup>
                 <Label value="Acceleration Trigger (DC)"/>
-                <ConfigID value="0x5ff20"/>
+                <DisplayFormat value="Config[0x05ff20]"/> <!-- checked if any 'participation' bit is set -->
+                <ValueFormat value=""/> <!-- Check itself does not write a value -->
                 <FloatAccelerationField>
                     <Label value="Accelerometer Threshold"/>
-                    <ConfigID value="327456"/>
+                    <ConfigID value="0x04ff20"/>
                     <UIntValue value="5"/>
                     <Units value="g"/>
                     <FloatMax value="16.0"/>
                     <ToolTip value="The minimum acceleration (positive or negative) to trigger a recording. Must be greater than 0."/>
                 </FloatAccelerationField>
-                <!-- XXX: VERIFY IDs FOR CheckGroup AND BITFIELD -->
                 <BitField>
-                    <ConfigID value="0x050020"/>
+                    <ConfigID value="0x05ff20"/>
                     <EnumOption>
                         <Label value="X Axis Trigger"/>
                     </EnumOption>
