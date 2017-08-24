@@ -140,7 +140,7 @@
                 </FloatAccelerationField>
             </CheckGroup>
             <CheckGroup>
-                <Label value="Acceleration Trigger (DC)"/>
+                <Label value="Acceleration Trigger (DC)"/> <!-- Note that the group itself has no ConfigID! -->
                 <DisplayFormat value="Config[0x05ff20]"/> <!-- checked if any 'participation' bit is set -->
                 <ValueFormat value=""/> <!-- Check itself does not write a value -->
                 <FloatAccelerationField>
