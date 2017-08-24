@@ -146,7 +146,12 @@ class SlamStickX(Recorder):
         """
         devinfo = mideSchema.load(source).dump()
 #         devinfo = util.read_ebml(source, schema=schema_mide)
-        return devinfo.get('RecorderConfiguration', default)
+        if 'RecorderConfiguration' in devinfo:
+            return devinfo.get('RecorderConfiguration', default)
+        elif 'RecorderConfigurationList' in devinfo:
+            return devinfo
+        else:
+            return default
 
 
     def _saveConfig(self, dest, data, verify=True):
@@ -171,6 +176,28 @@ class SlamStickX(Recorder):
         else:
             dest.write(ebml)
         return len(ebml)
+
+
+    def getConfigItems(self):
+        """ Get the recorder's new 'ConfigUI' configuration data, a dictionary
+            of configuration IDs and values.
+        """
+        config = self.loadConfig()
+        root = config.get('RecorderConfigurationList', None)
+        if root is None:
+            return None
+        
+        result = {}
+        for item in root.get('RecorderConfigurationItem', []):
+            k = item.get('ConfigID', None)
+            v = None
+            for x in item:
+                if x.endswith('Value'):
+                    v = item[x]
+                    break
+            if k is not None and v is not None:
+                result[k] = v
+        return result
 
 
     @property

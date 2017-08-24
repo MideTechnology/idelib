@@ -14,7 +14,11 @@ __copyright__ = "Copyright 2017 Mide Technology Corporation"
 from fnmatch import fnmatch
 import os.path
 import string
+import sys
 import time
+
+# XXX: For testing. Remove.
+sys.path.insert(0, '..')
 
 import wx
 import wx.lib.filebrowsebutton as FB
@@ -26,6 +30,7 @@ from common import makeWxDateTime, makeBackup, restoreBackup
 
 import legacy
 from mide_ebml.ebmlite import loadSchema
+from mide_ebml.ebmlite import util
 
 import logging
 logger = logging.getLogger('SlamStickLab.ConfigUI')
@@ -1624,7 +1629,10 @@ class ConfigDialog(SC.SizedDialog):
             devName = "Recorder"
         
         # Having 'hints' argument is a temporary hack!
-        self.loadConfigUI(kwargs.pop('hints', None))
+        self.hints = kwargs.pop('hints', None)
+        if self.hints is None:
+            self.loadConfigUI()
+        
 
         kwargs.setdefault("title", "Configure %s" % devName)
         kwargs.setdefault("style", wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -1691,6 +1699,7 @@ class ConfigDialog(SC.SizedDialog):
         filename = getattr(self.device, 'CONFIG_UI_FILE', None)
         if filename is None or not os.path.exists(filename):
             # Load default ConfigUI for the device from static XML.
+            logger.info('Loading default ConfigUI for %s' % self.device.partNumber)
             self.useLegacyConfig = True
             self.hints = legacy.loadConfigUI(self.device)
         else:
@@ -1701,12 +1710,16 @@ class ConfigDialog(SC.SizedDialog):
     def loadConfigData(self):
         """ Load config data from the recorder.
         """
-        self.configData = {}
+        # Mostly for testing. Will probably be removed.
+        if self.device is None:
+            self.configData = self.origConfigData = {}
+            return
         
         if self.useLegacyConfig:
             self.configData = legacy.loadConfigData(self.device)
             self.origConfigData = self.configData.copy()
-            return self.configData
+        else:
+            self.configData = self.device.getConfigItems()
         
         # XXX: How will we get the data? The recorder's getConfig()? A different
         # method, one that returns a simple dictionary of IDs:values? 
@@ -1714,15 +1727,20 @@ class ConfigDialog(SC.SizedDialog):
         for k,v in self.configData.items():
             try:
                 self.configItems[k].setConfigValue(v)
-            except AttributeError:
+            except (KeyError, AttributeError):
                 pass
             
         self.origConfigData = self.configData.copy()
+        
+        return self.configData 
     
     
     def saveConfigData(self):
         """ Save edited config data to the recorder.
         """
+        if self.device is None:
+            return
+        
         self.configData = self.configValues.toDict()
         
         makeBackup(self.device.CONFIG_FILE)
@@ -1792,11 +1810,20 @@ if __name__ == "__main__":
 #     testDoc = schema.load('CONFIG.UI')
 #     util.dump(testDoc)
     
-    from devices import getDevices
-    device = getDevices()[0]
+    if len(sys.argv) > 1:
+        device = None
+        if sys.argv[-1].endswith('.xml'):
+            hints = util.loadXml(sys.argv[-1], SCHEMA)
+        else:
+            schema = loadSchema('config_ui.xml')
+            hints = schema.load(sys.argv[-1])
+    else:
+        hints = None
+        from devices import getDevices
+        device = getDevices()[0]
     
     app = wx.App()
-    dlg = ConfigDialog(None, device=device)
+    dlg = ConfigDialog(None, hints=hints, device=device)
     
     if __DEBUG__:
         dlg.Show()

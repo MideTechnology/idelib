@@ -13,7 +13,6 @@ from collections import OrderedDict
 import os.path
 
 from mide_ebml.ebmlite import loadSchema, util
-from base import SCHEMA, logger
 
 DEFAULTS_PATH = os.path.join(os.path.dirname(__file__), 'defaults')
 
@@ -28,9 +27,8 @@ def loadConfigUI(device):
     # TODO: Modify default with recorder information (accelerometer range, etc.)
     # to reduce the number of individual templates.
     partNum = getattr(device, 'partNumber', 'LOG-0002-100G-DC')
-    logger.info('Loading default ConfigUI for %s' % partNum)
     filename = os.path.join(DEFAULTS_PATH, partNum + ".xml")
-    return util.loadXml(filename, SCHEMA)
+    return util.loadXml(filename, loadSchema('config_ui.xml'))
 
 
 #===============================================================================
