@@ -26,7 +26,7 @@
             </CheckUIntField>
             <CheckUIntField>
                 <Label value="Override Antialiasing Filter Cutoff"/>
-                <ConfigID value="0x8ff08"/>
+                <ConfigID value="0x08ff08"/>
                 <UIntValue value="1000"/>
                 <Units value="Hz"/>
                 <UIntMax value="5000"/>

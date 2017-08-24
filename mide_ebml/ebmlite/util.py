@@ -2,10 +2,15 @@
 Module mide_ebml.ebmlite.util
 
 Some utilities for manipulating EBML documents: translate to/from XML, etc.
+This module may be imported or used as a command-line utility.
 
 Created on Aug 11, 2017
 
 @todo: Clean up and standardize usage of the term 'size' versus 'length.'
+@todo: Modify (or create an alternate version of) `toXml()` that writes 
+    directly to a file, allowing the conversion of huge EBML files.
+@todo: Add other options to command-line utility for the other arguments of
+    `toXml()` and `xml2ebml()`.
 '''
 from StringIO import StringIO
 
@@ -296,6 +301,7 @@ if __name__ == "__main__":
     
     if args.mode == "xml2ebml":
         xml2ebml(args.input, args.output, schema) #, sizeLength=4, headers=True, unknown=True)
+        exit(0)
     else:
         doc = schema.load(args.input)
         root = toXml(doc) #, offsets, sizes, types, ids)
@@ -305,6 +311,7 @@ if __name__ == "__main__":
                 parseString(s).writexml(f, addindent='\t', newl='\n', encoding='utf-8')
             else:
                 f.write(s)
+        exit(0)
                 
             
         

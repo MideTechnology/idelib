@@ -9,7 +9,7 @@ __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
 
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 import os.path
 
 from mide_ebml.ebmlite import loadSchema, util
@@ -25,6 +25,8 @@ def loadConfigUI(device):
     """ Load a default configuration UI from a static XML file. For recorders
         running old firmware that doesn't supply a ``CONFIG.UI`` file.
     """
+    # TODO: Modify default with recorder information (accelerometer range, etc.)
+    # to reduce the number of individual templates.
     partNum = getattr(device, 'partNumber', 'LOG-0002-100G-DC')
     logger.info('Loading default ConfigUI for %s' % partNum)
     filename = os.path.join(DEFAULTS_PATH, partNum + ".xml")
@@ -36,6 +38,9 @@ def loadConfigUI(device):
 #===============================================================================
 
 def _copyItems(oldD, newD, *keyPairs):
+    """ Utility function to copy existing, non-`None` items from one dictionary
+        to another, using different keys.
+    """
     for oldK, newK in keyPairs:
         val = oldD.get(oldK)
         if val is not None:
@@ -45,10 +50,7 @@ def _copyItems(oldD, newD, *keyPairs):
 def loadConfigData(device):
     """ Load old configuration data.
     """
-    # XXX: REMOVE
-#     return {}
-
-    config = device.getConfig()
+    config = device.getConfig(refresh=True).copy()
     newData = {}
 
     # Combine 'root' dictionaries for easy access
@@ -57,6 +59,7 @@ def loadConfigData(device):
     triggerConfig = config.get('SSXTriggerConfiguration', {})
     channelConfig = config.get('SSXChannelConfiguration', [])
 
+    # Basic stuff. Items only added if they exist in the old config data.
     _copyItems(basicConfig, newData, 
                ('SampleFreq',         0x02ff08),  
                ('AAFilterCornerFreq', 0x08ff08),
@@ -68,11 +71,12 @@ def loadConfigData(device):
                ('RecorderDesc',       0x09ff7f))
     
     _copyItems(triggerConfig, newData, 
+               ('WakeTimeUTC',        0x0fff7f),
                ('PreRecordDelay',     0x0cff7f),
                ('RecordingTime',      0x0dff7f),
-               ('AutoRearm',          0x0eff7f),
-               ('WakeTimeUTC',        0x0fff7f))
+               ('AutoRearm',          0x0eff7f))
     
+    # Channel configuration. 
     for ch in channelConfig:
         chId = ch.get('ConfigChannel')
         enables = ch.get('SubChannelEnableMap', 0xFF)
@@ -85,11 +89,12 @@ def loadConfigData(device):
         if sampFreq is not None:
             newData[0x82FF00 | (chId & 0xFF)] = sampFreq
     
-    dcAccelMap = 0
+    # Trigger configuration.
+    dcAccelMap = 0 # For building DC accelerometer's 'participation map'.
     
     for trigger in triggerConfig.get('Trigger', []):
         chId = trigger.get('TriggerChannel')
-        subchId = trigger.get('TriggerSubChannel', 0xFF) & 0xFF
+        subchId = trigger.get('TriggerSubChannel', 0) & 0xFF
         trigLo = trigger.get('TriggerWindowLo')
         trigHi = trigger.get('TriggerWindowHi')
         
@@ -99,10 +104,13 @@ def loadConfigData(device):
         combinedId = (subchId << 8) | (chId & 0xFF)
         
         if chId == 32:
+            # Special case: DC accelerometer (new data uses 'participation map'
+            # instead of individual subchannel triggers).
             dcAccelMap |= (1 << subchId)
+            combinedId = combinedId | 0x00FF00
         else:
             newData[0x050000 | combinedId] = 1
-        
+                
         if trigLo is not None:
             newData[0x030000 | combinedId] = trigLo
         if trigHi is not None:
@@ -117,49 +125,41 @@ def loadConfigData(device):
 def saveConfigData(configData, device):
     """ Save old configuration data.
     """
-    # XXX: REMOVE
-#     return
-
+    # Copy the data, just in case.
     configData = configData.copy()
-    userData = OrderedDict()
+    
+    # Individual dictionaries/lists for each section of the old config
+    userConfig = OrderedDict()
     basicConfig = OrderedDict()
     triggerConfig = OrderedDict()
-    channelConfig = OrderedDict()
+    channelConfig = []
+
+    # Basic stuff. Items only added if they exist in the new config data.
+    _copyItems(configData, userConfig,
+               (0x08ff7f, 'RecorderName'), 
+               (0x09ff7f, 'RecorderDesc'))
+
+    _copyItems(configData, basicConfig, 
+               (0x02ff08, 'SampleFreq'), 
+               (0x08ff08, 'AAFilterCornerFreq'),
+               (0x0aff7f, 'PlugPolicy'), 
+               (0x0bff7f, 'UTCOffset'))
+        
+    _copyItems(configData, triggerConfig, 
+               (0x0fff7f, 'WakeTimeUTC'),
+               (0x0cff7f, 'PreRecordDelay'),
+               (0x0dff7f, 'RecordingTime'),
+               (0x0eff7f, 'AutoRearm'))
     
-    for k, cid in (('RecorderName', 0x8ff7f), 
-                   ('RecorderDesc', 0x9ff7f)):
-        val = configData.get(cid, None)
-        if val:
-            userData[k] = val
-    
-    for k, cid in (('SampleFreq', 0x2ff08), 
-                   ('AAFilterCornerFreq', 0x8ff08),
-                   ('PlugPolicy', 0xaff7f), 
-                   ('UTCOffset', 0xbff7f)):
-        val = configData.get(cid, None)
-        if val is not None:
-            basicConfig[k] = val
-    
-    for k, cid in (('PreRecordDelay',     0x0cff7f),
-                   ('RecordingTime',      0x0dff7f),
-                   ('AutoRearm',          0x0eff7f),
-                   ('WakeTimeUTC',        0x0fff7f)):
-        val = configData.get(cid, None)
-        if val is not None:
-            triggerConfig[k] = val
-    
+    # Trigger configuration: separate master elements for each subchannel. 
     triggers = []
     
     for t in [k for k in configData if (k & 0xFF0000 == 0x050000)]:
         combinedId = t & 0x00FFFF
-        trigHi = configData.get(0x030000 | combinedId)
-        trigLo = configData.get(0x040000 | combinedId)
+        trigLo = configData.get(0x030000 | combinedId)
+        trigHi = configData.get(0x040000 | combinedId)
         
         trig = OrderedDict(TriggerChannel = combinedId & 0xFF)
-        if trigHi is not None:
-            trig['TriggerWindowHi'] = trigHi
-        if trigLo is not None:
-            trig['TriggerWindowLo'] = trigLo
         
         # Special case: DC accelerometer, which uses a 'participation' bitmap
         # instead of having explicit ConfigID items for each subchannel.
@@ -171,27 +171,70 @@ def saveConfigData(configData, device):
                     d['TriggerSubChannel'] = i
                     triggers.append(d)
         else:
-            trig['TriggerSubChannel'] = ((combinedId & 0x00FF00) >> 1)
+            trig['TriggerSubChannel'] = ((combinedId & 0x00FF00) >> 8)
             triggers.append(trig)
+
+        if trigLo is not None:
+            trig['TriggerWindowLo'] = trigLo
+        if trigHi is not None:
+            trig['TriggerWindowHi'] = trigHi
 
     if triggers:
         triggerConfig['Trigger'] = triggers
 
+    # Channel configuration: per-axis enables, sample rate for some.
+    for c in device.getChannels():
+        combinedId = 0xFF00 | (c & 0xFF)
+        d = OrderedDict()
+        _copyItems(configData, d, 
+                   (0x820000 | combinedId, "ChannelSampleFreq"),
+                   (0x010000 | combinedId, "SubChannelEnableMap"))
+        
+        # Only save if something's been set.
+        if d:
+            d['ConfigChannel'] = c
+            channelConfig.append(d)
+
+    # Build the complete old-style configuration dictionary. Only add stuff
+    # with content.
     legacyConfigData = OrderedDict()
     
     if basicConfig:
         legacyConfigData['SSXBasicRecorderConfiguration'] = basicConfig       
-    if userData:
-        legacyConfigData['RecorderUserData'] = userData
+    if userConfig:
+        legacyConfigData['RecorderUserData'] = userConfig
     if triggerConfig:
         legacyConfigData['SSXTriggerConfiguration'] = triggerConfig
     if channelConfig:
         legacyConfigData['SSXChannelConfiguration'] = channelConfig
 
-    # XXX: remove
-    return legacyConfigData
     schema = loadSchema('mide.xml')
- 
+    ebml = schema.encodes(legacyConfigData)
     
+    with open(device.CONFIG_FILE, 'wb') as f:
+        f.write(ebml)
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def pprint(d, indent=0):
+    """ Test function for dumping dictionaries.
+        XXX: REMOVE ME.
+    """
+    if isinstance(d, dict):
+        for k,v in d.items():
+            print
+            print (("    " * indent) + k ),
+            pprint(v, indent+1)
+    elif isinstance(d, (tuple, list)):
+        for i in d:
+            print
+            print (("    " * indent) + '[')
+            pprint(i, indent+1)
+            print (("    " * indent) + ']')
+    else:
+        print d
 
     

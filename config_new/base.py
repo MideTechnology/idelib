@@ -22,7 +22,7 @@ import wx.lib.scrolledpanel as SP
 import wx.lib.sized_controls as SC
 
 from widgets.shared import DateTimeCtrl
-from common import makeWxDateTime
+from common import makeWxDateTime, makeBackup, restoreBackup
 
 import legacy
 from mide_ebml.ebmlite import loadSchema
@@ -1725,24 +1725,31 @@ class ConfigDialog(SC.SizedDialog):
         """
         self.configData = self.configValues.toDict()
         
-#         if self.useLegacyConfig:
-#             return legacy.saveConfigData(self.configData, self.device)
+        makeBackup(self.device.CONFIG_FILE)
         
-        values = []
-        for k,v in self.configData.items():
-            elType = self.configItems[k]
-            values.append({'ConfigID': k,
-                           elType.valueType: v})
-        data = {'RecorderConfigurationList': 
-                    {'RecorderConfigurationItem': values}}
-        
-        schema = loadSchema('mide.xml')
-        encoded = schema.encodes(data)
-        print schema.loads(encoded).dump()
-#         print data
+        try:
+            if self.useLegacyConfig:
+                return legacy.saveConfigData(self.configData, self.device)
             
-        print "XXX: Implement saveConfig()"
-
+            values = []
+            for k,v in self.configData.items():
+                elType = self.configItems[k]
+                values.append({'ConfigID': k,
+                               elType.valueType: v})
+                
+            data = {'RecorderConfigurationList': 
+                        {'RecorderConfigurationItem': values}}
+            
+            schema = loadSchema('mide.xml')
+            encoded = schema.encodes(data)
+            
+            with open(self.device.CONFIG_FILE, 'wb') as f:
+                f.write(encoded)
+        
+        except Exception:
+            restoreBackup(self.device.CONFIG_FILE)
+            raise
+    
     
     def updateDisabledItems(self):
         """ Enable or disable config items according to their `disableIf`
@@ -1785,8 +1792,11 @@ if __name__ == "__main__":
 #     testDoc = schema.load('CONFIG.UI')
 #     util.dump(testDoc)
     
+    from devices import getDevices
+    device = getDevices()[0]
+    
     app = wx.App()
-    dlg = ConfigDialog(None)#, hints=testDoc)
+    dlg = ConfigDialog(None, device=device)
     
     if __DEBUG__:
         dlg.Show()

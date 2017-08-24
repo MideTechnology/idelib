@@ -13,6 +13,7 @@ Created on Dec 31, 2013
 import calendar as calendar
 from datetime import datetime
 import os.path
+import shutil
 from threading import Thread as Thread
 
 import wx
@@ -178,6 +179,32 @@ def wordJoin(words, conj="and", oxford=True):
             return u"%s %s %s" % (', '.join(words[:-1]), conj, words[-1])
     else:
         return (u" %s " % conj).join(words)
+
+#===============================================================================
+# 
+#===============================================================================
+
+def makeBackup(filename):
+    """ Create a backup copy of the given file. For use in conjunction with
+        `restoreBackup()`.
+    """
+    backupFilename = filename + "~"
+    if os.path.exists(filename):
+        shutil.copy(filename, backupFilename)
+        return True
+    return False
+
+
+def restoreBackup(filename):
+    """ Restore a backup copy of a file, overwriting the file. For use in 
+        conjunction with `makeBackup()`.
+    """
+    backupFilename = filename + "~"
+    if os.path.exists(backupFilename):
+        shutil.copy(backupFilename, filename)
+        return True
+    return False
+
 
 
 #===============================================================================

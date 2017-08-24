@@ -272,7 +272,8 @@
         </MasterElement>
     </MasterElement>
 
-    <!-- New configuration data: pairs of config IDs and values. Duplicated from the config_ui.xml schema. -->
+    <!-- New configuration data: pairs of config IDs and values. Duplicated from the config_ui.xml schema,
+    rather than attempting to parse one element with a different schema.. -->
     <MasterElement name="RecorderConfigurationList" id="0x18436668" level="-1" multiple="0" mandatory="0">
         <MasterElement name="RecorderConfigurationItem" id="0x5008" multiple="1">
             <UIntegerElement name="ConfigID" id="0x5001" multiple="0"></UIntegerElement>

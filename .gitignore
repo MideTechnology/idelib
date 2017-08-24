@@ -18,6 +18,7 @@
 *.plg
 *.pstat
 *.pyc
+*.ui
 *.xls
 *.xlsx
 *.zip

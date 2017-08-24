@@ -685,6 +685,18 @@
 
 </MasterElement> <!-- ConfigUI -->
 
+<MasterElement name="RecorderConfigurationList" id="0x18436668" level="-1" multiple="0" mandatory="0">
+    <MasterElement name="RecorderConfigurationItem" id="0x5008" multiple="1">
+        <UIntegerElement name="ConfigID" id="0x5001" multiple="0" />
+        <UIntegerElement name="BooleanValue" id="0x5100" multiple="0" />
+        <IntegerElement name="IntValue" id="0x5102" multiple="0" />
+        <UIntegerElement name="UIntValue" id="0x5101" multiple="0" />
+        <FloatElement name="FloatValue" id="0x5103" multiple="0" />
+        <StringElement name="ASCIIValue" id="0x5104" multiple="0" />
+        <UnicodeElement name="TextValue" id="0x5105" multiple="0" />
+    </MasterElement> <!-- RecorderConfigurationItem -->
+</MasterElement> <!-- RecorderConfigurationList -->
+
 <!--
 Attributes: a way to insert an arbitrary key/value into a structure, without revising (and potentially bloating) the schema itself. This data is typically non-critical.
 Strictly speaking, this may be considered an abuse of EBML, but it is flexible and moderately clean.
