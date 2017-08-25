@@ -209,7 +209,7 @@ def saveConfigData(configData, device):
     schema = loadSchema('mide.xml')
     ebml = schema.encodes(legacyConfigData)
     
-    with open(device.CONFIG_FILE, 'wb') as f:
+    with open(device.configFile, 'wb') as f:
         f.write(ebml)
 
 

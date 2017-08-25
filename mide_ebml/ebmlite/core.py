@@ -4,15 +4,16 @@ EBML files quickly and efficiently, and that's about it.
 
 Created on Apr 27, 2017
 
-@todo: Remove benchmarking code from end of script.
 @todo: Unit tests.
-@todo: Complete EBML encoding, making it a full replacement for python-ebml.
-    Specifically, make 'master' elements write directly to the stream, rather 
-    than build bytearrays, so huge 'master' elements can be handled.
+@todo: Complete EBML encoding. Specifically, make 'master' elements write 
+    directly to the stream, rather than build bytearrays, so huge 'master' 
+    elements can be handled.
 @todo: Validation. Enforce hierarchy defined in new schema format.
 @todo: Proper support for 'infinite' Documents (i.e `size` is `None`).
 @todo: Document-wide caching, for future handling of streamed data.
 @todo: Clean up and standardize usage of the term 'size' versus 'length.'
+@todo: (longer term) Make schema loading automatic based on the EBML DocType,
+    DocTypeVersion, and DocTypeReadVersion.
 '''
 
 __author__ = "dstokes"
@@ -621,7 +622,7 @@ class Document(MasterElement):
         Loading a `Schema` generates a subclass.
     """
 
-    def __init__(self, stream, name=None, size=None):
+    def __init__(self, stream, name=None, size=None, headers=False):
         """ Constructor. Instantiate a `Document` from a file-like stream.
             In most cases, `Schema.load()` should be used instead of 
             explicitly instantiating a `Document`.
@@ -630,6 +631,9 @@ class Document(MasterElement):
                 the EBML content, or a filename. 
             @keyword name: The name of the document. Defaults to the filename
                 (if applicable).
+            @keyword headers: If `False`, the file's ``EBML`` header element 
+                (if present) will not appear as a root element in the document.
+                The contents of the ``EBML`` element will always be read.  
         """
         self._value = None
         self.stream = stream
@@ -660,8 +664,9 @@ class Document(MasterElement):
         el, pos = self.parseElement(self.stream)
         if el.name == "EBML":
             # Load 'header' info from the file
-            self.info = el.dump()#{c.name: c.value for c in el.value}
-            self.payloadOffset = pos
+            self.info = el.dump()
+            if not headers:
+                self.payloadOffset = pos
         else:
             self.info = {}
         self.stream.seek(startPos)
@@ -1050,7 +1055,7 @@ class Schema(object):
                                  '"name" attribute' % eid)
     
             mandatory = _getBool(attribs, 'mandatory', False)
-            multiple = _getBool(attribs, 'multiple', True)
+            multiple = _getBool(attribs, 'multiple', False)
             precache = _getBool(attribs, 'precache', baseClass.precache)
             length = _getInt(attribs, 'length', None)
             level = _getInt(attribs, 'level', None)
@@ -1114,17 +1119,20 @@ class Schema(object):
         return default
 
 
-    def load(self, fp, name=None):
+    def load(self, fp, name=None, headers=False, **kwargs):
         """ Load an EBML file using this Schema.
             
             @param fp: A file-like object containing the EBML to load, or the
                 name of an EBML file.
             @keyword name: The name of the document. Defaults to filename.
+            @keyword headers: If `False`, the file's ``EBML`` header element 
+                (if present) will not appear as a root element in the document.
+                The contents of the ``EBML`` element will always be read.  
         """
         if isinstance(fp, basestring):
             fp = open(fp, 'rb')
 
-        return self.document(fp, name=name)
+        return self.document(fp, name=name, headers=headers, **kwargs)
 
 
     def loads(self, data, name=None):

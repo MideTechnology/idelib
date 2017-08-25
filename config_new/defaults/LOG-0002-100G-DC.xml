@@ -90,17 +90,19 @@
                     <Label value="Pressure Trigger, Low"/>
                     <Units value="Pa"/>
                     <ConfigID value="0x030024"/>
-                    <UIntValue value="5760000"/>
-                    <UIntMax value="120000"/>
-                    <FloatGain value="0.015625"/>
+                    <UIntValue value="110000"/>
+                    <UIntMax value="90000"/>
+                    <!-- <UIntValue value="5760000"/> -->
+                    <!-- <FloatGain value="0.015625"/> -->
                 </IntPressureField>
                 <IntPressureField>
                     <Label value="Pressure Trigger, High"/>
                     <Units value="Pa"/>
                     <ConfigID value="0x040024"/>
-                    <UIntValue value="7040000"/>
                     <UIntMax value="120000"/>
-                    <FloatGain value="0.015625"/>
+                    <UIntValue value="110000"/>
+                    <!-- <UIntValue value="7040000"/> -->
+                    <!-- <FloatGain value="0.015625"/> -->
                 </IntPressureField>
             </CheckGroup>
             <CheckGroup>
@@ -109,14 +111,16 @@
                 <FloatTemperatureField>
                     <Label value="Temperature Trigger, Low"/>
                     <ConfigID value="0x030124"/>
-                    <IntValue value="-3840"/>
-                    <FloatGain value="0.00390625" />
+                    <IntValue value="-15"/>
+                    <!-- <IntValue value="-3840"/> -->
+                    <!-- <FloatGain value="0.00390625" /> -->
                 </FloatTemperatureField>
                 <FloatTemperatureField>
                     <Label value="Temperature Trigger, High"/>
                     <ConfigID value="0x040124"/>
-                    <IntValue value="8960"/>
-                    <FloatGain value="0.00390625" />
+                    <IntValue value="35"/>
+                    <!-- <IntValue value="8960"/> -->
+                    <!-- <FloatGain value="0.00390625" /> -->
                 </FloatTemperatureField>
             </CheckGroup>
             <CheckGroup>
@@ -141,7 +145,7 @@
             </CheckGroup>
             <CheckGroup>
                 <Label value="Acceleration Trigger (DC)"/> <!-- Note that the group itself has no ConfigID! -->
-                <DisplayFormat value="Config[0x05ff20]"/> <!-- checked if any 'participation' bit is set -->
+                <!-- <DisplayFormat value="Config[0x05ff20]"/>--> <!-- checked if any 'participation' bit is set -->
                 <ValueFormat value=""/> <!-- Check itself does not write a value -->
                 <FloatAccelerationField>
                     <Label value="Accelerometer Threshold"/>

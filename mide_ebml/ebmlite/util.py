@@ -246,22 +246,37 @@ def loadXml(xmlFile, schema, ebmlFile=None):
 
 def pprint(el, values=True, out=sys.stdout, indent="  ", _depth=0):
     """ Test function to recursively crawl an EBML document or element and
-        print its structure. 
+        print its structure, with child elements shown indented. 
         
         @param el: An instance of a `Document` or `Element` subclass.
         @keyword values: If `True`, show elements' values.
+        @keyword out: A file-like stream to which to write.
+        @keyword indent: The string containing the character(s) used for each
+            indentation.
     """
     tab = indent * _depth
-    txt = repr(el).strip("<>")
 
+    if _depth == 0:
+        if values:
+            out.write("Offset Size   Element (ID): Value\n")
+        else:
+            out.write("Offset Size   Element (ID)\n")
+        out.write("====== ====== =================================\n")
+        
+    if isinstance(el, core.Document):
+        out.write("%06s %06s %s %s (Document, type %s)" % (el.offset, el.size, tab, el.name, el.type))
+    else:
+        out.write("%06s %06s %s %s (ID 0x%0X)" % (el.offset, el.size, tab, el.name, el.id))
     if isinstance(el, core.MasterElement):
-        out.write("%s%s\n" % (tab, txt))
+        out.write("\n")
         for i in el:
             pprint(i, values, out, indent, _depth+1)
-    elif values:
-        out.write("%s%s: %r\n" % (tab, txt, el.value))
     else:
-        out.write("%s%s\n" % (tab, txt))
+        out.write(": (%s)" % el.dtype.__name__)
+        if values and not isinstance(el, core.BinaryElement):
+            out.write(" %r\n" % (el.value))
+        else:
+            out.write("\n")
 
     out.flush()
 
@@ -276,9 +291,8 @@ if __name__ == "__main__":
     from xml.dom.minidom import parseString
     
     argparser = argparse.ArgumentParser(description="ebmlite Utilities")
-    argparser.add_argument('mode', help="The utility to run.", choices=["xml2ebml", "ebml2xml"])
+    argparser.add_argument('mode', help="The utility to run.", choices=["xml2ebml", "ebml2xml", "view"])
     argparser.add_argument('input', help="The source file.")
-    argparser.add_argument('output', help="The file to be written.")
     argparser.add_argument('schema', help="The name of the schema file. Only the name itself is required if the schema file is in the standard schema directory.")
     argparser.add_argument('-c', '--clobber', help="Clobber (overwrite) existing files.", action="store_true")
     argparser.add_argument('-p', '--pretty', help="Generate 'pretty' XML with ebml2xml.", action="store_true")
@@ -289,10 +303,6 @@ if __name__ == "__main__":
         sys.stderr.write("Input file does not exist: %s\n" % args.input)
         exit(1)
     
-    if os.path.exists(args.output) and not args.clobber:
-        sys.stderr.write("Output file exists: %s\n" % args.output)
-        exit(1)
-    
     try:
         schema = core.loadSchema(args.schema)
     except IOError as err:
@@ -300,18 +310,21 @@ if __name__ == "__main__":
         exit(1)
     
     if args.mode == "xml2ebml":
-        xml2ebml(args.input, args.output, schema) #, sizeLength=4, headers=True, unknown=True)
+        xml2ebml(args.input, sys.stdout, schema) #, sizeLength=4, headers=True, unknown=True)
+        exit(0)
+    elif args.mode == "ebml2xml":
+        doc = schema.load(args.input, headers=True)
+        root = toXml(doc) #, offsets, sizes, types, ids)
+        s = ET.tostring(root)
+        if args.pretty:
+            parseString(s).writexml(sys.stdout, addindent='\t', newl='\n')#, encoding='utf-8')
+        else:
+            sys.stdout.write(s)
         exit(0)
     else:
-        doc = schema.load(args.input)
-        root = toXml(doc) #, offsets, sizes, types, ids)
-        with open(args.output, 'wb') as f:
-            s = ET.tostring(root)
-            if args.pretty:
-                parseString(s).writexml(f, addindent='\t', newl='\n', encoding='utf-8')
-            else:
-                f.write(s)
-        exit(0)
+        doc = schema.load(args.input, headers=True)
+        pprint(doc)
+ 
                 
             
         

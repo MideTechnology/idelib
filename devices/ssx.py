@@ -30,10 +30,8 @@ from devices.base import ConfigError
 # 
 #===============================================================================
 
-SCHEMA_ROOT = os.path.join(os.path.dirname(__file__), '../mide_ebml/ebml/schema')
-
-mideSchema = loadSchema(os.path.join(SCHEMA_ROOT, 'mide.xml'))
-manifestSchema = loadSchema(os.path.join(SCHEMA_ROOT, 'manifest.xml'))
+mideSchema = loadSchema('mide.xml')
+manifestSchema = loadSchema('manifest.xml')
 
 #===============================================================================
 # 
@@ -79,8 +77,9 @@ class SlamStickX(Recorder):
         if self.path is not None:
             self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
             self.userCalFile = os.path.join(self.path, self.USERCAL_FILE)
+            self.configUIFile = os.path.join(self.path, self.CONFIG_UI_FILE)
         else:
-            self.clockFile = self.userCalFile = None
+            self.clockFile = self.userCalFile = self.configUIFile = None
 
         # Parameters for importing saved config data.
         self._importOlderFwConfig = False

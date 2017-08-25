@@ -2,8 +2,10 @@
 New, modular configuration system. Dynamically creates the UI based on the new 
 "UI Hints" data. The UI is described in EBML; UI widget classes have the same
 names as the elements. The crucial details of the widget type are also encoded
-into the EBML ID; in the future, this will be used to create appropriate 
-default widgets for new elements.
+into the EBML ID; if there is not a specialized subclass for a particular 
+element, this is used to find a generic widget for the data type. 
+
+Basic theory of operation: F
 
 Created on Jul 6, 2017
 '''
@@ -31,6 +33,9 @@ from common import makeWxDateTime, makeBackup, restoreBackup
 import legacy
 from mide_ebml.ebmlite import loadSchema
 from mide_ebml.ebmlite import util
+
+# Temporary?
+from config_dialog.ssx import CalibrationPanel, EditableCalibrationPanel
 
 import logging
 logger = logging.getLogger('SlamStickLab.ConfigUI')
@@ -289,10 +294,14 @@ class ConfigBase(object):
             # No expression defined: value is returned unmodified (it matches 
             # the config item's type)
             return self.noEffect
-        if exp is '':
+        elif exp is '':
             # Empty string expression: always returns `None` (e.g. the field is
             # used to calculate another config item, not a config item itself)
             return self.noValue
+        elif not isinstance(exp, basestring):
+            # XXX: This was to fix one weird thing that may not happen any
+            # more. Remove it if it doesn't.
+            return
         
         # Create a nicely formatted, informative string for the compiled 
         # expression's "filename" and for display if the expression is bad.
@@ -389,16 +398,19 @@ class ConfigBase(object):
         self.expressionVariables = self.root.expresionVariables.copy()
 
 
+    def __repr__(self):
+        """
+        """
+        name = self.__class__.__name__
+        if not self.label:
+            return "<%s %r at 0x%x>" % (name, self.label, id(self))
+        return "<%s %r at 0x%x>" % (name, self.label, id(self))
+        
+
     def isDisabled(self):
         """ Check the Field's `disableIf` expression (if any) to determine if
             the Field should be enabled.
         """
-        if self.group is not None:
-            if self.group.checkbox is not None and not self.group.checkbox.GetValue():
-                return True
-            if self.group.isDisabled():
-                return True
-            
         if self.disableIf is None:
             return False
             
@@ -487,6 +499,10 @@ class ConfigWidget(wx.Panel, ConfigBase):
         self.initUI()
     
     
+    def __repr__(self):
+        return ConfigBase.__repr__(self)
+    
+    
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
             Separated from `initUI()` for subclassing. This method should be 
@@ -542,6 +558,19 @@ class ConfigWidget(wx.Panel, ConfigBase):
             self.field.Bind(wx.EVT_KILL_FOCUS, self.OnLoseFocus)
 
 
+    def isDisabled(self):
+        """ Check the Field's `disableIf` expression (if any) to determine if
+            the Field should be enabled.
+        """
+        if self.group is not None:
+            if self.group.checkbox is not None and not self.group.checkbox.GetValue():
+                return True
+            if self.group.isDisabled():
+                return True
+        
+        return super(ConfigWidget, self).isDisabled()
+    
+    
     def enableChildren(self, enabled=True):
         """ Enable/Disable the Field's children.
         """
@@ -558,6 +587,18 @@ class ConfigWidget(wx.Panel, ConfigBase):
             self.checkbox.SetValue(checked)
             self.enableChildren(checked)
             
+
+    def setConfigValue(self, val, check=True):
+        """ Set the Field's value, using the data type native to the config
+            file. 
+        """
+        super(ConfigWidget, self).setConfigValue(val, check=check)
+        try:
+            if val is not None and self.group.checkbox is not None:
+                self.group.setCheck()
+        except AttributeError:
+            pass
+        
     
     def setDisplayValue(self, val, check=True):
         """ Set the Field's value, using the data type native to the widget. 
@@ -718,7 +759,12 @@ class IntField(ConfigWidget):
     """ UI widget for editing a signed integer.
     """
     DEFAULT_TYPE = "IntValue"
+
+    # Min/max integers supported by wxPython SpinCtrl
+    MAX_SIGNED_INT = 2**31 - 1
+    MIN_SIGNED_INT = -2**31
     
+        
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.Panel` arguments, plus:
             
@@ -736,9 +782,9 @@ class IntField(ConfigWidget):
         """ Class-specific method for adding the appropriate type of widget.
         """
         # wxPython SpinCtrl values limited to 32b signed integer range
-        self.min = int(max(self.min, MIN_SIGNED_INT))
-        self.max = int(min(self.max, MAX_SIGNED_INT))
-        self.default = max(min(self.default, MAX_SIGNED_INT), MIN_SIGNED_INT)
+        self.min = int(max(self.min, self.MIN_SIGNED_INT))
+        self.max = int(min(self.max, self.MAX_SIGNED_INT))
+        self.default = max(min(self.default, self.max), self.min)
         
         self.field = wx.SpinCtrl(self, -1, size=(40,-1), 
                                  style=wx.SP_VERTICAL|wx.TE_RIGHT,
@@ -904,7 +950,9 @@ class EnumField(ConfigWidget):
         if index != wx.NOT_FOUND and index < len(self.options):
             return self.options[index].getDisplayValue()
         return self.default
+
     
+#===============================================================================
     
 class EnumOption(ConfigBase):
     """ One choice in an enumeration (e.g. an item in a drop-down list). Note:
@@ -1492,6 +1540,16 @@ class Group(ConfigWidget):
                 f.setToDefault(check)
 
 
+#     def getDisplayValue(self):
+#         """ Get the groups's value (if applicable). 
+#         """
+#         if self.isDisabled():
+#             return None
+#         elif self.checkbox is not None:
+#             return self.checkbox.GetValue() or None
+# 
+#         return None
+        
     def getDisplayValue(self):
         """ Get the groups's value (if applicable). 
         """
@@ -1500,8 +1558,7 @@ class Group(ConfigWidget):
         elif self.checkbox is not None and not self.checkbox.GetValue():
             return None
         
-        return self.getConfigValue()
-        
+        return self.getConfigValue()        
         
 @registerField
 class CheckGroup(Group):
@@ -1579,31 +1636,95 @@ class DeviceInfoTab(Tab):
         self.sizer.Add(label, 1, wx.EXPAND|wx.ALL, 24)
 
 
+#@registerTab
+# class FactoryCalibrationTab(DeviceInfoTab):
+#     """ Special-case Tab for showing recorder calibration polynomials. The 
+#         tab's default behavior shows the appropriate info for Slam Stick 
+#         recorders, no child fields required.
+#         
+#         TODO: Implement FactoryCalibrationTab!
+#     """
+#     def __init__(self, *args, **kwargs):
+#         self.setAttribDefault("label", "Factory Calibration")
+#         super(FactoryCalibrationTab, self).__init__(*args, **kwargs)
+#
+#
+# @registerTab
+# class UserCalibrationTab(FactoryCalibrationTab):
+#     """ Special-case Tab for showing/editing user calibration polynomials. 
+#         The tab's default behavior shows the appropriate info for Slam Stick 
+#         recorders, no child fields required.
+#         
+#         TODO: Implement FactoryCalibrationTab!
+#     """
+#     def __init__(self, *args, **kwargs):
+#         self.setAttribDefault("label", "User Calibration")
+#         super(UserCalibrationTab, self).__init__(*args, **kwargs)
+
+
 @registerTab
-class FactoryCalibrationTab(DeviceInfoTab):
+class FactoryCalibrationTab(CalibrationPanel, DeviceInfoTab):
     """ Special-case Tab for showing recorder calibration polynomials. The 
         tab's default behavior shows the appropriate info for Slam Stick 
         recorders, no child fields required.
         
         TODO: Implement FactoryCalibrationTab!
+
+        parent.factorycal = CalibrationPanel(parent.notebook, -1, root=parent,
+                                          info=factorycal, calSerial=calSerial,
+                                          calDate=calDate, calExpiry=calExpiry)
     """
     def __init__(self, *args, **kwargs):
+        element = kwargs.pop('element', None)
+        root = kwargs.get('root', None)
+        
+        kwargs.setdefault('info', root.device.getFactoryCalPolynomials())
+        kwargs.setdefault('calSerial', root.device.getCalSerial())
+        kwargs.setdefault('calDate', root.device.getCalDate())
+        kwargs.setdefault('calExpiry', root.device.getCalExpiration())
+        
         self.setAttribDefault("label", "Factory Calibration")
+        ConfigBase.__init__(self, element, root)
         super(FactoryCalibrationTab, self).__init__(*args, **kwargs)
 
 
-@registerTab
-class UserCalibrationTab(FactoryCalibrationTab):
-    """ Special-case Tab for showing/editing user calibration polynomials. 
-        The tab's default behavior shows the appropriate info for Slam Stick 
-        recorders, no child fields required.
-        
-        TODO: Implement FactoryCalibrationTab!
-    """
-    def __init__(self, *args, **kwargs):
-        self.setAttribDefault("label", "User Calibration")
-        super(UserCalibrationTab, self).__init__(*args, **kwargs)
+# XXX: WHY ISN'T THIS WORKING?
 
+# @registerTab
+# class UserCalibrationTab(EditableCalibrationPanel, DeviceInfoTab):
+#     """ Special-case Tab for showing/editing user calibration polynomials. 
+#         The tab's default behavior shows the appropriate info for Slam Stick 
+#         recorders, no child fields required.
+#         
+#         TODO: Implement FactoryCalibrationTab!
+#         
+#         parent.usercal = EditableCalibrationPanel(parent.notebook, -1, root=parent,
+#                                           info=usercal, factoryCal=factorycal,
+#                                           editable=True)
+#     """
+#     def __init__(self, *args, **kwargs):
+#         print kwargs
+#         element = kwargs.get('element', None)
+#         root = kwargs.get('root', None)
+#         
+#         
+#         kwargs['info'] = root.device.getUserCalPolynomials()
+#         kwargs['calSerial'] = None
+#         kwargs['calDate'] = None
+#         kwargs['calExpiry'] = None
+#         kwargs['editable'] = True
+#         
+#         print kwargs
+#         
+#         ConfigBase.__init__(self, element, root)
+#         EditableCalibrationPanel.__init__(self, *args, **kwargs)
+
+
+
+@registerTab
+class UserCalibrationTab(DeviceInfoTab):
+    """
+    """
 
 #===============================================================================
 # 
@@ -1670,6 +1791,7 @@ class ConfigDialog(SC.SizedDialog):
         wx.Button(buttonpane, wx.ID_CANCEL)
         buttonpane.SetSizerProps(halign='right')
         
+        self.SetAffirmativeId(wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.OnOK, id=wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.OnCancel, id=wx.ID_CANCEL)
         
@@ -1696,7 +1818,7 @@ class ConfigDialog(SC.SizedDialog):
         self.hints = defaults
         self.useLegacyConfig = False
         
-        filename = getattr(self.device, 'CONFIG_UI_FILE', None)
+        filename = getattr(self.device, 'configUIFile', None)
         if filename is None or not os.path.exists(filename):
             # Load default ConfigUI for the device from static XML.
             logger.info('Loading default ConfigUI for %s' % self.device.partNumber)
@@ -1743,7 +1865,7 @@ class ConfigDialog(SC.SizedDialog):
         
         self.configData = self.configValues.toDict()
         
-        makeBackup(self.device.CONFIG_FILE)
+        makeBackup(self.device.configFile)
         
         try:
             if self.useLegacyConfig:
@@ -1761,11 +1883,11 @@ class ConfigDialog(SC.SizedDialog):
             schema = loadSchema('mide.xml')
             encoded = schema.encodes(data)
             
-            with open(self.device.CONFIG_FILE, 'wb') as f:
+            with open(self.device.configFile, 'wb') as f:
                 f.write(encoded)
         
         except Exception:
-            restoreBackup(self.device.CONFIG_FILE)
+            restoreBackup(self.device.configFile)
             raise
     
     
