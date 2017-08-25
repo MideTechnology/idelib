@@ -705,9 +705,12 @@ class SimpleChannelDataBlockParser(ElementHandler):
             # FUTURE: Better handling of unknown channel types. Low priority.
             return 0
 
-        ch = self.doc.channels[channel]
-        ch.getSession(sessionId).append(block)
-        return block.getNumSamples(ch.parser) * len(ch.children)
+        try:
+            ch = self.doc.channels[channel]
+            ch.getSession(sessionId).append(block)
+            return block.getNumSamples(ch.parser) * len(ch.children)
+        except ZeroDivisionError:
+            return 0
 
 
 #===============================================================================
