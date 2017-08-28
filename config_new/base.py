@@ -5,7 +5,12 @@ names as the elements. The crucial details of the widget type are also encoded
 into the EBML ID; if there is not a specialized subclass for a particular 
 element, this is used to find a generic widget for the data type. 
 
-Basic theory of operation: F
+Basic theory of operation: Configuration items with values of `None` do not get
+    written to the config file. Fields with checkboxes have a value of `None`
+    if unchecked. Disabled fields also have a value of `None`. Children of 
+    disabled fields have a value of `None`, as do children of fields with 
+    checkboxes (i.e. `CheckGroup`) if their parent is unchecked. 
+    
 
 Created on Jul 6, 2017
 '''
@@ -35,7 +40,7 @@ from mide_ebml.ebmlite import loadSchema
 from mide_ebml.ebmlite import util
 
 # Temporary?
-from config_dialog.ssx import CalibrationPanel, EditableCalibrationPanel
+from config_dialog.ssx import CalibrationPanel, EditableCalibrationPanel, SSXInfoPanel
 
 import logging
 logger = logging.getLogger('SlamStickLab.ConfigUI')
@@ -283,7 +288,6 @@ class ConfigBase(object):
     # Default expression code objects for DisableIf, ValueFormat, DisplayFormat
     noEffect = compile("x", "<ConfigBase.noEffect>", "eval")
     noValue = compile("None", "<ConfigBase.noValue>", "eval")
-    alwaysFalse = compile("False", "<ConfigBase.alwaysFalse>", "eval")
     
     
     def makeExpression(self, exp, name):
@@ -369,6 +373,8 @@ class ConfigBase(object):
                 continue
             
             if el.name.endswith('Value'):
+                # If the field has a '*Value' element, the field will use that
+                # type when saving to the config file.
                 self.valueType = el.__class__.name
                 
             if el.name in args:
@@ -444,7 +450,8 @@ class ConfigBase(object):
     
     
     def setDisplayValue(self, val, **kwargs):
-        """ Set the object's value.
+        """ Set the object's value, in the data type and units it displays
+            (if applicable).
         """
         # This is overridden by ConfigWidget subclasses; they have no `value`.
         self.value = val
@@ -460,7 +467,7 @@ class ConfigBase(object):
 
 
     def setToDefault(self, **kwargs):
-        """
+        """ Set the configuration item to its default value.
         """
         self.setConfigValue(self.default, **kwargs)
 
@@ -997,7 +1004,9 @@ class BitField(EnumField):
             # No label or checkbox; add checks directly to main sizer.
             childSizer = self.sizer
         else:
+            # the field has a label or a checkbox; indent child checkboxes.
             childSizer = wx.BoxSizer(wx.VERTICAL)
+            self.sizer.Add(childSizer, 1, wx.WEST, 24)
         
         for o in self.options:
             o.checkbox = wx.CheckBox(self, -1, o.label)
@@ -1008,10 +1017,6 @@ class BitField(EnumField):
             if tooltip:
                 o.checkbox.SetToolTipString(tooltip)
         
-        if self.labelWidget is not None:
-            # Label or checkbox: indent the child checkboxes 
-            self.sizer.Add(childSizer, 1, wx.WEST, 24)
-            
         return childSizer
         
 
@@ -1286,7 +1291,6 @@ class FloatTemperatureField(FloatField):
         super(FloatTemperatureField, self).__init__(*args, **kwargs)
 
 
-
 @registerField
 class CheckFloatTemperatureField(FloatTemperatureField):
     """ `CheckFloatField` variant with appropriate defaults for temperature 
@@ -1538,27 +1542,18 @@ class Group(ConfigWidget):
                     # Special case: don't reset name or notes text fields.
                     continue
                 f.setToDefault(check)
-
-
-#     def getDisplayValue(self):
-#         """ Get the groups's value (if applicable). 
-#         """
-#         if self.isDisabled():
-#             return None
-#         elif self.checkbox is not None:
-#             return self.checkbox.GetValue() or None
-# 
-#         return None
+        
         
     def getDisplayValue(self):
         """ Get the groups's value (if applicable). 
         """
         if self.isDisabled():
             return None
-        elif self.checkbox is not None and not self.checkbox.GetValue():
-            return None
+        elif self.checkbox is not None:
+            return self.checkbox.GetValue() or None
         
-        return self.getConfigValue()        
+        return None
+
         
 @registerField
 class CheckGroup(Group):
@@ -1621,7 +1616,8 @@ class DeviceInfoTab(Tab):
         shows the appropriate info for Slam Stick recorders, no child fields
         required.
         
-        TODO: Implement FactoryCalibrationTab!
+        TODO: Refactor and clean up DeviceInfoTab, removing dependency on old 
+            system.
     """
     
     def __init__(self, *args, **kwargs):
@@ -1630,101 +1626,74 @@ class DeviceInfoTab(Tab):
 
 
     def initUI(self):
-        super(DeviceInfoTab, self).initUI()
-        label = wx.StaticText(self, -1, "TO BE IMPLEMENTED")
-        label.SetFont(label.GetFont().Bold().Larger())
-        self.sizer.Add(label, 1, wx.EXPAND|wx.ALL, 24)
+        dev = self.root.device
+        info = dev.getInfo()
 
-
-#@registerTab
-# class FactoryCalibrationTab(DeviceInfoTab):
-#     """ Special-case Tab for showing recorder calibration polynomials. The 
-#         tab's default behavior shows the appropriate info for Slam Stick 
-#         recorders, no child fields required.
-#         
-#         TODO: Implement FactoryCalibrationTab!
-#     """
-#     def __init__(self, *args, **kwargs):
-#         self.setAttribDefault("label", "Factory Calibration")
-#         super(FactoryCalibrationTab, self).__init__(*args, **kwargs)
-#
-#
-# @registerTab
-# class UserCalibrationTab(FactoryCalibrationTab):
-#     """ Special-case Tab for showing/editing user calibration polynomials. 
-#         The tab's default behavior shows the appropriate info for Slam Stick 
-#         recorders, no child fields required.
-#         
-#         TODO: Implement FactoryCalibrationTab!
-#     """
-#     def __init__(self, *args, **kwargs):
-#         self.setAttribDefault("label", "User Calibration")
-#         super(UserCalibrationTab, self).__init__(*args, **kwargs)
+        info['CalibrationSerialNumber'] = dev.getCalSerial()
+        info['CalibrationDate'] = dev.getCalDate()
+        info['CalibrationExpirationDate'] = dev.getCalExpiration()
+    
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.field = SSXInfoPanel(self, -1, 
+                                  root=self.root,
+                                  info=dev.getInfo())
+        self.sizer.Add(self.field, 1, wx.EXPAND)
+        self.SetSizer(self.sizer)
 
 
 @registerTab
-class FactoryCalibrationTab(CalibrationPanel, DeviceInfoTab):
-    """ Special-case Tab for showing recorder calibration polynomials. The 
-        tab's default behavior shows the appropriate info for Slam Stick 
-        recorders, no child fields required.
+class FactoryCalibrationTab(DeviceInfoTab):
+    """ Special-case Tab for showing recorder's factory-set calibration 
+        polynomials. The tab's default behavior shows the appropriate info for 
+        Slam Stick recorders, no child fields required.
         
-        TODO: Implement FactoryCalibrationTab!
-
-        parent.factorycal = CalibrationPanel(parent.notebook, -1, root=parent,
-                                          info=factorycal, calSerial=calSerial,
-                                          calDate=calDate, calExpiry=calExpiry)
+        TODO: Refactor and clean up FactoryCalibrationTab, removing dependency 
+            on old system.
     """
     def __init__(self, *args, **kwargs):
-        element = kwargs.pop('element', None)
-        root = kwargs.get('root', None)
-        
-        kwargs.setdefault('info', root.device.getFactoryCalPolynomials())
-        kwargs.setdefault('calSerial', root.device.getCalSerial())
-        kwargs.setdefault('calDate', root.device.getCalDate())
-        kwargs.setdefault('calExpiry', root.device.getCalExpiration())
-        
-        self.setAttribDefault("label", "Factory Calibration")
-        ConfigBase.__init__(self, element, root)
+        self.setAttribDefault('label', 'Factory Calibration')
         super(FactoryCalibrationTab, self).__init__(*args, **kwargs)
 
 
-# XXX: WHY ISN'T THIS WORKING?
-
-# @registerTab
-# class UserCalibrationTab(EditableCalibrationPanel, DeviceInfoTab):
-#     """ Special-case Tab for showing/editing user calibration polynomials. 
-#         The tab's default behavior shows the appropriate info for Slam Stick 
-#         recorders, no child fields required.
-#         
-#         TODO: Implement FactoryCalibrationTab!
-#         
-#         parent.usercal = EditableCalibrationPanel(parent.notebook, -1, root=parent,
-#                                           info=usercal, factoryCal=factorycal,
-#                                           editable=True)
-#     """
-#     def __init__(self, *args, **kwargs):
-#         print kwargs
-#         element = kwargs.get('element', None)
-#         root = kwargs.get('root', None)
-#         
-#         
-#         kwargs['info'] = root.device.getUserCalPolynomials()
-#         kwargs['calSerial'] = None
-#         kwargs['calDate'] = None
-#         kwargs['calExpiry'] = None
-#         kwargs['editable'] = True
-#         
-#         print kwargs
-#         
-#         ConfigBase.__init__(self, element, root)
-#         EditableCalibrationPanel.__init__(self, *args, **kwargs)
-
+    def initUI(self):
+        dev = self.root.device
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.field = CalibrationPanel(self, -1, 
+                                      root=self.root,
+                                      info=dev.getFactoryCalPolynomials(),
+                                      calSerial=dev.getCalSerial(), 
+                                      calDate=dev.getCalDate(), 
+                                      calExpiry=dev.getCalExpiration())
+        self.sizer.Add(self.field, 1, wx.EXPAND)
+        self.SetSizer(self.sizer)
 
 
 @registerTab
-class UserCalibrationTab(DeviceInfoTab):
+class UserCalibrationTab(FactoryCalibrationTab):
+    """ Special-case Tab for showing recorder's user-defined calibration 
+        polynomials. The tab's default behavior shows the appropriate info for 
+        Slam Stick recorders, no child fields required.
+        
+        TODO: Refactor and clean up UserCalibrationTab, removing dependency on
+            old system.
     """
-    """
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault('label', 'User Calibration')
+        super(UserCalibrationTab, self).__init__(*args, **kwargs)
+
+
+    def initUI(self):
+        dev = self.root.device
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.field = EditableCalibrationPanel(self, -1, 
+                                      root=self.root,
+                                      info=dev.getUserCalPolynomials(),
+                                      factoryCal=dev.getFactoryCalPolynomials(),
+                                      editable=True)
+        self.sizer.Add(self.field, 1, wx.EXPAND)
+        self.SetSizer(self.sizer)
+    
+
 
 #===============================================================================
 # 

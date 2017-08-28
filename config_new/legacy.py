@@ -46,7 +46,7 @@ def _copyItems(oldD, newD, *keyPairs):
         
 
 def loadConfigData(device):
-    """ Load old configuration data.
+    """ Load old configuration data and return it in the new format.
     """
     config = device.getConfig(refresh=True).copy()
     newData = {}
@@ -121,7 +121,7 @@ def loadConfigData(device):
 
 
 def saveConfigData(configData, device):
-    """ Save old configuration data.
+    """ Save new configuration data in the old format.
     """
     # Copy the data, just in case.
     configData = configData.copy()
@@ -152,6 +152,7 @@ def saveConfigData(configData, device):
     # Trigger configuration: separate master elements for each subchannel. 
     triggers = []
     
+    # Get all trigger enables/subchannel participation maps
     for t in [k for k in configData if (k & 0xFF0000 == 0x050000)]:
         combinedId = t & 0x00FFFF
         trigLo = configData.get(0x030000 | combinedId)
@@ -207,7 +208,10 @@ def saveConfigData(configData, device):
         legacyConfigData['SSXChannelConfiguration'] = channelConfig
 
     schema = loadSchema('mide.xml')
-    ebml = schema.encodes(legacyConfigData)
+    ebml = schema.encodes({'RecorderConfiguration':legacyConfigData})
+
+    # This will raise an exception if it fails.
+    schema.verify(ebml)
     
     with open(device.configFile, 'wb') as f:
         f.write(ebml)

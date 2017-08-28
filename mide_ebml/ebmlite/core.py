@@ -213,7 +213,7 @@ class Element(object):
 
 
     #===========================================================================
-    # Encoding (WIP)
+    # Encoding 
     #===========================================================================
     
     @classmethod
@@ -247,14 +247,14 @@ class Element(object):
             return result
         payload = cls.encodePayload(value, length=length)
         length = length or len(payload)
-#         encId = core.encode_element_id(cls.id) 
-#         return encId + core.encode_element_size(length, lengthSize) + payload
         encId = encoding.encodeId(cls.id) 
         return encId + encoding.encodeSize(length, lengthSize) + payload
         
 
     def dump(self):
-        """ 
+        """ Dump this element's value as nested dictionaries, keyed by
+            element name. For non-master elements, this just returns the
+            element's value; this method exists to maintain uniformity. 
         """
         return self.value
 
@@ -280,7 +280,6 @@ class IntegerElement(Element):
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for signed integer elements. """
-#         return core.encode_signed_integer(data, length)
         return encoding.encodeInt(data, length)
 
 
@@ -305,7 +304,6 @@ class UIntegerElement(IntegerElement):
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for unsigned integer elements. """
-#         return core.encode_unsigned_integer(data, length)
         return encoding.encodeUInt(data, length)
 
 
@@ -330,7 +328,6 @@ class FloatElement(Element):
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for floating point elements. """
-#         return core.encode_float(data, length)
         return encoding.encodeFloat(data, length)
 
 
@@ -354,7 +351,6 @@ class StringElement(Element):
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for ASCII string elements. """
-#         return core.encode_string(data, length)
         return encoding.encodeString(data, length)
 
 
@@ -379,7 +375,6 @@ class UnicodeElement(StringElement):
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for Unicode string elements. """
-#         return core.encode_unicode_string(data, length)
         return encoding.encodeUnicode(data, length)
 
 
@@ -403,7 +398,6 @@ class DateElement(IntegerElement):
     @classmethod
     def encodePayload(cls, data, length=None):
         """ Type-specific payload encoder for date elements. """
-#         return core.encode_date(data, length)
         return encoding.encodeDate(data, length)
 
 
@@ -490,7 +484,9 @@ class MasterElement(Element):
 
         try:
             # TODO: Enforce structure dictated by the schema by using only the
-            # elements that are children of this one, or are 'global.' 
+            # elements that are children of this one, or are 'global.' Also,
+            # handle 'unknown' size elements, which end with the first invalid
+            # child element.
             etype = self.schema.elements[eid]
             el = etype(stream, offset, esize, payloadOffset)
         except KeyError:
@@ -551,7 +547,7 @@ class MasterElement(Element):
             
 
     #===========================================================================
-    # Encoding (very experimental!)
+    # Encoding
     #===========================================================================
     
     @classmethod
@@ -678,6 +674,8 @@ class Document(MasterElement):
 
 
     def __repr__(self):
+        if self.name == self.__class__.__name__:
+            return object.__repr__(self)
         return "<%s %r at 0x%08X>" % (self.__class__.__name__, self.name, 
                                       id(self))
 
@@ -768,7 +766,7 @@ class Document(MasterElement):
 
 
     #===========================================================================
-    # Encoding (very experimental!)
+    # Encoding
     #===========================================================================
 
     @classmethod
@@ -819,20 +817,6 @@ class Document(MasterElement):
                     stream.write(cls.encodePayload(v))
         else:
             stream.write(cls.encodePayload(data))
-
-
-    #===========================================================================
-    # 
-    #===========================================================================
-    
-    
-#     def dump(self):
-#         """ Dump the contents of the EBML file as nested dictionaries/lists.
-#         
-#             @todo: Decide if this is of general interest. If not, move to a
-#                 project-specific utility script.
-#         """
-#         return [{el.name: el.dump()} for el in self]
 
 
 #===============================================================================
@@ -903,6 +887,9 @@ class Schema(object):
             self._parseLegacySchema(root)
         elif root.tag == "Schema":
             self._parseSchema(root, self)
+        else:
+            raise IOError("Could not parse schema; expected root element "
+                          "<Schema> or <table>, got <%s>" % root.tag)
 
         # Special case: `Void` is a standard EBML element, but not its own
         # type (it's technically binary). Use the special `VoidElement` type.
@@ -961,8 +948,9 @@ class Schema(object):
             if el.tag.endswith('Element'):
                 raise ValueError('Unknown element type: %s' % el.tag)
             
-            # The Schema may contain documentation, and it may contain HTML.
-            # TODO: Show error/warning?
+            # FUTURE: Add schema-describing metadata (author, origin,
+            # description, etc.) to XML as non-Element elements. Parse them out
+            # here.
             return
         
         attribs = el.attrib.copy()
@@ -1006,6 +994,9 @@ class Schema(object):
                 explicitly accessed. Can save time for small elements.
             @keyword attribs: A dictionary of raw element attributes, as read
                 from the schema file.
+            @keyword parent: The new element's parent element class.
+            @keyword docs: The new element's docstring (e.g. the defining XML
+                element's text content).
         """
         
         def _getBool(d, k, default):
@@ -1083,11 +1074,11 @@ class Schema(object):
         
 
     def __repr__(self):
-        source = self.filename or self.source
-        if source is None:
-            return "<%s %r from '%s'>" % (self.__class__.__name__, self.name)
-        return "<%s %r from '%s'>" % (self.__class__.__name__, self.name,
-                                      self.filename or self.source)
+        try:
+            return "<%s %r from '%s'>" % (self.__class__.__name__, self.name,
+                                          self.filename or self.source)
+        except AttributeError:
+            return object.__repr__(self)
 
     
     def __eq__(self, other):
@@ -1107,6 +1098,7 @@ class Schema(object):
     
     def __getitem__(self, key):
         """ Get an Element class from the schema, by name or by ID. """
+        
         try:
             self.elements[key]
         except KeyError:
@@ -1149,7 +1141,7 @@ class Schema(object):
         """ Load an EBML file using this Schema. Same as `Schema.load()`.
         
             @todo: Decide if this is worth keeping. It exists for historical
-                reasons.
+                reasons that may have been refactored out.
             
             @param fp: A file-like object containing the EBML to load, or the
                 name of an EBML file.
@@ -1183,7 +1175,7 @@ class Schema(object):
 
 
     #===========================================================================
-    # 
+    # Encoding
     #===========================================================================
     
     def encode(self, stream, data, headers=False):
@@ -1231,7 +1223,7 @@ class Schema(object):
             return True
 
         return _crawl(self.loads(data))
-        
+    
 
 #===============================================================================
 # 
