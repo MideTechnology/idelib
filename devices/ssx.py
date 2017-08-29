@@ -146,8 +146,10 @@ class SlamStickX(Recorder):
         devinfo = mideSchema.load(source).dump()
 #         devinfo = util.read_ebml(source, schema=schema_mide)
         if 'RecorderConfiguration' in devinfo:
+            # Old style config (pre-FW 12)
             return devinfo.get('RecorderConfiguration', default)
         elif 'RecorderConfigurationList' in devinfo:
+            # New style config (FW 12 and up)
             return devinfo
         else:
             return default

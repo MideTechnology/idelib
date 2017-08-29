@@ -290,12 +290,30 @@ if __name__ == "__main__":
     import os.path
     from xml.dom.minidom import parseString
     
-    argparser = argparse.ArgumentParser(description="ebmlite Utilities")
-    argparser.add_argument('mode', help="The utility to run.", choices=["xml2ebml", "ebml2xml", "view"])
-    argparser.add_argument('input', help="The source file.")
-    argparser.add_argument('schema', help="The name of the schema file. Only the name itself is required if the schema file is in the standard schema directory.")
-    argparser.add_argument('-c', '--clobber', help="Clobber (overwrite) existing files.", action="store_true")
-    argparser.add_argument('-p', '--pretty', help="Generate 'pretty' XML with ebml2xml.", action="store_true")
+    argparser = argparse.ArgumentParser(description="""
+        ebmlite utilities: some basic command-line tools for converting between
+        XML and EBML and viewing the structure of an EBML file. The output is
+        to stdout, which you can redirect to a file.
+        """)
+    
+    argparser.add_argument('mode',  
+                           choices=["xml2ebml", "ebml2xml", "view"],
+                           help="The utility to run.")
+    argparser.add_argument('input',
+                           metavar="[FILE.ebml|FILE.xml]",
+                           help="""The source file: XML for 'xml2ebml,' EBML 
+                                   for 'ebml2xml' or 'view.'""")
+    argparser.add_argument('schema', 
+                           metavar="SCHEMA.xml",
+                           help="""The name of the schema file. Only the name 
+                                   itself is required if the schema file is in 
+                                   the standard schema directory.""")
+    argparser.add_argument('-c', '--clobber', 
+                           action="store_true",
+                           help="Clobber (overwrite) existing files.")
+    argparser.add_argument('-p', '--pretty', 
+                           action="store_true",
+                           help="Generate 'pretty' XML with ebml2xml.")
     
     args = argparser.parse_args()
     

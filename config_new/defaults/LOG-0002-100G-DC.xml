@@ -36,6 +36,7 @@
                 <Label value="Plug-In Action"/>
                 <ConfigID value="0xaff7f"/>
                 <ToolTip value="Set action for device when plugged in to USB while recording."/>
+                <UIntValue value="1"/>
                 <EnumOption>
                     <Label value="Immediately stop recording and appear as USB drive"/>
                     <!-- <UIntValue value="0"/> unnecessary: defaults to option's index -->

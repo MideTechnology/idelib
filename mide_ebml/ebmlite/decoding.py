@@ -1,4 +1,5 @@
 """
+Functions for decoding EBML elements and their values.
 """
 
 import datetime
@@ -60,7 +61,7 @@ def decodeIDLength(byte):
 
 
 def readElementID(stream):
-    """ Read an element ID from a file (or file-like) stream.
+    """ Read an element ID from a file (or file-like stream).
 
         @param stream: The source file-like object.
         @return: The decoded element ID and its length in bytes.
@@ -77,7 +78,7 @@ def readElementID(stream):
 
 
 def readElementSize(stream):
-    """ Read an element size from a file (or file-like) stream.
+    """ Read an element size from a file (or file-like stream).
 
         @param stream: The source file-like object.
         @return: The decoded size (or `None`) and the length of the
@@ -98,7 +99,7 @@ def readElementSize(stream):
 
 
 def readUInt(stream, size):
-    """ Read an unsigned integer from a file (or file-like) stream.
+    """ Read an unsigned integer from a file (or file-like stream).
 
         @param stream: The source file-like object.
         @return: The decoded value.
@@ -112,7 +113,7 @@ def readUInt(stream, size):
 
 
 def readInt(stream, size):
-    """ Read a signed integer from a file (or file-like) stream.
+    """ Read a signed integer from a file (or file-like stream).
 
         @param stream: The source file-like object.
         @return: The decoded value.
@@ -130,7 +131,7 @@ def readInt(stream, size):
 
 
 def readFloat(stream, size):
-    """ Read an floating point value from a file (or file-like) stream.
+    """ Read an floating point value from a file (or file-like stream).
 
         @param stream: The source file-like object.
         @return: The decoded value.
@@ -147,13 +148,11 @@ def readFloat(stream, size):
 
 
 def readString(stream, size):
-    """ Read an ASCII string from a file (or file-like) stream.
+    """ Read an ASCII string from a file (or file-like stream).
 
         @param stream: The source file-like object.
         @return: The decoded value.
     """
-
-
     if size == 0:
         return ''
 
@@ -163,7 +162,7 @@ def readString(stream, size):
 
 
 def readUnicode(stream, size):
-    """ Read an UTF-8 encoded string from a file (or file-like) stream.
+    """ Read an UTF-8 encoded string from a file (or file-like stream).
 
         @param stream: The source file-like object.
         @return: The decoded value.
@@ -179,10 +178,10 @@ def readUnicode(stream, size):
 
 def readDate(stream, size=8):
     """ Read an EBML encoded date (nanoseconds since UTC 2001-01-01T00:00:00)
-        from a file (or file-like) stream.
+        from a file (or file-like stream).
 
         @param stream: The source file-like object.
-        @return: The decoded value.
+        @return: The decoded value (as `datetime.datetime`).
     """
     if size != 8:
         raise IOError("Cannot read date value of length %d, only 8." % size)

@@ -5,14 +5,20 @@ names as the elements. The crucial details of the widget type are also encoded
 into the EBML ID; if there is not a specialized subclass for a particular 
 element, this is used to find a generic widget for the data type. 
 
-Basic theory of operation: Configuration items with values of `None` do not get
-    written to the config file. Fields with checkboxes have a value of `None`
-    if unchecked. Disabled fields also have a value of `None`. Children of 
-    disabled fields have a value of `None`, as do children of fields with 
-    checkboxes (i.e. `CheckGroup`) if their parent is unchecked. 
-    
+Basic theory of operation: 
 
-Created on Jul 6, 2017
+* Configuration items with values of `None` do not get written to the config 
+    file. 
+* Fields with checkboxes have a value of `None` if unchecked. 
+* Disabled fields also have a value of `None`. 
+* Children of disabled fields have a value of `None`, as do children of fields 
+    with checkboxes (i.e. `CheckGroup`) if their parent is unchecked. 
+* The default value for a field is in the native units/data type as in the 
+    config file. Setting a field to the default uses the same mechanism as 
+    setting it according to the config file.
+    
+@todo: There are some redundant calls to update enabled and checkbox states.
+    Those should be cleaned up.
 '''
 
 __author__ = "dstokes"
@@ -42,6 +48,10 @@ from mide_ebml.ebmlite import util
 # Temporary?
 from config_dialog.ssx import CalibrationPanel, EditableCalibrationPanel, SSXInfoPanel
 
+#===============================================================================
+# 
+#===============================================================================
+
 import logging
 logger = logging.getLogger('SlamStickLab.ConfigUI')
 logger.setLevel(logging.INFO)
@@ -50,10 +60,6 @@ logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 #===============================================================================
 # 
 #===============================================================================
-
-# Min/max integers supported by wxPython SpinCtrl
-MAX_SIGNED_INT = 2**31 - 1
-MIN_SIGNED_INT = -2**31
 
 SCHEMA = loadSchema('config_ui.xml')
 
@@ -186,7 +192,9 @@ class ConfigContainer(object):
         dynamically gets values from the corresponding widget. It simplifies
         the field's ``DisplayFormat``, ``ValueFormat``, and ``DisableIf`` 
         expressions. Iterating over it is performed in the order of the
-        keys, low to high.
+        keys (i.e. config IDs), low to high; dependencies can be avoided by
+        giving dependent values higher config IDs than the fields they depend
+        upon.
     """
     
     def __init__(self, root):
@@ -246,7 +254,8 @@ class ConfigContainer(object):
 
 class ConfigBase(object):
     """ Base/mix-in class for configuration items. Handles parsing attributes
-        from EBML. Doesn't do any of the GUI-specific widget work.
+        from EBML. Doesn't do any of the GUI-specific widget work, as some 
+        components don't correspond directly to a UI widget.
         
         @cvar ARGS: A dictionary mapping EBML element names to object attribute
             names. Wildcards are allowed in the element names.
@@ -285,7 +294,9 @@ class ConfigBase(object):
     # a *Value element.
     DEFAULT_TYPE = None
     
-    # Default expression code objects for DisableIf, ValueFormat, DisplayFormat
+    # Default expression code objects for DisableIf, ValueFormat, DisplayFormat.
+    # `noEffect` always returns the field's value unmodified (supplied as the
+    # variable ``x``). `noValue` always returns `None`.
     noEffect = compile("x", "<ConfigBase.noEffect>", "eval")
     noValue = compile("None", "<ConfigBase.noValue>", "eval")
     
@@ -350,7 +361,8 @@ class ConfigBase(object):
 
     
     def __init__(self, element, root):
-        """ Constructor. 
+        """ Constructor. Instantiates a `ConfigBase` and parses parameters out
+            of the supplied EBML element.
         
             @param element: The EBML element from which to build the object.
             @param root: The main dialog.
@@ -409,7 +421,7 @@ class ConfigBase(object):
         """
         name = self.__class__.__name__
         if not self.label:
-            return "<%s %r at 0x%x>" % (name, self.label, id(self))
+            return "<%s at 0x%x>" % (name, id(self))
         return "<%s %r at 0x%x>" % (name, self.label, id(self))
         
 
@@ -478,6 +490,16 @@ class ConfigWidget(wx.Panel, ConfigBase):
         @cvar CHECK: Does this field have a checkbox?
         @cvar UNITS: Should this widget always leave space for the 'units'
             label, even when its EBML description doesn't contain a ``Label``?
+        @cvar ARGS: A dictionary mapping EBML element names to object attribute
+            names. Wildcards are allowed in the element names. Inherited from
+            `ConfigBase`.
+        @cvar CLASS_ARGS: A dictionary mapping additional EBML element names
+            to object attribute names. Subclasses can add their own unique
+            attributes to this dictionary. Inherited from `ConfigBase`.
+        @cvar DEFAULT_TYPE: The name of the EBML ``*Value`` element type used
+            when writing this item's value to the config file. Used if the
+            defining EBML element does not contain a ``*Value`` sub-element.
+            Inherited from `ConfigBase`.
     """
     
     # Does this widget subclass have a checkbox?
@@ -602,7 +624,7 @@ class ConfigWidget(wx.Panel, ConfigBase):
         super(ConfigWidget, self).setConfigValue(val, check=check)
         try:
             if val is not None and self.group.checkbox is not None:
-                self.group.setCheck()
+                self.group.setCheck(check)
         except AttributeError:
             pass
         
@@ -643,7 +665,8 @@ class ConfigWidget(wx.Panel, ConfigBase):
         """ Automatically enable or disable this field according to its 
             `isDisabled` expression (if any).
         """
-        self.Enable(not self.isDisabled())
+        enabled = not self.isDisabled()
+        self.Enable(enabled)
     
     
     #===========================================================================
@@ -653,7 +676,6 @@ class ConfigWidget(wx.Panel, ConfigBase):
     def OnCheck(self, evt):
         """ Handle checkbox changing.
         """
-#         self.enableChildren(evt.Checked())
         self.root.updateDisabledItems()
         evt.Skip()
 
@@ -710,7 +732,7 @@ class TextField(ConfigWidget):
     DEFAULT_TYPE = "TextValue"
     
     # String of valid characters. 'None' means all are valid.
-    VALID_CHARS = string.ascii_letters #None
+    VALID_CHARS = None
 
     def __init__(self, *args, **kwargs):
         self.setAttribDefault('default', '')
@@ -884,21 +906,16 @@ class EnumField(ConfigWidget):
             @keyword root: The main dialog.
             @keyword group: The parent group containing the Field (if any).
         """
-        element = kwargs.pop('element', None)
-        root = kwargs.pop('root', None)
-        self.group = kwargs.pop('group', None)
         
         self.setAttribDefault('default', 0) 
-        
-        # Call explicitly to postpone `initUI()` until options gathered.
-        ConfigBase.__init__(self, element, root)
-        wx.Panel.__init__(self, *args, **kwargs)
+        super(EnumField, self).__init__(*args, **kwargs)
 
+    
+    def initUI(self):
         optionEls = [el for el in self.element.value if el.name=="EnumOption"]
         self.options = [EnumOption(el, self, n) for n,el in enumerate(optionEls)]
-        
-        self.initUI()
-    
+        super(EnumField, self).initUI()
+
     
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
@@ -958,6 +975,18 @@ class EnumField(ConfigWidget):
             return self.options[index].getDisplayValue()
         return self.default
 
+
+    def Enable(self, enabled=True):
+        # XXX: I'm not sure why I have to do this explicitly now, and just
+        # for EnumField. 
+        if self.checkbox is not None:
+            self.enableChildren(self.checkbox.GetValue())
+        elif self.field is not None:
+            self.field.Enable(enabled)
+        wx.Panel.Enable(self, enabled)
+
+
+    
     
 #===============================================================================
     
@@ -1017,6 +1046,7 @@ class BitField(EnumField):
             if tooltip:
                 o.checkbox.SetToolTipString(tooltip)
         
+        self.field = None
         return childSizer
         
 
@@ -1033,6 +1063,9 @@ class BitField(EnumField):
             the appropriate UI control(s) and a 'units' label (if applicable). 
             Separated from `__init__()` for the sake of subclassing.
         """
+        optionEls = [el for el in self.element.value if el.name=="EnumOption"]
+        self.options = [EnumOption(el, self, n) for n,el in enumerate(optionEls)]
+        
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         
         if self.label:
@@ -1812,9 +1845,6 @@ class ConfigDialog(SC.SizedDialog):
         else:
             self.configData = self.device.getConfigItems()
         
-        # XXX: How will we get the data? The recorder's getConfig()? A different
-        # method, one that returns a simple dictionary of IDs:values? 
-        
         for k,v in self.configData.items():
             try:
                 self.configItems[k].setConfigValue(v)
@@ -1826,15 +1856,21 @@ class ConfigDialog(SC.SizedDialog):
         return self.configData 
     
     
-    def saveConfigData(self):
-        """ Save edited config data to the recorder.
+    
+    def saveConfigData(self, filename=None):
+        """ Save edited config data to the recorder (or another file).
+            
+            @keyword filename: A file to which to save the configuration data,
+                if not the device's specified `configFile`.
         """
-        if self.device is None:
+        if self.device is None and filename is None:
             return
+
+        filename = filename or self.device.configFile 
         
         self.configData = self.configValues.toDict()
         
-        makeBackup(self.device.configFile)
+        makeBackup(filename)
         
         try:
             if self.useLegacyConfig:
@@ -1852,11 +1888,11 @@ class ConfigDialog(SC.SizedDialog):
             schema = loadSchema('mide.xml')
             encoded = schema.encodes(data)
             
-            with open(self.device.configFile, 'wb') as f:
+            with open(filename, 'wb') as f:
                 f.write(encoded)
         
         except Exception:
-            restoreBackup(self.device.configFile)
+            restoreBackup(filename)
             raise
     
     
@@ -1900,6 +1936,9 @@ if __name__ == "__main__":
 #     schema = loadSchema("config_ui.xml")
 #     testDoc = schema.load('CONFIG.UI')
 #     util.dump(testDoc)
+
+    # XXX: DEFINITELY REMOVE!
+#     sys.argv = ['',  'CONFIG.UI']
     
     if len(sys.argv) > 1:
         device = None
