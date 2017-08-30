@@ -51,6 +51,7 @@ def Datafiles(*filenames, **kw):
 schemas = Datafiles('mide_ebml/ebml/schema/mide.xml', 
                     'mide_ebml/ebml/schema/manifest.xml', 
                     'mide_ebml/ebml/schema/matroska.xml',
+                    'mide_ebml/ebmlite/schemata/*.xml',
                     'LICENSES/*.txt',
                     'ABOUT/*',
                     'resources/*',

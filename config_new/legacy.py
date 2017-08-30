@@ -133,7 +133,8 @@ def loadConfigData(device):
 
 
 def saveConfigData(configData, device):
-    """ Save new configuration data in the old format.
+    """ Save new configuration data in the old format. The `configData` should
+        not contain any `None` values.
     """
     # Copy the data, just in case.
     configData = configData.copy()
@@ -227,7 +228,7 @@ def saveConfigData(configData, device):
     
     with open(device.configFile, 'wb') as f:
         f.write(ebml)
-
+    
 
 #===============================================================================
 # 

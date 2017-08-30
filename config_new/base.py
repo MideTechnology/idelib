@@ -24,6 +24,7 @@ Basic theory of operation:
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
+import errno
 from fnmatch import fnmatch
 import os.path
 import string
@@ -187,14 +188,14 @@ class TextValidator(wx.PyValidator):
 # 
 #===============================================================================
 
-class ConfigContainer(object):
+class DisplayContainer(object):
     """ A wrapper for the dialog's dictionary of configuration items, which
-        dynamically gets values from the corresponding widget. It simplifies
-        the field's ``DisplayFormat``, ``ValueFormat``, and ``DisableIf`` 
-        expressions. Iterating over it is performed in the order of the
-        keys (i.e. config IDs), low to high; dependencies can be avoided by
-        giving dependent values higher config IDs than the fields they depend
-        upon.
+        dynamically gets the displayed values from the corresponding widget. It
+        simplifies the field's ``DisplayFormat``, ``ValueFormat``, and 
+        ``DisableIf`` expressions. Iterating over it is performed in the order
+        of the keys (i.e. config IDs), low to high; dependencies can be avoided
+        by giving dependent values higher config IDs than the fields they
+        depend upon.
     """
     
     def __init__(self, root):
@@ -203,7 +204,7 @@ class ConfigContainer(object):
     
     def get(self, k, default=None):
         if k in self.root.configItems:
-            return self.root.configItems[k].getDisplayValue()
+            return self[k]
         return default
 
 
@@ -216,7 +217,7 @@ class ConfigContainer(object):
 
     
     def __iter__(self):
-        return iter(sorted(self.root.configItems.keys()))
+        return iter(self.keys())
 
 
     def iterkeys(self):
@@ -246,7 +247,21 @@ class ConfigContainer(object):
             Items with values of `None` are excluded.
         """
         return {k:v for k,v in self.iteritems() if v is not None}
-    
+
+
+class ConfigContainer(DisplayContainer):
+    """ A wrapper for the dialog's dictionary of configuration items, which
+        dynamically gets the converted configuration values (as written to the
+        config file) from the corresponding widget. It simplifies saving the
+        configuration data. Iterating over it is performed in the order of the
+        keys (i.e. config IDs), low to high; dependencies can be avoided by
+        giving dependent values higher config IDs than the fields they depend
+        upon.
+    """
+
+    def __getitem__(self, k):
+        return self.root.configItems[k].getConfigValue()
+
 
 #===============================================================================
 #--- Base classes
@@ -1174,7 +1189,7 @@ class UTCOffsetField(FloatField):
         self.setAttribDefault('max', 23.0)
         self.setAttribDefault('units', "Hours")
         self.setAttribDefault('increment', 0.5)
-        self.setAttribDefault('displayFormat', "x/3600")
+        self.setAttribDefault('displayFormat', "x/3600.0")
         self.setAttribDefault('valueFormat', "x*3600")
         self.setAttribDefault("label", "Local UTC Offset")
         super(UTCOffsetField, self).__init__(*args, **kwargs)
@@ -1641,6 +1656,14 @@ class Tab(SP.ScrolledPanel, Group):
         self.SetSizer(self.sizer)
 
 
+    def save(self):
+        """ Perform any special operations related to saving the Tab's contents.
+            Regular tabs don't have any special features; this is primarily for
+            the special-case subclasses.
+        """
+        pass
+
+
 #===============================================================================
 #--- Special-case tabs 
 #===============================================================================
@@ -1729,6 +1752,13 @@ class UserCalibrationTab(FactoryCalibrationTab):
         self.SetSizer(self.sizer)
     
 
+    def save(self):
+        """ Save the user calibration, if any. Called when main dialog saves
+            prior to closing.
+        """
+        if self.field.info:
+            self.root.device.writeUserCal(self.field.info)
+
 
 #===============================================================================
 # 
@@ -1744,7 +1774,9 @@ class ConfigDialog(SC.SizedDialog):
             @keyword device: The recorder to configure (an instance of a 
                 `devices.Recorder` subclass)
         """
+        self.setTime = kwargs.pop('setTime', True)
         self.device = kwargs.pop('device', None)
+        
         try:
             devName = self.device.productName
             if self.device.path:
@@ -1770,19 +1802,22 @@ class ConfigDialog(SC.SizedDialog):
         
         self.configItems = {}
         self.configValues = ConfigContainer(self)
+        self.displayValues = DisplayContainer(self)
         
         # Variables to be accessible by field expressions. Includes mapping
         # None to ``null``, making the expressions less specific to Python. 
-        self.expresionVariables = {'Config': self.configValues,
+        self.expresionVariables = {'Config': self.displayValues,
                                    'null': None}
-                
+        
+        self.tabs = []
         self.buildUI()
         self.loadConfigData()
         self.updateDisabledItems()
 
         self.setClockCheck = wx.CheckBox(pane, -1, "Set device clock on exit")
-        self.setClockCheck.SetValue(True)
+        self.setClockCheck.SetValue(self.setTime)
         self.setClockCheck.SetSizerProps(expand=True, border=(['top', 'bottom'], 8))
+        self.setClockCheck.Enable(hasattr(self.device, 'setTime'))
         
         buttonpane = SC.SizedPanel(pane,-1)
         buttonpane.SetSizerType("horizontal")
@@ -1798,6 +1833,8 @@ class ConfigDialog(SC.SizedDialog):
         self.SetAffirmativeId(wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.OnOK, id=wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.OnCancel, id=wx.ID_CANCEL)
+        self.importBtn.Bind(wx.EVT_BUTTON, self.OnImportButton)
+        self.exportBtn.Bind(wx.EVT_BUTTON, self.OnExportButton)
         
         self.Fit()
         self.SetMinSize((500, 480))
@@ -1812,6 +1849,7 @@ class ConfigDialog(SC.SizedDialog):
                 tabType = TAB_TYPES[el.name]
                 tab = tabType(self.notebook, -1, element=el, root=self)
                 self.notebook.AddPage(tab, str(tab.label))
+                self.tabs.append(tab)
 
 
     def loadConfigUI(self, defaults=None):
@@ -1906,10 +1944,49 @@ class ConfigDialog(SC.SizedDialog):
             item.updateDisabled()
             
     
+    def OnImportButton(self, evt):
+        """
+        """
+        print "XXX: Implement OnImportButton!"
+    
+    
+    def OnExportButton(self, evt):
+        """
+        """
+        print "XXX: Implement OnExportButton!"
+    
+    
     def OnOK(self, evt):
         """ Handle dialog OK, saving changes.
         """
-        self.saveConfigData()
+        try:
+            self.saveConfigData()
+        except IOError as err:
+            msg = ("An error occurred when trying to update the recorder's "
+                   "configuration data.")
+            if err.errno == errno.ENOENT:
+                msg += "\nThe recorder appears to have been removed."
+            wx.MessageBox(msg, "Configuration Error", 
+                          wx.OK|wx.OK_DEFAULT| wx.ICON_ERROR,
+                          parent=self)
+            evt.Skip()
+            return
+        
+        # Handle other exceptions here if need be.
+        
+        for tab in self.tabs:
+            tab.save()
+        
+        if self.setClockCheck.IsEnabled() and self.setClockCheck.GetValue():
+            logger.info("Setting clock...")
+            try:
+                self.device.setTime()
+            except Exception as err:
+                logger.error("Error setting clock: %r" % err)
+                wx.MessageBox("The recorder's clock could not be set.", 
+                              "Configure Device", parent=self,
+                              style=wx.OK|wx.OK_DEFAULT|wx.ICON_WARNING)
+                
         evt.Skip()
 
 
@@ -1918,8 +1995,8 @@ class ConfigDialog(SC.SizedDialog):
         """
         if self.configData != self.origConfigData:
             q = wx.MessageBox("Save configuration changes before exiting?",
-                              "Configure Device", 
-                              wx.YES_NO|wx.CANCEL|wx.CANCEL_DEFAULT, self)
+                              "Configure Device", parent=self,
+                              style=wx.YES_NO|wx.CANCEL|wx.CANCEL_DEFAULT)
             if q == wx.CANCEL:
                 return
             elif q == wx.YES:
@@ -1935,21 +2012,15 @@ class ConfigDialog(SC.SizedDialog):
 __DEBUG__ = not True
 
 if __name__ == "__main__":
-#     schema = loadSchema("config_ui.xml")
-#     testDoc = schema.load('CONFIG.UI')
-#     util.dump(testDoc)
-
     # XXX: DEFINITELY REMOVE!
 #     sys.argv = ['',  'CONFIG.UI']
-#     sys.argv = ['',  'CONFIG2.UI']
     
     if len(sys.argv) > 1:
         device = None
         if sys.argv[-1].endswith('.xml'):
             hints = util.loadXml(sys.argv[-1], SCHEMA)
         else:
-            schema = loadSchema('config_ui.xml')
-            hints = schema.load(sys.argv[-1])
+            hints = SCHEMA.load(sys.argv[-1])
     else:
         hints = None
         from devices import getDevices
