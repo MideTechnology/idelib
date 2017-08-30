@@ -127,15 +127,15 @@
             <CheckGroup>
                 <Label value="Acceleration Trigger (Analog)"/>
                 <ConfigID value="0x05ff08"/>
-                <FloatAccelerationField>
+                <FloatAccelerationField id="analogAccelLo">
                     <Label value="Acceleration Trigger, Low"/>
                     <ConfigID value="0x03ff08"/>
                     <IntValue value="-1638"/>
-                    <FloatMin value="-100.0"/>
-                    <FloatMax value="100.0"/>
+                    <FloatMin value="-1001.0"/>
+                    <FloatMax value="1001.0"/>
                     <FloatGain value="0.003051804" />
                 </FloatAccelerationField>
-                <FloatAccelerationField>
+                <FloatAccelerationField id="analogAccelHi">
                     <Label value="Acceleration Trigger, High"/>
                     <ConfigID value="0x04ff08"/>
                     <IntValue value="1638"/>

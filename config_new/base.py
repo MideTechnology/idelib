@@ -18,7 +18,7 @@ Basic theory of operation:
     setting it according to the config file.
     
 @todo: There are some redundant calls to update enabled and checkbox states.
-    Those should be cleaned up.
+    They don't cause a problem, but they should be cleaned up.
 '''
 
 __author__ = "dstokes"
@@ -314,8 +314,8 @@ class ConfigBase(object):
             # used to calculate another config item, not a config item itself)
             return self.noValue
         elif not isinstance(exp, basestring):
-            # XXX: This was to fix one weird thing that may not happen any
-            # more. Remove it if it doesn't.
+            # Probably won't occur, but just in case...
+            logger.debug("Bad value for %s: %r (%s)" % (name, exp, exp.__class__))
             return
         
         # Create a nicely formatted, informative string for the compiled 
@@ -872,6 +872,7 @@ class FloatField(IntField):
             @keyword group: The parent group containing the Field.
         """
         self.setAttribDefault('increment', 0.25)
+        self.setAttribDefault("floatDigits", 2)
         super(FloatField, self).__init__(*args, **kwargs)
 
         
@@ -882,6 +883,7 @@ class FloatField(IntField):
                                        inc=self.increment,
                                        min=self.min, max=self.max, 
                                        value=str(self.default))
+        self.field.SetDigits(self.floatDigits)
         self.sizer.Add(self.field)
         return self.field
 
@@ -1939,6 +1941,7 @@ if __name__ == "__main__":
 
     # XXX: DEFINITELY REMOVE!
 #     sys.argv = ['',  'CONFIG.UI']
+#     sys.argv = ['',  'CONFIG2.UI']
     
     if len(sys.argv) > 1:
         device = None

@@ -98,6 +98,7 @@
                 <FloatElement name="FloatMin" id="0x5113" multiple="0"></FloatElement>
                 <FloatElement name="FloatMax" id="0x5123" multiple="0"></FloatElement>
                 <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
+                <UIntegerElement name="FloatDigits" id="0x5141" multiple="0"></UIntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <IntegerElement name="IntValue" id="0x5102" multiple="0"></IntegerElement>
@@ -271,6 +272,7 @@
                 <FloatElement name="FloatMin" id="0x5113" multiple="0"></FloatElement>
                 <FloatElement name="FloatMax" id="0x5123" multiple="0"></FloatElement>
                 <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
+                <UIntegerElement name="FloatDigits" id="0x5141" multiple="0"></UIntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UnicodeElement name="TextValue" />
@@ -423,6 +425,8 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
+                <UIntegerElement name="FloatDigits" id="0x5141" multiple="0"></UIntegerElement>
                 <UnicodeElement name="TextValue" />
                 <StringElement name="ASCIIValue" />
                 <IntegerElement name="IntValue" />
@@ -439,6 +443,8 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
+                <UIntegerElement name="FloatDigits" id="0x5141" multiple="0"></UIntegerElement>
                 <UnicodeElement name="TextValue" />
                 <StringElement name="ASCIIValue" />
                 <IntegerElement name="IntValue" />
@@ -487,6 +493,8 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
+                <UIntegerElement name="FloatDigits" id="0x5141" multiple="0"></UIntegerElement>
                 <UnicodeElement name="TextValue" />
                 <StringElement name="ASCIIValue" />
                 <IntegerElement name="IntValue" />
@@ -503,6 +511,8 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
+                <UIntegerElement name="FloatDigits" id="0x5141" multiple="0"></UIntegerElement>
                 <UnicodeElement name="TextValue" />
                 <StringElement name="ASCIIValue" />
                 <IntegerElement name="IntValue" />
@@ -550,6 +560,8 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
+                <UIntegerElement name="FloatDigits" id="0x5141" multiple="0"></UIntegerElement>
                 <UnicodeElement name="TextValue" />
                 <StringElement name="ASCIIValue" />
                 <IntegerElement name="IntValue" />
@@ -566,6 +578,8 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
+                <UIntegerElement name="FloatDigits" id="0x5141" multiple="0"></UIntegerElement>
                 <UnicodeElement name="TextValue" />
                 <StringElement name="ASCIIValue" />
                 <IntegerElement name="IntValue" />

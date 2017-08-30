@@ -10,6 +10,7 @@ __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
 
 from collections import OrderedDict
+from xml.etree import ElementTree as ET
 import os.path
 
 from mide_ebml.ebmlite import loadSchema, util
@@ -28,7 +29,18 @@ def loadConfigUI(device):
     # to reduce the number of individual templates.
     partNum = getattr(device, 'partNumber', 'LOG-0002-100G-DC')
     filename = os.path.join(DEFAULTS_PATH, partNum + ".xml")
-    return util.loadXml(filename, loadSchema('config_ui.xml'))
+    doc = ET.parse(filename)
+    
+#     accelRange = device.getAccelRange()
+#     if accelRange is not None:
+#         loEl = doc.find('.//FloatAccelerationField[@id="analogAccelHi"]/FloatMin')
+#         hiEl = doc.find('.//FloatAccelerationField[@id="analogAccelHi"]/FloatMax')
+#         if loEl is not None:
+#             loEl.set('value',str(accelRange[0]))
+#         if hiEl is not None:
+#             hiEl.set('value',str(accelRange[1]))
+            
+    return util.loadXml(doc, loadSchema('config_ui.xml'))
 
 
 #===============================================================================

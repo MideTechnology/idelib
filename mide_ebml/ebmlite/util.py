@@ -290,10 +290,13 @@ if __name__ == "__main__":
     import os.path
     from xml.dom.minidom import parseString
     
+    def errPrint(msg):
+        sys.stdout.write("%s\n" % msg)
+        sys.stdout.flush()
+    
     argparser = argparse.ArgumentParser(description="""
         ebmlite utilities: some basic command-line tools for converting between
-        XML and EBML and viewing the structure of an EBML file. The output is
-        to stdout, which you can redirect to a file.
+        XML and EBML and viewing the structure of an EBML file. 
         """)
     
     argparser.add_argument('mode',  
@@ -308,6 +311,9 @@ if __name__ == "__main__":
                            help="""The name of the schema file. Only the name 
                                    itself is required if the schema file is in 
                                    the standard schema directory.""")
+    argparser.add_argument('-o', '--output',
+                           metavar="[FILE.xml|FILE.ebml]",
+                           help="The output file.")
     argparser.add_argument('-c', '--clobber', 
                            action="store_true",
                            help="Clobber (overwrite) existing files.")
@@ -324,25 +330,37 @@ if __name__ == "__main__":
     try:
         schema = core.loadSchema(args.schema)
     except IOError as err:
-        sys.stderr.write("Error loading schema: %s" % err)
+        errPrint("Error loading schema: %s\n" % err)
         exit(1)
+
+    if args.output:
+        output = os.path.realpath(os.path.expanduser(args.output))
+        if os.path.exists(output) and not args.clobber:
+            errPrint("Output file exists: %s" % args.output)
+            exit(1)
+        out = open(output, 'wb')
+    else:
+        out = sys.stdout
     
     if args.mode == "xml2ebml":
-        xml2ebml(args.input, sys.stdout, schema) #, sizeLength=4, headers=True, unknown=True)
-        exit(0)
+        xml2ebml(args.input, out, schema) #, sizeLength=4, headers=True, unknown=True)
     elif args.mode == "ebml2xml":
         doc = schema.load(args.input, headers=True)
         root = toXml(doc) #, offsets, sizes, types, ids)
         s = ET.tostring(root)
         if args.pretty:
-            parseString(s).writexml(sys.stdout, addindent='\t', newl='\n')#, encoding='utf-8')
+            parseString(s).writexml(out, addindent='\t', newl='\n')#, encoding='utf-8')
         else:
-            sys.stdout.write(s)
-        exit(0)
+            out.write(s)
     else:
         doc = schema.load(args.input, headers=True)
-        pprint(doc)
+        pprint(doc, out=out)
  
+    if out != sys.stdout:
+        out.close()
+    
+    exit(0)
+
                 
             
         
