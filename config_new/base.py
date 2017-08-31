@@ -682,7 +682,7 @@ class ConfigWidget(wx.Panel, ConfigBase):
         """
         enabled = not self.isDisabled()
         self.Enable(enabled)
-    
+
     
     #===========================================================================
     # Event handlers
@@ -963,6 +963,7 @@ class EnumField(ConfigWidget):
         """ Handle option selected.
         """
         self.updateToolTips()
+        self.root.updateDisabledItems()
         evt.Skip()
         
 
@@ -1112,6 +1113,9 @@ class BitField(EnumField):
         self.SetSizer(self.sizer)
         
         self.setToDefault()
+        
+        # Child checks should also fire the 'on check' handler.
+        self.Bind(wx.EVT_CHECKBOX, self.OnCheck)
 
 
     def getDisplayValue(self):
