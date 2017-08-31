@@ -183,7 +183,7 @@ class SlamStickX(Recorder):
         """ Get the recorder's new 'ConfigUI' configuration data, a dictionary
             of configuration IDs and values.
         """
-        config = self.loadConfig()
+        config = self.getConfig()
         root = config.get('RecorderConfigurationList', None)
         if root is None:
             return None

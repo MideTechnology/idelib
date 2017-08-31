@@ -10,12 +10,17 @@ __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
 
 from collections import OrderedDict
-from xml.etree import ElementTree as ET
+from glob import glob
 import os.path
+import shutil
+from xml.etree import ElementTree as ET
 
 from mide_ebml.ebmlite import loadSchema, util
 
 DEFAULTS_PATH = os.path.join(os.path.dirname(__file__), 'defaults')
+
+import logging
+logger = logging.getLogger('SlamStickLab.ConfigUI')
 
 #===============================================================================
 # 
@@ -25,22 +30,58 @@ def loadConfigUI(device):
     """ Load a default configuration UI from a static XML file. For recorders
         running old firmware that doesn't supply a ``CONFIG.UI`` file.
     """
-    # TODO: Modify default with recorder information (accelerometer range, etc.)
-    # to reduce the number of individual templates.
+    schema = loadSchema('config_ui.xml')
+    
+    # First, look for an exact match to the part number.
     partNum = getattr(device, 'partNumber', 'LOG-0002-100G-DC')
+    
+    # XXX: REMOVE
+#     partNum = 'LOG-0003-100G'
+    
     filename = os.path.join(DEFAULTS_PATH, partNum + ".xml")
+    if os.path.exists(filename):
+        logging.info('Loading UI template %s' % filename)
+        return util.loadXml(filename, schema)
+    
+    # Look for templates that match the base part number (for custom units)
+    for filename in glob(os.path.join(DEFAULTS_PATH, "*.xml")):
+        name = os.path.splitext(os.path.basename(filename))[0]
+        if partNum.startswith(name):
+            logging.info('Loading UI template %s' % filename)
+            return util.loadXml(filename, schema)
+    
+    # Get a more generic template and fill in the details.
+    base = partNum[:8]
+    dc = "-DC" if partNum.endswith('DC') else ''
+    filename = os.path.join(DEFAULTS_PATH, "%s-xxxG%s.xml" % (base, dc)) 
+
+    logging.info('Loading UI template %s' % filename)
+    
     doc = ET.parse(filename)
     
-#     accelRange = device.getAccelRange()
-#     if accelRange is not None:
-#         loEl = doc.find('.//FloatAccelerationField[@id="analogAccelHi"]/FloatMin')
-#         hiEl = doc.find('.//FloatAccelerationField[@id="analogAccelHi"]/FloatMax')
-#         if loEl is not None:
-#             loEl.set('value',str(accelRange[0]))
-#         if hiEl is not None:
-#             hiEl.set('value',str(accelRange[1]))
-            
-    return util.loadXml(doc, loadSchema('config_ui.xml'))
+    accelRange = None
+    analogChannel = device.getAccelChannel(dc=False)
+    if analogChannel is not None:
+        accelRange = device.getAccelRange(analogChannel.id)
+        
+    if accelRange is not None:
+        for lo in doc.findall(".//*[@id='AnalogAccelTrigger']/FloatAccelerationField/FloatMin"):
+            lo.set('value',str(accelRange[0]))
+        for hi in doc.findall(".//*[@id='AnalogAccelTrigger']/FloatAccelerationField/FloatMax"):
+            hi.set('value',str(accelRange[1]))
+    
+    loAccelThresh = None
+    dcChannel = device.getAccelChannel(dc=True)
+    if dcChannel is not None:
+        loAccelThresh = device.getAccelRange(dcChannel.id)
+    
+    if loAccelThresh is not None:
+        for lo in doc.findall(".//*[@id='DCAccelTrigger']/FloatAccelerationField/FloatMin"):
+            lo.set('value',str(accelRange[0]))
+        for hi in doc.findall(".//*[@id='DCAccelTrigger']/FloatAccelerationField/FloatMax"):
+            hi.set('value',str(accelRange[1]))
+        
+    return util.loadXml(doc, schema)
 
 
 #===============================================================================
@@ -228,6 +269,28 @@ def saveConfigData(configData, device):
     
     with open(device.configFile, 'wb') as f:
         f.write(ebml)
+    
+
+#===============================================================================
+# 
+#===============================================================================
+
+def convertConfig(device):
+    """ Convert a recorder's configuration file from the old format to the new
+        version.
+    """
+    backupName = "%s_old.%s" % os.path.splitext(device.configFile)
+    if not os.path.exists(device.configFile):
+        return False
+    
+    try:
+        shutil.copy(device.configFile, backupName)
+        saveConfigData(loadConfigData(device), device)
+        return True
+    except:
+        shutil.copy(backupName, device.configFile)
+        raise
+        
     
 
 #===============================================================================

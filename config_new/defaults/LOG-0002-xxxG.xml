@@ -1,0 +1,186 @@
+<?xml version="1.0" ?>
+<Mide.Ss.ConfigDocument>
+    <ConfigUI>
+        <Tab>
+            <Label value="General"/>
+            <TextField>
+                <Label value="Device Name"/>
+                <ConfigID value="0x8ff7f"/>
+                <MaxLength value="64"/>
+                <ToolTip value="A custom name for the recorder. Not the same as the volume label. 64 characters maximum."/>
+            </TextField>
+            <TextField>
+                <Label value="Device Notes"/>
+                <ConfigID value="0x9ff7f"/>
+                <MaxLength value="256"/>
+                <ToolTip value="Custom notes about the recorder (position, user ID, etc.). 256 characters maximum."/>
+                <TextLines value="3"/>
+            </TextField>
+            <CheckUIntField>
+                <Label value="Sample Frequency"/>
+                <ConfigID value="0x2ff08"/>
+                <UIntValue value="5000"/>
+                <Units value="Hz"/>
+                <UIntMin value="10"/>
+                <UIntMax value="20000"/>
+            </CheckUIntField>
+            <CheckUIntField>
+                <Label value="Override Antialiasing Filter Cutoff"/>
+                <ConfigID value="0x08ff08"/>
+                <UIntValue value="1000"/>
+                <Units value="Hz"/>
+                <UIntMax value="5000"/>
+                <ToolTip value="Set this value to override default filter of one-fifth the sample frequency."/>
+            </CheckUIntField>
+            <CheckEnumField>
+                <Label value="Plug-In Action"/>
+                <ConfigID value="0xaff7f"/>
+                <ToolTip value="Set action for device when plugged in to USB while recording."/>
+                <UIntValue value="1"/>
+                <EnumOption>
+                    <Label value="Immediately stop recording and appear as USB drive"/>
+                    <!-- <UIntValue value="0"/> unnecessary: defaults to option's index -->
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Complete recording before appearing as USB drive"/>
+                    <!-- <UIntValue value="1"/> -->
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Ignore: stop recording when button is pressed"/>
+                    <!-- <UIntValue value="2"/> -->
+                </EnumOption>
+            </CheckEnumField>
+            <CheckUTCOffsetField>
+                <!-- <Label value="Local UTC Offset"/> -->
+                <ConfigID value="0x0bff7f"/>
+                <ToolTip value="Enter local timezone's offset from UTC time. Impacts timestamp information on recording files."/>
+            </CheckUTCOffsetField>
+            <CheckDriftButton></CheckDriftButton>
+            <VerticalPadding></VerticalPadding>
+            <ResetButton></ResetButton>
+        </Tab>
+
+        <Tab>
+            <Label value="Triggers"/>
+            <CheckUIntField>
+                <Label value="Recording Delay/Interval"/>
+                <ConfigID value="0x0cff7f"/>
+                <Units value="Seconds"/>
+                <UIntMax value="86400"/>
+                <ToolTip value="The time between recordings if 'Re-triggerable' is checked. If no wake date/time is specified, recording will start this many seconds after the button is pressed."/>
+            </CheckUIntField>
+            <CheckDateTimeField>
+                <Label value="Wake at specific time"/>
+                <ConfigID value="0x0fff7f"/>
+            </CheckDateTimeField>
+            <CheckUIntField>
+                <Label value="Recording Time Limit"/>
+                <ConfigID value="0x0dff7f"/>
+                <Units value="Seconds"/>
+                <UIntMax value="4294967280"/>
+            </CheckUIntField>
+            <CheckBooleanField>
+                <Label value="Retrigger"/>
+                <ConfigID value="0x0eff7f"/>
+                <DisableIf value="Config[0xDFF7F]==null"/>
+            </CheckBooleanField>
+            <CheckGroup>
+                <Label value="Pressure Trigger"/>
+                <ConfigID value="0x050024"/>
+                <IntPressureField>
+                    <Label value="Pressure Trigger, Low"/>
+                    <Units value="Pa"/>
+                    <ConfigID value="0x030024"/>
+                    <UIntValue value="110000"/>
+                    <UIntMax value="90000"/>
+                    <!-- <UIntValue value="5760000"/> -->
+                    <!-- <FloatGain value="0.015625"/> -->
+                </IntPressureField>
+                <IntPressureField>
+                    <Label value="Pressure Trigger, High"/>
+                    <Units value="Pa"/>
+                    <ConfigID value="0x040024"/>
+                    <UIntMax value="120000"/>
+                    <UIntValue value="110000"/>
+                    <!-- <UIntValue value="7040000"/> -->
+                    <!-- <FloatGain value="0.015625"/> -->
+                </IntPressureField>
+            </CheckGroup>
+            <CheckGroup>
+                <Label value="Temperature Trigger"/>
+                <ConfigID value="0x050124"/>
+                <FloatTemperatureField>
+                    <Label value="Temperature Trigger, Low"/>
+                    <ConfigID value="0x030124"/>
+                    <IntValue value="-15"/>
+                    <!-- <IntValue value="-3840"/> -->
+                    <!-- <FloatGain value="0.00390625" /> -->
+                </FloatTemperatureField>
+                <FloatTemperatureField>
+                    <Label value="Temperature Trigger, High"/>
+                    <ConfigID value="0x040124"/>
+                    <IntValue value="35"/>
+                    <!-- <IntValue value="8960"/> -->
+                    <!-- <FloatGain value="0.00390625" /> -->
+                </FloatTemperatureField>
+            </CheckGroup>
+            <CheckGroup id="AnalogAccelTrigger">
+                <Label value="Acceleration Trigger (Analog)"/>
+                <ConfigID value="0x05ff08"/>
+                <FloatAccelerationField>
+                    <Label value="Acceleration Trigger, Low"/>
+                    <ConfigID value="0x03ff08"/>
+                    <IntValue value="-1638"/>
+                    <FloatMin value="-100.0"/>
+                    <FloatMax value="100.0"/>
+                    <FloatGain value="0.003051804" />
+                </FloatAccelerationField>
+                <FloatAccelerationField>
+                    <Label value="Acceleration Trigger, High"/>
+                    <ConfigID value="0x04ff08"/>
+                    <IntValue value="1638"/>
+                    <FloatMin value="-100.0"/>
+                    <FloatMax value="100.0"/>
+                    <FloatGain value="0.003051804" />
+                </FloatAccelerationField>
+            </CheckGroup>
+            <VerticalPadding></VerticalPadding>
+            <ResetButton></ResetButton>
+        </Tab>
+
+        <Tab>
+            <Label value="Channels"/>
+            <BitField>
+                <Label value="Main Accelerometer (Channel 8)"/>
+                <ToolTip value="Enable/Disable accelerometer axes"/>
+                <ConfigID value="0x01ff08"/>
+                <UIntValue value="7"/>
+                <EnumOption>
+                    <Label value="Enable X Axis"/>
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Enable Y Axis"/>
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Enable Z Axis"/>
+                </EnumOption>
+            </BitField>
+
+            <VerticalPadding></VerticalPadding>
+            <ResetButton></ResetButton>
+        </Tab>
+        
+        <FactoryCalibrationTab>
+            <!-- This should be generated almost entirely by software -->
+        </FactoryCalibrationTab>
+        
+        <UserCalibrationTab>
+            <!-- This should be generated almost entirely by software -->
+        </UserCalibrationTab>
+        
+        <DeviceInfoTab>
+            <!-- This should be generated almost entirely by software -->
+        </DeviceInfoTab>
+        
+    </ConfigUI>
+</Mide.Ss.ConfigDocument>
