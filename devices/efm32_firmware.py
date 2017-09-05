@@ -13,7 +13,6 @@ from glob import glob
 import io
 import json
 import os.path
-from StringIO import StringIO
 import struct
 import time
 import zipfile
@@ -22,13 +21,12 @@ import serial #@UnusedImport
 import serial.tools.list_ports
 
 import wx
-from wx.lib.dialogs import ScrolledMessageDialog
 from wx.lib.throbber import Throbber
 from wx.lib.wordwrap import wordwrap
 
 import xmodem
 
-from widgets import device_dialog
+from widgets import device_dialog, html_dialog
 import devices
 from logger import logger
 
@@ -36,21 +34,24 @@ from logger import logger
 # import mide_ebml.ebml.schema.mide as schema_mide
 # import mide_ebml.ebml.schema.manifest as schema_manifest
 
-import mide_ebml
+# import mide_ebml
 from mide_ebml.ebmlite import loadSchema
 
 from updater import isNewer
 
 # TODO: Better way of identifying valid devices, probably part of the class.
-RECORDER_TYPES = [devices.SlamStickC, devices.SlamStickX]
+RECORDER_TYPES = [devices.SlamStickC, devices.SlamStickS, devices.SlamStickX]
 
 #===============================================================================
 # 
 #===============================================================================
 
-SCHEMA_PATH = os.path.join(os.path.dirname(mide_ebml.__file__), 'ebml/schema')
-schema_mide = loadSchema(os.path.join(SCHEMA_PATH, 'mide.xml'))
-schema_manifest = loadSchema(os.path.join(SCHEMA_PATH, 'manifest.xml'))
+# SCHEMA_PATH = os.path.join(os.path.dirname(mide_ebml.__file__), 'ebml/schema')
+# schema_mide = loadSchema(os.path.join(SCHEMA_PATH, 'mide.xml'))
+# schema_manifest = loadSchema(os.path.join(SCHEMA_PATH, 'manifest.xml'))
+
+schema_mide = loadSchema('mide.xml')
+schema_manifest = loadSchema('manifest.xml')
 
 #===============================================================================
 # 
@@ -500,7 +501,6 @@ class FirmwareUpdater(object):
     def readTemplate(self, z, name, schema, password=None):
         if name not in self.contents:
             return None
-#         return util.read_ebml(StringIO(z.read(name, password)), schema=schema)
         try:
             return schema.loads(z.read(name, password)).dump()
         except (IOError, TypeError):
@@ -713,6 +713,8 @@ class FirmwareUpdateDialog(wx.Dialog):
             self.but = '"X"'
         elif "LOG-0003" in self.device.partNumber:
             self.but = '"C"'
+        elif "LOG-0004" in self.device.partNumber:
+            self.but = '"S"'
         else:
             self.but = 'main'
 
@@ -872,7 +874,8 @@ def updateFirmware(parent=None, device=None, filename=None):
                       "recorders except the one you wish to update.", 
                       "Update Firmware")
     if device is None:
-        device = device_dialog.selectDevice(parent=parent, hideClock=True, types=RECORDER_TYPES)
+        device = device_dialog.selectDevice(parent=parent, hideClock=True, 
+                                            types=RECORDER_TYPES)
     if device is None:
         return False
         
@@ -914,9 +917,17 @@ def updateFirmware(parent=None, device=None, filename=None):
         return False
     
     # TODO: Display HTML release notes, if they exist.
-    if update.releaseNotes:
-        dlg = ScrolledMessageDialog(parent, update.releaseNotes, 
-                                "%s Release Notes" % os.path.basename(filename))
+    if update.releaseNotesHtml:
+        content = update.releaseNotesHtml
+    elif update.releaseNotes:
+        content = update.releaseNotes.replace('\n', '<br/>')
+    else:
+        content = None
+        
+    if content:
+        title = "%s Release Notes" % os.path.basename(filename)
+        dlg = html_dialog.HtmlDialog(parent, content, title, setBgColor=False)
+        dlg.Center()
         dlg.ShowModal()
         
     try:
