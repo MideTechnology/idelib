@@ -676,7 +676,7 @@ class Channel(Transformable):
         if subchannelId is None:
             raise TypeError("addSubChannel() requires a subchannelId")
         
-        if subchannelId > len(self.subchannels):
+        if subchannelId >= len(self.subchannels):
             raise IndexError(
                 "Channel's parser only generates %d subchannels" % \
                  len(self.subchannels))
