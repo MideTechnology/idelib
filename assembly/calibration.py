@@ -45,19 +45,20 @@ except ImportError:
         sys.path.append(VIEWER_PATH)
     import mide_ebml #@UnusedImport
 
-from mide_ebml import util as ebml_util
-from mide_ebml import xml2ebml
+# from mide_ebml import util as ebml_util
+# from mide_ebml import xml2ebml
 from mide_ebml.importer import importFile, SimpleUpdater
+
+from mide_ebml.ebmlite import loadSchema
+from mide_ebml.ebmlite import util as ebmlite_util
 
 from glob import glob
 testFiles = glob(r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Product_Database\_Calibration\SSX0000039\DATA\20140923\*.IDE")
 
 # NOTE: Make sure devices.py is copied to deployed directory
 import devices
-# from devices.ssx import SlamStickX
 
 from birth_utils import changeFilename, writeFile, writeFileLine, findCalLog
-
 
 # XXX: REMOVE
 import matplotlib.pyplot as plot #@UnresolvedImport @UnusedImport
@@ -67,6 +68,8 @@ import matplotlib.pyplot as plot #@UnresolvedImport @UnusedImport
 #===============================================================================
 
 DEFAULT_HUMIDITY = 22.3
+
+schema_mide = loadSchema('mide.xml')
 
 #===============================================================================
 #
@@ -1209,7 +1212,8 @@ class Calibrator(object):
         return data
 
 
-    def createEbml(self, xmlTemplate=None, schema="mide_ebml.ebml.schema.mide"):
+#     def createEbml(self, xmlTemplate=None, schema="mide_ebml.ebml.schema.mide"):
+    def createEbml(self, xmlTemplate=None, schema=schema_mide):
         """ Create the calibration EBML data, for inclusion in a recorder's
             user page or an external user calibration file.
         """
@@ -1232,10 +1236,13 @@ class Calibrator(object):
              ])
         else:
             if xmlTemplate.lower().endswith('.xml'):
-                e = xml2ebml.readXml(xmlTemplate, schema=schema)
-                doc = ebml_util.read_ebml(StringIO(e), schema=schema)
+#                 e = xml2ebml.readXml(xmlTemplate, schema=schema)
+#                 doc = ebml_util.read_ebml(StringIO(e), schema=schema)
+                doc = ebmlite_util.loadXml(xmlTemplate, schema).dump()
             elif xmlTemplate.lower().endswith('.ebml'):
-                ebml_util.read_ebml(xmlTemplate, schema=schema)
+#                 ebml_util.read_ebml(xmlTemplate, schema=schema)
+                doc = schema.load(xmlTemplate).dump()
+                
             calList = doc['CalibrationList']
 
         calList['CalibrationSerialNumber'] = self.certNum
@@ -1299,7 +1306,8 @@ class Calibrator(object):
                 ])
                 calList['UnivariatePolynomial'].append(thisCal)
 
-        return ebml_util.build_ebml('CalibrationList', calList, schema=schema)
+#         return ebml_util.build_ebml('CalibrationList', calList, schema=schema)
+        return schema.encodes({'CalibrationList': calList})
 
 
     def createEbmlFromFile(self):

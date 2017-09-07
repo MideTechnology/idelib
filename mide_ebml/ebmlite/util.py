@@ -227,7 +227,8 @@ def loadXml(xmlFile, schema, ebmlFile=None):
         @param schema: The EBML schema to use. Can be a filename or an
             instance of a `Schema`.
         @keyword ebmlFile: The name of the temporary EBML file to write, or
-            ``:memory:`` to use RAM.  
+            ``:memory:`` to use RAM (like `sqlite3`). Defaults to an 
+            automatically-generated temporary file.
     """
     if ebmlFile == ":memory:":
         ebmlFile = StringIO()
