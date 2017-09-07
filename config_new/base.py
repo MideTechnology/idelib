@@ -16,6 +16,8 @@ Basic theory of operation:
 * The default value for a field is in the native units/data type as in the 
     config file. Setting a field to the default uses the same mechanism as 
     setting it according to the config file.
+* Fields with values that aren't in the config file get the default; if they
+    have checkboxes, the checkbox is left unchecked.
     
 @todo: There are some redundant calls to update enabled and checkbox states.
     They don't cause a problem, but they should be cleaned up.
@@ -31,7 +33,7 @@ import string
 import sys
 import time
 
-# XXX: For testing. Remove.
+# XXX: For testing. Remove. Also remove import of sys.
 sys.path.insert(0, '..')
 
 import wx
@@ -45,6 +47,8 @@ from common import makeWxDateTime, makeBackup, restoreBackup
 import legacy
 from mide_ebml.ebmlite import loadSchema
 from mide_ebml.ebmlite import util
+
+import devices
 
 # Temporary?
 from config_dialog.ssx import CalibrationPanel, EditableCalibrationPanel, SSXInfoPanel
@@ -240,6 +244,10 @@ class DisplayContainer(object):
 
     def values(self):
         return list(self.itervalues())
+
+    
+    def items(self):
+        return list(self.iteritems())
 
 
     def toDict(self):
@@ -1777,9 +1785,15 @@ class ConfigDialog(SC.SizedDialog):
         
             @keyword device: The recorder to configure (an instance of a 
                 `devices.Recorder` subclass)
+            @keyword setTime: If `True`, the 'Set device clock on exit' 
+                checkbox will be checked by default.
+            @keyword keepUnknownItems: If `True`, the new config file will 
+                retain any items from the original that don't map to a UI field
+                (e.g. parameters for hidden/future features).
         """
         self.setTime = kwargs.pop('setTime', True)
         self.device = kwargs.pop('device', None)
+        self.keepUnknown = kwargs.pop('keepUnknownItems', False)
         
         try:
             devName = self.device.productName
@@ -1816,7 +1830,6 @@ class ConfigDialog(SC.SizedDialog):
         self.tabs = []
         self.buildUI()
         self.loadConfigData()
-        self.updateDisabledItems()
 
         self.setClockCheck = wx.CheckBox(pane, -1, "Set device clock on exit")
         self.setClockCheck.SetValue(self.setTime)
@@ -1827,8 +1840,8 @@ class ConfigDialog(SC.SizedDialog):
         buttonpane.SetSizerType("horizontal")
         buttonpane.SetSizerProps(expand=True)#, border=(['top'], 8))
 
-        self.importBtn = wx.Button(buttonpane, -1, "Import...")
-        self.exportBtn = wx.Button(buttonpane, -1, "Export...")
+#         self.importBtn = wx.Button(buttonpane, -1, "Import...")
+#         self.exportBtn = wx.Button(buttonpane, -1, "Export...")
         SC.SizedPanel(buttonpane, -1).SetSizerProps(proportion=1) # Spacer
         wx.Button(buttonpane, wx.ID_OK)
         wx.Button(buttonpane, wx.ID_CANCEL)
@@ -1837,8 +1850,8 @@ class ConfigDialog(SC.SizedDialog):
         self.SetAffirmativeId(wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.OnOK, id=wx.ID_OK)
         self.Bind(wx.EVT_BUTTON, self.OnCancel, id=wx.ID_CANCEL)
-        self.importBtn.Bind(wx.EVT_BUTTON, self.OnImportButton)
-        self.exportBtn.Bind(wx.EVT_BUTTON, self.OnExportButton)
+#         self.importBtn.Bind(wx.EVT_BUTTON, self.OnImportButton)
+#         self.exportBtn.Bind(wx.EVT_BUTTON, self.OnExportButton)
         
         self.Fit()
         self.SetMinSize((500, 480))
@@ -1875,6 +1888,26 @@ class ConfigDialog(SC.SizedDialog):
             self.hints = SCHEMA.load(filename)
         
 
+    def applyConfigData(self, data, reset=False):
+        """ Apply a dictionary of configuration data. 
+        
+            @param data: The dictionary of config values, keyed by ConfigID.
+            @keyword reset: If `True`, reset all the fields to their defaults
+                before applying the configuration data.
+        """
+        if reset:
+            for c in self.configItems.itervalues():
+                c.setToDefault()
+
+        for k,v in data.iteritems():
+            try:
+                self.configItems[k].setConfigValue(v)
+            except (KeyError, AttributeError):
+                pass
+            
+        self.updateDisabledItems()
+                    
+
     def loadConfigData(self):
         """ Load config data from the recorder.
         """
@@ -1888,18 +1921,28 @@ class ConfigDialog(SC.SizedDialog):
             self.origConfigData = self.configData.copy()
         else:
             self.configData = self.device.getConfigItems()
-        
-        for k,v in self.configData.items():
-            try:
-                self.configItems[k].setConfigValue(v)
-            except (KeyError, AttributeError):
-                pass
-            
+
         self.origConfigData = self.configData.copy()
         
+        self.applyConfigData(self.configData)
         return self.configData 
     
     
+    def updateConfigData(self):
+        """ Update the dictionary of configuration data.
+        """
+        self.configData = {}
+        
+        if self.keepUnknown:
+            # Preserve items in the existing config data without a UI element
+            # (configuration for hidden features, etc.)
+            for k,v in self.origConfigData.items():
+                if k not in self.configItems:
+                    self.configData[k] = v
+       
+        self.configData.update(self.configValues.toDict())
+        
+        
     
     def saveConfigData(self, filename=None):
         """ Save edited config data to the recorder (or another file).
@@ -1909,13 +1952,12 @@ class ConfigDialog(SC.SizedDialog):
         """
         if self.device is None and filename is None:
             return
-
+       
+        self.updateConfigData()
+        
         filename = filename or self.device.configFile 
-        
-        self.configData = self.configValues.toDict()
-        
         makeBackup(filename)
-        
+
         try:
             if self.useLegacyConfig:
                 return legacy.saveConfigData(self.configData, self.device)
@@ -1925,7 +1967,7 @@ class ConfigDialog(SC.SizedDialog):
                 elType = self.configItems[k]
                 values.append({'ConfigID': k,
                                elType.valueType: v})
-                
+            
             data = {'RecorderConfigurationList': 
                         {'RecorderConfigurationItem': values}}
             
@@ -1940,6 +1982,25 @@ class ConfigDialog(SC.SizedDialog):
             raise
     
     
+    def configChanged(self):
+        """ Check if the configuration data has been changed.
+        """
+        self.updateConfigData()
+        
+        oldKeys = sorted(self.origConfigData.keys())
+        newKeys = sorted(self.configData.keys())
+        if oldKeys != newKeys:
+            return True
+
+        # Chew through the dictionaries manually, to handle items that are the
+        # same but have different data types (e.g. 42.0 and 42, True and 1).
+        for k in newKeys:
+            if self.configData.get(k) != self.origConfigData.get(k):
+                return True
+
+        return False
+        
+    
     def updateDisabledItems(self):
         """ Enable or disable config items according to their `disableIf`
             expressions and/or their parent group/tab's check or enabled state.
@@ -1949,17 +2010,85 @@ class ConfigDialog(SC.SizedDialog):
             
     
     def OnImportButton(self, evt):
-        """
-        """
-        print "XXX: Implement OnImportButton!"
-    
+        """ Handle the "Import..." button.
+         
+            @todo: Refactor to support new config format (means modifying 
+                things in the `devices` module).
+        """ 
+        dlg = wx.FileDialog(self, 
+                            message="Choose an exported configuration file",
+                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST,
+                            wildcard=("Exported config file (*.cfx)|*.cfx|"
+                                      "All files (*.*)|*.*"))
+        try:
+            d = dlg.ShowModal()
+            if d == wx.ID_OK:
+                try:
+                    filename = dlg.GetPath()
+                    self.device.importConfig(filename)
+                    for i in range(self.notebook.GetPageCount()):
+                        self.notebook.GetPage(i).initUI()
+                except devices.ConfigVersionError as err:
+                    # TODO: More specific error message (wrong device type
+                    # vs. not a config file
+                    cname, cvers, dname, dvers = err.args[1]
+                    if cname != dname:
+                        md = wx.MessageBox( 
+                            "The selected file does not appear to be a  "
+                            "valid configuration file for this device.", 
+                            "Invalid Configuration", parent=self,
+                            style=wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION) 
+                    else:
+                        s = "an older" if cvers < dvers else "a newer"
+                        md = wx.MessageBox(
+                             "The selected file was exported from %s "
+                             "version of %s.\nImporting it may cause "
+                             "problems.\n\nImport anyway?" % (s, cname), 
+                             "Configuration Version Mismatch", parent=self, 
+                             style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
+                        if md == wx.YES:
+                            self.device.importConfig(filename, 
+                                                     allowOlder=True, 
+                                                     allowNewer=True)
+
+        except ValueError:
+            # TODO: More specific error message (wrong device type
+            # vs. not a config file
+            md = wx.MessageBox( 
+                "The selected file does not appear to be a valid "
+                "configuration file for this device.", 
+                "Invalid Configuration", parent=self,
+                style=wx.OK | wx.ICON_EXCLAMATION) 
+            
+        dlg.Destroy()
+
     
     def OnExportButton(self, evt):
-        """
-        """
-        print "XXX: Implement OnExportButton!"
-    
-    
+        """ Handle the "Import..." button.
+         
+            @todo: Refactor to support new config format (means modifying 
+                things in the `devices` module).
+        """ 
+        dlg = wx.FileDialog(self, message="Export Device Configuration", 
+                            style=wx.SAVE|wx.OVERWRITE_PROMPT, 
+                            wildcard=("Exported config file (*.cfx)|*.cfx|"
+                                      "All files (*.*)|*.*"))
+        if dlg.ShowModal() == wx.ID_OK:
+            try:
+                self.device.exportConfig(dlg.GetPath(), data=self.getData())
+                    
+            except Exception as err:
+                # TODO: More specific error message
+                logger.error('Could not export configuration (%s: %s)' % 
+                             (err.__class__.__name__, err))
+                wx.MessageBox( 
+                    "The configuration data could not be exported to the "
+                    "specified file.", "Config Export Failed", parent=self,
+                    style=wx.OK | wx.ICON_EXCLAMATION)
+                
+        dlg.Destroy()    
+
+
     def OnOK(self, evt):
         """ Handle dialog OK, saving changes.
         """
@@ -1997,7 +2126,7 @@ class ConfigDialog(SC.SizedDialog):
     def OnCancel(self, evt):
         """ Handle dialog cancel, prompting the user to save any changes.
         """
-        if self.configData != self.origConfigData:
+        if self.configChanged():
             q = wx.MessageBox("Save configuration changes before exiting?",
                               "Configure Device", parent=self,
                               style=wx.YES_NO|wx.CANCEL|wx.CANCEL_DEFAULT)
@@ -2016,9 +2145,11 @@ class ConfigDialog(SC.SizedDialog):
 __DEBUG__ = not True
 
 if __name__ == "__main__":
-    # XXX: DEFINITELY REMOVE!
-#     sys.argv = ['',  'CONFIG.UI']
     
+    # XXX: TEST CODE, loads the UI from a file (XML or EBML), specified as a 
+    # command line argument. If no file is specified, the first recorder found 
+    # is used.
+#     sys.argv = ['',  'CONFIG.UI']
     if len(sys.argv) > 1:
         device = None
         if sys.argv[-1].endswith('.xml'):
@@ -2034,6 +2165,8 @@ if __name__ == "__main__":
     dlg = ConfigDialog(None, hints=hints, device=device)
     
     if __DEBUG__:
+        # Show the Python shell. NOTE: dialog is non-modal; closing windows
+        # won't stop the app.
         dlg.Show()
         
         import wx.py.shell

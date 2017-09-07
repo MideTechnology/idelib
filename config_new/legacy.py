@@ -35,9 +35,6 @@ def loadConfigUI(device):
     # First, look for an exact match to the part number.
     partNum = getattr(device, 'partNumber', 'LOG-0002-100G-DC')
     
-    # XXX: REMOVE
-#     partNum = 'LOG-0003-100G'
-    
     filename = os.path.join(DEFAULTS_PATH, partNum + ".xml")
     if os.path.exists(filename):
         logging.info('Loading UI template %s' % filename)
