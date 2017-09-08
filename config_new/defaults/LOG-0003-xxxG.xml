@@ -182,6 +182,10 @@
 
         <Tab>
             <Label value="Channels"/>
+            <BitField id="AnalogChannelMap">
+                <!-- Populated dynamically -->
+            </BitField>
+            
              <BitField>
                 <Label value="Low-g Accelerometer (Channel 32)"/>
                 <ConfigID value="0x06ff20"/>

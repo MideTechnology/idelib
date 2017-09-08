@@ -3,6 +3,8 @@ Configuration UI generation and config data I/O for older recorders. Isolated
 to keep the main configuration scripts clean.
 
 Created on Aug 21, 2017
+
+@todo: Chunks of this will need to be refactored after `devices` is cleaned up.
 '''
 
 __author__ = "dstokes"
@@ -19,66 +21,99 @@ from mide_ebml.ebmlite import loadSchema, util
 
 DEFAULTS_PATH = os.path.join(os.path.dirname(__file__), 'defaults')
 
+# Not sure why this needs to be configured again; I thought getLogger would
+# get the same one as gotten in `base`.
 import logging
-logger = logging.getLogger('SlamStickLab.ConfigUI')
+logger = logging.getLogger('SlamStickLab.ConfigUI.legacy')
+logger.setLevel(logging.INFO)
+logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 #===============================================================================
 # 
 #===============================================================================
 
-def loadConfigUI(device):
-    """ Load a default configuration UI from a static XML file. For recorders
-        running old firmware that doesn't supply a ``CONFIG.UI`` file.
-    """
-    schema = loadSchema('config_ui.xml')
-    
-    # First, look for an exact match to the part number.
+def getUiTemplate(device):
     partNum = getattr(device, 'partNumber', 'LOG-0002-100G-DC')
     
+    # First, look for an exact match to the part number.
     filename = os.path.join(DEFAULTS_PATH, partNum + ".xml")
     if os.path.exists(filename):
-        logging.info('Loading UI template %s' % filename)
-        return util.loadXml(filename, schema)
+        return filename
     
     # Look for templates that match the base part number (for custom units)
     for filename in glob(os.path.join(DEFAULTS_PATH, "*.xml")):
         name = os.path.splitext(os.path.basename(filename))[0]
         if partNum.startswith(name):
-            logging.info('Loading UI template %s' % filename)
-            return util.loadXml(filename, schema)
+            return filename
     
     # Get a more generic template and fill in the details.
     base = partNum[:8]
     dc = "-DC" if partNum.endswith('DC') else ''
-    filename = os.path.join(DEFAULTS_PATH, "%s-xxxG%s.xml" % (base, dc)) 
+    return os.path.join(DEFAULTS_PATH, "%s-xxxG%s.xml" % (base, dc)) 
+    
+ 
 
-    logging.info('Loading UI template %s' % filename)
+def loadConfigUI(device, showAdvanced=False):
+    """ Load a default configuration UI from a static XML file. For recorders
+        running old firmware that doesn't supply a ``CONFIG.UI`` file.
+    """
+    filename = getUiTemplate(device)
+    logging.info('Loading default UI template %s' % os.path.basename(filename))
     
     doc = ET.parse(filename)
     
+    # Dynamically update the analog accelerometer trigger ranges and gain
     accelRange = None
     analogChannel = device.getAccelChannel(dc=False)
     if analogChannel is not None:
         accelRange = device.getAccelRange(analogChannel.id)
         
     if accelRange is not None:
-        for lo in doc.findall(".//*[@id='AnalogAccelTrigger']/FloatAccelerationField/FloatMin"):
-            lo.set('value',str(accelRange[0]))
-        for hi in doc.findall(".//*[@id='AnalogAccelTrigger']/FloatAccelerationField/FloatMax"):
-            hi.set('value',str(accelRange[1]))
+        analogTrig = doc.find(".//CheckGroup[@id='AnalogAccelTrigger']")
+        if analogTrig is not None:
+            for lo in analogTrig.findall("FloatAccelerationField/FloatMin"):
+                lo.set('value',str(accelRange[0]))
+            for hi in analogTrig.findall("FloatAccelerationField/FloatMax"):
+                hi.set('value',str(accelRange[1]))
+            for gain in analogTrig.findall("FloatAccelerationField/FloatGain"):
+                gain.set('value', str((accelRange[1]-accelRange[0])/2**16))
     
-    loAccelThresh = None
+    # Dynamically update the DC accelerometer trigger ranges. 
+    dcAccelRange = None
     dcChannel = device.getAccelChannel(dc=True)
     if dcChannel is not None:
-        loAccelThresh = device.getAccelRange(dcChannel.id)
+        dcAccelRange = device.getAccelRange(dcChannel.id)
     
-    if loAccelThresh is not None:
-        for lo in doc.findall(".//*[@id='DCAccelTrigger']/FloatAccelerationField/FloatMin"):
-            lo.set('value',str(accelRange[0]))
-        for hi in doc.findall(".//*[@id='DCAccelTrigger']/FloatAccelerationField/FloatMax"):
-            hi.set('value',str(accelRange[1]))
+    if dcAccelRange is not None:
+        dcTrig = doc.find(".//CheckGroup[@id='DCAccelTrigger']")
+        if dcTrig is not None:
+            for lo in dcTrig.findall("FloatAccelerationField/FloatMin"):
+                lo.set('value',str(dcAccelRange[0]))
+            for hi in dcTrig.findall("FloatAccelerationField/FloatMax"):
+                hi.set('value',str(dcAccelRange[1]))
+            # No gain for DC.
+    
+    # Update the analog channels in the Channels tab
+    # The elements are created here, not just updated.
+    analogMap = doc.find(".//BitField[@id='AnalogChannelMap']")
+    if analogChannel is not None and analogMap is not None:
+        ET.SubElement(analogMap, "ConfigID", 
+                      {'value': "0x01ff%02x" % analogChannel.id})
+        ET.SubElement(analogMap, "Label",
+                      {'value': u"Channel %d: %s" % (analogChannel.id, 
+                                                     analogChannel.displayName)})
+        enables = 0
+        for ch in analogChannel.subchannels:
+            opt = ET.SubElement(analogMap, "EnumOption")
+            label = u"Enable %s" % ch.displayName
+            if showAdvanced:
+                label += " (Subchannel %d.%d)" % (analogChannel.id, ch.id)
+            ET.SubElement(opt, "Label", {'value': label})
+            enables = (enables << 1) | 1
         
-    return util.loadXml(doc, schema)
+        ET.SubElement(analogMap, 'UIntValue', {'value': str(enables)})
+        
+    return util.loadXml(doc, loadSchema('config_ui.xml'))
 
 
 #===============================================================================
@@ -91,7 +126,7 @@ def _copyItems(oldD, newD, *keyPairs):
     """
     for oldK, newK in keyPairs:
         val = oldD.get(oldK)
-        if val is not None:
+        if val is not None and val != "":
             newD[newK] = val
         
 
@@ -167,6 +202,19 @@ def loadConfigData(device):
     if dcAccelMap > 0:
         newData[0x05FF20] = dcAccelMap
 
+    analogChannel = device.getAccelChannel(dc=False)
+    dcChannel = device.getAccelChannel(dc=True)
+
+    if analogChannel is not None:
+        enableId = 0x01ff00 | (analogChannel.id & 0xFF)
+        if enableId not in newData:
+            newData[enableId] = 0
+            for ch in analogChannel.subchannels:
+                newData[enableId] = (newData[enableId] << 1) | 1
+    
+    if dcChannel is not None:
+        newData[0x01ff00 | (dcChannel.id & 0xFF)] = 1
+
     return newData
 
 
@@ -174,6 +222,7 @@ def saveConfigData(configData, device):
     """ Save new configuration data in the old format. The `configData` should
         not contain any `None` values.
     """
+    print "saving legacy"
     # Copy the data, just in case.
     configData = configData.copy()
     
@@ -261,6 +310,7 @@ def saveConfigData(configData, device):
     schema = loadSchema('mide.xml')
     ebml = schema.encodes({'RecorderConfiguration':legacyConfigData})
 
+    print legacyConfigData
     # This will raise an exception if it fails.
     schema.verify(ebml)
     

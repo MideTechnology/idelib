@@ -51,7 +51,7 @@
                 </EnumOption>
             </CheckEnumField>
             <CheckUTCOffsetField>
-                <!-- <Label value="Local UTC Offset"/> -->
+                <!-- <Label value="Local UTC Offset"/> (Default for field) -->
                 <ConfigID value="0x0bff7f"/>
                 <ToolTip value="Enter local timezone's offset from UTC time. Impacts timestamp information on recording files."/>
             </CheckUTCOffsetField>
@@ -93,8 +93,8 @@
                     <ConfigID value="0x030024"/>
                     <UIntValue value="110000"/>
                     <UIntMax value="90000"/>
-                    <!-- <UIntValue value="5760000"/> -->
-                    <!-- <FloatGain value="0.015625"/> -->
+                    <!-- <UIntValue value="5760000"/> (Default for field type) -->
+                    <!-- <FloatGain value="0.015625"/> (Default for field type) -->
                 </IntPressureField>
                 <IntPressureField>
                     <Label value="Pressure Trigger, High"/>
@@ -102,8 +102,8 @@
                     <ConfigID value="0x040024"/>
                     <UIntMax value="120000"/>
                     <UIntValue value="110000"/>
-                    <!-- <UIntValue value="7040000"/> -->
-                    <!-- <FloatGain value="0.015625"/> -->
+                    <!-- <UIntValue value="7040000"/> (Default for field type) -->
+                    <!-- <FloatGain value="0.015625"/> (Default for field type) -->
                 </IntPressureField>
             </CheckGroup>
             <CheckGroup>
@@ -113,15 +113,15 @@
                     <Label value="Temperature Trigger, Low"/>
                     <ConfigID value="0x030124"/>
                     <IntValue value="-15"/>
-                    <!-- <IntValue value="-3840"/> -->
-                    <!-- <FloatGain value="0.00390625" /> -->
+                    <!-- <IntValue value="-3840"/> (Default for field type) -->
+                    <!-- <FloatGain value="0.00390625" /> (Default for field type) -->
                 </FloatTemperatureField>
                 <FloatTemperatureField>
                     <Label value="Temperature Trigger, High"/>
                     <ConfigID value="0x040124"/>
                     <IntValue value="35"/>
-                    <!-- <IntValue value="8960"/> -->
-                    <!-- <FloatGain value="0.00390625" /> -->
+                    <!-- <IntValue value="8960"/> (Default for field type) -->
+                    <!-- <FloatGain value="0.00390625" /> (Default for field type) -->
                 </FloatTemperatureField>
             </CheckGroup>
             <CheckGroup id="AnalogAccelTrigger">
@@ -130,7 +130,7 @@
                 <FloatAccelerationField>
                     <Label value="Acceleration Trigger, Low"/>
                     <ConfigID value="0x03ff08"/>
-                    <IntValue value="-1638"/>
+                    <IntValue value="-1638" id="AnalogLowDefault"/> 
                     <FloatMin value="-100.0"/>
                     <FloatMax value="100.0"/>
                     <FloatGain value="0.003051804" />
@@ -138,7 +138,7 @@
                 <FloatAccelerationField>
                     <Label value="Acceleration Trigger, High"/>
                     <ConfigID value="0x04ff08"/>
-                    <IntValue value="1638"/>
+                    <IntValue value="1638" id="AnalogHighDefault"/>
                     <FloatMin value="-100.0"/>
                     <FloatMax value="100.0"/>
                     <FloatGain value="0.003051804" />
@@ -176,16 +176,13 @@
 
         <Tab>
             <Label value="Channels"/>
-            <BitField>
+            <BitField id="AnalogChannelMap">
+                <!-- Populated dynamically from the recorder properties!
                 <Label value="Main Accelerometer (Channel 8)"/>
-                <!-- TEST: REMOVE TOOLTIP OR ADD TOOLTIPS TO OTHERS -->
-                <ToolTip value="Enable/Disable accelerometer axes"/>
                 <ConfigID value="0x01ff08"/>
                 <UIntValue value="7"/>
                 <EnumOption>
                     <Label value="Enable X Axis"/>
-                    <!-- TEST: REMOVE TOOLTIP OR ADD TOOLTIPS TO OTHERS -->
-                    <ToolTip value="Enable the accelerometer X axis" />
                 </EnumOption>
                 <EnumOption>
                     <Label value="Enable Y Axis"/>
@@ -193,10 +190,11 @@
                 <EnumOption>
                     <Label value="Enable Z Axis"/>
                 </EnumOption>
+                -->
             </BitField>
             <BitField>
-                <Label value="Low-g Accelerometer (Channel 32)"/>
-                <ConfigID value="0x06ff20"/>
+                <Label value="Channel 32: Low-g Accelerometer"/>
+                <ConfigID value="0x01ff20"/>
                 <UIntValue value="1"/>
                 <EnumOption>
                     <Label value="Enable All Axes"/>
@@ -208,7 +206,7 @@
                     <ConfigID value="0x82ff20"/>
                     <UIntValue value="3200"/>
                     <Units value="Hz"/>
-                    <DisableIf value="not Config[0x6ff20]"/>
+                    <DisableIf value="not Config[0x01ff20]"/>
                     <EnumOption>
                         <UIntValue value="3200"/>
                     </EnumOption>

@@ -150,7 +150,8 @@
 
         <Tab>
             <Label value="Channels"/>
-            <BitField>
+            <BitField id="AnalogChannelMap">
+            <!--
                 <Label value="Main Accelerometer (Channel 8)"/>
                 <ToolTip value="Enable/Disable accelerometer axes"/>
                 <ConfigID value="0x01ff08"/>
@@ -164,6 +165,7 @@
                 <EnumOption>
                     <Label value="Enable Z Axis"/>
                 </EnumOption>
+                -->
             </BitField>
 
             <VerticalPadding></VerticalPadding>

@@ -26,14 +26,27 @@ Basic theory of operation:
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
+#===============================================================================
+# 
+#===============================================================================
+
+import logging
+logger = logging.getLogger('SlamStickLab.ConfigUI')
+logger.setLevel(logging.INFO)
+logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+
+#===============================================================================
+# 
+#===============================================================================
+
 import errno
 from fnmatch import fnmatch
 import os.path
 import string
-import sys
 import time
 
-# XXX: For testing. Remove. Also remove import of sys.
+# XXX: For testing.
+import sys
 sys.path.insert(0, '..')
 
 import wx
@@ -46,21 +59,11 @@ from common import makeWxDateTime, makeBackup, restoreBackup
 
 import legacy
 from mide_ebml.ebmlite import loadSchema
-from mide_ebml.ebmlite import util
 
 import devices
 
 # Temporary?
 from config_dialog.ssx import CalibrationPanel, EditableCalibrationPanel, SSXInfoPanel
-
-#===============================================================================
-# 
-#===============================================================================
-
-import logging
-logger = logging.getLogger('SlamStickLab.ConfigUI')
-logger.setLevel(logging.INFO)
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 #===============================================================================
 # 
@@ -213,6 +216,8 @@ class DisplayContainer(object):
 
 
     def __getitem__(self, k):
+        if k not in self.root.configItems:
+            return None
         return self.root.configItems[k].getDisplayValue()
 
 
@@ -791,6 +796,13 @@ class TextField(ConfigWidget):
         self.sizer.Add(self.field, 3, wx.EXPAND)
         return self.field
     
+    
+    def getDisplayValue(self):
+        v = super(TextField, self).getDisplayValue()
+        if not v:
+            return None
+        return v
+    
 
 #===============================================================================
 
@@ -1160,6 +1172,9 @@ class DateTimeField(IntField):
         self.sizer.Add(self.field, 3)
         self.sizer.Add(self.utcCheck, 0, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
                            border=8)
+        
+        self.utcCheck.SetValue(self.root.useUtc)
+        self.utcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
         return self.field
 
     
@@ -1172,8 +1187,14 @@ class DateTimeField(IntField):
         """ Set the Field's value, in epoch seconds UTC.
         """
         if not val:
-            val = time.time()
-        super(DateTimeField, self).setDisplayValue(makeWxDateTime(val), check)
+            val = wx.DateTimeFromTimeT(time.time())
+        else:
+            val = makeWxDateTime(val)
+        
+        if not self.utcCheck.GetValue():
+            val = val.FromUTC()
+        
+        super(DateTimeField, self).setDisplayValue(val, check)
     
     
     def getDisplayValue(self):
@@ -1186,6 +1207,14 @@ class DateTimeField(IntField):
             val = val.ToUTC()
         return val.GetTicks()
     
+    
+    def OnUtcCheck(self, evt):
+        # NOTE: This changes the main dialog's useUtc attribute, but it will
+        # not update other DateTimeFields. Will need revision if/when we use
+        # more than one.
+        self.root.useUtc = evt.Checked()
+        evt.Skip()
+
 
 #===============================================================================
 
@@ -1779,6 +1808,12 @@ class UserCalibrationTab(FactoryCalibrationTab):
 class ConfigDialog(SC.SizedDialog):
     """ Root window for recorder configuration.
     """
+    
+    # Used by the Info tab. Remove after refactoring the legacy tabs.
+    ICON_INFO = 0
+    ICON_WARN = 1
+    ICON_ERROR = 2
+    
 
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `SizedDialog` arguments, plus:
@@ -1790,10 +1825,14 @@ class ConfigDialog(SC.SizedDialog):
             @keyword keepUnknownItems: If `True`, the new config file will 
                 retain any items from the original that don't map to a UI field
                 (e.g. parameters for hidden/future features).
+            @keyword saveOnOk: If `False`, exiting the dialog with OK will not
+                save to the recorder. Primarily for debugging.
         """
         self.setTime = kwargs.pop('setTime', True)
         self.device = kwargs.pop('device', None)
         self.keepUnknown = kwargs.pop('keepUnknownItems', False)
+        self.saveOnOk = kwargs.pop('saveOnOk', True)
+        self.useUtc = kwargs.pop('useUtc', True)
         
         try:
             devName = self.device.productName
@@ -1989,11 +2028,12 @@ class ConfigDialog(SC.SizedDialog):
         
         oldKeys = sorted(self.origConfigData.keys())
         newKeys = sorted(self.configData.keys())
+        
         if oldKeys != newKeys:
             return True
 
         # Chew through the dictionaries manually, to handle items that are the
-        # same but have different data types (e.g. 42.0 and 42, True and 1).
+        # same but have different data types (e.g. `True` and ``1``).
         for k in newKeys:
             if self.configData.get(k) != self.origConfigData.get(k):
                 return True
@@ -2092,6 +2132,11 @@ class ConfigDialog(SC.SizedDialog):
     def OnOK(self, evt):
         """ Handle dialog OK, saving changes.
         """
+        if not self.saveOnOk:
+            self.updateConfigData()
+            evt.Skip()
+            return
+        
         try:
             self.saveConfigData()
         except IOError as err:
@@ -2134,17 +2179,87 @@ class ConfigDialog(SC.SizedDialog):
                 return
             elif q == wx.YES:
                 self.saveConfigData()
-                
+                evt.Skip()
+                return
+        
+        # If cancelled, the returned configuration data is `None`
+        self.configData = None
         evt.Skip()
+        
+
+#===============================================================================
+# 
+#===============================================================================
+
+def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
+                      keepUnknownItems=True, hints=None, saveOnOk=True, 
+                      modal=True):
+    """ Create the configuration dialog for a recording device. 
+    
+        @param path: The path to the data recorder (e.g. a mount point under
+            *NIX or a drive letter under Windows)
+        @keyword save: If `True` (default), the updated configuration data
+            is written to the device when the dialog is closed via the OK
+            button.
+        @keyword setTime: If `True`, the checkbox to set the device's clock
+            on save will be checked by default.
+        @keyword useUtc: If `True`, the 'in UTC' checkbox for wake times will
+            be checked by default.
+        @keyword parent: The parent window, or `None`.
+        @keyword keepUnknownItems: If `True`, the new config file will retain 
+            any items from the original that don't map to a UI field (e.g. 
+            parameters for hidden/future features).
+        @keyword saveOnOk: If `False`, exiting the dialog with OK will not save
+            to the recorder. Primarily for debugging.
+        @keyword modal: If `True`, the dialog will display modally. If `False`,
+            the dialog will be non-modal, and the function will return the
+            dialog itself. For debugging.
+        @return: A tuple containing the data written to the recorder (a nested 
+            dictionary), whether `setTime` was checked before save, and whether
+            `useUTC` was checked before save. `None` is returned if the 
+            configuration was cancelled.
+    """
+    if isinstance(path, devices.Recorder):
+        dev = path
+        path = dev.path
+    else:
+        dev = devices.getRecorder(path)
+        
+    if not dev and hints is None:
+        raise ValueError("Path '%s' does not appear to be a recorder" % path)
+    
+    dlg = ConfigDialog(parent, hints=hints, device=device, setTime=setTime,
+                       useUtc=useUtc, keepUnknownItems=keepUnknownItems,
+                       saveOnOk=saveOnOk)
+    
+    if modal:
+        dlg.ShowModal()
+    else:
+        dlg.Show()
+    
+    result = dlg.configData
+    setTime = dlg.setClockCheck.IsEnabled() and dlg.setClockCheck.GetValue()
+    
+    if not modal:
+        return dlg
+    
+    dlg.Destroy()
+    
+    if result is None:
+        return None
+    
+    return result, setTime, useUtc
 
 
 #===============================================================================
 # 
 #===============================================================================
 
+# XXX: Remove all this debugging stuff
 __DEBUG__ = not True
 
 if __name__ == "__main__":
+    from mide_ebml.ebmlite import util
     
     # XXX: TEST CODE, loads the UI from a file (XML or EBML), specified as a 
     # command line argument. If no file is specified, the first recorder found 
@@ -2162,19 +2277,17 @@ if __name__ == "__main__":
         device = getDevices()[0]
     
     app = wx.App()
-    dlg = ConfigDialog(None, hints=hints, device=device)
+
+    d = configureRecorder(device, hints=hints, modal=not __DEBUG__, useUtc=False, 
+                               saveOnOk=True)
     
     if __DEBUG__:
-        # Show the Python shell. NOTE: dialog is non-modal; closing windows
+        # Show the Python shell. NOTE: dialog is non-modal; closing the windows
         # won't stop the app.
-        dlg.Show()
-        
+        print "Dialog shown non-modally; result will not be printed."
         import wx.py.shell
         con = wx.py.shell.ShellFrame()
         con.Show()
-
         app.MainLoop()
-            
     else:
-        dlg.ShowModal() 
-
+        print "Dialog (modal) returned {}".format(d)
