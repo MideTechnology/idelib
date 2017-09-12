@@ -11,7 +11,7 @@ import sys
 import wx; wx = wx
 import wx.lib.sized_controls as SC
 
-from config_dialog import InfoPanel, CalibrationPanel
+from config_dialog.special_tabs import InfoPanel, CalibrationPanel
 import devices
 from mide_ebml import util
 

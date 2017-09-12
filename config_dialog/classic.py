@@ -1,18 +1,738 @@
 '''
-Created on Jun 25, 2015
-
-@author: dstokes
+The UI for configuring a Slam Stick Classic. Copied from the old configuration
+system. This will eventually be retired.
 '''
+
+__all__ = ['configureRecorder']
+
 from collections import OrderedDict
 from datetime import datetime
+import errno
+import string
 import time
 
 import wx
 import wx.lib.sized_controls as SC
 
-from common import cleanUnicode
-from base import BaseConfigPanel, InfoPanel
+from mide_ebml import util
+from common import makeWxDateTime, cleanUnicode
+from widgets.shared import DateTimeCtrl
+import devices
 
+from special_tabs import InfoPanel
+
+# from base import HtmlWindow
+
+#===============================================================================
+# 
+#===============================================================================
+
+class BaseConfigPanel(SC.SizedScrolledPanel):
+    """ The base class for the various configuration pages. Defines some
+        common methods for adding controls, setting defaults, and reading
+        values.
+        
+        Since most fields have two parts -- a checkbox and a field/control of 
+        some sort -- the controls are all kept in a dictionary keyed by the
+        checkbox. The associated controls get disabled when the checkbox is
+        unchecked.
+    """
+
+    def strOrNone(self, val):
+        try:
+            val = cleanUnicode(val).strip()
+            if val == u'':
+                return None
+        except ValueError:
+            return None
+        return val
+    
+    
+    def setFieldToolTip(self, cb, tooltip):
+        """ Helper method to set the tooltip for all a field's widgets.
+        """
+        if tooltip is None:
+            return
+        tooltip = cleanUnicode(tooltip)
+        cb.SetToolTipString(tooltip)
+        if cb in self.controls:
+            for c in self.controls[cb]:
+                try:
+                    c.SetToolTipString(tooltip)
+                except AttributeError:
+                    pass
+        
+
+    def addField(self, labelText, name=None, units="", value="", 
+                 fieldSize=None, fieldStyle=None, tooltip=None, indent=0):
+        """ Helper method to create and configure a labeled text field and
+            add it to the set of controls. 
+            
+            @param labelText: The text proceeding the field.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword value: The default field text.
+            @keyword fieldSize: The size of the text field
+            @keyword fieldStyle: The text field's wxWindows style flags.
+            @keyword tooltip: A tooltip string for the field.
+        """
+        indent += self.indent
+        if indent > 0:
+            col1 = SC.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            col1.SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
+        else:
+            col1 = self
+        fieldSize = self.fieldSize if fieldSize is None else fieldSize
+        txt = cleanUnicode(value)
+        c = wx.StaticText(col1, -1, labelText)
+        c.SetSizerProps(valign="center")
+        
+        if units:
+            subpane = SC.SizedPanel(self, -1)
+            subpane.SetSizerType("horizontal")
+            subpane.SetSizerProps(expand=True)
+        else:
+            subpane = self
+        
+        if fieldStyle is None:
+            t = wx.TextCtrl(subpane, -1, txt, size=fieldSize)
+        else:
+            t = wx.TextCtrl(subpane, -1, txt, size=fieldSize, style=fieldStyle)
+
+        if self.fieldSize is None:
+            self.fieldSize = t.GetSize()
+        
+        self.controls[t] = [t, c]
+        
+        if units:
+            u = wx.StaticText(subpane, -1, units)
+            u.SetSizerProps(valign="center")
+            self.controls[t].append(u)
+        
+        if col1 != self:
+            self.controls[t].append(pad)
+        if name is not None:
+            self.fieldMap[name] = t
+
+        self.setFieldToolTip(t, tooltip)
+            
+        return t
+    
+    
+    def addButton(self, label, id_=-1, handler=None, tooltip=None, 
+                  size=None, style=None, indent=0):
+        """ Helper method to create a button in the first column.
+            
+            @param label: The button's label text
+            @keyword id_: The ID for the button
+            @keyword handler: The `wx.EVT_BUTTON` event handling method
+            @keyword tooltip: A tooltip string for the field.
+        """
+        indent += self.indent
+        if indent > 0:
+            col1 = SC.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            col1.SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
+        else:
+            col1 = self
+        size = size or (self.fieldSize[0]+20, self.fieldSize[1])
+        if style is None:
+            b = wx.Button(col1, id_, label, size=size)
+        else:
+            b = wx.Button(col1, id_, label, size=size, style=style)
+        b.SetSizerProps()
+        SC.SizedPanel(self, -1) # Spacer
+        
+        self.controls[b] = []
+        if col1 != self:
+            self.controls[b].append(pad)
+
+        if tooltip is not None:
+            b.SetToolTipString(cleanUnicode(tooltip))
+        if handler is not None:
+            b.Bind(wx.EVT_BUTTON, handler)
+        return b
+    
+    
+    def addCheck(self, checkText, name=None, units="", tooltip=None, indent=0):
+        """ Helper method to create a single checkbox and add it to the set of
+            controls. 
+
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword tooltip: A tooltip string for the field.
+        """
+        indent += self.indent
+        if indent > 0:
+            col1 = SC.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            col1.SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
+        else:
+            col1 = self
+        c = wx.CheckBox(col1, -1, checkText)
+        SC.SizedPanel(self, -1) # Spacer
+        
+        if tooltip is not None:
+            c.SetToolTipString(cleanUnicode(tooltip))
+            
+        self.controls[c] = [None]
+        if col1 != self:
+            self.controls[c].append(pad)
+        if name is not None:
+            self.fieldMap[name] = c
+        
+        self.setFieldToolTip(c, tooltip)
+
+        return c
+
+
+#     def addCheckField(self, checkText, name=None, units="", value="", 
+#                       fieldSize=None, fieldStyle=None, tooltip=None, indent=0):
+#         """ Helper method to create and configure checkbox/field pairs, and add
+#             them to the set of controls.
+# 
+#             @param checkText: The checkbox's label text.
+#             @keyword name: The name of the key in the config data, if the
+#                 field maps directly to a value.
+#             @keyword value: The default field text.
+#             @keyword fieldSize: The size of the text field
+#             @keyword fieldStyle: The text field's wxWindows style flags.
+#             @keyword tooltip: A tooltip string for the field.
+#         """
+#         fieldSize = self.fieldSize if fieldSize is None else fieldSize
+#         txt = cleanUnicode(value)
+# 
+#         indent += self.indent
+#         if indent > 0:
+#             col1 = SC.SizedPanel(self, -1)
+#             col1.SetSizerType("horizontal")
+#             pad = wx.StaticText(col1, -1, ' '*indent)
+#             c = wx.CheckBox(col1, -1, checkText)
+#         else:
+#             c = wx.CheckBox(self, -1, checkText)
+#         c.SetSizerProps(valign="center")
+# 
+#         subpane = SC.SizedPanel(self, -1)
+#         subpane.SetSizerType("horizontal")
+#         subpane.SetSizerProps(expand=True)
+#         
+#         if fieldStyle is None:
+#             t = wx.TextCtrl(subpane, -1, txt, size=fieldSize)
+#         else:
+#             t = wx.TextCtrl(subpane, -1, txt, size=fieldSize, style=fieldStyle)
+#         u = wx.StaticText(subpane, -1, units)
+#         u.SetSizerProps(valign="center")
+#         
+#         self.controls[c] = [t, u]
+#         if col1 != self:
+#             self.controls[c].append(pad)
+#         
+#         if tooltip is not None:
+#             c.SetToolTipString(cleanUnicode(tooltip))
+#             t.SetToolTipString(cleanUnicode(tooltip))
+#         
+#         if fieldSize == (-1,-1):
+#             self.fieldSize = t.GetSize()
+#         
+#         if name is not None:
+#             self.fieldMap[name] = c
+# 
+#         self.setFieldToolTip(c, tooltip)
+#             
+#         return c
+
+
+    def addFloatField(self, checkText, name=None, units="", value="",
+                      precision=0.01, digits=2, minmax=(-100,100), 
+                      fieldSize=None, fieldStyle=None, tooltip=None,
+                      check=True, indent=0):
+        """ Add a numeric field with a 'spinner' control.
+ 
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword units: The units displayed, if any.
+            @keyword value: The initial value of the field
+            @keyword precision: 
+            @keyword minmax: The minimum and maximum values allowed
+            @keyword fieldSize: The size of the text field
+            @keyword fieldStyle: The text field's wxWindows style flags.
+            @keyword tooltip: A tooltip string for the field.
+        """
+        fieldSize = self.fieldSize if fieldSize is None else fieldSize
+         
+        indent += self.indent
+        if indent > 0:
+            col1 = SC.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            col1.SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
+        else:
+            col1 = self
+        if check:
+            c = wx.CheckBox(col1, -1, checkText)
+        else:
+            c = wx.StaticText(col1, -1, checkText)
+        c.SetSizerProps(valign="center")
+ 
+        col2 = SC.SizedPanel(self, -1)
+        col2.SetSizerType("horizontal")
+        col2.SetSizerProps(expand=True)
+         
+        lf = wx.SpinCtrlDouble(col2, -1, value=str(value), inc=precision,
+                          min=minmax[0], max=minmax[1], size=fieldSize)
+        u = wx.StaticText(col2, -1, units)
+        u.SetSizerProps(valign="center")
+         
+        self.controls[c] = [lf, u]
+        if col1 != self:
+            self.controls[c].append(pad)
+         
+        if fieldSize == (-1,-1):
+            self.fieldSize = lf.GetSize()
+         
+        if name is not None:
+            self.fieldMap[name] = c
+         
+        if digits is not None:
+            lf.SetDigits(digits)
+         
+        self.setFieldToolTip(c, tooltip)
+ 
+        return c
+
+    def addIntField(self, checkText, name=None, units="", value=None,
+                      minmax=(-100,100), fieldSize=None, fieldStyle=None, 
+                      tooltip=None, check=True, indent=0):
+        """ Add a numeric field with a 'spinner' control.
+
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword units: The units displayed, if any.
+            @keyword value: The initial value of the field
+            @keyword minmax: The minimum and maximum values allowed
+            @keyword fieldSize: The size of the field
+            @keyword fieldStyle: The field's wxWindows style flags.
+            @keyword tooltip: A tooltip string for the field.
+        """
+        fieldSize = self.fieldSize if fieldSize is None else fieldSize
+
+        indent += self.indent
+        if indent > 0:
+            col1 = SC.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            col1.SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
+        else:
+            col1 = self
+        if check:
+            c = wx.CheckBox(col1, -1, checkText)
+        else:
+            c = wx.StaticText(col1, -1, checkText)
+        c.SetSizerProps(valign="center")
+
+        subpane = SC.SizedPanel(self, -1)
+        subpane.SetSizerType("horizontal")
+        subpane.SetSizerProps(expand=True)
+        
+        value = "" if value is None else int(value)
+        lf = wx.SpinCtrl(subpane, -1, value=str(value),
+                          min=int(minmax[0]), max=int(minmax[1]), size=fieldSize)
+        u = wx.StaticText(subpane, -1, units)
+        u.SetSizerProps(valign="center")
+        
+        self.controls[c] = [lf, u]
+        if col1 != self:
+            self.controls[c].append(pad)
+        
+        if fieldSize == (-1,-1):
+            self.fieldSize = lf.GetSize()
+        
+        if name is not None:
+            self.fieldMap[name] = c
+            
+        self.setFieldToolTip(c, tooltip)
+
+        return c
+
+
+    def addChoiceField(self, checkText, name=None, units="", choices=[], 
+                       selected=None, fieldSize=None, fieldStyle=None, 
+                       tooltip=None, check=True, indent=0):
+        """ Helper method to create and configure checkbox/list pairs, and add
+            them to the set of controls.
+ 
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword choices: The items in the drop-down list.
+            @keyword fieldSize: The size of the text field
+            @keyword fieldStyle: The text field's wxWindows style flags.
+            @keyword tooltip: A tooltip string for the field.
+       """
+        fieldSize = self.fieldSize if fieldSize is None else fieldSize
+        choices = map(str, choices)
+
+        indent += self.indent
+        if indent > 0:
+            col1 = SC.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            col1.SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
+        else:
+            col1 = self
+        if check:
+            c = wx.CheckBox(col1, -1, checkText)
+        else:
+            c = wx.StaticText(col1, -1, checkText)
+        c.SetSizerProps(valign="center")
+
+        if units is None:
+            subpane = col1
+        else:
+            subpane = SC.SizedPanel(self, -1)
+            subpane.SetSizerType("horizontal")
+            subpane.SetSizerProps(expand=True)
+
+        if fieldStyle is None:
+            field = wx.Choice(subpane, -1, size=fieldSize, choices=choices)
+        else:
+            field = wx.Choice(subpane, -1, size=fieldSize, choices=choices,
+                               style=fieldStyle)
+        if units is None:
+            self.controls[c] = [field]
+        else:
+            u = wx.StaticText(subpane, -1, units)
+            u.SetSizerProps(valign="center")
+            self.controls[c] = [field, u]
+            
+        if col1 != self:
+            self.controls[c].append(pad)
+        
+        if selected is not None:
+            field.SetSelection(int(selected))
+        
+        if fieldSize == (-1,-1):
+            self.fieldSize = field.GetSize()
+        
+        if name is not None:
+            self.fieldMap[name] = c
+        
+        self.setFieldToolTip(c, tooltip)
+
+        return c
+
+
+    def addDateTimeField(self, checkText, name=None, fieldSize=None, 
+                         fieldStyle=None, tooltip=None, check=True, indent=0):
+        """ Helper method to create a checkbox and a time-entry field pair, and
+            add them to the set of controls.
+ 
+            @param checkText: The checkbox's label text.
+            @keyword name: The name of the key in the config data, if the
+                field maps directly to a value.
+            @keyword tooltip: A tooltip string for the field.
+        """ 
+        indent += self.indent
+        if indent > 0:
+            col1 = SC.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            col1.SetSizerProps(valign="center")
+            pad = wx.StaticText(col1, -1, ' '*indent)
+            pad.SetSizerProps(valign="center")
+        else:
+            col1 = self
+        if check:
+            c = wx.CheckBox(col1, -1, checkText)
+        else:
+            c = wx.StaticText(col1, -1, checkText)
+        c.SetSizerProps(valign='center')
+        ctrl =  DateTimeCtrl(self, -1, size=self.fieldSize)
+        ctrl.SetSize(self.fieldSize)
+        ctrl.SetSizerProps(expand=True)
+        
+        self.controls[c] = [ctrl]
+        if col1 != self:
+            self.controls[c].append(pad)
+            
+        if name is not None:
+            self.fieldMap[name] = c
+
+        self.setFieldToolTip(c, tooltip)
+
+        return c
+
+
+    def addSpacer(self):
+#         wx.StaticLine(self, -1, style=wx.LI_HORIZONTAL).SetSizerProps(expand=True)
+#         wx.StaticText(self, -1, '')
+        SC.SizedPanel(self, -1) # Spacer
+        SC.SizedPanel(self, -1) # Spacer
+
+
+    def startGroup(self, label, indent=0):
+        """ Start a visual 'grouping' of controls, starting with a group
+            title. Items within the group will be indented.
+        """
+        indent += self.indent
+        if indent > 0:
+            col1 = SC.SizedPanel(self, -1)
+            col1.SetSizerType('horizontal')
+            col1.SetSizerProps(valign="center")
+            wx.StaticText(col1, -1, ' '*indent).SetSizerProps(valign="center")
+        else:
+            col1 = self
+            
+        t = wx.StaticText(col1, -1, label)
+        t.SetFont(self.boldFont)
+        SC.SizedPanel(self, -1) # Spacer
+        
+        self.controls[t] = []
+        if col1 != self:
+            self.controls[t].append(col1)
+            
+        self.indent += 1
+        return t
+     
+    def endGroup(self):
+        self.indent -= 1
+    
+    
+    def makeChild(self, parent, *children):
+        """ Set one or more fields as the 'children' of another field
+            (e.g. individual trigger parameters that should be disabled when
+            a main 'use triggers' checkbox is unchecked).
+        """
+        for child in children:
+            if child in self.controls:
+                self.controls[parent].extend(self.controls[child])
+            self.controls[parent].append(child)
+
+
+    def __init__(self, *args, **kwargs):
+        """ Constructor. Takes the standard dialog arguments, plus:
+        
+            @keyword root: The viewer's root window.
+            @keyword data: A dictionary of values read from the device.
+        """
+        self.root = kwargs.pop('root', None)
+        self.device = kwargs.pop('device', None)
+        super(BaseConfigPanel, self).__init__(*args, **kwargs)
+        
+        self.tabIcon = -1
+        self.data = None
+        self.fieldSize = (-1,-1)
+        self.SetSizerType("form", {'hgap':10, 'vgap':10})
+        
+        self.boldFont = self.GetFont().Bold()
+        self.indent = 0
+        
+        # controls: fields keyed by their corresponding checkbox.
+        self.controls = {}
+        
+        # fieldMap: All fields keyed by their corresponding key in the data.
+        self.fieldMap = OrderedDict()
+        
+        self.buildUI()
+        self.initUI()
+        self.Bind(wx.EVT_CHECKBOX, self.OnCheckChanged)
+        
+
+    def buildUI(self):
+        """ Create the UI elements within the page. Every subclass should
+            implement this. Called after __init__() and before initUI().
+        """
+        # Stub. Subclasses should implement this.
+        pass
+
+
+    def getDeviceData(self):
+        """ Retrieve the device's configuration data (or other info) and 
+            put it in the `data` attribute.
+        """
+        # Stub. Subclasses should implement this.
+        pass 
+
+
+    def initUI(self):
+        """ Do any setup work on the page. Most subclasses should override
+            this.
+        """
+        self.getDeviceData()
+        if self.data:
+            for k,v in self.data.iteritems():
+                c = self.fieldMap.get(k, None)
+                if c is None:
+                    continue
+                self.setField(c, v)
+                
+        for c in self.controls:
+            self.enableField(c)
+
+
+    def enableField(self, checkbox, state=True):
+        """ Enable (or disable) all the other controls associated with a
+            checkbox.
+        """
+        if isinstance(checkbox, wx.CheckBox):
+            state = checkbox.GetValue()
+        else:
+            checkbox.Enable(state)
+        if checkbox not in self.controls:
+            return
+        for c in self.controls[checkbox]:
+            if c is not None:
+                c.Enable(state)
+       
+            
+    def enableAll(self):
+        """ Update all fields if the corresponding checkbox is checked.
+        """
+        map(self.enableField, self.controls.keys())
+    
+
+    def parseTime(self, timeStr):
+        """ Turn a string containing a length of time as S.s, M:S.s, or H:M:S.s
+            into the corresponding number of seconds. For parsing text fields.
+        """
+        t = map(lambda x: float(x.strip(string.letters+" ,")), 
+                reversed(timeStr.strip().replace(',',':').split(':')))
+        if len(t) > 4:
+            raise ValueError("Time had too many columns to parse: %r" % timeStr)
+        if len(t) == 4:
+            # Four columns: days, hours, minutes, seconds
+            total = t.pop() * (24*60*60)
+        else:
+            total = 0
+        for i in xrange(len(t)):
+            total += t[i] * (60**i)
+        return total
+
+
+    def setField(self, checkbox, value, checked=True):
+        """ Check a checkbox and set its associated field.
+        
+            @param checkbox: 
+            @param value: 
+            @keyword checked: By default, setting a value checks the checkbox.
+                This can override that, so the field can be set but the
+                checkbox left unchecked.
+        """
+        if value is None:
+            return
+        
+        if isinstance(checkbox, wx.CheckBox):
+            checkbox.SetValue(checked)
+            
+        if checkbox in self.controls and self.controls[checkbox]:
+            field = self.controls[checkbox][0]
+            if field is None:
+                return
+            field.Enable(checked)
+            if isinstance(field, wx.TextCtrl):
+                if isinstance(value, float):
+                    value = "%.3f" % value
+                elif not isinstance(value, basestring):
+                    value = str(value)
+            elif isinstance(field, DateTimeCtrl):
+                value = makeWxDateTime(value)
+            elif isinstance(field, wx.Choice):
+                strv = cleanUnicode(value)
+                choices = field.GetItems()
+                if strv in choices:
+                    field.Select(choices.index(strv))
+                else:
+                    field.Select(len(choices)/2)
+                return
+            
+            field.SetValue(value)
+    
+
+    def hideField(self, checkbox, hidden=True):
+        """ Helper method to hide or show sets of UI fields.
+        """
+        if checkbox in self.controls:
+            checkbox.Show(not hidden)
+            for c in self.controls[checkbox]:
+                if c is not None:
+                    c.Show(not hidden)
+            return True
+        return False
+    
+
+    def OnCheckChanged(self, evt):
+        """ Default check handler to enable/disable associated fields.
+        """
+        cb = evt.EventObject
+        if cb in self.controls:
+            self.enableField(cb)
+
+
+    def addVal(self, control, trig, name, kind=int, transform=None,
+               default=None):
+        """ Helper method to add a field's value to a dictionary if its
+            corresponding checkbox is checked. For exporting EBML.
+            
+            @param control: The field's controlling checkbox, or the field
+                if not a 'check' field.
+            @param trig: The dictionary to which to add the value.
+            @param name: The associated key in the target dictionary.
+            @keyword kind: The data type, for casting from string (or whatever
+                is the widget's native type). Not applied to the default.
+            @keyword transform: A function to apply to the data before adding
+                it to the dictionary. Not applied to the default.
+            @keyword default: A default value to use if the field is not
+                checked.
+         """
+        if control not in self.controls:
+            return
+        
+        if isinstance(control, wx.CheckBox):
+            checked = control.GetValue() and control.Enabled
+        else:
+            checked = control.Enabled
+        if checked or default is not None:
+            fields = self.controls[control]
+            if isinstance(fields[0], wx.Choice):
+                val = fields[0].GetStrings()[fields[0].GetCurrentSelection()]
+            elif isinstance(fields[0], DateTimeCtrl):
+                val = fields[0].GetValue().GetTicks()
+            elif fields[0] is None:
+                val = 1
+            else:
+                val = fields[0].GetValue()
+            
+            if not checked and default is not None:
+                trig[name] = default
+                return
+                
+            try:
+                val = kind(val)
+                if val is not None:
+                    if transform is not None:
+                        val = transform(val)
+                    trig[name] = val
+                elif default is not None:
+                    trig[name] = default
+            except ValueError:
+                trig[name] = val or default
+
+
+    def getData(self):
+        return {}
+    
 #===============================================================================
 # Slam Stick Classic configuration panels
 #===============================================================================
@@ -426,8 +1146,262 @@ def buildUI_Classic(parent):
 #===============================================================================
 # 
 #===============================================================================
+#===============================================================================
+# 
+#===============================================================================
 
-if __name__ == '__main__':
-    import __init__
-    __init__.testDialog(save=False)
-#     __init__.testDialog(save=True)
+class ConfigDialog(SC.SizedDialog):
+    """ The parent dialog for all the recorder configuration tabs. 
+    
+        @todo: Choose the tabs dynamically based on the recorder type, once
+            there are multiple types of recorders using the MIDE format.
+    """
+    
+    ID_IMPORT = wx.NewId()
+    ID_EXPORT = wx.NewId()
+    
+    ICON_INFO = 0
+    ICON_WARN = 1
+    ICON_ERROR = 2
+    
+    FIELD_PAD = 8
+    
+    def __init__(self, *args, **kwargs):
+        self.device = kwargs.pop('device', None)
+        self.root = kwargs.pop('root', None)
+        self.setTime = kwargs.pop('setTime', True)
+        self.useUtc = kwargs.pop('useUtc', True)
+        kwargs.setdefault("style", 
+            wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | wx.MAXIMIZE_BOX | \
+            wx.MINIMIZE_BOX | wx.DIALOG_EX_CONTEXTHELP | wx.SYSTEM_MENU)
+        
+        super(ConfigDialog, self).__init__(*args, **kwargs)
+        
+        try:
+            self.deviceInfo = self.device.getInfo()
+            self.deviceConfig = self.device.getConfig()
+            self._doNotShow = False
+        except:# NotImplementedError:
+            wx.MessageBox( 
+                "The device configuration data could not be read.", 
+                "Configuration Error", parent=self, style=wx.OK|wx.ICON_ERROR)
+            self._doNotShow = True
+            return
+        
+        pane = self.GetContentsPane()
+        self.notebook = wx.Notebook(pane, -1)
+        self.pages = []
+
+        buildUI_Classic(self)
+        
+        # Tab icon stuff
+        images = wx.ImageList(16, 16)
+        imageIndices = []
+        for n,i in enumerate((wx.ART_INFORMATION, wx.ART_WARNING, wx.ART_ERROR)):
+            images.Add(wx.ArtProvider.GetBitmap(i, wx.ART_CMN_DIALOG, (16,16)))
+            imageIndices.append(n)
+        self.notebook.AssignImageList(images)
+
+        for i in xrange(self.notebook.GetPageCount()):
+            icon = self.notebook.GetPage(i).tabIcon
+            if icon > -1:
+                self.notebook.SetPageImage(i, imageIndices[icon])
+        
+        self.notebook.SetSizerProps(expand=True, proportion=-1)
+
+        # This stuff is just to create non-standard buttons, right aligned,
+        # with a gap. It really should not be this hard to do. This approach is
+        # probably not optimal or properly cross-platform.
+        SC.SizedPanel(self.GetContentsPane(), -1, size=(8,self.FIELD_PAD))
+        
+        buttonpane = SC.SizedPanel(pane, -1)
+        buttonpane.SetSizerType("horizontal")
+        buttonpane.SetSizerProps(expand=True)
+#         wx.Button(buttonpane, self.ID_IMPORT, "Import...").SetSizerProps(halign="left")
+#         wx.Button(buttonpane, self.ID_EXPORT, "Export...").SetSizerProps(halign="left")
+        SC.SizedPanel(buttonpane, -1).SetSizerProps(proportion=1) # Spacer
+        self.Bind(wx.EVT_BUTTON, self.importConfig, id=self.ID_IMPORT)
+        self.Bind(wx.EVT_BUTTON, self.exportConfig, id=self.ID_EXPORT)
+        wx.Button(buttonpane, wx.ID_APPLY).SetSizerProps(halign="right")
+        wx.Button(buttonpane, wx.ID_CANCEL).SetSizerProps(halign="right")
+        
+        self.SetAffirmativeId(wx.ID_APPLY)
+        self.okButton = self.FindWindowById(wx.ID_APPLY)
+        
+        self.SetMinSize((400, 500))
+        self.Fit()
+        self.SetSize((560,560))
+        
+        
+    def getData(self, schema=util.DEFAULT_SCHEMA):
+        """ Retrieve the values entered in the dialog.
+        """
+        data = OrderedDict()
+        for i in range(self.notebook.GetPageCount()):
+            try:
+                data.update(self.notebook.GetPage(i).getData())
+            except AttributeError:
+                pass
+#         data.update(self.options.getData())
+#         data.update(self.triggers.getData())
+        return data
+
+
+    def importConfig(self, evt=None):
+        done = False
+        dlg = wx.FileDialog(self, 
+                            message="Choose an exported configuration file",
+                            wildcard=("Exported config file (*.cfx)|*.cfx|"
+                                      "All files (*.*)|*.*"),
+                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+        while not done:
+            try:
+                d = dlg.ShowModal()
+                if d != wx.ID_OK:
+                    done = True
+                else:
+                    try:
+                        filename = dlg.GetPath()
+                        self.device.importConfig(filename)
+                        for i in range(self.notebook.GetPageCount()):
+                            self.notebook.GetPage(i).initUI()
+                        done = True
+                    except devices.ConfigVersionError as err:
+                        # TODO: More specific error message (wrong device type
+                        # vs. not a config file
+                        cname, cvers, dname, dvers = err.args[1]
+                        if cname != dname:
+                            md = wx.MessageBox( 
+                                "The selected file does not appear to be a  "
+                                "valid configuration file for this device.", 
+                                "Invalid Configuration", parent=self,
+                                style=wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION) 
+                            done = md == wx.CANCEL
+                        else:
+                            s = "older" if cvers < dvers else "newer"
+                            md = wx.MessageBox(
+                                 "The selected file was exported from a %s "
+                                 "version of %s.\nImporting it may cause "
+                                 "problems.\n\nImport anyway?" % (s, cname), 
+                                 "Configuration Version Mismatch", parent=self, 
+                                 style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
+                            if md == wx.YES:
+                                self.device.importConfig(filename, 
+                                                         allowOlder=True, 
+                                                         allowNewer=True)
+                                done = True
+    
+            except ValueError:
+                # TODO: More specific error message (wrong device type
+                # vs. not a config file
+                md = wx.MessageBox( 
+                    "The selected file does not appear to be a valid "
+                    "configuration file for this device.", 
+                    "Invalid Configuration", parent=self,
+                    style=wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION) 
+                done = md == wx.CANCEL
+        dlg.Destroy()
+
+    
+    def exportConfig(self, evt=None):
+        dlg = wx.FileDialog(self, message="Export Device Configuration", 
+                            wildcard=("Exported config file (*.cfx)|*.cfx|"
+                                      "All files (*.*)|*.*"),
+                            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+        if dlg.ShowModal() == wx.ID_OK:
+            try:
+                self.device.exportConfig(dlg.GetPath(), data=self.getData())
+                    
+            except:# NotImplementedError:
+                # TODO: More specific error message
+                wx.MessageBox( 
+                    "The configuration data could not be exported to the "
+                    "specified file.", "Config Export Failed", parent=self,
+                    style=wx.OK | wx.ICON_EXCLAMATION)
+        dlg.Destroy()
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
+                      showMsg=True):
+    """ Create the configuration dialog for a recording device. 
+    
+        @param path: The path to the data recorder (e.g. a mount point under
+            *NIX or a drive letter under Windows)
+        @keyword save: If `True` (default), the updated configuration data
+            is written to the device when the dialog is closed via the OK
+            button.
+        @keyword setTime: If `True`, the checkbox to set the device's clock
+            on save will be checked by default.
+        @keyword useUtc: If `True`, the 'in UTC' checkbox for wake times will
+            be checked by default.
+        @return: A tuple containing the data written to the recorder (a nested 
+            dictionary), whether `setTime` was checked before save, and whether
+            `useUTC` was checked before save. `None` is returned if the 
+            configuration was cancelled.
+    """
+    result = None
+    
+    if isinstance(path, devices.Recorder):
+        dev = path
+        path = dev.path
+    else:
+        dev = devices.getRecorder(path)
+        
+    if not dev:
+        raise ValueError("Specified path %r does not appear to be a recorder" %\
+                         path)
+    dlg = ConfigDialog(parent, -1, "Configure %s (%s)" % (dev.baseName, path), 
+                       device=dev, setTime=setTime, useUtc=useUtc)
+    
+    # Sort of a hack to abort the configuration if data couldn't be read
+    # (the dialog itself does it)
+    
+    if dlg._doNotShow:
+        return
+    if dlg.ShowModal() != wx.ID_CANCEL:
+        useUtc = dlg.useUtc
+        setTime = dlg.setTime
+        data = dlg.getData()
+        if save:
+            try:
+                dev.saveConfig(data)
+                if hasattr(dlg, "usercal"):
+                    if dlg.usercal.info is not None:
+                        dev.writeUserCal(dlg.usercal.info)
+            except IOError as err:
+                msg = ("An error occurred when trying to update the "
+                       " recorder's configuration data.")
+                if err.errno == errno.ENOENT:
+                    msg += "\nThe recorder appears to have been removed."
+                wx.MessageBox(msg, "Configuration Error", wx.OK | wx.ICON_ERROR,
+                              parent=parent)
+        result = data, dlg.setTime, dlg.useUtc, dev
+        
+    dlg.Destroy()
+    return result
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+
+def testDialog(save=True):
+    class TestApp(wx.App):
+        def getPref(self, name, default=None):
+            if name == 'showAdvancedOptions':
+                return True
+            return default
+            
+    _app = TestApp()
+    recorderPath = devices.getDeviceList()[-1]
+    print "configureRecorder() returned %r" % (configureRecorder(recorderPath,
+                                                                 save=save,
+                                                                 useUtc=True),)
+
+if __name__ == "__main__":
+    testDialog()

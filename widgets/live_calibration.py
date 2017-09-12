@@ -15,7 +15,7 @@ import os.path
 import wx
 import wx.lib.sized_controls as SC
 
-from config_dialog.ssx import EditableCalibrationPanel
+from config_dialog.special_tabs import EditableCalibrationPanel
 from devices import fromRecording
 from logger import logger
 from mide_ebml.ebml.schema.mide import MideDocument
