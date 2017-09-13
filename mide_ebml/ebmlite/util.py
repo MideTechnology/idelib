@@ -292,8 +292,10 @@ if __name__ == "__main__":
     from xml.dom.minidom import parseString
     
     def errPrint(msg):
-        sys.stdout.write("%s\n" % msg)
-        sys.stdout.flush()
+        sys.stderr.write("%s\n" % msg)
+        sys.stderr.flush()
+        exit(1)
+
     
     argparser = argparse.ArgumentParser(description="""
         ebmlite utilities: some basic command-line tools for converting between
@@ -332,13 +334,11 @@ if __name__ == "__main__":
         schema = core.loadSchema(args.schema)
     except IOError as err:
         errPrint("Error loading schema: %s\n" % err)
-        exit(1)
 
     if args.output:
         output = os.path.realpath(os.path.expanduser(args.output))
         if os.path.exists(output) and not args.clobber:
             errPrint("Output file exists: %s" % args.output)
-            exit(1)
         out = open(output, 'wb')
     else:
         out = sys.stdout

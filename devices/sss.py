@@ -5,13 +5,24 @@ Created on Jul 13, 2015
 '''
 import os
 
-from mide_ebml import util
-import mide_ebml.ebml.schema.mide as schema_mide
+# from mide_ebml import util
+# import mide_ebml.ebml.schema.mide as schema_mide
+from mide_ebml.ebmlite import loadSchema
 
 from ssx import SlamStickX
 
+#===============================================================================
+# 
+#===============================================================================
+
+mideSchema = loadSchema('mide.xml')
+
+#===============================================================================
+# 
+#===============================================================================
+
 class SlamStickS(SlamStickX):
-    """ A Slam Stick C data recorder from Mide Technology Corporation. 
+    """ A Slam Stick S data recorder from Mide Technology Corporation. 
     """
     
     # TODO: This really belongs in the configuration UI
@@ -30,7 +41,8 @@ class SlamStickS(SlamStickX):
             if cls._isRecorder(dev, strict):
                 infoFile = os.path.join(dev, cls.INFO_FILE)
                 if os.path.exists(infoFile):
-                    devinfo = util.read_ebml(infoFile, schema=schema_mide)
+                    devinfo = mideSchema.load(infoFile).dump()
+#                     devinfo = util.read_ebml(infoFile, schema=schema_mide)
                     props = devinfo['RecordingProperties']['RecorderInfo']
                     return 'Slam Stick S' in props['ProductName']
         except (KeyError, AttributeError, IOError):

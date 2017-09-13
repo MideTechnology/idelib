@@ -18,11 +18,21 @@ import zipfile
 
 from docutils.examples import html_body
 
-from mide_ebml import xml2ebml
-import mide_ebml.ebml.schema.mide as schema_mide
-import mide_ebml.ebml.schema.manifest as schema_manifest
+# from mide_ebml import xml2ebml
+# import mide_ebml.ebml.schema.mide as schema_mide
+# import mide_ebml.ebml.schema.manifest as schema_manifest
+
+from mide_ebml.ebmlite import loadSchema
+import mide_ebml.ebmlite.util as ebml_util
 
 from assembly import birth_utils as util
+
+#===============================================================================
+# 
+#===============================================================================
+
+schema_mide = loadSchema('mide.xml')
+schema_manifest = loadSchema('manifest.xml')
 
 #===============================================================================
 # 
@@ -69,8 +79,9 @@ def addTemplates(z, templates=None):
     for t in templates:
         schema = schema_manifest if 'manifest' in t else schema_mide
         ebmlName = util.changeFilename(t, 'ebml', tempfile.gettempdir())
-        with open(ebmlName, 'wb') as f:
-            f.write(xml2ebml.readXml(t, schema))
+        ebml_util.xml2ebml(t, ebmlName, schema)
+#         with open(ebmlName, 'wb') as f:
+#             f.write(xml2ebml.readXml(t, schema))
         zipName = util.changeFilename(t, 'ebml')[len(TEMPLATE_PATH)+1:]
         zipName = zipName.strip('\\/').replace('\\', '/')
         z.write(ebmlName, "templates/%s" % zipName)
@@ -218,11 +229,15 @@ def makePackage(app, boot=False, preview=False, useHtml=True):
 if __name__ == "__main__":
     import argparse
     
-    parser = argparse.ArgumentParser(description="SSX/SSC Firmware Package Maker")
-    parser.add_argument("--app", "-a", default=APP_FILE, help="Full path to the application binary.")
-    parser.add_argument("--bootloader", "-b", action="store_true", help="Include the bootloader.")
-    parser.add_argument("--nohtml", "-n", action="store_true", help="Do not generate HTML release notes.")
-    parser.add_argument("--preview", '-p', action="store_true", help="Preview the package and its rendered release notes.")
+    parser = argparse.ArgumentParser(description="Slam Stick Firmware Package Maker")
+    parser.add_argument("--app", "-a", default=APP_FILE, metavar="APP.BIN",
+                        help="Full path to the application binary.")
+    parser.add_argument("--bootloader", "-b", action="store_true", 
+                        help="Include the bootloader.")
+    parser.add_argument("--nohtml", "-n", action="store_true", 
+                        help="Do not generate HTML release notes.")
+    parser.add_argument("--preview", '-p', action="store_true", 
+                        help="Preview the package and its rendered release notes.")
     
     args = parser.parse_args() 
     makePackage(args.app, boot=args.bootloader, preview=args.preview,
