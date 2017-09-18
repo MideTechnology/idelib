@@ -55,6 +55,7 @@ schemas = Datafiles('mide_ebml/ebml/schema/mide.xml',
                     'LICENSES/*.txt',
                     'ABOUT/*',
                     'resources/*',
+                    'config_dialog/defaults/*.xml',
                     strip_path=False)
         
 a = Analysis(['viewer.py'],
