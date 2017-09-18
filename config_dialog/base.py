@@ -18,7 +18,9 @@ Basic theory of operation:
     setting it according to the config file.
 * Fields with values that aren't in the config file get the default; if they
     have checkboxes, the checkbox is left unchecked.
-    
+
+@todo: Clean up (maybe replace) the old calibration and info tabs.
+@todo: Implement configuration import/export (refactor in `devices` module).
 @todo: There are some redundant calls to update enabled and checkbox states.
     They don't cause a problem, but they should be cleaned up.
 '''
@@ -2204,7 +2206,7 @@ class ConfigDialog(SC.SizedDialog):
 # 
 #===============================================================================
 
-def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
+def configureRecorder(path, setTime=True, useUtc=True, parent=None,
                       keepUnknownItems=True, hints=None, saveOnOk=True, 
                       modal=True):
     """ Create the configuration dialog for a recording device. 
@@ -2242,7 +2244,7 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
         raise ValueError("Path '%s' does not appear to be a recorder" % path)
     
     if isinstance(dev, devices.SlamStickClassic):
-        return classic.configureRecorder(path, save, setTime, useUtc, parent)
+        return classic.configureRecorder(path, saveOnOk, setTime, useUtc, parent)
 
     
     dlg = ConfigDialog(parent, hints=hints, device=dev, setTime=setTime,
@@ -2295,8 +2297,8 @@ if __name__ == "__main__":
     
     app = wx.App()
 
-    d = configureRecorder(device, hints=hints, modal=not __DEBUG__, useUtc=False, 
-                               saveOnOk=True)
+    d = configureRecorder(device, hints=hints, modal=not __DEBUG__, 
+                          useUtc=False, saveOnOk=True)
     
     if __DEBUG__:
         # Show the Python shell. NOTE: dialog is non-modal; closing the windows
