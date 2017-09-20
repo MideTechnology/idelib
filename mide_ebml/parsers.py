@@ -41,7 +41,8 @@ import sys
 import types
 
 import calibration
-from util import parse_ebml, decode_attributes
+# from util import parse_ebml, decode_attributes
+from util import decode_attributes
 
 #===============================================================================
 # 
@@ -480,7 +481,7 @@ class BaseDataBlock(object):
         self.sampleTime = None
         self.indexRange = None
 #         self._len = None
-        self.body_size = None
+        self.payloadSize = None
         self.cache = False
         
         self.minMeanMax = None
@@ -514,7 +515,7 @@ class BaseDataBlock(object):
         data = self.payload
         start = self.headerSize + (start*parser.size)
         if end < 0:
-            end += self.body_size
+            end += self.payloadSize
         else:
             end = self.headerSize + (end * parser.size)
         
@@ -568,8 +569,7 @@ class BaseDataBlock(object):
         """
         if self.numSamples is not None:
             return self.numSamples
-        n = len(self.payload) - self.headerSize
-        self.numSamples = n / parser.size
+        self.numSamples = self.payloadSize / parser.size
         return self.numSamples
 
 
@@ -581,7 +581,7 @@ class BaseDataBlock(object):
             @return: `True` if the number of bytes can be evenly
                 distributed into subsamples.
         """
-        return self.body_size > 0 and self.body_size % parser.size == 0
+        return self.payloadSize > 0 and self.payloadSize % parser.size == 0
 
     
     @property
@@ -606,7 +606,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
         super(SimpleChannelDataBlock, self).__init__(element)
         self.element = element
         self.startTime, self.channel = self.getHeader()
-        self.body_size = element.body_size - self.headerSize
+        self.payloadSize = element.size - self.headerSize
    
     
     def __len__(self):
@@ -614,9 +614,6 @@ class SimpleChannelDataBlock(BaseDataBlock):
             This returns the length of the payload.
         """
         return self.numSamples
-#         if self._len is None:
-#             self._len = len(self.payload) - self.headerSize
-#         return self._len
     
     
     def getHeader(self):
@@ -738,7 +735,7 @@ class ChannelDataBlock(BaseDataBlock):
                 self.channel = el.value
             elif el.name == "ChannelDataPayload":
                 self._payloadIdx = num
-                self.body_size = el.body_size
+                self.payloadSize = el.size
             elif el.name == "StartTimeCodeAbsMod":
                 self.startTime = el.value
                 self._timestamp = el.value
@@ -851,7 +848,7 @@ class PolynomialParser(ElementHandler):
         """
         # Element name (plus ID and file position) for error messages
         elName = self.getElementName(element)
-        params = renameKeys(parse_ebml(element.value), self.parameterNames)
+        params = renameKeys(element.dump(), self.parameterNames)
         params['dataset'] = self.doc
         
         coeffs = params.pop("coeffs", None)
@@ -931,11 +928,12 @@ class SensorListParser(ElementHandler):
     def parse(self, element, **kwargs):
         """ Parse a SensorList 
         """
-        data = parse_ebml(element.value)
+#         data = parse_ebml(element.value)
+        data = element.dump()
         if 'attributes' in data:
             atts = self.doc.recorderInfo.setdefault('sensorAttributes', {})
             atts.update(decode_attributes(data['attributes']))
-        data = renameKeys(parse_ebml(element.value), self.parameterNames)
+        data = renameKeys(data, self.parameterNames)
         if "sensors" in data:
             for sensor in data['sensors']:
                 self.doc.addSensor(**sensor)
@@ -990,7 +988,7 @@ class ChannelParser(ElementHandler):
         """ Create the `dataset.Channel` object and its `dataset.SubChannel` 
             children elements from a `Channel` element of the `ChannelList`.
         """
-        data = renameKeys(parse_ebml(element.value), self.parameterNames)
+        data = renameKeys(element.dump(), self.parameterNames)
         
         # Pop off the subchannels; create them in a second pass.
         subchannels = data.pop('subchannels', None)
@@ -1096,7 +1094,7 @@ class WarningListParser(ElementHandler):
     }
     
     def parse(self, element, **kwargs):
-        raw = parse_ebml(element.value)
+        raw = element.dump()
         data = renameKeys(raw, self.parameterNames)
         
         if 'warnings' in data:
@@ -1118,7 +1116,7 @@ class RecorderInfoParser(ElementHandler):
         """
         """
         # This one is simple; it just sticks the data into the Dataset.
-        val = parse_ebml(element.value)
+        val = element.dump()
         if 'Attribute' in val:
             self.doc.recorderInfo.update(decode_attributes(val.pop('Attribute')))
         self.doc.recorderInfo.update(val)
@@ -1140,7 +1138,7 @@ class BwLimitListParser(ElementHandler):
         """
         """
         self.doc.bandwidthLimits = limits = {}
-        val = parse_ebml(element.value)
+        val = element.value.dump()
         for limit in val.get('BwLimit', []):
             limitId = limit.pop('BwLimitID', None)
             if limitId is not None:
@@ -1198,7 +1196,7 @@ class RecorderConfigurationParser(ElementHandler):
         if self.doc is not None:
             if self.doc.recorderConfig is None:
                 self.doc.recorderConfig = {}
-            self.doc.recorderConfig.update(parse_ebml(element.value))
+            self.doc.recorderConfig.update(element.valuedump())
 
 
 class AttributeParser(ElementHandler):
