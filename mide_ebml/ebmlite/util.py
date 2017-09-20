@@ -74,7 +74,7 @@ def toXml(el, parent=None, offsets=True, sizes=True, types=True, ids=True):
     elif isinstance(el, core.BinaryElement):
         xmlEl.text = b64encode(el.value)
     elif not isinstance(el, core.VoidElement):
-        xmlEl.set('value', str(el.value))
+        xmlEl.set('value', unicode(el.value).encode('ascii', 'xmlcharrefreplace'))
     
     return xmlEl
 
@@ -129,7 +129,10 @@ def xmlElement2ebml(xmlEl, ebmlFile, schema, sizeLength=4, unknown=True):
         return len(encId) + (endPos - sizePos)
     
     elif issubclass(cls, core.BinaryElement):
-        val = b64decode(xmlEl.text)
+        if xmlEl.text is None:
+            val = ""
+        else:
+            val = b64decode(xmlEl.text)
     elif issubclass(cls, (core.IntegerElement, core.FloatElement)):
         val = ast.literal_eval(xmlEl.get('value'))
     else:
@@ -348,9 +351,9 @@ if __name__ == "__main__":
     elif args.mode == "ebml2xml":
         doc = schema.load(args.input, headers=True)
         root = toXml(doc) #, offsets, sizes, types, ids)
-        s = ET.tostring(root)
+        s = ET.tostring(root, encoding="utf-8")
         if args.pretty:
-            parseString(s).writexml(out, addindent='\t', newl='\n')#, encoding='utf-8')
+            parseString(s).writexml(out, addindent='\t', newl='\n', encoding='utf-8')
         else:
             out.write(s)
     else:
