@@ -2304,8 +2304,7 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
     
     def handleError(self, err, msg=None, icon=wx.ICON_ERROR, 
-                        raiseException=False, what='', where=None,
-                        fatal=False, closeFile=False):
+                    what='', where=None, fatal=False, closeFile=False):
         """ General-purpose exception handler that attempts to provide a 
             meaningful error message. Also works as an event handler for
             custom error events (e.g. `EvtImportError`). Exception handling
@@ -2316,14 +2315,11 @@ class Viewer(wx.Frame, MenuMixin):
                 `EvtImportError`), or `None`.
             @keyword msg: An alternative error message, to be shown verbatim.
             @keyword icon: The icon to show in the dialog box.
-            @keyword raiseException: If `True`, the exception will be raised
-                before the dialog is displayed.
             @keyword what: A description of the operation being performed that
                 raised the exception.
             @keyword where: The method in which the exception was raised; a
                 lightweight sort of traceback.
             @keyword fatal: If `True`, the app Viewer will shut down. 
-                
         """
         
         if isinstance(err, wx.Event):
@@ -2348,15 +2344,12 @@ class Viewer(wx.Frame, MenuMixin):
                 if not xmsg:
                     xmsg = "No further information is available."
 
-        # If exceptions are explicitly raised, raise it.
-        if raiseException and isinstance(err, Exception):
-            raise err
-
         if fatal:
             xmsg += "\n\nThe application will now shut down."
 
         self.ask(msg, APPNAME, wx.OK, icon=icon, extendedMessage=xmsg)
         ctrlPressed = wx.GetKeyState(wx.WXK_CONTROL)
+        shiftPressed = wx.GetKeyState(wx.WXK_SHIFT)
         
         # Holding control when okaying alert shows more more info. 
         if ctrlPressed and isinstance(err, Exception):
@@ -2368,7 +2361,9 @@ class Viewer(wx.Frame, MenuMixin):
         
         if closeFile:
             self.closeFile()
-         
+        
+        if ctrlPressed and shiftPressed and err is not None:
+            raise
 
     #===========================================================================
     # 

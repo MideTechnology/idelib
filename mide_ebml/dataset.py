@@ -39,6 +39,7 @@ Created on Sep 26, 2013
 # TODO: Look at remaining places where lists are returned, consider using 
 #    `yield`  instead (e.g. parseElement(), etc.)
 
+from bisect import bisect_left
 from collections import Iterable
 from datetime import datetime
 from itertools import imap, izip
@@ -1021,21 +1022,15 @@ class EventList(Transformable):
             self._singleSample = parentChannel.singleSample
 
         if self.hasSubchannels or not isinstance(parentChannel.parent, Channel):
-            # Optimization: Keep track of indices in blocks (per 10000)
-            # The first is the earliest block with the index,
-            # The second is the latest block.
-            self._blockIdxTable = ({},{})
-            self._blockTimeTable = ({},{})
-            self._blockIdxTableSize = None
-            # XXX: EXPERIMENT. Seems to make big files faster, small ones slower
-            self._blockTimeTableSize = 1000000 #None
+            # Cache of block start times and sample indices for faster search
+            self._blockTimes = []
+            self._blockIndices = []
         else:
             s = self.session.sessionId if session is not None else None
             ps = parentChannel.parent.getSession(s)
-            self._blockIdxTable = ps._blockIdxTable
-            self._blockTimeTable = ps._blockTimeTable
-            self._blockIdxTableSize = ps._blockIdxTableSize
-            self._blockTimeTableSize = ps._blockTimeTableSize
+            self._blockTimes = ps._blockTimes
+            self._blockIndices = ps._blockIndices
+
             self.noBivariates = ps.noBivariates
         
         if self.hasSubchannels:
@@ -1133,6 +1128,8 @@ class EventList(Transformable):
         newList.removeMean = self.removeMean
         newList.allowMeanRemoval = self.allowMeanRemoval
         newList.noBivariates = self.noBivariates
+        newList._blockIndices = self._blockIndices
+        newList._blockTimes = self._blockTimes
         return newList
     
 
@@ -1179,21 +1176,8 @@ class EventList(Transformable):
         self._lastTime = block.endTime
             
         # Cache the index range for faster searching
-        if self._blockIdxTableSize is None:
-            self._blockIdxTableSize = block.numSamples * 10
-        if self._blockTimeTableSize is None:
-            if len(self._data) > 1:
-                self._blockTimeTableSize = (block.startTime - self._data[-2].startTime) * 10
-                tableTime = int(block.startTime / self._blockTimeTableSize)
-            else:
-                tableTime = 0
-        else:
-            tableTime = int(block.startTime / self._blockTimeTableSize)
-        tableIdx = block.indexRange[0] / self._blockIdxTableSize
-        self._blockIdxTable[0].setdefault(tableIdx, block.blockIndex)
-        self._blockIdxTable[1][tableIdx] = block.blockIndex
-        self._blockTimeTable[0].setdefault(tableTime, block.blockIndex)
-        self._blockTimeTable[1][tableTime] = block.blockIndex
+        self._blockIndices.append(oldLength)
+        self._blockTimes.append(block.startTime)
         
         self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
 
@@ -1277,53 +1261,9 @@ class EventList(Transformable):
                 
             block._timeRange = block.startTime, block.endTime
             return block._timeRange
-
-
-    def _searchBlockRanges(self, val, rangeGetter, first, last):
-        """ Quick and dirty recursive binary search of data blocks.
-            
-            @param val: The value to find
-            @param rangeGetter: A function that returns a minimum and 
-                maximum value for an element (such as `_getBlockTimeRange`)
-            @param first: The index of the first block in the range.
-            @param last: The index of the last block in the range.
-            @return: The index of the found block.
-        """
-        # TODO: Handle unfound values better (use of `stop` can make these)
-        if first == last:
-            return first
-        middle = first + ((last-first)/2)
-        r = rangeGetter(middle)
-        if val >= r[0] and val <= r[1]:
-            return middle
-        elif middle == first:
-            return last
-        elif val < r[0]:
-            return self._searchBlockRanges(val, rangeGetter, first, middle)
-        else:
-            return self._searchBlockRanges(val, rangeGetter, middle, last)
-
-
-    def x_searchBlockRanges(self, val, rangeGetter, start=0, stop=-1):
-        """ Find the index of a block that (potentially) contains a subsample
-            with the given value, computed with the given function. 
-            
-            @param val: The value to find
-            @param rangeGetter: A function that returns a minimum and 
-                maximum value for an element (such as `_getBlockTimeRange`)
-            @return: The index of the found block.
-        """
-        if start == stop:
-            return start 
         
-        start = len(self._data) + start if start < 0 else start
-        stop = len(self._data) + stop if stop < 0 else stop
-                
-        return min(len(self._data)-1, 
-                   self._getIdx(val, rangeGetter, start, stop))
 
-    
-    def _getBlockIndexWithIndex(self, idx, start=0, stop=-1):
+    def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
         """ Get the index of a raw data block that contains the given event
             index.
             
@@ -1331,46 +1271,30 @@ class EventList(Transformable):
             @keyword start: The first block index to search
             @keyword stop: The last block index to search
         """
-        # Optimization: Set a reasonable start and stop for search
-        if self._blockIdxTableSize is not None:
-            tableIdx = idx/self._blockIdxTableSize
-            if stop == -1:
-                stop = self._blockIdxTable[1].get(tableIdx, -2) + 1
-            if start == 0:
-                start = max(self._blockIdxTable[0].get(tableIdx, 0)-1, 0)
-
-        start = len(self._data) + start if start < 0 else start
-        stop = len(self._data) + stop if stop < 0 else stop
-        
-        idx = self._searchBlockRanges(idx, self._getBlockIndexRange, start, stop)
-        return min(len(self._data)-1, idx)
-
-
-    def _getBlockIndexWithTime(self, t, start=0, stop=-1):
+        if stop:
+            blockIdx = bisect_left(self._blockIndices, idx, start, stop)
+        else:
+            blockIdx = bisect_left(self._blockIndices, idx, start)
+        if blockIdx:
+            return blockIdx-1
+        return blockIdx
+    
+    
+    def _getBlockIndexWithTime(self, t, start=0, stop=None):
         """ Get the index of a raw data block in which the given time occurs.
         
             @param t: The time to find
             @keyword start: The first block index to search
             @keyword stop: The last block index to search
         """
-        try:
-            tableTime = int(t / self._blockTimeTableSize)
-            if stop == -1:
-                stop = self._blockTimeTable[1].get(tableTime, -2) + 1
-            if start == 0:
-                start = max(self._blockTimeTable[0].get(tableTime, 0)-1, 0)
-        except TypeError:
-            pass
-        
-#         if self._singleSample is True:
-#             return start
-        
-        start = len(self._data) + start if start < 0 else start
-        stop = len(self._data) + stop if stop < 0 else stop
-        
-        idx = self._searchBlockRanges(t, self._getBlockTimeRange, start, stop)
-        return min(len(self._data)-1, idx)
-        
+        if stop:
+            blockIdx = bisect_left(self._blockTimes, t, start, stop)
+        else:
+            blockIdx = bisect_left(self._blockTimes, t, start)
+        if blockIdx:
+            return blockIdx-1
+        return blockIdx
+
 
     def _getBlockRollingMean(self, blockIdx, force=False):
         """ Get the mean of a block and its neighbors within a given time span.
@@ -1605,6 +1529,7 @@ class EventList(Transformable):
             sampleTime = _getBlockSampleTime(blockIdx)
             lastSubIdx = endSubIdx if blockIdx == endBlockIdx else block.numSamples
             times = (block.startTime + sampleTime * t for t in xrange(subIdx, lastSubIdx, step))
+            
             values = parent_parseBlock(block, start=subIdx, end=lastSubIdx, step=step)
 
             if removeMean:
@@ -1796,7 +1721,7 @@ class EventList(Transformable):
             if endTime is None:
                 endIdx = len(self)-1
             else:
-                endIdx = self._getBlockIndexWithTime(endTime) + 1
+                endIdx = self._getBlockIndexWithTime(endTime, startIdx) + 1
             return startIdx, endIdx
             
         if startTime is None or startTime <= self._data[0].startTime:

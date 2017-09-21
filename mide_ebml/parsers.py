@@ -30,6 +30,8 @@ and `SimpleChannelDataBlock` elements are represented the same way in the API.
 
 See the `dataset` module for more information.
 
+@todo: Clean this up! it's grown a little too organically.
+
 Created on Sep 26, 2013
 @author: dstokes
 '''
@@ -1196,7 +1198,7 @@ class RecorderConfigurationParser(ElementHandler):
         if self.doc is not None:
             if self.doc.recorderConfig is None:
                 self.doc.recorderConfig = {}
-            self.doc.recorderConfig.update(element.valuedump())
+            self.doc.recorderConfig.update(element.dump())
 
 
 class AttributeParser(ElementHandler):
