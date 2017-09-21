@@ -55,10 +55,9 @@ import numpy
 from calibration import Transform, CombinedPoly, PolyPoly
 from parsers import getParserTypes, getParserRanges
 
-import ebml.schema
-from ebmlite import Schema
+from ebmlite import loadSchema
 
-SCHEMA_FILE = os.path.join(os.path.dirname(ebml.schema.__file__), 'mide.xml')
+SCHEMA_FILE = 'mide.xml'
 
 #===============================================================================
 # DEBUGGING: XXX: Remove later!
@@ -257,7 +256,7 @@ class Dataset(Cascading):
         if stream is not None:
 #             self.ebmldoc = MideDocument(stream)
 #             self.schemaVersion = self.ebmldoc.__class__.version
-            schema = Schema(SCHEMA_FILE)
+            schema = loadSchema(SCHEMA_FILE)
             self.schemaVersion = schema.version
             self.ebmldoc = schema.load(stream, 'MideDocument')
             if not quiet:
