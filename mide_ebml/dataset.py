@@ -55,7 +55,7 @@ import numpy
 from calibration import Transform, CombinedPoly, PolyPoly
 from parsers import getParserTypes, getParserRanges
 
-from ebmlite import loadSchema
+from ebmlite.core import loadSchema
 
 SCHEMA_FILE = 'mide.xml'
 
