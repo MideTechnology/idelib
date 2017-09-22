@@ -310,6 +310,7 @@ class Dataset(Cascading):
                                       endTime=endTime,
                                       utcStartTime=utcStartTime)
         self.sessions.append(self.currentSession)
+        return self.currentSession
 
 
     def endSession(self):
@@ -553,7 +554,6 @@ class Sensor(Cascading):
         return self._bandwidthRolloff
 
 
-
 #===============================================================================
 # Channels
 #===============================================================================
@@ -724,8 +724,7 @@ class Channel(Transformable):
         return self.sessions.setdefault(sessionId, EventList(self, session))
     
     
-    def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None,
-                   offset=None):
+    def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None):
         """ Parse subsamples out of a data block. Used internally.
         
             @param block: The data block from which to parse subsamples.
@@ -735,30 +734,23 @@ class Channel(Transformable):
             @keyword subchannel: If supplied, return only the values for a 
                 specific subchannel (i.e. the method is being called by a
                 SubChannel).
-            @keyword offset: An array of values to subtract from the data or
-                `None`. Intended for use with mean removal.
             @return: A list of tuples, one for each subsample.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
-        p = (block, start, end, step, subchannel, str(offset))
+        p = (block, start, end, step, subchannel)
         if self._lastParsed[0] == p:
             return self._lastParsed[1]
         if self.singleSample:
             start = 0
             end = 1
         result = list(block.parseWith(self.parser, start=start, end=end, 
-                                    step=step, subchannel=subchannel))
+                                      step=step, subchannel=subchannel))
         
-        if offset is not None:
-            if subchannel is not None:
-                offset = offset[subchannel]
-            result = [x-offset for x in result]
-                
         self._lastParsed = (p, result)
         return result
 
 
-    def parseBlockByIndex(self, block, indices, subchannel=None, offset=None):
+    def parseBlockByIndex(self, block, indices, subchannel=None):
         """ Convert raw data into a set of subchannel values, returning only
              specific items from the result by index.
             
@@ -766,40 +758,19 @@ class Channel(Transformable):
             @param indices: A list of sample index numbers to retrieve.
             @keyword subchannel: If supplied, return only the values for a 
                 specific subchannel
-            @keyword offset: An array of values to subtract from the data or
-                `None`. Intended for use with mean removal.
             @return: A list of tuples, one for each subsample.
         """
-        if offset is not None:
-            if subchannel is not None:
-                offset = offset[subchannel]
-            return [x-offset for x in block.parseByIndexWith(self.parser, 
-                                      indices, subchannel=subchannel)]
-        else:
-            return list(block.parseByIndexWith(self.parser, indices, 
-                                               subchannel=subchannel))
+        return list(block.parseByIndexWith(self.parser, indices, 
+                                           subchannel=subchannel))
+
 
     def updateTransforms(self):
+        """
+        """
         super(Channel, self).updateTransforms()
         if self.sessions is not None:
             for s in self.sessions.values():
                 s.updateTransforms()
-
-
-    def getAxisNames(self):
-        """ Get the 'axis name' for all SubChannels.
-        """
-        return [c.axisName for c in self.subchannels]
-
-
-    def getAxis(self, axis, strict=True):
-        """ Get a SubChannel by the name of its axis (or recording type for
-            single-axis data, e.g. temperature).
-        """
-        for c in self.subchannels:
-            if c.axisName == axis or (strict and axis in c.axisName):
-                return c
-        raise KeyError("Could not find axis named %r" % axis)
 
 
 #===============================================================================
@@ -856,6 +827,8 @@ class SubChannel(Channel):
                 
         self.units = units
 
+        # Generate a 'display name' (e.g. for display in a plot legend)
+        # Combines the given name (if any) and the units (if any)
         if self.units[0]:
             if name is None or units[0] == self.name:
                 self.displayName = units[0]
@@ -897,9 +870,11 @@ class SubChannel(Channel):
     def children(self):
         return []
 
+
     @property
     def sampleRate(self):
         return self.parent.sampleRate
+
 
     def __repr__(self):
         return '<%s %d.%d: %r at 0x%08x>' % (self.__class__.__name__, 
@@ -908,6 +883,7 @@ class SubChannel(Channel):
 
     def __len__(self):
         return AttributeError('SubChannel has no children.')
+
 
     @property
     def parser(self):
@@ -924,34 +900,25 @@ class SubChannel(Channel):
         return self._sessions
     
 
-    def parseBlock(self, block, start=0, end=-1, step=1, offset=None):
+    def parseBlock(self, block, start=0, end=-1, step=1):
         """ Parse subsamples out of a data block. Used internally.
         
             @param block: The data block from which to parse subsamples.
             @keyword start: The first block index to retrieve.
             @keyword end: The last block index to retrieve.
             @keyword step: The number of steps between samples.
-            @keyword offset: An array of values to subtract from the data or
-                `None`. Intended for use with mean removal. Note: this is
-                always an array of values, not just the offset for a 
-                specific subchannel.
         """
         return self.parent.parseBlock(block, start, end, step=step,) 
-#                                       subchannel=self.id, offset=offset)
+#                                       subchannel=self.id)
 
 
-    def parseBlockByIndex(self, block, indices, offset=None):
+    def parseBlockByIndex(self, block, indices):
         """ Parse specific subsamples out of a data block. Used internally.
         
             @param block: The data block from which to parse subsamples.
             @param indices: A list of individual index numbers to get.
-            @keyword offset: An array of values to subtract from the data or
-                `None`. Intended for use with mean removal. Note: this is
-                always an array of values, not just the offset for a 
-                specific subchannel.
         """
-        return self.parent.parseBlockByIndex(block, indices)#, subchannel=self.id,
-#                                              offset=offset)
+        return self.parent.parseBlockByIndex(block, indices)#, subchannel=self.id)
 
         
     def getSession(self, sessionId=None):
@@ -974,13 +941,8 @@ class SubChannel(Channel):
     def addSubChannel(self, *args, **kwargs):
         raise AttributeError("SubChannels have no SubChannels")
 
+
     def getSubChannel(self, *args, **kwargs):
-        raise AttributeError("SubChannels have no SubChannels")
-
-    def getAxisNames(self, *args, **kwargs):
-        raise AttributeError("SubChannels have no SubChannels")
-
-    def getAxis(self, *args, **kwargs):
         raise AttributeError("SubChannels have no SubChannels")
 
 
@@ -1008,7 +970,7 @@ class EventList(Transformable):
         self._data = []
         self._length = 0
         self.dataset = parentChannel.dataset
-        self.hasSubchannels = not isinstance(self.parent, SubChannel)#len(self.parent.types) > 1
+        self.hasSubchannels = not isinstance(self.parent, SubChannel)
         self._firstTime = self._lastTime = None
         self._parentList = parentList
         self._childLists = []
@@ -2557,6 +2519,5 @@ class WarningRange(object):
 
 # HACK to work around the fact that the `register` method doesn't show up
 # in `dir()`, which creates an error display in PyLint/PyDev/etc. 
-_Iterable_register = getattr(Iterable, 'register')
-_Iterable_register(EventList)    
-_Iterable_register(WarningRange)
+getattr(Iterable, 'register')(EventList)
+getattr(Iterable, 'register')(WarningRange)
