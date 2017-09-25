@@ -213,12 +213,14 @@ class Dataset(Cascading):
         @ivar transforms: A dictionary of functions (or function-like objects)
             for adjusting/calibrating sensor data.
     """
-        
-    def __init__(self, stream, name=None, quiet=True):
+     
+    def __init__(self, stream, name=None, exitCondition=None, quiet=True):
         """ Constructor. 
             @param stream: A file-like stream object containing EBML data.
             @keyword name: An optional name for the Dataset. Defaults to the
                 base name of the file (if applicable).
+            @keyword exitCondition: The numeric code number for the condition
+                that stopped the recording. 
             @keyword quiet: If `True`, non-fatal errors (e.g. schema/file
                 version mismatches) are suppressed. 
         """
@@ -233,6 +235,8 @@ class Dataset(Cascading):
         self.currentSession = None
         self.recorderInfo = {}
         self.recorderConfig = None
+
+        self.exitCondition = exitCondition
         
         # For keeping track of element parsers in import.
         self._parsers = None
@@ -254,8 +258,6 @@ class Dataset(Cascading):
             self.name = name
 
         if stream is not None:
-#             self.ebmldoc = MideDocument(stream)
-#             self.schemaVersion = self.ebmldoc.__class__.version
             schema = loadSchema(SCHEMA_FILE)
             self.schemaVersion = schema.version
             self.ebmldoc = schema.load(stream, 'MideDocument')
@@ -708,7 +710,11 @@ class Channel(Transformable):
 
 
     def getSession(self, sessionId=None):
-        """ Retrieve a session 
+        """ Retrieve data recorded in a Session. 
+            
+            @keyword sessionId: The ID of the session to retrieve.
+            @return: The recorded data.
+            @rtype: `EventList`
         """
         self._updateXformIds()
         if sessionId is None:
@@ -892,7 +898,6 @@ class SubChannel(Channel):
 
     @property
     def sessions(self):
-        # TODO: Caching the parent's sessions may cause trouble with dynamic loading
         if self._sessions is None:
             self._sessions = {}
             for s in self.parent.sessions:
@@ -1084,6 +1089,8 @@ class EventList(Transformable):
         newList = self.__class__(parent, self.session, self)
         newList._data = self._data
         newList._length = self._length
+        newList._firstTime = self._firstTime
+        newList._lastTime = self._lastTime
         newList.dataset = self.dataset
         newList.hasMinMeanMax = self.hasMinMeanMax
         newList.removeMean = self.removeMean
@@ -1162,8 +1169,8 @@ class EventList(Transformable):
         """
         if len(self._data) == 0:
             return None
-        if self._firstTime is None:
-            self._firstTime = self._data[0].startTime
+#         if self._firstTime is None:
+#             self._firstTime = self._data[0].startTime
         if self.dataset.loading:
             return self._firstTime, self._data[-1].endTime
         if self._lastTime is None:
@@ -1196,8 +1203,6 @@ class EventList(Transformable):
             @return: A tuple with the blocks start and end times.
         """
         block = self._data[blockIdx]
-        # XXX: This 'try' makes calibrated output slightly different
-        # (rounding error?). Determine if this is acceptable.
         try:
             return block._timeRange
         except AttributeError:
@@ -1733,7 +1738,7 @@ class EventList(Transformable):
             specified interval.
 
             @todo: Remember what `padding` was for, and either implement or
-                remove it completely. 
+                remove it completely. Related to plotting; see `plots`.
             
             @keyword startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
@@ -1824,7 +1829,7 @@ class EventList(Transformable):
             specified interval.
             
             @todo: Remember what `padding` was for, and either implement or
-                remove it completely. 
+                remove it completely. Related to plotting; see `plots`.
             
             @keyword startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
@@ -1871,7 +1876,7 @@ class EventList(Transformable):
         
     
     def _getBlockRange(self, startTime=None, endTime=None):
-        """
+        """ Get blocks falling within a time range. Used internally.
         """
         if startTime is None:
             startBlockIdx = 0

@@ -38,6 +38,7 @@ import parsers
 import logging
 logger = logging.getLogger('mide_ebml')
 
+
 #===============================================================================
 # Defaults
 #===============================================================================
@@ -301,7 +302,7 @@ def importFile(filename=testFile, updater=nullUpdater, numUpdates=500,
 
 
 def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,  
-             defaults=DEFAULTS, name=None, quiet=False):
+             defaults=DEFAULTS, name=None, quiet=False, getExitCond=True):
     """ Create a `Dataset` instance and read the header data (i.e. non-sample-
         data). When called by a GUI, this function should be considered 'modal,' 
         in that it shouldn't run in a background thread, unlike `readData()`. 
@@ -326,7 +327,13 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
     """
     if isinstance(stream, basestring):
         stream = open(stream, 'rb')
-    doc = Dataset(stream, name=name, quiet=quiet)
+    
+    if getExitCond:
+        exitCond = getExitCondition(stream)
+    else:
+        exitCond = None
+   
+    doc = Dataset(stream, name=name, exitCondition=exitCond, quiet=quiet)
     doc.addSession()
 
     if doc._parsers is None:
@@ -578,6 +585,7 @@ def estimateLength(filename, numSamples=50000, parserTypes=elementParserTypes,
 # 
 #===============================================================================
 
+    
 def getExitCondition(recording, bytesRead=1000):
     """ Get the ``ExitCond`` Attribute from the end of a recording, if present.
         The result will be an integer:
@@ -608,7 +616,7 @@ def getExitCondition(recording, bytesRead=1000):
         idx = data.index("ExitCond") + 11
         if idx <= len(data):
             result = ord(data[idx])
-    except (IndexError, ValueError):
+    except (IOError, IndexError, ValueError):
         pass
 
     recording.seek(offset)

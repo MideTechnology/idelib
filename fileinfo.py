@@ -141,11 +141,20 @@ class RecorderInfoDialog(SC.SizedDialog):
     """ Dialog showing the recorder info from a recording file. Self-contained;
         show the dialog via the `showRecorderInfo()` method.
     """
+
+    EXIT_CONDITIONS = {1: "Button pressed",
+                       2: "USB connected",
+                       3: "Recording time limit reached",
+                       4: "Low battery",
+                       128: "I/O Error"}
+
+    
     def _strInt(self, val):
         try:
             return locale.format("%d", val, grouping=True)
         except TypeError:
             return str(val)
+
     
     def getFileInfo(self):
         """ Get basic file stats from the filesystem. """
@@ -175,6 +184,12 @@ class RecorderInfoDialog(SC.SizedDialog):
                                                        self.root.ebmldoc.version)
         else:
             result['File Type'] = "Slam Stick Classic"
+        if self.root.exitCondition is not None: 
+            ec = self.root.exitCondition
+            exitCond = "%s (%s)" % (self.EXIT_CONDITIONS.get(ec, "Unknown"), ec)
+        else:
+            exitCond = "Not recorded"
+        result['Exit Condition'] = exitCond
         result['File Damaged'] = damaged
         result['Number of Sessions'] = str(len(self.root.sessions))
         for s in self.root.sessions:

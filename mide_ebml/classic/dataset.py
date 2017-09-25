@@ -34,7 +34,7 @@ class Dataset(DS.Dataset):
     """
     schemaVersion = None
     
-    def __init__(self, stream, name=None, quiet=False):
+    def __init__(self, stream, name=None, exitCondition=None, quiet=False):
         """ Constructor.
             @param stream: A file-like stream object containing Slam Stick
                 Classic data.
@@ -52,6 +52,7 @@ class Dataset(DS.Dataset):
         self.currentSession = None
         self.recorderInfo = {'ProductName': 'Slam Stick Classic'}
         self.warningRanges = {}
+        self.exitCondition = exitCondition
         
         self.useIndices = False
         self.fileDamaged = False
