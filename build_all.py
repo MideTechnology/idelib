@@ -27,12 +27,16 @@ VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
 BETA_INFO_FILE = 'updater files/slam_stick_lab_beta.json'
 RELEASE_NOTES_FILE = 'updater files/slam_stick_lab_changelog.txt'
 RELEASE_NOTES_HTML = util.changeFilename(RELEASE_NOTES_FILE, ext=".html")
-logger = logging.getLogger('SlamStickLab.BuildAll')
 
+VERPATCH_PATH = r"C:\Users\dstokes\workspace\verpatch-bin-1.0.10\verpatch.exe"
+
+# TODO: Parameterize paths to PyInstaller, rather than hard-code.
 builds = (
     r'C:\Python27\Scripts\pyinstaller.exe %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
     r'c:\Python27_64\Scripts\pyinstaller --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer-win-onefile.spec',
 )
+
+logger = logging.getLogger('SlamStickLab.BuildAll')
 
 #===============================================================================
 # 
@@ -110,6 +114,41 @@ def compressFiles(args):
         break
                 
 
+def setWindowsInfo(filename, version, buildNum, year=None):
+    """ Set the Windows application information using verpatch.
+    """
+    year = datetime.now().year if year is None else year
+
+    if isinstance(version, (list, tuple)):
+        version = '.'.join(map(str, version))
+    version = "%s.%s" % (version, buildNum)
+
+    cmd = ('%(verpatch)s "%(app)s" %(fileVersion)s /va '
+           '/s company "Mide Technology Corporation" '
+           '/s copyright "(c) %(year)s Mide Technology Corporation" '
+           '/pv %(productVersion)s '
+           '/s desc "Utility for configuring and analyzing data from Slam Stick data recorders." '
+           '/s product "Slam Stick Lab"')
+
+    args = {'verpatch': VERPATCH_PATH,
+            'app': filename,
+            'fileVersion': version,
+            'productVersion': version,
+            'year': year}
+
+#     print repr(cmd % args)
+    subprocess.call(cmd % args, stdout=sys.stdout, stdin=sys.stdin, shell=True)
+
+
+def setAllWindowsInfo(args, version, buildNum, year=None):
+    for k,v in args.items():
+        if not k.startswith('dist_'):
+            continue
+        exes = glob(os.path.join(v, '*.exe'))
+        for ex in exes:
+            setWindowsInfo(ex, version, buildNum, year)
+            
+            
 #===============================================================================
 # 
 #===============================================================================
@@ -223,6 +262,11 @@ for i, build in enumerate(builds):
         bad = 0
     else:
         bad += subprocess.call(build % buildArgs, stdout=sys.stdout, stdin=sys.stdin, shell=True)
+
+try:        
+    setAllWindowsInfo(buildArgs, versionString, thisBuildNumber)
+except (IOError, WindowsError):
+    print "Could not set Windows version info!"
 
 print "*"*78
 print "Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now() - t0)
