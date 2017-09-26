@@ -6,6 +6,8 @@ import importlib
 import sys
 import time
 
+import os.path
+
 import wx
 
 # Song and dance to find libraries in sibling folder.
@@ -17,6 +19,52 @@ except ImportError:
 
 from widgets.device_dialog import DeviceSelectionDialog as DevSelDlg
 
+#===============================================================================
+# 
+#===============================================================================
+
+class HidingTaskBarIcon(wx.TaskBarIcon):
+    """
+    """
+    
+    def __init__(self, frame, label="Restore"):
+        self.label = label
+        self.frame = frame
+        super(HidingTaskBarIcon, self).__init__()
+        
+        # XXX: Icon needs to be somewhere else for a 'real' version.
+        img = wx.Image(os.path.realpath('../images_work/ssl-24x24.png'), wx.BITMAP_TYPE_ANY)
+        bmp = wx.BitmapFromImage(img)
+        self.icon = wx.EmptyIcon()
+        self.icon.CopyFromBitmap(bmp)
+        
+        self.Bind(wx.EVT_TASKBAR_LEFT_DOWN, self.OnTaskBarLeftClick)
+    
+    
+    def Hide(self):
+        self.RemoveIcon()
+    
+    
+    def Show(self):
+        self.SetIcon(self.icon, self.label)
+    
+    
+    def OnTaskBarActivate(self, evt):
+        pass
+    
+    
+    def OnTaskBarClose(self, evt):
+        self.frame.Close()
+        
+
+    def OnTaskBarLeftClick(self, evt):
+            """
+            Create the right-click menu
+            """
+            self.frame.Show()
+            self.frame.Restore()
+            self.Hide()
+    
 
 #===============================================================================
 # 
@@ -38,6 +86,8 @@ class HubDialog(DevSelDlg):
         self.drifts = {}
         super(HubDialog, self).__init__(*args, **kwargs)
         
+        self.iconInit()
+        
         self.baseTitle = self.GetTitle()
         self.nextClockSet = 0
         
@@ -51,6 +101,25 @@ class HubDialog(DevSelDlg):
         
         self.TimerHandler(None)
 
+    
+    def iconInit(self):
+        self.tbIcon = HidingTaskBarIcon(self)
+        self.Bind(wx.EVT_ICONIZE, self.OnMinimize)
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+
+
+    def OnMinimize(self, evt):
+        if self.IsIconized():
+            self.tbIcon.Show()
+            self.Hide()
+        
+    
+    def OnClose(self, evt):
+        self.tbIcon.RemoveIcon()
+        self.tbIcon.Destroy()
+        self.Destroy()
+        wx.GetApp().Exit()
+        
 
     def TimerHandler(self, evt):
         super(HubDialog, self).TimerHandler(evt)
@@ -101,7 +170,8 @@ class HubDialog(DevSelDlg):
 if __name__ == '__main__':
     app = wx.App()
     dlg = HubDialog(None, -1, "Slam Stick Time Hub")
-    dlg.ShowModal()
-    dlg.Destroy()
+    dlg.Show()
+    app.MainLoop()
+#     dlg.Destroy()
 
     
