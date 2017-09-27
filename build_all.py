@@ -114,183 +114,190 @@ def compressFiles(args):
         break
                 
 
-def setWindowsInfo(filename, version, buildNum, year=None):
+def setWindowsInfo(filename, version, buildNum, comment=None, year=None):
     """ Set the Windows application information using verpatch.
     """
     year = datetime.now().year if year is None else year
 
     if isinstance(version, (list, tuple)):
         version = '.'.join(map(str, version))
-    version = "%s.%s" % (version, buildNum)
+    fileVersion = "%s.%s" % (version, buildNum)
 
-    cmd = ('%(verpatch)s "%(app)s" %(fileVersion)s /va '
+    cmd = ('%(verpatch)s "%(app)s" %(fileVersion)s /va /high '
            '/s company "Mide Technology Corporation" '
-           '/s copyright "(c) %(year)s Mide Technology Corporation" '
+           '/s copyright "(c) %(year)s" '
            '/pv %(productVersion)s '
            '/s desc "Utility for configuring and analyzing data from Slam Stick data recorders." '
            '/s product "Slam Stick Lab"')
 
     args = {'verpatch': VERPATCH_PATH,
             'app': filename,
-            'fileVersion': version,
+            'fileVersion': fileVersion,
             'productVersion': version,
-            'year': year}
+            'year': year,
+            'comment': comment}
 
+    if comment is not None:
+        cmd += '/sc %(comment)r'
+        
 #     print repr(cmd % args)
     subprocess.call(cmd % args, stdout=sys.stdout, stdin=sys.stdin, shell=True)
 
 
-def setAllWindowsInfo(args, version, buildNum, year=None):
+def setAllWindowsInfo(args, version, buildNum, comment=None, year=None):
     for k,v in args.items():
         if not k.startswith('dist_'):
             continue
         exes = glob(os.path.join(v, '*.exe'))
         for ex in exes:
-            setWindowsInfo(ex, version, buildNum, year)
+            setWindowsInfo(ex, version, buildNum, comment, year)
             
             
 #===============================================================================
 # 
 #===============================================================================
 
-parser = argparse.ArgumentParser(description="Multi-Target Builder")
-parser.add_argument('-v', '--version',  
-                    help="A new version number, as 'x.y.z'. Note: editing build_info.py is better.")
-parser.add_argument('-b', '--beta', action='store_true',
-                    help="Builds a 'beta' release; sets BETA flag.")
-parser.add_argument('-r', '--release', action="store_true",
-                    help="Builds are for release; build without DEBUG.")
-parser.add_argument('-n', '--noincrement', action="store_true",
-                    help="Don't increase the build number.")
-parser.add_argument('-c', '--clean', action="store_true",
-                    help="Clean the PyInstaller cache (fix 'end of file' errors)")
-parser.add_argument('-a', '--allowDirty', action="store_true",
-                    help=("Allow builds if the git repo is 'dirty' (i.e. has "
-                          "uncommitted changes)"))
-parser.add_argument('-p', '--preview', action="store_true",
-                    help="Don't build, just preview.")
-args = parser.parse_args()
-
-#===============================================================================
-# 
-#===============================================================================
-
-t0 = datetime.now()
-
-try:
-    repo = Repo('.')
-except InvalidGitRepositoryError:
-    repo = None
-
-if repo is not None:
-    if repo.is_dirty:
-        if args.allowDirty:
-            logger.warning("Repository is dirty, but ignoring it.")
-        else:
-            print("*** Repository is dirty! Commit all changes before building!")
-            exit(1)
-
-try:
-    sys.path.append(HOME_DIR)
-    from build_info import VERSION, BETA, DEBUG, BUILD_NUMBER, BUILD_MACHINE, BUILD_TIME
-    from build_info import REPO_BRANCH, REPO_COMMIT_ID
+if __name__ == "__main__":
     
-    if args.version is not None:
-        thisVersion = map(int, filter(len, args.version.split('.')))
-        thisVersion = tuple(thisVersion + ([0] * (3-len(thisVersion)))) 
-    else:
-        thisVersion = VERSION
+    parser = argparse.ArgumentParser(description="Multi-Target Builder")
+    parser.add_argument('-v', '--version',  
+                        help="A new version number, as 'x.y.z'. Note: editing build_info.py is better.")
+    parser.add_argument('-b', '--beta', action='store_true',
+                        help="Builds a 'beta' release; sets BETA flag.")
+    parser.add_argument('-r', '--release', action="store_true",
+                        help="Builds are for release; build without DEBUG.")
+    parser.add_argument('-n', '--noincrement', action="store_true",
+                        help="Don't increase the build number.")
+    parser.add_argument('-c', '--clean', action="store_true",
+                        help="Clean the PyInstaller cache (fix 'end of file' errors)")
+    parser.add_argument('-a', '--allowDirty', action="store_true",
+                        help=("Allow builds if the git repo is 'dirty' (i.e. has "
+                              "uncommitted changes)"))
+    parser.add_argument('-p', '--preview', action="store_true",
+                        help="Don't build, just preview.")
+    args = parser.parse_args()
     
-    thisBuildNumber = BUILD_NUMBER - 1 if args.noincrement else BUILD_NUMBER
-    thisBeta = args.beta is True
-    thisDebug = not (args.release or thisBeta)
-    thisTime = time.time()
+    #===============================================================================
+    # 
+    #===============================================================================
     
-    thisBranch = thisCommit = None
+    t0 = datetime.now()
+    
+    try:
+        repo = Repo('.')
+    except InvalidGitRepositoryError:
+        repo = None
+    
     if repo is not None:
-        try:
-            thisBranch = repo.active_branch
-            thisCommit = repo.commits()[0].id
-        except (AttributeError, IndexError):
-            pass 
+        if repo.is_dirty:
+            if args.allowDirty:
+                logger.warning("Repository is dirty, but ignoring it.")
+            else:
+                print("*** Repository is dirty! Commit all changes before building!")
+                exit(1)
     
-    if not args.preview:
-        writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname(), thisBranch, thisCommit)
-    versionString = '.'.join(map(str,thisVersion))
-
-except ImportError:
-    print "import error"
-    logger.warning("*** Couldn't read and/or change build number!")
-    thisBuildNumber = thisVersion = versionString = "Unknown"
-    thisDebug = True
-
-print "*"*78
-print ("*** Building Version %s, Build number %d," % (versionString,thisBuildNumber)),
-if thisDebug:
-    print "DEBUG version"
-elif thisBeta:
-    print "BETA version"
-else:
-    print "Release version"
-
-buildType = ''
-if thisDebug:
-    buildType = ' experimental'
-elif thisBeta:
-    buildType = ' beta'
-    
-buildArgs = {
-#     'dist_32': 'Slam Stick Lab v%s.%04d (32 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
-#     'dist_64': 'Slam Stick Lab v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
-    'dist_32': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
-    'dist_64': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
-    'options': '--clean' if args.clean else ''
-}
-
-# TODO: Generate release notes HTML from ReStructuredText TXT file.
-try:
-    print "Copying release notes to ABOUT directory..."
-    notes = util.changeFilename(RELEASE_NOTES_HTML, path="ABOUT")
-    copyfile(RELEASE_NOTES_HTML, notes)
-except (IOError):
-    print "Could not copy release notes!"
-
-bad = 0
-for i, build in enumerate(builds):
-    print("="*78),("\nBuild #%d: %s\n" % (i+1, build % buildArgs)),("="*78)
-    if args.preview:
-        bad = 0
-    else:
-        bad += subprocess.call(build % buildArgs, stdout=sys.stdout, stdin=sys.stdin, shell=True)
-
-try:        
-    setAllWindowsInfo(buildArgs, versionString, thisBuildNumber)
-except (IOError, WindowsError):
-    print "Could not set Windows version info!"
-
-print "*"*78
-print "Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now() - t0)
-
-if bad == len(builds):
-    print "Everything failed; restoring old build_info."
-    if not args.preview:
-        writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH, REPO_COMMIT_ID)
-else:
-    print "Version: %s, build %s, DEBUG=%s, BETA=%s" % (versionString, thisBuildNumber, thisDebug, thisBeta)
-    # Reset the DEBUG variable in the info file (local runs are always DEBUG)
-    if not args.preview:
-        writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, socket.gethostname(), thisBranch, thisCommit)
-
-if args.release and bad == 0:
-    print "*"*78
-    print "Everything is okay; updating version info file '%s'" % VERSION_INFO_FILE
-    info = updateJson(thisVersion, VERSION_INFO_FILE, preview=args.preview)
-    if args.preview:
-        print "PREVIEW of info file:", json.dumps(info)
-    else:
-        compressFiles(buildArgs)
-
-    # TEST
-    compressFiles(buildArgs)
+    try:
+        sys.path.append(HOME_DIR)
+        from build_info import VERSION, BETA, DEBUG, BUILD_NUMBER, BUILD_MACHINE, BUILD_TIME
+        from build_info import REPO_BRANCH, REPO_COMMIT_ID
         
-print "*"*78
+        if args.version is not None:
+            thisVersion = map(int, filter(len, args.version.split('.')))
+            thisVersion = tuple(thisVersion + ([0] * (3-len(thisVersion)))) 
+        else:
+            thisVersion = VERSION
+        
+        thisBuildNumber = BUILD_NUMBER - 1 if args.noincrement else BUILD_NUMBER
+        thisBeta = args.beta is True
+        thisDebug = not (args.release or thisBeta)
+        thisTime = time.time()
+        
+        thisBranch = thisCommit = None
+        if repo is not None:
+            try:
+                thisBranch = repo.active_branch
+                thisCommit = repo.commits()[0].id
+            except (AttributeError, IndexError):
+                pass 
+        
+        if not args.preview:
+            writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname(), thisBranch, thisCommit)
+        versionString = '.'.join(map(str,thisVersion))
+    
+    except ImportError:
+        print "import error"
+        logger.warning("*** Couldn't read and/or change build number!")
+        thisBuildNumber = thisVersion = versionString = "Unknown"
+        thisDebug = True
+    
+    print "*"*78
+    print ("*** Building Version %s, Build number %d," % (versionString,thisBuildNumber)),
+    if thisDebug:
+        print "DEBUG version"
+    elif thisBeta:
+        print "BETA version"
+    else:
+        print "Release version"
+    
+    buildType = ''
+    if thisDebug:
+        buildType = ' experimental'
+    elif thisBeta:
+        buildType = ' beta'
+        
+    buildArgs = {
+    #     'dist_32': 'Slam Stick Lab v%s.%04d (32 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
+    #     'dist_64': 'Slam Stick Lab v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
+        'dist_32': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
+        'dist_64': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
+        'options': '--clean' if args.clean else ''
+    }
+    
+    # TODO: Generate release notes HTML from ReStructuredText TXT file.
+    try:
+        print "Copying release notes to ABOUT directory..."
+        notes = util.changeFilename(RELEASE_NOTES_HTML, path="ABOUT")
+        copyfile(RELEASE_NOTES_HTML, notes)
+    except (IOError):
+        print "Could not copy release notes!"
+    
+    bad = 0
+    for i, build in enumerate(builds):
+        print("="*78),("\nBuild #%d: %s\n" % (i+1, build % buildArgs)),("="*78)
+        if args.preview:
+            bad = 0
+        else:
+            bad += subprocess.call(build % buildArgs, stdout=sys.stdout, stdin=sys.stdin, shell=True)
+    
+    try:
+        print "Setting Windows version information..."
+        setAllWindowsInfo(buildArgs, versionString, thisBuildNumber)
+    except (IOError, WindowsError):
+        print "Could not set Windows version info!"
+    
+    print "*"*78
+    print "Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now() - t0)
+    
+    if bad == len(builds):
+        print "Everything failed; restoring old build_info."
+        if not args.preview:
+            writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, BUILD_MACHINE, REPO_BRANCH, REPO_COMMIT_ID)
+    else:
+        print "Version: %s, build %s, DEBUG=%s, BETA=%s" % (versionString, thisBuildNumber, thisDebug, thisBeta)
+        # Reset the DEBUG variable in the info file (local runs are always DEBUG)
+        if not args.preview:
+            writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, socket.gethostname(), thisBranch, thisCommit)
+    
+    if args.release and bad == 0:
+        print "*"*78
+        print "Everything is okay; updating version info file '%s'" % VERSION_INFO_FILE
+        info = updateJson(thisVersion, VERSION_INFO_FILE, preview=args.preview)
+        if args.preview:
+            print "PREVIEW of info file:", json.dumps(info)
+        else:
+            compressFiles(buildArgs)
+    
+        # TEST
+        compressFiles(buildArgs)
+            
+    print "*"*78
