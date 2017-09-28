@@ -114,19 +114,25 @@ def compressFiles(args):
         break
                 
 
-def setWindowsInfo(filename, version, buildNum, comment=None, year=None):
+def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None, year=None):
     """ Set the Windows application information using verpatch.
     """
     year = datetime.now().year if year is None else year
 
     if isinstance(version, (list, tuple)):
         version = '.'.join(map(str, version))
-    fileVersion = "%s.%s" % (version, buildNum)
+    version = "%s.%s" % (version, buildNum)
+    fileVersion = version
+    
+    if isinstance(suffix, basestring):
+        suffix = suffix.strip() 
+        if suffix:
+            fileVersion = "%s %s" % (version, suffix)
 
-    cmd = ('%(verpatch)s "%(app)s" %(fileVersion)s /va /high '
+    cmd = ('%(verpatch)s "%(app)s" "%(fileVersion)s" /va '
            '/s company "Mide Technology Corporation" '
-           '/s copyright "(c) %(year)s" '
-           '/pv %(productVersion)s '
+           '/s copyright "(c) %(year)s %(company)s" '
+           '/pv "%(productVersion)s" '
            '/s desc "Utility for configuring and analyzing data from Slam Stick data recorders." '
            '/s product "Slam Stick Lab"')
 
@@ -140,17 +146,19 @@ def setWindowsInfo(filename, version, buildNum, comment=None, year=None):
     if comment is not None:
         cmd += '/sc %(comment)r'
         
-#     print repr(cmd % args)
+    print repr(cmd % args)
     subprocess.call(cmd % args, stdout=sys.stdout, stdin=sys.stdin, shell=True)
 
 
-def setAllWindowsInfo(args, version, buildNum, comment=None, year=None):
+def setAllWindowsInfo(args, version, buildNum, suffix=None, comment=None, year=None):
+    exes = set()
     for k,v in args.items():
         if not k.startswith('dist_'):
             continue
-        exes = glob(os.path.join(v, '*.exe'))
-        for ex in exes:
-            setWindowsInfo(ex, version, buildNum, comment, year)
+        exes.update(glob(os.path.join(v, '*.exe')))
+
+    for ex in exes:
+        setWindowsInfo(ex, version, buildNum, suffix, comment, year)
             
             
 #===============================================================================
@@ -271,7 +279,8 @@ if __name__ == "__main__":
     
     try:
         print "Setting Windows version information..."
-        setAllWindowsInfo(buildArgs, versionString, thisBuildNumber)
+        
+        setAllWindowsInfo(buildArgs, versionString, thisBuildNumber, buildType)
     except (IOError, WindowsError):
         print "Could not set Windows version info!"
     
