@@ -10,6 +10,8 @@ import os.path
 
 import wx
 
+import hub_icons
+
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
@@ -33,19 +35,35 @@ class HidingTaskBarIcon(wx.TaskBarIcon):
         super(HidingTaskBarIcon, self).__init__()
         
         # XXX: Icon needs to be somewhere else for a 'real' version.
-        img = wx.Image(os.path.realpath('../images_work/ssl-24x24.png'), wx.BITMAP_TYPE_ANY)
+        img = wx.Image('hub_tray_icon.png', wx.BITMAP_TYPE_ANY)
         bmp = wx.BitmapFromImage(img)
         self.icon = wx.EmptyIcon()
         self.icon.CopyFromBitmap(bmp)
+
+        self.hidden = True
+
+        self.icon = hub_icons.hub_tray_icon.GetIcon()
+        self.busyIcon = hub_icons.hub_tray_icon_active.GetIcon()
         
         self.Bind(wx.EVT_TASKBAR_LEFT_DOWN, self.OnTaskBarLeftClick)
+
     
+    def setActive(self, active=True):
+        if self.hidden:
+            return
+        if active:
+            self.SetIcon(self.busyIcon, self.label)
+        else:
+            self.SetIcon(self.icon, self.label)
+
     
     def Hide(self):
+        self.hidden = True
         self.RemoveIcon()
     
     
     def Show(self):
+        self.hidden = False
         self.SetIcon(self.icon, self.label)
     
     
@@ -84,9 +102,12 @@ class HubDialog(DevSelDlg):
         """
         """
         self.drifts = {}
+        self.tbIcon = HidingTaskBarIcon(self)
+        
         super(HubDialog, self).__init__(*args, **kwargs)
         
-        self.iconInit()
+        self.Bind(wx.EVT_ICONIZE, self.OnMinimize)
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
         
         self.baseTitle = self.GetTitle()
         self.nextClockSet = 0
@@ -102,12 +123,6 @@ class HubDialog(DevSelDlg):
         self.TimerHandler(None)
 
     
-    def iconInit(self):
-        self.tbIcon = HidingTaskBarIcon(self)
-        self.Bind(wx.EVT_ICONIZE, self.OnMinimize)
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
-
-
     def OnMinimize(self, evt):
         if self.IsIconized():
             self.tbIcon.Show()
@@ -133,12 +148,17 @@ class HubDialog(DevSelDlg):
 
     def setClocks(self, evt=None):
         if not self.recorders:
-            return 
+            return
+         
+        self.tbIcon.setActive()
+            
         super(HubDialog, self).setClocks(evt)
         ts = str(datetime.now()).rsplit('.',1)[0]
         self.SetTitle("%s (last set at %s)" % (self.baseTitle, ts))
         self.nextClockSet = time.time() + self.SET_INTERVAL
 
+        self.tbIcon.setActive(False)
+            
 
     def _thing2string(self, dev, col):
         try:
@@ -153,6 +173,7 @@ class HubDialog(DevSelDlg):
 
 
     def populateList(self):
+        self.tbIcon.setActive()
         DevSelDlg.populateList(self)
         
         # Remove time drift for unplugged devices
@@ -160,7 +181,9 @@ class HubDialog(DevSelDlg):
         for d in self.drifts.keys():
             if d not in serials:
                 self.drifts.pop(d)
-            
+                
+        self.tbIcon.setActive(False)
+
 
 
 #===============================================================================
