@@ -130,7 +130,7 @@ def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None, year=
             fileVersion = "%s %s" % (version, suffix)
 
     cmd = ('%(verpatch)s "%(app)s" "%(fileVersion)s" /va '
-           '/s company "Mide Technology Corporation" '
+           '/s company "%(company)s" '
            '/s copyright "(c) %(year)s %(company)s" '
            '/pv "%(productVersion)s" '
            '/s desc "Utility for configuring and analyzing data from Slam Stick data recorders." '
@@ -140,6 +140,7 @@ def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None, year=
             'app': filename,
             'fileVersion': fileVersion,
             'productVersion': version,
+            'company': "Mide Technology Corporation",
             'year': year,
             'comment': comment}
 
