@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <Mide.Ss.ConfigDocument>
     <ConfigUI>
-        <Tab>
+        <Tab id="GeneralTab">
             <Label value="General"/>
             <TextField>
                 <Label value="Device Name"/>
@@ -60,7 +60,7 @@
             <ResetButton></ResetButton>
         </Tab>
 
-        <Tab>
+        <Tab id="TriggersTab">
             <Label value="Triggers"/>
             <CheckUIntField>
                 <Label value="Recording Delay/Interval"/>
@@ -174,7 +174,7 @@
             <ResetButton></ResetButton>
         </Tab>
 
-        <Tab>
+        <Tab id="ChannelsTab">
             <Label value="Channels"/>
             <BitField id="AnalogChannelMap">
                 <!-- Populated dynamically from the recorder properties!
@@ -248,6 +248,58 @@
                     <Label value="Enable Temperature"/>
                 </EnumOption>
             </BitField>
+
+            <!-- This will be automatically removed if the recorder doesn't support it -->
+            <BitField channel="FastPT">  <!-- 'channel' used when removing items not applicable to the given recorder -->
+                <Label value="Channel 59: Fast Temperature/Pressure"/>
+                <ConfigID value="0x06ff3b"/>
+                <UIntValue value="3"/>
+                <EnumOption>
+                    <Label value="Enable Pressure"/>
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Enable Temperature"/>
+                </EnumOption>
+            </BitField>
+            <Group channel="FastPT"> <!-- 'channel' used when removing items not applicable to the given recorder -->
+                <CheckEnumField>
+                    <Label value="Sample Frequency"/>
+                    <ConfigID value="0x82ff20"/>
+                    <UIntValue value="10"/>
+                    <Units value="Hz"/>
+                    <DisableIf value="not Config[0x06ff3b]"/>
+                    <EnumOption>
+                        <UIntValue value="10"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="9"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="8"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="7"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="6"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="5"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="4"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="3"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="2"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="1"/>
+                    </EnumOption>
+                </CheckEnumField>
+            </Group>
 
             <VerticalPadding></VerticalPadding>
             <ResetButton></ResetButton>

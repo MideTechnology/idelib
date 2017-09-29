@@ -194,7 +194,7 @@
                 </EnumOption>
                 -->
             </BitField>
-            <BitField channel="DCAccel">
+            <BitField channel="DCAccel"> <!-- 'channel' used when removing items not applicable to the given recorder -->
                 <Label value="Channel 32: Low-g Accelerometer"/>
                 <ConfigID value="0x01ff20"/>
                 <UIntValue value="1"/>
@@ -202,7 +202,7 @@
                     <Label value="Enable All Axes"/>
                 </EnumOption>
             </BitField>
-            <Group channel="DCAccel">
+            <Group channel="DCAccel"> <!-- 'channel' used when removing items not applicable to the given recorder -->
                 <CheckEnumField>
                     <Label value="Sample Frequency"/>
                     <ConfigID value="0x82ff20"/>
@@ -240,7 +240,7 @@
             </Group>
 
             <!-- This will be automatically removed if the recorder doesn't support it -->
-            <BitField channel="FastPT">
+            <BitField channel="FastPT">  <!-- 'channel' used when removing items not applicable to the given recorder -->
                 <Label value="Channel 59: Fast Temperature/Pressure"/>
                 <ConfigID value="0x06ff3b"/>
                 <UIntValue value="3"/>
@@ -251,7 +251,7 @@
                     <Label value="Enable Temperature"/>
                 </EnumOption>
             </BitField>
-            <Group channel="FastPT">
+            <Group channel="FastPT"> <!-- 'channel' used when removing items not applicable to the given recorder -->
                 <CheckEnumField>
                     <Label value="Sample Frequency"/>
                     <ConfigID value="0x82ff20"/>
@@ -290,7 +290,7 @@
                     </EnumOption>
                 </CheckEnumField>
             </Group>
-            -->
+
             <VerticalPadding></VerticalPadding>
             <ResetButton></ResetButton>
         </Tab>
