@@ -1934,7 +1934,6 @@ class ConfigDialog(SC.SizedDialog):
         filename = getattr(self.device, 'configUIFile', None)
         if filename is None or not os.path.exists(filename):
             # Load default ConfigUI for the device from static XML.
-            logger.info('Loading default ConfigUI for %s' % self.device.partNumber)
             self.useLegacyConfig = True
             self.hints = legacy.loadConfigUI(self.device)
         else:
@@ -2246,7 +2245,8 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
     if isinstance(dev, devices.SlamStickClassic):
         return classic.configureRecorder(path, saveOnOk, setTime, useUtc, parent)
 
-    
+    # remove
+    global dlg
     dlg = ConfigDialog(parent, hints=hints, device=dev, setTime=setTime,
                        useUtc=useUtc, keepUnknownItems=keepUnknownItems,
                        saveOnOk=saveOnOk)
@@ -2276,6 +2276,7 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
 
 # XXX: Remove all this debugging stuff
 __DEBUG__ = not True
+dlg = None
 
 if __name__ == "__main__":
     from mide_ebml.ebmlite import util

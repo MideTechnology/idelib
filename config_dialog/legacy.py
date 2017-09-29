@@ -21,20 +21,16 @@ from mide_ebml.ebmlite import loadSchema, util
 
 DEFAULTS_PATH = os.path.join(os.path.dirname(__file__), 'defaults')
 
-# Not sure why this needs to be configured again; I thought getLogger would
-# get the same one as gotten in `base`.
 import logging
-logger = logging.getLogger('SlamStickLab.ConfigUI.legacy')
-logger.setLevel(logging.INFO)
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger('SlamStickLab.ConfigUI')
 
 #===============================================================================
 # 
 #===============================================================================
 
-def getUiTemplate(device):
-    partNum = getattr(device, 'partNumber', 'LOG-0002-100G-DC')
-    
+def getUiTemplate(partNum):
+    """ Get the default UI template for the given part number.
+    """
     # First, look for an exact match to the part number.
     filename = os.path.join(DEFAULTS_PATH, partNum + ".xml")
     if os.path.exists(filename):
@@ -48,19 +44,54 @@ def getUiTemplate(device):
     
     # Get a more generic template and fill in the details.
     base = partNum[:8]
-    dc = "-DC" if partNum.endswith('DC') else ''
-    return os.path.join(DEFAULTS_PATH, "%s-xxxG%s.xml" % (base, dc)) 
+    filename = os.path.join(DEFAULTS_PATH, "%s-xxxG.xml" % base) 
+    if os.path.exists(filename):
+        return filename
     
+    # Not found! XXX: Should this return a default instead?
+    return None
  
 
 def loadConfigUI(device, showAdvanced=False):
     """ Load a default configuration UI from a static XML file. For recorders
-        running old firmware that doesn't supply a ``CONFIG.UI`` file.
+        running old firmware that doesn't supply a ``CONFIG.UI`` file. The
+        template gets modified according to specific properties of the recorder
+        that aren't conveyed in the part number.
     """
-    filename = getUiTemplate(device)
-    logging.info('Loading default UI template %s' % os.path.basename(filename))
+    partNum = getattr(device, 'partNumber', 'LOG-0002-100G')
+    filename = getUiTemplate(partNum)
+    
+    if filename is None:
+        logger.error("Could not find a template for device %s!", partNum)
+        return None
+    
+    logger.info('Loading legacy UI template %s for device %s' % 
+                (os.path.basename(filename), partNum))
     
     doc = ET.parse(filename)
+    
+    # Double special case: Remove/modify options for old firmware versions.
+    if device.firmwareVersion < 6:
+        # Old SSX could not trigger on DC accelerometer
+        if "Slam Stick X" in device.productName:
+            tab = doc.find(".//Tab[@id='TriggersTab']")
+            for el in tab.findall("CheckGroup[@id='DCAccelTrigger']"):
+                tab.remove(el)
+        
+        # Recording delay and wake time were mutually exclusive on old SSX.
+        # The label and tooltip text on the delay field are also different.
+        delayEl = doc.find(".//*[@id='RecordingDelay']/DisableIf")
+        wakeEl = doc.find(".//*[@id='WakeTime']/DisableIf")
+        delayLabel = doc.find(".//*[@id='RecordingDelay']/Label")
+        delayHelp = doc.find(".//*[@id='RecordingDelay']/ToolTip")
+        if delayEl is not None and wakeEl is not None:
+            delayEl.set('value', "Config[0x0fff7f]")
+            wakeEl.set('value', "Config[0x0cff7f]")
+        if delayLabel is not None:
+            delayLabel.set('value', "Wake After Delay:")
+        if delayHelp is not None:
+            delayHelp.set('value', "Time between the button press and the "
+                          "start of the recording, in seconds.")
     
     # Dynamically update the analog accelerometer trigger ranges and gain
     accelRange = None
@@ -78,20 +109,25 @@ def loadConfigUI(device, showAdvanced=False):
             for gain in analogTrig.findall("FloatAccelerationField/FloatGain"):
                 gain.set('value', str((accelRange[1]-accelRange[0])/2**16))
     
-    # Dynamically update the DC accelerometer trigger ranges. 
-    dcAccelRange = None
+    # Dynamically update the DC accelerometer trigger ranges. If there is no
+    # DC accelerometer, remove the fields.
     dcChannel = device.getAccelChannel(dc=True)
-    if dcChannel is not None:
+    if dcChannel is None:
+        # No DC accelerometer: just remove all references to it on all tabs.
+        for tab in doc.findall('.//Tab'):
+            for el in tab.findall("*[@channel='DCAccel']"):
+                tab.remove(el)
+    else:
+        # There is a DC accelerometer. Update the DC accelerometer ranges.
         dcAccelRange = device.getAccelRange(dcChannel.id)
-    
-    if dcAccelRange is not None:
-        dcTrig = doc.find(".//CheckGroup[@id='DCAccelTrigger']")
-        if dcTrig is not None:
-            for lo in dcTrig.findall("FloatAccelerationField/FloatMin"):
-                lo.set('value',str(dcAccelRange[0]))
-            for hi in dcTrig.findall("FloatAccelerationField/FloatMax"):
-                hi.set('value',str(dcAccelRange[1]))
-            # No gain for DC.
+        if dcAccelRange is not None:
+            dcTrig = doc.find(".//CheckGroup[@id='DCAccelTrigger']")
+            if dcTrig is not None:
+                for lo in dcTrig.findall("FloatAccelerationField/FloatMin"):
+                    lo.set('value',str(dcAccelRange[0]))
+                for hi in dcTrig.findall("FloatAccelerationField/FloatMax"):
+                    hi.set('value',str(dcAccelRange[1]))
+                # No gain for DC.
     
     # Update the analog channels in the Channels tab
     # The elements are created here, not just updated.
@@ -112,7 +148,14 @@ def loadConfigUI(device, showAdvanced=False):
             enables = (enables << 1) | 1
         
         ET.SubElement(analogMap, 'UIntValue', {'value': str(enables)})
-        
+
+    # Remove the membrane sensors if the recorder doesn't have them.
+    channels = device.getChannels()
+    if 59 not in channels:
+        tab = doc.find(".//Tab[@id='ChannelsTab']")
+        for el in tab.findall("*[@channel='FastPT']"):
+            tab.remove(el)
+    
     return util.loadXml(doc, loadSchema('config_ui.xml'))
 
 
