@@ -12,8 +12,9 @@ from collections import OrderedDict
 from datetime import datetime
 import time
 
+import wx #@UnusedImport
 from wx.html import HtmlWindow
-import wx; wx = wx
+import  wx.lib.wxpTag #@UnusedImport - simply importing it does the work.
 
 from common import cleanUnicode
 from widgets.calibration_editor import PolyEditDialog
@@ -196,6 +197,7 @@ class InfoPanel(HtmlWindow):
         href = linkinfo.GetHref()
         if href.startswith("viewer:"):
             # Link to a channel at a specific time.
+            # Not yet implemented!
             href = href.replace('viewer', '')
             base, t = href.split("@")
             chid, subchid = base.split('.')
@@ -450,7 +452,6 @@ class CalibrationPanel(InfoPanel):
 
         self.html.append("</body></html>")
         self.SetPage(''.join(self.html))
-        
 
 
 class EditableCalibrationPanel(wx.Panel):
@@ -461,7 +462,7 @@ class EditableCalibrationPanel(wx.Panel):
     # TODO: Refactor this as the only Calibration panel and use only it.
     # Having them separate is a hack done for expedience.
     def __init__(self, parent, id_, calSerial=None, calDate=None, 
-                 calExpiry=None, editable=False, info={}, root=None,
+                 calExpiry=None, editable=True, info={}, root=None,
                  factoryCal=None, channels=None, **kwargs):
         self.editable = editable
         self.calSerial = calSerial

@@ -16,48 +16,22 @@
                 <ToolTip value="Custom notes about the recorder (position, user ID, etc.). 256 characters maximum."/>
                 <TextLines value="3"/>
             </TextField>
-                <CheckEnumField>
-                    <Label value="Sample Frequency"/>
-                    <ConfigID value="0x82ff20"/>
-                    <UIntValue value="3200"/>
-                    <DisableIf value="not Config[0x6ff20]"/>
-                    <EnumOption>
-                        <UIntValue value="3200"/>
-                        <Label value="3200 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="1600"/>
-                        <Label value="1600 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="800"/>
-                        <Label value="800 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="400"/>
-                        <Label value="400 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="200"/>
-                        <Label value="200 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="100"/>
-                        <Label value="100 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="50"/>
-                        <Label value="50 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="25"/>
-                        <Label value="25 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="12"/>
-                        <Label value="12 Hz"/>
-                    </EnumOption>
-                </CheckEnumField>
+            <CheckUIntField>
+                <Label value="Sample Frequency"/>
+                <ConfigID value="0x2ff08"/>
+                <UIntValue value="5000"/>
+                <Units value="Hz"/>
+                <UIntMin value="10"/>
+                <UIntMax value="20000"/>
+            </CheckUIntField>
+            <CheckUIntField>
+                <Label value="Override Antialiasing Filter Cutoff"/>
+                <ConfigID value="0x08ff08"/>
+                <UIntValue value="1000"/>
+                <Units value="Hz"/>
+                <UIntMax value="5000"/>
+                <ToolTip value="Set this value to override default filter of one-fifth the sample frequency."/>
+            </CheckUIntField>
             <CheckEnumField>
                 <Label value="Plug-In Action"/>
                 <ConfigID value="0xaff7f"/>
@@ -77,7 +51,7 @@
                 </EnumOption>
             </CheckEnumField>
             <CheckUTCOffsetField>
-                <!-- <Label value="Local UTC Offset"/> -->
+                <!-- <Label value="Local UTC Offset"/> (Default for field) -->
                 <ConfigID value="0x0bff7f"/>
                 <ToolTip value="Enter local timezone's offset from UTC time. Impacts timestamp information on recording files."/>
             </CheckUTCOffsetField>
@@ -119,8 +93,8 @@
                     <ConfigID value="0x030024"/>
                     <UIntValue value="110000"/>
                     <UIntMax value="90000"/>
-                    <!-- <UIntValue value="5760000"/> -->
-                    <!-- <FloatGain value="0.015625"/> -->
+                    <!-- <UIntValue value="5760000"/> (Default for field type) -->
+                    <!-- <FloatGain value="0.015625"/> (Default for field type) -->
                 </IntPressureField>
                 <IntPressureField>
                     <Label value="Pressure Trigger, High"/>
@@ -128,8 +102,8 @@
                     <ConfigID value="0x040024"/>
                     <UIntMax value="120000"/>
                     <UIntValue value="110000"/>
-                    <!-- <UIntValue value="7040000"/> -->
-                    <!-- <FloatGain value="0.015625"/> -->
+                    <!-- <UIntValue value="7040000"/> (Default for field type) -->
+                    <!-- <FloatGain value="0.015625"/> (Default for field type) -->
                 </IntPressureField>
             </CheckGroup>
             <CheckGroup>
@@ -139,16 +113,36 @@
                     <Label value="Temperature Trigger, Low"/>
                     <ConfigID value="0x030124"/>
                     <IntValue value="-15"/>
-                    <!-- <IntValue value="-3840"/> -->
-                    <!-- <FloatGain value="0.00390625" /> -->
+                    <!-- <IntValue value="-3840"/> (Default for field type) -->
+                    <!-- <FloatGain value="0.00390625" /> (Default for field type) -->
                 </FloatTemperatureField>
                 <FloatTemperatureField>
                     <Label value="Temperature Trigger, High"/>
                     <ConfigID value="0x040124"/>
                     <IntValue value="35"/>
-                    <!-- <IntValue value="8960"/> -->
-                    <!-- <FloatGain value="0.00390625" /> -->
+                    <!-- <IntValue value="8960"/> (Default for field type) -->
+                    <!-- <FloatGain value="0.00390625" /> (Default for field type) -->
                 </FloatTemperatureField>
+            </CheckGroup>
+            <CheckGroup id="AnalogAccelTrigger">
+                <Label value="Acceleration Trigger (Analog)"/>
+                <ConfigID value="0x05ff08"/>
+                <FloatAccelerationField>
+                    <Label value="Acceleration Trigger, Low"/>
+                    <ConfigID value="0x03ff08"/>
+                    <IntValue value="-1638" id="AnalogLowDefault"/>
+                    <FloatMin value="-100.0"/>
+                    <FloatMax value="100.0"/>
+                    <FloatGain value="0.003051804" />
+                </FloatAccelerationField>
+                <FloatAccelerationField>
+                    <Label value="Acceleration Trigger, High"/>
+                    <ConfigID value="0x04ff08"/>
+                    <IntValue value="1638" id="AnalogHighDefault"/>
+                    <FloatMin value="-100.0"/>
+                    <FloatMax value="100.0"/>
+                    <FloatGain value="0.003051804" />
+                </FloatAccelerationField>
             </CheckGroup>
             <CheckGroup id="DCAccelTrigger">
                 <Label value="Acceleration Trigger (DC)"/> <!-- Note that the group itself has no ConfigID! -->
@@ -183,20 +177,68 @@
         <Tab>
             <Label value="Channels"/>
             <BitField id="AnalogChannelMap">
-                <!-- Populated dynamically -->
+                <!-- Populated dynamically from the recorder properties!
+                <Label value="Main Accelerometer (Channel 8)"/>
+                <ConfigID value="0x01ff08"/>
+                <UIntValue value="7"/>
+                <EnumOption>
+                    <Label value="Enable X Axis"/>
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Enable Y Axis"/>
+                </EnumOption>
+                <EnumOption>
+                    <Label value="Enable Z Axis"/>
+                </EnumOption>
+                -->
             </BitField>
-
-             <BitField>
-                <Label value="Low-g Accelerometer (Channel 32)"/>
-                <ConfigID value="0x06ff20"/>
+            <BitField>
+                <Label value="Channel 32: Low-g Accelerometer"/>
+                <ConfigID value="0x01ff20"/>
                 <UIntValue value="1"/>
                 <EnumOption>
                     <Label value="Enable All Axes"/>
                 </EnumOption>
             </BitField>
+            <Group>
+                <CheckEnumField>
+                    <Label value="Sample Frequency"/>
+                    <ConfigID value="0x82ff20"/>
+                    <UIntValue value="3200"/>
+                    <Units value="Hz"/>
+                    <DisableIf value="not Config[0x01ff20]"/>
+                    <EnumOption>
+                        <UIntValue value="3200"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="1600"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="800"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="400"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="200"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="100"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="50"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="25"/>
+                    </EnumOption>
+                    <EnumOption>
+                        <UIntValue value="12"/>
+                    </EnumOption>
+                </CheckEnumField>
+            </Group>
 
             <BitField>
-                <Label value="Temperature/Pressure (Channel 36)"/>
+                <Label value="Channel 36: Temperature/Pressure"/>
                 <ConfigID value="0x06ff24"/>
                 <UIntValue value="3"/>
                 <EnumOption>
