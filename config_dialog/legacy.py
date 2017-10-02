@@ -53,10 +53,10 @@ def getUiTemplate(partNum):
  
 
 def loadConfigUI(device, showAdvanced=False):
-    """ Load a default configuration UI from a static XML file. For recorders
-        running old firmware that doesn't supply a ``CONFIG.UI`` file. The
-        template gets modified according to specific properties of the recorder
-        that aren't conveyed in the part number.
+    """ Load a default configuration UI from a static XML file. The template 
+        gets modified according to specific properties of the recorder that 
+        aren't conveyed in the part number. For recorders running old firmware
+        that doesn't supply a ``CONFIG.UI`` file. 
     """
     partNum = getattr(device, 'partNumber', 'LOG-0002-100G')
     filename = getUiTemplate(partNum)
@@ -176,6 +176,7 @@ def _copyItems(oldD, newD, *keyPairs):
 def loadConfigData(device):
     """ Load old configuration data and return it in the new format.
     """
+    logger.info("Loading legacy configuration format")
     config = device.getConfig(refresh=True).copy()
     newData = {}
 
@@ -262,10 +263,10 @@ def loadConfigData(device):
 
 
 def saveConfigData(configData, device):
-    """ Save new configuration data in the old format. The `configData` should
-        not contain any `None` values.
+    """ Save new configuration data in the old format. Note: the `configData`
+        should not contain any `None` values; these will be ignored.
     """
-    print "saving legacy"
+    logger.info("Saving config.cfg in legacy configuration format")
     # Copy the data, just in case.
     configData = configData.copy()
     
