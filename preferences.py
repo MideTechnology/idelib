@@ -92,7 +92,18 @@ class Preferences(object):
                        "20.1": wx.Colour(100,255,100), # Acceleration Y (DC)
                        "20.2": wx.Colour(100,100,255), # Acceleration Z (DC)
                        "24.0": "DARK GREEN",           # Pressure
-                       "24.1": "VIOLET"                # Temperature
+                       "24.1": "VIOLET",               # Temperature
+    
+                       # Control Pad/Fast pressure/temperature
+                       "5b.0": "LIGHT GREEN",
+                       "5b.2": "MAGENTA",
+                       
+                       # IMU Quaternion data
+                       "35.0": "YELLOW",
+                       "35.1": "NAVY",
+                       "35.2": "CYAN",
+                       "35.3": "GOLD",
+                       "35.4": "BLUE VIOLET",
         },
         # default colors: used for subchannel plots not in plotColors
         'defaultColors': ["DARK GREEN",

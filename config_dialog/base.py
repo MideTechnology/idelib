@@ -1850,7 +1850,6 @@ class ConfigDialog(SC.SizedDialog):
         if self.hints is None:
             self.loadConfigUI()
         
-
         kwargs.setdefault("title", "Configure %s" % devName)
         kwargs.setdefault("style", wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         
@@ -1870,6 +1869,8 @@ class ConfigDialog(SC.SizedDialog):
                                    'null': None}
         
         self.tabs = []
+        self.useLegacyConfig = False
+        
         self.buildUI()
         self.loadConfigData()
 
@@ -1929,12 +1930,10 @@ class ConfigDialog(SC.SizedDialog):
             generic version is created.
         """
         self.hints = defaults
-        self.useLegacyConfig = False
         
         filename = getattr(self.device, 'configUIFile', None)
         if filename is None or not os.path.exists(filename):
             # Load default ConfigUI for the device from static XML.
-            self.useLegacyConfig = True
             self.hints = legacy.loadConfigUI(self.device)
         else:
             logger.info('Loading ConfigUI from %s' % filename)
@@ -1967,14 +1966,21 @@ class ConfigDialog(SC.SizedDialog):
         # Mostly for testing. Will probably be removed.
         if self.device is None:
             self.configData = self.origConfigData = {}
-            return
+            return self.configData
         
-        if self.useLegacyConfig:
-            self.configData = legacy.loadConfigData(self.device)
-            self.origConfigData = self.configData.copy()
-        else:
-            self.configData = self.device.getConfigItems()
-
+        # First, try to get the new config ID/value data.
+        self.configData = self.device.getConfigItems()
+        if not self.configData:
+            # Try to get the legacy config data.
+            if self.device.getConfig():
+                self.configData = legacy.loadConfigData(self.device)
+                self.useLegacyConfig = True
+            else:
+                # No config data. Use version appropriate for FW version.
+                self.useLegacyConfig = self.device.firmwareVersion <= 13
+                self.configData = {}
+            
+                
         self.origConfigData = self.configData.copy()
         
         self.applyConfigData(self.configData)
