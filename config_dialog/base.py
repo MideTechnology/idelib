@@ -1977,7 +1977,7 @@ class ConfigDialog(SC.SizedDialog):
                 self.useLegacyConfig = True
             else:
                 # No config data. Use version appropriate for FW version.
-                self.useLegacyConfig = self.device.firmwareVersion <= 13
+                self.useLegacyConfig = self.device.firmwareVersion < 13
                 self.configData = {}
             
                 
@@ -2273,7 +2273,7 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
     if result is None:
         return None
     
-    return result, setTime, useUtc
+    return result, setTime, useUtc, dev
 
 
 #===============================================================================
