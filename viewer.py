@@ -1649,12 +1649,14 @@ class Viewer(wx.Frame, MenuMixin):
     def OnDeviceConfigMenu(self, evt):
         """ Handle Device->Configure Device menu events.
         """
+        showAdvanced = self.app.getPref('showAdvancedOptions', False)
         useUtc = self.app.getPref('configure.useUtc', True)
         setTime = self.app.getPref('configure.setTime', True)
         dev = selectDevice()
         if dev is not None:
             result = config_dialog.configureRecorder(dev, setTime=setTime, 
-                                                     useUtc=useUtc, parent=self)
+                                                     useUtc=useUtc, parent=self,
+                                                     showAdvanced=showAdvanced)
             if result is not None:
                 self.app.setPref('configure.setTime', result[1])
                 self.app.setPref('configure.useUtc', result[2])

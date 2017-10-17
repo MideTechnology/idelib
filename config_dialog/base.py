@@ -43,7 +43,7 @@ logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 import errno
 from fnmatch import fnmatch
-import os.path
+import os
 import string
 import time
 
@@ -1836,6 +1836,7 @@ class ConfigDialog(SC.SizedDialog):
         self.keepUnknown = kwargs.pop('keepUnknownItems', False)
         self.saveOnOk = kwargs.pop('saveOnOk', True)
         self.useUtc = kwargs.pop('useUtc', True)
+        self.showAdvanced = kwargs.pop('showAdvanced', False)
         
         try:
             devName = self.device.productName
@@ -2159,16 +2160,49 @@ class ConfigDialog(SC.SizedDialog):
         
         try:
             self.saveConfigData()
+            
         except IOError as err:
             msg = ("An error occurred when trying to update the recorder's "
-                   "configuration data.")
+                   "configuration data.\n\n")
             if err.errno == errno.ENOENT:
-                msg += "\nThe recorder appears to have been removed."
+                msg += "The recorder appears to have been removed"
+            else:
+                msg += os.strerror(err.errno)
+                 
+            if self.showAdvanced:
+                if err.errno in errno.errorcode:
+                    msg += " (%s)" % errno.errorcode[err.errno]
+                else:
+                    msg += " (error code %d)" % err.errno
+             
+            if not msg.endswith(('.', '!')):
+                msg += "."
+             
             wx.MessageBox(msg, "Configuration Error", 
                           wx.OK|wx.OK_DEFAULT| wx.ICON_ERROR,
                           parent=self)
             evt.Skip()
             return
+        
+        except Exception as err:
+            if __DEBUG__:
+                raise
+            
+            msg = ("An unexpected %s occurred when trying to update the "
+                   "recorder's configuration data.\n\n" % err.__class__.__name__)
+            if self.showAdvanced:
+                msg += "%s" % str(err).capitalize()
+
+            if not msg.endswith(('.', '!')):
+                msg += "."
+
+            wx.MessageBox(msg, "Configuration Error", 
+                          wx.OK|wx.OK_DEFAULT| wx.ICON_ERROR,
+                          parent=self)
+            evt.Skip()
+            return
+
+            
         
         # Handle other exceptions here if need be.
         
@@ -2213,7 +2247,7 @@ class ConfigDialog(SC.SizedDialog):
 
 def configureRecorder(path, setTime=True, useUtc=True, parent=None,
                       keepUnknownItems=True, hints=None, saveOnOk=True, 
-                      modal=True):
+                      modal=True, showAdvanced=False):
     """ Create the configuration dialog for a recording device. 
     
         @param path: The path to the data recorder (e.g. a mount point under
@@ -2255,7 +2289,7 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
     global dlg
     dlg = ConfigDialog(parent, hints=hints, device=dev, setTime=setTime,
                        useUtc=useUtc, keepUnknownItems=keepUnknownItems,
-                       saveOnOk=saveOnOk)
+                       saveOnOk=saveOnOk, showAdvanced=showAdvanced)
     
     if modal:
         dlg.ShowModal()
@@ -2305,7 +2339,7 @@ if __name__ == "__main__":
     app = wx.App()
 
     d = configureRecorder(device, hints=hints, modal=not __DEBUG__, 
-                          useUtc=False, saveOnOk=True)
+                          useUtc=False, saveOnOk=True, showAdvanced=True)
     
     if __DEBUG__:
         # Show the Python shell. NOTE: dialog is non-modal; closing the windows
