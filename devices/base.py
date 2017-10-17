@@ -93,6 +93,12 @@ class Recorder(object):
         self._defaultHwRev = 0
 
 
+    def __repr__(self):
+        path = self.path or "virtual"
+        s = object.__repr__(self)
+        return s.replace(" object ", " (%s) " % path)
+    
+
     @classmethod
     def _isRecorder(cls, dev, strict=True):
         """ Basic test whether a path points to a recorder. """
@@ -397,6 +403,21 @@ class Recorder(object):
         """
         sysTime, devTime = self.getTime()
         return sysTime - devTime
+
+
+    def getFreeSpace(self):
+        """ Get the recorder's available storage space.
+            
+            @return: The recorders's free space, in megabytes.
+            @rtype: float
+        """
+        try:
+            if not self.path or not os.path.exists(self.path):
+                return None
+            return os_specific.getFreeSpace(self.path)
+        except (TypeError, IOError):
+            return None
+        
 
 
     

@@ -68,3 +68,13 @@ def deviceChanged(recordersOnly, types):
     return changed
 
 
+def getFreeSpace(path):
+    """ Return the free space (in megabytes) on a drive.
+        
+        @param path: The path to the drive to check. Can be a subdirectory.
+        @return: The free space on the drive, in megabytes.
+        @rtype: float
+    """
+    # TODO: Make sure this actually works. Should work on all POSIX OSes.
+    st = os.statvfs(path)
+    return st.f_bavail * st.f_frsize / 1024.0 / 1024.0

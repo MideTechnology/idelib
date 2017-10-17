@@ -9,7 +9,7 @@ import time
 
 import wx
 import wx.lib.sized_controls as sc
-import wx.lib.mixins.listctrl  as  listmix
+import wx.lib.mixins.listctrl as listmix
 
 from common import cleanUnicode
 from devices import getDevices, getDeviceList, RECORDER_TYPES
@@ -34,19 +34,26 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                ColumnInfo("Type", "productName", cleanUnicode, ''),
                ColumnInfo("Serial #", "serial", cleanUnicode, ''))
 
+
     class DeviceListCtrl(wx.ListCtrl, listmix.ListCtrlAutoWidthMixin):
+        # Required to create a sortable list
         def __init__(self, parent, ID, pos=wx.DefaultPosition,
                      size=wx.DefaultSize, style=0):
             wx.ListCtrl.__init__(self, parent, ID, pos, size, style)
-            listmix.ListCtrlAutoWidthMixin.__init__(self) #@UndefinedVariable - not sure why
+            listmix.ListCtrlAutoWidthMixin.__init__(self) 
             
 
     def GetListCtrl(self):
         # Required by ColumnSorterMixin
         return self.list
 
+
     def __init__(self, *args, **kwargs):
-        """
+        """ Constructor. Takes standard dialog arguments, plus:
+        
+            @keyword root: The parent object (e.g. a viewer window).
+            @keyword autoUpdate: The time between updates of the device list.
+            @keyword types: A list of known recorder subclasses.
         """
         style = wx.DEFAULT_DIALOG_STYLE \
             | wx.RESIZE_BORDER \
@@ -64,7 +71,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         
         self.recorders = {}
         self.recorderPaths = tuple(getDeviceList(types=self.deviceTypes))
-        self.listWidth = 300
+        self.listWidth = 400
         self.selected = None
         self.selectedIdx = None
         self.firstDrawing = True
@@ -109,7 +116,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
         self.Fit()
         self.SetSize((self.listWidth + (self.GetDialogBorder()*4),300))
-        self.SetMinSize((self.listWidth + (self.GetDialogBorder()*4),300))
+        self.SetMinSize((400,300))
         self.SetMaxSize((1500,600))
         
         self.Layout()
@@ -132,6 +139,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
 
     def TimerHandler(self, evt):
+        """ Handle timer 'tick' by refreshing device list.
+        """
         if deviceChanged(recordersOnly=True):
             self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
             newPaths = tuple(getDeviceList(types=self.deviceTypes))
@@ -143,26 +152,32 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
 
-
     def setItemIcon(self, index, dev):
         """ Set the warning icon and tool tips for recorders with problems.
         """
-        # TODO: Make this actually display a useful message (expired cal, etc.)
         tips = []
         icon = -1
         try:
             life = dev.getEstLife()
             calExp = dev.getCalExpiration()
+            freeSpace = dev.getFreeSpace()
+            if freeSpace is not None and freeSpace < 1:
+                tips.append("This device is nearly full (%.2f MB available). "
+                            "This may prevent configuration." % freeSpace)
+                icon = self.ICON_ERROR
             if life is not None and life < 0:
-                tips.append("This devices is %d days old; battery life may be limited." % dev.getAge())
+                tips.append("This devices is %d days old; battery life "
+                            "may be limited." % dev.getAge())
                 icon = max(icon, self.ICON_WARN)
             if calExp:
                 calExpDate = datetime.fromtimestamp(calExp).date()
                 if calExp < time.time():
-                    tips.append("This device's calibration has expired on %s." % calExpDate)
+                    tips.append("This device's calibration has expired on %s." 
+                                % calExpDate)
                     icon = max(icon, self.ICON_WARN)
                 elif calExp < time.time() - 8035200:
-                    tips.append("This device's calibration will expire on %s." % calExpDate)
+                    tips.append("This device's calibration will expire on %s." 
+                                % calExpDate)
                     icon = max(icon, self.ICON_INFO)
             
         except (AttributeError, KeyError):
@@ -180,6 +195,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
 
     def _thing2string(self, dev, col):
+        " Helper method for doing semi-smart formatting. "
         try:
             return col.formatter(getattr(dev, col.propName, col.default))
         except TypeError:
@@ -194,9 +210,9 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         for i, c in enumerate(self.COLUMNS):
             self.list.InsertColumn(i, c[0])
 
-        widths = [self.list.GetTextExtent(p)[0] for p in self.recorderPaths]
-        pathWidth = max(16, self.GetTextExtent(" Path ")[0], *widths) + 24
-                
+        minWidths = [self.list.GetTextExtent(c[0])[0] + 16 for c in self.COLUMNS]
+        minWidths[0] += 16
+        
         self.recorders = {}
         self.itemDataMap = {} # required by ColumnSorterMixin
         
@@ -209,11 +225,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         
         for dev in getDevices(self.recorderPaths):
             try:
-                path = dev.path
-                index = self.list.InsertStringItem(sys.maxint, path)
+                index = self.list.InsertStringItem(sys.maxint, dev.path)
                 self.recorders[index] = dev
-                self.list.SetColumnWidth(0, max(pathWidth,
-                                                self.GetTextExtent(path)[0]))
                 for i, col in enumerate(self.COLUMNS[1:], 1):
                     self.list.SetStringItem(index, i, self._thing2string(dev, col))
                     self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
@@ -234,6 +247,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                     "Device Error", parent=self)
                 self.list.DeleteItem(index)
 
+        for i, w in enumerate(minWidths):
+            if self.list.GetColumnWidth(i) < w:
+                self.list.SetColumnWidth(i, w)
+        
         if self.firstDrawing:
             self.list.Fit()
             self.firstDrawing = False
@@ -251,12 +268,14 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         # Required by ColumnSorterMixin
         evt.Skip()
 
+
     def OnItemSelected(self,evt):
         self.selected = self.list.GetItemData(evt.m_item.GetId())
         if self.listMsgs[self.selected] is not None:
             self.infoText.SetLabel(self.listMsgs[self.selected])
         self.okButton.Enable(True)
         evt.Skip()
+
 
     def OnItemDeselected(self, evt):
         self.selected = None
@@ -273,6 +292,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
 
     def OnListMouseMotion(self, evt):
+        """ Handle mouse movement, updating the tool tips, etc.
+        """
         # This determines the list item under the mouse and shows the
         # appropriate tool tip, if any
         index, _ = self.list.HitTest(evt.GetPosition())
@@ -287,6 +308,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         
 
     def setClocks(self, evt=None):
+        """ Set all clocks. Used as an event handler.
+        """
         butts = self.okButton, self.cancelButton, self.setClockButton
         self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
         for b in butts:

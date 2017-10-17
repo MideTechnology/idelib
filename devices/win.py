@@ -86,6 +86,9 @@ def readRecorderClock(dev):
     win32api.CloseHandle(f1)
     return sysTime, thisTime
 
+#===============================================================================
+# 
+#===============================================================================
 
 def getDeviceList(types):
     """ Get a list of data recorders, as their respective drive letter.
@@ -132,4 +135,18 @@ def deviceChanged(recordersOnly, types):
     last_recorders = newRecorders
     return changed
 
+#===============================================================================
+# 
+#===============================================================================
 
+def getFreeSpace(path):
+    """ Return the free space (in megabytes) on a drive.
+        
+        @param path: The path to the drive to check. Can be a subdirectory.
+        @return: The free space on the drive, in megabytes.
+        @rtype: float
+    """
+    free_bytes = ctypes.c_ulonglong(0)
+    kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(path), None, None, 
+                                 ctypes.pointer(free_bytes))
+    return free_bytes.value / 1024.0 / 1024.0
