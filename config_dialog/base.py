@@ -2161,7 +2161,7 @@ class ConfigDialog(SC.SizedDialog):
         try:
             self.saveConfigData()
             
-        except IOError as err:
+        except (IOError, WindowsError) as err:
             msg = ("An error occurred when trying to update the recorder's "
                    "configuration data.\n\n")
             if err.errno == errno.ENOENT:
@@ -2201,9 +2201,7 @@ class ConfigDialog(SC.SizedDialog):
                           parent=self)
             evt.Skip()
             return
-
-            
-        
+       
         # Handle other exceptions here if need be.
         
         for tab in self.tabs:

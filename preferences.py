@@ -85,9 +85,9 @@ class Preferences(object):
                        "01.0": "DARK GREEN", # Pressure
                        "01.1": "VIOLET",     # Temperature
                        # SSX v2
-                       "08.0": "BLUE",                 # Acceleration Z
+                       "08.0": "RED",                 # Acceleration Z
                        "08.1": "GREEN",                # Acceleration Y
-                       "08.2": "RED",                  # Acceleration X
+                       "08.2": "BLUE",                  # Acceleration X
                        "20.0": wx.Colour(255,100,100), # Acceleration X (DC)
                        "20.1": wx.Colour(100,255,100), # Acceleration Y (DC)
                        "20.2": wx.Colour(100,100,255), # Acceleration Z (DC)
@@ -95,8 +95,8 @@ class Preferences(object):
                        "24.1": "VIOLET",               # Temperature
     
                        # Control Pad/Fast pressure/temperature
-                       "5b.0": "LIGHT GREEN",
-                       "5b.2": "MAGENTA",
+                       "3b.0": wx.Colour(91,181,148),
+                       "3b.1": wx.Colour(92,95,180),
                        
                        # IMU Quaternion data
                        "35.0": "YELLOW",

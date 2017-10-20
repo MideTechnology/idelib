@@ -187,6 +187,10 @@ def wordJoin(words, conj="and", oxford=True):
 def makeBackup(filename):
     """ Create a backup copy of the given file. For use in conjunction with
         `restoreBackup()`.
+        
+        @param filename: The name of the original file.
+        @return: `True` if successful, `False` if not (e.g. the original file
+            does not exist).
     """
     backupFilename = filename + "~"
     if os.path.exists(filename):
@@ -198,6 +202,10 @@ def makeBackup(filename):
 def restoreBackup(filename):
     """ Restore a backup copy of a file, overwriting the file. For use in 
         conjunction with `makeBackup()`.
+        
+        @param filename: The name of the original file.
+        @return: `True` if successful, `False` if not (e.g. the backup file
+            does not exist).
     """
     backupFilename = filename + "~"
     if os.path.exists(backupFilename):
@@ -206,6 +214,22 @@ def restoreBackup(filename):
     return False
 
 
+def removeBackup(filename):
+    """ Delete the backup of the given filename, if it exists. For use in 
+        conjunction with `makeBackup()`, e.g. after saving a file was 
+        successful.
+        
+        @param filename: The name of the original file.
+        @return: `True` if successful, `False` if not (e.g. the backup file
+            does not exist).
+    """
+    backupFilename = filename + "~"
+    try:
+        os.remove(backupFilename)
+        return True
+    except (IOError, WindowsError):
+        return False
+            
 
 #===============================================================================
 # 

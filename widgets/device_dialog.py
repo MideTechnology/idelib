@@ -24,11 +24,17 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     """
 
     ID_SET_TIME = wx.NewId()
+    
+    # Indices of icons. Proportional to severity.
     ICON_INFO, ICON_WARN, ICON_ERROR = range(3)
 
-    ColumnInfo = namedtuple("ColumnInfo", 
-                            ['name','propName','formatter','default'])
+    # Named tuple to make handling columns slightly cleaner (names vs. indices).
+    ColumnInfo = namedtuple("ColumnInfo", ['name',     # Column header text
+                                           'propName', # Name of object property
+                                           'formatter', # To-string function
+                                           'default']) # Default display string
 
+    # The displayed columns
     COLUMNS = (ColumnInfo("Path", "path", cleanUnicode, ''),
                ColumnInfo("Name", "name", cleanUnicode, ''),
                ColumnInfo("Type", "productName", cleanUnicode, ''),
@@ -71,13 +77,17 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         
         self.recorders = {}
         self.recorderPaths = tuple(getDeviceList(types=self.deviceTypes))
-        self.listWidth = 400
         self.selected = None
         self.selectedIdx = None
         self.firstDrawing = True
+
+        # TODO: listWidth was supposed to be used for something, but it isn't.
+        self.listWidth = 420
                 
         pane = self.GetContentsPane()
         pane.SetSizerProps(expand=True)
+
+        self.itemDataMap = {} # required by ColumnSorterMixin
 
         self.list = self.DeviceListCtrl(pane, -1, 
              style=(wx.LC_REPORT | wx.BORDER_SUNKEN | wx.LC_SORT_ASCENDING
@@ -97,10 +107,15 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         buttonpane = sc.SizedPanel(pane, -1)
         buttonpane.SetSizerType("horizontal")
         buttonpane.SetSizerProps(expand=True)
-        self.setClockButton = wx.Button(buttonpane, self.ID_SET_TIME, "Set All Clocks")
+        
+        self.setClockButton = wx.Button(buttonpane, self.ID_SET_TIME, 
+                                        "Set All Clocks")
         self.setClockButton.SetSizerProps(halign="left")
-        self.setClockButton.SetToolTipString("Set the time of every attached recorder with a RTC")
+        self.setClockButton.SetToolTipString("Set the time of every attached "
+                                             "recorder with a RTC")
+        
         sc.SizedPanel(buttonpane, -1).SetSizerProps(proportion=1) # Spacer
+        
         self.okButton = wx.Button(buttonpane, wx.ID_OK)
         self.okButton.SetSizerProps(halign="right")
         self.okButton.Enable(False)
@@ -109,7 +124,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
         self.Bind(wx.EVT_BUTTON, self.setClocks, id=self.ID_SET_TIME)
         
-        # call deviceChanged() to set the initial state
+        # Call deviceChanged() to set the initial state. Result ignored.
         deviceChanged(recordersOnly=True)
         self.populateList()
         listmix.ColumnSorterMixin.__init__(self, len(self.ColumnInfo._fields))
@@ -138,7 +153,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             self.timer.Start(self.autoUpdate)
 
 
-    def TimerHandler(self, evt):
+    def TimerHandler(self, evt=None):
         """ Handle timer 'tick' by refreshing device list.
         """
         if deviceChanged(recordersOnly=True):
@@ -153,7 +168,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
 
     def setItemIcon(self, index, dev):
-        """ Set the warning icon and tool tips for recorders with problems.
+        """ Set the warning icon, message and tool tips for recorders with 
+            problems.
         """
         tips = []
         icon = -1
@@ -161,14 +177,17 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             life = dev.getEstLife()
             calExp = dev.getCalExpiration()
             freeSpace = dev.getFreeSpace()
+            
             if freeSpace is not None and freeSpace < 1:
                 tips.append("This device is nearly full (%.2f MB available). "
                             "This may prevent configuration." % freeSpace)
                 icon = self.ICON_ERROR
+                
             if life is not None and life < 0:
                 tips.append("This devices is %d days old; battery life "
                             "may be limited." % dev.getAge())
                 icon = max(icon, self.ICON_WARN)
+                
             if calExp:
                 calExpDate = datetime.fromtimestamp(calExp).date()
                 if calExp < time.time():
@@ -195,7 +214,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
 
     def _thing2string(self, dev, col):
-        " Helper method for doing semi-smart formatting. "
+        """ Helper method for doing semi-smart formatting of a column. """
         try:
             return col.formatter(getattr(dev, col.propName, col.default))
         except TypeError:
@@ -210,18 +229,19 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         for i, c in enumerate(self.COLUMNS):
             self.list.InsertColumn(i, c[0])
 
+        # Set minimum column widths (i.e. enough to fit the heading).
+        # First column (which has an icon) is wider than the label.
         minWidths = [self.list.GetTextExtent(c[0])[0] + 16 for c in self.COLUMNS]
         minWidths[0] += 16
         
-        self.recorders = {}
-        self.itemDataMap = {} # required by ColumnSorterMixin
+        self.recorders.clear()
+        self.itemDataMap.clear()
         
         # This is to provide tool tips for individual list rows
-        self.listToolTips = [None] * len(self.recorderPaths)
         self.listMsgs = [None] * len(self.recorderPaths)
+        self.listToolTips = [None] * len(self.recorderPaths)
 
         self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
-            # Reuse the list of paths to get the list of Recorder objects
         
         for dev in getDevices(self.recorderPaths):
             try:

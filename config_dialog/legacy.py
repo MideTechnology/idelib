@@ -173,12 +173,20 @@ def _copyItems(oldD, newD, *keyPairs):
             newD[newK] = val
         
 
-def loadConfigData(device):
+def loadConfigData(device, data=None):
     """ Load old configuration data and return it in the new format.
+    
+        @param device: The `Recorder` object from which to read the data.
+        @keyword data: An alternate set of configuration data, overriding
+            that on the device. For importing configuration data.
     """
     logger.info("Loading legacy configuration format")
-    config = device.getConfig(refresh=True).copy()
+    
     newData = {}
+    if data is None:
+        config = device.getConfig(refresh=True).copy()
+    else:
+        config = data
 
     # Combine 'root' dictionaries for easy access
     basicConfig = config.get('SSXBasicRecorderConfiguration', {})
@@ -262,9 +270,15 @@ def loadConfigData(device):
     return newData
 
 
-def saveConfigData(configData, device):
+def saveConfigData(configData, device, filename=None):
     """ Save new configuration data in the old format. Note: the `configData`
         should not contain any `None` values; these will be ignored.
+        
+        @param configData: A dictionary of configuration data, in the new
+            style (flat, keyed by ConfigID).
+        @param device: The device to which to write.
+        @keyword filename: The name of the file to write, instead of the
+            device's config file. For exporting config data.
     """
     logger.info("Saving config.cfg in legacy configuration format")
     # Copy the data, just in case.
@@ -354,11 +368,12 @@ def saveConfigData(configData, device):
     schema = loadSchema('mide.xml')
     ebml = schema.encodes({'RecorderConfiguration':legacyConfigData})
 
-    print legacyConfigData
     # This will raise an exception if it fails.
     schema.verify(ebml)
     
-    with open(device.configFile, 'wb') as f:
+    filename = device.configFile if filename is None else filename
+    
+    with open(filename, 'wb') as f:
         f.write(ebml)
     
 
