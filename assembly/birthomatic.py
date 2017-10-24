@@ -192,12 +192,13 @@ def getHardwareRevs(partNum, default=None):
     result = []
     for rev in revs:
         try:
-            result.append(str(int(rev)))
+            result.append(int(rev))
         except ValueError:
             pass
     if len(result) == 0:
         raise ValueError("Found no hardware rev dirs for %r!" % partNum)
-    return result
+    result.sort()
+    return map(str, result)
 
 
 def getHardwareRev(partNum, default=None):
