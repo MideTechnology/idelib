@@ -1,10 +1,11 @@
 '''
-Slam Stick Lab Data Viewer
+Slam Stick Lab: Full-featured viewer for data recorded by Slam Stick data 
+loggers. Also does Slam Stick recorder configuration.
 
-Full-featured viewer for data recorded by Slam Stick and Slam Stick X data
-loggers.
-
+TODO: Remove vestigial features that haven't been fully implemented (operations)
 TODO: Add help text to menu items (after moving the logo in the status bar)
+
+See other TODO items in the code.
 '''
 from datetime import datetime
 
@@ -1035,15 +1036,7 @@ class Viewer(wx.Frame, MenuMixin):
             return (os.path.realpath(os.path.curdir), "export.csv")
         filename = os.path.splitext(os.path.basename(self.dataset.filename))[0]
         return (os.path.realpath(os.path.curdir), filename + ".csv")
-
-
-    def getCurrentFilename(self):
-        """ Returns the path and name of the currently open file.
-        """
-        if self.dataset is None:
-            return None
-        return self.dataset.filename
-
+    
     
     def okayToExit(self):
         """ Returns `True` if the app is in a state to immediately quit.
@@ -1052,6 +1045,7 @@ class Viewer(wx.Frame, MenuMixin):
         q = self.ask("Really quit?", "Quit", wx.OK|wx.CANCEL,
                      pref="promptBeforeQuit")
         return q == wx.ID_OK
+
 
     #===========================================================================
     # 

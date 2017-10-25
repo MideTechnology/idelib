@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <!-- The list of element parameters for this file seems to be: -->
-<!-- 
+<!--
 name="MyElement"
 (cppname)="ParentMyElement (arbitrary)"
 level="0"
@@ -10,7 +10,7 @@ type="master, uinteger, integer, binary, string, utf=8, float"
 mandatory="0"
 multiple="0"
 minver="1"
-range="> 0, not 0, 1-30" ... seems to be arbitrary / probably not checked. 
+range="> 0, not 0, 1-30" ... seems to be arbitrary / probably not checked.
 bytesize="16"
 default="123" or a text value that may or may not be the name of another tag
 
@@ -42,10 +42,10 @@ default="123" or a text value that may or may not be the name of another tag
   <!-- Mide format global tags. Support required for all .mide schemas. -->
   <!-- Since the generating device may be very memory-constrained, and these tags may be repeated periodically for streaming, we use a short (global) element ID and generally allow them at any level -->
   <element name="SchemaID" level="-1" id="0xFE" type="uinteger" minver="1">Device EBML schema (aka 'tagset') hint. Points to a numeric schema ID defined at the receiving side.</element>
-  <element name="Sync" level="-1" id="0xFA" type="binary" minver="1">Used to provide an arbitrary length sync word (for network / stream framing purposes) at any point in the stream.</element>  
+  <element name="Sync" level="-1" id="0xFA" type="binary" minver="1">Used to provide an arbitrary length sync word (for network / stream framing purposes) at any point in the stream.</element>
   <!--<element name="Discontinuity" level="-1" id="0xFD" type="binary" minver="1">Probably replaced by a flag in individual datablocks at the Channel level.</element>  -->
-  <element name="ElementTag" level="-1" id="0xFC" type="integer" minver="1">Arbitrary tag. Allow for separate opening and closing tags without knowing the length of the enclosed data in advance. I.e. instead of [tag len value=[subtag len... /]/], [tag len=0][subtags and contents][/tag]. Positive value corresponds to the corresponding ElementID as an opening tag; the corresponding negative value as the closing tag. Value -int_max for any int size is reserved.</element> 
-  
+  <element name="ElementTag" level="-1" id="0xFC" type="integer" minver="1">Arbitrary tag. Allow for separate opening and closing tags without knowing the length of the enclosed data in advance. I.e. instead of [tag len value=[subtag len... /]/], [tag len=0][subtags and contents][/tag]. Positive value corresponds to the corresponding ElementID as an opening tag; the corresponding negative value as the closing tag. Value -int_max for any int size is reserved.</element>
+
 <!-- Slam Stick X Manifest tags -->
 
 <!-- NOTES: -->
@@ -89,7 +89,7 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="FwCustomStr" level="2" id="0x4D0B" type="string" mandatory="0" multiple="0" minver="1">Custom firmware build. Firmware is a custom build if present. Name should match FW branch/tag name as applicable for identification purposes, but is mainly present so FW updater can generate a warning if a custom build will be replaced by a standard one.</element>
 			<element name="HwAPI" level="2" id="0x4D0C" type="uinteger" mandatory="0" multiple="0" minver="1">Hardware API level of this hardware. This is bumped in response to hardware revs with compatibility implications.</element>
 			<element name="BatchIDStr" level="2" id="0x4D0D" type="string" mandatory="0" multiple="0" minver="1">Batch identification string. Text string encoding the date, variant and manufacturer of a given hardware batch. Batch is independent of HwRev as there may be multiple production batches of a given revision, from multiple fab houses.</element>
-			
+
 		<!-- Battery Info -->
 		<element name="Battery" level="1" id="0x4D10" type="master" mandatory="0" multiple="0" minver="1">Class B (2 byte + 2 length) Master element for battery info.</element>
 			<element name="Capacity_mAh" level="2" id="0x4D11" type="uinteger" mandatory="0" multiple="0" minver="1">4-byte Nominal battery capacity in mAh.</element>
@@ -114,12 +114,12 @@ default="123" or a text value that may or may not be the name of another tag
 			<element name="AnalogSensorDeviceCode" level="2" id="0x4D32" type="uinteger" mandatory="0" multiple="0" minver="1">1-byte Code identifying the analog sensor. 0 = ADXL001, 1 = 832M1, others=TBD.</element>
 			<element name="AnalogSensorSerialNumber" level="2" id="0x4D33" type="string" mandatory="0" multiple="0" minver="1">16-byte string for the sensor manufacturer's serial #. This is a string because some vendors (including that of 832M1) love to mix in letters, hyphens and other nonnumeric elements.</element>
 			<!-- Units? Probably handled bo 'plot'; device does not need to know. -->
-			<element name="AnalogSensorUsesAAFilter" level="2" id="0x4D34" type="uinteger" mandatory="0" multiple="0" minver="1">1-byte Boolean specifies that this sensor goes through the AA filter. Nonzero = true.</element>			
-			<element name="AnalogSensorSettlingTime" level="2" id="0x4D35" type="uinteger" mandatory="0" multiple="0" minver="1">2-byte Sensor start up + settling time in ticks (1/32768s)</element>			
+			<element name="AnalogSensorUsesAAFilter" level="2" id="0x4D34" type="uinteger" mandatory="0" multiple="0" minver="1">1-byte Boolean specifies that this sensor goes through the AA filter. Nonzero = true.</element>
+			<element name="AnalogSensorSettlingTime" level="2" id="0x4D35" type="uinteger" mandatory="0" multiple="0" minver="1">2-byte Sensor start up + settling time in ticks (1/32768s)</element>
 			<element name="AnalogSensorName" level="2" id="0x4D36" type="string" mandatory="0" multiple="0" minver="1">16-byte string for the sensor name / part#. This will probably be overridden by 'Plot'.</element>
 			<element name="AnalogSensorCalIDRef" level="2" id="0x4D37" type="uinteger" mandatory="0" multiple="0" minver="1">1-byte Reference to a SensorChannel-level CalID. This cal entry will simply determine the fixed sensor scaling and offset.</element>
-			<element name="AnalogSensorScaleHintI" level="2" id="0x4D38" type="integer" mandatory="0" multiple="0" minver="1">4-byte int32 hint expressing the nominal sensor scale and whether it is inverted. For sensors (accelerometer) where one of several nominal sensitivities can be stuffed. This value is optionally used by the device to distinguish stuffed sensitivities without having to interpret a calibration element.</element>			
-			<element name="AnalogSensorScaleHintF" level="2" id="0x4D39" type="float" mandatory="0" multiple="0" minver="1">4-byte float hint expressing the nominal sensor scale and whether it is inverted. For sensors (accelerometer) where one of several nominal sensitivities can be stuffed. This value is optionally used by the device to distinguish stuffed sensitivities without having to interpret a calibration element.</element>			
+			<element name="AnalogSensorScaleHintI" level="2" id="0x4D38" type="integer" mandatory="0" multiple="0" minver="1">4-byte int32 hint expressing the nominal sensor scale and whether it is inverted. For sensors (accelerometer) where one of several nominal sensitivities can be stuffed. This value is optionally used by the device to distinguish stuffed sensitivities without having to interpret a calibration element.</element>
+			<element name="AnalogSensorScaleHintF" level="2" id="0x4D39" type="float" mandatory="0" multiple="0" minver="1">4-byte float hint expressing the nominal sensor scale and whether it is inverted. For sensors (accelerometer) where one of several nominal sensitivities can be stuffed. This value is optionally used by the device to distinguish stuffed sensitivities without having to interpret a calibration element.</element>
 			<element name="AnalogSensorChannel" level="2" id="0x4D50" type="master" mandatory="0" multiple="1" minver="1">Class B (2 byte + 2 length) Master element for one sensor channel.</element>
 				<element name="AnalogSensorChannelEntryID" level="3" id="0x4D51" type="uinteger" mandatory="0" multiple="0" minver="1">1-byte Entry ID for this channel.</element>
 				<element name="AnalogSensorChannelADCChannel" level="3" id="0x4D52" type="uinteger" mandatory="0" multiple="0" minver="1">1-byte ADC channel number corresponding to this sensor channel.</element>
@@ -127,7 +127,7 @@ default="123" or a text value that may or may not be the name of another tag
 				<element name="AnalogSensorChannelCalIDRef" level="3" id="0x4D54" type="uinteger" mandatory="0" multiple="0" minver="1">1-byte Reference to a SensorSubChannel-level CalID. This will store actual sensor calibration modifying the basic scale/offset parameters.</element>
 				<element name="AnalogSensorBWLowerCutoff" level="3" id="0x4D55" type="uinteger" mandatory="0" multiple="0" minver="1">4-byte Lower cutoff frequency in Hz.</element>
 				<element name="AnalogSensorBWUpperCutoff" level="3" id="0x4D56" type="uinteger" mandatory="0" multiple="0" minver="1">4-byte Upper cutoff frequency in Hz.</element>
-				
+
 		<!-- Codes for specific digital sensors and storage devices. We can't make this all-singing-all-dancing generic, but can at least tell the FW if specific sensors at known e.g. bus locations are stuffed or not. -->
 		<!-- Media elements (SD, eventually wireless/etc.?) -->
 		<element name="DigitalStorageSD" level="1" id="0x4D80" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a uSD card on the SPI bus.</element>
@@ -149,9 +149,11 @@ default="123" or a text value that may or may not be the name of another tag
 		<element name="DigitalSensorGPS_UART" level="1" id="0x4DC0" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a GPS with full data (location) broken out on UART.</element>
 
 		<!-- Misc. -->
+
+		<element name="DigitalSensorBHI160" level="1" id="0x4D94" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a BNO055 IMU on the I2C0 bus.</element>
 		<element name="DigitalSensorReset" level="1" id="0x4DD0" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a hardware pushbutton reset controller.</element>
 		<element name="DigitalPowerMAX77801" level="1" id="0x4DD1" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a MAX77801 power management IC on the I2C1 bus.</element>
 		<element name="DigitalLedThree" level="1" id="0x4DD2" type="master" mandatory="0" multiple="0" minver="1">Indicates that the membrane has a 3rd LED driven by the MCU.</element>
 		<element name="DigitalSensorSI1133" level="1" id="0x4DD3" type="master" mandatory="0" multiple="0" minver="1">Indicates the presence of a SI1133 light sensor on the I2C1 bus.</element>
-		
+
 </table>

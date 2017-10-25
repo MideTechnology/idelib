@@ -38,6 +38,8 @@ Created on Sep 26, 2013
 #     
 # TODO: Look at remaining places where lists are returned, consider using 
 #    `yield`  instead (e.g. parseElement(), etc.)
+#
+# TODO: Clean up the min/mean/max stuff.
 
 from bisect import bisect_left
 from collections import Iterable
@@ -958,9 +960,6 @@ class SubChannel(Channel):
 class EventList(Transformable):
     """ A list-like object containing discrete time/value pairs. Data is 
         dynamically read from the underlying EBML file. 
-        
-        @todo: Consider a subclass optimized for non-sub-sampled data (i.e. 
-            one sample per data block).
     """
 
     # Default 5 second rolling mean
@@ -1314,6 +1313,7 @@ class EventList(Transformable):
         except TypeError:
             # XXX: HACK! b.mean can occasionally be a tuple at very start.
             # Occurs very rarely in multithreaded loading. Find and fix cause.
+            # May no longer occur with new EBML library.
 #             logger.info( "Type error!")
             return None
     
