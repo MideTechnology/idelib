@@ -53,11 +53,13 @@ def toXml(el, parent=None, offsets=True, sizes=True, types=True, ids=True):
         
     if parent is None:
         xmlEl = ET.Element(elname)
+    else:
+        xmlEl = ET.SubElement(parent, elname)
+    if isinstance(el, core.Document):
         xmlEl.set('source', str(el.filename))
         xmlEl.set('schemaName', str(el.schema.name))
         xmlEl.set('schemaFile', str(el.schema.filename))
     else:
-        xmlEl = ET.SubElement(parent, elname)
         if ids and isinstance(el.id, (int, long)):
             xmlEl.set('id', "0x%X" % el.id)
         if types:
