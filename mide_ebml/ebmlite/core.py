@@ -504,6 +504,8 @@ class MasterElement(Element):
     def iterChildren(self):
         """ Create an iterator to iterate over the element's children.
         """
+        # TODO: Support elements with 'unknown' length (quit when an invalid
+        # child element is read).
         pos = self.payloadOffset
         payloadEnd = pos + self.size
         while pos < payloadEnd:
@@ -698,8 +700,11 @@ class Document(MasterElement):
             try:
                 el, pos = self.parseElement(self.stream)
                 yield el
-            except TypeError:
+            except TypeError as err:
                 # Occurs at end of file (parsing 0 length string), it's okay.
+                if "ord()" not in str(err):
+                    # (Apparently) not the TypeError raised at EOF!
+                    raise
                 break
 
 

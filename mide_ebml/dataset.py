@@ -41,7 +41,7 @@ Created on Sep 26, 2013
 #
 # TODO: Clean up the min/mean/max stuff.
 
-from bisect import bisect_left
+from bisect import bisect_right
 from collections import Iterable
 from datetime import datetime
 from itertools import imap, izip
@@ -1237,9 +1237,9 @@ class EventList(Transformable):
             @keyword stop: The last block index to search
         """
         if stop:
-            blockIdx = bisect_left(self._blockIndices, idx, start, stop)
+            blockIdx = bisect_right(self._blockIndices, idx, start, stop)
         else:
-            blockIdx = bisect_left(self._blockIndices, idx, start)
+            blockIdx = bisect_right(self._blockIndices, idx, start)
         if blockIdx:
             return blockIdx-1
         return blockIdx
@@ -1253,9 +1253,9 @@ class EventList(Transformable):
             @keyword stop: The last block index to search
         """
         if stop:
-            blockIdx = bisect_left(self._blockTimes, t, start, stop)
+            blockIdx = bisect_right(self._blockTimes, t, start, stop)
         else:
-            blockIdx = bisect_left(self._blockTimes, t, start)
+            blockIdx = bisect_right(self._blockTimes, t, start)
         if blockIdx:
             return blockIdx-1
         return blockIdx
@@ -1919,6 +1919,7 @@ class EventList(Transformable):
             self._computeMinMeanMax()
         startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
         blocks = self._data[startBlockIdx:endBlockIdx]
+        
         if self.hasSubchannels:
             block = max(blocks, key=_channelMax)
             return max(self.iterSlice(*block.indexRange, display=display), key=_maxVal)

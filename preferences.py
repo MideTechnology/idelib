@@ -94,16 +94,33 @@ class Preferences(object):
                        "24.0": "DARK GREEN",           # Pressure
                        "24.1": "VIOLET",               # Temperature
     
-                       # Control Pad/Fast pressure/temperature
-                       "3b.0": wx.Colour(91,181,148),
-                       "3b.1": wx.Colour(92,95,180),
+                       # IMU Accelerometer (channel 0x2b, 43 decimal)
+                       "2b.0": wx.Colour(225,100,100), # Acceleration X (IMU)
+                       "2b.1": wx.Colour(100,225,100), # Acceleration Y (IMU)
+                       "2b.2": wx.Colour(100,100,225), # Acceleration Z (IMU)
+    
+                       # IMU gyroscope (channel 0x2f, 47 decimal)
+                       # Same colors as main accelerometer axes
+                       "2f.0": "RED",   # IMU gyroscope X
+                       "2f.1": "GREEN", # IMU gyroscope Y
+                       "2f.2": "BLUE",  # IMU gyroscope Z
                        
-                       # IMU Quaternion data
+                       # IMU Magnetometer (channel 0x33, 51 decimal)
+                       # Same colors as main accelerometer axes
+                       "33.0": "RED",   # IMU Magnetometer X
+                       "33.1": "GREEN", # IMU Magnetometer Y
+                       "33.2": "BLUE",  # IMU Magnetometer Z
+                       
+                       # IMU Quaternion data (channel 0x35, 53 decimal)
                        "35.0": "YELLOW",
                        "35.1": "NAVY",
                        "35.2": "CYAN",
                        "35.3": "GOLD",
                        "35.4": "BLUE VIOLET",
+                       
+                       # Control Pad/Fast pressure/temperature (channel 59)
+                       "3b.0": wx.Colour(91,181,148),
+                       "3b.1": wx.Colour(92,95,180),
         },
         # default colors: used for subchannel plots not in plotColors
         'defaultColors': ["DARK GREEN",

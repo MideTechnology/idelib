@@ -1687,11 +1687,12 @@ class Plot(ViewerPanel, MenuMixin):
         if self != activePage and activePage is not None:
             return
 
-        enabled = any([s.allowMeanRemoval and s.hasMinMeanMax for s in self.sources])
+        meanEnabled = any(s.allowMeanRemoval and s.hasMinMeanMax for s in self.sources)
+        minmaxEnabled = any(s.hasMinMeanMax for s in self.sources)
         rt = self.root
         mb = rt.menubar
         
-        if not enabled or self.plotRemoveMean is False:
+        if not meanEnabled or self.plotRemoveMean is False:
             rt.setMenuItem(mb, rt.ID_DATA_NOMEAN, checked=True)
         elif self.plotMeanSpan == -1:
             rt.setMenuItem(mb, rt.ID_DATA_MEAN_TOTAL, checked=True)
@@ -1699,15 +1700,15 @@ class Plot(ViewerPanel, MenuMixin):
             rt.setMenuItem(mb, rt.ID_DATA_MEAN, checked=True)
             
         for m in [rt.ID_DATA_NOMEAN, rt.ID_DATA_MEAN, rt.ID_DATA_MEAN_TOTAL]:
-            rt.setMenuItem(mb, m, enabled=enabled)
+            rt.setMenuItem(mb, m, enabled=meanEnabled)
 
-        rt.setMenuItem(mb, rt.ID_VIEW_MINMAX, enabled=enabled, 
+        rt.setMenuItem(mb, rt.ID_VIEW_MINMAX, enabled=minmaxEnabled, 
                        checked=rt.drawMinMax)
         rt.setMenuItem(mb, rt.ID_VIEW_LINES_MAJOR, enabled=True, 
                        checked=rt.drawMajorHLines)
         rt.setMenuItem(mb, rt.ID_VIEW_LINES_MINOR, enabled=True, 
                        checked=rt.drawMinorHLines)
-        rt.setMenuItem(mb, rt.ID_VIEW_MEAN, enabled=enabled, 
+        rt.setMenuItem(mb, rt.ID_VIEW_MEAN, enabled=meanEnabled, 
                        checked=rt.drawMean)
         
         rt.setMenuItem(mb, rt.ID_VIEW_UTCTIME,
