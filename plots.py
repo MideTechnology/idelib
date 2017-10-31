@@ -1454,7 +1454,7 @@ class Plot(ViewerPanel, MenuMixin):
         if len(self.sources) == 0:
             ttip = s = self.yUnits[0]
         else:
-            ttip = '\n'.join([s.parent.displayName for s in self.sources])
+            ttip = '\n'.join([s.parent.displayName for s in reversed(self.sources)])
             if len(self.sources) == 1:
                 if self.sources[0].parent.units[0] != self.yUnits[0]:
                     # Special case: show converted units

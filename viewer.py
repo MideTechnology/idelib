@@ -83,6 +83,7 @@ import devices.efm32_firmware
 from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
+from mide_ebml import ebmlite
 import mide_ebml.classic.importer
 import mide_ebml.multi_importer
 import mide_ebml.matfile
@@ -2519,6 +2520,8 @@ class ViewerApp(wx.App):
 
         super(ViewerApp, self).__init__(*args, **kwargs)
         
+        safeMode = safeMode or wx.GetKeyState(wx.WXK_SHIFT)
+        
 #         self.recentFilesMenu = wx.Menu()
         self.lastException = None
         self.viewers = []
@@ -2529,7 +2532,12 @@ class ViewerApp(wx.App):
         self.prefs = Preferences(self.prefsFile, clean=(clean or safeMode))
         self.plugins = None
         
-        self.loadPlugins(safeMode or wx.GetKeyState(wx.WXK_SHIFT))
+        self.loadPlugins(safeMode)
+
+        # Insert user override EBML schema path
+        if not safeMode:
+            ebmlite.SCHEMA_PATH.insert(0, os.path.join(self.docsDir, 'schemata'))
+            ebmlite.SCHEMATA.clear()
 
         if loadLast and self.initialFilename is None:
             try:

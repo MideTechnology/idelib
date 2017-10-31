@@ -72,7 +72,6 @@ import classic
 # 
 #===============================================================================
 
-SCHEMA = loadSchema('config_ui.xml')
 
 #===============================================================================
 #--- Utility functions
@@ -1856,6 +1855,8 @@ class ConfigDialog(SC.SizedDialog):
         
         super(ConfigDialog, self).__init__(*args, **kwargs)
 
+        self.schema = loadSchema('config_ui.xml')
+
         pane = self.GetContentsPane()
         self.notebook = wx.Notebook(pane, -1)
         self.notebook.SetSizerProps(expand=True, proportion=-1)
@@ -1938,7 +1939,7 @@ class ConfigDialog(SC.SizedDialog):
             self.hints = legacy.loadConfigUI(self.device)
         else:
             logger.info('Loading ConfigUI from %s' % filename)
-            self.hints = SCHEMA.load(filename)
+            self.hints = self.schema.load(filename)
         
 
     def applyConfigData(self, data, reset=False):
@@ -2318,6 +2319,7 @@ dlg = None
 
 if __name__ == "__main__":
     from mide_ebml.ebmlite import util
+    SCHEMA = loadSchema('config_ui.xml')
     
     # XXX: TEST CODE, loads the UI from a file (XML or EBML), specified as a 
     # command line argument. If no file is specified, the first recorder found 

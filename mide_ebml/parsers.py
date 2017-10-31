@@ -1224,6 +1224,7 @@ class NullParser(ElementHandler):
     """
     elementName = ('EBML', 
                    'ElementTag', 
+                   'RecorderConfigurationList',
                    'Session', 
                    'Sync', 
                    'Void',

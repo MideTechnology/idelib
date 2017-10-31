@@ -30,11 +30,6 @@ from widgets import device_dialog, html_dialog
 import devices
 from logger import logger
 
-# from mide_ebml import util
-# import mide_ebml.ebml.schema.mide as schema_mide
-# import mide_ebml.ebml.schema.manifest as schema_manifest
-
-# import mide_ebml
 from mide_ebml.ebmlite import loadSchema
 
 from updater import isNewer
@@ -42,16 +37,6 @@ from updater import isNewer
 # TODO: Better way of identifying valid devices, probably part of the class.
 RECORDER_TYPES = [devices.SlamStickC, devices.SlamStickS, devices.SlamStickX]
 
-#===============================================================================
-# 
-#===============================================================================
-
-# SCHEMA_PATH = os.path.join(os.path.dirname(mide_ebml.__file__), 'ebml/schema')
-# schema_mide = loadSchema(os.path.join(SCHEMA_PATH, 'mide.xml'))
-# schema_manifest = loadSchema(os.path.join(SCHEMA_PATH, 'manifest.xml'))
-
-schema_mide = loadSchema('mide.xml')
-schema_manifest = loadSchema('manifest.xml')
 
 #===============================================================================
 # 
@@ -154,6 +139,9 @@ class FirmwareUpdater(object):
         self.bootBin = None
         self.lastResponse = None
         
+        self.schema_mide = loadSchema('mide.xml')
+        self.schema_manifest = loadSchema('manifest.xml')
+
 #         if self.device is not None:
 #             self.manifest = device.getManifest()
 #             self.cal = device.getFactoryCalPolynomials()
@@ -517,9 +505,9 @@ class FirmwareUpdater(object):
         propTempName = "%s/recprop.template.ebml" % templateBase
         
         with zipfile.ZipFile(self.filename, 'r') as fwzip:
-            manTemplate = self.readTemplate(fwzip, manTempName, schema_manifest, self.password)
-            calTemplate = self.readTemplate(fwzip, calTempName, schema_mide, self.password)
-            propTemplate = self.readTemplate(fwzip, propTempName, schema_mide, self.password)
+            manTemplate = self.readTemplate(fwzip, manTempName, self.schema_manifest, self.password)
+            calTemplate = self.readTemplate(fwzip, calTempName, self.schema_mide, self.password)
+            propTemplate = self.readTemplate(fwzip, propTempName, self.schema_mide, self.password)
 
         if not all((manTemplate, calTemplate)):
             raise ValueError("Could not find template")
@@ -606,26 +594,15 @@ class FirmwareUpdater(object):
         if calEx:
             calTemplate['CalibrationList']['CalibrationExpiry'] = int(calEx)
         
-#         self.manifest = util.build_ebml('DeviceManifest', 
-#                                         manTemplate['DeviceManifest'], 
-#                                         schema=schema_manifest)
-#         self.cal = util.build_ebml('CalibrationList', 
-#                                    calTemplate['CalibrationList'], 
-#                                    schema=schema_mide)
-        
         manData = {'DeviceManifest': manTemplate['DeviceManifest']}
-        self.manifest = schema_manifest.encodes(manData)
+        self.manifest = self.schema_manifest.encodes(manData)
         
         calData = {'CalibrationList': calTemplate['CalibrationList']}
-        self.cal = schema_mide.encodes(calData)
+        self.cal = self.schema_mide.encodes(calData)
         
         if propTemplate is not None:
-#             self.props = util.build_ebml('RecordingProperties', 
-#                                          propTemplate['RecordingProperties'], 
-#                                          schema=schema_mide)
-            
             propData = {'RecordingProperties': propTemplate['RecordingProperties']}
-            self.props = schema_mide.encodes(propData)
+            self.props = self.schema_mide.encodes(propData)
         else:
             self.props = ''
         
@@ -916,7 +893,6 @@ def updateFirmware(parent=None, device=None, filename=None):
                       "Validation Error")
         return False
     
-    # TODO: Display HTML release notes, if they exist.
     if update.releaseNotesHtml:
         content = update.releaseNotesHtml
     elif update.releaseNotes:

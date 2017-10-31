@@ -30,13 +30,6 @@ from devices.base import ConfigError
 # 
 #===============================================================================
 
-mideSchema = loadSchema('mide.xml')
-manifestSchema = loadSchema('manifest.xml')
-
-#===============================================================================
-# 
-#===============================================================================
-
 class SlamStickX(Recorder):
     """ A Slam Stick X data recorder from Mide Technology Corporation. 
     """
@@ -62,6 +55,12 @@ class SlamStickX(Recorder):
     homepage = "http://www.mide.com/products/slamstick/slam-stick-x-vibration-temperature-pressure-data-logger.php"
 
     def __init__(self, path):
+        """
+        """
+        # 
+        self.mideSchema = loadSchema('mide.xml')
+        self.manifestSchema = loadSchema('manifest.xml')
+        
         super(SlamStickX, self).__init__(path)
         self._manifest = None
         self._calibration = None
@@ -106,8 +105,7 @@ class SlamStickX(Recorder):
                 if os.path.exists(infoFile):
                     if not strict:
                         return True
-                    devinfo = mideSchema.load(infoFile).dump()
-#                     devinfo = util.read_ebml(infoFile, schema=schema_mide)
+                    devinfo = loadSchema('mide.xml').load(infoFile).dump()
                     props = devinfo['RecordingProperties']['RecorderInfo']
                     return "Slam Stick X" in props['ProductName']
         except (KeyError, TypeError, AttributeError, IOError):
@@ -127,8 +125,7 @@ class SlamStickX(Recorder):
         if self._info is not None and not refresh:
             return self._info
         try:
-            devinfo = mideSchema.load(self.infoFile).dump()
-#             devinfo = util.read_ebml(self.infoFile, schema=schema_mide)
+            devinfo = self.mideSchema.load(self.infoFile).dump()
             props = devinfo.get('RecordingProperties', '')
             if 'RecorderInfo' in props:
                 self._info = props['RecorderInfo']
@@ -143,8 +140,7 @@ class SlamStickX(Recorder):
         """ Helper method to read configuration info from a file. Used
             internally.
         """
-        devinfo = mideSchema.load(source).dump()
-#         devinfo = util.read_ebml(source, schema=schema_mide)
+        devinfo = self.mideSchema.load(source).dump()
         if 'RecorderConfiguration' in devinfo:
             # Old style config (pre-FW 12)
             return devinfo.get('RecorderConfiguration', default)
@@ -159,15 +155,11 @@ class SlamStickX(Recorder):
         """ Device-specific configuration file saver. Used internally; call
             `SlamStickX.saveConfig()` instead.
         """
-#         ebml = util.build_ebml("RecorderConfiguration", data, schema=schema_mide)
-#         if verify and not util.verify(ebml, schema=schema_mide):
-#             raise ValueError("Generated config EBML could not be verified")
-
-        ebml = mideSchema.encodes({'RecorderConfiguration': data})
+        ebml = self.mideSchema.encodes({'RecorderConfiguration': data})
         
         if verify:
             try:
-                mideSchema.verify(ebml)
+                self.mideSchema.verify(ebml)
             except Exception:
                 raise ValueError("Generated config EBML could not be verified")
             
@@ -216,13 +208,16 @@ class SlamStickX(Recorder):
         """ The recording device's manufacturer-issued name. """
         return self._getInfoAttr('ProductName', '')
     
+    
     @property
     def productId(self):
         return self._getInfoAttr('RecorderTypeUID', 0x12) & 0xff
     
+    
     @property
     def partNumber(self):
         return self._getInfoAttr('PartNumber', '')
+    
     
     @property
     def serial(self):
@@ -235,10 +230,12 @@ class SlamStickX(Recorder):
                 self._sn = "SSX%07d" % self._snInt
         return self._sn
 
+
     @property
     def serialInt(self):
         _ = self.serial
         return self._snInt
+
 
     @property
     def hardwareVersion(self):
@@ -248,6 +245,7 @@ class SlamStickX(Recorder):
     @property
     def firmwareVersion(self):
         return self._getInfoAttr('FwRev', -1)
+
 
     @property
     def birthday(self):
@@ -466,7 +464,7 @@ class SlamStickX(Recorder):
             PP = CalibrationListParser(None)
             stream.seek(0)
 #             cal = MideDocument(stream)
-            cal = mideSchema.load(stream)
+            cal = self.mideSchema.load(stream)
             calPolys = PP.parse(cal.roots[0])
             if calPolys:
                 calPolys = {p.id: p for p in calPolys if p is not None}
@@ -523,8 +521,8 @@ class SlamStickX(Recorder):
 #                                             ).get('DeviceManifest', None)
 #             self._calibration = util.read_ebml(self._calData, schema=schema_mide,
 #                                                ).get('CalibrationList', None)
-            manDict = manifestSchema.load(manData).dump()
-            calDict = mideSchema.load(self._calData).dump()
+            manDict = self.manifestSchema.load(manData).dump()
+            calDict = self.mideSchema.load(self._calData).dump()
             self._manifest = manDict.get('DeviceManifest')
             self._calibration = calDict.get('CalibrationList')
         except (AttributeError, KeyError):
@@ -562,7 +560,7 @@ class SlamStickX(Recorder):
         if self._userCalDict is None or refresh:
             with open(self.userCalFile, 'rb') as f:
 #                 d = util.read_ebml(f, schema=schema_mide)
-                d = mideSchema.load(f).dump()
+                d = self.mideSchema.load(f).dump()
                 self._userCalDict = d.get('CalibrationList', None)
         return self._userCalDict
 
@@ -615,12 +613,12 @@ class SlamStickX(Recorder):
             return self._properties
         
         if os.path.exists(self.RECPROP_FILE):
-            doc = mideSchema.load(self.RECPROP_FILE)
+            doc = self.mideSchema.load(self.RECPROP_FILE)
             props = doc.dump()
         else:
             # TODO: Optimize. Cache data like getManifest and such.
             self.getManifest(refresh=refresh)
-            props = mideSchema.load(StringIO(self._propData)).dump()
+            props = self.mideSchema.load(StringIO(self._propData)).dump()
             
         self._properties = props.get('RecordingProperties', {})
         return self._properties
@@ -651,7 +649,7 @@ class SlamStickX(Recorder):
                 parser = RecordingPropertiesParser(doc)
                 doc._parsers = {'RecordingProperties': parser}
 #                 parser.parse(MideDocument(StringIO(self._propData)).roots[0])
-                parser.parse(mideSchema.loads(self._propData).roots[0])
+                parser.parse(self.mideSchema.loads(self._propData).roots[0])
             self._channels = doc.channels
             self._sensors = doc.sensors
             self._warnings = doc.warningRanges
@@ -789,7 +787,7 @@ class SlamStickX(Recorder):
             data['CalibrationSerialNumber'] = calSerial
         
 #         return util.build_ebml('CalibrationList', data, schema=schema_mide)
-        return mideSchema.encodes({'CalibrationList': data})
+        return self.mideSchema.encodes({'CalibrationList': data})
     
     def writeUserCal(self, transforms, filename=None):
         """ Write user calibration to the SSX.
