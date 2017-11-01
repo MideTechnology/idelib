@@ -233,7 +233,7 @@ class SlamStickX(Recorder):
 
     @property
     def serialInt(self):
-        _ = self.serial
+        _ = self.serial # Calls property, which sets _snInt attribute
         return self._snInt
 
 
@@ -463,7 +463,6 @@ class SlamStickX(Recorder):
         try:
             PP = CalibrationListParser(None)
             stream.seek(0)
-#             cal = MideDocument(stream)
             cal = self.mideSchema.load(stream)
             calPolys = PP.parse(cal.roots[0])
             if calPolys:
@@ -517,10 +516,6 @@ class SlamStickX(Recorder):
             self._propData = data[propOffset:propOffset+propSize]
         
         try:
-#             self._manifest = util.read_ebml(manData, schema=schema_manifest
-#                                             ).get('DeviceManifest', None)
-#             self._calibration = util.read_ebml(self._calData, schema=schema_mide,
-#                                                ).get('CalibrationList', None)
             manDict = self.manifestSchema.load(manData).dump()
             calDict = self.mideSchema.load(self._calData).dump()
             self._manifest = manDict.get('DeviceManifest')
@@ -648,7 +643,6 @@ class SlamStickX(Recorder):
                 # Parse userpage recorder property data
                 parser = RecordingPropertiesParser(doc)
                 doc._parsers = {'RecordingProperties': parser}
-#                 parser.parse(MideDocument(StringIO(self._propData)).roots[0])
                 parser.parse(self.mideSchema.loads(self._propData).roots[0])
             self._channels = doc.channels
             self._sensors = doc.sensors
@@ -786,8 +780,8 @@ class SlamStickX(Recorder):
         if isinstance(calSerial, int):
             data['CalibrationSerialNumber'] = calSerial
         
-#         return util.build_ebml('CalibrationList', data, schema=schema_mide)
-        return self.mideSchema.encodes({'CalibrationList': data})
+        return loadSchema('mide.xml').encodes({'CalibrationList': data})
+
     
     def writeUserCal(self, transforms, filename=None):
         """ Write user calibration to the SSX.

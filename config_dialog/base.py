@@ -1830,6 +1830,8 @@ class ConfigDialog(SC.SizedDialog):
             @keyword saveOnOk: If `False`, exiting the dialog with OK will not
                 save to the recorder. Primarily for debugging.
         """
+        self.schema = loadSchema('config_ui.xml')
+
         self.setTime = kwargs.pop('setTime', True)
         self.device = kwargs.pop('device', None)
         self.keepUnknown = kwargs.pop('keepUnknownItems', False)
@@ -1854,8 +1856,6 @@ class ConfigDialog(SC.SizedDialog):
         kwargs.setdefault("style", wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
         
         super(ConfigDialog, self).__init__(*args, **kwargs)
-
-        self.schema = loadSchema('config_ui.xml')
 
         pane = self.GetContentsPane()
         self.notebook = wx.Notebook(pane, -1)
