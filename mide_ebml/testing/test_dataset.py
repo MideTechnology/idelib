@@ -28,19 +28,23 @@ class CascadingTestCase(unittest.TestCase):
         self.assertTrue(self.casc2.path() == 'parent:child')
    
 class DatasetTestCase(unittest.TestCase):
-    """ test the Dataset class """
+    """ Test the Dataset class. """
     
     def setUp(self):
-        """ open a file for testing in a new dataset """
-        self.fileStream = open('C:\\Users\\cflanigan\\desktop\\20160503\\SSX70065.IDE', 'rb')
+        """ Open a file for testing in a new dataset. """
+        self.fileStream = open(
+            'C:\\Users\\cflanigan\\desktop\\20160503\\SSX70065.IDE', 'rb')
         self.dataset = Dataset(self.fileStream)
     
     def tearDown(self):
-        """ close and dispose of the file """
+        """ Close and dispose of the file. """
         self.dataset.close()
         self.dataset = None
     
     def testConstructor(self):
+        """ Exhaustively check that all the members that get initialized in the
+            constructor are being initialized to the correct value.
+        """
         self.assertEquals(self.dataset.lastUtcTime, None)
         self.assertEquals(self.dataset.sessions, [])
         self.assertEquals(self.dataset.sensors, {})
@@ -65,13 +69,17 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEquals(self.dataset.subsets, [])
         
         self.assertEquals(self.dataset.name, 'SSX70065')
-        self.assertEquals(self.dataset.ebmldoc, loadSchema(SCHEMA_FILE).load(self.fileStream, 'MideDocument'))
+        self.assertEquals(
+            self.dataset.ebmldoc, loadSchema(SCHEMA_FILE).load(
+                self.fileStream, 'MideDocument'))
         self.assertEquals(self.dataset.schemaVersion, 2)
         
     # TODO: flush this out a bit more
-    # test that each channel is being added to the dataset correctly, and that
-    # when refering to channel, a dict is returned containing each channel
     def testAddChannel(self):
+        """ Test that each channel is being added to the dataset correctly, and
+            that when refering to channel, a dict is returned containing each 
+            channel.
+        """
         channelCheck = {}
         
         channels = DEFAULTS['channels'].copy()
@@ -90,9 +98,9 @@ class DatasetTestCase(unittest.TestCase):
                          channelCheck[0].displayName)
     
     def testAddSession(self):
-        """ test that adding sessions properly appends a new session and
+        """ Test that adding sessions properly appends a new session and
             replaces the old currentSession with the new session and that
-            lastSession return the most recent session
+            lastSession return the most recent session.
         """
         session1 = Session(self.dataset, sessionId=0, startTime=1, endTime=2,
                            utcStartTime=0)
@@ -112,13 +120,14 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEqual(self.dataset.sessions[1], self.dataset.lastSession)
         
     def testEndSession(self):
-        """ test that ending the current session ends the current session """
+        """ Test that ending the current session ends the current session. """
         self.dataset.addSession(1, 2)
         self.dataset.endSession()
         
         self.assertFalse(self.dataset.currentSession)
         
     def testAddSensor(self):
+        """ Test that the sensors are being added correctly. """
         sensor1 = Sensor(self.dataset, 0)
         sensor2 = Sensor(self.dataset, 'q')
         
@@ -129,6 +138,10 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEqual(sensor2, self.dataset.sensors['q'])
     
     def testAddTransform(self):
+        """ Test that transforms are being added correctly.
+            Using Transformables to test this because they're a simple object
+            that already has an ID to use.
+        """
         xform1 = Transformable()
         xform1.id = 1
         xform2 = Transformable()
@@ -145,6 +158,7 @@ class DatasetTestCase(unittest.TestCase):
         self.assertRaises(ValueError, self.dataset.addTransform, xform3)
         
     def testAddWarning(self):
+        """ Test that adding warnings is successfully adding warnings. """
         warning1 = WarningRange(self.dataset, warningId=1, channelId=0,
                                 subchannelId=0, high=10)
         channels = DEFAULTS['channels'].copy()
@@ -163,8 +177,8 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEqual(self.dataset.warningRanges[1], warning1)
     
     def testClose(self):
-        """ test if closing a dataset closes the datastream used to read
-            its ebml file
+        """ Test if closing a dataset closes the datastream used to read
+            its ebml file.
         """
         self.dataset.close()
         self.assertTrue(self.dataset.ebmldoc.stream.closed)
@@ -173,7 +187,7 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEqual(self.dataset.name, self.dataset.path())
         
     def testGetPlots(self):
-        """ test that all the plots are being collected and sorted correctly """
+        """ Test that all the plots are being collected and sorted correctly. """
         channels = DEFAULTS['channels'].copy()
         for chId, chInfo in channels.iteritems():
             chArgs = chInfo.copy()
