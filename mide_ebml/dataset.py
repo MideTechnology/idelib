@@ -385,6 +385,7 @@ class Dataset(Cascading):
 
 
     def addTransform(self, transform):
+        print(transform)
         """ Add a transform (calibration, etc.) to the dataset. Various child
             objects will reference them by ID. Note: unlike the other `add`
             methods, this does not instantiate new objects.
@@ -489,7 +490,20 @@ class Session(object):
     def __repr__(self):
         return "<%s (id=%s) at 0x%08X>" % (self.__class__.__name__, 
                                            self.sessionId, id(self))
-
+    
+    # custom equivalence
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        else:
+            return self.dataset == other.dataset \
+               and self.startTime == other.startTime \
+               and self.endTime == other.endTime \
+               and self.sessionId == other.sessionId \
+               and self.utcStartTime == other.utcStartTime \
+               and self.firstTime == other.firstTime \
+               and self.lastTime == other.lastTime
+        
 #===============================================================================
 # 
 #===============================================================================
@@ -557,6 +571,18 @@ class Sensor(Cascading):
     
         return self._bandwidthRolloff
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        else:
+            return self.name == other.name \
+               and self.dataset == other.dataset \
+               and self.parent == other.parent \
+               and self.id == other.id \
+               and self.channels == other.channels \
+               and self.traceData == other.traceData \
+               and self.attributes == other.attributes \
+               and self.bandwidthLimitId == other.bandwidthLimitId
 
 #===============================================================================
 # Channels
@@ -2452,6 +2478,20 @@ class WarningRange(object):
             self.valid = lambda x: x > low and x < high
         
         self._displayName = None
+        
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        else:
+            return self.dataset == other.dataset \
+               and self.id == other.id \
+               and self.channelId == other.channelId \
+               and self.subchannelId == other.subchannelId \
+               and self.high == other.high \
+               and self.low == other.low \
+               and self.attributes == other.attributes \
+               and self._sessions == other._sessions
+        
     
     
     def getSessionSource(self, sessionId=None):
