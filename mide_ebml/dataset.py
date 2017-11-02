@@ -491,7 +491,6 @@ class Session(object):
         return "<%s (id=%s) at 0x%08X>" % (self.__class__.__name__, 
                                            self.sessionId, id(self))
     
-    # custom equivalence
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
