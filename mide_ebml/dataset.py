@@ -185,7 +185,7 @@ class Transformable(Cascading):
                 _tlist.insert(0, x)
         if isinstance(self.parent, Transformable):
             subchannelId = getattr(self, "id", None)
-            self.parent.getTransforms(subchannelId, _tlist)
+            self.parent.getTransforms(subchannelId, _tlist) # What does this do?
         return _tlist
 
 
@@ -385,7 +385,6 @@ class Dataset(Cascading):
 
 
     def addTransform(self, transform):
-        print(transform)
         """ Add a transform (calibration, etc.) to the dataset. Various child
             objects will reference them by ID. Note: unlike the other `add`
             methods, this does not instantiate new objects.
@@ -565,6 +564,7 @@ class Sensor(Cascading):
                 bw = self.dataset.bandwidthLimits[self.bandwidthLimitId]
                 self._bandwidthCutoff = (bw.get('LowerRolloff', None),
                                          bw.get('UpperRolloff', None))
+                # Should that be rolloff or is cutoff still correct?
             except (KeyError, AttributeError):
                 pass
     
@@ -804,6 +804,31 @@ class Channel(Transformable):
         if self.sessions is not None:
             for s in self.sessions.values():
                 s.updateTransforms()
+                
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        else:
+            return self.id == other.id \
+               and self.sensor == other.sensor \
+               and self.parser == other.parser \
+               and self.units == other.units \
+               and self.parent == other.parent \
+               and self.dataset == other.dataset \
+               and self.sampleRate == other.sampleRate \
+               and self.attributes == other.attributes \
+               and self.cache == other.cache \
+               and self.singleSample == other.singleSample \
+               and self.name == other.name \
+               and self.displayName == other.displayName \
+               and self.types == other.types \
+               and self.displayRange == other.displayRange \
+               and self.hasDisplayRange == other.hasDisplayRange \
+               and self.subchannels == other.subchannels \
+               and self.sessions == other.sessions \
+               and self.subsampleCount == other.subsampleCount \
+               and self._lastParsed == other._lastParsed \
+               and self.allowMeanRemoval == other.allowMeanRemoval        
 
 
 #===============================================================================
@@ -977,6 +1002,28 @@ class SubChannel(Channel):
     def getSubChannel(self, *args, **kwargs):
         raise AttributeError("SubChannels have no SubChannels")
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        else:
+            return self.id == other.id \
+               and self.sensor == other.sensor \
+               and self.parser == other.parser \
+               and self.units == other.units \
+               and self.parent == other.parent \
+               and self.dataset == other.dataset \
+               and self.sampleRate == other.sampleRate \
+               and self.attributes == other.attributes \
+               and self.cache == other.cache \
+               and self.singleSample == other.singleSample \
+               and self.name == other.name \
+               and self.displayName == other.displayName \
+               and self.types == other.types \
+               and self.displayRange == other.displayRange \
+               and self.hasDisplayRange == other.hasDisplayRange \
+               and self.sessions == other.sessions \
+               and self.allowMeanRemoval == other.allowMeanRemoval  
+               
 
 #===============================================================================
 # 
@@ -1423,7 +1470,36 @@ class EventList(Transformable):
         except (TypeError, IndexError):
             # Can occur early on while asynchronously loading.
             return self._length
-
+    
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        else:
+            return self.parent == other.parent \
+               and self.session == other.session \
+               and self._data == other._data \
+               and self._length == other._length \
+               and self.dataset == other.dataset \
+               and self.hasSubchannels == other.hasSubchannels \
+               and self._firstTime == other._firstTime \
+               and self._parentList == other._parentList \
+               and self._childLists == other._childLists \
+               and self.noBivariates == other.noBivariates \
+               and self._singleSample == other._singleSample \
+               and self._blockTimes == other._blockTimes \
+               and self._blockIndices == other._blockIndices \
+               and self.channelId == other.channelId \
+               and self.subchannelId == other.subchannelId \
+               and self.channelId == other.channelId \
+               and self._hasSubsamples == other._hasSubsamples \
+               and self.hasDisplayRange == other.hasDisplayRange \
+               and self.displayRange == other.displayRange \
+               and self.removeMean == other.removeMean \
+               and self.hasMinMeanMax == other.hasMinMeanMax \
+               and self.rollingMeanSpan == other.rollingMeanSpan \
+               and self.transform == other.transform \
+               and self.useAllTransforms == other.useAllTransforms \
+               and self.allowMeanRemoval == other.allowMeanRemoval 
 
     def itervalues(self, start=0, end=-1, step=1, subchannels=True, display=False):
         """ Iterate all values in the list.
