@@ -1078,6 +1078,7 @@ class BitField(EnumField):
             self.sizer.Add(childSizer, 1, wx.WEST, 24)
         
         for o in self.options:
+            o.default = (self.default >> o.value) & 1
             o.checkbox = wx.CheckBox(self, -1, o.label)
             childSizer.Add(o.checkbox, 0, 
                            wx.ALIGN_LEFT|wx.EXPAND|wx.NORTH|wx.SOUTH, 4)
@@ -1154,7 +1155,22 @@ class BitField(EnumField):
                 val = val | (1 << o.value)
         
         return val
+
     
+    def updateDisabled(self):
+        """ Automatically enable or disable this field according to its 
+            `isDisabled` expression (if any). Individually disabled options
+            get set to their default.
+        """
+        super(BitField, self).updateDisabled()
+        
+        if not self.isDisabled():
+            for o in self.options:
+                dis = o.isDisabled()
+                o.checkbox.Enable(not dis)
+                if dis:
+                    o.checkbox.SetValue(bool(o.default))
+
 
 #===============================================================================
     
@@ -1912,7 +1928,7 @@ class ConfigDialog(SC.SizedDialog):
         
         self.Fit()
         self.SetMinSize((500, 480))
-        self.SetSize((570, 680))
+        self.SetSize((600, 700))
 
 
     def buildUI(self):
