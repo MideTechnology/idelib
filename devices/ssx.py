@@ -37,10 +37,11 @@ class SlamStickX(Recorder):
     SYSTEM_PATH = "SYSTEM"
     INFO_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVINFO")
     CLOCK_FILE = os.path.join(SYSTEM_PATH, "DEV", "CLOCK")
+    RECPROP_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVPROPS")
+    CONFIG_UI_FILE = os.path.join(SYSTEM_PATH, "CONFIG.UI")
+    
     CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
     USERCAL_FILE = os.path.join(SYSTEM_PATH, "usercal.dat")
-    RECPROP_FILE = os.path.join(SYSTEM_PATH, "RECPROP.DAT")
-    CONFIG_UI_FILE = os.path.join(SYSTEM_PATH, "CONFIG.UI")
     
     TIME_PARSER = struct.Struct("<L")
 
@@ -57,11 +58,11 @@ class SlamStickX(Recorder):
     def __init__(self, path):
         """
         """
-        # 
         self.mideSchema = loadSchema('mide.xml')
         self.manifestSchema = loadSchema('manifest.xml')
         
         super(SlamStickX, self).__init__(path)
+        
         self._manifest = None
         self._calibration = None
         self._calData = None
@@ -77,6 +78,7 @@ class SlamStickX(Recorder):
             self.clockFile = os.path.join(self.path, self.CLOCK_FILE)
             self.userCalFile = os.path.join(self.path, self.USERCAL_FILE)
             self.configUIFile = os.path.join(self.path, self.CONFIG_UI_FILE)
+            self.recpropFile = os.path.join(self.path, self.RECPROP_FILE)
         else:
             self.clockFile = self.userCalFile = self.configUIFile = None
 
@@ -509,8 +511,8 @@ class SlamStickX(Recorder):
         # Zero offset means no property data. Size should also be zero, but JIC:
         propSize = 0 if propOffset == 0 else propSize
         
-        if os.path.exists(self.RECPROP_FILE):
-            with open(self.RECPROP_FILE, 'rb') as f:
+        if os.path.exists(self.recpropFile):
+            with open(self.recpropFile, 'rb') as f:
                 self._propData = f.read()
         else:
             self._propData = data[propOffset:propOffset+propSize]
@@ -603,17 +605,13 @@ class SlamStickX(Recorder):
         
         if refresh:
             self._properties = None
-        
-        if self._properties is not None:
+            
+        elif self._properties is not None:
             return self._properties
         
-        if os.path.exists(self.RECPROP_FILE):
-            doc = self.mideSchema.load(self.RECPROP_FILE)
-            props = doc.dump()
-        else:
-            # TODO: Optimize. Cache data like getManifest and such.
-            self.getManifest(refresh=refresh)
-            props = self.mideSchema.load(StringIO(self._propData)).dump()
+        # TODO: Optimize. Cache data like getManifest and such.
+        self.getManifest(refresh=refresh)
+        props = self.mideSchema.loads(self._propData).dump()
             
         self._properties = props.get('RecordingProperties', {})
         return self._properties
