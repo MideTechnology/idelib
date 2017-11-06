@@ -185,7 +185,7 @@ class Transformable(Cascading):
                 _tlist.insert(0, x)
         if isinstance(self.parent, Transformable):
             subchannelId = getattr(self, "id", None)
-            self.parent.getTransforms(subchannelId, _tlist) # What does this do?
+            self.parent.getTransforms(subchannelId, _tlist)
         return _tlist
 
 

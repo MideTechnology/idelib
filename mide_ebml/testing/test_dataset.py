@@ -1,9 +1,11 @@
 import unittest
 
 from mide_ebml.dataset import *
+from mide_ebml import importer
 
 import mide_ebml.parsers as parsers
 import mide_ebml.calibration as calibration
+from mide_ebml.parsers import ChannelDataBlock
 
 class GenericObject(object):
     """ Provide a generic object to pass as an argument.
@@ -14,6 +16,13 @@ class GenericObject(object):
         self.id = None
         self.transform = None
         self.sessions = []
+        self.data = []
+        
+    def __getitem__(self, index):
+        return self.data[index]
+    
+    def __len__(self):
+        return len(self.data)
         
     def updateTransforms(self):
         self.isUpdated = True
@@ -156,7 +165,6 @@ class DatasetTestCase(unittest.TestCase):
                 self.fileStream, 'MideDocument'))
         self.assertEquals(self.dataset.schemaVersion, 2)
         
-    # TODO: flush this out a bit more
     def testAddChannel(self):
         """ Test that each channel is being added to the dataset correctly, and
             that when refering to channel, a dict is returned containing each 
@@ -360,9 +368,7 @@ class ChannelTestCase(unittest.TestCase):
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.fileStream = open(
-            '.\\SSX70065.IDE', 'rb')
-        self.dataset = Dataset(self.fileStream)
+        self.dataset = importer.importFile('.\\SSX70065.IDE')
         self.dataset.addSensor(0)
         
         self.fakeParser = GenericObject()
@@ -383,8 +389,6 @@ class ChannelTestCase(unittest.TestCase):
         self.dataset = None
         self.channel1 = None
         self.channel2 = None
-        self.fileStream.close()
-        self.fileStream = None
         self.fakeParser = None
         
     def testInit(self):
@@ -461,7 +465,7 @@ class ChannelTestCase(unittest.TestCase):
         eventList = EventList(self.channel1, self.dataset.lastSession)
         self.assertEqual(self.channel1.getSession(), eventList)
         self.assertEqual(self.channel1.getSession(),
-                         self.channel1.getSession(0))
+                         self.channel1.getSession(1))
         self.assertRaises(KeyError, self.channel1.getSession, 5)
         
     def testParseBlock(self):
@@ -486,7 +490,7 @@ class ChannelTestCase(unittest.TestCase):
         eventList = EventList(self.channel1, self.dataset.lastSession)
         self.assertEqual(self.channel1.getSession(), eventList)
         self.assertEqual(self.channel1.getSession(),
-                         self.channel1.getSession(0))
+                         self.channel1.getSession(1))
         
         genericObject = GenericObject()
         genericObject.isUpdated = False
@@ -501,13 +505,11 @@ class ChannelTestCase(unittest.TestCase):
         self.assertTrue(genericObject.isUpdated)
         
 class SubChannelTestCase(unittest.TestCase):
-    """ Test case for methods in the Channel class. """
+    """ Test case for methods in the SubChannel class. """
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.fileStream = open(
-            '.\\SSX70065.IDE', 'rb')
-        self.dataset = Dataset(self.fileStream)
+        self.dataset = importer.importFile('.\\SSX70065.IDE')
         self.dataset.addSensor(0)
         
         self.fakeParser = GenericObject()
@@ -536,8 +538,6 @@ class SubChannelTestCase(unittest.TestCase):
         self.dataset = None
         self.channel1 = None
         self.channel2 = None
-        self.fileStream.close()
-        self.fileStream = None
         self.fakeParser = None
     
     def testInit(self):
@@ -600,10 +600,300 @@ class SubChannelTestCase(unittest.TestCase):
         self.channel2.subchannels = [GenericObject()]
         self.subChannel1.subchannels = [GenericObject()]
         eventList = EventList(self.channel2, session=self.dataset.lastSession)
-        self.assertEqual(self.subChannel1.getSession(0),eventList)
+        self.assertEqual(self.subChannel1.parent.getSession(1),eventList)
+    
+    
+class EventListTestCase(unittest.TestCase):
+    """ Test case for methods in the EventList class. """
+    
+    def setUp(self):
+        self.dataset = importer.importFile('.\\SSX70065.IDE')
+        self.dataset.addSession(0, 1, 2)
+        self.dataset.addSensor(0)
         
+        self.fakeParser = GenericObject()
+        self.fakeParser.types = [0]
+        self.fakeParser.format = []
+        
+        self.channel1 = Channel(
+            self.dataset, channelId=0, name="channel1", parser=self.fakeParser,
+            displayRange=[0])
+        self.eventList1 = EventList(self.channel1, session=self.dataset.sessions[0])
+        
+        self.channel1.addSubChannel(subchannelId=0)
+        
+        self.subChannel1 = SubChannel(self.channel1, 0)
+        
+        
+    def tearDown(self):
+        self.fileStream = None
+        self.dataset = None
+        self.fakeParser = None
+        self.channel1 = None
+        self.eventList1 = None
     
+    def mockData(self):
+        """ mock up a bit of fake data so I don't have to worry that external
+            classes are working during testing.
+        """
+        fakeData = GenericObject()
+        fakeData.startTime = 0
+        fakeData.indexRange = [0, 3]
+        fakeData.sampleTime = 1
+        fakeData.numSamples = 1
+        self.eventList1._data = [fakeData]
     
+    def mockIterslice(self,  *args, **kwargs):
+        """ Mock up iterslice so it doesn't get called while testing
+            other methods.
+        """
+        self.iterArgs = args
+        self.kwArgs = kwargs
+        return [args]
+    
+    def testConstructor(self):
+        """ Test the __init__ method. """
+        self.assertEqual(self.eventList1.parent, self.channel1)
+        self.assertEqual(self.eventList1.session, self.dataset.sessions[0])
+        self.assertEqual(self.eventList1._data, [])
+        self.assertEqual(self.eventList1._length, 0)
+        self.assertEqual(self.eventList1.dataset, self.channel1.dataset)
+        self.assertTrue(self.eventList1.hasSubchannels)
+        self.assertEqual(self.eventList1._firstTime, None)
+        self.assertEqual(self.eventList1._lastTime, None)
+        self.assertEqual(self.eventList1._parentList, None)
+        self.assertEqual(self.eventList1._childLists, [])
+        
+        self.assertFalse(self.eventList1.noBivariates)
+        
+        self.assertEqual(
+            self.eventList1._singleSample, self.channel1.singleSample)
+        self.assertEqual(self.eventList1._blockTimes, [])
+        self.assertEqual(self.eventList1._blockIndices, [])
+        
+        self.assertEqual(self.eventList1.channelId, self.channel1.id)
+        self.assertEqual(self.eventList1.subchannelId, None)
+        
+        self.assertFalse(self.eventList1._hasSubsamples)
+        
+        self.assertEqual(
+            self.eventList1.hasDisplayRange, self.channel1.hasDisplayRange)
+        self.assertEqual(
+            self.eventList1.displayRange, self.channel1.displayRange)
+        
+        self.assertFalse(self.eventList1.removeMean)
+        self.assertTrue(self.eventList1.hasMinMeanMax)
+        self.assertEqual(
+            self.eventList1.rollingMeanSpan, EventList.DEFAULT_MEAN_SPAN)
+            
+    def testUpdateTransforms(self):
+        """ Test the updateTransforms method. """
+        self.eventList1.updateTransforms(False)
+        self.assertEqual(self.eventList1._comboXform, PolyPoly(
+            [self.channel1.transform]*len(self.channel1.types)))
+        xs = [c.transform if c is not None else None for c in self.channel1.subchannels]
+        xs = [CombinedPoly(t, x=self.channel1.transform, dataset=self.dataset) for t in xs]
+        self.assertEqual(self.eventList1._fullXform, PolyPoly(xs,dataset=self.dataset))
+        self.tearDown()
+        
+        self.setUp()
+        self.eventList1.updateTransforms(True)
+        self.assertEqual(
+            self.eventList1._displayXform, PolyPoly(xs, dataset=self.dataset))
+        
+    def testUnits(self):
+        """ Test the units property. """
+        self.assertEqual(self.eventList1.units, ('',''))
+        
+    def testPath(self):
+        """ Test the path method. """
+        self.assertEqual(self.eventList1.path(), "channel1, 0")
+        
+    def testCopy(self):
+        """ Test the copy method. Since this is a shallow copy, don't use the 
+            build in equality check.
+        """
+        eventListCopy = self.eventList1.copy()
+        self.assertEqual(self.eventList1.parent, eventListCopy.parent)
+        self.assertEqual(self.eventList1.session, eventListCopy.session)
+        self.assertEqual(self.eventList1.dataset, eventListCopy.dataset)
+        self.assertEqual(self.eventList1.hasSubchannels, eventListCopy.hasSubchannels)
+        self.assertEqual(self.eventList1.noBivariates, eventListCopy.noBivariates)
+        self.assertEqual(self.eventList1.channelId, eventListCopy.channelId)
+        self.assertEqual(self.eventList1.subchannelId, eventListCopy.subchannelId)
+        self.assertEqual(self.eventList1.channelId, eventListCopy.channelId)
+        self.assertEqual(self.eventList1.hasDisplayRange, eventListCopy.hasDisplayRange)
+        self.assertEqual(self.eventList1.displayRange, eventListCopy.displayRange)
+        self.assertEqual(self.eventList1.removeMean, eventListCopy.removeMean)
+        self.assertEqual(self.eventList1.hasMinMeanMax, eventListCopy.hasMinMeanMax)
+        self.assertEqual(self.eventList1.rollingMeanSpan, eventListCopy.rollingMeanSpan)
+        self.assertEqual(self.eventList1.transform, eventListCopy.transform)
+        self.assertEqual(self.eventList1.useAllTransforms, eventListCopy.useAllTransforms)
+        self.assertEqual(self.eventList1.allowMeanRemoval, eventListCopy.allowMeanRemoval)
+        
+    def testAppend(self):
+        """ Test the append method. """
+        # TODO: Mock up everthing around this, since it's a few function calls
+        # deep.  A fake set of objects will work way more predictably
+        # aRealEventList = self.dataset.channels[32].getSession(0).append(ChannelDataBlock)
+        
+
+    def testGetInterval(self):
+        """ Test the getInterval method. """
+        # self.assertEqual(self.eventList1.getInterval(), None)
+        fakeObject = GenericObject()
+        fakeObject.endTime = 1
+        accel = self.dataset.channels[32].getSession()
+        self.assertEqual(accel.getInterval(), None)
+        
+        accel._data = [fakeObject]
+        self.assertEqual(accel.getInterval(), (None, 1))
+        
+        accel.dataset = GenericObject()
+        accel.dataset.loading = True
+        self.assertEqual(accel.getInterval(), (None, 1))
+    
+    # TODO talk to david about how to test these
+    def testItervalues(self):
+        """ Test for itervalues method. """
+        self.mockData()
+
+        self.eventList1.iterSlice = self.mockIterslice
+        
+        for key in self.eventList1.itervalues():
+            self.assertFalse(key)
+            
+        self.assertEqual(self.iterArgs, (0, -1, 1, False))
+        
+    def testIterSlice(self):
+       """ print(self.eventList1.iterSlice()) """
+
+    def testGetEventIndexBefore(self):
+        """ Test for getEventIndexBefore method. """
+        self.mockData()
+
+        self.assertEqual(self.eventList1.getEventIndexBefore(1), 1)
+        self.assertEqual(self.eventList1.getEventIndexBefore(-1), -1)
+        
+    def testGetEventIndexNear(self):
+        """ Test for getEventIndexNear method. """
+        self.mockData()
+        
+        self.assertEqual(self.eventList1.getEventIndexNear(-1), 0)
+        # self.assertEqual(self.eventList1.getEventIndexNear(1), 0)
+    
+    def testGetRangeIndices(self):
+        """ Test for getRangeIndices method. """
+        """ Test for getEventIndexNear method. """
+        self.mockData()
+        
+        self.assertEqual(self.eventList1.getRangeIndices(1, 2), (2, 2))
+        
+        self.assertEqual(self.eventList1.getRangeIndices(None, 2), (0, 2))
+        
+        self.assertEqual(self.eventList1.getRangeIndices(None, None), (0, 3))
+        
+        self.assertEqual(self.eventList1.getRangeIndices(2, -51), (3, 0))
+        
+        self.eventList1.parent.singleSample = True
+        self.assertEqual(self.eventList1.getRangeIndices(2, -51), (0, 1))
+        self.assertEqual(self.eventList1.getRangeIndices(2, None), (0, 3))
+        
+    def testGetRange(self):
+        """ Test for getRange method. """
+        self.mockData()
+        self.eventList1.iterRange = lambda x, y, display: (x, y, display)
+        
+        self.assertEqual(
+            self.eventList1.getRange(), 
+            [None, None, False])
+    
+    def testIterRange(self):
+        """ Test for iterRange method. """
+        self.mockData()
+        self.eventList1.iterSlice = lambda w, x, y, display: (w+1, x, y, display)
+        
+        self.assertEqual(
+            self.eventList1.iterRange(1, 3, 1, display=False), 
+            self.eventList1.iterSlice(2, 3, 1, display=False))
+        
+    def testIterMinMeanMax(self):
+        """ Test for iterMinMeanMax method. """
+        self.mockData()
+        self.eventList1._data[0].minMeanMax = 1
+        self.eventList1._data[0].blockIndex = 2
+        self.eventList1._data[0].min = [3]
+        self.eventList1._data[0].mean = [4]
+        self.eventList1._data[0].max = [5]
+        
+        for key in self.eventList1.iterMinMeanMax():
+            self.assertEqual(key, [(0,(3,)),(0,(4,)),(0,(5,))])
+            
+    def testGetMinMeanMax(self):
+        """ Test getMinMeanMax. """
+        self.mockData()
+        self.eventList1._data[0].minMeanMax = 1
+        self.eventList1._data[0].blockIndex = 2
+        self.eventList1._data[0].min = [3]
+        self.eventList1._data[0].mean = [4]
+        self.eventList1._data[0].max = [5]
+        
+        print(self.eventList1.getMinMeanMax())
+        self.assertEqual(
+            self.eventList1.getMinMeanMax(),
+            [[(0,(3,)), (0,(4,)), (0,(5,))]])
+        self.assertEqual(
+            self.dataset.channels[32].getSession().getMinMeanMax(),
+            [])
+            
+    def testGetRangeMinMeanMax(self):
+        """ Test for getRangeMinMeanMax method. """
+        self.mockData()
+        self.eventList1._data[0].minMeanMax = 1
+        self.eventList1._data[0].blockIndex = 2
+        self.eventList1._data[0].min = [3]
+        self.eventList1._data[0].mean = [4]
+        self.eventList1._data[0].max = [5]
+        
+        self.assertEqual(self.eventList1.getRangeMinMeanMax(), (3, 4, 5))
+        
+    def testGetMax(self):
+        self.mockData()
+        self.eventList1._data[0].minMeanMax = [1]
+        self.eventList1._data[0].blockIndex = [2]
+        self.eventList1._data[0].min = [3]
+        self.eventList1._data[0].mean = [4]
+        self.eventList1._data[0].max = [5]
+        
+        def mockSliceForMax(*args, **kwargs):
+            return [[args]]
+        self.eventList1.iterSlice = mockSliceForMax
+             
+        self.assertEqual(self.eventList1.getMax(), [(0, 3)])
+        
+    def testGetMin(self):
+        self.mockData()
+        self.eventList1._data[0].minMeanMax = [1]
+        self.eventList1._data[0].blockIndex = [2]
+        self.eventList1._data[0].min = [3]
+        self.eventList1._data[0].mean = [4]
+        self.eventList1._data[0].max = [5]
+        
+        def mockSliceForMax(*args, **kwargs):
+            return [[args]]
+        self.eventList1.iterSlice = mockSliceForMax
+             
+        self.assertEqual(self.eventList1.getMin(), [(0, 3)])
+        
+    def testGetSampleTime(self):
+        """ Test for getSampleTime method. """
+        self.mockData()
+        self.assertEqual(self.eventList1.getSampleTime(), 1)
+        self.assertEqual(self.eventList1.getSampleTime(1), 1)
+        self.assertEqual(self.dataset.channels[32].getSession().getSampleTime(), -1)
+        self.assertEqual(self.dataset.channels[32].getSession().getSampleTime(1), -1)
+    
+
 DEFAULTS = {
     "sensors": {
         0x00: {"name": "832M1 Accelerometer"},
