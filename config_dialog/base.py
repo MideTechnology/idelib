@@ -72,6 +72,8 @@ import classic
 # 
 #===============================================================================
 
+# XXX: Remove all this debugging stuff
+__DEBUG__ =  True
 
 #===============================================================================
 #--- Utility functions
@@ -1477,8 +1479,8 @@ class CheckDriftButton(ConfigWidget):
         except Exception:
             if __DEBUG__:
                 raise
-            wx.MessageBox("Could not read the recorder's clock!", self.label,
-                          parent=self, style=wx.OK|wx.ICON_ERROR)
+            self.showError("Could not read the recorder's clock!", self.label,
+                          style=wx.OK|wx.ICON_ERROR)
             return
         
         drift = times[0] - times[1]
@@ -1670,6 +1672,16 @@ class CheckGroup(Group):
         disable them all. Children appear indented.
     """
     CHECK = True
+    DEFAULT_TYPE = "BooleanValue"
+
+
+    def setToDefault(self, check=False):
+        """ Reset the CheckGroup to its default value. The checkbox's state is 
+            unchanged if the CheckGroup has no default.
+        """
+        Group.setToDefault(self, check=check)
+        if self.default is not None:
+            self.setCheck(self.default)
 
 
 #===============================================================================
@@ -1744,6 +1756,11 @@ class DeviceInfoTab(Tab):
 
     def initUI(self):
         dev = self.root.device
+        
+        if dev is None:
+            # Should only happen during debugging
+            return
+        
         info = dev.getInfo()
 
         info['CalibrationSerialNumber'] = dev.getCalSerial()
@@ -1774,6 +1791,11 @@ class FactoryCalibrationTab(DeviceInfoTab):
 
     def initUI(self):
         dev = self.root.device
+        
+        if dev is None:
+            # Should only happen during debugging
+            return
+        
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.field = CalibrationPanel(self, -1, 
                                       root=self.root,
@@ -1801,6 +1823,11 @@ class UserCalibrationTab(FactoryCalibrationTab):
 
     def initUI(self):
         dev = self.root.device
+        
+        if dev is None:
+            # Should only happen during debugging
+            return
+        
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.field = EditableCalibrationPanel(self, -1, 
                                       root=self.root,
@@ -1815,7 +1842,7 @@ class UserCalibrationTab(FactoryCalibrationTab):
         """ Save the user calibration, if any. Called when main dialog saves
             prior to closing.
         """
-        if self.field.info:
+        if self.field.info and self.root.device is not None:
             self.root.device.writeUserCal(self.field.info)
 
 
@@ -2048,6 +2075,7 @@ class ConfigDialog(SC.SizedDialog):
             data = {'RecorderConfigurationList': 
                         {'RecorderConfigurationItem': values}}
             
+            print data
             schema = loadSchema('mide.xml')
             encoded = schema.encodes(data)
             
@@ -2111,18 +2139,18 @@ class ConfigDialog(SC.SizedDialog):
                     # vs. not a config file
                     cname, cvers, dname, dvers = err.args[1]
                     if cname != dname:
-                        md = wx.MessageBox( 
+                        md = self.showError( 
                             "The selected file does not appear to be a  "
                             "valid configuration file for this device.", 
-                            "Invalid Configuration", parent=self,
+                            "Invalid Configuration", 
                             style=wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION) 
                     else:
                         s = "an older" if cvers < dvers else "a newer"
-                        md = wx.MessageBox(
+                        md = self.showError(
                              "The selected file was exported from %s "
                              "version of %s.\nImporting it may cause "
                              "problems.\n\nImport anyway?" % (s, cname), 
-                             "Configuration Version Mismatch", parent=self, 
+                             "Configuration Version Mismatch",  
                              style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
                         if md == wx.YES:
                             self.device.importConfig(filename, 
@@ -2132,10 +2160,10 @@ class ConfigDialog(SC.SizedDialog):
         except ValueError:
             # TODO: More specific error message (wrong device type
             # vs. not a config file
-            md = wx.MessageBox( 
+            md = self.showError( 
                 "The selected file does not appear to be a valid "
                 "configuration file for this device.", 
-                "Invalid Configuration", parent=self,
+                "Invalid Configuration", 
                 style=wx.OK | wx.ICON_EXCLAMATION) 
             
         dlg.Destroy()
@@ -2159,9 +2187,9 @@ class ConfigDialog(SC.SizedDialog):
                 # TODO: More specific error message
                 logger.error('Could not export configuration (%s: %s)' % 
                              (err.__class__.__name__, err))
-                wx.MessageBox( 
+                self.showError( 
                     "The configuration data could not be exported to the "
-                    "specified file.", "Config Export Failed", parent=self,
+                    "specified file.", "Config Export Failed", 
                     style=wx.OK | wx.ICON_EXCLAMATION)
                 
         dlg.Destroy()    
@@ -2177,7 +2205,7 @@ class ConfigDialog(SC.SizedDialog):
         
         try:
             self.saveConfigData()
-            
+        
         except (IOError, WindowsError) as err:
             msg = ("An error occurred when trying to update the recorder's "
                    "configuration data.\n\n")
@@ -2195,9 +2223,7 @@ class ConfigDialog(SC.SizedDialog):
             if not msg.endswith(('.', '!')):
                 msg += "."
              
-            wx.MessageBox(msg, "Configuration Error", 
-                          wx.OK|wx.OK_DEFAULT| wx.ICON_ERROR,
-                          parent=self)
+            self.showError(msg, "Configuration Error")
             evt.Skip()
             return
         
@@ -2213,9 +2239,7 @@ class ConfigDialog(SC.SizedDialog):
             if not msg.endswith(('.', '!')):
                 msg += "."
 
-            wx.MessageBox(msg, "Configuration Error", 
-                          wx.OK|wx.OK_DEFAULT| wx.ICON_ERROR,
-                          parent=self)
+            self.showError(msg, "Configuration Error")
             evt.Skip()
             return
        
@@ -2230,8 +2254,8 @@ class ConfigDialog(SC.SizedDialog):
                 self.device.setTime()
             except Exception as err:
                 logger.error("Error setting clock: %r" % err)
-                wx.MessageBox("The recorder's clock could not be set.", 
-                              "Configure Device", parent=self,
+                self.showError("The recorder's clock could not be set.", 
+                              "Configure Device", 
                               style=wx.OK|wx.OK_DEFAULT|wx.ICON_WARNING)
                 
         evt.Skip()
@@ -2241,8 +2265,8 @@ class ConfigDialog(SC.SizedDialog):
         """ Handle dialog cancel, prompting the user to save any changes.
         """
         if self.configChanged():
-            q = wx.MessageBox("Save configuration changes before exiting?",
-                              "Configure Device", parent=self,
+            q = self.showError("Save configuration changes before exiting?",
+                              "Configure Device", 
                               style=wx.YES_NO|wx.CANCEL|wx.CANCEL_DEFAULT)
             if q == wx.CANCEL:
                 return
@@ -2255,6 +2279,18 @@ class ConfigDialog(SC.SizedDialog):
         self.configData = None
         evt.Skip()
         
+
+    def showError(self, msg, caption, style=wx.OK|wx.OK_DEFAULT|wx.ICON_ERROR,
+                  err=None):
+        """ Show an error message. Wraps the standard message box to add some
+            debugging stuff.
+        """
+        q = wx.MessageBox(msg, caption, style=style, parent=self)
+        if wx.GetKeyState(wx.WXK_CONTROL) and wx.GetKeyState(wx.WXK_SHIFT):
+            raise
+        if err is not None:
+            logger.debug("%s: %r" % (msg, err))
+        return q
 
 #===============================================================================
 # 
@@ -2330,7 +2366,6 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
 #===============================================================================
 
 # XXX: Remove all this debugging stuff
-__DEBUG__ = not True
 dlg = None
 
 if __name__ == "__main__":
@@ -2340,7 +2375,7 @@ if __name__ == "__main__":
     # XXX: TEST CODE, loads the UI from a file (XML or EBML), specified as a 
     # command line argument. If no file is specified, the first recorder found 
     # is used.
-#     sys.argv = ['',  'CONFIG.UI']
+#     sys.argv = ['',  'trigger_CONFIG.UI']
     if len(sys.argv) > 1:
         device = None
         if sys.argv[-1].endswith('.xml'):
