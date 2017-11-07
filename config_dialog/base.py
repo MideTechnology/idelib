@@ -73,7 +73,7 @@ import classic
 #===============================================================================
 
 # XXX: Remove all this debugging stuff
-__DEBUG__ =  True
+__DEBUG__ = not True
 
 #===============================================================================
 #--- Utility functions
@@ -2045,8 +2045,7 @@ class ConfigDialog(SC.SizedDialog):
                     self.configData[k] = v
        
         self.configData.update(self.configValues.toDict())
-        
-        
+         
     
     def saveConfigData(self, filename=None):
         """ Save edited config data to the recorder (or another file).
