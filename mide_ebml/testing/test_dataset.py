@@ -8,8 +8,8 @@ import mide_ebml.calibration as calibration
 from mide_ebml.parsers import ChannelDataBlock
 
 class GenericObject(object):
-    """ Provide a generic object to pass as an argument.
-        It's basically mocking up an object.
+    """ Provide a generic object to pass as an argument in order to mock 
+        arbitrary objects.
     """
     def __init__(self):
         self.isUpdated = False
@@ -33,8 +33,10 @@ class GenericObject(object):
     def parseByIndexWith(self, parser, indices, subchannel):
         return (parser, indices, subchannel)
 
+
 class CascadingTestCase(unittest.TestCase):
     """ Test case for methods in the Cascading class. """
+    
     def setUp(self):
         self.casc1 = Cascading()
         self.casc1.name = 'parent'
@@ -47,11 +49,18 @@ class CascadingTestCase(unittest.TestCase):
         self.casc2 = None
         
     def testHierarchy(self):
-        self.assertTrue(self.casc2.hierarchy() == [self.casc1, self.casc2])
+        self.assertEqual(self.casc2.hierarchy(), [self.casc1, self.casc2])
         
     def testPath(self):
-        self.assertTrue(self.casc1.path() == 'parent')
-        self.assertTrue(self.casc2.path() == 'parent:child')
+        self.assertEqual(self.casc1.path(), 'parent')
+        self.assertEqual(self.casc2.path(), 'parent:child')
+        self.casc1.path = lambda : None
+        self.assertEqual(self.casc2.path(), 'child')
+     
+    def testRepr(self):
+        """ Test that casting to a string creates the correct string. """
+        self.assertIn("<Cascading 'parent' at", repr(self.casc1))
+        
    
 class TransformableTestCase(unittest.TestCase):
     """ Test case for methods in the Transformable class. """
@@ -127,6 +136,22 @@ class DatasetTestCase(unittest.TestCase):
         self.fileStream = open(
             '.\\SSX70065.IDE', 'rb')
         self.dataset = Dataset(self.fileStream)
+
+        self.channelCheck = {}
+        
+        # Copied from importer.py:181
+        self.channels = DEFAULTS['channels'].copy()
+        for chId, chInfo in self.channels.iteritems():
+            chArgs = chInfo.copy()
+            subchannels = chArgs.pop('subchannels', None)
+            self.channelCheck[chId] = Channel(self.dataset, chId, **chArgs.copy())
+            channel = self.dataset.addChannel(chId, **chArgs)
+            self.assertEqual(channel, self.dataset.channels[chId])
+            if subchannels is None:
+                continue
+            for subChId, subChInfo in subchannels.iteritems():
+                channel.addSubChannel(subChId, **subChInfo)
+                self.channelCheck[chId].addSubChannel(subChId, **subChInfo)
     
     def tearDown(self):
         """ Close and dispose of the file. """
@@ -140,7 +165,7 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEquals(self.dataset.lastUtcTime, None)
         self.assertEquals(self.dataset.sessions, [])
         self.assertEquals(self.dataset.sensors, {})
-        self.assertEquals(self.dataset._channels, {})
+        self.assertEquals(self.dataset._channels, self.channelCheck)
         self.assertEquals(self.dataset.warningRanges, {})
         self.assertEquals(self.dataset.plots, {})
         self.assertEquals(self.dataset.transforms, {})
@@ -165,27 +190,21 @@ class DatasetTestCase(unittest.TestCase):
                 self.fileStream, 'MideDocument'))
         self.assertEquals(self.dataset.schemaVersion, 2)
         
-    def testAddChannel(self):
-        """ Test that each channel is being added to the dataset correctly, and
-            that when refering to channel, a dict is returned containing each 
-            channel.
-        """
-        channelCheck = {}
+    def testChannels(self):
+        """ Test the channels property. """
+        self.assertEqual(self.dataset.channels[0], self.channelCheck[0])
         
-        channels = DEFAULTS['channels'].copy()
-        for chId, chInfo in channels.iteritems():
-            chArgs = chInfo.copy()
-            subchannels = chArgs.pop('subchannels', None)
-            channelCheck[chId] = Channel(self.dataset, chId, **chArgs.copy())
-            channel = self.dataset.addChannel(chId, **chArgs)
-            self.assertEqual(channel, self.dataset.channels[chId])
-            if subchannels is None:
-                continue
-            for subChId, subChInfo in subchannels.iteritems():
-                channel.addSubChannel(subChId, **subChInfo)
+    def testClose(self):
+        """ Test the close method. """
+        self.assertFalse(self.fileStream.closed)
+        self.dataset.close()
+        self.assertTrue(self.fileStream.closed)
         
-        self.assertEqual(self.dataset.channels[0].displayName, 
-                         channelCheck[0].displayName)
+    def testClosed(self):
+        """ Test the closed property. """
+        self.assertFalse(self.dataset.closed)
+        self.dataset.close()
+        self.assertTrue(self.dataset.closed)
     
     def testAddSession(self):
         """ Test that adding sessions properly appends a new session and
@@ -226,6 +245,14 @@ class DatasetTestCase(unittest.TestCase):
     
         self.dataset.addSensor('q')
         self.assertEqual(sensor2, self.dataset.sensors['q'])
+        
+    def testAddChannel(self):
+        """ Test that each channel is being added to the dataset correctly, and
+            that when refering to channel, a dict is returned containing each 
+            channel.
+        """
+        self.assertEqual(self.dataset.channels[0].displayName, 
+                         self.channelCheck[0].displayName)
     
     def testAddTransform(self):
         """ Test that transforms are being added correctly.
@@ -251,62 +278,93 @@ class DatasetTestCase(unittest.TestCase):
         """ Test that adding warnings is successfully adding warnings. """
         warning1 = WarningRange(self.dataset, warningId=1, channelId=0,
                                 subchannelId=0, high=10)
-        channels = DEFAULTS['channels'].copy()
-        for chId, chInfo in channels.iteritems():
-            chArgs = chInfo.copy()
-            subchannels = chArgs.pop('subchannels', None)
-            channel = self.dataset.addChannel(chId, **chArgs)
-            self.assertEqual(channel, self.dataset.channels[chId])
-            if subchannels is None:
-                continue
-            for subChId, subChInfo in subchannels.iteritems():
-                channel.addSubChannel(subChId, **subChInfo)
         
         self.dataset.addWarning(1, 0, 0, None, 10)
 
         self.assertEqual(self.dataset.warningRanges[1], warning1)
-    
-    def testClose(self):
-        """ Test if closing a dataset closes the datastream used to read
-            its ebml file.
-        """
-        self.dataset.close()
-        self.assertTrue(self.dataset.ebmldoc.stream.closed)
         
     def testPath(self):
+        """ Test that the path is being assembled correctly. """
         self.assertEqual(self.dataset.name, self.dataset.path())
         
+    def testLastSession(self):
+        """ Test the lastSession property. """
+        self.dataset.addSession(0, 1, 2)
+        self.assertEqual(
+            self.dataset.lastSession, 
+            Session(self.dataset, 
+                    sessionId=0, 
+                    startTime=0, 
+                    endTime=1, 
+                    utcStartTime=2))
+        
+        self.dataset.addSession(4, 5, 6)
+        self.assertEqual(
+            self.dataset.lastSession,
+            Session(self.dataset,
+                    sessionId=1,
+                    startTime=4,
+                    endTime=5,
+                    utcStartTime=6))
+        
+    def testHasSession(self):
+        """ Test the hasSession method. """
+        self.dataset.addSession(0, 1, 2)
+        
+        self.assertTrue(self.dataset.hasSession(0))
+        self.assertFalse(self.dataset.hasSession(1))
+
     def testGetPlots(self):
         """ Test that all the plots are being collected and sorted correctly. """
-        channels = DEFAULTS['channels'].copy()
-        for chId, chInfo in channels.iteritems():
-            chArgs = chInfo.copy()
-            subchannels = chArgs.pop('subchannels', None)
-            channel = self.dataset.addChannel(chId, **chArgs)
-            self.assertEqual(channel, self.dataset.channels[chId])
-            if subchannels is None:
-                continue
-            for subChId, subChInfo in subchannels.iteritems():
-                channel.addSubChannel(subChId, **subChInfo)
         
         subs = self.dataset._channels[0].subchannels
         subs = subs + self.dataset._channels[1].subchannels
         self.assertEquals(subs, self.dataset.getPlots(sort=False))
         
         subs.sort(key=lambda x: x.displayName)
-        self.assertEquals(subs, self.dataset.getPlots())                
+        self.assertEquals(subs, self.dataset.getPlots())             
+        
+    def testUpdateTransforms(self):
+        """ Test updateTransforms method. """
+        transformsUpdated = []
+        def mockUpdateTransforms():
+            transformsUpdated.append(0)
+            
+        self.dataset.updateTransforms()
+        self.assertEqual(transformsUpdated, [])
+        
+        for x in self.dataset.channels.values():
+            x.updateTransforms = mockUpdateTransforms
+        self.dataset.updateTransforms()
+        self.assertEqual(transformsUpdated, [0, 0])
 
 
 class SessionTestCase(unittest.TestCase):
     """ Test case for methods in the Session class. """
     
     def testInitAndEQ(self):
+        self.dataset = importer.importFile('.\\SSX70065.IDE')
+        session1 = Session(
+            self.dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
+        session2 = Session(
+            self.dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
+        
+        self.assertEqual(session1, session2)
+        self.assertNotEqual(session1, GenericObject())
+        self.assertEqual(session1.dataset, self.dataset)
+        self.assertEqual(session1.startTime, 2)
+        self.assertEqual(session1.endTime, 3)
+        self.assertEqual(session1.sessionId, 1)
+        self.assertEqual(session1.utcStartTime, 4)
+        
+    def testRepr(self):
+        """ Test that __repr__ is creating the correct string. """
         fileStream = open(
             '.\\SSX70065.IDE', 'rb')
         dataset = Dataset(fileStream)
-        session1 = Session(dataset, 1, 2, 3, 4)
-        session2 = Session(dataset, 1, 2, 3, 4)
-        self.assertEqual(session1, session2)
+        session1 = Session(
+            dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
+        self.assertIn("<Session (id=1) at", repr(session1))
     
     
 class SensorTestCase(unittest.TestCase):
@@ -314,9 +372,7 @@ class SensorTestCase(unittest.TestCase):
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.fileStream = open(
-            '.\\SSX70065.IDE', 'rb')
-        self.dataset = Dataset(self.fileStream)
+        self.dataset = importer.importFile('.\\SSX70065.IDE')
         
         self.sensor1 = Sensor(self.dataset, 1)
         self.sensor2 = Sensor(self.dataset, 2, "3", 4, 5, 6, 7)
@@ -335,6 +391,12 @@ class SensorTestCase(unittest.TestCase):
         
         sensor3 = Sensor(self.dataset, 3, name=None)
         self.assertEqual(sensor3.name, "Sensor%02d")
+        
+    def testGetItem(self):
+        """ Test for the __getitem__ method. """
+        self.sensor1.channels = {'a': 2, 'b': 3, 'e': 4, 'test': 5}
+        for x in self.sensor1.channels:
+            self.assertEqual(self.sensor1[x], self.sensor1.channels[x])
         
     def testChildren(self):
         """ Test the children property. """
@@ -598,9 +660,23 @@ class SubChannelTestCase(unittest.TestCase):
         """ Test the getSession method. """
         self.subChannel1.dataset.addSession(0, 1, 2)
         self.channel2.subchannels = [GenericObject()]
-        self.subChannel1.subchannels = [GenericObject()]
-        eventList = EventList(self.channel2, session=self.dataset.lastSession)
-        self.assertEqual(self.subChannel1.parent.getSession(1),eventList)
+        parentList = self.dataset.channels[32].getSession()
+        parentList.dataset.addSession(0, 1, 2)
+        eventList = EventList(
+            self.subChannel1,
+            session=self.dataset.lastSession,
+            parentList=self.subChannel1.parent.getSession())
+        
+        self.assertEqual(self.subChannel1.getSession(), eventList)
+        self.assertEqual(self.subChannel1.getSession(2), eventList)
+        
+    def testAddSubChannel(self):
+        """ Test addSubChannel method.  This will throw an error. """
+        self.assertRaises(AttributeError, self.subChannel1.addSubChannel)
+        
+    def testGetSubchannel(self):
+        """ Test getSubChannel method.  This will always throw an error. """
+        self.assertRaises(AttributeError, self.subChannel1.getSubChannel)
     
     
 class EventListTestCase(unittest.TestCase):
@@ -626,7 +702,6 @@ class EventListTestCase(unittest.TestCase):
         
         
     def tearDown(self):
-        self.fileStream = None
         self.dataset = None
         self.fakeParser = None
         self.channel1 = None
@@ -650,6 +725,13 @@ class EventListTestCase(unittest.TestCase):
         self.iterArgs = args
         self.kwArgs = kwargs
         return [args]
+    
+    def mockXform(self, times, session=None, noBivariates=None):
+        self.xformArgs = (times, session, noBivariates)
+        
+        self.mockXformReturn[2] += 1
+
+        return list(self.mockXformReturn)
     
     def testConstructor(self):
         """ Test the __init__ method. """
@@ -733,14 +815,58 @@ class EventListTestCase(unittest.TestCase):
         
     def testAppend(self):
         """ Test the append method. """
-        # TODO: Mock up everthing around this, since it's a few function calls
-        # deep.  A fake set of objects will work way more predictably
-        # aRealEventList = self.dataset.channels[32].getSession(0).append(ChannelDataBlock)
+        fakeData = GenericObject()
+        fakeData.numSamples = 1
+        fakeData.startTime = 2
+        fakeData.endTime = 4
+        fakeData.minMeanMax = (5, 6, 7)
         
+        fakeData.parseMinMeanMax = lambda x: x
+        
+        self.eventList1.append(fakeData)
+        
+        self.assertEqual(fakeData.blockIndex, 0)
+        self.assertFalse(fakeData.cache)
+        self.assertEqual(fakeData.indexRange, (0, 0))
+        self.assertEqual(self.eventList1._blockIndices,[0])
+        self.assertEqual(self.eventList1._blockTimes, [2])
+        self.assertEqual(self.eventList1._firstTime, 2)
+        self.assertEqual(self.eventList1._lastTime, 4)
+        self.assertEqual(self.eventList1._length, 1)
+        self.assertTrue(self.eventList1._singleSample)
+        
+        self.eventList1._singleSample = True
+        
+        self.eventList1.append(fakeData)
+        
+        self.assertEqual(fakeData.blockIndex, 1)
+        self.assertFalse(fakeData.cache)
+        self.assertEqual(fakeData.indexRange, (1, 1))
+        self.assertEqual(self.eventList1._blockIndices,[0, 1])
+        self.assertEqual(self.eventList1._blockTimes, [2,2])
+        self.assertEqual(self.eventList1._firstTime, 2)
+        self.assertEqual(self.eventList1._lastTime, 4)
+        self.assertEqual(self.eventList1._length, 2)
+        self.assertTrue(self.eventList1._singleSample)
+        
+        self.eventList1.session.firstTime = None
+        self.eventList1.session.lastTime = None
+        self.eventList1._firstTime = None
+        
+        self.eventList1.append(fakeData)
+        
+        self.assertEqual(fakeData.blockIndex, 2)
+        self.assertFalse(fakeData.cache)
+        self.assertEqual(fakeData.indexRange, (2, 2))
+        self.assertEqual(self.eventList1._blockIndices,[0, 1, 2])
+        self.assertEqual(self.eventList1._blockTimes, [2, 2, 2])
+        self.assertEqual(self.eventList1._firstTime, 2)
+        self.assertEqual(self.eventList1._lastTime, 4)
+        self.assertEqual(self.eventList1._length, 3)
+        self.assertTrue(self.eventList1._singleSample)
 
     def testGetInterval(self):
         """ Test the getInterval method. """
-        # self.assertEqual(self.eventList1.getInterval(), None)
         fakeObject = GenericObject()
         fakeObject.endTime = 1
         accel = self.dataset.channels[32].getSession()
@@ -838,7 +964,7 @@ class EventListTestCase(unittest.TestCase):
         self.eventList1._data[0].mean = [4]
         self.eventList1._data[0].max = [5]
         
-        print(self.eventList1.getMinMeanMax())
+        
         self.assertEqual(
             self.eventList1.getMinMeanMax(),
             [[(0,(3,)), (0,(4,)), (0,(5,))]])
@@ -858,6 +984,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1.getRangeMinMeanMax(), (3, 4, 5))
         
     def testGetMax(self):
+        """ Test for getMax method. """
         self.mockData()
         self.eventList1._data[0].minMeanMax = [1]
         self.eventList1._data[0].blockIndex = [2]
@@ -872,6 +999,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1.getMax(), [(0, 3)])
         
     def testGetMin(self):
+        """ test for getMin method. """
         self.mockData()
         self.eventList1._data[0].minMeanMax = [1]
         self.eventList1._data[0].blockIndex = [2]
@@ -888,11 +1016,168 @@ class EventListTestCase(unittest.TestCase):
     def testGetSampleTime(self):
         """ Test for getSampleTime method. """
         self.mockData()
+        
         self.assertEqual(self.eventList1.getSampleTime(), 1)
         self.assertEqual(self.eventList1.getSampleTime(1), 1)
         self.assertEqual(self.dataset.channels[32].getSession().getSampleTime(), -1)
         self.assertEqual(self.dataset.channels[32].getSession().getSampleTime(1), -1)
+        
+    def testGetSampleRate(self):
+        """ Test for getSampleRate method. """
+        self.mockData()
+        self.eventList1._data[0].sampleRate = 5
+        self.dataset.channels[32].sampleRate = 3
+        self.dataset.channels[32].getSession()._data = self.eventList1._data
+        
+        self.assertEqual(self.eventList1.getSampleRate(), 5)
+        self.assertEqual(self.eventList1.getSampleRate(0), 5)
+        self.assertEqual(self.dataset.channels[32].getSession().getSampleRate(), 3)
+        self.assertEqual(self.dataset.channels[32].getSession().getSampleRate(0), 5)
+        
+    def testGetValueAt(self):
+        """ Test for getValueAt method. """
+        self.mockData()
+        fakeData = GenericObject()
+        fakeData.numSamples = 1
+        fakeData.startTime = 0
+        fakeData.endTime = 4
+        fakeData.minMeanMax = (5, 6, 7)
+        
+        fakeData.parseMinMeanMax = lambda x: x
+        
+        self.eventList1.append(fakeData)
+        
+        self.eventList1._fullXform = self.mockXform
+        
+        self.mockXformReturn = [[0], [0], 0, [0]]
+                
+        self.assertEqual(
+            self.eventList1.getValueAt(0, outOfRange=True), 
+            [[0], [0], 1, [0]])
+        
+        self.mockXformReturn = [[0], [0], -1, [0]]
+                
+        self.assertEqual(self.eventList1.getValueAt(0), [[0], [0], 0, [0]])
+        
+        self.mockXformReturn = [[0], [0], -1, [0]]        
+        self.eventList1.getEventIndexBefore = lambda x: 1
+                
+        self.assertEqual(self.eventList1.getValueAt(0), [[0], [0], 0, [0]])
+        
+        self.mockXformReturn = [[0], [0], -1, [0]]        
+        self.eventList1.getEventIndexBefore = lambda x: 0
+                
+        self.mockXformReturn = [[0],[0],0,[0]]
+                
+        self.assertEqual(self.eventList1.getValueAt(0), (0, (0.0,)))
+        
+    def testGetMeanNear(self):
+        """ Test for getMeanNear method. """
+        self.mockData()
+        self.eventList1._data[0].minMeanMax = 0
+        self.eventList1._data[0]._rollingMean = 0
+        self.eventList1._data[0]._rollingMeanSpan = 0
+        self.eventList1._data[0].mean = 0
+        self.comboArgs = None
+        self.comboKwargs = None
+        
+        def mockComboXform(*args, **kwargs):
+            self.comboArgs = args
+            self.comboKwargs = kwargs
+            
+            return [[0]]
+            
+        self.eventList1._comboXform = mockComboXform
+        
+        self.assertEqual(self.eventList1.getMeanNear(0), [0])
+        self.assertEqual(self.comboArgs, ((0,0),))
+        self.assertEqual(self.comboKwargs, {})
+        
+        self.eventList1.hasSubchannels = False   
+        self.eventList1.subchannelId = 0 
+        
+        self.assertEqual(self.eventList1.getMeanNear(0), 0)
+        self.assertEqual(self.comboArgs, ((0,0),))
+        self.assertEqual(self.comboKwargs, {})
+        
+    def testExportCSV(self):
+        """ Test exportCsv, """
+        self.mockData()
+        self.eventList1._data[0].minMeanMax = 1
+        self.eventList1._data[0].blockIndex = 2
+        self.eventList1._data[0].min = [3]
+        self.eventList1._data[0].mean = [4]
+        self.eventList1._data[0].max = [5]
+        
+        # print(self.eventList1.exportCsv(streamMocker))
+        
+class PlotTestCase(unittest.TestCase):
+    """ Unit test for the Plot class. """
     
+    def setUp(self):
+        self.dataset = importer.importFile('.\\SSX70065.IDE')
+        self.dataset.addSession(0, 1, 2)
+        self.dataset.addSensor(0)
+        
+        self.fakeParser = GenericObject()
+        self.fakeParser.types = [0]
+        self.fakeParser.format = []
+        
+        self.channel1 = Channel(
+            self.dataset, channelId=0, name="channel1", parser=self.fakeParser,
+            displayRange=[0])
+        self.eventList1 = EventList(self.channel1, session=self.dataset.sessions[0])
+        
+        self.channel1.addSubChannel(subchannelId=0)
+        
+        self.subChannel1 = SubChannel(self.channel1, 0)
+        
+        self.plot1 =  Plot(self.eventList1, 0, name="Plot1")
+    
+    def tearDown(self):
+        self.dataset.close()
+        self.dataset = None
+        
+        self.fakeParser = None
+        self.channel1 = None
+        self.eventList1 = None
+        self.subChannel1 = None
+        self.plot1 = None
+    
+    def mockData(self):
+        """ mock up a bit of fake data so I don't have to worry that external
+            classes are working during testing.
+        """
+        fakeData = GenericObject()
+        fakeData.startTime = 0
+        fakeData.indexRange = [0, 3]
+        fakeData.sampleTime = 1
+        fakeData.numSamples = 1
+        self.eventList1._data = [fakeData]
+    
+    def testConstructor(self):
+        """ Test for the constructor. """
+        self.assertEqual(self.plot1.source, self.eventList1)
+        self.assertEqual(self.plot1.id, 0)
+        self.assertEqual(self.plot1.session, self.eventList1.session)
+        self.assertEqual(self.plot1.dataset, self.eventList1.dataset)
+        self.assertEqual(self.plot1.name, "Plot1")
+        self.assertEqual(self.plot1.units, self.eventList1.units)
+        self.assertEqual(self.plot1.attributes, None)
+        
+    def testGetEventIndexBefore(self):
+        """ Test for getEventIndexBefore method. """
+        self.mockData()
+        
+        self.assertEqual(
+            self.plot1.getEventIndexBefore(0), 
+            self.eventList1.getEventIndexBefore(0))
+        
+    def testGetRange(self):
+        """ Test for getRange method. """
+        print('gotta get to this')#self.plot1.getRange(0, 1))
+        # TODO
+        
 
 DEFAULTS = {
     "sensors": {

@@ -813,7 +813,6 @@ class Channel(Transformable):
                and self.sensor == other.sensor \
                and self.parser == other.parser \
                and self.units == other.units \
-               and self.parent == other.parent \
                and self.dataset == other.dataset \
                and self.sampleRate == other.sampleRate \
                and self.attributes == other.attributes \
@@ -1010,7 +1009,6 @@ class SubChannel(Channel):
                and self.sensor == other.sensor \
                and self.parser == other.parser \
                and self.units == other.units \
-               and self.parent == other.parent \
                and self.dataset == other.dataset \
                and self.sampleRate == other.sampleRate \
                and self.attributes == other.attributes \
@@ -2410,7 +2408,7 @@ class EventList(Transformable):
             callback(error=e)
 
         return num+1, datetime.now() - t0
-
+    
         
 #===============================================================================
 # 
