@@ -1,7 +1,12 @@
 '''
-Module mide_ebml.recovery
+Module mide_ebml.recovery: Utilities to perform basic data recovery from a 
+damaged IDE file. 
 
 Created on Nov 7, 2017
+
+@todo: Search for the start of *any* known element, instead of just Sync or
+    ChannelDataBlock? Current script won't recover non-data elements (e.g.
+    calibration, self-description). Potentially slow.
 '''
 
 __author__ = "dstokes"
@@ -23,6 +28,7 @@ def simpleCallback(pos, recovered, fileSize):
         percent = ((pos + 0.0) / fileSize) * 100
         sys.stdout.write("Read: %d%% Pos: %d recovered: %d\r" % (percent, pos, recovered))
         sys.stdout.flush()
+    return False
         
 
 #===============================================================================
@@ -84,9 +90,11 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
         @keyword callback: A function called after each recovered element,
             providing a progress report. The function has three arguments:
             the current file offset, the number of recovered elements, and
-            the full size of the file.
+            the full size of the file. The function returns `True` if 
+            the recovery should be cancelled.
         @keyword unknown: If `True`, unrecognized elements will be retained.
-            If `False`, unknown elements will be considered bad data.
+            If `False`, unknown elements will be considered bad data. Should
+            almost always be `False`.
         @return: The number of elements recovered, and the percentage of the 
             file's total size that was salvaged.
     """
@@ -121,7 +129,11 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
         out.write(el.getRaw())
         recovered += 1
         recoveredSize += el.size
-        callback(pos, recovered, doc.size)
+        
+        if callback is not None:
+            # TODO: Cancel isn't working for some reason!
+            if callback(pos, recovered, doc.size):
+                break
 
     return recovered, (recoveredSize+0.0) / doc.size
 
