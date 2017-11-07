@@ -5,6 +5,8 @@ EBML files quickly and efficiently, and that's about it.
 Created on Apr 27, 2017
 
 @todo: Unit tests.
+@todo: Remove remaining python-ebml compatibility stuff: integer element
+    types (FLOAT, STRING, etc.). 
 @todo: Complete EBML encoding. Specifically, make 'master' elements write 
     directly to the stream, rather than build bytearrays, so huge 'master' 
     elements can be handled.
@@ -43,6 +45,7 @@ import schemata
 #===============================================================================
 
 # Type IDs, for python-ebml compatibility
+# TODO: Remove 
 INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER = range(0, 8)
 UNKNOWN = -1 # not in python-ebml
 
@@ -55,7 +58,7 @@ UNKNOWN = -1 # not in python-ebml
 SCHEMA_PATH = ['', 
                os.path.realpath(os.path.dirname(schemata.__file__)),
                # XXX: TEST, REMOVE NEXT LINE.
-               os.path.realpath(os.path.join(os.path.dirname(encoding.__file__), '../ebml/schema')), 
+#                os.path.realpath(os.path.join(os.path.dirname(encoding.__file__), '../ebml/schema')), 
                ]
 
 # SCHEMATA: A dictionary of loaded schemata, keyed by filename. Used by
@@ -147,7 +150,7 @@ class Element(object):
         self._value = None
 
         # For python-ebml compatibility. Remove later.
-        self.body_size = size + (payloadOffset - offset)
+        self.bodySize = size + (payloadOffset - offset)
 
 
     def __repr__(self):
@@ -629,16 +632,23 @@ class Document(MasterElement):
                 the EBML content, or a filename. 
             @keyword name: The name of the document. Defaults to the filename
                 (if applicable).
+            @keyword size: The size of the document, in bytes. Use if the
+                stream is neither a file or a `StringIO` object.
             @keyword headers: If `False`, the file's ``EBML`` header element 
                 (if present) will not appear as a root element in the document.
                 The contents of the ``EBML`` element will always be read.  
         """
+        if not all((hasattr(stream, 'read'), 
+                    hasattr(stream, 'tell'),
+                    hasattr(stream, 'seek'))):
+            raise TypeError('Object %r does not have the necessary stream methods' % stream)
+        
         self._value = None
         self.stream = stream
         self.size = size
         self.name = name
         self.id = None # Not applicable to Documents.
-        self.offset = self.payloadOffset = 0
+        self.offset = self.payloadOffset = self.stream.tell()
 
         try:
             self.filename = stream.name
@@ -655,27 +665,32 @@ class Document(MasterElement):
             # Note: this doesn't work for cStringIO!
             if isinstance(stream, StringIO):
                 self.size = stream.len
-            elif os.path.exists(self.filename):
+            elif self.filename and os.path.exists(self.filename):
                 self.size = os.path.getsize(self.stream.name)
 
-        startPos = self.stream.tell()
-        el, pos = self.parseElement(self.stream)
-        if el.name == "EBML":
-            # Load 'header' info from the file
-            self.info = el.dump()
-            if not headers:
-                self.payloadOffset = pos
-        else:
-            self.info = {}
-        self.stream.seek(startPos)
-
+        self.info = {}
+        
+        try:
+            # Attempt to read the first element, which should be an EBML header.
+            el, pos = self.parseElement(self.stream)
+            if el.name == "EBML":
+                # Load 'header' info from the file
+                self.info = el.dump()
+                if not headers:
+                    self.payloadOffset = pos
+        except:
+            # Failed to read the first element. Don't raise here; do that when
+            # the Document is actually used.
+            pass
+        
         if self.size is not None:
-            self.body_size = self.size - self.payloadOffset
+            self.bodySize = self.size - self.payloadOffset
         else:
-            self.body_size = None
+            self.bodySize = None
 
 
     def __repr__(self):
+        """ "x.__repr__() <==> repr(x) """
         if self.name == self.__class__.__name__:
             return object.__repr__(self)
         return "<%s %r at 0x%08X>" % (self.__class__.__name__, self.name, 
@@ -1275,33 +1290,33 @@ def loadSchema(filename, reload=False, **kwargs):
 #===============================================================================
 
 # TEST
-schemaFile = os.path.join(os.path.dirname(__file__), r"ebml\schema\mide.xml")
-testFile = 'test_recordings/5kHz_Full.IDE'
-  
-from time import clock
-  
-def crawl(el):
-    v = el.value
-    if isinstance(v, list):
-        return sum(map(crawl, v))
-    return 1
-  
-def testOld():
-    from mide_ebml.ebml.schema.mide import MideDocument
-    total = 0
-    t0 = clock()
-    with open(testFile, 'rb') as f:
-        doc = MideDocument(f)
-        for el in doc.iterroots():
-            total += crawl(el)
-    return doc, total, clock() - t0
-  
-def testNew():
-    total = 0
-    t0 = clock()
-    schema = loadSchema('mide.xml')
-    with open(testFile, 'rb') as f:
-        doc = schema.load(f)
-        for el in doc.iterroots():
-            total += crawl(el)
-    return doc, total, clock() - t0
+# schemaFile = os.path.join(os.path.dirname(__file__), r"ebml\schema\mide.xml")
+# testFile = 'test_recordings/5kHz_Full.IDE'
+#   
+# from time import clock
+#   
+# def crawl(el):
+#     v = el.value
+#     if isinstance(v, list):
+#         return sum(map(crawl, v))
+#     return 1
+#   
+# def testOld():
+#     from mide_ebml.ebml.schema.mide import MideDocument
+#     total = 0
+#     t0 = clock()
+#     with open(testFile, 'rb') as f:
+#         doc = MideDocument(f)
+#         for el in doc.iterroots():
+#             total += crawl(el)
+#     return doc, total, clock() - t0
+#   
+# def testNew():
+#     total = 0
+#     t0 = clock()
+#     schema = loadSchema('mide.xml')
+#     with open(testFile, 'rb') as f:
+#         doc = schema.load(f)
+#         for el in doc.iterroots():
+#             total += crawl(el)
+#     return doc, total, clock() - t0
