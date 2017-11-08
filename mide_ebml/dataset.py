@@ -939,7 +939,7 @@ class SubChannel(Channel):
                                              self.path(), id(self))
 
     def __len__(self):
-        return AttributeError('SubChannel has no children.')
+        raise AttributeError('SubChannel has no children.')
 
 
     @property

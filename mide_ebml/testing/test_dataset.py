@@ -17,6 +17,9 @@ class GenericObject(object):
         self.transform = None
         self.sessions = []
         self.data = []
+        self.indexRange = [1]
+        self.startTime = 0
+        self.sampleTime = 0
         
     def __getitem__(self, index):
         return self.data[index]
@@ -503,9 +506,29 @@ class ChannelTestCase(unittest.TestCase):
         """ Test the children property. """
         self.assertEqual(self.channel1.children, list(iter(self.channel1)))
         
+    def testRepr(self):
+        """ Test the repr special method. """
+        self.assertIn("<Channel 0: 'channel1' at", repr(self.channel1))
+        
+    def testGetitem(self):
+        """ Test the getitem special method. """
+        self.assertEqual(self.channel1[0], SubChannel(self.channel1, 0))
+        # self.assertEqual(self.channel1[1], SubChannel(self.channel1, 1))
+        # TODO: should the above work or not?
+        
     def testLen(self):
         """ Test the len override. """
         self.assertEqual(len(self.channel1),len(self.channel1.subchannels))
+        
+    def testIter(self):
+        """ Test the iter special method. """
+        self.channel1.subchannels = [None]*5
+        self.channel1.types = self.channel1.displayRange = [1, 2, 3, 4, 5]
+        
+        idx = 0
+        for x in self.channel1:
+            self.assertEqual(x, SubChannel(self.channel1, idx))
+            idx += 1
         
     def testAddSubChannel(self):
         """ Test the addSubChannel method. """
@@ -631,6 +654,16 @@ class SubChannelTestCase(unittest.TestCase):
     def testSampleRate(self):
         """ Test the sampleRate property. """
         self.assertEqual(self.subChannel1.sampleRate, self.channel2.sampleRate)
+        
+    def testRepr(self):
+        """ Test the repr special method. """
+        self.assertIn(
+            "<SubChannel 2.0: 'SSX70065:3:channel2:channel2:00' at", 
+            repr(self.subChannel1))
+        
+    def testLen(self):
+        """ Test the len special method. """
+        self.assertRaises(AttributeError, self.subChannel1.__len__)
         
     def testParser(self):
         """ Test the parser property. """
@@ -878,6 +911,15 @@ class EventListTestCase(unittest.TestCase):
         accel.dataset = GenericObject()
         accel.dataset.loading = True
         self.assertEqual(accel.getInterval(), (None, 1))
+        
+    def testGetItem(self):
+        """ Test the getitem special method. """
+        self.assertRaises(TypeError, self.eventList1.__getitem__, 'd')
+        self.eventList1._data = [GenericObject()]*4
+        
+        print(self.eventList1[0])
+        
+        
     
     # TODO talk to david about how to test these
     def testItervalues(self):
