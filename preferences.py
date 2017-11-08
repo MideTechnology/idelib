@@ -111,12 +111,19 @@ class Preferences(object):
                        "33.1": "GREEN", # IMU Magnetometer Y
                        "33.2": "BLUE",  # IMU Magnetometer Z
                        
-                       # IMU Quaternion data (channel 0x35, 53 decimal)
-                       "35.0": "YELLOW",
-                       "35.1": "NAVY",
-                       "35.2": "CYAN",
-                       "35.3": "GOLD",
-                       "35.4": "BLUE VIOLET",
+                       # IMU Quaternion data (channel 0x41, 65 decimal)
+                       # X/Y/Z components same as accelerometer axes
+                       "41.0": "RED",
+                       "41.1": "GREEN",
+                       "41.2": "BLUE",
+                       "41.3": "GOLD",
+                       "41.4": "BLUE VIOLET",
+                       
+                       # IMU Quaternion data (channel 0x46, 70 decimal)
+                       "46.0": "RED",
+                       "46.1": "GREEN",
+                       "46.2": "BLUE",
+                       "46.3": "GOLD",
                        
                        # Control Pad/Fast pressure/temperature (channel 59)
                        "3b.0": wx.Colour(91,181,148),

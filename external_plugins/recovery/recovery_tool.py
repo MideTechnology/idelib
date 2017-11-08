@@ -80,8 +80,8 @@ class RecoveryTool(ToolDialog):
     TITLE = "IDE Data Recovery Tool"
 
     DEFAULT_OUTPUT = "recovered.IDE"
-    MODES = ("Basic: Usually faster",
-             "Thorough: May recover more data")
+    MODES = ("Normal (may be faster)",
+             "Thorough (may recover more data)")
 
     def __init__(self, *args, **kwargs):
         """
@@ -103,7 +103,7 @@ class RecoveryTool(ToolDialog):
         wx.StaticText(pane, -1, "Output File:").SetSizerProps(valign='center')
         self.outputField = FB.FileBrowseButton(pane, -1, labelText="",
             initialValue=self.DEFAULT_OUTPUT, fileMask="*.IDE",
-            fileMode=wx.FD_SAVE|wx.CHANGE_DIR|wx.FD_OVERWRITE_PROMPT)
+            fileMode=wx.FD_SAVE|wx.CHANGE_DIR)#|wx.FD_OVERWRITE_PROMPT)
         self.outputField.SetSizerProps(expand=True)
 
         wx.StaticText(pane, -1, "Recovery Mode:").SetSizerProps(valign='center')
@@ -186,7 +186,6 @@ class RecoveryTool(ToolDialog):
             if q == wx.NO:
                 return
         
-        return
         self.progress = SimpleProgressDialog(
                      "Recovering Data from %s" % os.path.basename(inputFile), 
                      "Recovering data from %s" % inputFile,

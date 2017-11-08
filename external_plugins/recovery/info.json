@@ -2,7 +2,7 @@
  "version": "1.0b1",
  "description": "A utility for recovering data from a damaged IDE file.",
  "type": "tool",
- "module": "recovery",
+ "module": "recovery_tool",
  "author": "D. R. Stokes",
  "copyright": "Copyright (c) 2017 Midé Technology",
  "url": "http://mide.com/"
