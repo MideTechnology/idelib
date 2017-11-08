@@ -177,8 +177,8 @@ class DatasetTestCase(unittest.TestCase):
             self.dataset.ebmldoc, 
             loadSchema(SCHEMA_FILE).load(self.fileStream, 'MideDocument'))
         self.assertEquals(self.dataset.fileDamaged, False)
-        self.assertEquals(self.dataset.filename, getattr(self.fileStream,
-                                                         "name", None))
+        self.assertEquals(
+            self.dataset.filename, getattr(self.fileStream,"name", None))
         self.assertEquals(self.dataset.lastUtcTime, None)
         self.assertEquals(self.dataset.loadCancelled, False)
         self.assertEquals(self.dataset.loading, True)
@@ -769,7 +769,7 @@ class EventListTestCase(unittest.TestCase):
         """
         self.iterArgs = args
         self.kwArgs = kwargs
-        return [args]
+        return [[1], [2], [3], [4]]
     
     def mockXform(self, times, session=None, noBivariates=None):
         self.xformArgs = (times, session, noBivariates)
@@ -828,8 +828,17 @@ class EventListTestCase(unittest.TestCase):
             PolyPoly(xs, dataset=self.dataset))
         self.tearDown()
         
-        # test 
+        # test for when there's a subchannel with a corresponding session
         self.setUp()
+        self.eventList1.session.sessionId = 'session0'
+        self.eventList1.parent.subchannels[0]._sessions = {'session0': self.eventList1}
+        self.eventList1.updateTransforms()
+        xs = [c.transform if c is not None else None for c in self.eventList1.parent.subchannels]
+        self.assertEqual(
+            self.eventList1._displayXform, 
+            PolyPoly(
+                [CombinedPoly(self.eventList1.transform, x=xs[0], dataset=self.dataset)], 
+                dataset=self.dataset))
         
     def testUnits(self):
         """ Test the units property. """
@@ -871,6 +880,7 @@ class EventListTestCase(unittest.TestCase):
         
         fakeData.parseMinMeanMax = lambda x: x
         
+        # append boring basic fakeData
         self.eventList1.append(fakeData)
         
         self.assertEqual(fakeData.blockIndex, 0)
@@ -883,6 +893,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1._length, 1)
         self.assertTrue(self.eventList1._singleSample)
         
+        # append single sample fakeData
         self.eventList1._singleSample = True
         
         self.eventList1.append(fakeData)
@@ -897,6 +908,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1._length, 2)
         self.assertTrue(self.eventList1._singleSample)
         
+        # append with times stripped out
         self.eventList1.session.firstTime = None
         self.eventList1.session.lastTime = None
         self.eventList1._firstTime = None
@@ -918,36 +930,47 @@ class EventListTestCase(unittest.TestCase):
         fakeObject = GenericObject()
         fakeObject.endTime = 1
         accel = self.dataset.channels[32].getSession()
+        
+        # without _data, return None
         self.assertEqual(accel.getInterval(), None)
+        self.assertEqual(accel._lastTime, None)
         
+        # with mocked data
         accel._data = [fakeObject]
-        self.assertEqual(accel.getInterval(), (None, 1))
+        accel._firstTime = 3
+        self.assertEqual(accel.getInterval(), (3, 1))
+        self.assertEqual(accel._lastTime, 1)
         
+        # with mocked data and a mocked dataset
         accel.dataset = GenericObject()
         accel.dataset.loading = True
-        self.assertEqual(accel.getInterval(), (None, 1))
+        self.assertEqual(accel.getInterval(), (3, 1))
         
     def mockForGetItem(self, section):
+        """ Mock different things for testGetItem. """
         
+        # mock with xforms
         if section == 0:
             
             mockBlockIndex = [0, 1, 2, 3]
             
-            def mockGetBlockIndexWithIndex(idx):
+            def mockGetBlockIndexWithIndex(idx, start=None):
                 return mockBlockIndex[idx]
-            
-            self.eventList1._getBlockIndexWithIndex = mockGetBlockIndexWithIndex
             
             def mockGetBlockIndexRange(idx):
                 return mockBlockIndex
-            
-            self.eventList1._getBlockIndexRange = mockGetBlockIndexRange
             
             def mockXform(timeAndVal, session=None, noBivariates=False):
                 if type(timeAndVal[1]) == list:
                     return timeAndVal
                 return (timeAndVal[0], [timeAndVal[1].id])
+                
+            def mockParseBlock(block, start=None, end=None, step=None):
+                return [block]
             
+            self.eventList1._getBlockIndexRange = mockGetBlockIndexRange
+            self.eventList1._getBlockIndexWithIndex = mockGetBlockIndexWithIndex
+            self.eventList1.parent.parseBlock = mockParseBlock
             self.eventList1._displayXform = self.eventList1._comboXform = \
                     self.eventList1._fullXform = mockXform
             
@@ -958,12 +981,8 @@ class EventListTestCase(unittest.TestCase):
             
             for x in xrange(len(self.eventList1._data)):
                 self.eventList1._data[x].id = x
-                
-            def mockParseBlock(block, start=None, end=None):
-                return [block]
             
-            self.eventList1.parent.parseBlock = mockParseBlock
-            
+        # mock without xforms
         elif section == 1:
             
             def mockXform(timeAndVal, session=None, noBivariates=False):
@@ -972,6 +991,7 @@ class EventListTestCase(unittest.TestCase):
             self.eventList1._displayXform = self.eventList1._comboXform = \
                     self.eventList1._fullXform = mockXform
                     
+        # with blockRollingMean
         elif section == 2:
         
             self.mockForGetItem(0)
@@ -985,7 +1005,16 @@ class EventListTestCase(unittest.TestCase):
             
             self.eventList1._displayXform = self.eventList1._comboXform = \
                     self.eventList1._fullXform = mockXform
-                                
+                
+        # for __getitem__ to work in getEventIndexNear
+        elif section == 3:
+            self.mockForGetItem(0)
+            
+            def mockGetBlockSampleTime(idx, start=None):
+                return 1
+            
+            self.eventList1._getBlockSampleTime = mockGetBlockSampleTime
+                        
     def testGetItem(self):
         """ Test the getitem special method. """
         self.assertRaises(TypeError, self.eventList1.__getitem__, 'd')
@@ -1017,47 +1046,56 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1[1], (0, (0,)))
         self.assertEqual(self.eventList1[2], (0, (1,)))
         self.assertEqual(self.eventList1[3], (0, (2,)))
+        
+    def testIter(self):
+        """ Test for iter special method. """
+        self.eventList1._data = [GenericObject(),
+                                 GenericObject(),
+                                 GenericObject(),
+                                 GenericObject()]
+        self.eventList1._fullXform = lambda x, session, noBivariates: x
+        
+        self.assertListEqual(
+            [x for x in self.eventList1],
+            [x for x in self.eventList1.iterSlice()])
             
     # TODO talk to david about how to test these
     def testItervalues(self):
         """ Test for itervalues method. """
         self.mockData()
-
         self.eventList1.iterSlice = self.mockIterslice
         
-        for key in self.eventList1.itervalues():
-            self.assertFalse(key)
-            
+        self.assertEqual([x for x in self.eventList1.itervalues()], [1, 2, 3, 4])            
         self.assertEqual(self.iterArgs, (0, -1, 1, False))
         
     def testIterSlice(self):
         """ print(self.eventList1.iterSlice()) """
-        
         self.eventList1._data = [GenericObject(),
                                  GenericObject(),
                                  GenericObject(),
                                  GenericObject()]
+        self.eventList1._fullXform = lambda x, session, noBivariates: x
         
-        for x in xrange(len(self.eventList1._data)):
-            self.eventList1._data[x].id = x        
-            
-        def mockXform(timeAndVal, session=None, noBivariates=False):
-            return timeAndVal
+        self.assertListEqual(
+            [x for x in self.eventList1.iterSlice()], 
+            [(0, self.channel1.parseBlock(self.eventList1._data[0])[0]), 
+             (0, -3), 
+             (0,1 ), 
+             (0, 1)])
         
-        self.eventList1._displayXform = self.eventList1._comboXform = \
-                self.eventList1._fullXform = mockXform
-                
-        def mockParseBlock(block, start=None, end=None, step=None):
-            return [block]
+    def testIterJitterySlice(self):
+        """ Test for the iterJitterySlice method. """
+        self.eventList1._data = [GenericObject(),
+                                 GenericObject(),
+                                 GenericObject(),
+                                 GenericObject()]
+        self.eventList1._fullXform = lambda x, session, noBivariates: x
         
-        self.eventList1.parent.parseBlock = mockParseBlock
-        
-        self.eventList1._blockIndices = [0, 1, 2, 3]
-        
-        idx = 0    
-        for x in self.eventList1.iterSlice():
-            self.assertEqual(x, (0, self.eventList1._data[idx]))
-            idx += 1
+        self.assertListEqual(
+            [x for x in self.eventList1.iterJitterySlice()],
+            [(0, self.channel1.parseBlock(self.eventList1._data[0])[0]),
+             (0, [-3, -2, -1, 0]), 
+             (0, None)])
 
     def testGetEventIndexBefore(self):
         """ Test for getEventIndexBefore method. """
@@ -1068,24 +1106,24 @@ class EventListTestCase(unittest.TestCase):
         
     def testGetEventIndexNear(self):
         """ Test for getEventIndexNear method. """
-        self.mockData()
-        
+        self.mockForGetItem(3)
+
         self.assertEqual(self.eventList1.getEventIndexNear(-1), 0)
-        # self.assertEqual(self.eventList1.getEventIndexNear(1), 0)
+        self.assertEqual(self.eventList1.getEventIndexNear(0), 0)
+        self.assertEqual(self.eventList1.getEventIndexNear(1), 4)
+        self.assertEqual(self.eventList1.getEventIndexNear(-1), 0)
     
     def testGetRangeIndices(self):
         """ Test for getRangeIndices method. """
-        """ Test for getEventIndexNear method. """
         self.mockData()
         
+        # input permutations for multi sample
         self.assertEqual(self.eventList1.getRangeIndices(1, 2), (2, 2))
-        
         self.assertEqual(self.eventList1.getRangeIndices(None, 2), (0, 2))
-        
         self.assertEqual(self.eventList1.getRangeIndices(None, None), (0, 3))
-        
         self.assertEqual(self.eventList1.getRangeIndices(2, -51), (3, 0))
         
+        # input permutations for single sample
         self.eventList1.parent.singleSample = True
         self.assertEqual(self.eventList1.getRangeIndices(2, -51), (0, 1))
         self.assertEqual(self.eventList1.getRangeIndices(2, None), (0, 3))
@@ -1117,8 +1155,9 @@ class EventListTestCase(unittest.TestCase):
         self.eventList1._data[0].mean = [4]
         self.eventList1._data[0].max = [5]
         
-        for key in self.eventList1.iterMinMeanMax():
-            self.assertEqual(key, [(0,(3,)),(0,(4,)),(0,(5,))])
+        self.assertListEqual(
+            [x for x in self.eventList1.iterMinMeanMax()], 
+            [[(0,(3,)),(0,(4,)),(0,(5,))]])
             
     def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
@@ -1201,63 +1240,59 @@ class EventListTestCase(unittest.TestCase):
         
     def testGetValueAt(self):
         """ Test for getValueAt method. """
+        # mocking
         self.mockData()
         fakeData = GenericObject()
         fakeData.numSamples = 1
         fakeData.startTime = 0
         fakeData.endTime = 4
         fakeData.minMeanMax = (5, 6, 7)
-        
         fakeData.parseMinMeanMax = lambda x: x
         
         self.eventList1.append(fakeData)
         
+        # bonus mocking.  repeating for every test to ensure that it's sending
+        # the values it needs to
         self.eventList1._fullXform = self.mockXform
-        
-        self.mockXformReturn = [[0], [0], 0, [0]]
-                
+        self.mockXformReturn = [[0], [0], 0, [0]] 
         self.assertEqual(
             self.eventList1.getValueAt(0, outOfRange=True), 
             [[0], [0], 1, [0]])
         
         self.mockXformReturn = [[0], [0], -1, [0]]
-                
         self.assertEqual(self.eventList1.getValueAt(0), [[0], [0], 0, [0]])
         
         self.mockXformReturn = [[0], [0], -1, [0]]        
         self.eventList1.getEventIndexBefore = lambda x: 1
-                
         self.assertEqual(self.eventList1.getValueAt(0), [[0], [0], 0, [0]])
         
         self.mockXformReturn = [[0], [0], -1, [0]]        
         self.eventList1.getEventIndexBefore = lambda x: 0
-                
-        self.mockXformReturn = [[0],[0],0,[0]]
-                
+        self.mockXformReturn = [[0], [0], 0, [0]]
         self.assertEqual(self.eventList1.getValueAt(0), (0, (0.0,)))
         
     def testGetMeanNear(self):
         """ Test for getMeanNear method. """
+        # mock everthing up
         self.mockData()
-        self.eventList1._data[0].minMeanMax = 0
-        self.eventList1._data[0]._rollingMean = 0
-        self.eventList1._data[0]._rollingMeanSpan = 0
-        self.eventList1._data[0].mean = 0
-        self.comboArgs = None
-        self.comboKwargs = None
         
         def mockComboXform(*args, **kwargs):
             self.comboArgs = args
             self.comboKwargs = kwargs
             
             return [[0]]
-            
+        
         self.eventList1._comboXform = mockComboXform
+        self.eventList1._data[0].minMeanMax = 0
+        self.eventList1._data[0]._rollingMean = 0
+        self.eventList1._data[0]._rollingMeanSpan = 0
+        self.eventList1._data[0].mean = 0
         
         self.assertEqual(self.eventList1.getMeanNear(0), [0])
         self.assertEqual(self.comboArgs, ((0,0),))
         self.assertEqual(self.comboKwargs, {})
         
+        # test for an eventlist with no subchannels
         self.eventList1.hasSubchannels = False   
         self.eventList1.subchannelId = 0 
         
