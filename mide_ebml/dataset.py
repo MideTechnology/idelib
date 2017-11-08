@@ -1391,7 +1391,8 @@ class EventList(Transformable):
     def __getitem__(self, idx, display=False):
         """ Get a specific data point by index.
         
-            @param idx: An index, a `slice`, or a tuple of one or both
+            @param idx: An index, a `slice`, or a
+             tuple of one or both
             @return: For single results, a tuple containing (time, value).
                 For multiple results, a list of (time, value) tuples.
         """
