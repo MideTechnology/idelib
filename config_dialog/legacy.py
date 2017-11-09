@@ -17,6 +17,8 @@ import os.path
 import shutil
 from xml.etree import ElementTree as ET
 
+import wx
+
 from mide_ebml.ebmlite import loadSchema, util
 
 DEFAULTS_PATH = os.path.join(os.path.dirname(__file__), 'defaults')
@@ -375,7 +377,26 @@ def saveConfigData(configData, device, filename=None):
     
     with open(filename, 'wb') as f:
         f.write(ebml)
-    
+
+
+def useLegacyFormatPrompt(parent):
+    """ Ask the user if they want to overwrite old format config data with
+        the new format. Doesn't actually *do* it, just returns if the user
+        answered "Yes" or "No" (`True` or `False`).
+        
+        @param parent: The parent dialog.
+    """
+    q = wx.MessageBox("The configuration data loaded from this recorder used "
+                      "an older format.\n\nIf saved in the old format, some "
+                      "configuration may be lost. If saved in the new format, "
+                      "the recorder will no longer be configurable with older "
+                      "versions of Slam Stick Lab (version 1.7 or earlier).\n\n"
+                      "Save using the new format?", 
+                      "Save Configuration", 
+                      parent=parent, 
+                      style=wx.YES_NO|wx.YES_DEFAULT|wx.ICON_WARNING)
+    return q == wx.ID_YES
+
 
 #===============================================================================
 # 
@@ -403,22 +424,25 @@ def convertConfig(device):
 # 
 #===============================================================================
 
-def pprint(d, indent=0):
-    """ Test function for dumping dictionaries.
-        XXX: REMOVE ME.
-    """
-    if isinstance(d, dict):
-        for k,v in d.items():
-            print
-            print (("    " * indent) + k ),
-            pprint(v, indent+1)
-    elif isinstance(d, (tuple, list)):
-        for i in d:
-            print
-            print (("    " * indent) + '[')
-            pprint(i, indent+1)
-            print (("    " * indent) + ']')
-    else:
-        print d
-
-    
+# def pprint(d, indent=0):
+#     """ Test function for dumping dictionaries.
+#         XXX: REMOVE ME.
+#     """
+#     if isinstance(d, dict):
+#         for k,v in d.items():
+#             print
+#             print (("    " * indent) + k ),
+#             pprint(v, indent+1)
+#     elif isinstance(d, (tuple, list)):
+#         for i in d:
+#             print
+#             print (("    " * indent) + '[')
+#             pprint(i, indent+1)
+#             print (("    " * indent) + ']')
+#     else:
+#         print d
+# 
+# 
+# if __name__ == "__main__":
+#     app = wx.App()
+#     print useLegacyFormatPrompt(None)

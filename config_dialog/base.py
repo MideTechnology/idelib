@@ -2063,7 +2063,9 @@ class ConfigDialog(SC.SizedDialog):
 
         try:
             if self.useLegacyConfig:
-                return legacy.saveConfigData(self.configData, self.device)
+                if getattr(self.device, 'firmwareVersion', 0) >= 14:
+                    if legacy.useLegacyFormatPrompt(self):
+                        return legacy.saveConfigData(self.configData, self.device)
             
             values = []
             for k,v in self.configData.items():
@@ -2074,7 +2076,6 @@ class ConfigDialog(SC.SizedDialog):
             data = {'RecorderConfigurationList': 
                         {'RecorderConfigurationItem': values}}
             
-            print data
             schema = loadSchema('mide.xml')
             encoded = schema.encodes(data)
             
