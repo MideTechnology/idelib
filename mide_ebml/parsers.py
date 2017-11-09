@@ -694,6 +694,12 @@ class SimpleChannelDataBlockParser(ElementHandler):
         except struct.error, e:
             raise ParsingError("Element would not parse: %s (ID %d) @%d (%s)" % 
                                (element.name, element.id, element.offset, e))
+        except AttributeError:
+            # Can happen if the block had no timestamp (broken imported data?)
+            # TODO: Actually handle, instead of ignoring?
+            print "bad attribute in element", element
+            return 0
+            
         
         block.startTime = timeOffset + int(self.fixOverflow(block, timestamp))
         if block.endTime is not None:
