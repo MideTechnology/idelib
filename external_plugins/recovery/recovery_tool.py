@@ -1,3 +1,4 @@
+from datetime import datetime
 import locale
 import os.path
 from time import time
@@ -7,7 +8,6 @@ import  wx.lib.filebrowsebutton as FB
 
 from mide_ebml import recovery
 from tools.base import ToolDialog
-from __builtin__ import True
 
 #===============================================================================
 # Plugin information. Used by plugin creation utility to generate manifest data
@@ -148,7 +148,7 @@ class RecoveryTool(ToolDialog):
     #===========================================================================
     
     def run(self, evt=None):
-        """
+        """ Perform the recovery. The "Run" button executes this method.
         """
         inputFile = self.inputField.GetValue()
         outputFile = self.outputField.GetValue()
@@ -158,30 +158,31 @@ class RecoveryTool(ToolDialog):
         inBase = os.path.basename(inputFile)
         outBase = os.path.basename(outputFile)
 
+        # Some filename sanity checks
         if not inBase:
             wx.MessageBox("No source file selected!" % inBase, 
-                          "IDE Data Recovery", style=wx.OK|wx.ICON_EXCLAMATION)
+                          self.TITLE, style=wx.OK|wx.ICON_EXCLAMATION)
             return
 
         if not outBase:
             wx.MessageBox("No output file selected!" % inBase, 
-                          "IDE Data Recovery", style=wx.OK|wx.ICON_EXCLAMATION)
+                          self.TITLE, style=wx.OK|wx.ICON_EXCLAMATION)
             return
 
         if not os.path.exists(inputFile):
             wx.MessageBox("The file %s does not exist." % inBase, 
-                          "IDE Data Recovery", style=wx.OK|wx.ICON_EXCLAMATION)
+                          self.TITLE, style=wx.OK|wx.ICON_EXCLAMATION)
             return
 
         if os.path.realpath(inputFile) == os.path.realpath(outputFile):
-            wx.MessageBox("The input name and the output name cannot be identical.", 
-                          "IDE Data Recovery", style=wx.OK|wx.ICON_EXCLAMATION)
+            wx.MessageBox("The input and output files cannot be identical.", 
+                          self.TITLE, style=wx.OK|wx.ICON_EXCLAMATION)
             return
 
         if os.path.exists(outputFile):
             q = wx.MessageBox("The output file %s already exists.\n"
                               "Do you want to replace it?" % outBase,
-                              "IDE Data Recovery", parent=self, 
+                              self.TITLE, parent=self, 
                               style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
             if q == wx.NO:
                 return
@@ -191,12 +192,23 @@ class RecoveryTool(ToolDialog):
                      "Recovering data from %s" % inputFile,
                      parent=self)
         
-        recovery.recoverData(inputFile, outputFile, fast=fast, 
-                             unknown=unknown, callback=self.progress)
+        startTime = datetime.now()
+        rec, pct = recovery.recoverData(inputFile, outputFile, fast=fast, 
+                                      unknown=unknown, callback=self.progress)
+        totalTime = datetime.now() - startTime
 
         wx.Yield()
         self.progress.Destroy()
-
+        
+        rec = locale.format("%d", rec, grouping=True)
+        pct = ("%.4f%%" % (pct*100)).rstrip('.0')
+        totalTime = str(totalTime).rstrip('.0')
+        wx.MessageBox("Recovery attempt complete!\n\n"
+                      "Elements recovered: %s (%s of file)\n" 
+                      "Total elapsed time: %s" % \
+                      (rec, pct, totalTime),
+                      self.TITLE, parent=self)
+        
 
 #===============================================================================
 # 

@@ -7,6 +7,11 @@ Created on Nov 7, 2017
 @todo: Search for the start of *any* known element, instead of just Sync or
     ChannelDataBlock? Current script won't recover non-data elements (e.g.
     calibration, self-description). Potentially slow.
+@todo: Disk image recovery mode, which attempts to extract multiple files from
+    a big glob of raw FAT data, like Tim's tool.
+@todo: Smarter validation of ChannelDataBlocks, e.g. check the absolute time
+    stamp (if present) to determine if the data belongs to the current file,
+    rather than broken file system cruft.
 '''
 
 __author__ = "dstokes"
@@ -104,9 +109,18 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
         out = outfile
     
     # TODO: This expects the start of the file to be valid. Should really
-    # look for 
+    # look for valid header info (EBML, RecordingProperties, etc.)
     schema = loadSchema('mide.xml')
     doc = schema.load(filename, headers=True)
+
+    # "One-Off" elements: should only occur once. Additional instances ignored.
+    # TODO: The EBML parser should recognize non-multiple root elements.
+    singletonElements = {schema['EBML'].id: False, 
+                         schema['RecordingProperties'].id: False, 
+                         schema['RecorderConfiguration'].id: False,
+                         schema['CalibrationList'].id: False}
+
+    dataBlockId = schema['ChannelDataBlock'].id
     
     if fast:
         # If data's bad, look for the next Sync element. Easily recognized.
@@ -114,7 +128,7 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
     else:
         # Look for what might be the start of a data block. Much smaller, so
         # there will be more false positives, but could recover more data.
-        sync = encodeId(schema['ChannelDataBlock'].id)
+        sync = encodeId(dataBlockId)
     
     pos = 0
     recovered = 0
@@ -126,9 +140,20 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
         if el is None:
             break
         
+        # Skip duplicated one-off elements (can be created in bad files)
+        eid = el.id
+        if eid != dataBlockId and el.id in singletonElements:
+            if singletonElements[eid]:
+                print "skipping duplicate: %r" % el
+                del el
+                continue
+            else:
+                singletonElements[eid] = True
+        
         out.write(el.getRaw())
         recovered += 1
         recoveredSize += el.size
+        del el
         
         if callback is not None:
             # TODO: Cancel isn't working for some reason!
