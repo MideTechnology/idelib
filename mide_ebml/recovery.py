@@ -41,7 +41,8 @@ def simpleCallback(pos, recovered, fileSize):
 #===============================================================================
 
 
-def getNextElement(doc, pos, sync, unknown=False, bufferSize=2**16):
+def getNextElement(doc, pos, sync, unknown=False, bufferSize=2**16,
+                   callback=None, recovered=None, docsize=None):
     """ Get the next valid data block.
         
         @param doc: the IDE file, as an open EBML Document.
@@ -70,6 +71,8 @@ def getNextElement(doc, pos, sync, unknown=False, bufferSize=2**16):
             doc.stream.seek(pos+1)
             buff = bytearray()
             while sync not in buff:
+                if callback is not None:
+                    callback(pos, recovered, docsize)
                 data = doc.stream.read(bufferSize)
                 if not data:
                     return None, doc.stream.tell()
@@ -134,8 +137,10 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
     recovered = 0
     recoveredSize = 0
     
-    while pos < doc.size:
-        el, pos = getNextElement(doc, pos, sync, unknown, bufferSize)
+    docsize = doc.size + 0.0
+    while pos < docsize:
+        el, pos = getNextElement(doc, pos, sync, unknown, bufferSize,
+                                 callback, recovered, docsize)
         
         if el is None:
             break
@@ -157,10 +162,10 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
         
         if callback is not None:
             # TODO: Cancel isn't working for some reason!
-            if callback(pos, recovered, doc.size):
+            if callback(pos, recovered, docsize):
                 break
 
-    return recovered, (recoveredSize+0.0) / doc.size
+    return recovered, recoveredSize / docsize
 
 
 #===============================================================================

@@ -24,6 +24,7 @@ except Exception:
     DEBUG = True
     logging.logger.warning("*** Couldn't read and/or change build number!")
 
+name='Slam Stick Lab %s (%s).exe' % (versionString, platform.architecture()[0][:3])
 
 # Collect data files (needed for getting schema XML)
 # Modified version of http://www.pyinstaller.org/wiki/Recipe/CollectDatafiles
@@ -48,9 +49,9 @@ def Datafiles(*filenames, **kw):
         for filename in filenames
         if os.path.isfile(filename))
 
-schemas = Datafiles('mide_ebml/ebml/schema/mide.xml', 
-                    'mide_ebml/ebml/schema/manifest.xml', 
-                    'mide_ebml/ebml/schema/matroska.xml',
+schemas = Datafiles(#'mide_ebml/ebml/schema/mide.xml', 
+                    #'mide_ebml/ebml/schema/manifest.xml', 
+                    #'mide_ebml/ebml/schema/matroska.xml',
                     'mide_ebml/ebmlite/schemata/*.xml',
                     'LICENSES/*.txt',
                     'ABOUT/*',
@@ -78,7 +79,7 @@ exe = EXE(pyz,
           a.datas,
           schemas,
           exclude_binaries=False,
-          name='Slam Stick Lab %s (%s).exe' % (versionString, platform.architecture()[0][:3]),
+          name=name,
           icon='ssl.ico',
           debug=DEBUG,
           strip=None,
