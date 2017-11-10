@@ -334,7 +334,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.SetFontSizeLegend(7)
         self.canvas.setLogScale(self.logarithmic)
         self.canvas.SetXSpec('min')
-        self.canvas.SetYSpec('auto')
+        self.canvas.SetYSpec('min')
         self.canvas.SetEnableLegend(self.showLegend)
         self.canvas.SetEnableTitle(self.showTitle)
         self.canvas.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
@@ -1111,7 +1111,7 @@ class SpectrogramView(FFTView):
         p.SetFontSizeLegend(7)
         p.setLogScale((False,False))
         p.SetXSpec('min')
-        p.SetYSpec('auto')
+        p.SetYSpec('min')
         self.canvas.AddPage(p, self.subchannels[channelIdx].displayName)
         p.SetEnableTitle(self.showTitle)
 
