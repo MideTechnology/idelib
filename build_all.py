@@ -1,6 +1,8 @@
 """ 
 Utility script to do multiple builds. Makes the build number and other info
 available to the built apps by modifying `build_info.py`.
+
+@todo: Clean this up: fix absolute paths, make more modular.
 """
 
 import argparse
@@ -42,7 +44,11 @@ logger = logging.getLogger('SlamStickLab.BuildAll')
 # 
 #===============================================================================
 
-def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=None, commit=None):
+def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, 
+              branch=None, commit=None):
+    """ Write the latest build info (date, build number, etc.) to the
+        ``build_info.py`` module.
+    """
     with open('build_info.py', 'wb') as f:
         f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
         f.write('VERSION = %s\n' % str(version))
@@ -57,6 +63,8 @@ def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, branch=No
 
 
 def updateJson(version, filename=VERSION_INFO_FILE, preview=False):
+    """ Update the JSON file used to announce the new version.
+    """
     with open(VERSION_INFO_FILE, 'r') as f:
         info = json.load(f)
      
