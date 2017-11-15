@@ -2025,7 +2025,6 @@ class ConfigDialog(SC.SizedDialog):
                 self.useLegacyConfig = self.device.firmwareVersion < 13
                 self.configData = {}
             
-                
         self.origConfigData = self.configData.copy()
         
         self.applyConfigData(self.configData)
@@ -2061,11 +2060,13 @@ class ConfigDialog(SC.SizedDialog):
         filename = filename or self.device.configFile 
         makeBackup(filename)
 
+        fwRev = getattr(self.device, 'firmwareVersion', 0)
+        if self.useLegacyConfig and fwRev >= 14:
+            self.useLegacyConfig = legacy.useLegacyFormatPrompt(self)
+        
         try:
             if self.useLegacyConfig:
-                if getattr(self.device, 'firmwareVersion', 0) >= 14:
-                    if legacy.useLegacyFormatPrompt(self):
-                        return legacy.saveConfigData(self.configData, self.device)
+                return legacy.saveConfigData(self.configData, self.device)
             
             values = []
             for k,v in self.configData.items():

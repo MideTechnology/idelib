@@ -191,6 +191,8 @@ def loadConfigData(device, data=None):
     else:
         config = data
 
+    channels = device.getChannels()
+
     # Combine 'root' dictionaries for easy access
     basicConfig = config.get('SSXBasicRecorderConfiguration', {})
     userConfig = config.get('RecorderUserData', {})
@@ -239,6 +241,16 @@ def loadConfigData(device, data=None):
         if chId is None:
             continue
         
+        if chId not in channels:
+            # Convert really old firmware channel IDs
+            if chId == 0 and 8 in channels:
+                chId = 8
+            elif chId == 1 and 36 in channels:
+                chId = 36
+            else:
+                logger.warning("Ignoring bad trigger channel ID: %r" % chId)
+                continue
+        
         combinedId = (subchId << 8) | (chId & 0xFF)
         
         if chId == 32:
@@ -283,7 +295,9 @@ def saveConfigData(configData, device, filename=None):
         @keyword filename: The name of the file to write, instead of the
             device's config file. For exporting config data.
     """
-    logger.info("Saving config.cfg in legacy configuration format")
+    filename = device.configFile if filename is None else filename
+    logger.info("Saving %s in legacy configuration format" % filename)
+    
     # Copy the data, just in case.
     configData = configData.copy()
     
@@ -373,8 +387,6 @@ def saveConfigData(configData, device, filename=None):
 
     # This will raise an exception if it fails.
     schema.verify(ebml)
-    
-    filename = device.configFile if filename is None else filename
     
     with open(filename, 'wb') as f:
         f.write(ebml)
