@@ -86,9 +86,10 @@ def loadConfigUI(device, showAdvanced=False):
         wakeEl = doc.find(".//*[@id='WakeTime']/DisableIf")
         delayLabel = doc.find(".//*[@id='RecordingDelay']/Label")
         delayHelp = doc.find(".//*[@id='RecordingDelay']/ToolTip")
-        if delayEl is not None and wakeEl is not None:
-            delayEl.set('value', "Config[0x0fff7f]")
-            wakeEl.set('value', "Config[0x0cff7f]")
+        # XXX: Mutual exclusion is creating infinite loop
+#         if delayEl is not None and wakeEl is not None:
+#             delayEl.set('value', "Config[0x0fff7f]")
+#             wakeEl.set('value', "Config[0x0cff7f]")
         if delayLabel is not None:
             delayLabel.set('value', "Wake After Delay:")
         if delayHelp is not None:

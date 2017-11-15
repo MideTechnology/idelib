@@ -49,7 +49,7 @@ import time
 
 # XXX: For testing.
 import sys
-sys.path.insert(0, '..')
+# sys.path.insert(0, '..')
 
 import wx
 import wx.lib.filebrowsebutton as FB
@@ -1211,7 +1211,7 @@ class DateTimeField(IntField):
         else:
             val = makeWxDateTime(val)
         
-        if not self.utcCheck.GetValue():
+        if self.utcCheck.GetValue():
             val = val.FromUTC()
         
         super(DateTimeField, self).setDisplayValue(val, check)
@@ -1223,7 +1223,7 @@ class DateTimeField(IntField):
         val = super(DateTimeField, self).getDisplayValue()
         if val is None:
             return None
-        if not self.utcCheck.GetValue():
+        if self.utcCheck.GetValue():
             val = val.ToUTC()
         return val.GetTicks()
     
@@ -2369,6 +2369,7 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
 dlg = None
 
 if __name__ == "__main__":
+    print "running %s main" % __file__
     from mide_ebml.ebmlite import util
     SCHEMA = loadSchema('config_ui.xml')
     

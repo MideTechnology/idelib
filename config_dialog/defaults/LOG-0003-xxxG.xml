@@ -16,48 +16,6 @@
                 <ToolTip value="Custom notes about the recorder (position, user ID, etc.). 256 characters maximum."/>
                 <TextLines value="3"/>
             </TextField>
-                <CheckEnumField>
-                    <Label value="Sample Frequency"/>
-                    <ConfigID value="0x82ff20"/>
-                    <UIntValue value="3200"/>
-                    <DisableIf value="not Config[0x6ff20]"/>
-                    <EnumOption>
-                        <UIntValue value="3200"/>
-                        <Label value="3200 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="1600"/>
-                        <Label value="1600 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="800"/>
-                        <Label value="800 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="400"/>
-                        <Label value="400 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="200"/>
-                        <Label value="200 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="100"/>
-                        <Label value="100 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="50"/>
-                        <Label value="50 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="25"/>
-                        <Label value="25 Hz"/>
-                    </EnumOption>
-                    <EnumOption>
-                        <UIntValue value="12"/>
-                        <Label value="12 Hz"/>
-                    </EnumOption>
-                </CheckEnumField>
             <CheckEnumField>
                 <Label value="Plug-In Action"/>
                 <ConfigID value="0xaff7f"/>

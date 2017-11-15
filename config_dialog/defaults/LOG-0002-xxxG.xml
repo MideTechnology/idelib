@@ -1,7 +1,7 @@
 <?xml version="1.0" ?>
 <Mide.Ss.ConfigDocument>
     <ConfigUI>
-        <Tab id="GeneralTab">
+        <Tab id="GeneralTab"> <!-- `id` not used in EBML, just for dynamically modifying the XML before display. -->
             <Label value="General"/>
             <TextField>
                 <Label value="Device Name"/>
