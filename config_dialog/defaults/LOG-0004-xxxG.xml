@@ -264,7 +264,7 @@
             <Group channel="FastPT"> <!-- 'channel' used when removing items not applicable to the given recorder -->
                 <CheckEnumField>
                     <Label value="Sample Frequency"/>
-                    <ConfigID value="0x82ff20"/>
+                    <ConfigID value="0x82ff3b"/>
                     <UIntValue value="10"/>
                     <Units value="Hz"/>
                     <DisableIf value="not Config[0x06ff3b]"/>

@@ -999,7 +999,8 @@ class EnumField(ConfigWidget):
             if o.value == val:
                 index = i
                 break
-        self.field.Select(index)
+        if index != wx.NOT_FOUND:
+            self.field.Select(index)
         self.setCheck(check)
         self.updateToolTips()
     
@@ -1027,8 +1028,6 @@ class EnumField(ConfigWidget):
             self.field.Enable(enabled)
         wx.Panel.Enable(self, enabled)
 
-
-    
     
 #===============================================================================
     
@@ -2022,7 +2021,7 @@ class ConfigDialog(SC.SizedDialog):
                 self.useLegacyConfig = True
             else:
                 # No config data. Use version appropriate for FW version.
-                self.useLegacyConfig = self.device.firmwareVersion < 13
+                self.useLegacyConfig = self.device.firmwareVersion <= 14
                 self.configData = {}
             
         self.origConfigData = self.configData.copy()
@@ -2061,7 +2060,7 @@ class ConfigDialog(SC.SizedDialog):
         makeBackup(filename)
 
         fwRev = getattr(self.device, 'firmwareVersion', 0)
-        if self.useLegacyConfig and fwRev >= 14:
+        if self.useLegacyConfig and fwRev > 14:
             self.useLegacyConfig = legacy.useLegacyFormatPrompt(self)
         
         try:
