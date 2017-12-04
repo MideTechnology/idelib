@@ -234,7 +234,7 @@ def loadConfigData(device, data=None):
     
     for trigger in triggerConfig.get('Trigger', []):
         chId = trigger.get('TriggerChannel')
-        subchId = trigger.get('TriggerSubChannel', 0) & 0xFF
+        subchId = trigger.get('TriggerSubChannel', 0xff) & 0xff
         trigLo = trigger.get('TriggerWindowLo')
         trigHi = trigger.get('TriggerWindowHi')
         
@@ -408,7 +408,7 @@ def useLegacyFormatPrompt(parent):
                       "Save Configuration", 
                       parent=parent, 
                       style=wx.YES_NO|wx.YES_DEFAULT|wx.ICON_WARNING)
-    return q == wx.ID_YES
+    return q == wx.YES
 
 
 #===============================================================================

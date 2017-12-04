@@ -1145,9 +1145,9 @@ class BitField(EnumField):
     def getDisplayValue(self):
         """ Get the field's displayed value. 
         """
-        if self.isDisabled():
+        if self.checkbox is not None and not self.checkbox.GetValue():
             return None
-        elif self.checkbox is not None and not self.checkbox.GetValue():
+        if self.isDisabled():
             return None
         
         val = 0
@@ -1657,12 +1657,9 @@ class Group(ConfigWidget):
     def getDisplayValue(self):
         """ Get the groups's value (if applicable). 
         """
-        if self.isDisabled():
+        if self.checkbox is not None and not self.checkbox.GetValue():
             return None
-        elif self.checkbox is not None:
-            return self.checkbox.GetValue() or None
-        
-        return None
+        return not self.isDisabled() or None
 
         
 @registerField
