@@ -261,7 +261,9 @@ class Ide2Csv(ToolDialog):
                     msg = "%s\n\nContinue exporting next file?" % msg
                     x = wx.MessageBox(msg, "Error", wx.YES_NO | wx.ICON_ERROR,
                                       parent=updater)
-                    if x == wx.ID_NO:
+                    if wx.GetKeyState(wx.WXK_CONTROL) and wx.GetKeyState(wx.WXK_SHIFT):
+                        raise
+                    if x == wx.NO:
                         # Cancel the remaining exports.
                         break
                     else:
@@ -277,6 +279,8 @@ class Ide2Csv(ToolDialog):
                     msg = "%s\n\nExport cancelled." % msg
                     wx.MessageBox(msg, "Error", wx.OK | wx.ICON_ERROR,
                                   parent=updater)
+                    if wx.GetKeyState(wx.WXK_CONTROL) and wx.GetKeyState(wx.WXK_SHIFT):
+                        raise
         
         exported.update(updater.outputFiles)
         updater.Destroy()

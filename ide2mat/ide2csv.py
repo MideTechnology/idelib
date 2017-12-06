@@ -64,7 +64,7 @@ def ideExport(ideFilename, outFilename=None, channels=None,
             startTime=0, endTime=None, updateInterval=1.5,  out=sys.stdout, 
             outputType=".csv", delimiter=', ', headers=False, 
             removeMean=True, meanSpan=5.0, useUtcTime=False,
-            useIsoFormat=False,
+            useIsoFormat=False, noBivariates=False,
             **kwargs):
     """ The main function that handles generating text files from an IDE file.
     """
@@ -126,8 +126,14 @@ def ideExport(ideFilename, outFilename=None, channels=None,
         _print("  Exporting Channel %d (%s) to %s..." % (ch.id, ch.name, outName)),
         try:
             events = ch.getSession()
+            events.noBivariates = noBivariates
+            
+            if len(events) == 0: 
+                continue
+            
             startIdx, stopIdx = events.getRangeIndices(startTime, endTime)
 #             print "startidx=%r, stopIdx=%r" % (startIdx, stopIdx)
+
             numSamples += (exporter(events, outName, 
                                     start=startIdx, stop=stopIdx, 
                                     **exportArgs)[0] * len(ch.children))

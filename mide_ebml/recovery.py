@@ -86,7 +86,7 @@ def getNextElement(doc, pos, sync, unknown=False, bufferSize=2**16,
 
 
 def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16, 
-                unknown=False):
+                unknown=False, empty=False):
     """ Attempt to recover data from an IDE file. 
     
         @param filename: The name of the damaged IDE file.
@@ -124,6 +124,7 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
                          schema['CalibrationList'].id: False}
 
     dataBlockId = schema['ChannelDataBlock'].id
+    payloadId = schema['ChannelDataPayload'].id
     
     if fast:
         # If data's bad, look for the next Sync element. Easily recognized.
@@ -147,7 +148,16 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
         
         # Skip duplicated one-off elements (can be created in bad files)
         eid = el.id
-        if eid != dataBlockId and el.id in singletonElements:
+        if eid == dataBlockId:
+            if el[-1].id != payloadId:
+                del el
+                continue
+            
+            elif not empty and el[-1].size == 0:
+                del el
+                continue
+                
+        elif el.id in singletonElements:
             if singletonElements[eid]:
                 print "skipping duplicate: %r" % el
                 del el

@@ -555,14 +555,19 @@ class BaseDataBlock(object):
     def parseMinMeanMax(self, parser):
         if self.minMeanMax is None:
             return None
-        # NOTE: Because the SSX Z axis is inverted, the min/max need correction
-        # This may create a performance hit. Optimize?
-        self.min = list(parser.unpack_from(self.minMeanMax))
-        self.mean = parser.unpack_from(self.minMeanMax, parser.size)
-        self.max = list(parser.unpack_from(self.minMeanMax, parser.size*2))
-        for i, vals in enumerate(zip(self.min, self.max)):
-            self.min[i], self.max[i] = sorted(vals)
-        return self.min, self.mean, self.max
+        try:
+            # NOTE: Because the SSX Z axis is inverted, the min/max need correction
+            # This may create a performance hit. Optimize?
+            self.min = list(parser.unpack_from(self.minMeanMax))
+            self.mean = parser.unpack_from(self.minMeanMax, parser.size)
+            self.max = list(parser.unpack_from(self.minMeanMax, parser.size*2))
+            for i, vals in enumerate(zip(self.min, self.max)):
+                self.min[i], self.max[i] = sorted(vals)
+            return self.min, self.mean, self.max
+        except struct.error:
+            # Bad min/mean/max data: too short. Ignore it.
+            self.minMeanMax = None
+            return None
 
 
     def getNumSamples(self, parser):
