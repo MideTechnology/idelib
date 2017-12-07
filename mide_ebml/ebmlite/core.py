@@ -1035,6 +1035,13 @@ class Schema(object):
                 pass
             return default
         
+        if not isinstance(eid, (int, long)):
+            raise TypeError("Invalid element ID: %r" % eid)
+        if not ename or not isinstance(ename, basestring):
+            raise TypeError("Invalid element name: %r" % ename)
+        if not (ename[0].isalpha() or ename[0] == "_"):
+            raise TypeError("Invalid element name: %r" % ename)
+        
         if eid in self.elements or ename in self.elementIds:
             # Already appeared in schema. Duplicates are permitted, for 
             # defining a child element that can appear as a child to multiple 
