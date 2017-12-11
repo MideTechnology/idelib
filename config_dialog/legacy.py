@@ -227,7 +227,7 @@ def loadConfigData(device, data=None):
         if enables is not None:
             newData[0x01FF00 | (chId & 0xFF)] = enables
         if sampFreq is not None:
-            newData[0x82FF00 | (chId & 0xFF)] = sampFreq
+            newData[0x02FF00 | (chId & 0xFF)] = sampFreq
     
     # Trigger configuration.
     dcAccelMap = 0 # For building DC accelerometer's 'participation map'.
@@ -361,7 +361,7 @@ def saveConfigData(configData, device, filename=None):
         combinedId = 0xFF00 | (c & 0xFF)
         d = OrderedDict()
         _copyItems(configData, d, 
-                   (0x820000 | combinedId, "ChannelSampleFreq"),
+                   (0x020000 | combinedId, "ChannelSampleFreq"),
                    (0x010000 | combinedId, "SubChannelEnableMap"))
         
         # Only save if something's been set.
@@ -408,7 +408,7 @@ def useLegacyFormatPrompt(parent):
                       "Save Configuration", 
                       parent=parent, 
                       style=wx.YES_NO|wx.YES_DEFAULT|wx.ICON_WARNING)
-    return q == wx.YES
+    return q == wx.NO
 
 
 #===============================================================================

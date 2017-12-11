@@ -146,6 +146,7 @@ class RecorderInfoDialog(SC.SizedDialog):
                        2: "USB connected",
                        3: "Recording time limit reached",
                        4: "Low battery",
+                       5: "File size limit reached",
                        128: "I/O Error"}
 
     
