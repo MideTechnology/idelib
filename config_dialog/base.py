@@ -2074,7 +2074,6 @@ class ConfigDialog(SC.SizedDialog):
             data = {'RecorderConfigurationList': 
                         {'RecorderConfigurationItem': values}}
             
-            print data
             schema = loadSchema('mide.xml')
             encoded = schema.encodes(data)
             
