@@ -2067,8 +2067,9 @@ class ConfigDialog(SC.SizedDialog):
             values = []
             for k,v in self.configData.items():
                 elType = self.configItems[k]
-                values.append({'ConfigID': k,
-                               elType.valueType: v})
+                if elType.valueType is not None:
+                    values.append({'ConfigID': k,
+                                   elType.valueType: v})
             
             data = {'RecorderConfigurationList': 
                         {'RecorderConfigurationItem': values}}
@@ -2373,7 +2374,7 @@ if __name__ == "__main__":
     # XXX: TEST CODE, loads the UI from a file (XML or EBML), specified as a 
     # command line argument. If no file is specified, the first recorder found 
     # is used.
-#     sys.argv = ['',  'trigger_CONFIG.UI']
+#     sys.argv = ['',  'badCONFIG.UI']
     if len(sys.argv) > 1:
         device = None
         if sys.argv[-1].endswith('.xml'):

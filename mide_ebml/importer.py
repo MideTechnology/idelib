@@ -594,6 +594,7 @@ def getExitCondition(recording, bytesRead=1000):
         * 2: USB connection
         * 3: Recording time limit reached
         * 4: Low battery
+        * 5: File size limit reached
         * 128: I/O error (can occur if disk is full or 4GB FAT32 size limit
           reached.
         
