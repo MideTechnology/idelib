@@ -533,7 +533,7 @@ class PlotCanvas(wx.ScrolledWindow):
             thisV = constrainInt(int((pt[-1] - vRange[0]) * vScale)) 
             lines.append((0, thisV, thisT, thisV))
         
-        def _makeline(lines, pt, fun):
+        def _makeline(lines, pt):#, fun):
             l = lines[-1]
             lastT = l[2]
             lastV = l[3]
@@ -556,7 +556,6 @@ class PlotCanvas(wx.ScrolledWindow):
         minPts = []
         meanPts = []
         maxPts = []
-        i=0
 
         try:
             pMin, pMean, pMax = vals.next()
@@ -564,18 +563,23 @@ class PlotCanvas(wx.ScrolledWindow):
             _startline(meanPts, pMean)
             _startline(maxPts, pMax)
             for pMin, pMean, pMax in vals:
-                _makeline(minPts, pMin, min)
-                _makeline(meanPts, pMean, lambda x,y: (x+y)*0.5)
-                _makeline(maxPts, pMax, max)
-                i+=1
+                _makeline(minPts, pMin)#, min)
+                _makeline(meanPts, pMean)#, lambda x,y: (x+y)*0.5)
+                _makeline(maxPts, pMax)#, max)
             _finishline(minPts)
             _finishline(meanPts)
             _finishline(maxPts)
         except StopIteration:
             # No min/mean/max in the given range. Generally shouldn't happen.
             pass
+
+#         return (minPts[1:], meanPts, maxPts[1:])
         
-        return (minPts[1:], meanPts, maxPts[1:])
+        if minPts:
+            del minPts[0]
+            del maxPts[0]
+
+        return (minPts, meanPts, maxPts)
     
     
     def _drawGridlines(self, dc, size):
@@ -624,12 +628,7 @@ class PlotCanvas(wx.ScrolledWindow):
         """
         if self.root.drawingSuspended:
             return
-        
-#         return self._OnPaint(evt)
-
-        # Debugging: don't handle unexpected exceptions gracefully
-        ex = None if DEBUG else Exception
-        
+               
         if self.root.dataset.loading:
             # Pause the import during painting to make it faster.
             job, paused = self.root.pauseOperation()
@@ -657,8 +656,10 @@ class PlotCanvas(wx.ScrolledWindow):
         except (IOError, wx.PyDeadObjectError) as err:
             msg = "An error occurred while trying to read the recording file."
             self.root.handleError(err, msg, closeFile=True)
-        except ex as err:
+        except Exception as err:
             self.root.handleError(err, what="plotting data")
+            if DEBUG:
+                raise
         finally:
             if paused:
                 self.root.resumeOperation(job)
@@ -666,6 +667,7 @@ class PlotCanvas(wx.ScrolledWindow):
         try:
             self.SetCursor(self._cursor_default)
         except wx.PyDeadObjectError:
+            # Not sure when this will occur; probably when shutting down.
             pass
         
 
