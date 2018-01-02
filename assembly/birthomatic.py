@@ -111,7 +111,9 @@ except ImportError:
 
 # from mide_ebml.importer import importFile, SimpleUpdater
 import devices
-from mide_ebml import xml2ebml
+# from mide_ebml import xml2ebml
+from mide_ebml.ebmlite import loadSchema
+from mide_ebml.ebmlite import util as ebml_util
 
 import birth_utils as utils
 import calibration
@@ -120,6 +122,13 @@ import jig_birther
 import ssx_namer
 
 from birth_utils import errMsg, changeFilename, getSerialPrefix
+
+#===============================================================================
+# 
+#===============================================================================
+
+mideSchema = loadSchema('mide.xml')
+manifestSchema = loadSchema('manifest.xml')
 
 #===============================================================================
 # Helper functions
@@ -465,20 +474,23 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, 
                                  accelSerialNum, manXmlFile, birthday=birthday,
                                  batchId=batchId)
-        manEbml = xml2ebml.readXml(manXmlFile, schema='mide_ebml.ebml.schema.manifest')
+#         manEbml = xml2ebml.readXml(manXmlFile, schema='mide_ebml.ebml.schema.manifest')
+        manEbml = ebml_util.loadXml(manXmlFile, manifestSchema)
         with open(changeFilename(manXmlFile, ext="ebml"), 'wb') as f:
             f.write(manEbml)
     
         calXmlFile = os.path.join(chipDirName, 'cal.template.xml')
         calibration.makeCalTemplateXml(TEMPLATE_PATH, partNum, hwRev, calXmlFile)
-        calEbml = xml2ebml.readXml(calXmlFile, schema='mide_ebml.ebml.schema.mide') 
+#         calEbml = xml2ebml.readXml(calXmlFile, schema='mide_ebml.ebml.schema.mide') 
+        calEbml = ebml_util.loadXml(calXmlFile, mideSchema)
         with open(changeFilename(calXmlFile, ext="ebml"), 'wb') as f:
             f.write(calEbml)
     
         propXmlFile = os.path.join(chipDirName, 'recprop.xml')
         propTemplate = firmware.makeRecPropXml(TEMPLATE_PATH, partNum, hwRev, accelSerialNum, propXmlFile)
         if propTemplate is not None and os.path.exists(propXmlFile):
-            propEbml = xml2ebml.readXml(propXmlFile, schema='mide_ebml.ebml.schema.mide') 
+#             propEbml = xml2ebml.readXml(propXmlFile, schema='mide_ebml.ebml.schema.mide')
+            propEbml = ebml_util.loadXml(propXmlFile, mideSchema) 
             with open(changeFilename(propXmlFile, ext="ebml"), 'wb') as f:
                 f.write(propEbml)
         else:

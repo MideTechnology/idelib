@@ -30,6 +30,8 @@ import os.path
 import shutil
 import sys
 import time
+from xml.dom.minidom import parseString
+from xml.etree import ElementTree as ET
 
 #===============================================================================
 # Rigmarole to ensure the right libraries are located.
@@ -57,7 +59,8 @@ except ImportError:
 #===============================================================================
 
 import devices
-from mide_ebml import xml2ebml
+# from mide_ebml import xml2ebml
+from mide_ebml.ebmlite import util as ebml_util
 
 import firmware
 import calibration
@@ -487,8 +490,10 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
     
     # Create current calibration XML
     try:
-        calXml = xml2ebml.dumpXmlElement(xml2ebml.readEbml(caldata, schema='mide_ebml.ebml.schema.mide').roots[0])
-        utils.writeFile(calCurrentXml, calXml)
+#         calXml = xml2ebml.dumpXmlElement(xml2ebml.readEbml(caldata, schema='mide_ebml.ebml.schema.mide').roots[0])
+#         utils.writeFile(calCurrentXml, calXml)
+        calXml = ET.tostring(ebml_util.toXml(caldata), encoding="utf-8")
+        calXml = parseString(calXml).writexml(calCurrentXml, addindent='\t', newl='\n', encoding='utf-8')
     except (IndexError, AttributeError) as err:
         print "!!! Problem writing calibration XML: %s"  % err.message
         print "!!! Ignoring the problem and continuing..."

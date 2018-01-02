@@ -13,7 +13,7 @@ import wx.lib.sized_controls as SC
 
 from config_dialog.special_tabs import InfoPanel, CalibrationPanel
 import devices
-from mide_ebml import util
+# from mide_ebml import util
 
 #===============================================================================
 # 
@@ -23,7 +23,8 @@ class RecordingCalibrationPanel(CalibrationPanel):
     def getDeviceData(self):
         self.info = self.root.transforms.values()
         self.channels = self.root.channels
-        
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -232,11 +233,12 @@ class RecorderInfoDialog(SC.SizedDialog):
         recorderInfo = self.getRecorderInfo()
         if hasattr(self.root, "ebmldoc"):
             try:
-                ebmlInfo = util.parse_ebml(self.root.ebmldoc.roots[0]).get('EBML', None)
+#                 ebmlInfo = util.parse_ebml(self.root.ebmldoc.roots[0]).get('EBML', None)
+                ebmlInfo = self.root.ebmldoc.info.copy()
             except AttributeError:
                 ebmlInfo = None
-            if ebmlInfo is not None:
-                ebmlInfo = ebmlInfo[0]
+#             if ebmlInfo is not None:
+#                 ebmlInfo = ebmlInfo[0]
         else:
             ebmlInfo = None
         

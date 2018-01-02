@@ -14,7 +14,7 @@ import time
 import wx
 import wx.lib.sized_controls as SC
 
-from mide_ebml import util
+# from mide_ebml import util
 from common import makeWxDateTime, cleanUnicode
 from widgets.shared import DateTimeCtrl
 import devices
@@ -192,62 +192,6 @@ class BaseConfigPanel(SC.SizedScrolledPanel):
         self.setFieldToolTip(c, tooltip)
 
         return c
-
-
-#     def addCheckField(self, checkText, name=None, units="", value="", 
-#                       fieldSize=None, fieldStyle=None, tooltip=None, indent=0):
-#         """ Helper method to create and configure checkbox/field pairs, and add
-#             them to the set of controls.
-# 
-#             @param checkText: The checkbox's label text.
-#             @keyword name: The name of the key in the config data, if the
-#                 field maps directly to a value.
-#             @keyword value: The default field text.
-#             @keyword fieldSize: The size of the text field
-#             @keyword fieldStyle: The text field's wxWindows style flags.
-#             @keyword tooltip: A tooltip string for the field.
-#         """
-#         fieldSize = self.fieldSize if fieldSize is None else fieldSize
-#         txt = cleanUnicode(value)
-# 
-#         indent += self.indent
-#         if indent > 0:
-#             col1 = SC.SizedPanel(self, -1)
-#             col1.SetSizerType("horizontal")
-#             pad = wx.StaticText(col1, -1, ' '*indent)
-#             c = wx.CheckBox(col1, -1, checkText)
-#         else:
-#             c = wx.CheckBox(self, -1, checkText)
-#         c.SetSizerProps(valign="center")
-# 
-#         subpane = SC.SizedPanel(self, -1)
-#         subpane.SetSizerType("horizontal")
-#         subpane.SetSizerProps(expand=True)
-#         
-#         if fieldStyle is None:
-#             t = wx.TextCtrl(subpane, -1, txt, size=fieldSize)
-#         else:
-#             t = wx.TextCtrl(subpane, -1, txt, size=fieldSize, style=fieldStyle)
-#         u = wx.StaticText(subpane, -1, units)
-#         u.SetSizerProps(valign="center")
-#         
-#         self.controls[c] = [t, u]
-#         if col1 != self:
-#             self.controls[c].append(pad)
-#         
-#         if tooltip is not None:
-#             c.SetToolTipString(cleanUnicode(tooltip))
-#             t.SetToolTipString(cleanUnicode(tooltip))
-#         
-#         if fieldSize == (-1,-1):
-#             self.fieldSize = t.GetSize()
-#         
-#         if name is not None:
-#             self.fieldMap[name] = c
-# 
-#         self.setFieldToolTip(c, tooltip)
-#             
-#         return c
 
 
     def addFloatField(self, checkText, name=None, units="", value="",
@@ -1233,7 +1177,7 @@ class ConfigDialog(SC.SizedDialog):
         self.SetSize((560,560))
         
         
-    def getData(self, schema=util.DEFAULT_SCHEMA):
+    def getData(self, schema=None):
         """ Retrieve the values entered in the dialog.
         """
         data = OrderedDict()

@@ -5,28 +5,28 @@ EBML files quickly and efficiently, and that's about it.
 Created on Apr 27, 2017
 
 @todo: Unit tests.
-@todo: Remove remaining python-ebml compatibility stuff: integer element
-    types (FLOAT, STRING, etc.). 
 @todo: Complete EBML encoding. Specifically, make 'master' elements write 
     directly to the stream, rather than build bytearrays, so huge 'master' 
     elements can be handled.
 @todo: Validation. Enforce hierarchy defined in new schema format.
-@todo: Proper support for 'infinite' Documents (i.e `size` is `None`).
+@todo: Proper support for 'infinite' master elements (i.e `size` is `None`).
+    Requires validation.
 @todo: Document-wide caching, for future handling of streamed data.
 @todo: Clean up and standardize usage of the term 'size' versus 'length.'
-@todo: (longer term) Make schema loading automatic based on the EBML DocType,
-    DocTypeVersion, and DocTypeReadVersion.
+@todo: (longer term) Consider making schema loading automatic based on the EBML
+    DocType, DocTypeVersion, and DocTypeReadVersion. Would mean a refactoring
+    of how schemata are loaded.
 '''
 
 __author__ = "dstokes"
-__copyright__ = "Copyright 2017 Mide Technology Corporation"
+__copyright__ = "Copyright 2018 Mide Technology Corporation"
 
 __all__ = ['BinaryElement', 'DateElement', 'Document', 'Element', 
            'FloatElement', 'IntegerElement', 'MasterElement', 'Schema', 
            'StringElement', 'UIntegerElement','UnicodeElement', 
-           'UnknownElement', 'VoidElement', 'loadSchema', 'INT','UINT',
-           'FLOAT','STRING','UNICODE','DATE', 'BINARY','CONTAINER','UNKNOWN']
+           'UnknownElement', 'VoidElement', 'loadSchema']
 
+from ast import literal_eval
 from collections import OrderedDict
 from datetime import datetime
 import errno
@@ -44,41 +44,13 @@ import schemata
 #
 #===============================================================================
 
-# Type IDs, for python-ebml compatibility
-# TODO: Remove 
-INT, UINT, FLOAT, STRING, UNICODE, DATE, BINARY, CONTAINER = range(0, 8)
-UNKNOWN = -1 # not in python-ebml
-
-
-#===============================================================================
-# 
-#===============================================================================
-
 # SCHEMA_PATH: A list of paths for schema XML files, similar to `sys.path`.
 SCHEMA_PATH = ['', 
-               os.path.realpath(os.path.dirname(schemata.__file__)),
-               # XXX: TEST, REMOVE NEXT LINE.
-#                os.path.realpath(os.path.join(os.path.dirname(encoding.__file__), '../ebml/schema')), 
-               ]
+               os.path.realpath(os.path.dirname(schemata.__file__))]
 
 # SCHEMATA: A dictionary of loaded schemata, keyed by filename. Used by
 # `loadSchema()`. In most cases, SCHEMATA should not be otherwise modified.
 SCHEMATA = {}
-
-
-#===============================================================================
-# 
-#===============================================================================
-
-# Dictionary of all EBML element type base classes. The `@element` decorator
-# adds classes to it.
-_ELEMENT_TYPES = {}
-
-def element(cls):
-    """ Decorator for gathering EBML element base classes.
-    """
-    _ELEMENT_TYPES[cls.__name__] = cls
-    return cls
 
 
 #===============================================================================
@@ -92,19 +64,18 @@ class Element(object):
         @cvar name: The element's name. 
         @cvar schema: The `Schema` to which this element belongs.
         @cvar multiple: Can this element be appear multiple times? Note: 
-            Not currently enforced.
+            Currently only enforced for encoding.
         @cvar mandatory: Must this element appear in all EBML files using
             this element's schema? Note: Not currently enforced.
-        @cvar type: The element's numeric EBML type (from python-ebml).
+        @cvar children: A list of valid child element types. Only applicable to
+            `Document` and `Master` subclasses. Note: Not currently enforced.
         @cvar dtype: The element's native Python data type.
         @cvar precache: If `True`, the Element's value is read when the Element
             is parsed. if `False`, the value is lazy-loaded when needed.
+            Numeric element types default to `True`.
         @cvar length: An explicit length (in bytes) of the element when
             encoding. `None` will use standard EBML variable-length encoding.
     """
-    # python-ebml type ID. 
-    type = UNKNOWN
-
     # Python native data type.
     dtype = bytearray
 
@@ -167,7 +138,7 @@ class Element(object):
         if other is self:
             return True
         try:
-            return (self.type == other.type
+            return (self.dtype == other.dtype
                     and self.id == other.id 
                     and self.offset == other.offset
                     and self.size == other.size 
@@ -264,12 +235,10 @@ class Element(object):
 
 #===============================================================================
 
-@element
 class IntegerElement(Element):
     """ Base class for an EBML signed integer element. Schema-specific
         subclasses are generated when a `Schema` is loaded.
     """
-    type = INT
     dtype = int
     precache = True
 
@@ -288,12 +257,10 @@ class IntegerElement(Element):
 
 #===============================================================================
 
-@element
 class UIntegerElement(IntegerElement):
     """ Base class for an EBML unsigned integer element. Schema-specific
         subclasses are generated when a `Schema` is loaded.
     """
-    type = UINT
     dtype = int
     precache = True
 
@@ -312,12 +279,10 @@ class UIntegerElement(IntegerElement):
 
 #===============================================================================
 
-@element
 class FloatElement(Element):
     """ Base class for an EBML floating point element. Schema-specific
         subclasses are generated when a `Schema` is loaded.
     """
-    type = FLOAT
     dtype = float
     precache = True
 
@@ -336,12 +301,10 @@ class FloatElement(Element):
 
 #===============================================================================
 
-@element
 class StringElement(Element):
     """ Base class for an EBML ASCII string element. Schema-specific
         subclasses are generated when a `Schema` is loaded.
     """
-    type = STRING
     dtype = str
 
     def parse(self, stream, size):
@@ -360,12 +323,10 @@ class StringElement(Element):
 
 #===============================================================================
 
-@element
 class UnicodeElement(StringElement):
     """ Base class for an EBML UTF-8 string element. Schema-specific subclasses
         are generated when a `Schema` is loaded.
     """
-    type = UNICODE
     dtype = unicode
 
     def parse(self, stream, size):
@@ -383,12 +344,10 @@ class UnicodeElement(StringElement):
 
 #===============================================================================
 
-@element
 class DateElement(IntegerElement):
     """ Base class for an EBML 'date' element. Schema-specific subclasses are
         generated when a `Schema` is loaded.
     """
-    type = DATE
     dtype = datetime
 
     def parse(self, stream, size):
@@ -407,12 +366,10 @@ class DateElement(IntegerElement):
 
 #===============================================================================
 
-@element
 class BinaryElement(Element):
     """ Base class for an EBML 'binary' element. Schema-specific subclasses are
         generated when a `Schema` is loaded.
     """
-    type = BINARY
 
 
 #===============================================================================
@@ -439,7 +396,6 @@ class UnknownElement(BinaryElement):
     """ Special case ``Unknown`` element, used for elements with IDs not present
         in a schema. Unlike other elements, each instance has its own ID. 
     """
-    type = UNKNOWN
     name = "UnknownElement"
     precache = False
 
@@ -460,12 +416,10 @@ class UnknownElement(BinaryElement):
 
 #===============================================================================
 
-@element
 class MasterElement(Element):
     """ Base class for an EBML 'master' element, a container for other
         elements.
     """
-    type = CONTAINER
     dtype = list
 
     def parse(self):
@@ -636,7 +590,8 @@ class Document(MasterElement):
                 stream is neither a file or a `StringIO` object.
             @keyword headers: If `False`, the file's ``EBML`` header element 
                 (if present) will not appear as a root element in the document.
-                The contents of the ``EBML`` element will always be read.  
+                The contents of the ``EBML`` element will always be read,
+                regardless, and stored in the Document's `info` attribute.
         """
         if not all((hasattr(stream, 'read'), 
                     hasattr(stream, 'tell'),
@@ -771,8 +726,6 @@ class Document(MasterElement):
     @property
     def type(self):
         """ The document's type name (i.e. the EBML ``DocType``). """
-        # NOTE: in python-ebml, an element's 'type' is numeric, while the
-        # document's 'type' is a string. This follows that model.
         return self.info.get('DocType')
         
 
@@ -851,7 +804,7 @@ class Schema(object):
         @ivar document: The schema's Document subclass.
         @ivar elements: A dictionary mapping element IDs to the schema's
             corresponding `Element` subclasses.
-        @ivar elementIds: A dictionary mapping element names to the schema's
+        @ivar elementsByName: A dictionary mapping element names to the schema's
             corresponding `Element` subclasses.
         @ivar elementInfo: A dictionary mapping IDs to the raw schema attribute
             data. Is likely to have additional items not present in the created
@@ -862,6 +815,17 @@ class Schema(object):
         @ivar filename: The absolute path of the source file, if the source
             was a file or a filename.
     """
+
+    BASE_CLASSES = {
+        'BinaryElement': BinaryElement,
+        'DateElement': DateElement,
+        'FloatElement': FloatElement,
+        'IntegerElement': IntegerElement,
+        'MasterElement': MasterElement,
+        'StringElement': StringElement,
+        'UIntegerElement': UIntegerElement,
+        'UnicodeElement': UnicodeElement,
+    }
 
     # Mapping of schema type names to the corresponding Element subclasses.
     # For python-ebml compatibility.
@@ -894,7 +858,7 @@ class Schema(object):
             self.filename = os.path.realpath(source.name)
 
         self.elements = {}    # Element types, keyed by ID
-        self.elementIds = {}  # Element types, keyed by element name
+        self.elementsByName = {}  # Element types, keyed by element name
         self.elementInfo = {} # Raw element schema attributes, keyed by ID
 
         self.globals = {}   # Elements valid for any parent, by ID
@@ -904,8 +868,10 @@ class Schema(object):
         schema = ET.parse(source)
         root = schema.getroot()
         if root.tag == "table":
+            # Old python-ebml schema: root element is <table>
             self._parseLegacySchema(root)
         elif root.tag == "Schema":
+            # new ebmlite schema: root element is <Schema>
             self._parseSchema(root, self)
         else:
             raise IOError("Could not parse schema; expected root element "
@@ -913,13 +879,13 @@ class Schema(object):
 
         # Special case: `Void` is a standard EBML element, but not its own
         # type (it's technically binary). Use the special `VoidElement` type.
-        if 'Void' in self.elementIds:
-            el = self.elementIds['Void']
+        if 'Void' in self.elementsByName:
+            el = self.elementsByName['Void']
             void = type('VoidElement', (VoidElement,), 
                         {'id':el.id, 'name':'Void', 'schema':self, 
                          'mandatory': el.mandatory, 'multiple': el.multiple})
             self.elements[el.id] = void
-            self.elementIds['Void'] = void
+            self.elementsByName['Void'] = void
         
         # Schema name. Defaults to the schema's default EBML 'DocType'
         self.name = name or self.type
@@ -964,7 +930,7 @@ class Schema(object):
                 self._parseSchema(chEl, self)
             return
             
-        if el.tag not in _ELEMENT_TYPES:
+        if el.tag not in self.BASE_CLASSES:
             if el.tag.endswith('Element'):
                 raise ValueError('Unknown element type: %s' % el.tag)
             
@@ -981,7 +947,7 @@ class Schema(object):
         # (as in the Matroska schema) will cause the text to be truncated.
         docs = el.text.strip() if isinstance(el.text, basestring) else None
         
-        baseClass = _ELEMENT_TYPES[el.tag]
+        baseClass = self.BASE_CLASSES[el.tag]
 
         cls = self.addElement(eid, ename, baseClass, attribs, parent, docs)
         
@@ -1024,14 +990,16 @@ class Schema(object):
             try:
                 return str(d[k]).strip()[0] in 'Tt1'
             except (KeyError, TypeError, IndexError, ValueError):
+                # TODO: Don't fail silently for some exceptions.
                 pass
             return default
 
         def _getInt(d, k, default):
             " Helper function to get a dictionary value cast to int. "
             try:
-                return int(d[k].strip())
-            except (KeyError, TypeError, ValueError):
+                return int(literal_eval(d[k].strip()))
+            except (KeyError, SyntaxError, TypeError, ValueError):
+                # TODO: Don't fail silently for some exceptions.
                 pass
             return default
         
@@ -1042,12 +1010,11 @@ class Schema(object):
         if not (ename[0].isalpha() or ename[0] == "_"):
             raise TypeError("Invalid element name: %r" % ename)
         
-        if eid in self.elements or ename in self.elementIds:
-            # Already appeared in schema. Duplicates are permitted, for 
-            # defining a child element that can appear as a child to multiple 
-            # master elements, so long as they have the same attributes. 
-            # Additional definitions only need to specify the element ID and/or
-            # element name.
+        if eid in self.elements or ename in self.elementsByName:
+            # Already appeared in schema. Duplicates are permitted for defining
+            # an element that can appear as a child to multiple Master elements,
+            # so long as they have the same attributes. Additional definitions 
+            # only need to specify the element ID and/or element name.
             oldEl = self[ename or eid]
             ename = oldEl.name
             eid = oldEl.id
@@ -1087,7 +1054,7 @@ class Schema(object):
                              
             self.elements[eid] = eclass
             self.elementInfo[eid] = attribs
-            self.elementIds[ename] = eclass
+            self.elementsByName[ename] = eclass
         
             # Element 'level'. EBMLite schemata explicitly define the hierarchy
             # (i.e. what elements are valid children), so only the value -1 has
@@ -1120,7 +1087,7 @@ class Schema(object):
 
     def __contains__(self, key):
         """ Does the Schema contain a given element name or ID? """
-        return (key in self.elementIds) or (key in self.elements)
+        return (key in self.elementsByName) or (key in self.elements)
     
     
     def __getitem__(self, key):
@@ -1129,7 +1096,7 @@ class Schema(object):
         try:
             self.elements[key]
         except KeyError:
-            return self.elementIds[key]
+            return self.elementsByName[key]
 
 
     def get(self, key, default=None):
@@ -1266,7 +1233,7 @@ def loadSchema(filename, reload=False, **kwargs):
             modules).
         @keyword reload: If `True`, the resulting Schema is guaranteed to be
             new. Note: existing references to previous instances of the Schema
-            and its elements will not update.
+            and/or its elements will not update.
         
         Additional keyword arguments are sent verbatim to the `Schema`
         constructor.
@@ -1291,39 +1258,3 @@ def loadSchema(filename, reload=False, **kwargs):
     
     return SCHEMATA.setdefault(filename, Schema(filename, **kwargs))
 
-
-#===============================================================================
-#
-#===============================================================================
-
-# TEST
-# schemaFile = os.path.join(os.path.dirname(__file__), r"ebml\schema\mide.xml")
-# testFile = 'test_recordings/5kHz_Full.IDE'
-#   
-# from time import clock
-#   
-# def crawl(el):
-#     v = el.value
-#     if isinstance(v, list):
-#         return sum(map(crawl, v))
-#     return 1
-#   
-# def testOld():
-#     from mide_ebml.ebml.schema.mide import MideDocument
-#     total = 0
-#     t0 = clock()
-#     with open(testFile, 'rb') as f:
-#         doc = MideDocument(f)
-#         for el in doc.iterroots():
-#             total += crawl(el)
-#     return doc, total, clock() - t0
-#   
-# def testNew():
-#     total = 0
-#     t0 = clock()
-#     schema = loadSchema('mide.xml')
-#     with open(testFile, 'rb') as f:
-#         doc = schema.load(f)
-#         for el in doc.iterroots():
-#             total += crawl(el)
-#     return doc, total, clock() - t0

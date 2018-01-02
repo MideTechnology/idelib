@@ -18,7 +18,7 @@ import time
 try:
     from cStringIO import StringIO
 except ImportError:
-    from StringIO import StringIO
+    from StringIO import StringIO #@UnusedImport
 
 from xml.etree import ElementTree as ET
 

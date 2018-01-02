@@ -32,7 +32,15 @@ except ImportError:
         sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
     import mide_ebml #@UnusedImport
 
-from mide_ebml import util as ebml_util
+# from mide_ebml import util as ebml_util
+from mide_ebml.ebmlite import loadSchema
+
+#===============================================================================
+# 
+#===============================================================================
+
+mideSchema = loadSchema('mide.xml')
+manifestSchema = loadSchema('manifest.xml')
 
 #===============================================================================
 # 
@@ -264,12 +272,15 @@ def readUserPage(devPath):
     calData = StringIO(data[calOffset:calOffset+calSize])
     if propOffset > 0:
         propData = StringIO(data[propOffset:propOffset+propSize])
-        props = ebml_util.read_ebml(propData)
+#         props = ebml_util.read_ebml(propData)
+        props = mideSchema.load(propData)
     else:
         props = None
-    manifest = ebml_util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
-    calibration = ebml_util.read_ebml(calData)
-    
+#     manifest = ebml_util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
+#     calibration = ebml_util.read_ebml(calData)
+    manifest = manifestSchema.load(manData)
+    calibration = mideSchema.load(calData)
+ 
     return manifest, calibration, props
 
 #===============================================================================

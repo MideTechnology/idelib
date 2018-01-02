@@ -290,7 +290,7 @@ class PlotCanvas(wx.ScrolledWindow):
     
 
     def loadPrefs(self):
-        """
+        """ Get all the preferences used by the plot.
         """
         app = self.root.app
         self.condensedThreshold = app.getPref('condensedPlotThreshold', 2.0)
@@ -377,6 +377,7 @@ class PlotCanvas(wx.ScrolledWindow):
 
     def loadPen(self, name, defaultColor, width, style, dashes):
         """ Create a pen using a color in the preferences.
+        
             @param name: The name of the parameter to read from the preferences.
             @param defaultColor: The color to use if the preference name is
                 not found.

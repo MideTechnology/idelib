@@ -1,6 +1,4 @@
 '''
-Module mide_ebml.ebmlite.util
-
 Some utilities for manipulating EBML documents: translate to/from XML, etc.
 This module may be imported or used as a command-line utility.
 
