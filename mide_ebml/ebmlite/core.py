@@ -16,6 +16,8 @@ Created on Apr 27, 2017
 @todo: (longer term) Consider making schema loading automatic based on the EBML
     DocType, DocTypeVersion, and DocTypeReadVersion. Would mean a refactoring
     of how schemata are loaded.
+@todo: (longer term) Refactor to support streaming data. This will require
+    modifying the indexing and iterating methods of `Document`.
 '''
 
 __author__ = "dstokes"
@@ -45,6 +47,8 @@ import schemata
 #===============================================================================
 
 # SCHEMA_PATH: A list of paths for schema XML files, similar to `sys.path`.
+# When `loadSchema()` is used, it will search these paths, in order, to find
+# the schema file.
 SCHEMA_PATH = ['', 
                os.path.realpath(os.path.dirname(schemata.__file__))]
 
@@ -458,9 +462,7 @@ class MasterElement(Element):
         return el, payloadOffset + esize
 
 
-    def iterChildren(self):
-        """ Create an iterator to iterate over the element's children.
-        """
+    def __iter__(self):
         # TODO: Support elements with 'unknown' length (quit when an invalid
         # child element is read).
         pos = self.payloadOffset
@@ -471,9 +473,25 @@ class MasterElement(Element):
             yield el
 
 
-    def __iter__(self):
-        return self.iterChildren()
-    
+    def iterChildren(self):
+        """ Create an iterator to iterate over the element's children.
+            For backwards compatibility.
+        """
+        return iter(self)
+
+
+    def __len__(self):
+        """ x.__len__() <==> len(x)
+        """
+        if self._value is not None:
+            return len(self._value)
+        try:
+            return self._length
+        except AttributeError:
+            for n, _el in enumerate(self):
+                self._length = n
+        return self._length
+
     
     @property
     def value(self):
@@ -659,6 +677,18 @@ class Document(MasterElement):
         self.stream.close()
 
 
+    def __len__(self):
+        """ x.__len__() <==> len(x)
+            Not recommended for huge documents. 
+        """
+        try:
+            return self._length
+        except AttributeError:
+            for n, _el in enumerate(self):
+                self._length = n
+        return self._length
+
+
     def __iter__(self):
         """ Iterate root elements.
         """
@@ -679,7 +709,8 @@ class Document(MasterElement):
 
 
     def iterroots(self):
-        """ Iterate root elements. For working like old python-ebml.
+        """ Iterate root elements. For backwards compatibility.
+            @todo: Remove this.
         """
         return iter(self)
 
@@ -707,6 +738,8 @@ class Document(MasterElement):
         """
         # TODO: Cache parsed root elements, handle indexing dynamically.
         if isinstance(idx, (int, long)):
+            if idx < 0:
+                raise IndexError("Negative indices in a Document not (yet) supported")
             for n, el in enumerate(self):
                 if n == idx:
                     return el

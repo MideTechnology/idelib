@@ -2,8 +2,12 @@
 Functions for decoding EBML elements and their values.
 """
 
-import datetime
+from datetime import datetime, timedelta
 import struct
+
+#===============================================================================
+# 
+#===============================================================================
 
 # Pre-built structs for packing/unpacking various data types
 _struct_uint32 = struct.Struct(">I")
@@ -11,6 +15,15 @@ _struct_uint64 = struct.Struct(">Q")
 _struct_int64 = struct.Struct(">q")
 _struct_float32 = struct.Struct(">f")
 _struct_float64 = struct.Struct(">d")
+
+# Direct references to struct methods. Makes things a marginally faster.
+_struct_uint32_unpack = _struct_uint32.unpack
+_struct_uint64_unpack = _struct_uint64.unpack
+_struct_int64_unpack = _struct_int64.unpack
+_struct_uint64_unpack_from = _struct_uint64.unpack_from
+_struct_int64_unpack_from = _struct_int64.unpack_from
+_struct_float32_unpack = _struct_float32.unpack
+_struct_float64_unpack = _struct_float64.unpack
 
 
 #===============================================================================
@@ -72,7 +85,7 @@ def readElementID(stream):
     if length > 4:
         raise IOError('Cannot decode element ID with length > 4.')
     if length > 1:
-        eid = _struct_uint32.unpack((ch + stream.read(length-1)
+        eid = _struct_uint32_unpack((ch + stream.read(length-1)
                                      ).rjust(4,'\x00'))[0]
     return eid, length
 
@@ -88,7 +101,7 @@ def readElementSize(stream):
     length, size = decodeIntLength(ord(ch))
 
     if length > 1:
-        size = _struct_uint64.unpack((chr(size) + stream.read(length-1)
+        size = _struct_uint64_unpack((chr(size) + stream.read(length-1)
                                       ).rjust(8,'\x00'))[0]
 
     if size == (2**(7*length)) - 1:
@@ -109,7 +122,7 @@ def readUInt(stream, size):
         return 0
     
     data = stream.read(size)
-    return _struct_uint64.unpack_from(data.rjust(_struct_uint64.size,'\x00'))[0]
+    return _struct_uint64_unpack_from(data.rjust(8,'\x00'))[0]
 
 
 def readInt(stream, size):
@@ -127,7 +140,7 @@ def readInt(stream, size):
         pad = '\xff'
     else:
         pad = '\x00'
-    return _struct_int64.unpack_from(data.rjust(_struct_int64.size,pad))[0]
+    return _struct_int64_unpack_from(data.rjust(8,pad))[0]
 
 
 def readFloat(stream, size):
@@ -137,14 +150,14 @@ def readFloat(stream, size):
         @return: The decoded value.
     """
     if size == 4:
-        return _struct_float32.unpack(stream.read(size))[0]
+        return _struct_float32_unpack(stream.read(size))[0]
     elif size == 8:
-        return _struct_float64.unpack(stream.read(size))[0]
+        return _struct_float64_unpack(stream.read(size))[0]
     elif size == 0:
         return 0.0
 
-    raise IOError("Cannot read floating point value of length %s, "
-                  "only 0, 4, or 8 bytes." % size)
+    raise IOError("Cannot read floating point value of length %s; "
+                  "only lengths of 0, 4, or 8 bytes supported." % size)
 
 
 def readString(stream, size):
@@ -186,6 +199,7 @@ def readDate(stream, size=8):
     if size != 8:
         raise IOError("Cannot read date value of length %d, only 8." % size)
     data = stream.read(size)
-    nanoseconds = _struct_int64.unpack(data)[0]
-    delta = datetime.timedelta(microseconds=(nanoseconds // 1000))
-    return datetime.datetime(2001, 1, 1, tzinfo=None) + delta
+    nanoseconds = _struct_int64_unpack(data)[0]
+    delta = timedelta(microseconds=(nanoseconds // 1000))
+    return datetime(2001, 1, 1, tzinfo=None) + delta
+
