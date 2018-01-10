@@ -473,13 +473,6 @@ class MasterElement(Element):
             yield el
 
 
-    def iterChildren(self):
-        """ Create an iterator to iterate over the element's children.
-            For backwards compatibility.
-        """
-        return iter(self)
-
-
     def __len__(self):
         """ x.__len__() <==> len(x)
         """
@@ -499,7 +492,7 @@ class MasterElement(Element):
         """
         if self._value is not None:
             return self._value
-        self._value = list(self.iterChildren())
+        self._value = list(self)
         return self._value
 
 
@@ -708,13 +701,6 @@ class Document(MasterElement):
                 break
 
 
-    def iterroots(self):
-        """ Iterate root elements. For backwards compatibility.
-            @todo: Remove this.
-        """
-        return iter(self)
-
-
     @property
     def roots(self):
         """ The document's root elements. For python-ebml compatibility.
@@ -743,7 +729,7 @@ class Document(MasterElement):
             for n, el in enumerate(self):
                 if n == idx:
                     return el
-            raise IndexError("list index out of range (0-%d)" % n)
+            raise IndexError("list index out of range (0-%d)" % (n-1))
         elif isinstance(idx, slice):
             raise IndexError("Document root slicing not (yet) supported")
         else:
@@ -1036,13 +1022,6 @@ class Schema(object):
                 pass
             return default
         
-        if not isinstance(eid, (int, long)):
-            raise TypeError("Invalid element ID: %r" % eid)
-        if not ename or not isinstance(ename, basestring):
-            raise TypeError("Invalid element name: %r" % ename)
-        if not (ename[0].isalpha() or ename[0] == "_"):
-            raise TypeError("Invalid element name: %r" % ename)
-        
         if eid in self.elements or ename in self.elementsByName:
             # Already appeared in schema. Duplicates are permitted for defining
             # an element that can appear as a child to multiple Master elements,
@@ -1065,12 +1044,22 @@ class Schema(object):
                                 'different attributes' % (ename, eid))
         else:
             # New element class. It requires both a name and an ID.
+            # Validate both the name and the ID.
             if eid is None:
                 raise ValueError('Element definition missing required '
                                  '"id" attribute')
-            elif ename is None:
-                raise ValueError('Element ID 0x%02X missing required '
-                                 '"name" attribute' % eid)
+            elif not isinstance(eid, (int, long)):
+                raise TypeError("Invalid type for element ID: " + \
+                                "{} ({})".format(eid, type(eid).__name__))
+
+            if ename is None:
+                raise ValueError('Element definition missing required '
+                                 '"name" attribute')
+            elif not isinstance(ename, basestring):
+                raise TypeError('Invalid type for element name: ' + \
+                                 '{} ({})'.format(ename, type(ename).__name__))
+            elif not (ename[0].isalpha() or ename[0] == "_"):
+                raise ValueError("Invalid element name: %r" % ename)
     
             mandatory = _getBool(attribs, 'mandatory', False)
             multiple = _getBool(attribs, 'multiple', False)

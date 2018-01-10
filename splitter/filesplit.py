@@ -190,7 +190,7 @@ def splitDoc(doc, savePath=None, basename=None, startTime=0, endTime=None,
     # For seeking and reading elements, separate from doc to prevent conflicts
     oldFile = open(doc.stream.name, 'rb')
     
-    i = doc.iterroots()
+    i = iter(doc)
     el = None
     header = bytearray()
     while True:

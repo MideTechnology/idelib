@@ -467,7 +467,7 @@ def raw2fid(ideFilename, savepath="", channels=None,
             offset = 0
             
             try:
-                for i, el in enumerate(doc.ebmldoc.iterroots()):
+                for i, el in enumerate(doc.ebmldoc):
                     if el.name == "ChannelDataBlock":
                         chId = el.value[0].value
                         if chId in dumpers:

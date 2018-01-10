@@ -19,6 +19,13 @@ An EBML file is largely meaningless without a schema that defines its elements. 
 
 *ebmlite* schemata are defined in XML. From these XML files, a `Schema` instance is created; within the `Schema` are `Element` subclasses for each element defined in the XML. Importing an EBML file is done through the `Schema` instance.
 
+```python
+from ebmlite import loadSchema
+schema = loadSchema('mide.xml')
+doc = schema.load('test_file.ebml')
+```
+
+Here is an example, showing a simplified version of the schema definition of the standard EBML header elements:
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
 <Schema>
@@ -47,8 +54,51 @@ An EBML file is largely meaningless without a schema that defines its elements. 
 </Schema>
 ```
 
-```python
-from ebmlite import loadSchema
-schema = loadSchema('mide.xml')
-doc = schema.load('test_file.ebml')
+Each element defined in the schema is a subclass of one of 8 Element base classes:
+* **MasterElement:** An element containing other elements.
+* **IntegerElement:** Contains a signed integer value of variable length.
+* **UIntegerElement:** Contains an unsigned integer value of variable length.
+* **FloatElement:** Contains a 32 or 64 bit floating point value.
+* **StringElement:** Contains printable ASCII characters.
+* **UnicodeElement:** Contains UTF-8 string data.
+* **DateElement:** Contains a timestamp, stored as nanoseconds since 2001-01-01T00:00:00 UTC as a 64 bit integer. *ebmlite* automatically translates this into a Python `datetime.datetime` object.
+* **BinaryElement:** Contains binary data.
+
+Element definitions have several attributes:
+* `name` (string): The Element subclass' name.
+* `id` (integer): The Element subclass' EBML ID.
+* `length` (integer, optional): A fixed size to use when encoding the element, overriding the EBML variable length encoding. Use to create byte-aligned structures.
+* `level` (integer, optional): The allowed 'depth' of the element. Only the value `-1` has an effect in an *ebmlite* schema; it indicates that the element can appear anywhere in an EBML file.
+* `multiple` (bool, optional, default=1):
+* `mandatory` (bool, optional, default=0):
+* `precache` (bool, optional, default=0):
+
+There are two additional, special-case Element subclasses which are not subclassed:
+* **UnknownElement:** Instantiated for elements with IDs that do not appear in the schema. Its payload is treated as binary data.
+* **VoidElement:** "Void" (ID 0xEC) is a standard EBML element used for padding. The contents of its payload are ignored.
+
+An Element type can appear multiple times in a schema; i.e. if its type can appear as a child of different parent types. Only the first definition requires both `name` and `id` attributes. Successive definitions can be abbreviated to just the `name` and/or `id`; they will inherit all the other attributes of the first definition. Successive definitions must *not* have contradictory attributes, however.
+```XML
+<Schema>
+    <MasterElement name="Parent1" id="0x5210">
+        <!-- first definition of child: has all attributes -->
+        <IntegerElement name="SharedChild" id="0x5211" precache="1" length="8"/>
+    </MasterElement>
+
+    <!-- Proper reuse of a child element -->
+    <MasterElement name="Parent2" id="0x5220">
+        <!-- second definition of child: only name (preferred) or ID required -->
+        <IntegerElement name="SharedChild"/>
+    </MasterElement>
+    <MasterElement name="Parent3" id="0x5230">
+        <!-- third definition of child: only name (preferred) or ID required -->
+        <IntegerElement id="0x5211"/>
+    </MasterElement>
+
+    <!-- A bad reuse! This will raise an exception when the schema is parsed. -->
+    <MasterElement name="Parent3" id="0x5230">
+        <!-- BAD REDEFINITION: attribute(s) contradict initial definition! -->
+        <IntegerElement name="SharedChild" id="0xBAD1D"/>
+    </MasterElement>
+</Schema>
 ```

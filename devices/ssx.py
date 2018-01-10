@@ -466,7 +466,7 @@ class SlamStickX(Recorder):
             PP = CalibrationListParser(None)
             stream.seek(0)
             cal = self.mideSchema.load(stream)
-            calPolys = PP.parse(cal.roots[0])
+            calPolys = PP.parse(cal[0])
             if calPolys:
                 calPolys = {p.id: p for p in calPolys if p is not None}
             return calPolys
@@ -641,7 +641,7 @@ class SlamStickX(Recorder):
                 # Parse userpage recorder property data
                 parser = RecordingPropertiesParser(doc)
                 doc._parsers = {'RecordingProperties': parser}
-                parser.parse(self.mideSchema.loads(self._propData).roots[0])
+                parser.parse(self.mideSchema.loads(self._propData)[0])
             self._channels = doc.channels
             self._sensors = doc.sensors
             self._warnings = doc.warningRanges

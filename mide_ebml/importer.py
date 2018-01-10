@@ -342,7 +342,7 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
     elementParsers = doc._parsers
     
     try:
-        for r in doc.ebmldoc.iterroots():
+        for r in doc.ebmldoc:
             if getattr(updater, "cancelled", False):
                 doc.loadCancelled = True
                 break
@@ -451,7 +451,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     try:    
         # This just skips 'header' elements. It could be more efficient, but
         # the size of the header isn't significantly large; savings are minimal.
-        for r in source.ebmldoc.iterroots():
+        for r in source.ebmldoc:
             
             r_name = r.name
             

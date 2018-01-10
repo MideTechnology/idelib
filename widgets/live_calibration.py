@@ -18,8 +18,11 @@ import wx.lib.sized_controls as SC
 from config_dialog.special_tabs import EditableCalibrationPanel
 from devices import fromRecording
 from logger import logger
-from mide_ebml.ebml.schema.mide import MideDocument
 from mide_ebml.parsers import CalibrationListParser
+
+from mide_ebml.ebmlite import loadSchema
+
+schema_mide = loadSchema('mide.xml')
 
 #===============================================================================
 # 
@@ -248,8 +251,8 @@ def readCal(filename):
     """
     cal = None
     with open(filename, 'rb') as f:
-        doc = MideDocument(f)
-        for el in doc.iterroots():
+        doc = schema_mide.load(f)
+        for el in doc:
             if el.name == "CalibrationList":
                 cal = CalibrationListParser(None).parse(el)
                 if cal:

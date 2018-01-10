@@ -357,7 +357,7 @@ def raw2mat(ideFilename, matFilename=None, dtype="double", channels=None,
             offset = 0
             
             try:
-                for i, el in enumerate(doc.ebmldoc.iterroots()):
+                for i, el in enumerate(doc.ebmldoc):
                     if mat.filename != lastMat:
                         lastMat = mat.filename
                         msgLen = len(writeMsg)
