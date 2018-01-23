@@ -39,8 +39,9 @@ old builds
 
 ABOUT/slam_stick_lab_changelog.html
 
-build
-dist
+build/
+build_64*/
+dist/
 *_32
 *_64
 *_32b

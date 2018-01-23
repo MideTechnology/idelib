@@ -1084,8 +1084,11 @@ class Schema(object):
             if level == -1:
                 self.globals[eid] = eclass
                 
-        parent = parent or self
+        parent = parent or self.document
+        if parent.children is None:
+            parent.children = {}
         parent.children[eid] = eclass
+        
         return eclass
         
 
