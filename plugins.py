@@ -34,19 +34,22 @@ Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
   * architecture (string): The required system architecture, ``32bit`` or 
       ``64bit``.
   * minAppVersion (tuple/list of integers): The minimum version of the app with
-      which the plug-in is compatible. 
+      which the plug-in is compatible. Can be one to three items long. 
   * maxAppVersion (tuple/list of integers): The maximum version of the app with
       which the plug-in is compatible.
   * minPythonVersion (tuple/list of integers): The minimum version of Python
       required.
-  * minPythonVersion (tuple/list of integers): The maximum version of Python
+  * maxPythonVersion (tuple/list of integers): The maximum version of Python
       required.
-"""
 
-# TODO: Support imports of other packages in the plug-in. Possibly add a 
-#     ``packages`` item to the JSON, listing the other packages in the archive.
-#     These can then be imported first, and the main module can be imported; 
-#     its import statements should find the other packages.
+@todo: Support imports of other packages in the plug-in. Possibly add a 
+    ``packages`` item to the JSON, listing the other packages in the archive.
+    These can then be imported first, and the main module can be imported; 
+    its import statements should find the other packages.
+
+@todo: Change the name of `init()` to something more specific, like
+    `pluginInit()`.
+"""
 
 
 __author__ = "D. R. Stokes"
@@ -64,6 +67,7 @@ import platform
 import pkgutil
 import sys
 import types
+from UserDict import IterableUserDict
 import zipimport
 
 #===============================================================================
@@ -107,13 +111,12 @@ class PluginCompatibilityError(PluginImportError):
 #===============================================================================
 
 class Plugin(object):
-    """ A plug-in component, as represented in the host application. It handles
-        loading the actual plug-in code, reading from either a compressed file
-        or a directory (if permitted). 
+    """ A wrapper for a plug-in component, as represented in the host 
+        application. It handles loading the actual plug-in code, reading from 
+        either a compressed file or a directory (if permitted). 
         
         After initialization, the plug-in must still be loaded before use.
         The actual import of the plug-in module happens then.
-        
     """
     PLUGIN_EXT = (".plg", ".zip")
     
@@ -130,7 +133,7 @@ class Plugin(object):
                 return False
             return os.path.exists(os.path.join(p, 'info.json'))
         p = os.path.splitext(p)[0]
-        return any(map(os.path.isfile, [p+x for x in cls.PLUGIN_EXT]))
+        return any(os.path.isfile(p+x) for x in cls.PLUGIN_EXT)
 
 
     @staticmethod
@@ -178,8 +181,6 @@ class Plugin(object):
         self.moduleName = None
         self.isModule = False
         
-        self.imports = None
-        
         # The plugin is an imported module. Just get the relevant data from it.
         # Module plugins are not otherwise validated, since they were imported
         # explicitly.
@@ -200,8 +201,8 @@ class Plugin(object):
             return
         
         # The plugin could be a directory name, or the name of a compressed
-        # file (with extension `PLUGIN_EXT`). For convenience, the extension
-        # '.zip' is also valid; if both exist, the former is used.
+        # file (with an extension in `Plugin.PLUGIN_EXT`). For convenience, the
+        # extension '.zip' is also valid; if both exist, the former is used.
         path = os.path.realpath(os.path.expanduser(path))
         try:
             dirPath = os.path.splitext(path)[0]
@@ -415,8 +416,17 @@ class Plugin(object):
 # 
 #===============================================================================
 
-class PluginSet(object):
-    """ A container for `Plugin` objects. Handles loading accessing them.
+class PluginSet(IterableUserDict, object):
+    """ A container for `Plugin` objects. Handles loading and accessing them.
+        Functions like a dictionary, with plugins keyed by name.
+        
+        @ivar pluginTypes: A dictionary of all discovered plugin types. 
+            The type is the key, the value is a list of plugins of that type.
+        @ivar bad: A list of bad plugins (malformed, could not be imported, 
+            missing metadata, etc.)
+        @ivar dupes: A list of duplicate plugins. Plugins require unique names.
+        @ivar incompatible: A list of plugins incompatible with the app and/or
+            version used when `PluginSet.add()` is called.
     """
     
     @staticmethod
@@ -440,7 +450,7 @@ class PluginSet(object):
                 Bad imports will be added to the object's `bad` and `dupes` 
                 lists.
         """
-        self.plugins = {}
+        super(PluginSet, self).__init__()
         self.pluginTypes = defaultdict(list)
         self.bad = []
         self.dupes = []
@@ -461,6 +471,11 @@ class PluginSet(object):
             @param paths: The path to a plugin file or directory, an imported
                 module containing a plugin, or a collection of the two. Paths
                 may contain glob-style wildcards.
+            @keyword app: The name of application that will use the plugin.
+                Compared to the app specified in the plugin's metadata.
+            @keyword appVersion: The required version of the application that
+                will use the plugin. Compared to the version specified in the
+                plugin's metadata.
             @keyword useSource: If `True`, unpackaged plugin directories will
                 be imported in favor of the packaged versions. 
             @keyword quiet: If `True`, plugin import errors will be suppressed.
@@ -473,7 +488,7 @@ class PluginSet(object):
         if isinstance(paths, basestring) or not isinstance(paths, Sequence):
             paths = [paths]
         
-        map(paths.extend, map(glob, [p for p in paths if self._isWildcard(p)]))
+        map(paths.extend, (glob(p) for p in paths if self._isWildcard(p)))
         
         err = None
         for path in paths:
@@ -481,10 +496,10 @@ class PluginSet(object):
                 continue
             try:
                 p = Plugin(path, app=app, appVersion=appVersion, useSource=useSource)
-                if p.moduleName in self.plugins:
+                if p.moduleName in self.data:
                     self.dupes.append(path)
                 else:
-                    self.plugins[p.moduleName] = p
+                    self.data[p.moduleName] = p
                     self.pluginTypes[p.type].append(p)
                 for k,v in kwargs.items():
                     if not hasattr(p, k):
@@ -500,38 +515,6 @@ class PluginSet(object):
             raise err
 
 
-    def __len__(self):
-        return len(self.plugins)
-   
-   
-    def __getitem__(self, k):
-        return self.plugins[k]
-
-    
-    def get(self, *args, **kwargs):
-        return self.plugins.get(*args, **kwargs)
-    
-    
-    def items(self):
-        return self.plugins.items()
-
-    
-    def keys(self):
-        return self.plugins.keys()
-
-    
-    def values(self):
-        return self.plugins.values()
-    
-    
-    def __iter__(self, *args, **kwargs):
-        return self.plugins.__iter__(*args, **kwargs)
-    
-    
-    def __contains__(self, k):
-        return self.plugins.__contains__(k)
-    
-    
     @property
     def types(self):
         """ Return a list of all plugin types.
@@ -550,7 +533,7 @@ class PluginSet(object):
                 plugins.find(name="Meters2*") # Gets all plugins starting with "Meters2"
         """
         result = []
-        for p in self.plugins.itervalues():
+        for p in self.data.itervalues():
             good = True
             for k,v in kwargs.iteritems():
                 # Get data from either the 'info' dict or an attribute
@@ -580,7 +563,7 @@ class PluginSet(object):
                 plugins.find(name="Meters2*") # Gets all plugins starting with "Meters2"
         """
         result = []
-        for p in self.plugins.itervalues():
+        for p in self.data.itervalues():
             for k,v in kwargs.iteritems():
                 # Get data from either the 'info' dict or an attribute
                 val = p.info[k] if k in p.info else getattr(p, k, None)
@@ -613,7 +596,7 @@ class PluginSet(object):
         err = None
         try:
             if isinstance(plug, basestring):
-                return self.plugins[plug].load(*args, **kwargs)
+                return self.data[plug].load(*args, **kwargs)
             elif isinstance(plug, Sequence):
                 load = partial(self.load, args=args, kwargs=kwargs, quiet=quiet)
                 return filter(None, map(load, plug))

@@ -911,7 +911,7 @@ class Schema(object):
         
         # Create the schema's Document subclass.
         self.document = type('%sDocument' % self.name.title(), (Document,),
-                             {'schema': self})
+                             {'schema': self, 'children':self.children})
 
     
     def _parseLegacySchema(self, schema):
@@ -1084,7 +1084,7 @@ class Schema(object):
             if level == -1:
                 self.globals[eid] = eclass
                 
-        parent = parent or self.document
+        parent = parent or self
         if parent.children is None:
             parent.children = {}
         parent.children[eid] = eclass
