@@ -117,7 +117,7 @@ def ideExport(ideFilename, outFilename=None, channels=None,
     if channels is None:
         exportChannels = doc.channels.values()
     else:
-        exportChannels = [c for c in doc.channels.values if c.id in channels]
+        exportChannels = [c for c in doc.channels.values() if c.id in channels]
 
     numSamples = 0
     for ch in exportChannels:

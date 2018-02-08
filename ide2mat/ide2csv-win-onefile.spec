@@ -57,7 +57,7 @@ def Datafiles(*filenames, **kw):
 #                    '../mide_ebml/ebml/schema/manifest.xml',
 #                    '../mide_ebml/ebml/schema/matroska.xml',
 #                    strip_path=True)#False)
-schemas = Tree('../mide_ebml/ebml/schema', 'mide_ebml/ebml/schema')
+schemas = Tree('../mide_ebml/ebmlite/schemata', 'mide_ebml/ebmlite/schemata')
 
 a = Analysis(['%s.py' % NAME],
              pathex=['..', HOME_DIR, os.path.abspath(os.path.join(HOME_DIR,'..'))],
