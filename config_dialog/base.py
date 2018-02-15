@@ -1957,7 +1957,7 @@ class ConfigDialog(SC.SizedDialog):
     def buildUI(self):
         """ Construct and populate the UI based on the ConfigUI element.
         """
-        for el in self.hints.roots[0]:
+        for el in self.hints[0]:
             if el.name in TAB_TYPES:
                 tabType = TAB_TYPES[el.name]
                 tab = tabType(self.notebook, -1, element=el, root=self)
