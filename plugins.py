@@ -49,11 +49,14 @@ Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
 
 @todo: Change the name of `init()` to something more specific, like
     `pluginInit()`.
+
+@todo: Add dependency list to plugins? 
 """
 
 
 __author__ = "D. R. Stokes"
 __email__ = "dstokes@mide.com"
+__version__ = (1,0,1)
 
 from collections import defaultdict, Sequence
 import errno
@@ -260,6 +263,34 @@ class Plugin(object):
             raise PluginImportError('Could not find plugin info in', 
                                     self.path, err)
 
+        # Check processor compatibility (e.g. if the plugin has native parts)
+        machine = self.info.get('machine', None)
+        if machine:
+            sysMachine = platform.machine()
+            if not fnmatch(machine, sysMachine):
+                raise PluginCompatibilityError(
+                    "Plugin not compatible with CPU (plugin: %r, system: %r" %
+                    (machine, sysMachine))
+
+        # Check for compatibility with the system architecture.
+        arch = self.info.get('architecture', None)
+        if arch:
+            sysArch = platform.architecture()[0]
+            if not fnmatch(arch, sysArch):
+                raise PluginCompatibilityError(
+                   "Plugin requires %s system, this one is %s" % (arch, sysArch),
+                   self.path)
+
+        # Check compatibility with plugin framework.
+        plugVers = self.info.get('plugin_format_version', None)
+        if self.isNewer(plugVers, __version__):
+            if isinstance(plugVers, (list, tuple)):
+                plugVers = '.'.join(str(x) for x in plugVers)
+            libVers = '.'.join(str(x) for x in __version__)
+            raise PluginCompatibilityError(
+               "Plugin uses a newer version of the Plugin system "
+               "(plugin version: %s, system version: %s" % (plugVers, libVers))
+
         # Check compatibility with Python version.
         pyVersStr = '.'.join(map(str, sys.version_info[:3]))
         pyMinVers = self.info.get('minPyVersion', None)
@@ -279,15 +310,6 @@ class Plugin(object):
                "Plugin requires Python version %s%s, this is %s" %
                (msg, '.'.join(map(str, pyMaxVers)), pyVersStr),
                self.path)
-
-        # Check for compatibility with the system architecture.
-        arch = self.info.get('architecture', None)
-        if arch:
-            sysArch = platform.architecture()[0]
-            if arch[:2] != sysArch[:2]:
-                raise PluginCompatibilityError(
-                   "Plugin requires %s system, this one is %s" % (arch, sysArch),
-                   self.path)
 
         # Check for compatibility with app.
         if app is not None and 'app' in self.info:
@@ -613,20 +635,32 @@ class PluginSet(IterableUserDict, object):
 # 
 #===============================================================================
 
-def makeInfo(mod, architecture=None):
+def makeInfo(mod, architecture=None, machine=None):
     """ Utility function to generate the data for an plugin's `info.json` file.
         
         @param mod: The module for which to generate info.
         @keyword architecture: The system architecture,``32bits``, ``64bits``, 
-            or `True` to add the current system's architecture. Added to the
-            info.  
+            or `True` to use the current system's architecture. Added to the
+            plugin info. If `None`, the information is omitted. Use if the
+            plugin is hardware-dependent.
+        @keyword machine: The compatible CPU type(s) (e.g. ``AMD64``,
+            ``armv7l``), or `True` to use the current system's type. Added to
+            the plugin info. If `None`, the information is omitted. Use if the
+            plugin is hardware-dependent.
     """
-    ignore = ('__name__', '__file__', '__package__')
-    items = {}
+    ignore = ('__all__', '__builtins__', '__file__', '__name__', '__package__', 
+              '__path__')
+    
+    items = {'plugin_format_version': __version__}
+    
     if architecture is not None:
         if architecture is True:
             architecture = platform.architecture()[0]
         items['architecture'] = architecture
+    if machine is not None:
+        if machine is True:
+            machine = platform.machine()
+        items['machine'] = machine
         
     if isinstance(mod, basestring):
         if os.path.exists(mod):
