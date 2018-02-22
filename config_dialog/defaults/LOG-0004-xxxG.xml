@@ -151,7 +151,8 @@
                 <FloatAccelerationField>
                     <Label value="Accelerometer Threshold"/>
                     <ConfigID value="0x04ff20"/>
-                    <UIntValue value="5"/>
+                    <FloatGain value="0.00048828125"/>
+                    <IntValue value="10240"/>
                     <Units value="g"/>
                     <FloatMax value="16.0"/>
                     <FloatMin value="0.0"/>

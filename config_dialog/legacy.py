@@ -105,8 +105,8 @@ def loadConfigUI(device, showAdvanced=False):
     if accelRange is not None:
         analogTrig = doc.find(".//CheckGroup[@id='AnalogAccelTrigger']")
         if analogTrig is not None:
-            for lo in analogTrig.findall("FloatAccelerationField/FloatMin"):
-                lo.set('value',str(accelRange[0]))
+#             for lo in analogTrig.findall("FloatAccelerationField/FloatMin"):
+#                 lo.set('value',str(accelRange[0]))
             for hi in analogTrig.findall("FloatAccelerationField/FloatMax"):
                 hi.set('value',str(accelRange[1]))
             for gain in analogTrig.findall("FloatAccelerationField/FloatGain"):
@@ -336,9 +336,14 @@ def saveConfigData(configData, device, filename=None):
         trig = OrderedDict(TriggerChannel = combinedId & 0xFF)
         
         # Special case: DC accelerometer, which uses a 'participation' bitmap
-        # instead of having explicit ConfigID items for each subchannel.
+        # instead of having explicit ConfigID items for each subchannel. In
+        # legacy data, each subchannel has its own trigger element, with the
+        # same threshold value in each (can't change per subchannel).
         if t == 0x05FF20:
             v = configData[0x05FF20]
+            trigHi = configData.get(0x04ff20)
+            if trigHi is not None:
+                trig['TriggerWindowHi'] = trigHi
             for i in range(3):
                 if (v>>i) & 1:
                     d = trig.copy()
@@ -418,6 +423,8 @@ def useLegacyFormatPrompt(parent):
 def convertConfig(device):
     """ Convert a recorder's configuration file from the old format to the new
         version.
+        
+        @todo: This might be better placed in the ``devices`` module.
     """
     backupName = "%s_old.%s" % os.path.splitext(device.configFile)
     if not os.path.exists(device.configFile):
