@@ -45,21 +45,25 @@ class Importer(object):
             It may be `None` if the `OPENER` does the entire import.
     """
     
-    TYPE = "MIDE Data File (*.ide)"
+    TYPE = "MIDE Data File"
     EXT = "*.ide"
 
     OPENER = mide_ebml.importer.openFile
     READER = mide_ebml.importer.readData
     
+    
+    def __init__(self):
+        self.app = wx.GetApp()
+        
+    
     @classmethod
     def getType(cls):
         """
         """
-        return u"%s|%s" % (cls.TYPE, cls.EXT)
+        return u"%s (%s)|%s" % (cls.TYPE, cls.EXT, cls.EXT)
     
     
-    @classmethod
-    def importFile(cls, filename, root):
+    def importFile(self, filename, root):
         """ Initiate the file import. Opens the file and does initial work.
             Reading the actual data is done by the main application, which
             uses the function specified by ``READER``. Any special handling
@@ -74,7 +78,7 @@ class Importer(object):
         
         try:
             stream = ThreadAwareFile(filename, 'rb')
-            newDoc = cls.OPENER(stream, quiet=True)
+            newDoc = self.OPENER(stream, quiet=True)
             
             # SSX: Check EBML schema version
             if newDoc.schemaVersion is not None and newDoc.schemaVersion < newDoc.ebmldoc.version:
@@ -113,6 +117,6 @@ class Importer(object):
             else:
                 logger.info("Not importing external calibration file.")
         
-        return newDoc, cls.READER
+        return newDoc, self.READER
 
         

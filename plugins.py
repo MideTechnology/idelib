@@ -28,6 +28,9 @@ the same content as a parsed ``info.json`` file).
 Plug-ins embedded in a packaged Python app (PyInstaller, Py2Exe) are most 
 easily handled as modules.
 
+Plug-In Info
+============
+
 Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
   * app (string): The name of the app for which the plug-in was written. May
       contain glob-style wildcards.
@@ -42,6 +45,17 @@ Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
   * maxPythonVersion (tuple/list of integers): The maximum version of Python
       required.
 
+How it Works (TL;DR version)
+============================
+* The plug-in is added to the `PluginSet` via `PluginSet.add()`
+* Before use, the plug-in is loaded via `Plugin.load()` or `PluginSet.load()`.
+    This calls the plug-in's `init()` function, which returns a function-like
+    object (e.g. a function, or an object with a `__call__()` method). The
+    returned function/object is stored in the plug-in as `Plugin.main`.
+* When the plug-in is called (i.e. used like a function), the function/object
+    returned by the plug-in's `init()` is called. 
+
+
 @todo: Support imports of other packages in the plug-in. Possibly add a 
     ``packages`` item to the JSON, listing the other packages in the archive.
     These can then be imported first, and the main module can be imported; 
@@ -49,6 +63,10 @@ Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
 
 @todo: Change the name of `init()` to something more specific, like
     `pluginInit()`.
+
+@todo: Possibly change the name of `Plugin.main` to something more descriptive.
+    There are reasons the user may want to get at the object returned by the
+    plug-in's `init()`, so this attribute isn't entirely for internal use only.
 
 @todo: Add dependency list to plugins? 
 """
@@ -105,9 +123,11 @@ class PluginDupeError(PluginValidationError):
     """ Raised when a plug-in conflicts with an existing plug-in or module.
     """
 
+
 class PluginCompatibilityError(PluginImportError):
     """ Raised when a plug-in is incompatible with the system trying to load it.
     """
+
 
 #===============================================================================
 # 
@@ -120,6 +140,8 @@ class Plugin(object):
         
         After initialization, the plug-in must still be loaded before use.
         The actual import of the plug-in module happens then.
+        
+        @cvar PLUGIN_EXT: A collection of valid file extensions for plug-ins.
     """
     PLUGIN_EXT = (".plg", ".zip")
     
@@ -129,9 +151,9 @@ class Plugin(object):
         """
         if isinstance(p, types.ModuleType):
             return hasattr(p, "PLUGIN_INFO")
-        if not isinstance(p, basestring):
+        elif not isinstance(p, basestring):
             return False
-        if os.path.isdir(p):
+        elif os.path.isdir(p):
             if not useSource:
                 return False
             return os.path.exists(os.path.join(p, 'info.json'))
@@ -395,7 +417,8 @@ class Plugin(object):
 
 
     def __call__(self, *args, **kwargs):
-        """ Execute the plug-in.
+        """ Execute the plug-in. This calls the function-like object returned
+            by the plug-in's ``init()`` function.
         """
         if not self.loaded:
             self.load()
@@ -440,7 +463,9 @@ class Plugin(object):
 
 class PluginSet(IterableUserDict, object):
     """ A container for `Plugin` objects. Handles loading and accessing them.
-        Functions like a dictionary, with plugins keyed by name.
+        Functions like a dictionary, with plugins keyed by name. The `PluginSet`
+        also provides some simple organization (e.g. filtering and sorting by
+        data from the plug-ins' info).
         
         @ivar pluginTypes: A dictionary of all discovered plugin types. 
             The type is the key, the value is a list of plugins of that type.
@@ -454,7 +479,7 @@ class PluginSet(IterableUserDict, object):
     @staticmethod
     def _isWildcard(s):
         try:
-            return any([c in s for c in '*?[]'])
+            return any((c in s for c in '*?[]'))
         except TypeError:
             return False
 
@@ -622,9 +647,11 @@ class PluginSet(IterableUserDict, object):
             elif isinstance(plug, Sequence):
                 load = partial(self.load, args=args, kwargs=kwargs, quiet=quiet)
                 return filter(None, map(load, plug))
-            else:
+            elif isinstance(plug, Plugin):
                 return plug.load(*args, **kwargs)
-        except (KeyError, PluginImportError) as err:
+            else:
+                raise TypeError("%r is not a Plugin" % plug)
+        except (KeyError, PluginImportError, TypeError) as err:
             self.bad.append((plug, err))
         
         if err is not None and not quiet:

@@ -31,14 +31,14 @@ class SSClassicImporter(Importer):
     """
     """
 
-    TYPE = "Slam Stick Classic Data File (*.dat)"
+    TYPE = "Slam Stick Classic Data File"
     EXT = "*.dat"
 
     OPENER = mide_ebml.classic.importer.openFile
     READER = mide_ebml.classic.importer.readData
 
-    @classmethod
-    def importFile(cls, filename, root):
+
+    def importFile(self, filename, root):
         """ Initiate the file import. Opens the file and does initial work.
             Reading the actual data is done by the main application, which
             uses the function specified by ``READER``.
@@ -51,7 +51,7 @@ class SSClassicImporter(Importer):
         
         try:
             stream = ThreadAwareFile(filename, 'rb')
-            newDoc = cls.OPENER(stream, quiet=True)
+            newDoc = self.OPENER(stream, quiet=True)
             
             if not newDoc.sessions:
                 root.ask("This Classic file contains no data.\n\n"
@@ -67,7 +67,7 @@ class SSClassicImporter(Importer):
             raise FileImportError("The file '%s' could not be opened" % name,
                                   exception=err)
 
-        return newDoc, cls.READER
+        return newDoc, self.READER
 
 
 #===============================================================================
@@ -76,7 +76,8 @@ class SSClassicImporter(Importer):
 
 def init(*args, **kwargs):
     """ Plug-in initialization function, called when the plug-in is loaded.
-        Returns the class that actually does the importing.
+        Returns the class that actually does the importing. Calling the plugin
+        will instantiate it.
     """
     return SSClassicImporter
     
