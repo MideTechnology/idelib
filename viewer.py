@@ -2615,13 +2615,13 @@ class ViewerApp(wx.App):
         msg = ["Some plug-in modules (%d of %d) could not be loaded." % 
                (numIncomp + numBad, numIncomp + numBad + len(self.plugins))]
         
-        if len(self.plugins.incompatible) > 0:
+        if numIncomp > 0:
             msg.append('\nIncompatible Plug-ins (%d):' % numIncomp)
             for p in self.plugins.incompatible:
                 ppath = "built-in" if getattr(p, 'builtin', False) else p.path
                 msg.append('    * %s (%s)' % (p.name, ppath))
         
-        if len(self.plugins.bad) > 0:
+        if numBad > 0:
             msg.append('\nBad/Damaged Plug-ins (%d):' % numBad)
             for p in self.plugins.bad:
                 ppath = "built-in" if getattr(p, 'builtin', False) else p.path
