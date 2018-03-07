@@ -19,8 +19,11 @@ __copyright__ = "Copyright 2017 Mide Technology Corporation"
 
 import sys
 
+sys.path.insert(0,'..')
+
 from mide_ebml.ebmlite import loadSchema, UnknownElement
 from mide_ebml.ebmlite.encoding import encodeId
+
 
 #===============================================================================
 # 
@@ -140,6 +143,7 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
     
     docsize = doc.size + 0.0
     while pos < docsize:
+        lastPos = pos
         el, pos = getNextElement(doc, pos, sync, unknown, bufferSize,
                                  callback, recovered, docsize)
         
@@ -165,9 +169,15 @@ def recoverData(filename, outfile, fast=True, callback=None, bufferSize=2**16,
             else:
                 singletonElements[eid] = True
         
-        out.write(el.getRaw())
-        recovered += 1
-        recoveredSize += el.size
+        try:
+            out.write(el.getRaw())
+            recovered += 1
+            recoveredSize += el.size
+        except OverflowError:
+            # A damaged element can appear to have a huge element size, too big
+            # for file.read(). Ignore the element. 
+            pos = lastPos + 1
+        
         del el
         
         if callback is not None:
@@ -186,11 +196,20 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="IDE Data Recovery Tool")
+    parser.add_argument('-s', '--slow', action="store_true",
+                        help="Use slower recovery technique, which may recover "
+                        "more data")
+    parser.add_argument('-e', '--empty', action="store_true",
+                        help="Preserve empty elements (omitted from recovered "
+                        "results by default)")
     parser.add_argument('filename', 
                         help="The name of the MIDE (*.IDE) file to import")
     parser.add_argument('output', 
                         help="The file to save the recovered data")
     args = parser.parse_args()
     
-    recovered, percent = recoverData(args.filename, args.output, callback=simpleCallback)
+    recovered, percent = recoverData(args.filename, args.output, 
+                                     fast=not args.slow, empty=args.empty, 
+                                     callback=simpleCallback)
+    
     print "Recovery complete. Recovered %d elements (%.2f of total file)" % (recovered, percent*100)
