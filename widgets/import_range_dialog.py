@@ -216,5 +216,5 @@ if __name__ == "__main__":
                 return d
 
     app = wx.App()
-    val = ImportRangeDialog.display(None, "test_recordings/Garmin_temp.IDE", root=FakeViewer())
+    val = ImportRangeDialog.display(None, "../test_recordings/3_Shots_22_Cal.IDE", root=FakeViewer())
     print "ranges: %r" % (val,)
