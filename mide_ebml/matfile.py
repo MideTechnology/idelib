@@ -111,15 +111,23 @@ def serialFilename(basename, numDigits=2, minNumber=1, inc=1, pad='_'):
 #         a = ["%02x" % c for c in data]
 #     return ' '.join(a)
 
+# MATLAB reserved words. 
+# TODO: Add standard functions as well
+RESERVED_WORDS = ('break', 'case', 'catch','continue', 'else', 'elseif', 'end',
+                  'for', 'function', 'global', 'if', 'otherwise', 'persistent',
+                  'return', 'switch', 'try', 'while')
 
-def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_'):
+def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_',
+                 prefix="v", reservedWords=RESERVED_WORDS):
     """ Convert an arbitrary string into a valid MATLAB variable name.
+    
+        @keyword validChars: A string of all valid characters
     """
-    s = s.strip()
+    s = s.strip().encode('ascii', 'replace')
     result = [c if c in validChars else '_' for c in s.strip()]
-    if result[0].isdigit():
-        result.insert(0, '_')
-    result = ''.join(result).rstrip('_')
+    result = ''.join(result).strip('_ ')
+    if result[0].isdigit() or result in reservedWords:
+        result = prefix + result.title()
     return result.replace('__','_').replace('__','_').encode('utf8')
 
 
