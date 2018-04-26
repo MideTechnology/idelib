@@ -7,8 +7,9 @@ Created on Sep 26, 2013
 @author: dstokes
 
 '''
-# TODO: Remove any lingering ties to the old python-ebml library. Mostly in
-#    other modules (importer, parsers).
+# TODO: Flatten EventList data (i.e. ``(time, value1, value2)`` instead of
+#    ``(time, (value1, value2))``). Will be more compatible with Numpy and may
+#    simplify some EventList stuff.
 #
 # TODO: Clean out some of the unused features. They make the code less clear,
 #    creating more than one way to do the same thing. More often than not, 
@@ -38,7 +39,17 @@ Created on Sep 26, 2013
 #     
 # TODO: Look at remaining places where lists are returned, consider using 
 #    `yield`  instead (e.g. parseElement(), etc.)
+# 
+# TODO: Consider thread safety. Use a `threading.RLock` around adding/ending
+#    a Session, updating/using Transforms, appending/accessing EventList data,
+#    etc. Not (yet?) a serious problem, but it could be in the future; current
+#    handling of race conditions is a hack.
 #
+# TODO: Sensor subchannels. Requires schema/firmware updates.
+#
+# TODO: Transforms on Sensors. It's stubbed out, but not used in combo
+#    transforms.
+# 
 # TODO: Clean up the min/mean/max stuff.
 
 from bisect import bisect_right
@@ -53,7 +64,6 @@ from time import sleep
 
 import numpy
 
-# from ebml.schema.mide import MideDocument
 from calibration import Transform, CombinedPoly, PolyPoly
 from parsers import getParserTypes, getParserRanges
 
@@ -215,7 +225,7 @@ class Dataset(Cascading):
         @ivar transforms: A dictionary of functions (or function-like objects)
             for adjusting/calibrating sensor data.
     """
-     
+
     def __init__(self, stream, name=None, exitCondition=None, quiet=True):
         """ Constructor. 
             @param stream: A file-like stream object containing EBML data.
@@ -433,7 +443,7 @@ class Dataset(Cascading):
         
     
     def getPlots(self, subchannels=True, plots=True, debug=True, sort=True):
-        """ Get all plottable data sources: sensor SubChannels and/or Plots.
+        """ Get all plotable data sources: sensor SubChannels and/or Plots.
         
             @keyword subchannels: Include subchannels if `True`.
             @keyword plots: Include Plots if `True`.
@@ -443,7 +453,7 @@ class Dataset(Cascading):
         result = []
         test = lambda x: debug or not x.name.startswith("DEBUG")
         if plots:
-            result = [p for p in self.plots.values() if test(p)]
+            result = filter(test, self.plots.values())
         if subchannels:
             for c in self._channels.itervalues():
                 for i in xrange(len(c.subchannels)):
@@ -490,8 +500,11 @@ class Session(object):
         return "<%s (id=%s) at 0x%08X>" % (self.__class__.__name__, 
                                            self.sessionId, id(self))
     
+    
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
+        if other is self:
+            return True
+        elif not isinstance(other, self.__class__):
             return False
         else:
             return self.dataset == other.dataset \
@@ -570,7 +583,10 @@ class Sensor(Cascading):
     
         return self._bandwidthRolloff
 
+
     def __eq__(self, other):
+        if other is self:
+            return True
         if not isinstance(other, self.__class__):
             return False
         else:
@@ -582,6 +598,7 @@ class Sensor(Cascading):
                and self.traceData == other.traceData \
                and self.attributes == other.attributes \
                and self.bandwidthLimitId == other.bandwidthLimitId
+
 
 #===============================================================================
 # Channels
@@ -805,8 +822,11 @@ class Channel(Transformable):
             for s in self.sessions.values():
                 s.updateTransforms()
                 
+                
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
+        if other is self:
+            return True
+        elif not isinstance(other, self.__class__):
             return False
         else:
             return self.id == other.id \
@@ -1001,7 +1021,10 @@ class SubChannel(Channel):
     def getSubChannel(self, *args, **kwargs):
         raise AttributeError("SubChannels have no SubChannels")
 
+
     def __eq__(self, other):
+        if other is self:
+            return True
         if not isinstance(other, self.__class__):
             return False
         else:
@@ -1171,7 +1194,7 @@ class EventList(Transformable):
     
 
     def append(self, block):
-        """ Add one data block's contents to the Sensor's list of data.
+        """ Add one data block's contents to the Channel's list of data.
             Note that this doesn't double-check the channel ID specified in
             the data, but it is inadvisable to include data from different
             channels.
@@ -1470,8 +1493,11 @@ class EventList(Transformable):
             # Can occur early on while asynchronously loading.
             return self._length
     
+    
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
+        if other is self:
+            return True
+        elif not isinstance(other, self.__class__):
             return False
         else:
             return self.parent == other.parent \
@@ -1500,8 +1526,9 @@ class EventList(Transformable):
                and self.useAllTransforms == other.useAllTransforms \
                and self.allowMeanRemoval == other.allowMeanRemoval 
 
+
     def itervalues(self, start=0, end=-1, step=1, subchannels=True, display=False):
-        """ Iterate all values in the list.
+        """ Iterate all values in the list (no times).
         
             @keyword start: The first index in the range, or a slice.
             @keyword end: The last index in the range. Not used if `start` is
@@ -2324,7 +2351,7 @@ class EventList(Transformable):
                 The default callback is `None` (nothing will be notified).
             @keyword callbackInterval: The frequency of update, as a
                 normalized percent of the total lines to export.
-            @keyword timeScalar: A scaling factor for the even times.
+            @keyword timeScalar: A scaling factor for the event times.
                 The default is 1 (microseconds).
             @keyword raiseExceptions: 
             @keyword dataFormat: The number of decimal places to use for the
@@ -2439,29 +2466,35 @@ class Plot(Transformable):
     def __len__(self):
         return len(self.source)
     
+    
     def __getitem__(self, idx):
         result = self.source[idx]
         if isinstance(result, tuple):
             return self._transform(result, self.session)
         return [self._transform(evt, self.session) for evt in result]
     
+    
     def __iter__(self):
         # Note: self._transform is used here instead of self._mapTransform;
         # itertools.imap(None, x) works differently than map(None,x)!
         return imap(self._transform, self.source)
+            
             
     def getEventIndexBefore(self, t):
         """
         """
         return self.source.getEventIndexBefore(t)
     
+    
     def getEventIndexNear(self, t):
         """
         """
         return self.source.getEventIndexNear(t)
 
+
     def getRange(self, startTime, endTime):
         return map(self._mapTransform, self.source.getRange(startTime, endTime))
+    
     
     def getSampleRate(self, idx=0):
         return self.source.getSampleRate(idx)
@@ -2469,13 +2502,16 @@ class Plot(Transformable):
     def getSampleTime(self, idx=0):
         return self.source.getSampleTime(idx)
     
+    
     def getValueAt(self, at):
         return self._transform(self.source.getValueAt(at))
+    
     
     def iterRange(self, startTime, endTime):
         # Note: self._transform is used here instead of self._mapTransform;
         # itertools.imap(None, x) works differently than map(None,x)!
         return imap(self._transform, self.source.iterRange(startTime, endTime))
+    
     
     def iterSlice(self, start=0, end=-1, step=1):
         # Note: self._transform is used here instead of self._mapTransform;
@@ -2555,8 +2591,11 @@ class WarningRange(object):
         
         self._displayName = None
         
+        
     def __eq__(self, other):
-        if not isinstance(other, self.__class__):
+        if other is self:
+            return True
+        elif not isinstance(other, self.__class__):
             return False
         else:
             return self.dataset == other.dataset \
@@ -2567,7 +2606,6 @@ class WarningRange(object):
                and self.low == other.low \
                and self.attributes == other.attributes \
                and self._sessions == other._sessions
-        
     
     
     def getSessionSource(self, sessionId=None):

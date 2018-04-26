@@ -550,7 +550,7 @@ def estimateLength(filename, numSamples=50000, parserTypes=elementParserTypes,
         paused = False
         def __init__(self, n):
             self.numSamples = n
-        def __call__(self, count, **kwargs):
+        def __call__(self, count=0, **kwargs):
             self.cancelled = count > self.numSamples
                 
     updater = DummyUpdater(numSamples)
