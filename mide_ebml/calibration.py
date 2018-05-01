@@ -108,6 +108,16 @@ class Transform(object):
             self._session = session
         return event[-2] + self._timeOffset, self._function(event[-1])
 
+
+    def isValid(self, session=None, noBivariates=False):
+        """ Check the validity of the Transform.
+        """
+        # TODO: More base validity tests for all Transform subclasses?
+        try:
+            return (self.function is not None)
+        except AttributeError:
+            return False
+
     
     #===========================================================================
     # 
@@ -490,6 +500,8 @@ class Bivariate(Univariate):
         
             @param event: The event to process (a time/value tuple).
             @keyword session: The session containing the event.
+            @keyword noBivariates: If `True`, the reference channel will not
+                be used.
         """
         session = self.dataset.lastSession if session is None else session
         sessionId = None if session is None else session.sessionId
@@ -529,6 +541,39 @@ class Bivariate(Univariate):
         cal['BivariateChannelIDRef'] = self.channelId
         cal['BivariateSubChannelIDRef'] = self.subchannelId
         return cal
+
+
+    def isValid(self, session=None, noBivariates=False, _retries=3):
+        """ Check the validity of the Transform.
+        
+            @keyword session: The session to check (could be valid in one and
+                invalid in another, e.g. one session has no temperature data).
+            @keyword noBivariates: If `True`, the reference channel will not
+                be used.
+        """
+        valid = super(Bivariate, self).isValid(session, noBivariates)
+        if noBivariates or not valid:
+            return valid
+        
+        session = self.dataset.lastSession if session is None else session
+        sessionId = None if session is None else session.sessionId
+        
+        try:
+            if self._eventlist is None or self._sessionId != sessionId:
+                channel = self.dataset.channels[self.channelId][self.subchannelId]
+                self._eventlist = channel.getSession(session.sessionId)
+                self._sessionId = session.sessionId
+            if len(self._eventlist) == 0:
+                return False
+            
+        except:
+            # HACK: In multithreaded environments, there's a rare race 
+            # condition in which the main channel can be accessed before the
+            # calibration channel has loaded. Retry isValid() a few times.
+            if _retries == 0:
+                return False
+            
+            return self.isValid(session, noBivariates, _retries-1)
 
 
 #===============================================================================
@@ -612,6 +657,15 @@ class CombinedPoly(Bivariate):
         """
         raise TypeError("Can't generate dictionary for %s" % \
                         self.__class.__.__name)
+
+    
+    def isValid(self, session=None, noBivariates=False):
+        """ Check the validity of the Transform.
+        """
+        if not Transform.isValid(self, session, noBivariates):
+            return False
+        return all(p.isValid(session, noBivariates) for p in self.subpolys.values())
+        
 
 #------------------------------------------------------------------------------ 
 
@@ -716,4 +770,14 @@ class PolyPoly(CombinedPoly):
                                (err.__class__.__name__, self))
                 return None
             raise
+
+
+    def isValid(self, session=None, noBivariates=False):
+        """ Check the validity of the Transform.
+        """
+        if not Transform.isValid(self, session, noBivariates):
+            return False
+        return all(p.isValid(session, noBivariates) for p in self.polys)
+        
+
 

@@ -696,7 +696,28 @@ class Viewer(wx.Frame, MenuMixin):
                          "Configure Unit Conversion...", "", 
                          self.OnConversionConfig)
 
-        
+
+    def promptBadTransforms(self):
+        """ Inform the user that the recording has bad polynomials, e.g. 
+            the file is missing data for a referenced channel (i.e. 
+            temperature).
+        """
+        if not self.noBivariates:
+            # XXX: HACK: This assumes the issue is bad bivariates, which it
+            # probably is, but it isn't necessarily so. Handle better!
+            self.setNoBivariates(True)
+            self.FindItemInMenuBar(self.ID_DATA_DISABLE_BIVARIATES).Enable(False)
+
+            wx.MessageBox("Bivariate calibration could not be applied.\n\n"
+              "A calibration data source contained no data. Bivariate "
+              "polynomials have been disabled.", "Calibration Error", 
+              wx.OK|wx.ICON_WARNING, self)
+
+        # TODO: log other transform errors. This can get called immediately
+        # after the dialog has been displayed, however, so it should be
+        # ignored in those cases.
+        logger.error("Bad transforms detected, but bivariates already disabled")
+            
 
     #===========================================================================
     # 

@@ -638,29 +638,41 @@ class PlotCanvas(wx.ScrolledWindow):
             
         try:
             self._OnPaint(evt)
-        except IndexError:
+            
+        except IndexError as err:
             # Note: These can occur on the first plot, but are non-fatal.
             if self.root.dataset.loading:
-                logger.warning("IndexError in plot (race condition?); continuing.") 
+                logger.warning("%s in plot (race condition?); continuing." % 
+                               err.message) 
                 wx.MilliSleep(50)
                 wx.PostEvent(self, evt)
             else:
-                logger.warning("IndexError in plot: no data?")
+                logger.warning("%s; no data?" % err.message)
+                
         except TypeError as err:
             # Note: These can occur on the first plot, but are non-fatal.
             if self.root.dataset.loading:
-                logger.warning("%s (race condition?); continuing." % err.message) 
+                logger.warning("%s in plot (race condition?); continuing." % 
+                               err.message) 
                 wx.MilliSleep(50)
                 wx.PostEvent(self, evt)
             else:
-                logger.warning("%s; no data?" % err.message) 
-        except (IOError, wx.PyDeadObjectError) as err:
+                self.Parent.validateTransforms()
+                logger.warning("%s; no data?" % err.message)
+
+        except IOError as err:
             msg = "An error occurred while trying to read the recording file."
             self.root.handleError(err, msg, closeFile=True)
+            
+        except wx.PyDeadObjectError:
+            # Could occur when shutting down. Ignore it.
+            pass
+        
         except Exception as err:
             self.root.handleError(err, what="plotting data")
             if DEBUG:
                 raise
+            
         finally:
             if paused:
                 self.root.resumeOperation(job)
@@ -1383,6 +1395,7 @@ class Plot(ViewerPanel, MenuMixin):
         return self.plotMeanSpan
 #         if self.sources:
 #             return self.sources[0].rollingMeanSpan
+
     
     @rollingMeanSpan.setter
     def rollingMeanSpan(self, v):
@@ -1391,9 +1404,11 @@ class Plot(ViewerPanel, MenuMixin):
             source.rollingMeanSpan = v
         self.plot._collectParents()
 
+
     @property
     def units(self):
         return self.yUnits
+
     
     @units.setter
     def units(self, v):
@@ -1402,10 +1417,12 @@ class Plot(ViewerPanel, MenuMixin):
             source.parent.units = v
         self.plot.legendRect = None
 
+
     @property
     def transform(self):
         if self.sources:
             return self.sources[0].transform
+    
     
     @transform.setter
     def transform(self, t):
@@ -1413,6 +1430,7 @@ class Plot(ViewerPanel, MenuMixin):
             source.transform = t
         self.plot.legendRect = None
         self.plot._collectParents()
+
 
     #===========================================================================
     # 
@@ -1768,8 +1786,18 @@ class Plot(ViewerPanel, MenuMixin):
             return True
         except ValueError:
             return False
-            
 
+
+    def validateTransforms(self):
+        """ Check that all sources have valid transforms.
+        """
+        
+        for s in self.sources:
+            if s.parent.transform is not None:
+                if not s.parent.transform.isValid(self.root.session,
+                                                  self.root.noBivariates):
+                    self.root.promptBadTransforms()
+        
 
     #===========================================================================
     # 
