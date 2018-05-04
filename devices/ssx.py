@@ -200,8 +200,19 @@ class SlamStickX(Recorder):
         """ The recording device's (user-assigned) name. """
         if self._name is not None:
             return self._name
-        userdata = self.getConfig().get('RecorderUserData', {})
-        self._name = userdata.get('RecorderName', '')
+        
+        # Try getting new config format data. Should return `None` if the
+        # recorder uses the old format.
+        conf = self.getConfigItems()
+        
+        if not conf:
+            # Old config format
+            userdata = self.getConfig().get('RecorderUserData', {})
+            self._name = userdata.get('RecorderName', '')
+        else:
+            # New config format
+            self._name = conf.get(0x8ff7f, '')
+            
         return self._name
 
 
