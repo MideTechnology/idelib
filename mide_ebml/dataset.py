@@ -1199,25 +1199,10 @@ class EventList(Transformable):
             the data, but it is inadvisable to include data from different
             channels.
             
-            @attention: Added elements should be in chronological order!
+            @attention: Added elements must be in chronological order!
         """
-        block.cache = self.parent.cache
-        oldLength = self._length
         if block.numSamples is None:
             block.numSamples = block.getNumSamples(self.parent.parser)
-        block.blockIndex = len(self._data)
-        self._data.append(block)
-        self._length += block.numSamples
-        block.indexRange = (oldLength, self._length - 1)
-        
-        if self._singleSample is None:
-            self._singleSample = block.numSamples == 1
-            if self._parentList is not None:
-                self._parentList._singleSample = self._singleSample
-            if self.parent.singleSample is None:
-                self.parent.singleSample = self._singleSample
-            if self.parent.parent is not None:
-                self.parent.parent.singleSample = self._singleSample
 
         # Set the session first/last times if they aren't already set.
         # Possibly redundant if all sessions are 'closed.'
@@ -1234,7 +1219,34 @@ class EventList(Transformable):
         if self._firstTime is None:
             self._firstTime = block.startTime
         self._lastTime = block.endTime
-            
+        
+        # Check that the block actually contains at least one sample.
+        if block.numSamples < 1:
+            # Ignore blocks with empty payload. Could occur in FW <17.
+            # TODO: Make sure this doesn't hide too many errors!
+            logger.warning("Ignoring block with bad payload size for %r" % self)
+            return
+        
+        block.cache = self.parent.cache
+        oldLength = self._length
+
+        block.blockIndex = len(self._data)
+        self._data.append(block)
+        self._length += block.numSamples
+        block.indexRange = (oldLength, self._length - 1)
+        
+        # _singleSample hint not explicitly set; set it based on this block. 
+        # There will be problems if the first block has only one sample, but
+        # future ones don't. This shouldn't happen, though.
+        if self._singleSample is None:
+            self._singleSample = block.numSamples == 1
+            if self._parentList is not None:
+                self._parentList._singleSample = self._singleSample
+            if self.parent.singleSample is None:
+                self.parent.singleSample = self._singleSample
+            if self.parent.parent is not None:
+                self.parent.parent.singleSample = self._singleSample
+
         # Cache the index range for faster searching
         self._blockIndices.append(oldLength)
         self._blockTimes.append(block.startTime)
