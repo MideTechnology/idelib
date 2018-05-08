@@ -921,7 +921,8 @@ class PlotCanvas(wx.ScrolledWindow):
                         continue
                     if not source_hasMinMeanMax:
                         # Get data min/max for zoom-to-fit
-                        parent.visibleValueRange = [sys.maxint, -sys.maxint]
+                        if parent.visibleValueRange is None:
+                            parent.visibleValueRange = [sys.maxint, -sys.maxint]
                         expandRange(parent.visibleValueRange, eVal)
                     lastPt[chId] = ((eTime - hRange[0]) * hScale, 
                                     constrainInt((eVal - vRange[0]) * vScale))
