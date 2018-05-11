@@ -138,6 +138,7 @@ class AboutBox(SC.SizedDialog):
             cr = info.get('copyright', None)
             desc = info.pop('description', None)
             vers = info.pop('version', '')
+            info['file location'] = p.path
             
             plug.append('<h3>%s %s</h3>' % (p.name, vers))
             if cr is not None:
