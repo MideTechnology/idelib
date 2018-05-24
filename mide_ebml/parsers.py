@@ -461,13 +461,10 @@ class BaseDataBlock(object):
     """ Base class for all data-containing elements. Created by the
         appropriate ElementHandler for the given EBML element type.
         
-        @cvar headerSize: The size of the header information stored in the
-            element's payload, if any.
         @cvar maxTimestamp: The modulus of the data's timestamp
         @cvar timeScalar: The scaling factor to convert native units (i.e.
             clock ticks) to microseconds.
     """
-    headerSize = 0
     maxTimestamp = 2**24 
     timeScalar = 1000000.0 / 2**15
     
@@ -515,11 +512,11 @@ class BaseDataBlock(object):
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
-        start = self.headerSize + (start*parser.size)
+        start = (start*parser.size)
         if end < 0:
             end += self.payloadSize
         else:
-            end = self.headerSize + (end * parser.size)
+            end = (end * parser.size)
         
         parser_unpack_from = parser.unpack_from
         if subchannel is not None:
@@ -545,7 +542,7 @@ class BaseDataBlock(object):
         for i in indices:
             if i >= self.numSamples:
                 continue
-            idx = self.headerSize + (i*parser_size)
+            idx = (i*parser_size)
             if subchannel is not None:
                 yield parser_unpack_from(data, idx)[subchannel]
             else:
@@ -604,6 +601,9 @@ class SimpleChannelDataBlock(BaseDataBlock):
     """ Wrapper for SimpleChannelDataBlock elements, which consist of only a
         binary payload of raw data prefixed with a 16b timestamp and an 8b
         channel ID. Also keeps track of some metadata used by its Channel.
+        
+        @cvar headerSize: The size of the header information stored in the
+            element's payload, if any.
     """
     headerParser = struct.Struct(">HB")
     headerSize = headerParser.size
@@ -633,6 +633,58 @@ class SimpleChannelDataBlock(BaseDataBlock):
     @property
     def timestamp(self):
         return self.getHeader()[0]
+
+
+    def parseWith(self, parser, start=0, end=-1, step=1, subchannel=None):
+        """ Parse an element's payload. Use this instead of directly using
+            `parser.parse()` for consistency's sake.
+            
+            @param parser: The DataParser to use
+            @keyword start: First subsample index to parse 
+            @keyword end: Last subsample index to parse
+            @keyword step: The number of samples to skip, if the start and end
+                cover more than one sample.
+            @keyword subchannel: The subchannel to get, if specified.
+        """
+        # SimpleChannelDataBlock payloads contain header info; skip it.
+        data = self.payload
+        start = self.headerSize + (start*parser.size)
+        if end < 0:
+            end += self.payloadSize
+        else:
+            end = self.headerSize + (end * parser.size)
+        
+        parser_unpack_from = parser.unpack_from
+        if subchannel is not None:
+            for i in xrange(start,end,parser.size*step):
+                yield parser_unpack_from(data, i)[subchannel]
+        else:
+            for i in xrange(start,end,parser.size*step):
+                yield parser_unpack_from(data, i)
+
+
+    def parseByIndexWith(self, parser, indices, subchannel=None):
+        """ Parse an element's payload and get a specific set of samples. Used
+            primarily for resampling tricks.
+            
+            @param parser: The DataParser to use
+            @param indices: A list of indices into the block's data. 
+            @keyword subchannel: The subchannel to get, if specified.
+        """
+        # SimpleChannelDataBlock payloads contain header info; skip it.
+        data = self.payload
+        parser_unpack_from = parser.unpack_from
+        parser_size = parser.size
+        for i in indices:
+            if i >= self.numSamples:
+                continue
+            idx = self.headerSize + (i*parser_size)
+            if subchannel is not None:
+                yield parser_unpack_from(data, idx)[subchannel]
+            else:
+                yield parser_unpack_from(data, idx)
+
+
 
 
 class SimpleChannelDataBlockParser(ElementHandler):
@@ -702,7 +754,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
         except AttributeError:
             # Can happen if the block had no timestamp (broken imported data?)
             # TODO: Actually handle, instead of ignoring?
-            print "bad attribute in element", element
+            print "XXX: bad attribute in element", element
             return 0
             
         
@@ -738,16 +790,19 @@ class ChannelDataBlock(BaseDataBlock):
     def __init__(self, element):
         super(ChannelDataBlock, self).__init__(element)
         self._payloadIdx = None
-        self._payload = None
+        self._payloadEl = None
+        
+        self._minMeanMaxEl = None
+        self._minMeanMax = None
         
         self.element = element
-        for num, el in enumerate(element.value):
+        for el in element:
             # These are roughly in order of probability, optional and/or
             # unimplemented elements are at the end.
             if el.name == "ChannelIDRef":
                 self.channel = el.value
             elif el.name == "ChannelDataPayload":
-                self._payloadIdx = num
+                self._payloadEl = el
                 self.payloadSize = el.size
             elif el.name == "StartTimeCodeAbsMod":
                 self.startTime = el.value
@@ -755,11 +810,13 @@ class ChannelDataBlock(BaseDataBlock):
             elif el.name == "EndTimeCodeAbsMod":
                 self.endTime = el.value
             elif el.name == "ChannelDataMinMeanMax":
-                self.minMeanMax = el.value
+#                 self.minMeanMax = el.value
+                self._minMeanMaxEl = el
             elif el.name == "Void":
                 continue
             elif el.name == 'Attribute':
                 parseAttribute(self, el)
+                el.gc()
             elif el.name == "StartTimeCodeAbs":
                 # TODO: store indicator that the start timestamp is non-modulo?
                 self.startTime = el.value
@@ -772,6 +829,8 @@ class ChannelDataBlock(BaseDataBlock):
                 continue
             # Add other child element handlers here.
         
+        element.gc(recurse=False)
+        
         # Single-sample blocks have a total time of 0. Old files did not write
         # the end timestamp; if it's missing, duplicate the starting time.
         if self.endTime is None:
@@ -780,16 +839,20 @@ class ChannelDataBlock(BaseDataBlock):
     
     @property
     def payload(self):
-        # Simple caching, intended for use with small blocks
-        if self.cache:
-            if self._payload is None:
-                self._payload = self.element.value[self._payloadIdx].value
-            return self._payload
-        
-        # 'value' is actually a property that does the file seek, so it (and
-        # not a reference to a child element) has to be used every time.
-        # TODO: Optimize value retrieval (fix python-ebml caching)
-        return self.element.value[self._payloadIdx].value
+        return self._payloadEl.value
+    
+    
+    @property
+    def minMeanMax(self):
+        if self._minMeanMaxEl is None:
+            return self._minMeanMax
+        return self._minMeanMaxEl.value
+    
+    
+    @minMeanMax.setter
+    def minMeanMax(self, v):
+        # Explicitly set (done when block contains a single sample)
+        self._minMeanMax = v
     
     
     def getHeader(self):
