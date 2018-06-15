@@ -74,6 +74,7 @@ class ExportDialog(sc.SizedDialog):
     DEFAULT_UNITS = ("seconds", "s")
     WHAT = "exporting"
     
+    # Means removal options and its overly-verbose tooltip.
     MEANS = ['None', 'Rolling Mean', 'Total Mean']
     
     def __init__(self, *args, **kwargs):
@@ -177,13 +178,17 @@ class ExportDialog(sc.SizedDialog):
         wx.StaticLine(pane, -1).SetSizerProps(expand=True)
 
         self.removeMeanList, _ = self._addChoice("Mean Removal:", self.MEANS, 
-             default=self.removeMean, tooltip="Subtract a the mean from the data. "
-                                      "Not applicable to all channels.")
+             default=self.removeMean, 
+             tooltip=("The method by which to subtract the mean value from the "
+                     "data. Only applicable to channels with recorded "
+                     "minimum/mean/maximum values (e.g. analog acceleration)."))
 
         self.noBivariatesCheck, _ = self._addCheck("Disable Bivariate References",
-             self.noBivariates, "Prevent bivariate calibration polynomials "
-             "from referencing other channels (e.g. accelerometer temperature "
-             "compensation). Disabling references improves performance.")
+             default=self.noBivariates, 
+             tooltip=("Prevent bivariate calibration polynomials from "
+                      "referencing other channels (e.g. accelerometer "
+                      "temperature compensation). Disabling references "
+                      "improves performance."))
 
         self.buildSpecialUI()
 

@@ -87,7 +87,10 @@ class Ide2Csv(ToolDialog):
         subpane.SetSizerProps(expand=True)
 
         self.removeMean = self.addChoiceField(subpane, "Mean Removal:",
-            name="meanRemoval", choices=self.MEAN_REMOVAL, default=2)
+            name="meanRemoval", choices=self.MEAN_REMOVAL, default=2,
+            tooltip=("The method by which to subtract the mean value from the "
+                     "data. Only applicable to channels with recorded "
+                     "minimum/mean/maximum values (e.g. analog acceleration)."))
         self.startTime = self.addFloatField(subpane, "Start Time:", "seconds", 
             name="startTime", minmax=(0,sys.maxint), 
             tooltip="The start time of the export.")
