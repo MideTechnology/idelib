@@ -27,7 +27,7 @@ except Exception:
 name='Slam Stick Lab %s (%s).exe' % (versionString, platform.architecture()[0][:3])
 
 # Collect data files (needed for getting schema XML)
-# Modified version of http://www.pyinstaller.org/wiki/Recipe/CollectDatafiles
+# Modified version of https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Collect-Data-Files
 def Datafiles(*filenames, **kw):
     import os
     

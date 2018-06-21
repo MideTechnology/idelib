@@ -1,3 +1,4 @@
+from StringIO import StringIO
 import unittest
 
 from mide_ebml.dataset import *
@@ -6,7 +7,10 @@ from mide_ebml import importer
 import mide_ebml.parsers as parsers
 import mide_ebml.calibration as calibration
 from mide_ebml.parsers import ChannelDataBlock
-from wx.lib.floatcanvas.FloatCanvas import _cycleidxs
+
+#===============================================================================
+# 
+#===============================================================================
 
 class GenericObject(object):
     """ Provide a generic object to pass as an argument in order to mock 
@@ -23,21 +27,30 @@ class GenericObject(object):
         self.sampleTime = 0
         self.numSamples = 1
         
+        
     def __getitem__(self, index):
         return self.data[index]
+    
     
     def __len__(self):
         return len(self.data)
         
+        
     def updateTransforms(self):
         self.isUpdated = True
+        
         
     def parseWith(self, x, start, end, step, subchannel):
         return (x, start, end, step, subchannel)
 
+
     def parseByIndexWith(self, parser, indices, subchannel):
         return (parser, indices, subchannel)
 
+
+#===============================================================================
+# 
+#===============================================================================
 
 class CascadingTestCase(unittest.TestCase):
     """ Test case for methods in the Cascading class. """
@@ -49,13 +62,16 @@ class CascadingTestCase(unittest.TestCase):
         self.casc2.name = 'child'
         self.casc2.parent = self.casc1
         
+        
     def tearDown(self):
         self.casc1 = None
         self.casc2 = None
         
+        
     def testHierarchy(self):
         """ Test for hierarchy method. """
         self.assertEqual(self.casc2.hierarchy(), [self.casc1, self.casc2])
+        
         
     def testPath(self):
         """ Test for path method. """
@@ -64,11 +80,16 @@ class CascadingTestCase(unittest.TestCase):
         self.casc1.path = lambda : None
         self.assertEqual(self.casc2.path(), 'child')
      
+     
     def testRepr(self):
         """ Test that casting to a string creates the correct string. """
         self.assertIn("<Cascading 'parent' at", repr(self.casc1))
         
-   
+
+#===============================================================================
+# 
+#===============================================================================
+
 class TransformableTestCase(unittest.TestCase):
     """ Test case for methods in the Transformable class. """
     def setUp(self):
@@ -79,14 +100,16 @@ class TransformableTestCase(unittest.TestCase):
         
         # configure above objects
         fileStream = open(
-            '.\\SSX70065.IDE', 'rb')
+            './SSX70065.IDE', 'rb')
         self.xform1.dataset = Dataset(fileStream)
         self.xform1.dataset.transforms = {1: "123", 2: "456"}
         self.xform1.children = [self.genericObject]
         
+        
     def tearDown(self):
         self.xform1.dataset.close()
         self.xform1 = None
+        
         
     def testSetTransform(self):
         """ Test the setTransform method without updating. """
@@ -102,6 +125,7 @@ class TransformableTestCase(unittest.TestCase):
         self.xform1.setTransform(None, False)
         self.assertEqual(self.xform1._transform, Transform.null)
         
+        
     def testUpdateTransforms(self):
         """ Test the updateTransforms and _updateXformIds methods by calling
             setTransform with updating.
@@ -116,6 +140,7 @@ class TransformableTestCase(unittest.TestCase):
         self.xform1.setTransform(aPlaceholderTransform)
         self.assertEqual(self.xform1.transform, "456")
         self.assertTrue(self.genericObject.isUpdated)
+        
         
     def testGetTransforms(self):
         """ Test that the list of tansforms is being returned properly """
@@ -135,13 +160,17 @@ class TransformableTestCase(unittest.TestCase):
         self.assertEqual(parentXform.getTransforms(), [self.xform1])
 
 
+#===============================================================================
+# 
+#===============================================================================
+
 class DatasetTestCase(unittest.TestCase):
     """ Test case for methods in the Dataset class. """
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
         self.fileStream = open(
-            '.\\SSX70065.IDE', 'rb')
+            './SSX70065.IDE', 'rb')
         self.dataset = Dataset(self.fileStream)
 
         self.channelCheck = {}
@@ -160,10 +189,12 @@ class DatasetTestCase(unittest.TestCase):
                 channel.addSubChannel(subChId, **subChInfo)
                 self.channelCheck[chId].addSubChannel(subChId, **subChInfo)
     
+    
     def tearDown(self):
         """ Close and dispose of the file. """
         self.dataset.close()
         self.dataset = None
+    
     
     def testConstructor(self):
         """ Exhaustively check that all the members that get initialized in the
@@ -173,9 +204,9 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEquals(self.dataset._parsers, None)
         
         self.assertEquals(self.dataset.currentSession, None)
-        self.assertEquals(
-            self.dataset.ebmldoc, 
-            loadSchema(SCHEMA_FILE).load(self.fileStream, 'MideDocument'))
+#         self.assertEquals(
+#             self.dataset.ebmldoc, 
+#             loadSchema(SCHEMA_FILE).load(self.fileStream, 'MideDocument'))
         self.assertEquals(self.dataset.fileDamaged, False)
         self.assertEquals(
             self.dataset.filename, getattr(self.fileStream,"name", None))
@@ -194,9 +225,11 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEquals(self.dataset.transforms, {})
         self.assertEquals(self.dataset.warningRanges, {})
         
+        
     def testChannels(self):
         """ Test the channels property. """
         self.assertEqual(self.dataset.channels[0], self.channelCheck[0])
+        
         
     def testClose(self):
         """ Test the close method. """
@@ -204,11 +237,13 @@ class DatasetTestCase(unittest.TestCase):
         self.dataset.close()
         self.assertTrue(self.fileStream.closed)
         
+        
     def testClosed(self):
         """ Test the closed property. """
         self.assertFalse(self.dataset.closed)
         self.dataset.close()
         self.assertTrue(self.dataset.closed)
+    
     
     def testAddSession(self):
         """ Test that adding sessions properly appends a new session and
@@ -231,11 +266,13 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEqual(self.dataset.currentSession, session2)
         self.assertEqual(self.dataset.sessions[1], self.dataset.lastSession)
         
+        
     def testEndSession(self):
         """ Test that ending the current session ends the current session. """
         self.dataset.addSession(1, 2)
         self.dataset.endSession()
         self.assertFalse(self.dataset.currentSession)
+        
         
     def testAddSensor(self):
         """ Test that the sensors are being added correctly. """
@@ -249,6 +286,7 @@ class DatasetTestCase(unittest.TestCase):
         # test that string ids work
         self.dataset.addSensor('q')
         self.assertEqual(sensor2, self.dataset.sensors['q'])
+        
         
     def testAddChannel(self):
         """ Test that each channel is being added to the dataset correctly, and
@@ -269,6 +307,7 @@ class DatasetTestCase(unittest.TestCase):
         # assert that a new channel is made when it does not already exist
         self.assertEqual(
             self.dataset.addChannel(2, parser), Channel(self.dataset, 2, parser))
+    
     
     def testAddTransform(self):
         """ Test that transforms are being added correctly.
@@ -292,6 +331,7 @@ class DatasetTestCase(unittest.TestCase):
         # assert that transforms without an id will raise errors
         self.assertRaises(ValueError, self.dataset.addTransform, xform3)
         
+        
     def testAddWarning(self):
         """ Test that adding warnings is successfully adding warnings. """
         warning1 = WarningRange(self.dataset, warningId=1, channelId=0,
@@ -300,9 +340,11 @@ class DatasetTestCase(unittest.TestCase):
 
         self.assertEqual(self.dataset.warningRanges[1], warning1)
         
+        
     def testPath(self):
         """ Test that the path is being assembled correctly. """
         self.assertEqual(self.dataset.name, self.dataset.path())
+        
         
     def testLastSession(self):
         """ Test the lastSession property. """
@@ -324,12 +366,14 @@ class DatasetTestCase(unittest.TestCase):
                     endTime=5,
                     utcStartTime=6))
         
+        
     def testHasSession(self):
         """ Test the hasSession method. """
         self.dataset.addSession(0, 1, 2)
         self.assertTrue(self.dataset.hasSession(None))
         self.assertTrue(self.dataset.hasSession(0))
         self.assertFalse(self.dataset.hasSession(1))
+
 
     def testGetPlots(self):
         """ Test that all the plots are being collected and sorted correctly. """
@@ -339,6 +383,7 @@ class DatasetTestCase(unittest.TestCase):
         
         subs.sort(key=lambda x: x.displayName)
         self.assertEquals(subs, self.dataset.getPlots())             
+        
         
     def testUpdateTransforms(self):
         """ Test updateTransforms method. """
@@ -355,11 +400,15 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEqual(self.transformsUpdated, len(self.dataset.channels))
 
 
+#===============================================================================
+# 
+#===============================================================================
+
 class SessionTestCase(unittest.TestCase):
     """ Test case for methods in the Session class. """
     
     def testInitAndEQ(self):
-        self.dataset = importer.importFile('.\\SSX70065.IDE')
+        self.dataset = importer.importFile('./SSX70065.IDE')
         session1 = Session(
             self.dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
         session2 = Session(
@@ -374,25 +423,31 @@ class SessionTestCase(unittest.TestCase):
         self.assertEqual(session1.startTime, 2)
         self.assertEqual(session1.utcStartTime, 4)
         
+        
     def testRepr(self):
         """ Test that __repr__ is creating the correct string. """
         fileStream = open(
-            '.\\SSX70065.IDE', 'rb')
+            './SSX70065.IDE', 'rb')
         dataset = Dataset(fileStream)
         session1 = Session(
             dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
         self.assertIn("<Session (id=1) at", repr(session1))
     
-    
+
+#===============================================================================
+# 
+#===============================================================================
+
 class SensorTestCase(unittest.TestCase):
     """ Test case for methods in the Sensor class. """
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.dataset = importer.importFile('.\\SSX70065.IDE')
+        self.dataset = importer.importFile('./SSX70065.IDE')
         
         self.sensor1 = Sensor(self.dataset, 1)
         self.sensor2 = Sensor(self.dataset, 2, "3", 4, 5, 6, 7)
+    
     
     def tearDown(self):
         """ Close and dispose of the file. """
@@ -400,6 +455,7 @@ class SensorTestCase(unittest.TestCase):
         self.dataset = None
         self.sensor1 = None
         self.sensor2 = None
+    
     
     def testInitAndEQ(self):
         """ Test __init__ and __eq__ in Sensor. """
@@ -409,17 +465,20 @@ class SensorTestCase(unittest.TestCase):
         sensor3 = Sensor(self.dataset, 3, name=None)
         self.assertEqual(sensor3.name, "Sensor%02d")
         
+        
     def testGetItem(self):
         """ Test for the __getitem__ method. """
         self.sensor1.channels = {'a': 2, 'b': 3, 'e': 4, 'test': 5}
         for x in self.sensor1.channels:
             self.assertEqual(self.sensor1[x], self.sensor1.channels[x])
         
+        
     def testChildren(self):
         """ Test the children property. """
         self.sensor1.channels = {1: "1"}
         self.assertEqual(self.sensor1.children, ["1"])
         self.assertEqual(self.sensor2.children, [])
+    
     
     def testBandwidthCutoff(self):
         """ Test the bandwidthCutoff property. """
@@ -430,6 +489,7 @@ class SensorTestCase(unittest.TestCase):
                                                 {"LowerCutoff":1,
                                                  "UpperCutoff":2}]
         self.assertEqual(self.sensor2.bandwidthCutoff, (1, 2))
+    
     
     def testBandwidthRolloff(self):
         """ Test the bandwidthRolloff property. """
@@ -442,12 +502,17 @@ class SensorTestCase(unittest.TestCase):
         # self.assertEqual(self.sensor2.bandwidthRolloff, (1, 2))
         # TODO make sure that the bandwidthRolloff vs. cutoff thing gets followed up
 
+
+#===============================================================================
+# 
+#===============================================================================
+
 class ChannelTestCase(unittest.TestCase):
     """ Test case for methods in the Channel class. """
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.dataset = importer.importFile('.\\SSX70065.IDE')
+        self.dataset = importer.importFile('./SSX70065.IDE')
         self.dataset.addSensor(0)
         
         self.fakeParser = GenericObject()
@@ -462,6 +527,7 @@ class ChannelTestCase(unittest.TestCase):
             units=6, transform=7, displayRange=[8], sampleRate=9, cache=10, 
             singleSample=11, attributes=12)
     
+    
     def tearDown(self):
         """ Close and dispose of the file. """
         self.dataset.close()
@@ -469,6 +535,7 @@ class ChannelTestCase(unittest.TestCase):
         self.channel1 = None
         self.channel2 = None
         self.fakeParser = None
+        
         
     def testInit(self):
         """ Exhaustively test parameters for __init__ """
@@ -516,13 +583,16 @@ class ChannelTestCase(unittest.TestCase):
         self.assertEqual(self.channel2._lastParsed, (None, None))
         self.assertTrue(self.channel2.allowMeanRemoval)
         
+        
     def testChildren(self):
         """ Test the children property. """
         self.assertEqual(self.channel1.children, list(iter(self.channel1)))
         
+        
     def testRepr(self):
         """ Test the repr special method. """
         self.assertIn("<Channel 0: 'channel1' at", repr(self.channel1))
+        
         
     def testGetitem(self):
         """ Test the getitem special method. """
@@ -530,9 +600,11 @@ class ChannelTestCase(unittest.TestCase):
         # self.assertEqual(self.channel1[1], SubChannel(self.channel1, 1))
         # TODO: should the above work or not?
         
+        
     def testLen(self):
         """ Test the len override. """
         self.assertEqual(len(self.channel1),len(self.channel1.subchannels))
+        
         
     def testIter(self):
         """ Test the iter special method. """
@@ -544,6 +616,7 @@ class ChannelTestCase(unittest.TestCase):
             self.assertEqual(x, SubChannel(self.channel1, idx))
             idx += 1
         
+        
     def testAddSubChannel(self):
         """ Test the addSubChannel method. """
         self.assertRaises(TypeError, self.channel1.addSubChannel, None)
@@ -551,12 +624,14 @@ class ChannelTestCase(unittest.TestCase):
         self.assertEqual(self.channel1.addSubChannel(subchannelId=0),
                          SubChannel(self.channel1, 0))
         
+        
     def testGetSubChannel(self):
         """ Test the getSubChannel method. """
         self.assertEqual(self.channel1.getSubChannel(0), 
                          SubChannel(self.channel1, 0))
         self.assertEqual(self.channel1.getSubChannel(0).singleSample, 
                          self.channel1.singleSample)
+        
         
     def testGetSession(self):
         """ Test the getSession method. """
@@ -566,6 +641,7 @@ class ChannelTestCase(unittest.TestCase):
         self.assertEqual(self.channel1.getSession(),
                          self.channel1.getSession(1))
         self.assertRaises(KeyError, self.channel1.getSession, 5)
+        
         
     def testParseBlock(self):
         """ Test the parseBlock method. """
@@ -577,11 +653,13 @@ class ChannelTestCase(unittest.TestCase):
         self.assertEqual(self.channel1._lastParsed[1],
                          [self.channel1.parser, 0, -1, 1, None])
         
+        
     def testParseBlockByIndex(self):
         """ Test the parseBlockByIndex method. """
         fakeBlock = GenericObject()
         self.assertEqual(self.channel1.parseBlockByIndex(fakeBlock, 1), 
                          [self.channel1.parser, 1, None])
+        
         
     def testUpdateTransforms(self):
         """ Test the updateTransforms method in this and the superclass. """
@@ -593,13 +671,18 @@ class ChannelTestCase(unittest.TestCase):
         self.channel1.updateTransforms()
         
         self.assertTrue(genericObject.isUpdated)
-        
+
+
+#===============================================================================
+# 
+#===============================================================================
+ 
 class SubChannelTestCase(unittest.TestCase):
     """ Test case for methods in the SubChannel class. """
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.dataset = importer.importFile('.\\SSX70065.IDE')
+        self.dataset = importer.importFile('./SSX70065.IDE')
         self.dataset.addSensor(0)
         
         self.fakeParser = GenericObject()
@@ -622,6 +705,7 @@ class SubChannelTestCase(unittest.TestCase):
                                       displayRange=[4], sensorId=5, warningId=6, 
                                       axisName=7, attributes=8)
     
+    
     def tearDown(self):
         """ Close and dispose of the file. """
         self.dataset.close()
@@ -629,6 +713,7 @@ class SubChannelTestCase(unittest.TestCase):
         self.channel1 = None
         self.channel2 = None
         self.fakeParser = None
+    
     
     def testInit(self):
         """ Test the constructor for SubChannel. """
@@ -652,13 +737,16 @@ class SubChannelTestCase(unittest.TestCase):
         self.assertEqual(self.subChannel1.singleSample, 
                          self.channel2.singleSample)
         
+        
     def testChildren(self):
         """ Test the children property. """
         self.assertEqual(self.subChannel1.children, [])
         
+        
     def testSampleRate(self):
         """ Test the sampleRate property. """
         self.assertEqual(self.subChannel1.sampleRate, self.channel2.sampleRate)
+        
         
     def testRepr(self):
         """ Test the repr special method. """
@@ -666,13 +754,16 @@ class SubChannelTestCase(unittest.TestCase):
             "<SubChannel 2.0: 'SSX70065:3:channel2:channel2:00' at", 
             repr(self.subChannel1))
         
+        
     def testLen(self):
         """ Test the len special method. """
         self.assertRaises(AttributeError, self.subChannel1.__len__)
         
+        
     def testParser(self):
         """ Test the parser property. """
         self.assertEqual(self.subChannel1.parser, self.channel2.parser)
+        
         
     def testSessions(self):
         """ Test the sessions property. """
@@ -682,6 +773,7 @@ class SubChannelTestCase(unittest.TestCase):
         
         self.assertEqual(self.subChannel1.sessions, [1, 2])
         
+        
     def testParseBlock(self):
         """ Test the parseBlock method.
             Run the same test as for Channel.
@@ -690,6 +782,7 @@ class SubChannelTestCase(unittest.TestCase):
         self.assertEqual(self.channel2.parseBlock(fakeBlock),
                          self.subChannel1.parseBlock(fakeBlock))
         
+        
     def testParseBlockByIndex(self):
         """ Test the parseBlockByIndex method.
             Run the same test as for Channel.
@@ -697,6 +790,7 @@ class SubChannelTestCase(unittest.TestCase):
         fakeBlock = GenericObject()
         self.assertEqual(self.channel2.parseBlockByIndex(fakeBlock, 1),
                          self.subChannel1.parseBlockByIndex(fakeBlock, 1))
+        
         
     def testGetSession(self):
         """ Test the getSession method. """
@@ -715,20 +809,26 @@ class SubChannelTestCase(unittest.TestCase):
         self.assertEqual(self.subChannel1._sessions[2], eventList)
         self.assertEqual(self.subChannel1.getSession(2), eventList)
         
+        
     def testAddSubChannel(self):
         """ Test addSubChannel method.  This will throw an error. """
         self.assertRaises(AttributeError, self.subChannel1.addSubChannel)
         
+        
     def testGetSubchannel(self):
         """ Test getSubChannel method.  This will always throw an error. """
         self.assertRaises(AttributeError, self.subChannel1.getSubChannel)
+
     
-    
+#===============================================================================
+# 
+#===============================================================================
+
 class EventListTestCase(unittest.TestCase):
     """ Test case for methods in the EventList class. """
     
     def setUp(self):
-        self.dataset = importer.importFile('.\\SSX70065.IDE')
+        self.dataset = importer.importFile('./SSX70065.IDE')
         self.dataset.addSession(0, 1, 2)
         self.dataset.addSensor(0)
         
@@ -752,6 +852,7 @@ class EventListTestCase(unittest.TestCase):
         self.channel1 = None
         self.eventList1 = None
     
+    
     def mockData(self):
         """ mock up a bit of fake data so I don't have to worry that external
             classes are working during testing.
@@ -763,6 +864,7 @@ class EventListTestCase(unittest.TestCase):
         fakeData.numSamples = 1
         self.eventList1._data = [fakeData]
     
+    
     def mockIterslice(self,  *args, **kwargs):
         """ Mock up iterslice so it doesn't get called while testing
             other methods.
@@ -771,12 +873,14 @@ class EventListTestCase(unittest.TestCase):
         self.kwArgs = kwargs
         return [[1], [2], [3], [4]]
     
+    
     def mockXform(self, times, session=None, noBivariates=None):
         self.xformArgs = (times, session, noBivariates)
         
         self.mockXformReturn[2] += 1
 
         return list(self.mockXformReturn)
+    
     
     def testConstructor(self):
         """ Test the __init__ method. """
@@ -807,6 +911,7 @@ class EventListTestCase(unittest.TestCase):
             self.eventList1.rollingMeanSpan, EventList.DEFAULT_MEAN_SPAN)
         self.assertEqual(self.eventList1.session, self.dataset.sessions[0])
         self.assertEqual(self.eventList1.subchannelId, None)        
+            
             
     def testUpdateTransforms(self):
         """ Test the updateTransforms method. """
@@ -840,13 +945,16 @@ class EventListTestCase(unittest.TestCase):
                 [CombinedPoly(self.eventList1.transform, x=xs[0], dataset=self.dataset)], 
                 dataset=self.dataset))
         
+        
     def testUnits(self):
         """ Test the units property. """
         self.assertEqual(self.eventList1.units, ('',''))
         
+        
     def testPath(self):
         """ Test the path method. """
         self.assertEqual(self.eventList1.path(), "channel1, 0")
+        
         
     def testCopy(self):
         """ Test the copy method. Since this is a shallow copy, don't use the 
@@ -869,6 +977,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1.transform, eventListCopy.transform)
         self.assertEqual(self.eventList1.useAllTransforms, eventListCopy.useAllTransforms)
         self.assertEqual(self.eventList1.allowMeanRemoval, eventListCopy.allowMeanRemoval)
+        
         
     def testAppend(self):
         """ Test the append method. """
@@ -925,6 +1034,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1._length, 3)
         self.assertTrue(self.eventList1._singleSample)
 
+
     def testGetInterval(self):
         """ Test the getInterval method. """
         fakeObject = GenericObject()
@@ -945,6 +1055,7 @@ class EventListTestCase(unittest.TestCase):
         accel.dataset = GenericObject()
         accel.dataset.loading = True
         self.assertEqual(accel.getInterval(), (3, 1))
+        
         
     def mockForGetItem(self, section):
         """ Mock different things for testGetItem. """
@@ -1014,6 +1125,7 @@ class EventListTestCase(unittest.TestCase):
                 return 1
             
             self.eventList1._getBlockSampleTime = mockGetBlockSampleTime
+                 
                         
     def testGetItem(self):
         """ Test the getitem special method. """
@@ -1047,6 +1159,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1[2], (0, (1,)))
         self.assertEqual(self.eventList1[3], (0, (2,)))
         
+        
     def testIter(self):
         """ Test for iter special method. """
         self.eventList1._data = [GenericObject(),
@@ -1059,6 +1172,7 @@ class EventListTestCase(unittest.TestCase):
             [x for x in self.eventList1],
             [x for x in self.eventList1.iterSlice()])
             
+            
     # TODO talk to david about how to test these
     def testItervalues(self):
         """ Test for itervalues method. """
@@ -1067,6 +1181,7 @@ class EventListTestCase(unittest.TestCase):
         
         self.assertEqual([x for x in self.eventList1.itervalues()], [1, 2, 3, 4])            
         self.assertEqual(self.iterArgs, (0, -1, 1, False))
+        
         
     def testIterSlice(self):
         """ print(self.eventList1.iterSlice()) """
@@ -1083,6 +1198,7 @@ class EventListTestCase(unittest.TestCase):
              (0,1 ), 
              (0, 1)])
         
+        
     def testIterJitterySlice(self):
         """ Test for the iterJitterySlice method. """
         self.eventList1._data = [GenericObject(),
@@ -1097,12 +1213,14 @@ class EventListTestCase(unittest.TestCase):
              (0, [-3, -2, -1, 0]), 
              (0, None)])
 
+
     def testGetEventIndexBefore(self):
         """ Test for getEventIndexBefore method. """
         self.mockData()
 
         self.assertEqual(self.eventList1.getEventIndexBefore(1), 1)
         self.assertEqual(self.eventList1.getEventIndexBefore(-1), -1)
+        
         
     def testGetEventIndexNear(self):
         """ Test for getEventIndexNear method. """
@@ -1112,6 +1230,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1.getEventIndexNear(0), 0)
         self.assertEqual(self.eventList1.getEventIndexNear(1), 4)
         self.assertEqual(self.eventList1.getEventIndexNear(-1), 0)
+    
     
     def testGetRangeIndices(self):
         """ Test for getRangeIndices method. """
@@ -1128,6 +1247,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1.getRangeIndices(2, -51), (0, 1))
         self.assertEqual(self.eventList1.getRangeIndices(2, None), (0, 3))
         
+        
     def testGetRange(self):
         """ Test for getRange method. """
         self.mockData()
@@ -1137,6 +1257,7 @@ class EventListTestCase(unittest.TestCase):
             self.eventList1.getRange(), 
             [None, None, False])
     
+    
     def testIterRange(self):
         """ Test for iterRange method. """
         self.mockData()
@@ -1145,6 +1266,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(
             self.eventList1.iterRange(1, 3, 1, display=False), 
             self.eventList1.iterSlice(2, 3, 1, display=False))
+        
         
     def testIterMinMeanMax(self):
         """ Test for iterMinMeanMax method. """
@@ -1158,6 +1280,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertListEqual(
             [x for x in self.eventList1.iterMinMeanMax()], 
             [[(0,(3,)),(0,(4,)),(0,(5,))]])
+         
             
     def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
@@ -1168,13 +1291,13 @@ class EventListTestCase(unittest.TestCase):
         self.eventList1._data[0].mean = [4]
         self.eventList1._data[0].max = [5]
         
-        
         self.assertEqual(
             self.eventList1.getMinMeanMax(),
             [[(0,(3,)), (0,(4,)), (0,(5,))]])
         self.assertEqual(
             self.dataset.channels[32].getSession().getMinMeanMax(),
             [])
+            
             
     def testGetRangeMinMeanMax(self):
         """ Test for getRangeMinMeanMax method. """
@@ -1186,6 +1309,7 @@ class EventListTestCase(unittest.TestCase):
         self.eventList1._data[0].max = [5]
         
         self.assertEqual(self.eventList1.getRangeMinMeanMax(), (3, 4, 5))
+        
         
     def testGetMax(self):
         """ Test for getMax method. """
@@ -1202,6 +1326,7 @@ class EventListTestCase(unittest.TestCase):
              
         self.assertEqual(self.eventList1.getMax(), [(0, 3)])
         
+        
     def testGetMin(self):
         """ test for getMin method. """
         self.mockData()
@@ -1217,6 +1342,7 @@ class EventListTestCase(unittest.TestCase):
              
         self.assertEqual(self.eventList1.getMin(), [(0, 3)])
         
+        
     def testGetSampleTime(self):
         """ Test for getSampleTime method. """
         self.mockData()
@@ -1225,6 +1351,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1.getSampleTime(1), 1)
         self.assertEqual(self.dataset.channels[32].getSession().getSampleTime(), -1)
         self.assertEqual(self.dataset.channels[32].getSession().getSampleTime(1), -1)
+        
         
     def testGetSampleRate(self):
         """ Test for getSampleRate method. """
@@ -1237,6 +1364,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1.getSampleRate(0), 5)
         self.assertEqual(self.dataset.channels[32].getSession().getSampleRate(), 3)
         self.assertEqual(self.dataset.channels[32].getSession().getSampleRate(0), 5)
+        
         
     def testGetValueAt(self):
         """ Test for getValueAt method. """
@@ -1271,6 +1399,7 @@ class EventListTestCase(unittest.TestCase):
         self.mockXformReturn = [[0], [0], 0, [0]]
         self.assertEqual(self.eventList1.getValueAt(0), (0, (0.0,)))
         
+        
     def testGetMeanNear(self):
         """ Test for getMeanNear method. """
         # mock everthing up
@@ -1300,6 +1429,7 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.comboArgs, ((0,0),))
         self.assertEqual(self.comboKwargs, {})
         
+        
     def testExportCSV(self):
         """ Test exportCsv, """
         self.mockData()
@@ -1310,12 +1440,17 @@ class EventListTestCase(unittest.TestCase):
         self.eventList1._data[0].max = [5]
         
         # print(self.eventList1.exportCsv(streamMocker))
-        
+
+
+#===============================================================================
+# 
+#===============================================================================
+
 class PlotTestCase(unittest.TestCase):
     """ Unit test for the Plot class. """
     
     def setUp(self):
-        self.dataset = importer.importFile('.\\SSX70065.IDE')
+        self.dataset = importer.importFile('./SSX70065.IDE')
         self.dataset.addSession(0, 1, 2)
         self.dataset.addSensor(0)
         
@@ -1334,6 +1469,7 @@ class PlotTestCase(unittest.TestCase):
         
         self.plot1 =  Plot(self.eventList1, 0, name="Plot1")
     
+    
     def tearDown(self):
         self.dataset.close()
         self.dataset = None
@@ -1343,6 +1479,7 @@ class PlotTestCase(unittest.TestCase):
         self.eventList1 = None
         self.subChannel1 = None
         self.plot1 = None
+    
     
     def mockData(self):
         """ mock up a bit of fake data so I don't have to worry that external
@@ -1355,6 +1492,7 @@ class PlotTestCase(unittest.TestCase):
         fakeData.numSamples = 1
         self.eventList1._data = [fakeData]
     
+    
     def testConstructor(self):
         """ Test for the constructor. """
         self.assertEqual(self.plot1.source, self.eventList1)
@@ -1365,6 +1503,7 @@ class PlotTestCase(unittest.TestCase):
         self.assertEqual(self.plot1.units, self.eventList1.units)
         self.assertEqual(self.plot1.attributes, None)
         
+        
     def testGetEventIndexBefore(self):
         """ Test for getEventIndexBefore method. """
         self.mockData()
@@ -1373,11 +1512,81 @@ class PlotTestCase(unittest.TestCase):
             self.plot1.getEventIndexBefore(0), 
             self.eventList1.getEventIndexBefore(0))
         
+        
     def testGetRange(self):
         """ Test for getRange method. """
         print('gotta get to this')#self.plot1.getRange(0, 1))
         # TODO
+
+
+#===============================================================================
+#--- Data test cases 
+#===============================================================================
+
+class DataTestCase(unittest.TestCase):
+    """ Basic tests of data fidelity against older, "known good" CSV exports.
+        Exports were generated using the library as of the release of 1.8.0.
         
+        These tests are doing per-line string comparisons. This might need to
+        be changed in the future to account for rounding errors or minor
+        formatting differences (line endings, etc.). 
+    """
+
+    def setUp(self):
+        self.dataset = importer.importFile('./SSX_Data.IDE')
+
+
+    def testCalibratedExport(self):
+        """ Test regular export, with bivariate polynomials applied.
+        """
+        out = StringIO()
+        accel = self.dataset.channels[8].getSession()
+
+        accel.exportCsv(out)
+        out.seek(0)
+        
+        with open('./SSX_Data_Ch8_Calibrated.csv', 'rb') as f:
+            for new, old in zip(out, f):
+                self.assertEqual(old, new)
+
+    
+    def testUncalibratedExport(self):
+        """ Test export with no per-channel polynomials.
+        """
+        self.dataset.channels[8][0].setTransform(None)
+        self.dataset.channels[8][1].setTransform(None)
+        self.dataset.channels[8][2].setTransform(None)
+
+        out = StringIO()
+        accel = self.dataset.channels[8].getSession()
+
+        accel.exportCsv(out)
+        out.seek(0)
+        
+        with open('./SSX_Data_Ch8_NoCalibration.csv', 'rb') as f:
+            for new, old in zip(out, f):
+                self.assertEqual(old, new)
+
+
+    def testNoBivariates(self):
+        """ Test export with bivariate polynomial references disabled (values
+            only offset, not temperature-corrected).
+        """
+        out = StringIO()
+        accel = self.dataset.channels[8].getSession()
+        accel.noBivariates = True
+
+        accel.exportCsv(out)
+        out.seek(0)
+        
+        with open('./SSX_Data_Ch8_NoBivariates.csv', 'rb') as f:
+            for new, old in zip(out, f):
+                self.assertEqual(old, new)
+
+
+#===============================================================================
+# 
+#===============================================================================
 
 DEFAULTS = {
     "sensors": {
