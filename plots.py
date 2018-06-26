@@ -520,6 +520,33 @@ class PlotCanvas(wx.ScrolledWindow):
         return result
 
 
+    def _reduceMinMeanMax(self, source, hRange, total):
+        """ Iterate min/mean/max using "ultracondensed" mode (chunks of blocks
+            combined to avoid trying to plot too many points).
+        """
+        # XXX: Get rid of multiple iterations (getting points, iterating over
+        # chunks, iterating over values in a chunk).
+        points = source.getMinMeanMax(*hRange, padding=1, display=True)
+        numPoints = len(points)
+        stride = int(numPoints / total)
+        
+        if numPoints == 0:
+            yield (tuple(),tuple(),tuple())
+            return
+        
+        for i in xrange(0, numPoints, stride):
+            pts = points[i:i+stride]
+            numPts = len(pts) + 0.0
+            if numPts == 0:
+                break
+            tTime = sum(pt[0][0] for pt in pts) / numPts
+            tMin = min(pt[0][1] for pt in pts)
+            tMean = sum(pt[1][1] for pt in pts) / numPts
+            tMax = max(pt[2][1] for pt in pts)
+
+            yield [(tTime, tMin), (tTime, tMean), (tTime, tMax)]
+        
+
     def makeMinMeanMaxLines(self, source, hRange, vRange, hScale, vScale):
         """ Generate the points for the minimum and maximum envelopes.
             Used internally.
@@ -553,7 +580,20 @@ class PlotCanvas(wx.ScrolledWindow):
             v = lines[-1][3]
             lines.append((t, v, width, v))
 
-        vals = source.iterMinMeanMax(*hRange, padding=1, display=True)
+        # Calculate width vs. number of blocks to see if "ultracondensed" mode
+        # should be used.
+        # TODO: Optimize this. There's a lot of redundant calculation.
+        pixelWidth = self.GetScreenRect()[2] * self.condensedThreshold * 2
+        startIdx = source._getBlockIndexWithTime(hRange[0])
+        endIdx = source._getBlockIndexWithTime(hRange[1])
+
+        if endIdx - startIdx > pixelWidth:
+            # Too many blocks: use "Ultracondensed" mode
+            vals = self._reduceMinMeanMax(source, hRange, pixelWidth)
+        else:
+            # Use all the blocks' min/mean/max values.
+            vals = source.iterMinMeanMax(*hRange, padding=1, display=True)
+            
         minPts = []
         meanPts = []
         maxPts = []
