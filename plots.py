@@ -627,7 +627,7 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Event handler for redrawing the plot. Catches common exceptions.
             Wraps the 'real' painting event handler.
         """
-        if self.root.drawingSuspended:
+        if self.root.drawingSuspended.isSet():
             return
                
         if self.root.dataset.loading:
@@ -829,7 +829,7 @@ class PlotCanvas(wx.ScrolledWindow):
                   chunkSize):
         """ Does the plotting of a single source.
         """
-        if self.abortRendering is True or self.root.drawingSuspended:
+        if self.abortRendering is True or self.root.drawingSuspended.isSet():
             # Bail if user interrupted drawing (scrolling, etc.)
             # Doesn't actually work yet!
             return 0

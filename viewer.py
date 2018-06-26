@@ -4,6 +4,9 @@ loggers. Also does Slam Stick recorder configuration.
 
 TODO: Remove vestigial features that haven't been fully implemented (operations)
 TODO: Add help text to menu items (after moving the logo in the status bar)
+TODO: Clean up `Viewer.ask()`, maybe make it a stand-alone function. It could
+    be useful elsewhere.
+TODO: Refactor and clean everything. This has grown organically since 2013.
 
 See other TODO items in the code.
 '''
@@ -43,6 +46,7 @@ RESOURCES_URL = "http://info.mide.com/data-loggers/slam-stick-data-logger-resour
 
 from collections import OrderedDict
 import os
+from threading import Event
 import time
 
 import wx
@@ -116,6 +120,8 @@ class Viewer(wx.Frame, MenuMixin):
     timerange = (1043273L * timeScalar*2,7672221086L * timeScalar)
 
     # Custom menu IDs
+    # TODO: Consider using literal IDs, so they are sure to be consistent
+    #     between runs of the application.
     ID_RECENTFILES = wx.NewId()
     ID_EXPORT = wx.NewId()
     ID_RENDER = wx.NewId()
@@ -176,6 +182,8 @@ class Viewer(wx.Frame, MenuMixin):
         """
         self.app = kwargs.pop('app', None)
         self.units = kwargs.pop('units',('Time','s'))
+        
+        self.drawingSuspended = Event()
         self.suspendDrawing()
         
         filename = kwargs.pop('filename', None)
@@ -782,6 +790,16 @@ class Viewer(wx.Frame, MenuMixin):
     def getSaveFile(self, message, defaults=None, types=None, 
                     style=wx.SAVE|wx.OVERWRITE_PROMPT, deviceWarning=True):
         """ Wrapper for getting the name of an output file.
+        
+            @param message: The message to be shown in the file dialog.
+            @keyword defaults: A tuple with the default path and filename,
+                or `None`.
+            @keyword types: The "type spec" string for the file dialog.
+            @keyword style: Dialog style, as per `wx.FileDialog`.
+            @keyword deviceWarning: If `True`, the user will be warned before
+                exporting to a recorder (it's slow). This warning can be 
+                overridden via a "don't show again" preference.
+            @return: The name of the saved file.
         """
         exportTypes = "Comma Separated Values (*.csv)|*.csv|" \
                       "MATLAB 5.0 (*.mat)|*.mat"
@@ -792,9 +810,8 @@ class Viewer(wx.Frame, MenuMixin):
         defaultDir, defaultFile = defaults
         done = False
         
-        dlg = wx.FileDialog(self, message=message, 
-                            defaultDir=defaultDir,  defaultFile=defaultFile, 
-                            wildcard=types, style=style)
+        dlg = wx.FileDialog(self, message=message, defaultFile=defaultFile, 
+                            defaultDir=defaultDir, wildcard=types, style=style)
         
         while not done:
             filename = None
@@ -815,6 +832,7 @@ class Viewer(wx.Frame, MenuMixin):
         dlg.Destroy()
         
         return filename
+
 
     #===========================================================================
     # 
@@ -891,8 +909,8 @@ class Viewer(wx.Frame, MenuMixin):
         """ Pause the plot drawing. This method can be used as an event handler.
         """
         # TODO: Hook this back up.
-#         self.drawingSuspended = True
-        self.drawingSuspended = False
+#         self.drawingSuspended.set()
+        self.drawingSuspended.clear()
         
         
     def resumeDrawing(self, evt=None, redraw=False):
@@ -900,8 +918,11 @@ class Viewer(wx.Frame, MenuMixin):
             handler.
         """
         if evt is not None:
-            redraw = self.drawingSuspended and getattr(evt, "redraw", False)
-        self.drawingSuspended = False
+            suspended = self.drawingSuspended.isSet()
+            redraw = suspended and getattr(evt, "redraw", False)
+            
+        self.drawingSuspended.clear()
+        
         if redraw:
             self.plotarea.redraw()
 
@@ -1232,7 +1253,6 @@ class Viewer(wx.Frame, MenuMixin):
 
         # Expired calibration warning
         try:
-            # XXX: BUG: THIS NEEDS TO BE THE RECORDING TIME, NOT SYSTEM TIME!
             recDate = self.session.startTime or self.session.utcStartTime or 0
             calDate = newDoc.recorderInfo.get('CalibrationDate')
             if calDate and recDate > calDate + 31536000:
@@ -1286,9 +1306,10 @@ class Viewer(wx.Frame, MenuMixin):
         
     
     def openMultiple(self, filenames, prompt=True):
-        """
-            @todo: Add all the schema version checking and error handling
-                present in the normal openFile().
+        """ Open multiple IDE files, merging them into one view. Experimental!
+        
+            @todo: Implement this, and add all the schema version checking and
+                error handling present in the normal `openFile()`.
         """
         title = "%s - %s (%d files)" % (os.path.basename(filenames[0]), 
                                         os.path.basename(filenames[-1]), 
@@ -1460,12 +1481,14 @@ class Viewer(wx.Frame, MenuMixin):
         viewId = wx.NewId()
         size = self.GetSize()
         
-        # Catch no exceptions if in debug.
-        ex = None if DEBUG else Exception
         try:
             self.childViews[viewId] = viewClass(self, viewId, size=size, 
                                                 root=self, **settings)
-        except ex as e:
+        except Exception as e:
+            # Catch no exceptions if in debug.
+            if DEBUG:
+                raise
+            
             self.handleError(e, what="rendering the %s" % viewClass.FULLNAME)
 
 
@@ -2461,30 +2484,71 @@ class ViewerApp(wx.App):
                       tools.ide2csv]
 
     def saveAllPrefs(self, filename=None, hideFile=None):
+        """ Save all preferences, including defaults, to the config file.
+            Primarily for debugging.
+        """
         self.prefs.saveAllPrefs(filename, hideFile)
 
+
     def getPref(self, name, default=None, section=None):
+        """ Retrieve a value from the preferences.
+        
+            @param name: The name of the preference to retrieve.
+            @keyword default: An optional default value to return if the
+                preference is not found.
+            @keyword section: An optional "section" name from which to
+                get. Currently a prefix in this implementation.
+        """
         return self.prefs.getPref(name, default, section)
 
+
     def setPref(self, name, val, section=None, persistent=True):
+        """ Set the value of a preference. Returns the value set as a
+            convenience.
+        """
         return self.prefs.setPref(name, val, section, persistent)
 
+
     def hasPref(self, name, section=None, defaults=False):
+        """ Check to see if a preference exists, in either the user-defined
+            preferences or the defaults.
+            
+            @param name: The name of the preference to retrieve.
+            @keyword defaults: An optional default value to return if the
+                preference is not found.
+            @keyword section: An optional "section" name from which to
+                delete. Currently a prefix in this implementation.
+        """
         return self.prefs.hasPref(name, section, defaults)
+
     
     def deletePref(self, name, section=None):
+        """ Delete one or more preferences. Glob-style wildcards are allowed.
+        
+            @keyword name: The name of the preference to delete. Optional if
+                `section` is supplied
+            @keyword section: An optional section name, limiting the scope.
+            @return: The number of deleted preferences.
+        """
         return self.prefs.deletePref(name, section)
 
+
     def editPrefs(self, evt=None):
+        """ Launch the Preferences editor. 
+        """
         if self.prefs.editPrefs():
             for v in self.viewers:
                 v.loadPrefs()
+
                 
     #===========================================================================
     # 
     #===========================================================================
 
     def showBetaWarning(self):
+        """ Warn the user that the software they're using is pre-release. The
+            warning can be suppressed.
+        """
         pref = 'hideBetaWarning_%s' % '.'.join(map(str, VERSION))
         if self.getPref(pref, False, section='ask'):
             return
@@ -2498,6 +2562,7 @@ class ViewerApp(wx.App):
         dlg.ShowModal()
         self.setPref(pref, dlg.getRememberCheck(), section='ask')
         dlg.Destroy()
+
 
     @staticmethod
     def translateCommandLineSettings(*args, **kwargs):
@@ -2519,6 +2584,7 @@ class ViewerApp(wx.App):
         else:
             settings["useWelch"] = False
         return settings, kwargs
+
 
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.App` arguments, plus:
@@ -2662,6 +2728,9 @@ class ViewerApp(wx.App):
     
     
     def abbreviateName(self, filename, length=None):
+        """ Create a shorter version of a filename. Primarily for display in
+            `Viewer` windows' title bars.
+        """
         length = length or self.getPref('titleLength', None)
         if length is None:
             return filename
