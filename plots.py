@@ -520,32 +520,52 @@ class PlotCanvas(wx.ScrolledWindow):
         return result
 
 
-    def _reduceMinMeanMax(self, source, hRange, total):
+    def _reduceMinMeanMax(self, points, total, numPoints):
         """ Iterate min/mean/max using "ultracondensed" mode (chunks of blocks
-            combined to avoid trying to plot too many points).
+            combined to avoid trying to plot too many points). For each chunk,
+            The time and mean are averaged; the min is the chunk's minimum; the
+            max is the chunk's maximum.
+            
+            XXX: This is still a work-in-progress!
         """
-        # XXX: Get rid of multiple iterations (getting points, iterating over
-        # chunks, iterating over values in a chunk).
-        points = source.getMinMeanMax(*hRange, padding=1, display=True)
-        numPoints = len(points)
+        # The expected size of each chunk. The last one may be shorter.
         stride = int(numPoints / total)
-        
-        if numPoints == 0:
-            yield (tuple(),tuple(),tuple())
-            return
-        
-        for i in xrange(0, numPoints, stride):
-            pts = points[i:i+stride]
-            numPts = len(pts) + 0.0
-            if numPts == 0:
+
+        # Break min/mean/max values into chunks, combining them as noted in
+        # the method docstring. The strangeness here is in order to use the
+        # chunk iterator most efficiently (no list creation, slicing, etc.) 
+        for _i in xrange(0, numPoints, stride):
+            # Keep track of chunk size manually, because last may be short.
+            chunkSize = 1
+            
+            try:
+                # First values in the chunk
+                pt = points.next()
+                tTime = pt[0][0]
+                tMin = pt[0][1]
+                tMean = pt[1][1]
+                tMax = pt[2][1]
+            except StopIteration:
+                # No (more) data.
                 break
-            tTime = sum(pt[0][0] for pt in pts) / numPts
-            tMin = min(pt[0][1] for pt in pts)
-            tMean = sum(pt[1][1] for pt in pts) / numPts
-            tMax = max(pt[2][1] for pt in pts)
+            
+            for _j in xrange(stride-1):
+                try:
+                    pt = points.next()
+                    tTime += pt[0][0]
+                    tMin = min(pt[0][1], tMin)
+                    tMean += pt[1][1]
+                    tMax = max(pt[2][1], tMax)
+                    chunkSize += 1
+                except StopIteration:
+                    # End of the chunk.
+                    break
+
+            tTime = tTime / chunkSize
+            tMean = tMean / chunkSize
 
             yield [(tTime, tMin), (tTime, tMean), (tTime, tMax)]
-        
+                
 
     def makeMinMeanMaxLines(self, source, hRange, vRange, hScale, vScale):
         """ Generate the points for the minimum and maximum envelopes.
@@ -583,16 +603,17 @@ class PlotCanvas(wx.ScrolledWindow):
         # Calculate width vs. number of blocks to see if "ultracondensed" mode
         # should be used.
         # TODO: Optimize this. There's a lot of redundant calculation.
-        pixelWidth = self.GetScreenRect()[2] * self.condensedThreshold * 2
+        pixelWidth = self.GetScreenRect()[2] * self.condensedThreshold * 1.1
         startIdx = source._getBlockIndexWithTime(hRange[0])
         endIdx = source._getBlockIndexWithTime(hRange[1])
 
-        if endIdx - startIdx > pixelWidth:
+        # Get the appropriate min/mean/max iterator
+        vals = source.iterMinMeanMax(*hRange, padding=1, display=True)
+        
+        numPts = endIdx - startIdx
+        if numPts > pixelWidth:
             # Too many blocks: use "Ultracondensed" mode
-            vals = self._reduceMinMeanMax(source, hRange, pixelWidth)
-        else:
-            # Use all the blocks' min/mean/max values.
-            vals = source.iterMinMeanMax(*hRange, padding=1, display=True)
+            vals = self._reduceMinMeanMax(vals, pixelWidth, numPts)
             
         minPts = []
         meanPts = []
