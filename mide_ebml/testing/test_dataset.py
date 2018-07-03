@@ -1526,14 +1526,14 @@ class PlotTestCase(unittest.TestCase):
 class DataTestCase(unittest.TestCase):
     """ Basic tests of data fidelity against older, "known good" CSV exports.
         Exports were generated using the library as of the release of 1.8.0.
-        
-        These tests are doing per-line string comparisons. This might need to
-        be changed in the future to account for rounding errors or minor
-        formatting differences (line endings, etc.). 
+
+        Tests are done within a threshold of 0.0015g to account for rounding
+        errors. 
     """
 
     def setUp(self):
         self.dataset = importer.importFile('./SSX_Data.IDE')
+        self.delta = 0.0015
 
 
     def testCalibratedExport(self):
@@ -1547,7 +1547,11 @@ class DataTestCase(unittest.TestCase):
         
         with open('./SSX_Data_Ch8_Calibrated.csv', 'rb') as f:
             for new, old in zip(out, f):
-                self.assertEqual(old, new)
+#                 self.assertEqual(old.strip(), new.strip())
+                for a,b in zip(eval(new),eval(old)):
+                    self.assertAlmostEqual(a, b, delta=self.delta, 
+                                           msg="Output differs: %r != %r" %
+                                           (old,new))
 
     
     def testUncalibratedExport(self):
@@ -1565,7 +1569,11 @@ class DataTestCase(unittest.TestCase):
         
         with open('./SSX_Data_Ch8_NoCalibration.csv', 'rb') as f:
             for new, old in zip(out, f):
-                self.assertEqual(old, new)
+#                 self.assertEqual(old.strip(), new.strip())
+                for a,b in zip(eval(new),eval(old)):
+                    self.assertAlmostEqual(a, b, delta=self.delta, 
+                                           msg="Output differs: %r != %r" %
+                                           (old,new))
 
 
     def testNoBivariates(self):
@@ -1581,8 +1589,98 @@ class DataTestCase(unittest.TestCase):
         
         with open('./SSX_Data_Ch8_NoBivariates.csv', 'rb') as f:
             for new, old in zip(out, f):
-                self.assertEqual(old, new)
+#                 self.assertEqual(old.strip(), new.strip())
+                for a,b in zip(eval(new),eval(old)):
+                    self.assertAlmostEqual(a, b, delta=self.delta, 
+                                           msg="Output differs: %r != %r" %
+                                           (old,new))
 
+
+    def testRollingMeanRemoval(self):
+        """ Test regular export, with the rolling mean removed from the data.
+        """
+        self.dataset.channels[8][0].setTransform(None)
+        self.dataset.channels[8][1].setTransform(None)
+        self.dataset.channels[8][2].setTransform(None)
+        
+        out = StringIO()
+        accel = self.dataset.channels[8].getSession()
+        accel.removeMean = True
+        accel.rollingMeanSpan = 5000000
+
+        accel.exportCsv(out)
+        out.seek(0)
+        
+        with open('./SSX_Data_Ch8_RollingMean_NoCal.csv', 'rb') as f:
+            for new, old in zip(out, f):
+                for a,b in zip(eval(new),eval(old)):
+                    self.assertAlmostEqual(a, b, delta=self.delta, 
+                                           msg="Output differs: %r != %r" %
+                                           (old,new))
+
+    
+    def testTotalMeanRemoval(self):
+        """ Test regular export, calibrated, with the total mean removed from
+            the data.
+        """
+        self.dataset.channels[8][0].setTransform(None)
+        self.dataset.channels[8][1].setTransform(None)
+        self.dataset.channels[8][2].setTransform(None)
+
+        out = StringIO()
+        accel = self.dataset.channels[8].getSession()
+        accel.removeMean = True
+        accel.rollingMeanSpan = -1
+
+        accel.exportCsv(out)
+        out.seek(0)
+        
+        with open('./SSX_Data_Ch8_TotalMean_NoCal.csv', 'rb') as f:
+            for new, old in zip(out, f):
+                for a,b in zip(eval(new),eval(old)):
+                    self.assertAlmostEqual(a, b, delta=self.delta, 
+                                           msg="Output differs: %r != %r" %
+                                           (old,new))
+    
+
+    def testCalibratedRollingMeanRemoval(self):
+        """ Test regular export, calibrated, with the rolling mean removed from
+            the data.
+        """
+        out = StringIO()
+        accel = self.dataset.channels[8].getSession()
+        accel.removeMean = True
+        accel.rollingMeanSpan = 5000000
+
+        accel.exportCsv(out)
+        out.seek(0)
+        
+        with open('./SSX_Data_Ch8_RollingMean.csv', 'rb') as f:
+            for new, old in zip(out, f):
+                for a,b in zip(eval(new),eval(old)):
+                    self.assertAlmostEqual(a, b, delta=self.delta, 
+                                           msg="Output differs: %r != %r" %
+                                           (old,new))
+
+    
+    def testCalibratedTotalMeanRemoval(self):
+        """ Test regular export, with the total mean removed from the data.
+        """
+        out = StringIO()
+        accel = self.dataset.channels[8].getSession()
+        accel.removeMean = True
+        accel.rollingMeanSpan = -1
+
+        accel.exportCsv(out)
+        out.seek(0)
+        
+        with open('./SSX_Data_Ch8_TotalMean.csv', 'rb') as f:
+            for new, old in zip(out, f):
+                for a,b in zip(eval(new),eval(old)):
+                    self.assertAlmostEqual(a, b, delta=self.delta, 
+                                           msg="Output differs: %r != %r" %
+                                           (old,new))
+    
 
 #===============================================================================
 # 
