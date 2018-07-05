@@ -294,19 +294,6 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, self.ID_EXPORT, 
                          "&Export Data...\tCtrl+S", "", self.OnFileExportMenu)
         
-        renderMenu = self.addSubMenu(fileMenu, self.ID_RENDER, "Render")
-        self.addMenuItem(renderMenu, self.ID_RENDER_PLOTS, 
-                         "Render Plots...", '',
-                         self.renderPlot)
-        self.addMenuItem(renderMenu, self.ID_RENDER_FFT, 
-                         "Render &FFT...\tCtrl+F", "", 
-                         self.renderPlot)
-        self.addMenuItem(renderMenu, self.ID_RENDER_PSD,
-                         "Render &PSD...\tCtrl+P", "",
-                         self.renderPlot)
-        self.addMenuItem(renderMenu, self.ID_RENDER_SPEC, 
-                         "Render Spectro&gram (2D FFT)...\tCtrl+G", "", 
-                         self.renderPlot)
         fileMenu.AppendSeparator()
         
         self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES, 
@@ -433,6 +420,21 @@ class Viewer(wx.Frame, MenuMixin):
                          kind=wx.ITEM_RADIO)
         
         dataMenu.AppendSeparator()
+        renderMenu = self.addSubMenu(dataMenu, self.ID_RENDER, "Render")
+        self.addMenuItem(renderMenu, self.ID_RENDER_PLOTS, 
+                         "Render Plots...", '',
+                         self.renderPlot)
+        self.addMenuItem(renderMenu, self.ID_RENDER_FFT, 
+                         "Render &FFT...\tCtrl+F", "", 
+                         self.renderPlot)
+        self.addMenuItem(renderMenu, self.ID_RENDER_PSD,
+                         "Render &PSD...\tCtrl+P", "",
+                         self.renderPlot)
+        self.addMenuItem(renderMenu, self.ID_RENDER_SPEC, 
+                         "Render Spectro&gram (2D FFT)...\tCtrl+G", "", 
+                         self.renderPlot)
+        dataMenu.AppendSeparator()
+        
         self.addMenuItem(dataMenu, self.ID_DATA_EDIT_CAL, 
                          "Edit Calibration Polynomials...", "", 
                          self.OnEditCalibration)
