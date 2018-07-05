@@ -1,12 +1,24 @@
+"""
+Basic IDE library unit tests.
+
+@todo: Remove `Cascading` and `Transformable` unit tests? Those base/mix-in 
+    classes were intended to be used internally, and may be factored out
+    eventually.
+@todo: Remove references to deprecated `parsers.AccelerometerParser` and
+    `calibration.AccelTransform`. These classes may be refactored out in the
+    future.
+"""
+
 from StringIO import StringIO
+import sys
 import unittest
 
 from mide_ebml.dataset import *
+from mide_ebml.calibration import Transform, CombinedPoly, PolyPoly
+from mide_ebml.calibration import AccelTransform
 from mide_ebml import importer
+from mide_ebml import parsers
 
-import mide_ebml.parsers as parsers
-import mide_ebml.calibration as calibration
-from mide_ebml.parsers import ChannelDataBlock
 
 #===============================================================================
 # 
@@ -1697,7 +1709,7 @@ DEFAULTS = {
     #                 "parser": struct.Struct("<HHH"), 
     #                 "transform": 0, #calibration.AccelTransform(),
                     "parser": parsers.AccelerometerParser(),
-                    "transform": calibration.AccelTransform(-500,500),
+                    "transform": AccelTransform(-500,500),
                     "subchannels":{0: {"name": "Accelerometer Z", 
                                        "axisName": "Z",
                                        "units":('Acceleration','g'),
