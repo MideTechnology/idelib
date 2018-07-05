@@ -57,7 +57,8 @@ import wx.lib.scrolledpanel as SP
 import wx.lib.sized_controls as SC
 
 from widgets.shared import DateTimeCtrl
-from common import makeWxDateTime, makeBackup, restoreBackup
+from common import makeBackup, restoreBackup
+from timeutil import makeWxDateTime
 
 import legacy
 from mide_ebml.ebmlite import loadSchema

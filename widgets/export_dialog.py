@@ -16,7 +16,7 @@ import wx; wx=wx
 import wx.lib.sized_controls as sc
 from collections import defaultdict
 
-# from base import TimeValidator
+# from timeutil import TimeValidator
 
 #===============================================================================
 # 
