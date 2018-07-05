@@ -12,7 +12,7 @@ import wx.lib.agw.rulerctrl as RC
 import events
 from base import ViewerPanel
 import images
-from common import TimeValidator
+from timeutil import TimeValidator
 
 # ---------------------------------------------------------------------------- #
 # Class RulerCtrl
