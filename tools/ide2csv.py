@@ -108,6 +108,11 @@ class Ide2Csv(ToolDialog):
         self.formatField = self.addChoiceField(subpane, "Format:", 
             name="outputType", choices=self.OUTPUT_TYPES, default=0)
 
+        self.nameCheck = self.addCheck(subpane,
+            "Use channel names in exported filenames", checked=True, 
+            name="useNames", tooltip=("Include the name of the source channel "
+                                      "in each exported filename, in addition "
+                                      "to the numeric channel ID."))
         self.headerCheck = self.addCheck(subpane, "Include Column Headers",
             name="useHeaders", tooltip=("Write column descriptions in first row. "
                                         "Applies only to text-based formats."))
@@ -170,8 +175,8 @@ class Ide2Csv(ToolDialog):
     
     def savePrefs(self):
         for c in (self.startTime, self.endTime, self.duration, self.removeMean,
-                  self.formatField, self.headerCheck, self.utcCheck, self.isoCheck,
-                  self.noBivariates):
+                  self.formatField, self.headerCheck, self.utcCheck, 
+                  self.isoCheck, self.noBivariates, self.nameCheck):
             name = c.GetName()
             v = self.getValue(c)
             if v is not False:
@@ -201,6 +206,7 @@ class Ide2Csv(ToolDialog):
         duration = self.getValue(self.duration, None)
         outputSelection = self.getValue(self.formatField) 
         headers = self.getValue(self.headerCheck, False)
+        useNames = self.getValue(self.nameCheck, False)
         useUtcTime = self.getValue(self.utcCheck, False)
         useIsoFormat = not useUtcTime and self.getValue(self.isoCheck, False)
         noBivariates = self.getValue(self.noBivariates, False)
@@ -244,6 +250,7 @@ class Ide2Csv(ToolDialog):
                       updateInterval=1.5, 
                       out=None, 
                       updater=updater, 
+                      useNames=useNames
                       )
         
         for n, f in enumerate(sourceFiles, 1):
@@ -257,7 +264,8 @@ class Ide2Csv(ToolDialog):
                 totalSamples += num
                 processed.add(f)
             except Exception as err:
-                # TODO: Handle this exception for real!
+                # TODO: Handle this exception for real! Currently, various
+                # problems will show the 'export cancelled' message.
                 msg = err.message
                 if n < numFiles:
                     # Not the last file; ask to abort.
@@ -297,6 +305,7 @@ class Ide2Csv(ToolDialog):
         dlg.ShowModal()
 
         self.savePrefs()
+
 
 #===============================================================================
 # 

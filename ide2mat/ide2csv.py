@@ -6,6 +6,7 @@ Created on Jan 26, 2016
 
 @author: dstokes
 '''
+from __future__ import absolute_import
 
 from datetime import datetime
 import importlib
@@ -25,11 +26,16 @@ from mide_ebml import __version__ as ebml_version
 from mide_ebml import importer
 from mide_ebml.matfile import exportMat
 
-from common import showIdeInfo, SimpleUpdater, validateArguments
+from common import sanitizeFilename
 
-from build_info_ide2csv import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME
+from .common import showIdeInfo, SimpleUpdater, validateArguments
+from .build_info_ide2csv import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME
+
 __version__ = VERSION
 
+#===============================================================================
+# 
+#===============================================================================
 
 timeScalar = 1.0/(10**6)
 
@@ -39,6 +45,7 @@ timeScalar = 1.0/(10**6)
 
 class CSVExportError(Exception):
     pass
+
 
 #===============================================================================
 #
@@ -64,9 +71,34 @@ def ideExport(ideFilename, outFilename=None, channels=None,
             startTime=0, endTime=None, updateInterval=1.5,  out=sys.stdout, 
             outputType=".csv", delimiter=', ', headers=False, 
             removeMean=True, meanSpan=5.0, useUtcTime=False,
-            useIsoFormat=False, noBivariates=False,
+            useIsoFormat=False, noBivariates=False, useNames=False,
             **kwargs):
     """ The main function that handles generating text files from an IDE file.
+        
+        @param ideFilename: The name of the source IDE file.
+        @keyword outFilename: The output path and/or base filename.
+        @keyword channels: The channels to export. Defaults to all.
+        @keyword startTime: The start of the export range.
+        @keyword endTime: The end of the export range.
+        @keyword updateInterval: The maximum time between progress updates,
+            in seconds.
+        @keyword out: The output stream for messages, etc.
+        @keyword outputType: The file extension of the export type.
+        @keyword delimiter: The string to use to separate values in text
+            output formats (CSV, TXT, etc.)
+        @keyword headers: If `True`, write column headers to the first row of
+            text output.
+        @keyword removeMean: If `True`, remove the mean from the data. Only
+            applicable to channels with min/mean/max data.
+        @keyword meanSpan: The rolling mean span, if `removeMean` is `True`.
+            ``-1`` for total mean removal.
+        @keyword useUtcTime: If `True`, export timestamps (the first column)
+            using absolute UTC 'epoch' values.
+        @keyword useIsoFormat: If `True`, write timestamps as ISO date/time
+            strings.
+        @keyword noBivariates: If `True`, disable bivariate references.
+        @keyword useNames: If `True`, include the channel name in the exported
+            filenames, not just channel ID number.
     """
     updater = kwargs.get('updater', importer.nullUpdater)
 
@@ -121,9 +153,13 @@ def ideExport(ideFilename, outFilename=None, channels=None,
 
     numSamples = 0
     for ch in exportChannels:
+        outName = "%s_Ch%02d" % (outFilename, ch.id)
+        if useNames:
+            outName = "%s_%s" % (outName, sanitizeFilename(ch.displayName, keepPaths=False))
+        outName = "%s.%s" % (outName, outputType.strip('.'))
         
-        outName = "%s_Ch%02d.%s" % (outFilename, ch.id, outputType.strip('.'))
         _print("  Exporting Channel %d (%s) to %s..." % (ch.id, ch.name, outName)),
+        
         try:
             events = ch.getSession()
             events.noBivariates = noBivariates
@@ -132,7 +168,6 @@ def ideExport(ideFilename, outFilename=None, channels=None,
                 continue
             
             startIdx, stopIdx = events.getRangeIndices(startTime, endTime)
-#             print "startidx=%r, stopIdx=%r" % (startIdx, stopIdx)
 
             numSamples += (exporter(events, outName, 
                                     start=startIdx, stop=stopIdx, 
@@ -159,10 +194,11 @@ if __name__ == "__main__":
     argparser.add_argument('-t', '--type', help="The type of file to export.", choices=('csv','mat','txt'), default="csv")
     argparser.add_argument('-c', '--channel', action='append', type=int, help="Export the specific channel. Can be used multiple times. If not used, all channels will export.")
     argparser.add_argument('-m', '--meanspan', type=float, default=5.0, help="Length (in seconds) of rolling mean span (DC offset) when removing the mean from analog channels. -1 will remove the total mean. 0 will disable mean removal. Defaults to 5 seconds.")
-    argparser.add_argument('-u', '--utc', action='store_true', help="Write timestamps as UTC 'Unix' time.")
+    argparser.add_argument('-u', '--utc', action='store_true', help="Write timestamps as UTC 'Unix epoch' time.")
+    argparser.add_argument('-n', '--names', action='store_true', help="Include channel names in exported filenames.")
     
     txtargs = argparser.add_argument_group("Text Export Options (CSV, TXT, etc.)")
-    txtargs.add_argument('-n', '--names', action='store_true', help="Write channel names as the first row of text-based export.")
+    txtargs.add_argument('-r', '--headers', action='store_true', help="Write 'header' information (column names) as the first row of text-based export.")
     txtargs.add_argument('-d', '--delimiter', choices=('comma','tab','pipe'), help="The delimiting character.", default="comma")
     txtargs.add_argument('-f', '--isoformat', action='store_true', help="Write timestamps as ISO-formatted UTC.")
     
@@ -208,7 +244,8 @@ if __name__ == "__main__":
                               removeMean=removeMean,
                               meanSpan=meanSpan,
                               useUtcTime=useUtcTime,
-                              useIsoFormat=useIsoFormat)
+                              useIsoFormat=useIsoFormat,
+                              useNames=args.names)
             
             showIdeInfo(f, toFile=args.output, extra=exportArgs)
                 
