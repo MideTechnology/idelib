@@ -39,8 +39,15 @@ def isSafeUrl(url, allowExternal=False):
         return False
     if not prot.lower().startswith(('http','ftp')):
         return False
+    
+    if allowExternal:
+        return True
+
     host, _path = urllib.splithost(addr)
-    return allowExternal or host.lower().endswith('mide.com')
+    return host.lower().endswith(('mide.com',
+                                  'mide.services', 
+                                  'mide.technology',
+                                  'endaq.com'))
 
 
 def hijackWarning(parent, url):
