@@ -26,28 +26,35 @@ if DEBUG:
 
 def isSafeUrl(url, allowExternal=False):
     """ Simple function to determine if a URL is (moderately) safe, i.e. is
-        at mide.com. 
+        to a Mide-owned site. 
     """
     if not url:
         return False
     
-    if DEBUG:
-        return True
-    
     prot, addr = urllib.splittype(url)
     if not (prot and addr):
+        logger.warning("Bad URL: %r" % url)
         return False
     if not prot.lower().startswith(('http','ftp')):
+        logger.warning("Rejected URL protocol: %r" % url)
         return False
     
     if allowExternal:
         return True
 
     host, _path = urllib.splithost(addr)
-    return host.lower().endswith(('mide.com',
+    safe = host.lower().endswith(('endaq.com',
+                                  'mide.com',
                                   'mide.services', 
                                   'mide.technology',
-                                  'endaq.com'))
+                                  'midemarine.com',
+                                  'piezo.com',
+                                  'slamstick.com'))
+
+    if not safe:
+        logger.warning("Potentially unsafe URL detected: %r" % url)
+
+    return DEBUG or safe
 
 
 def hijackWarning(parent, url):
@@ -56,10 +63,10 @@ def hijackWarning(parent, url):
     if url and len(url) > 40:
         url = urllib.splitquery(url)[0]
     d = wx.MessageBox(
-        "The link's URL does not appear to direct to a Mid\xe9 website.\n\n"
-        "This is likely intentional, but it could be an indication that the "
-        "update server has been compromised.\n\nURL: %s\n\n"
-        "Open the link anyway?" % url, "Possible Link Hijack", parent=parent,
+        u"The link's URL does not appear to direct to a Mid\xe9 website.\n\n"
+        u"This is likely intentional, but it could be an indication that the "
+        u"update server has been compromised.\n\nURL: %s\n\n"
+        u"Open the link anyway?" % url, "Possible Link Hijack", parent=parent,
         style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
     return d == wx.YES
 
