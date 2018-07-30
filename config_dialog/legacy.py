@@ -270,7 +270,7 @@ def loadConfigData(device, data=None):
         newData[0x05FF20] = dcAccelMap
 
     analogChannel = device.getAccelChannel(dc=False)
-    dcChannel = device.getAccelChannel(dc=True)
+#     dcChannel = device.getAccelChannel(dc=True)
 
     if analogChannel is not None:
         enableId = 0x01ff00 | (analogChannel.id & 0xFF)
@@ -279,8 +279,9 @@ def loadConfigData(device, data=None):
             for ch in analogChannel.subchannels:
                 newData[enableId] = (newData[enableId] << 1) | 1
     
-    if dcChannel is not None:
-        newData[0x01ff00 | (dcChannel.id & 0xFF)] = 1
+    # Not sure why this was here.
+#     if dcChannel is not None:
+#         newData[0x01ff00 | (dcChannel.id & 0xFF)] = 1
 
     return newData
 
