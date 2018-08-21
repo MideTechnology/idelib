@@ -445,8 +445,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         dataMenu.AppendSeparator()
         self.viewWarningsMenu = self.addSubMenu(dataMenu, self.ID_DATA_WARNINGS,
-                          "Display Range Warnings")
-        
+                          "Display Range Warnings")  
         
         #=======================================================================
         # "Tools" menu, only appears if there are tools.
@@ -455,6 +454,12 @@ class Viewer(wx.Frame, MenuMixin):
         if self.app.plugins is not None:
             tools = self.app.plugins.find(type='tool', isModule=True)
             extTools = self.app.plugins.find(type='tool', isModule=False)
+            
+            if not showAdvanced:
+                # Remove tools marked as 'advanced'
+                tools = [t for t in tools if not t.info.get('advanced', False)]
+                extTools = [t for t in extTools if not t.info.get('advanced', False)]
+                
             if tools or extTools:
                 toolMenu = self.addMenu(self.menubar, "Tools")
                 tools.sort(key=lambda x: x.name)
