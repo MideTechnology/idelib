@@ -9,6 +9,7 @@ import wx.lib.agw.rulerctrl as RC
 
 # from wx.lib.embeddedimage import PyEmbeddedImage
 
+from common import greater, lesser
 import events
 from base import ViewerPanel
 import images
@@ -633,7 +634,7 @@ class TimeNavigator(ViewerPanel):
                 percent *= 10
 
         v1, v2 = self.timeline.getVisibleRange()
-        d = min(5000, (v2 - v1) * percent / 2)
+        d = lesser(5000, (v2 - v1) * percent / 2)
         newStart = (v1 + d)/ self.root.timeScalar
         newEnd = (v2 - d)/ self.root.timeScalar
         
@@ -643,8 +644,8 @@ class TimeNavigator(ViewerPanel):
         elif newEnd > self.timerange[1]:
             newStart -= newEnd - self.timerange[1]
             
-        v1 = max(self.timerange[0], newStart) 
-        v2 = min(self.timerange[1], newEnd)#max(v1+10000, newEnd)) # Buffer
+        v1 = greater(self.timerange[0], newStart) 
+        v2 = lesser(self.timerange[1], newEnd)#max(v1+10000, newEnd)) # Buffer
         self.setVisibleRange(v1,v2)
         self.postSetVisibleRangeEvent(v1, v2, tracking)
 

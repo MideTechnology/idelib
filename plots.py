@@ -18,7 +18,7 @@ import images
 
 # Custom controls
 from base import ViewerPanel, MenuMixin
-from common import expandRange, mapRange, inRect
+from common import expandRange, mapRange, inRect, constrain, greater, lesser
 from widgets.timeline import VerticalScaleCtrl
 
 from logger import logger
@@ -312,7 +312,7 @@ class PlotCanvas(wx.ScrolledWindow):
         self.outOfRangeBrush = wx.Brush(outOfRangeColor)
 
         legendOpacity = int(255 * app.getPref('legendOpacity', .94))
-        legendOpacity = max(0, min(255, legendOpacity))
+        legendOpacity = constrain(legendOpacity, 0, 255)
         self.legendBrush = wx.Brush(wx.Colour(255,255,255,legendOpacity), 
                                     wx.SOLID)
 
@@ -559,9 +559,9 @@ class PlotCanvas(wx.ScrolledWindow):
                 try:
                     pt = points.next()
                     tTime += pt[0][0]
-                    tMin = min(pt[0][1], tMin)
+                    tMin = lesser(pt[0][1], tMin)
                     tMean += pt[1][1]
-                    tMax = max(pt[2][1], tMax)
+                    tMax = greater(pt[2][1], tMax)
                     chunkSize += 1
                 except StopIteration:
                     # End of the chunk.
@@ -591,7 +591,7 @@ class PlotCanvas(wx.ScrolledWindow):
         
         def _startline(lines, pt):
             # Create initial line segment (horizontal from x=0)
-            thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
+            thisT = int(lesser(greater(0, (pt[0] - hRange[0])) * hScale, width))
             thisV = constrainInt(int((pt[-1] - vRange[0]) * vScale)) 
             lines.append((0, thisV, thisT, thisV))
         
@@ -600,7 +600,7 @@ class PlotCanvas(wx.ScrolledWindow):
             l = lines[-1]
             lastT = l[2]
             lastV = l[3]
-            thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
+            thisT = int(lesser(greater(0, (pt[0] - hRange[0])) * hScale, width))
             thisV = constrainInt(int((pt[-1] - vRange[0]) * vScale))
             lines.append((lastT, lastV, thisT, lastV))
             lines.append((thisT, lastV, thisT, thisV))
@@ -1131,10 +1131,10 @@ class PlotCanvas(wx.ScrolledWindow):
     def _drawRubberBand(self, corner1, corner2):
         """ Draw (or erase) the 'rubber band' zoom rectangle. 
         """
-        ptx = min(corner1[0], corner2[0])
-        pty = min(corner1[1], corner2[1])
-        rectWidth = max(corner1[0], corner2[0]) - ptx
-        rectHeight = max(corner1[1], corner2[1]) - pty
+        ptx = lesser(corner1[0], corner2[0])
+        pty = lesser(corner1[1], corner2[1])
+        rectWidth = greater(corner1[0], corner2[0]) - ptx
+        rectHeight = greater(corner1[1], corner2[1]) - pty
         
         # draw rectangle
         dc = wx.ClientDC( self )
@@ -1235,8 +1235,8 @@ class PlotCanvas(wx.ScrolledWindow):
         evtY = evt.GetY()
         
         if self.root.showLegend and inRect(evtX, evtY, self.legendRect):
-            idx = max(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
-            idx = min(len(self.Parent.sources)-1, idx)
+            idx = greater(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
+            idx = lesser(len(self.Parent.sources)-1, idx)
             self.legendItem = self.Parent.sources[-1-idx]
             self.Parent.OnMenuSetColor(evt)
         else:
@@ -1260,8 +1260,8 @@ class PlotCanvas(wx.ScrolledWindow):
         
         if self.root.showLegend and inRect(evtX, evtY, self.legendRect):
             # Right-click on the legend
-            idx = max(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
-            idx = min(len(self.Parent.sources)-1, idx)
+            idx = greater(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
+            idx = lesser(len(self.Parent.sources)-1, idx)
             self.legendItem = self.Parent.sources[-1-idx]
             self.Parent.showLegendPopup(self.legendItem)
         else:
@@ -1286,7 +1286,7 @@ class PlotCanvas(wx.ScrolledWindow):
         if self.zooming:
             self._drawRubberBand(*self.zoomCorners)
             c0, c1 = self.zoomCorners
-            if min(abs(c1[0]-c0[0]), abs(c1[1]-c0[1])) > 5:
+            if lesser(abs(c1[0]-c0[0]), abs(c1[1]-c0[1])) > 5:
                 xStart = self.root.timeline.getValueAt(c0[0])
                 xEnd = self.root.timeline.getValueAt(c1[0])
                 yStart = self.Parent.legend.getValueAt(c0[1])

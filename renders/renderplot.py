@@ -9,6 +9,7 @@ import numpy as np; np=np
 import wx
 from renders.wx_lib_plot import PolyLine, PlotGraphics
 
+from common import lesser
 from renders.fft import FFTPlotCanvas, FFTView
 
 class PlotView(FFTView):
@@ -61,7 +62,7 @@ class PlotView(FFTView):
                 self.source.removeMean = self.removeMean
                 self.source.rollingMeanSpan = self.meanSpan
             start, stop = self.source.getRangeIndices(*self.range)
-            rows = min(len(self.source), stop-start)
+            rows = lesser(len(self.source), stop-start)
             
             points = [np.zeros(shape=(rows,2), dtype=float) for _ in self.subchannels]
             for row, evt in enumerate(self.source.iterSlice(start, stop, display=self.useConvertedUnits)):

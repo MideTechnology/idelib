@@ -9,6 +9,7 @@ Small utility functions, 'constants', and such, used by multiple files.
 from datetime import datetime
 import os.path
 import shutil
+import sys
 from threading import Thread as Thread
 
 
@@ -42,6 +43,35 @@ def nextPow2(x):
     
     # Kind of a hack, but it's fast (the 'right' way uses slow bit shifting).
     return 2L**(len(bin(x))-2L)
+
+
+def constrain(x, minVal, maxVal):
+    """ Return a value within a given range. Values outside the given range
+        will produce the specified minimum or maximum, respectively.
+        Functionally equivalent to ``min(maxVal, max(x, minVal))`` but much
+        faster.
+    """
+    if x < minVal:
+        return minVal
+    elif x > maxVal:
+        return maxVal
+    else:
+        return x
+
+
+def lesser(x, y):
+    """ Return the lesser of two values. Faster than ``min()`` for only two
+        values. Note: does not work like ``min()`` with sequences!
+    """
+    return x if x < y else y
+
+
+def greater(x, y):
+    """ Return the greater of two values. Faster than ``max()`` for only two
+        values. Note: does not work like ``max()`` with sequences!
+    """
+    return x if x > y else y
+
 
 
 #===============================================================================
@@ -195,6 +225,19 @@ def removeBackup(filename):
     except (IOError, WindowsError):
         return False
             
+#===============================================================================
+# 
+#===============================================================================
+
+def getAppPath():
+    """ Get the application's home directory.
+    """
+    if getattr(sys, 'frozen', False):
+        # 'Compiled' executable
+        return os.path.dirname(sys.executable)
+    
+    return os.path.dirname(os.path.abspath(__file__))
+
 
 #===============================================================================
 # 
