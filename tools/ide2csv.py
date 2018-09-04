@@ -213,6 +213,16 @@ class Ide2Csv(ToolDialog):
         removeMean = self.getValue(self.removeMean, 2)
 #         maxSize = (self.getValue(self.maxSize) * 1024) or MatStream.MAX_SIZE
         
+        if output is not None:
+            output = os.path.realpath(output)
+            if not os.path.exists(output):
+                try:
+                    os.makedirs(output)
+                except (WindowsError):
+                    msg = "The directory %s could not be created." % output
+                    wx.MessageBox(msg, "Error", wx.ICON_ERROR, parent=self)
+                    return
+        
         if removeMean == 1:
             meanSpan = -1
         else:
