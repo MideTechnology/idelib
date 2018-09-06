@@ -29,7 +29,7 @@ import wx.lib.delayedresult as delayedresult
 import spectrum as spec
 
 from base import MenuMixin
-from common import mapRange, nextPow2, sanitizeFilename
+from common import mapRange, nextPow2, sanitizeFilename, greater, lesser
 from widgets.shared import StatusBar
 
 from build_info import DEBUG
@@ -83,12 +83,12 @@ class FFTPlotCanvas(PlotCanvas):
         """
         if xAxis is not None:
             x_range = self.GetXMaxRange()
-            xAxis = (max(x_range[0], xAxis[0]), min(x_range[1], xAxis[1]))
+            xAxis = (greater(x_range[0], xAxis[0]), lesser(x_range[1], xAxis[1]))
             if xAxis[1]-xAxis[0] < 0.00001:
                 xAxis= self.last_draw[1]
         if yAxis is not None:
             y_range = self.GetYMaxRange()
-            yAxis = (max(y_range[0], yAxis[0]), min(y_range[1], yAxis[1]))
+            yAxis = (greater(y_range[0], yAxis[0]), lesser(y_range[1], yAxis[1]))
             if yAxis[1]-yAxis[0] < 0.00001:
                 yAxis= self.last_draw[2]
         
@@ -752,8 +752,8 @@ class FFTView(wx.Frame, MenuMixin):
         fullY = plot.GetYMaxRange()
         oldX = plot.GetXCurrentRange()
         oldY = plot.GetYCurrentRange()
-        newX = (max(fullX[0], (1.0-amount) * oldX[0]), min(fullX[1], (1.0+amount) * oldX[1]))
-        newY = (max(fullY[0], (1.0-amount) * oldY[0]), min(fullY[1], (1.0+amount) * oldY[1]))
+        newX = (greater(fullX[0], (1.0-amount) * oldX[0]), lesser(fullX[1], (1.0+amount) * oldX[1]))
+        newY = (greater(fullY[0], (1.0-amount) * oldY[0]), lesser(fullY[1], (1.0+amount) * oldY[1]))
 
         if newX[0] > newX[1]:
             newX = tuple(oldX)
@@ -920,13 +920,13 @@ class SpectrogramPlot(FFTPlotCanvas):
             else:
                 # MODIFICATION: (this 'else' branch) limit zoom to data extents
                 x_range = self.GetXMaxRange()
-                xAxis = (max(x_range[0], xAxis[0]), min(x_range[1], xAxis[1]))
+                xAxis = (greater(x_range[0], xAxis[0]), lesser(x_range[1], xAxis[1]))
             if yAxis is None:
                 yAxis = self._axisInterval(self._ySpec, p1[1], p2[1])
             else:
                 # MODIFICATION: (this 'else' branch) limit zoom to data extents
                 y_range = self.GetYMaxRange()
-                yAxis = (max(y_range[0], yAxis[0]), min(y_range[1], yAxis[1]))
+                yAxis = (greater(y_range[0], yAxis[0]), lesser(y_range[1], yAxis[1]))
             # Adjust bounding box for axis spec
             p1[0],p1[1] = xAxis[0], yAxis[0]     # lower left corner user scale (xmin,ymin)
             p2[0],p2[1] = xAxis[1], yAxis[1]     # upper right corner user scale (xmax,ymax)

@@ -18,7 +18,7 @@ import images
 
 # Custom controls
 from base import ViewerPanel, MenuMixin
-from common import expandRange, mapRange, inRect
+from common import expandRange, mapRange, inRect, constrain, greater, lesser
 from widgets.timeline import VerticalScaleCtrl
 
 from logger import logger
@@ -312,7 +312,7 @@ class PlotCanvas(wx.ScrolledWindow):
         self.outOfRangeBrush = wx.Brush(outOfRangeColor)
 
         legendOpacity = int(255 * app.getPref('legendOpacity', .94))
-        legendOpacity = max(0, min(255, legendOpacity))
+        legendOpacity = constrain(legendOpacity, 0, 255)
         self.legendBrush = wx.Brush(wx.Colour(255,255,255,legendOpacity), 
                                     wx.SOLID)
 
@@ -520,9 +520,69 @@ class PlotCanvas(wx.ScrolledWindow):
         return result
 
 
-    def makeMinMeanMaxLines(self, source, hRange, vRange, hScale, vScale):
+    def _reduceMinMeanMax(self, points, total, numPoints):
+        """ Iterate min/mean/max using "ultracondensed" mode (chunks of blocks
+            combined to avoid trying to plot too many points). For each chunk,
+            The time and mean are averaged; the min is the chunk's minimum; the
+            max is the chunk's maximum.
+            
+            XXX: This is still a work-in-progress!
+            
+            @param points: The source min/mean/max iterator
+            @param total: The total number of min/mean/max values
+            @param numPoints: The total number of points to draw (based on
+                window size)
+            @return: An iterator of reduced min/mean/max values
+        """
+        # The expected size of each chunk. The last one may be shorter.
+        stride = int(numPoints / total)
+
+        # Break min/mean/max values into chunks, combining them as noted in
+        # the method docstring. The strangeness here is in order to use the
+        # chunk iterator most efficiently (no list creation, slicing, etc.) 
+        for _i in xrange(0, numPoints, stride):
+            # Keep track of chunk size manually, because last may be short.
+            chunkSize = 1
+            
+            try:
+                # First values in the chunk
+                pt = points.next()
+                tTime = pt[0][0]
+                tMin = pt[0][1]
+                tMean = pt[1][1]
+                tMax = pt[2][1]
+            except StopIteration:
+                # No (more) data.
+                break
+            
+            for _j in xrange(stride-1):
+                try:
+                    pt = points.next()
+                    tTime += pt[0][0]
+                    tMin = lesser(pt[0][1], tMin)
+                    tMean += pt[1][1]
+                    tMax = greater(pt[2][1], tMax)
+                    chunkSize += 1
+                except StopIteration:
+                    # End of the chunk.
+                    break
+
+            tTime = tTime / chunkSize
+            tMean = tMean / chunkSize
+
+            yield [(tTime, tMin), (tTime, tMean), (tTime, tMax)]
+                
+
+    def makeMinMeanMaxLines(self, source, size, hRange, vRange, hScale, vScale):
         """ Generate the points for the minimum and maximum envelopes.
             Used internally.
+            
+            @param source: The source (e.g. a `dataset.EventList`)
+            @param size: The plot window dimensions (a `wx.Size`)
+            @param hRange: The displayed horizontal range (time)
+            @param vRange: The displayed vertical range (measured units)
+            @param hScale: The horizontal scaling factor for drawing (?)
+            @param vScale: The vertical scaling factor for drawing (?) 
         """
         if not source.hasMinMeanMax:
             return (tuple(),tuple(),tuple())
@@ -530,53 +590,67 @@ class PlotCanvas(wx.ScrolledWindow):
         width = int((hRange[1] - hRange[0]) * hScale)
         
         def _startline(lines, pt):
-            thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
+            # Create initial line segment (horizontal from x=0)
+            thisT = int(lesser(greater(0, (pt[0] - hRange[0])) * hScale, width))
             thisV = constrainInt(int((pt[-1] - vRange[0]) * vScale)) 
             lines.append((0, thisV, thisT, thisV))
         
-        def _makeline(lines, pt):#, fun):
+        def _makeline(lines, pt):
+            # Create the next horizontal and vertical segments
             l = lines[-1]
             lastT = l[2]
             lastV = l[3]
-            thisT = int(min(max(0, (pt[0] - hRange[0])) * hScale, width))
+            thisT = int(lesser(greater(0, (pt[0] - hRange[0])) * hScale, width))
             thisV = constrainInt(int((pt[-1] - vRange[0]) * vScale))
-#             if thisT == lastT:
-#                 lines[-1] = l[0], l[1], l[2], fun(lastV, thisV)
-#             else:
-#                 lines.append((lastT, lastV, thisT, lastV))
-#                 lines.append((thisT, lastV, thisT, thisV))
             lines.append((lastT, lastV, thisT, lastV))
             lines.append((thisT, lastV, thisT, thisV))
         
         def _finishline(lines):
+            # Create the last horizontal segment to the edge of the window
             t = lines[-1][2]
             v = lines[-1][3]
             lines.append((t, v, width, v))
 
+        # Calculate width vs. number of blocks to see if "ultracondensed" mode
+        # should be used (min/mean/max values of ranges of min/mean/max).
+        # TODO: Optimize this. There's a lot of redundant calculation.
+        pixelWidth = size[0] * self.condensedThreshold * 1.1
+        startIdx = source._getBlockIndexWithTime(hRange[0])
+        endIdx = source._getBlockIndexWithTime(hRange[1])
+        numPts = endIdx - startIdx
+
+        # Get the appropriate min/mean/max iterator (normal or "ultracondensed")
         vals = source.iterMinMeanMax(*hRange, padding=1, display=True)
+        
+        if numPts > pixelWidth:
+            # Too many blocks: use "Ultracondensed" mode
+            vals = self._reduceMinMeanMax(vals, pixelWidth, numPts)
+            
         minPts = []
         meanPts = []
         maxPts = []
 
         try:
-            pMin, pMean, pMax = vals.next()
+            pMin, pMean, pMax = vals.next() # First min/mean/max value set
             _startline(minPts, pMin)
             _startline(meanPts, pMean)
             _startline(maxPts, pMax)
+            
             for pMin, pMean, pMax in vals:
-                _makeline(minPts, pMin)#, min)
-                _makeline(meanPts, pMean)#, lambda x,y: (x+y)*0.5)
-                _makeline(maxPts, pMax)#, max)
+                _makeline(minPts, pMin)
+                _makeline(meanPts, pMean)
+                _makeline(maxPts, pMax)
+                
             _finishline(minPts)
             _finishline(meanPts)
             _finishline(maxPts)
+            
         except StopIteration:
             # No min/mean/max in the given range. Generally shouldn't happen.
             pass
 
-#         return (minPts[1:], meanPts, maxPts[1:])
-        
         if minPts:
+            # Remove first min/max points. I don't remember why.
             del minPts[0]
             del maxPts[0]
 
@@ -627,7 +701,7 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Event handler for redrawing the plot. Catches common exceptions.
             Wraps the 'real' painting event handler.
         """
-        if self.root.drawingSuspended:
+        if self.root.drawingSuspended.isSet():
             return
                
         if self.root.dataset.loading:
@@ -680,7 +754,7 @@ class PlotCanvas(wx.ScrolledWindow):
         try:
             self.SetCursor(self._cursor_default)
         except wx.PyDeadObjectError:
-            # Not sure when this will occur; probably when shutting down.
+            # May occur when shutting down. Ignore.
             pass
         
 
@@ -829,7 +903,7 @@ class PlotCanvas(wx.ScrolledWindow):
                   chunkSize):
         """ Does the plotting of a single source.
         """
-        if self.abortRendering is True or self.root.drawingSuspended:
+        if self.abortRendering is True or self.root.drawingSuspended.isSet():
             # Bail if user interrupted drawing (scrolling, etc.)
             # Doesn't actually work yet!
             return 0
@@ -848,7 +922,7 @@ class PlotCanvas(wx.ScrolledWindow):
             # since min/mean/max is currently kept in RAM.
             mmmLines = self.minMeanMaxLineList.get(source, None)
             if mmmLines is None:
-                mmmLines = self.makeMinMeanMaxLines(source, hRange, vRange, hScale, vScale)
+                mmmLines = self.makeMinMeanMaxLines(source, size, hRange, vRange, hScale, vScale)
                 self.minMeanMaxLineList[source] = mmmLines
             minLines, meanLines, maxLines = mmmLines
             drawCondensed = len(minLines) >= size[0] * self.condensedThreshold
@@ -1057,10 +1131,10 @@ class PlotCanvas(wx.ScrolledWindow):
     def _drawRubberBand(self, corner1, corner2):
         """ Draw (or erase) the 'rubber band' zoom rectangle. 
         """
-        ptx = min(corner1[0], corner2[0])
-        pty = min(corner1[1], corner2[1])
-        rectWidth = max(corner1[0], corner2[0]) - ptx
-        rectHeight = max(corner1[1], corner2[1]) - pty
+        ptx = lesser(corner1[0], corner2[0])
+        pty = lesser(corner1[1], corner2[1])
+        rectWidth = greater(corner1[0], corner2[0]) - ptx
+        rectHeight = greater(corner1[1], corner2[1]) - pty
         
         # draw rectangle
         dc = wx.ClientDC( self )
@@ -1161,8 +1235,8 @@ class PlotCanvas(wx.ScrolledWindow):
         evtY = evt.GetY()
         
         if self.root.showLegend and inRect(evtX, evtY, self.legendRect):
-            idx = max(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
-            idx = min(len(self.Parent.sources)-1, idx)
+            idx = greater(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
+            idx = lesser(len(self.Parent.sources)-1, idx)
             self.legendItem = self.Parent.sources[-1-idx]
             self.Parent.OnMenuSetColor(evt)
         else:
@@ -1186,8 +1260,8 @@ class PlotCanvas(wx.ScrolledWindow):
         
         if self.root.showLegend and inRect(evtX, evtY, self.legendRect):
             # Right-click on the legend
-            idx = max(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
-            idx = min(len(self.Parent.sources)-1, idx)
+            idx = greater(0,(evtY - self.legendRect[1] - 10) / self.legendRect[4])
+            idx = lesser(len(self.Parent.sources)-1, idx)
             self.legendItem = self.Parent.sources[-1-idx]
             self.Parent.showLegendPopup(self.legendItem)
         else:
@@ -1212,7 +1286,7 @@ class PlotCanvas(wx.ScrolledWindow):
         if self.zooming:
             self._drawRubberBand(*self.zoomCorners)
             c0, c1 = self.zoomCorners
-            if min(abs(c1[0]-c0[0]), abs(c1[1]-c0[1])) > 5:
+            if lesser(abs(c1[0]-c0[0]), abs(c1[1]-c0[1])) > 5:
                 xStart = self.root.timeline.getValueAt(c0[0])
                 xEnd = self.root.timeline.getValueAt(c1[0])
                 yStart = self.Parent.legend.getValueAt(c0[1])

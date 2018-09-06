@@ -57,7 +57,8 @@ import wx.lib.scrolledpanel as SP
 import wx.lib.sized_controls as SC
 
 from widgets.shared import DateTimeCtrl
-from common import makeWxDateTime, makeBackup, restoreBackup
+from common import makeBackup, restoreBackup
+from timeutil import makeWxDateTime
 
 import legacy
 from mide_ebml.ebmlite import loadSchema
@@ -1210,7 +1211,7 @@ class DateTimeField(IntField):
         else:
             val = makeWxDateTime(val)
         
-        if self.utcCheck.GetValue():
+        if not self.utcCheck.GetValue():
             val = val.FromUTC()
         
         super(DateTimeField, self).setDisplayValue(val, check)
@@ -1222,7 +1223,7 @@ class DateTimeField(IntField):
         val = super(DateTimeField, self).getDisplayValue()
         if val is None:
             return None
-        if self.utcCheck.GetValue():
+        if not self.utcCheck.GetValue():
             val = val.ToUTC()
         return val.GetTicks()
     

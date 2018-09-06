@@ -18,8 +18,8 @@ Created on Nov 27, 2013
 @todo: Completely remove ``AccelTransform``. Obsolete.
 '''
 
-# __all__ = ['Transform', 'AccelTransform', 'AccelTransform10G', 
-#            'Univariate', 'Bivariate']
+__all__ = ['Transform', 'Univariate', 'Bivariate', 'CombinedPoly', 'PolyPoly',
+           'AccelTransform', 'AccelTransform10G', ]
 
 from collections import OrderedDict
 import math

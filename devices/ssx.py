@@ -657,6 +657,9 @@ class SlamStickX(Recorder):
             self._sensors = doc.sensors
             self._warnings = doc.warningRanges
         except (IndexError, AttributeError):
+            # TODO: Report the error. Right now, this fails silently on bad
+            # data (e.g. the number of subchannels doesn't match a channel
+            # parser.
             pass
         
         return self._sensors
