@@ -1665,8 +1665,7 @@ class Viewer(wx.Frame, MenuMixin):
         """
         if self.dataset:
             self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
-            RecorderInfoDialog.showRecorderInfo(self.dataset, 
-                        showAll=self.app.getPref("showAdvancedOptions", False))
+            RecorderInfoDialog.showRecorderInfo(self.dataset)
             self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
         
         
