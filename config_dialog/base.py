@@ -1211,7 +1211,7 @@ class DateTimeField(IntField):
         else:
             val = makeWxDateTime(val)
         
-        if self.utcCheck.GetValue():
+        if not self.utcCheck.GetValue():
             val = val.FromUTC()
         
         super(DateTimeField, self).setDisplayValue(val, check)
@@ -1223,7 +1223,7 @@ class DateTimeField(IntField):
         val = super(DateTimeField, self).getDisplayValue()
         if val is None:
             return None
-        if self.utcCheck.GetValue():
+        if not self.utcCheck.GetValue():
             val = val.ToUTC()
         return val.GetTicks()
     
