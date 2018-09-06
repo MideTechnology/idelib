@@ -9,6 +9,7 @@
 *.csv
 *.dat
 *.ebml
+*.exe
 *.fid
 *.fih
 *.ide
@@ -48,6 +49,7 @@ dist/
 *_64b
 Slam Stick Lab v*
 Slam Stick Time Hub v*
+Data Viewer v*
 *_python
 images_work
 backups
@@ -57,3 +59,5 @@ about_tmp.html
 mide_ebml/devinfo.xml
 *_xxx.*
 .idea/
+
+drs_test/

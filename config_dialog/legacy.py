@@ -82,8 +82,8 @@ def loadConfigUI(device, showAdvanced=False):
         
         # Recording delay and wake time were mutually exclusive on old SSX.
         # The label and tooltip text on the delay field are also different.
-        delayEl = doc.find(".//*[@id='RecordingDelay']/DisableIf")
-        wakeEl = doc.find(".//*[@id='WakeTime']/DisableIf")
+#         delayEl = doc.find(".//*[@id='RecordingDelay']/DisableIf")
+#         wakeEl = doc.find(".//*[@id='WakeTime']/DisableIf")
         delayLabel = doc.find(".//*[@id='RecordingDelay']/Label")
         delayHelp = doc.find(".//*[@id='RecordingDelay']/ToolTip")
         # XXX: Mutual exclusion is creating infinite loop

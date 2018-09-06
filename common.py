@@ -1,22 +1,17 @@
 '''
-Custom events, controls, dialogs, 'constants', functions, and other things 
-used by multiple files. 
-
-Created on Dec 31, 2013
-
-@todo: Rewrite the whole date/time conversion stuff to be more time zone
-    friendly. It's kind of a mess.
+Small utility functions, 'constants', and such, used by multiple files. 
 
 @author: dstokes
+
+@todo: Some of these aren't used; identify and refactor/remove at some point.
 '''
 
-import calendar as calendar
 from datetime import datetime
 import os.path
 import shutil
+import sys
 from threading import Thread as Thread
 
-import wx
 
 #===============================================================================
 # Numeric and math-related helper functions
@@ -50,6 +45,35 @@ def nextPow2(x):
     return 2L**(len(bin(x))-2L)
 
 
+def constrain(x, minVal, maxVal):
+    """ Return a value within a given range. Values outside the given range
+        will produce the specified minimum or maximum, respectively.
+        Functionally equivalent to ``min(maxVal, max(x, minVal))`` but much
+        faster.
+    """
+    if x < minVal:
+        return minVal
+    elif x > maxVal:
+        return maxVal
+    else:
+        return x
+
+
+def lesser(x, y):
+    """ Return the lesser of two values. Faster than ``min()`` for only two
+        values. Note: does not work like ``min()`` with sequences!
+    """
+    return x if x < y else y
+
+
+def greater(x, y):
+    """ Return the greater of two values. Faster than ``max()`` for only two
+        values. Note: does not work like ``max()`` with sequences!
+    """
+    return x if x > y else y
+
+
+
 #===============================================================================
 # Formatting and parsing helpers
 #===============================================================================
@@ -63,12 +87,15 @@ def multiReplace(s, *replacements):
     return s
 
 
-def sanitizeFilename(f, ascii=True):
+def sanitizeFilename(f, ascii=True, keepPaths=True):
     """ A blunt instrument for coercing filenames into validity.
     """
     if not isinstance(f, unicode):
         f = unicode(f)
-    path, name = os.path.split(f)
+    if keepPaths:
+        path, name = os.path.split(f)
+    else:
+        path, name = "", f
     if ascii:
         name = name.encode('ascii','replace')
     f = ''.join((x for x in f if ord(x) > 31))
@@ -114,54 +141,6 @@ def cleanUnicode(obj, encoding='utf8', errors='replace'):
 #         return int(val, 16)
 
 
-def datetime2int(val, tzOffset=0):
-    """ Convert a date/time object (either a standard Python datetime.datetime
-        or wx.DateTime) into the UTC epoch time (i.e. UNIX time stamp).
-    """
-    if isinstance(val, wx.DateTime):
-        return val.Ticks + tzOffset
-#         val = datetime.strptime(str(val), '%m/%d/%y %H:%M:%S')
-    return int(calendar.timegm(val.utctimetuple()) + tzOffset)
-        
-
-def time2int(val, tzOffset=0):
-    """ Parse a time string (as returned from `TimeCtrl.GetValue()`) into
-        seconds since midnight.
-    """
-    t = datetime.strptime(str(val), '%H:%M:%S')
-    return int((t.hour * 60 * 60) + (t.minute * 60) + t.second + tzOffset)
-
-
-def makeWxDateTime(val):
-    """ Create a `wx.DateTime` instance from a standard `datetime`, time tuple
-        (or a similar 'normal' tuple), epoch timestamp, or another 
-        `wx.DateTime` object.
-    """
-    if isinstance(val, datetime):
-        val = datetime2int(val)
-    if isinstance(val, (int, float)):
-        return wx.DateTimeFromTimeT(float(val))
-    elif isinstance(val, wx.DateTime):
-        return wx.DateTimeFromDateTime(val)
-    # Assume a struct_time or other sequence:
-    return wx.DateTimeFromDMY(val[2], val[1]-1, val[0], val[3], val[4], val[5])
-        
-
-def parseTime(val):
-    """ Convert a time entered in SMPTE-like format (seconds, M:S, or H:M:S)
-        to seconds. Fractional values accepted.
-    """
-    result = 0
-    mult = 1
-    for p in reversed(str(val).strip().split(':')):
-        try:
-            result += float(p.strip()) * mult
-        except ValueError:
-            return None
-        mult *= 60
-    return result
-
-
 def wordJoin(words, conj="and", oxford=True):
     """ Function to do an English joining of list items.
         @param words: A list (or other iterable) of items. Items will be cast
@@ -179,6 +158,22 @@ def wordJoin(words, conj="and", oxford=True):
             return u"%s %s %s" % (', '.join(words[:-1]), conj, words[-1])
     else:
         return (u" %s " % conj).join(words)
+
+
+def parseTime(val):
+    """ Convert a time entered in SMPTE-like format (seconds, M:S, or H:M:S)
+        to seconds. Fractional values accepted.
+    """
+    result = 0
+    mult = 1
+    for p in reversed(str(val).strip().split(':')):
+        try:
+            result += float(p.strip()) * mult
+        except ValueError:
+            return None
+        mult *= 60
+    return result
+
 
 #===============================================================================
 # 
@@ -230,6 +225,19 @@ def removeBackup(filename):
     except (IOError, WindowsError):
         return False
             
+#===============================================================================
+# 
+#===============================================================================
+
+def getAppPath():
+    """ Get the application's home directory.
+    """
+    if getattr(sys, 'frozen', False):
+        # 'Compiled' executable
+        return os.path.dirname(sys.executable)
+    
+    return os.path.dirname(os.path.abspath(__file__))
+
 
 #===============================================================================
 # 
@@ -250,42 +258,6 @@ def inRect(x, y, rect):
     if x > rect[0]+rect[2] or y > rect[1]+rect[3]:
         return False
     return True
-
-
-#===============================================================================
-# Field validators
-#===============================================================================
-
-class TimeValidator(wx.PyValidator):
-    """
-    """
-    validCharacters = "-.0123456789"
-     
-    def __init__(self):
-        super(TimeValidator, self).__init__()
-        self.Bind(wx.EVT_CHAR, self.OnChar)
- 
-    def Clone(self):
-        return TimeValidator()
- 
-    def Validate(self, win):
-        val = self.GetWindow.GetValue()
-        return all((c in self.validCharacters for c in val))
- 
-    def OnChar(self, evt):
-        key = evt.GetKeyCode()
-        
-        if key < wx.WXK_SPACE or key == wx.WXK_DELETE or key > 255:
-            evt.Skip()
-            return
- 
-        if chr(key) in self.validCharacters:
-            evt.Skip()
-            return
-        
-#         if not wx.Validator_IsSilent():
-#             wx.Bell()
-        return        
 
 
 #===============================================================================
