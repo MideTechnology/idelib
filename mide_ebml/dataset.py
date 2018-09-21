@@ -1893,6 +1893,9 @@ class EventList(Transformable):
             @return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
         """
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+            
         startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
         
         # OPTIMIZATION: Local variables for things used in inner loops
@@ -1911,8 +1914,11 @@ class EventList(Transformable):
             xform = self._comboXform
                 
         for block in self._data[startBlockIdx:endBlockIdx]:
-            if block.minMeanMax is None:
-                continue
+            # NOTE: Without this, a file in which some blocks don't have
+            # min/mean/max will fail. Should not happen, though.
+#             if block.minMeanMax is None:
+#                 continue
+
             t = block.startTime
             m = _getBlockRollingMean(block.blockIndex)
             
@@ -2005,8 +2011,6 @@ class EventList(Transformable):
                 unit conversion) will be applied to the results. 
             @return: A set of three events (min, mean, and max, respectively).
         """
-        if not self.hasMinMeanMax:
-            self._computeMinMeanMax()
         mmm = numpy.array(self.getMinMeanMax(startTime, endTime, times=False, display=display))
         if mmm.size == 0:
             return None
@@ -2034,8 +2038,8 @@ class EventList(Transformable):
             endBlockIdx = min(len(self._data), max(startBlockIdx+1, endBlockIdx+1))
             
         return startBlockIdx, endBlockIdx
-    
-       
+
+
     def getMax(self, startTime=None, endTime=None, display=False):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, the maximum of all Subchannels is
@@ -2048,26 +2052,31 @@ class EventList(Transformable):
             @return: The event with the maximum value.
         """
         # Optimization: actual functions are faster than building/using lambdas
+        def _blockChannelMax(x):
+            return max(x[1][-1][-1])
+
+        def _blockSubchannelMax(x):
+            return x[1][-1][-1]
+        
         def _channelMax(x):
-            return max(x.max)
-        
-        def _val(x):
-            return x[-1]
-        
-        def _maxVal(x):
             return max(x[-1])
-        
-        if not self.hasMinMeanMax:
-            self._computeMinMeanMax()
-        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
-        blocks = self._data[startBlockIdx:endBlockIdx]
-        
+
+        def _subChannelMax(x):
+            return x[-1]
+
         if self.hasSubchannels:
-            block = max(blocks, key=_channelMax)
-            return max(self.iterSlice(*block.indexRange, display=display), key=_maxVal)
+            blockKeyFun = _blockChannelMax
+            keyFun = _channelMax
         else:
-            block = max(blocks, key=lambda x: x.max[self.subchannelId])
-            return max(self.iterSlice(*block.indexRange, display=display), key=_val)
+            blockKeyFun = _blockSubchannelMax
+            keyFun = _subChannelMax
+            
+        blockIter = self.iterMinMeanMax(startTime, endTime, display=display)
+    
+        blockIdx = max(enumerate(blockIter),key=blockKeyFun)[0]
+        block = self._data[blockIdx]
+        return max(self.iterSlice(*block.indexRange, display=display),
+                   key=keyFun)
 
 
     def getMin(self, startTime=None, endTime=None, display=False):
@@ -2082,25 +2091,34 @@ class EventList(Transformable):
             @return: The event with the minimum value.
         """
         # Optimization: actual functions are faster than building/using lambdas
+        def _blockChannelMin(x):
+            return min(x[1][1][-1])
+
+        def _blockSubchannelMin(x):
+            return x[1][1][-1]
+        
         def _channelMin(x):
-            return min(x.min)
-        
-        def _val(x):
-            return x[-1]
-        
-        def _minVal(x):
             return min(x[-1])
+
+        def _subChannelMin(x):
+            return x[-1]
         
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
-        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
-        blocks = self._data[startBlockIdx:endBlockIdx]
+        
         if self.hasSubchannels:
-            block = min(blocks, key=_channelMin)
-            return min(self.iterSlice(*block.indexRange, display=display), key=_minVal)
+            blockKeyFun = _blockChannelMin
+            keyFun = _channelMin
         else:
-            block = min(blocks, key=lambda x: x.min[self.subchannelId])
-            return min(self.iterSlice(*block.indexRange, display=display), key=_val)
+            blockKeyFun = _blockSubchannelMin
+            keyFun = _subChannelMin
+            
+        blockIter = self.iterMinMeanMax(startTime, endTime, display=display)
+    
+        blockIdx = min(enumerate(blockIter),key=blockKeyFun)[0]
+        block = self._data[blockIdx]
+        return min(self.iterSlice(*block.indexRange, display=display),
+                   key=keyFun)
 
 
 #     def getMean(self, startTime=None, endTime=None):
@@ -2146,7 +2164,7 @@ class EventList(Transformable):
                 block.mean = tuple(block_mean)
                 block.max = tuple(block_max)
             
-#                 self.hasMinMeanMax = True
+                self.hasMinMeanMax = True
                 
                 # Channels and subchannels use same blocks; mark them as having
                 # min/mean/max data
