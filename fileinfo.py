@@ -34,7 +34,12 @@ class ChannelInfoPanel(InfoPanel):
         et cetera.
     """
     timeScalar = 1.0/(10**6)
-    
+
+    def formatFloat(self, val):
+        """ Helper method to prettify floats.
+        """
+        return ("%.3f" % val).rstrip('0').rstrip('.')
+
     
     def plotLink(self, channelId, subchannelId, time, val, msg=None):
         """ Create a link to a channel and a time. 
@@ -82,15 +87,17 @@ class ChannelInfoPanel(InfoPanel):
                 # Hack for channels with no data.
                 if len(events) > 0:
                     try:
-                        srate = ("%.3f" % events.getSampleRate()).rstrip('0')
-                        srate = srate + '0' if srate.endswith('.') else srate
+                        srate = self.formatFloat(events.getSampleRate())
+                        minVal = self.plotLink(cid, subcid, *events.getMin())
+                        maxVal = self.plotLink(cid, subcid, *events.getMax())
+                        footnote = "*" if events.removeMean else ""
+                        
                         self.addItem("Nominal Sample Rate:", "%s Hz" % srate)
-                        self.addItem("Minimum Value:", 
-                                     self.plotLink(cid, subcid, *events.getMin()),
+                        self.addItem("Minimum Value:", minVal + footnote,
                                      escape=False)
-                        self.addItem("Maximum Value:", 
-                                     self.plotLink(cid, subcid, *events.getMax()),
+                        self.addItem("Maximum Value:", maxVal + footnote, 
                                      escape=False)
+                            
                     except (IndexError, AttributeError):
                         # These can occur in partially damaged files.
                         pass
@@ -98,9 +105,21 @@ class ChannelInfoPanel(InfoPanel):
 #                 mmm = events.getRangeMinMeanMax()
 #                 if mmm:
 #                     self.addItem("Median:", "%.4f" % mmm[1])
+                else:
+                    footnote = False
                 
                 # addItem will open a new table, close it.
                 self.closeTable() 
+
+                # Add footnote about mean removal
+                if footnote and events.removeMean:
+                    if events.rollingMeanSpan == -1:
+                        msg = "<i>* After total mean removal</i>"
+                    else:
+                        span = self.formatFloat(events.rollingMeanSpan * self.timeScalar)
+                        msg = "<i>* After %s second rolling mean removal</i>" % span
+                    self.html.append(msg)
+
                 
             self.html.append("</ul></p>")
         self.html.append("</body></html>")
