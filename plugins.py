@@ -47,14 +47,21 @@ Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
 
 How it Works (TL;DR version)
 ============================
-* The plug-in is added to the `PluginSet` via `PluginSet.add()`
+* The plug-in (supplied as a filename or an imported module) is added to 
+    the `PluginSet` via `PluginSet.add()`.
 * Before use, the plug-in is loaded via `Plugin.load()` or `PluginSet.load()`.
     This calls the plug-in's `init()` function, which returns a function-like
     object (e.g. a function, or an object with a `__call__()` method). The
     returned function/object is stored in the plug-in as `Plugin.main`.
+    NOTE: This doesn't need to be explicitly done; calling an unloaded plug-in
+    will load it first.
 * When the plug-in is called (i.e. used like a function), the function/object
-    returned by the plug-in's `init()` is called. 
+    returned by the plug-in's `init()` (as described in the previous step) is
+    called. 
 
+
+@todo: More documentation. Specifically, more about the anatomy of a plug-in
+    module.
 
 @todo: Support imports of other packages in the plug-in. Possibly add a 
     ``packages`` item to the JSON, listing the other packages in the archive.
@@ -62,13 +69,22 @@ How it Works (TL;DR version)
     its import statements should find the other packages.
 
 @todo: Change the name of `init()` to something more specific, like
-    `pluginInit()`.
+    `pluginInit()`. The current name can get confused with `__init__()`.
 
 @todo: Possibly change the name of `Plugin.main` to something more descriptive.
     There are reasons the user may want to get at the object returned by the
     plug-in's `init()`, so this attribute isn't entirely for internal use only.
 
-@todo: Add dependency list to plugins? 
+@todo: Add dependency list to plugins? Maybe model after `install_requires` in
+    `setuptools.setup()`.
+
+@todo: The ability to unload plugins. Keep track of the object returned by the
+    plugin's `init()` via a weakref to prevent reinitialization if something
+    is already referencing it.
+
+@todo: `fnmatch()` is case-sensitive under *NIX, but not under Windows (it
+    matches the filesystem). It's not being used for filenames in this case;
+    make sure this doesn't cause any problems.
 """
 
 
@@ -163,7 +179,10 @@ class Plugin(object):
 
     @staticmethod
     def isNewer(v1, v2):
-        """ Compare two sets of version numbers `(major, [minor,] [micro])`.
+        """ Compare two sets of version numbers `(major, [minor, [micro]])`.
+            If the version tuples are of different lengths, only the smaller
+            number of items is used in the comparison (e.g. `(1,2)` and 
+            `(1,2,3)` are considered equal).
         """
         if v1 is None or v2 is None:
             return False
