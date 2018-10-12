@@ -30,7 +30,6 @@ easily handled as modules.
 
 Plug-In Info
 ============
-
 Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
   * app (string): The name of the app for which the plug-in was written. May
       contain glob-style wildcards.
@@ -47,14 +46,46 @@ Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
 
 How it Works (TL;DR version)
 ============================
-* The plug-in is added to the `PluginSet` via `PluginSet.add()`
+* The plug-in (supplied as a filename or an imported module) is added to 
+    the `PluginSet` via `PluginSet.add()`.
 * Before use, the plug-in is loaded via `Plugin.load()` or `PluginSet.load()`.
     This calls the plug-in's `init()` function, which returns a function-like
-    object (e.g. a function, or an object with a `__call__()` method). The
-    returned function/object is stored in the plug-in as `Plugin.main`.
+    object (e.g. a function, class, or an object with a `__call__()` method).
+    the returned function/object is stored in the plug-in as `Plugin.main`.
+    If the plug-in's `init()` function takes no arguments, explicitly calling
+    `Plugin.load()` is optional; it will get loaded when the plug-in is called.
 * When the plug-in is called (i.e. used like a function), the function/object
-    returned by the plug-in's `init()` is called. 
+    returned by the plug-in's `init()` (as described in the previous step) is
+    called. 
 
+Plug-In `init()` Function
+=========================
+The critical component of a plug-in is an `init()` function, which is called
+when a plug-in is loaded. `init()` returns a callable object, which is called
+when the plug-in is executed. 
+
+The arguments of the `init()` function are entirely up to the implementor; any
+arguments or keyword arguments used with `Plugin.load()` are passed directly to
+the plug-in's `init()`. In many cases, `init()` will require no arguments, and
+it will simply return a function defined elsewhere in the plug-in module. A
+more advanced `init()` could function as a factory, dynamically generating a
+function-like object or class, possibly using arguments supplied with 
+`Plugin.load()`.
+
+Like `init()`, the arguments required by the callable object are up to the
+implementor; any arguments supplied when calling `Plugin.__call__()` get
+passed to it.
+
+Calling a Plug-In
+=================
+A `Plugin` instance can be called like a function. When called, it calls the
+object returned by the plug-in module's `init()` function. 
+
+TODO
+====
+
+@todo: More documentation. Specifically, more about the anatomy of a plug-in
+    module.
 
 @todo: Support imports of other packages in the plug-in. Possibly add a 
     ``packages`` item to the JSON, listing the other packages in the archive.
@@ -62,24 +93,33 @@ How it Works (TL;DR version)
     its import statements should find the other packages.
 
 @todo: Change the name of `init()` to something more specific, like
-    `pluginInit()`.
+    `pluginInit()`. The current name can get confused with `__init__()`.
 
 @todo: Possibly change the name of `Plugin.main` to something more descriptive.
     There are reasons the user may want to get at the object returned by the
     plug-in's `init()`, so this attribute isn't entirely for internal use only.
 
-@todo: Add dependency list to plugins? 
+@todo: Add dependency list to plugins? Maybe model after `install_requires` in
+    `setuptools.setup()`.
+
+@todo: The ability to unload plugins. Keep track of the object returned by the
+    plugin's `init()` via a weakref to prevent reinitialization if something
+    is already referencing it.
+
+@todo: `fnmatch()` is case-sensitive under *NIX, but not under Windows (it
+    matches the filesystem). It's not being used for filenames in this case;
+    make sure this doesn't cause any problems.
 """
 
 
 __author__ = "D. R. Stokes"
 __email__ = "dstokes@mide.com"
-__version__ = (1,0,1)
+__version__ = (1,0,2)
 
 from collections import defaultdict, Sequence
 import errno
 from fnmatch import fnmatch
-from functools import partial
+import gc
 from glob import glob
 import imp
 import json
@@ -89,6 +129,7 @@ import pkgutil
 import sys
 import types
 from UserDict import IterableUserDict
+import weakref
 import zipimport
 
 #===============================================================================
@@ -163,7 +204,10 @@ class Plugin(object):
 
     @staticmethod
     def isNewer(v1, v2):
-        """ Compare two sets of version numbers `(major, [minor,] [micro])`.
+        """ Compare two sets of version numbers `(major, [minor, [micro]])`.
+            If the version tuples are of different lengths, only the smaller
+            number of items is used in the comparison (e.g. `(1,2)` and 
+            `(1,2,3)` are considered equal).
         """
         if v1 is None or v2 is None:
             return False
@@ -199,7 +243,6 @@ class Plugin(object):
             @keyword useSource: If `True`, an uncompressed version of the
                 plugin will be loaded if available. 
         """
-        self.loaded = False
         self.bad = True
         self.module = None
         self.main = None
@@ -366,13 +409,35 @@ class Plugin(object):
         self.bad = False
         
 
+    @property
+    def main(self):
+        """
+        """
+        try:
+            return self._mainRef()
+        except AttributeError:
+            return None
+
+
+    @main.setter
+    def main(self, fn):
+        """
+        """
+        self._mainRef = weakref.ref(fn)
+    
+    
+    @property
+    def loaded(self):
+        return self.main is not None
+
+
     def load(self, *args, **kwargs):
         """ Import the plugin's code. The module is loaded and its
             `init()` function is called, which should return a function-like
             object (the plugin itself). The actual plugin is not executed.
             
             Arguments and keyword arguments are passed directly to the
-            plugin's `__init__()` method.
+            plugin's `init()` function. 
         """
         if self.bad:
             raise PluginImportError("Cannot load bad plugin %r "
@@ -409,16 +474,26 @@ class Plugin(object):
             raise PluginImportError("No 'init' function in plugin", 
                                     self.path)
         
-        self.loaded = True
         self.bad = False
         self.main = self.module.init(self, *args, **kwargs)
         self.__call__.__func__.__doc__ = self.main.__doc__
         return self
 
 
+    def unload(self, collect=True):
+        """
+        """
+        main = self.main
+        if main is not None:
+            del main
+            if collect:
+                gc.collect()
+        
+
     def __call__(self, *args, **kwargs):
         """ Execute the plug-in. This calls the function-like object returned
-            by the plug-in's ``init()`` function.
+            by the plug-in's ``init()`` function. All arguments and keyword
+            arguments are passed directly to the call of that function/object.
         """
         if not self.loaded:
             self.load()
@@ -571,7 +646,7 @@ class PluginSet(IterableUserDict, object):
     
     def find(self, **kwargs):
         """ Find all plugins with the specified values in their `info`. Plugins
-            matching all of the specified criteria are returned.
+            matching *all* of the specified criteria are returned.
  
             Parameters to match are provided as keyword arguments. Glob-style 
             wildcards accepted as values. Examples:
@@ -601,7 +676,8 @@ class PluginSet(IterableUserDict, object):
 
     def findAny(self, **kwargs):
         """ Find all plugins with the specified values in their `info`. Plugins
-            matching any of the specified criteria are returned.
+            matching *any* (i.e. one or more) of the specified criteria are
+            returned.
  
             Parameters to match are provided as keyword arguments. Glob-style 
             wildcards accepted as values. Examples:
@@ -624,6 +700,23 @@ class PluginSet(IterableUserDict, object):
         return result
     
     
+    def _getPlugins(self, plug):
+        """ Get a list of `Plugin` objects from a name, a `Plugin` instance,
+            (returns verbatim), or a list/tuple of the two.
+        """
+        if isinstance(plug, Plugin):
+            return [plug]
+        elif isinstance(plug, basestring):
+            return [self.data[plug]]
+        elif isinstance(plug, Sequence):
+            result = []
+            for p in plug:
+                result.extend(self._getPlugins(p))
+            return result
+        else:
+            raise TypeError("%r is not a Plugin" % plug)
+
+    
     def load(self, plug, args=[], kwargs={}, quiet=False):
         """ Load a plugin. Wraps the plugin's `load()` method. Can be called
             with the name of a plugin, a `Plugin` object, or a list of
@@ -641,22 +734,25 @@ class PluginSet(IterableUserDict, object):
                 `plug` was a list.
         """
         err = None
-        try:
-            if isinstance(plug, basestring):
-                return self.data[plug].load(*args, **kwargs)
-            elif isinstance(plug, Sequence):
-                load = partial(self.load, args=args, kwargs=kwargs, quiet=quiet)
-                return filter(None, map(load, plug))
-            elif isinstance(plug, Plugin):
-                return plug.load(*args, **kwargs)
-            else:
-                raise TypeError("%r is not a Plugin" % plug)
-        except (KeyError, PluginImportError, TypeError) as err:
-            self.bad.append((plug, err))
-        
-        if err is not None and not quiet:
-            raise err
+        result = []
+        for p in self._getPlugins(plug):
+            try:
+                result.append(p.load(*args, **kwargs))
+            except (KeyError, PluginImportError, TypeError) as err:
+                self.bad.append((p, err))
+                if not quiet:
+                    raise
 
+        return result
+
+
+    def unload(self, plug):
+        """
+        """
+        for p in self._getPlugins(plug):
+            p.unload(collect=False)
+        gc.collect()
+        
 
 #===============================================================================
 # 
