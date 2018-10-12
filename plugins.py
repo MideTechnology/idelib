@@ -51,8 +51,8 @@ How it Works (TL;DR version)
     the `PluginSet` via `PluginSet.add()`.
 * Before use, the plug-in is loaded via `Plugin.load()` or `PluginSet.load()`.
     This calls the plug-in's `init()` function, which returns a function-like
-    object (e.g. a function, or an object with a `__call__()` method). The
-    returned function/object is stored in the plug-in as `Plugin.main`.
+    object (e.g. a function, class, or an object with a `__call__()` method).
+    the returned function/object is stored in the plug-in as `Plugin.main`.
     NOTE: This doesn't need to be explicitly done; calling an unloaded plug-in
     will load it first.
 * When the plug-in is called (i.e. used like a function), the function/object
@@ -105,6 +105,7 @@ import pkgutil
 import sys
 import types
 from UserDict import IterableUserDict
+import weakref
 import zipimport
 
 #===============================================================================
@@ -391,7 +392,7 @@ class Plugin(object):
             object (the plugin itself). The actual plugin is not executed.
             
             Arguments and keyword arguments are passed directly to the
-            plugin's `__init__()` method.
+            plugin's `init()` function. 
         """
         if self.bad:
             raise PluginImportError("Cannot load bad plugin %r "
@@ -437,7 +438,8 @@ class Plugin(object):
 
     def __call__(self, *args, **kwargs):
         """ Execute the plug-in. This calls the function-like object returned
-            by the plug-in's ``init()`` function.
+            by the plug-in's ``init()`` function. All arguments and keyword
+            arguments are passed directly to the call of that function/object.
         """
         if not self.loaded:
             self.load()
