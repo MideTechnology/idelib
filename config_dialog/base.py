@@ -1282,6 +1282,8 @@ class UTCOffsetField(FloatField):
         gt = time.gmtime()
         lt = time.localtime()
         val = (time.mktime(lt) - time.mktime(gt)) / 60.0 / 60.0
+        if lt.tm_isdst == 1:
+            val += 1
         self.setDisplayValue(val)
 
 
