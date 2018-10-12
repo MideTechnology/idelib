@@ -307,6 +307,7 @@ class ConfigBase(object):
             "ToolTip": "tooltip",
             "Units": "units",
             "DisableIf": "disableIf",
+            "ExcludeID": "exclude",
             "DisplayFormat": "displayFormat",
             "ValueFormat": "valueFormat",
             "MaxLength": "maxLength",
@@ -411,12 +412,17 @@ class ConfigBase(object):
             self.setAttribDefault(v, None)
         
         self.valueType = self.DEFAULT_TYPE
+        self.exclude = []
         
         for el in self.element.value:
             if el.name in FIELD_TYPES:
                 # Child field: skip now, handle later (if applicable)
                 continue
             
+            if el.name == "ExcludeID":
+                self.exclude.append(el.value)
+                continue
+                
             if el.name.endswith('Value'):
                 # If the field has a '*Value' element, the field will use that
                 # type when saving to the config file.
@@ -442,7 +448,7 @@ class ConfigBase(object):
         
         if self.disableIf is not None:
             self.disableIf = self.makeExpression(self.disableIf, 'disableIf')
-        
+            
         if self.configId is not None and self.root is not None:
             self.root.configItems[self.configId] = self
         
@@ -709,6 +715,10 @@ class ConfigWidget(wx.Panel, ConfigBase):
     def OnCheck(self, evt):
         """ Handle checkbox changing.
         """
+        if evt.Checked():
+            for cid in self.exclude:
+                if cid in self.root.configItems:
+                    self.root.configItems[cid].setCheck(False)
         self.root.updateDisabledItems()
         evt.Skip()
 
