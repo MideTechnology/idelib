@@ -851,7 +851,9 @@ def updateFirmware(parent=None, device=None, filename=None):
                       "recorders except the one you wish to update.", 
                       "Update Firmware")
     if device is None:
-        device = device_dialog.selectDevice(parent=parent, hideClock=True, 
+        device = device_dialog.selectDevice(parent=parent, hideClock=True,
+                                            hideRecord=True, okText="Update",
+                                            okHelp="Start firmware update on selected device", 
                                             types=RECORDER_TYPES)
     if device is None:
         return False
