@@ -280,7 +280,7 @@ class SlamStickX(Recorder):
     @property
     def canCopyFirmware(self):
         """ Can the device get new firmware/bootloader/userpage from a file? """
-        return self.path is not None and self.firmwareVersion >= 17
+        return self.path is not None and self.firmwareVersion >= 20
 
 
     def getAccelRange(self, channel=8, subchannel=0, rounded=True, refresh=False):
