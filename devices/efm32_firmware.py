@@ -89,6 +89,7 @@ class ValidationError(ValueError):
         super(ValidationError, self).__init__(msg)
         self.exception = exception
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -106,6 +107,9 @@ class FirmwareUpdater(object):
     
     MIN_FILE_SIZE = 1024
     PAGE_SIZE = 2048
+    
+    MAX_FW_SIZE = 507 * 1024
+    MAX_BOOT_SIZE = 16 * 1024
 
     # Default serial communication parameters. Same as keyword arguments to
     # `serial.Serial`.
@@ -129,6 +133,13 @@ class FirmwareUpdater(object):
     #===========================================================================
     
     def __init__(self, device=None, filename=None, strict=True):
+        """ Constructor.
+        
+            @keyword device: The `devices.base.Recorder` object to update.
+            @keyword filename: The name of the .FW file to use.
+            @keyword strict: If `True`, perform more rigorous validation.
+        """
+        self.strict = strict
         self.device = device
         self.filename = filename
         self.password = self.ZIPPW
@@ -157,13 +168,56 @@ class FirmwareUpdater(object):
     # 
     #===========================================================================
     
+    def validateFirmware(self, fwBin, strict=True):
+        """
+        """
+        fwLen = len(fwBin)
+        if fwLen < self.MIN_FILE_SIZE:
+            raise ValueError("Firmware binary too small (%d bytes)" % fwLen)
+        elif fwLen > self.MAX_FW_SIZE:
+            raise ValueError("Firmware binary too large (%d bytes)" % fwLen)
+    
+        # Sanity check: Make sure the binary contains the expected string
+        if strict and self.MIDE_STRING not in fwBin:
+            raise ValidationError("Could not verify firmware binary's origin")
+        
+        return True
+    
+    
+    def validateBootloader(self, bootBin, strict=True):
+        """
+        """
+        bootLen = len(bootBin)
+        if bootLen < self.MIN_FILE_SIZE:
+            raise ValueError("Bootloader binary too small (%d bytes)" % bootLen)
+        elif bootLen > self.MAX_BOOT_SIZE:
+            raise ValueError("Bootloader binary too large (%d bytes)" % bootLen)
+
+        # TODO: Additional bootloader validation (raising `ValidationError`)?
+        return True
+
+    
+    def validateUserpage(self, payload, strict=True):
+        """
+        """
+        if len(payload) != self.PAGE_SIZE:
+            raise ValueError("Userpage block was %d bytes; should be %d" % \
+                             (len(payload), self.PAGE_SIZE))
+            
+        # TODO: Additional userpage validation (raising `ValidationError`)?
+        return True
+    
+    
     def openFirmwareFile(self, filename=None, password=None, strict=True):
         """
-            @raise zipfile.BadZipfile: If the file isn't a zip
-            @raise ValidationError: If the `info.json` file can't be parsed
-            @raise KeyError: If a file couldn't be found in the zip
             @raise IOError: If the file doesn't exist, or other such issues
+            @raise KeyError: If a file couldn't be found in the zip
             @raise RuntimeError: If the password is incorrect
+            @raise ValidationError: If the `info.json` file can't be parsed,
+                or the firmware binary fails validation.
+            @raise ValueError: If the firmware or bootloader are an invalid
+                size.
+            @raise zipfile.BadZipfile: If the file isn't a zip
         """
         bootBin = None
         
@@ -185,15 +239,13 @@ class FirmwareUpdater(object):
                 raise ValueError("Can't read package format version %d" % packageFormat)
             
             appName = info.get('app_name', 'app.bin')
-            bootName = info.get('boot_name', 'boot.bin')
             fwBin = fwzip.read(appName, password)
-            if len(fwBin) < self.MIN_FILE_SIZE:
-                raise ValueError("Firmware binary too small (%d bytes)" % len(fwBin))
+            self.validateFirmware(fwBin, strict=strict)
             
+            bootName = info.get('boot_name', 'boot.bin')
             if bootName in contents:
                 bootBin = fwzip.read(bootName, password)
-                if len(bootBin) < self.MIN_FILE_SIZE:
-                    raise ValueError("Bootloader binary too small (%d bytes)" % len(bootBin))
+                self.validateBootloader(bootBin, strict=strict)
 
             if 'release_notes.txt' in contents:
                 self.releaseNotes = fwzip.read('release_notes.txt', password)
@@ -204,10 +256,6 @@ class FirmwareUpdater(object):
 #                 if n in contents:
 #                     self.releaseNotes = (n,fwzip.read(n, password))
 #                     break
-         
-        # Sanity check: Make sure the binary contains the expected string
-        if strict and self.MIDE_STRING not in fwBin:
-            raise ValidationError("Could not verify firmware binary's origin")
         
         self.info = info
         self.fwBin = fwBin
@@ -301,7 +349,7 @@ class FirmwareUpdater(object):
         """
         self.myPort.write("r") # reset
         self.myPort.close()
-        
+    
 
     #===============================================================================
     # Low-level bootloader communication stuff
@@ -336,6 +384,7 @@ class FirmwareUpdater(object):
 
     def _uploadData(self, command, payload, response='Ready'):
         """ Helper method to upload data.
+            @see: `FirmwareUpdater.uploadData()`
         """
         self.flush()
         if self.sendCommand(command, response):
@@ -350,9 +399,16 @@ class FirmwareUpdater(object):
         return False
 
 
-    def uploadData(self, command, payload, response='Ready'):
+    def uploadData(self, command, payload, response='Ready', retries=5):
+        """ Helper method to upload data. Will try repeatedly before failing.
+        
+            @param command: The bootloader command character.
+            @param payload: The binary data to upload.
+            @keyword response: The expected response from the bootloader.
+            @keyword retries: The number of attempts to make.
+        """
         ex = None
-        for i in range(5):
+        for i in xrange(retries):
             try:
                 return self._uploadData(command, payload)
             except serial.SerialTimeoutException as ex:
@@ -365,37 +421,60 @@ class FirmwareUpdater(object):
     
     
     def uploadBootloader(self, payload=None):
-        """
+        """ Upload a new bootloader binary.
+        
             @keyword payload: An alternative payload, to be used instead of the
                 object's `bootBin` attribute.
         """
-        payload = self.bootBin if payload is None else payload
         if payload is None:
-            logger.info("No bootloader in package")
-            return True
-        if len(payload) < self.MIN_FILE_SIZE:
-            raise ValueError("Bootloader upload payload too small")
-        
+            payload = self.bootBin
+        else:
+            self.validateBootloader(payload, strict=self.strict)
+            
         return self.uploadData("d", payload)
 
 
     def uploadApp(self, payload=None):
-        """
+        """ Upload new firmware.
+        
             @keyword payload: An alternative payload, to be used instead of the
                 object's `fwBin` attribute.
         """
-        payload = self.fwBin if payload is None else payload
-        if len(payload) < self.MIN_FILE_SIZE:
-            raise ValueError("Firmware upload payload too small")
-        
+        if payload is None:
+            payload = self.fwBin
+        else:
+            self.validateFirmware(payload, strict=self.strict)
+
         return self.uploadData("u", payload)
 
 
+    def uploadUserpage(self, payload=None):
+        """ Upload the userpage data.
+        
+            @keyword payload: An alternative payload, to be used instead of the
+                object's `payload` attribute.
+        """
+        if payload is None:
+            payload = self.userpage
+        else:
+            self.validateUserpage(payload, strict=self.strict)
+
+        return self.uploadData("t", payload)
+        
+    
     def uploadDebugLock(self):
         if not self.sendCommand("l", "OK"):
             logger.error("Bootloader: Bad response when setting debug lock!")
             return False
         return True
+    
+    
+    def finalize(self):
+        """ Apply the finishing touches to the firmware/bootloader/userpage
+            update.
+        """
+        # Bootloader serial connection doesn't need to do anything extra.
+        self.disconnect()
     
     
     #===========================================================================
@@ -447,21 +526,9 @@ class FirmwareUpdater(object):
         return data
 
 
-    def sendUserpage(self, payload=None):
-        """ Upload the userpage data.
-            @keyword payload: An alternative payload, to be used instead of the
-                object's `payload` attribute.
-        """
-        payload = self.userpage if payload is None else payload
-        if len(payload) != self.PAGE_SIZE:
-            raise ValueError("Userpage block was %d bytes; should be %d" % \
-                             (len(payload), self.PAGE_SIZE))
-        
-        return self.uploadData("t", payload)
-        
-    
     def getVersionAndId(self):
-        """
+        """ Get the bootloader version and the EFM32 chip UID.
+        
             @return: A tuple containing the bootloader version and chip ID.
         """
         self.myPort.write("i")
@@ -487,6 +554,13 @@ class FirmwareUpdater(object):
     #===========================================================================
     
     def readTemplate(self, z, name, schema, password=None):
+        """ Read an EBML template from a compressed file.
+        
+            @param z: The archive (zip) file to read.
+            @param name: The name of the EBML file within the zip.
+            @param schema: The EBML file's schema.
+            @keyword password: The archive password (if any).
+        """
         if name not in self.contents:
             return None
         try:
@@ -497,7 +571,8 @@ class FirmwareUpdater(object):
     
     
     def updateManifest(self):
-        """
+        """ Generate a new, updated set of USERPAGE data (manifest, calibration,
+            and (optionally) userpage).
         """
         templateBase = 'templates/%s/%d' % (self.device.partNumber, self.device.hardwareVersion)
         manTempName = "%s/manifest.template.ebml" % templateBase
@@ -608,7 +683,109 @@ class FirmwareUpdater(object):
         
         self.userpage = self.makeUserpage(self.manifest, self.cal, self.props)
 
+
+#===============================================================================
+# 
+#===============================================================================
+
+class FirmwareFileUpdater(FirmwareUpdater):
+    """ Object to handle validating firmware files and uploading them to a
+        recorder via files copied to the device.
         
+        Firmware files are zips containing the firmware binary plus additional
+        metadata.
+    """
+    
+    def clean(self):
+        """ Remove any old update files.
+        """
+        for f in (self.device.BOOTLOADER_UPDATE_FILE, 
+                  self.device.FW_UPDATE_FILE,
+                  self.device.USERPAGE_UPDATE_FILE):
+            
+            filename = os.path.join(self.device.path, f)
+            try:
+                if os.path.exists(filename):
+                    os.remove(filename)
+            except (IOError, WindowsError):
+                logger.error('Could not remove file %r' % filename)
+                return False
+            
+        return True
+    
+    
+    def _writeFile(self, filename, content):
+        """ Helper method to write to a file on the current device.
+        """
+        filename = os.path.join(self.device.path, filename)
+        try:
+            with open(filename, 'wb') as f:
+                f.write(content)
+            return True
+        except (IOError, WindowsError):
+            return False
+        
+    
+    def uploadBootloader(self, payload=None):
+        """ Install a new bootloader binary via an update file (specified in 
+            the device's `BOOTLOADER_UPDATE_FILE`).
+        
+            @keyword payload: An alternative payload, to be used instead of the
+                object's `bootBin` attribute.
+        """
+        if payload is None:
+            payload = self.bootBin
+        else:
+            self.validateBootloader(payload, strict=self.strict)
+
+        return self._writeFile(self.device.BOOTLOADER_UPDATE_FILE, payload)
+
+
+    def uploadApp(self, payload=None):
+        """ Install new firmware via an update file (specified in the device's
+            `FW_UPDATE_FILE`).
+        
+            @keyword payload: An alternative payload, to be used instead of the
+                object's `fwBin` attribute.
+        """
+        if payload is None:
+            payload = self.fwBin
+        else:
+            self.validateFirmware(payload, strict=self.strict)
+        
+        return self._writeFile(self.device.FW_UPDATE_FILE, payload)
+
+
+    def uploadUserpage(self, payload=None):
+        """ Install new userpage data via an update file (specified in the 
+            device's `USERPAGE_UPDATE_FILE`).
+        
+            @keyword payload: An alternative payload, to be used instead of the
+                object's `userpage` attribute.
+        """
+        if payload is None:
+            payload = self.userpage
+        else:
+            self.validateUserpage(payload, strict=self.strict)
+            
+        return self._writeFile(self.device.USERPAGE_UPDATE_FILE, payload)
+
+
+    def finalize(self):
+        """ Apply the finishing touches to the firmware/bootloader/userpage
+            update.
+        """
+        # XXX: send the command to actually perform the update
+        pass
+    
+
+    def disconnect(self):
+        """ Reset the device.
+        """
+        # XXX: Implement a reboot?
+        pass
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -644,7 +821,11 @@ class FirmwareUpdateDialog(wx.Dialog):
     
     
     def __init__(self, *args, **kwargs):
-        """
+        """ Constructor. Takes standard `wx.Dialog` arguments, plus:
+            
+            @keyword firmware: The firmware file to upload.
+            @keyword device: The `devices.base.Recorder` subclass instance to
+                update.
         """
         self.firmware = kwargs.pop('firmware', None)
         self.device = kwargs.pop('device', None)
@@ -714,7 +895,7 @@ class FirmwareUpdateDialog(wx.Dialog):
         
     
     def startSerialScan(self):
-        """
+        """ Start searching for a recorder in bootloader mode.
         """
         self.setLabels("Waiting for Recorder...",
                         "Press and hold the recorder's %s button "
@@ -770,6 +951,8 @@ class FirmwareUpdateDialog(wx.Dialog):
                 
 
     def OnTimeout(self, evt):
+        """ Handle serial scan timeout.
+        """
         self.throbber.Rest()        
         self.scanTimer.Stop()
         self.timeoutTimer.Stop()
@@ -780,6 +963,8 @@ class FirmwareUpdateDialog(wx.Dialog):
 
 
     def updateFirmware(self):
+        """ Perform the firmware/userpage and/or bootloader update.
+        """
         self.setLabels(msg="Do not disconnect your recorder!")
         msg = "performing the update"
         
@@ -797,10 +982,10 @@ class FirmwareUpdateDialog(wx.Dialog):
             
             msg = "uploading Manifest data"
             self.setLabels("%s..." % msg.title())
-            self.firmware.sendUserpage()
+            self.firmware.uploadUserpage()
 
             try:
-                self.firmware.disconnect()
+                self.firmware.finalize()
                 wx.MilliSleep(250)
             except IOError:
                 pass
@@ -809,8 +994,8 @@ class FirmwareUpdateDialog(wx.Dialog):
                           "You may now disconnect your recorder.", 
                           "Update Complete")
             
-        except (ValueError, IOError) as _err:
-            logger.error(str(_err))
+        except (ValueError, IOError) as err:
+            logger.error(str(err))
             try:
                 self.firmware.disconnect()
             except IOError:

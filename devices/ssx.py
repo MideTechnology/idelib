@@ -40,9 +40,12 @@ class SlamStickX(Recorder):
     RECPROP_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVPROPS")
     CONFIG_UI_FILE = os.path.join(SYSTEM_PATH, "CONFIG.UI")
     COMMAND_FILE = os.path.join(SYSTEM_PATH, "DEV", "Command")
-    
     CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
     USERCAL_FILE = os.path.join(SYSTEM_PATH, "usercal.dat")
+    
+    FW_UPDATE_FILE = os.path.join(SYSTEM_PATH, 'firmware.bin')
+    BOOTLOADER_UPDATE_FILE = os.path.join(SYSTEM_PATH, 'boot.bin')
+    USERPAGE_UPDATE_FILE = os.path.join(SYSTEM_PATH, 'userpage.bin')
     
     TIME_PARSER = struct.Struct("<L")
 
@@ -272,6 +275,12 @@ class SlamStickX(Recorder):
     def canRecord(self):
         """ Can the device record on command? """
         return self.commandFile and self.firmwareVersion >= 17
+
+
+    @property
+    def canCopyFirmware(self):
+        """ Can the device get new firmware/bootloader/userpage from a file? """
+        return self.path is not None and self.firmwareVersion >= 17
 
 
     def getAccelRange(self, channel=8, subchannel=0, rounded=True, refresh=False):
