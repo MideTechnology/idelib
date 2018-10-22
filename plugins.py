@@ -1,21 +1,21 @@
 """
-The basis of a simple plug-in architecture. Plug-ins can be imported modules, 
+The basis of a simple plug-in architecture. Plug-ins can be imported modules,
 directories, or zip files with a different extension. Directories and zips
-are imported by path (e.g. the name of the zip file) and must contain at least 
+are imported by path (e.g. the name of the zip file) and must contain at least
 two items:
 
   * info.json:  A JSON file containing vital information about the plugin.
-                At minimum, it must contain a ``module`` and a``type``. 
+                At minimum, it must contain a ``module`` and a``type``.
                 The "module" should be the name of the file defining the
                 plugin, typically the same as the directory or compressed
                 file. It must be unique. The "type" is an arbitrary string,
                 to be used by the host application.
-                  
+
   * <name>.py:  The module containing the actual plugin. It must define an
                 `init()` function which returns a function-like object;
                 this object is what gets called when the plugin is used.
                 The name should match that of the directory or compressed
-                file. `init()` is called by its wrapper `Plugin.load()`, with 
+                file. `init()` is called by its wrapper `Plugin.load()`, with
                 the wrapper object as the first argument. Arguments and/or
                 keywords used with `Plugin.load()` are passed to `init()`
                 verbatim.
@@ -25,7 +25,7 @@ in a `Plugin` object. They are the same as the Python in a file/directory-based
 plug-in, but the metadata is stored in a `PLUGIN_INFO` attribute (a dictionary,
 the same content as a parsed ``info.json`` file).
 
-Plug-ins embedded in a packaged Python app (PyInstaller, Py2Exe) are most 
+Plug-ins embedded in a packaged Python app (PyInstaller, Py2Exe) are most
 easily handled as modules.
 
 Plug-In Info
@@ -33,10 +33,10 @@ Plug-In Info
 Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
   * app (string): The name of the app for which the plug-in was written. May
       contain glob-style wildcards.
-  * architecture (string): The required system architecture, ``32bit`` or 
+  * architecture (string): The required system architecture, ``32bit`` or
       ``64bit``.
   * minAppVersion (tuple/list of integers): The minimum version of the app with
-      which the plug-in is compatible. Can be one to three items long. 
+      which the plug-in is compatible. Can be one to three items long.
   * maxAppVersion (tuple/list of integers): The maximum version of the app with
       which the plug-in is compatible.
   * minPythonVersion (tuple/list of integers): The minimum version of Python
@@ -46,7 +46,7 @@ Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
 
 How it Works (TL;DR version)
 ============================
-* The plug-in (supplied as a filename or an imported module) is added to 
+* The plug-in (supplied as a filename or an imported module) is added to
     the `PluginSet` via `PluginSet.add()`.
 * Before use, the plug-in is loaded via `Plugin.load()` or `PluginSet.load()`.
     This calls the plug-in's `init()` function, which returns a function-like
@@ -56,40 +56,17 @@ How it Works (TL;DR version)
     `Plugin.load()` is optional; it will get loaded when the plug-in is called.
 * When the plug-in is called (i.e. used like a function), the function/object
     returned by the plug-in's `init()` (as described in the previous step) is
-    called. 
+    called.
 
 Plug-In `init()` Function
 =========================
-The critical component of a plug-in is an `init()` function, which is called
-when a plug-in is loaded. `init()` returns a callable object, which is called
-when the plug-in is executed. 
-
-The arguments of the `init()` function are entirely up to the implementor; any
-arguments or keyword arguments used with `Plugin.load()` are passed directly to
-the plug-in's `init()`. In many cases, `init()` will require no arguments, and
-it will simply return a function defined elsewhere in the plug-in module. A
-more advanced `init()` could function as a factory, dynamically generating a
-function-like object or class, possibly using arguments supplied with 
-`Plugin.load()`.
-
-Like `init()`, the arguments required by the callable object are up to the
-implementor; any arguments supplied when calling `Plugin.__call__()` get
-passed to it.
-
-Calling a Plug-In
-=================
-A `Plugin` instance can be called like a function. When called, it calls the
-object returned by the plug-in module's `init()` function. 
-
-TODO
-====
 
 @todo: More documentation. Specifically, more about the anatomy of a plug-in
     module.
 
-@todo: Support imports of other packages in the plug-in. Possibly add a 
+@todo: Support imports of other packages in the plug-in. Possibly add a
     ``packages`` item to the JSON, listing the other packages in the archive.
-    These can then be imported first, and the main module can be imported; 
+    These can then be imported first, and the main module can be imported;
     its import statements should find the other packages.
 
 @todo: Change the name of `init()` to something more specific, like
@@ -133,17 +110,17 @@ import weakref
 import zipimport
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class PluginImportError(ImportError):
     """ General exception raised when a plug-in fails to load. Base class for
         other plugin error exceptions; catch last.
-        
+
         @ivar message: Description of the error.
         @ivar path: The path to the plug-in, if applicable.
-        @ivar exception: The exception that caused this exception to be 
-            raised, if applicable. 
+        @ivar exception: The exception that caused this exception to be
+            raised, if applicable.
     """
     def __init__(self, message='', path='', exception=None):
         if not message:
@@ -171,21 +148,21 @@ class PluginCompatibilityError(PluginImportError):
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class Plugin(object):
-    """ A wrapper for a plug-in component, as represented in the host 
-        application. It handles loading the actual plug-in code, reading from 
-        either a compressed file or a directory (if permitted). 
-        
+    """ A wrapper for a plug-in component, as represented in the host
+        application. It handles loading the actual plug-in code, reading from
+        either a compressed file or a directory (if permitted).
+
         After initialization, the plug-in must still be loaded before use.
         The actual import of the plug-in module happens then.
-        
+
         @cvar PLUGIN_EXT: A collection of valid file extensions for plug-ins.
     """
     PLUGIN_EXT = (".plg", ".zip")
-    
+
     @classmethod
     def isPlugin(cls, p, useSource=True):
         """ Test a given path or module for plugin-ness.
@@ -206,7 +183,7 @@ class Plugin(object):
     def isNewer(v1, v2):
         """ Compare two sets of version numbers `(major, [minor, [micro]])`.
             If the version tuples are of different lengths, only the smaller
-            number of items is used in the comparison (e.g. `(1,2)` and 
+            number of items is used in the comparison (e.g. `(1,2)` and
             `(1,2,3)` are considered equal).
         """
         if v1 is None or v2 is None:
@@ -221,9 +198,9 @@ class Plugin(object):
                     return v > u
         except TypeError:
             return False
-        
+
         return False
-    
+
 
     def __repr__(self):
         args = (self.__class__.__name__, self.moduleName, self.path)
@@ -232,23 +209,23 @@ class Plugin(object):
         else:
             r = u'<%s (unloaded) %s %s>' % args
         return r.encode('ascii', 'replace')
-    
-    
+
+
     def __init__(self, path, useSource=True, app=None, appVersion=None):
-        """ Constructor. 
-        
+        """ Constructor.
+
             @param path: The path to the plugin. Any file extension is
                 ignored. May also be an imported module with the proper
                 attributes.
             @keyword useSource: If `True`, an uncompressed version of the
-                plugin will be loaded if available. 
+                plugin will be loaded if available.
         """
         self.bad = True
         self.module = None
         self.main = None
         self.moduleName = None
         self.isModule = False
-        
+
         # The plugin is an imported module. Just get the relevant data from it.
         # Module plugins are not otherwise validated, since they were imported
         # explicitly.
@@ -259,29 +236,29 @@ class Plugin(object):
                 self.info = path.PLUGIN_INFO.copy()
                 self.type = self.info['type']
             except (KeyError, AttributeError) as err:
-                raise PluginImportError('Could not find plugin info in', 
+                raise PluginImportError('Could not find plugin info in',
                                         path, err)
             self.module = path
             self.moduleName = path.__name__
             self.path = path.__file__
-            
+
             self.validate(app, appVersion)
             return
-        
+
         # The plugin could be a directory name, or the name of a compressed
         # file (with an extension in `Plugin.PLUGIN_EXT`). For convenience, the
         # extension '.zip' is also valid; if both exist, the former is used.
         path = os.path.realpath(os.path.expanduser(path))
         try:
             dirPath = os.path.splitext(path)[0]
-            zipPaths = filter(os.path.isfile, 
+            zipPaths = filter(os.path.isfile,
                               [dirPath + x for x in self.PLUGIN_EXT])
         except (AttributeError, TypeError) as err:
             raise PluginImportError("Bad path:", path, err)
-        
+
         # Find the plugin's file or directory. If `useSource`, an
         # uncompressed directory takes precedence.
-        if useSource and os.path.isdir(dirPath): 
+        if useSource and os.path.isdir(dirPath):
             self.path = dirPath
             self.isDir = True
         elif len(zipPaths) > 0:
@@ -302,10 +279,10 @@ class Plugin(object):
                 self.zip = zipimport.zipimporter(self.path)
                 self.info = json.loads(self.zip.get_data(u'info.json'), 'utf8')
         except (IOError, ImportError) as err:
-            raise PluginImportError('Could not find plugin info in', 
+            raise PluginImportError('Could not find plugin info in',
                                     self.path, err)
         except ValueError as err:
-            raise PluginImportError('Could not read plugin info from', 
+            raise PluginImportError('Could not read plugin info from',
                                     self.path, err)
 
         # Validate the plugin, using information from the info file.
@@ -325,7 +302,7 @@ class Plugin(object):
                 self.moduleName = self.info['module']
             self.name = self.info.get('name', self.moduleName)
         except (KeyError, AttributeError) as err:
-            raise PluginImportError('Could not find plugin info in', 
+            raise PluginImportError('Could not find plugin info in',
                                     self.path, err)
 
         # Check processor compatibility (e.g. if the plugin has native parts)
@@ -367,7 +344,7 @@ class Plugin(object):
                "Plugin requires Python version %s%s, this is %s" %
                ('.'.join(map(str, pyMinVers)), msg, pyVersStr),
                self.path)
-        
+
         if pyMaxVers and self.isNewer(sys.version_info, pyMaxVers):
             if pyMinVers:
                 msg = "%s to" % ('.'.join(map(str, pyMinVers)))
@@ -382,7 +359,7 @@ class Plugin(object):
                 raise PluginCompatibilityError(
                     "Plugin is for %r, not %r" % (self.info['app'], app),
                     self.path)
-        
+
         # Check for compatibility with version
         if appVersion is not None:
             if self.isNewer(self.info.get('minAppVersion', None), appVersion):
@@ -393,7 +370,7 @@ class Plugin(object):
                 raise PluginCompatibilityError(
                     "Plugin requires version %r or older, not %r" % \
                     (self.info['maxAppVersion'], appVersion), self.path)
-        
+
         # Check for duplicate modules
         try:
             imp.find_module(self.moduleName)
@@ -402,12 +379,12 @@ class Plugin(object):
         except ImportError:
             # This is good: the module doesn't already exist.
             pass
-        
+
         self.modules = self.info.get('modules', [])
-        
+
         # TODO: Additional validation (check signatures, etc.)
         self.bad = False
-        
+
 
     @property
     def main(self):
@@ -424,8 +401,8 @@ class Plugin(object):
         """
         """
         self._mainRef = weakref.ref(fn)
-    
-    
+
+
     @property
     def loaded(self):
         return self.main is not None
@@ -435,14 +412,14 @@ class Plugin(object):
         """ Import the plugin's code. The module is loaded and its
             `init()` function is called, which should return a function-like
             object (the plugin itself). The actual plugin is not executed.
-            
+
             Arguments and keyword arguments are passed directly to the
-            plugin's `init()` function. 
+            plugin's `init()` function.
         """
         if self.bad:
             raise PluginImportError("Cannot load bad plugin %r "
                                     "(see previous errors)" % self.moduleName)
-        
+
         self.bad = True
         if self.module is None:
             try:
@@ -458,22 +435,22 @@ class Plugin(object):
                 else:
                     # Import from the compressed file.
                     # The library handles loading source vs. compiled.
-                    
+
                     # Import submodules first, to resolve dependencies.
                     # Not needed when importing an uncompressed file.
                     for m in self.modules:
                         self.zip.load_module(m)
-                        
+
                     self.module = self.zip.load_module(self.moduleName)
-                    
+
             except (SyntaxError, ImportError, IOError) as err:
                 raise PluginImportError("Could not import %r from" % \
                                         self.moduleName, self.path, err)
-        
+
         if not hasattr(self.module, 'init'):
-            raise PluginImportError("No 'init' function in plugin", 
+            raise PluginImportError("No 'init' function in plugin",
                                     self.path)
-        
+
         self.bad = False
         self.main = self.module.init(self, *args, **kwargs)
         self.__call__.__func__.__doc__ = self.main.__doc__
@@ -488,7 +465,7 @@ class Plugin(object):
             del main
             if collect:
                 gc.collect()
-        
+
 
     def __call__(self, *args, **kwargs):
         """ Execute the plug-in. This calls the function-like object returned
@@ -501,12 +478,12 @@ class Plugin(object):
 
 
     #===========================================================================
-    # 
+    #
     #===========================================================================
 
     def getResource(self, path, **kwargs):
-        """ Get a data file included in the plugin. 
-        
+        """ Get a data file included in the plugin.
+
             @param path: The path/name of the file to read.
             @keyword default: If supplied, this value will be returned if the
                 specified resource could not be found/read. If no default is
@@ -518,7 +495,7 @@ class Plugin(object):
                 return self.getResource(path)
             except IOError:
                 return kwargs.get('default')
-        
+
         if self.isDir:
             with open(os.path.join(self.path, path), 'rb') as f:
                 return f.read()
@@ -528,12 +505,12 @@ class Plugin(object):
             try:
                 return self.zip.get_data(path)
             except IOError as err:
-                raise IOError(errno.ENOENT, 'No such file or directory', 
+                raise IOError(errno.ENOENT, 'No such file or directory',
                               err.filename)
-                
+
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class PluginSet(IterableUserDict, object):
@@ -541,16 +518,16 @@ class PluginSet(IterableUserDict, object):
         Functions like a dictionary, with plugins keyed by name. The `PluginSet`
         also provides some simple organization (e.g. filtering and sorting by
         data from the plug-ins' info).
-        
-        @ivar pluginTypes: A dictionary of all discovered plugin types. 
+
+        @ivar pluginTypes: A dictionary of all discovered plugin types.
             The type is the key, the value is a list of plugins of that type.
-        @ivar bad: A list of bad plugins (malformed, could not be imported, 
+        @ivar bad: A list of bad plugins (malformed, could not be imported,
             missing metadata, etc.)
         @ivar dupes: A list of duplicate plugins. Plugins require unique names.
         @ivar incompatible: A list of plugins incompatible with the app and/or
             version used when `PluginSet.add()` is called.
     """
-    
+
     @staticmethod
     def _isWildcard(s):
         try:
@@ -559,17 +536,17 @@ class PluginSet(IterableUserDict, object):
             return False
 
 
-    def __init__(self, paths=None, app=None, appVersion=None, useSource=True, 
+    def __init__(self, paths=None, app=None, appVersion=None, useSource=True,
                  quiet=False):
-        """ Constructor. 
-        
+        """ Constructor.
+
             @keyword paths: The path to a plugin file or directory, an imported
                 module containing a plugin, or a collection of the two. Paths
                 may contain glob-style wildcards.
             @keyword useSource: If `True`, unpackaged plugin directories will
-                be imported in favor of the packaged versions. 
+                be imported in favor of the packaged versions.
             @keyword quiet: If `True`, plugin import errors will be suppressed.
-                Bad imports will be added to the object's `bad` and `dupes` 
+                Bad imports will be added to the object's `bad` and `dupes`
                 lists.
         """
         super(PluginSet, self).__init__()
@@ -580,16 +557,16 @@ class PluginSet(IterableUserDict, object):
 
         if paths is None:
             return
-        
-        self.add(paths, app=app, appVersion=appVersion, useSource=useSource, 
+
+        self.add(paths, app=app, appVersion=appVersion, useSource=useSource,
                  quiet=quiet)
-        
+
 
     def add(self, paths, app=None, appVersion=None, useSource=True, quiet=False,
             **kwargs):
         """ Add one or more plugins. The plugin will be imported but not
-            loaded (i.e. its `load()` method will not be called). 
-            
+            loaded (i.e. its `load()` method will not be called).
+
             @param paths: The path to a plugin file or directory, an imported
                 module containing a plugin, or a collection of the two. Paths
                 may contain glob-style wildcards.
@@ -599,19 +576,19 @@ class PluginSet(IterableUserDict, object):
                 will use the plugin. Compared to the version specified in the
                 plugin's metadata.
             @keyword useSource: If `True`, unpackaged plugin directories will
-                be imported in favor of the packaged versions. 
+                be imported in favor of the packaged versions.
             @keyword quiet: If `True`, plugin import errors will be suppressed.
-                Bad imports will be added to the object's `bad` and `dupes` 
+                Bad imports will be added to the object's `bad` and `dupes`
                 lists, regardless.
-            
-            Additional keyword arguments will be applied to the plugins as 
+
+            Additional keyword arguments will be applied to the plugins as
             attributes, provided they do not already exist.
         """
         if isinstance(paths, basestring) or not isinstance(paths, Sequence):
             paths = [paths]
-        
+
         map(paths.extend, (glob(p) for p in paths if self._isWildcard(p)))
-        
+
         err = None
         for path in paths:
             if not Plugin.isPlugin(path):
@@ -632,7 +609,7 @@ class PluginSet(IterableUserDict, object):
                 self.dupes.append(path)
             except PluginImportError as err:
                 self.bad.append((path, err))
-        
+
         if not quiet and err is not None:
             raise err
 
@@ -642,13 +619,13 @@ class PluginSet(IterableUserDict, object):
         """ Return a list of all plugin types.
         """
         return self.pluginTypes.keys()
-    
-    
+
+
     def find(self, **kwargs):
         """ Find all plugins with the specified values in their `info`. Plugins
             matching *all* of the specified criteria are returned.
- 
-            Parameters to match are provided as keyword arguments. Glob-style 
+
+            Parameters to match are provided as keyword arguments. Glob-style
             wildcards accepted as values. Examples:
                 plugins.find(name="Specific Tool") # Gets one plug-in
                 plugins.find(type="exporter") # Gets all of the specific type
@@ -678,8 +655,8 @@ class PluginSet(IterableUserDict, object):
         """ Find all plugins with the specified values in their `info`. Plugins
             matching *any* (i.e. one or more) of the specified criteria are
             returned.
- 
-            Parameters to match are provided as keyword arguments. Glob-style 
+
+            Parameters to match are provided as keyword arguments. Glob-style
             wildcards accepted as values. Examples:
                 plugins.find(name="Specific Tool") # Gets one plug-in
                 plugins.find(type="exporter") # Gets all of the specific type
@@ -698,8 +675,8 @@ class PluginSet(IterableUserDict, object):
                 except AttributeError:
                     continue
         return result
-    
-    
+
+
     def _getPlugins(self, plug):
         """ Get a list of `Plugin` objects from a name, a `Plugin` instance,
             (returns verbatim), or a list/tuple of the two.
@@ -716,12 +693,12 @@ class PluginSet(IterableUserDict, object):
         else:
             raise TypeError("%r is not a Plugin" % plug)
 
-    
+
     def load(self, plug, args=[], kwargs={}, quiet=False):
         """ Load a plugin. Wraps the plugin's `load()` method. Can be called
             with the name of a plugin, a `Plugin` object, or a list of
             either.
-            
+
             @param plug: The plugin(s) to load. Can be a `Plugin` object,
                 the name of a plugin, or a list of objects and/or names.
             @keyword args: A list of arguments to be passed to the plugin's
@@ -730,7 +707,7 @@ class PluginSet(IterableUserDict, object):
                 to the plugin's `load()` method.
             @keyword quiet: If `True`, plugins that fail to load will do so
                 without raising an exception.
-            @return: The loaded plugin, or a list of loaded plugins if 
+            @return: The loaded plugin, or a list of loaded plugins if
                 `plug` was a list.
         """
         err = None
@@ -752,17 +729,17 @@ class PluginSet(IterableUserDict, object):
         for p in self._getPlugins(plug):
             p.unload(collect=False)
         gc.collect()
-        
+
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 def makeInfo(mod, architecture=None, machine=None):
     """ Utility function to generate the data for an plugin's `info.json` file.
-        
+
         @param mod: The module for which to generate info.
-        @keyword architecture: The system architecture,``32bits``, ``64bits``, 
+        @keyword architecture: The system architecture,``32bits``, ``64bits``,
             or `True` to use the current system's architecture. Added to the
             plugin info. If `None`, the information is omitted. Use if the
             plugin is hardware-dependent.
@@ -771,11 +748,11 @@ def makeInfo(mod, architecture=None, machine=None):
             the plugin info. If `None`, the information is omitted. Use if the
             plugin is hardware-dependent.
     """
-    ignore = ('__all__', '__builtins__', '__file__', '__name__', '__package__', 
+    ignore = ('__all__', '__builtins__', '__file__', '__name__', '__package__',
               '__path__')
-    
+
     items = {'plugin_format_version': __version__}
-    
+
     if architecture is not None:
         if architecture is True:
             architecture = platform.architecture()[0]
@@ -784,7 +761,7 @@ def makeInfo(mod, architecture=None, machine=None):
         if machine is True:
             machine = platform.machine()
         items['machine'] = machine
-        
+
     if isinstance(mod, basestring):
         if os.path.exists(mod):
             # A module name or a path
@@ -797,13 +774,13 @@ def makeInfo(mod, architecture=None, machine=None):
                         items = json.load(f, 'utf8')
                 modName = items.get('moduleName', modName)
                 mod = os.path.join(mod, modName+".py")
-            
+
             mod = imp.load_source(modName, mod)
         else:
             import importlib
             mod = importlib.import_module(mod)
     headerInfo = [x for x in dir(mod) if x.startswith('__') and x not in ignore]
-    items.update({x.strip('_'): getattr(mod, x) 
+    items.update({x.strip('_'): getattr(mod, x)
                   for x in headerInfo if isinstance(getattr(mod, x), basestring)})
     items['moduleName'] = mod.__name__
     if hasattr(mod, "PLUGIN_INFO"):

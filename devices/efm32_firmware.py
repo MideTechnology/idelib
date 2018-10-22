@@ -458,7 +458,11 @@ class FirmwareUpdater(object):
             payload = self.bootBin
         else:
             self.validateBootloader(payload, strict=self.strict)
-            
+        
+        if not payload:
+            logger.info('No bootloader binary, continuing...')
+            return False
+        
         return self.uploadData("d", payload)
 
 
@@ -473,6 +477,10 @@ class FirmwareUpdater(object):
         else:
             self.validateFirmware(payload, strict=self.strict)
 
+        if not payload:
+            logger.info('No firmware binary, continuing...')
+            return False
+        
         return self.uploadData("u", payload)
 
 
@@ -487,6 +495,10 @@ class FirmwareUpdater(object):
         else:
             self.validateUserpage(payload, strict=self.strict)
 
+        if not payload:
+            logger.info('No USERPAGE data, continuing...')
+            return False
+        
         return self.uploadData("t", payload)
         
     
@@ -835,6 +847,10 @@ class FirmwareFileUpdater(FirmwareUpdater):
         else:
             self.validateBootloader(payload)
 
+        if not payload:
+            logger.info('No bootloader binary, continuing...')
+            return False
+
         return self._writeFile(self.device.BOOTLOADER_UPDATE_FILE, payload)
 
 
@@ -850,6 +866,10 @@ class FirmwareFileUpdater(FirmwareUpdater):
         else:
             self.validateFirmware(payload)
         
+        if not payload:
+            logger.info('No firmware binary, continuing...')
+            return False
+
         return self._writeFile(self.device.FW_UPDATE_FILE, payload)
 
 
@@ -865,6 +885,10 @@ class FirmwareFileUpdater(FirmwareUpdater):
         else:
             self.validateUserpage(payload)
             
+        if not payload:
+            logger.info('No USERPAGE data, continuing...')
+            return False
+
         return self._writeFile(self.device.USERPAGE_UPDATE_FILE, payload)
 
 
@@ -1170,9 +1194,9 @@ def updateFirmware(parent=None, device=None, filename=None):
                 "If you know you have already installed the driver "
                 "successfully, press OK.", 
                 "No Driver?", parent=parent, style=wx.OK|wx.CANCEL)#|wx.HELP)
-            if x == wx.HELP:
-                wx.MessageBox("No help yet.", "Firmware Update Help")
-                return
+#             if x == wx.HELP:
+#                 wx.MessageBox("No help yet.", "Firmware Update Help")
+#                 return
             if x != wx.OK:
                 return False
         
@@ -1216,20 +1240,6 @@ def updateFirmware(parent=None, device=None, filename=None):
         wx.MessageBox("This firmware update package could not be authenticated.", 
                       "Validation Error", parent=parent)
         return False
-    
-#     if update.releaseNotesHtml:
-#         content = update.releaseNotesHtml
-#     elif update.releaseNotes:
-#         # Plain text release notes. Attempt to do basic fixes for HTML display.
-#         content = update.releaseNotes.replace('\n', '<br/>')
-#     else:
-#         content = None
-#         
-#     if content:
-#         title = "%s Release Notes" % os.path.basename(filename)
-#         dlg = html_dialog.HtmlDialog(parent, content, title, setBgColor=False)
-#         dlg.Center()
-#         dlg.ShowModal()
 
     FirmwareUpdateDialog.showReleaseNotes(update, parent)
         

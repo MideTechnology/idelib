@@ -222,6 +222,7 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UIntegerElement name="BooleanValue" id="0x5100" multiple="0"></UIntegerElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
             </MasterElement>
@@ -232,6 +233,7 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UnicodeElement name="Units" id="0x5025" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <UIntegerElement name="UIntMin" id="0x5111" multiple="0"></UIntegerElement>
                 <UIntegerElement name="UIntMax" id="0x5121" multiple="0"></UIntegerElement>
                 <UnicodeElement name="TextValue" />
@@ -249,6 +251,7 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UnicodeElement name="Units" id="0x5025" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <IntegerElement name="IntMin" id="0x5112" multiple="0"></IntegerElement>
                 <IntegerElement name="IntMax" id="0x5122" type="integer" multiple="0"></IntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
@@ -269,6 +272,7 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UnicodeElement name="Units" id="0x5025" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <FloatElement name="FloatMin" id="0x5113" multiple="0"></FloatElement>
                 <FloatElement name="FloatMax" id="0x5123" multiple="0"></FloatElement>
                 <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
@@ -289,6 +293,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <UIntegerElement name="MaxLength" id="0x5124" multiple="0"></UIntegerElement>
                 <UIntegerElement name="TextLines" id="0x5134" multiple="0"></UIntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
@@ -305,6 +310,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <UIntegerElement name="MaxLength" id="0x5124" multiple="0"></UIntegerElement>
                 <UIntegerElement name="TextLines" id="0x5134" multiple="0"></UIntegerElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
@@ -323,6 +329,7 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UnicodeElement name="Units" id="0x5025" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <UnicodeElement name="TextValue" />
                 <StringElement name="ASCIIValue" />
                 <IntegerElement name="IntValue" />
@@ -348,6 +355,7 @@
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <UnicodeElement name="Units" id="0x5025" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UIntegerElement name="UIntValue" />
@@ -359,6 +367,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UnicodeElement name="TextValue" />
@@ -375,6 +384,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UnicodeElement name="TextValue" />
@@ -391,6 +401,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UnicodeElement name="TextValue" />
@@ -407,6 +418,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UnicodeElement name="TextValue" />
@@ -441,6 +453,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
@@ -475,6 +488,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UnicodeElement name="TextValue" />
@@ -509,6 +523,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
@@ -542,6 +557,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UnicodeElement name="TextValue" />
@@ -576,6 +592,7 @@
                 <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
                 <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+                <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <FloatElement name="FloatIncrement" id="0x5133" multiple="0"></FloatElement>
@@ -619,6 +636,7 @@
 
         <MasterElement name="CheckGroup" level="-1" id="0x4018" multiple="1">
             <!-- All these children have already been defined, so they can be abbreviated -->
+            <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
             <UnicodeElement name="Label" />
             <UnicodeElement name="ToolTip" />
             <MasterElement name="BooleanField" />
