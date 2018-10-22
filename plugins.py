@@ -106,7 +106,7 @@ import pkgutil
 import sys
 import types
 from UserDict import IterableUserDict
-import weakref
+# import weakref
 import zipimport
 
 #===============================================================================
@@ -386,21 +386,22 @@ class Plugin(object):
         self.bad = False
 
 
-    @property
-    def main(self):
-        """
-        """
-        try:
-            return self._mainRef()
-        except AttributeError:
-            return None
-
-
-    @main.setter
-    def main(self, fn):
-        """
-        """
-        self._mainRef = weakref.ref(fn)
+#     @property
+#     def main(self):
+#         """
+#         """
+#         try:
+#             return self._mainRef()
+#         except AttributeError:
+#             return None
+# 
+# 
+#     @main.setter
+#     def main(self, fn):
+#         """
+#         """
+#         if fn is not None:
+#             self._mainRef = weakref.ref(fn)
 
 
     @property
