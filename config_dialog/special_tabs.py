@@ -10,6 +10,7 @@ configuration system.
 import cgi
 from collections import OrderedDict
 from datetime import datetime
+import os.path
 import time
 
 import wx #@UnusedImport
@@ -223,13 +224,14 @@ class SSXInfoPanel(InfoPanel):
         on conditions of the recorder.
     """
     
-    ICONS = ('../resources/info.png', '../resources/warn.png', '../resources/error.png')
+    ICONS = ('resources/info.png', 'resources/warn.png', 'resources/error.png')
 
     def getDeviceData(self):
         man = self.root.device.manufacturer
         if man:
             self.data['Manufacturer'] = man
         super(SSXInfoPanel, self).getDeviceData()
+
 
     def buildUI(self):
         self.life = self.root.device.getEstLife()
@@ -238,6 +240,14 @@ class SSXInfoPanel(InfoPanel):
         self.calExp = self.root.device.getCalExpiration()
         self.calIcon = None
         self.calMsg = None
+        
+        # HACK: PyInstaller flattens the directory structure, so the 
+        # executable's path to RESOURCES is different than when running from
+        # source. Insert ``..`` if running from source.
+        curdir = os.path.dirname(__file__)
+        if not os.path.exists(os.path.realpath(os.path.join(curdir, self.ICONS[0]))):
+            curdir = os.path.join(curdir, '..')
+        self.ICONS = [os.path.realpath(os.path.join(curdir, x)) for x in self.ICONS]
         
         if self.life is not None:
             if self.life < 0:
@@ -270,6 +280,7 @@ class SSXInfoPanel(InfoPanel):
             escape = False
 
         super(SSXInfoPanel, self).addItem(k, v, escape=escape)
+        
         
     def buildFooter(self):
         warnings = filter(None, (self.lifeMsg, self.calMsg))
