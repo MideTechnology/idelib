@@ -79,6 +79,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.deviceTypes = kwargs.pop('types', RECORDER_TYPES)
         self.hideClock = kwargs.pop('hideClock', False)
         self.hideRecord = kwargs.pop('hideRecord', False)
+        self.showWarnings = kwargs.pop('showWarnings', True)
         okText = kwargs.pop('okText', "Configure")
         okHelp = kwargs.pop('okHelp', 'Configure the selected device')
         cancelText = kwargs.pop('cancelText', "Close")
@@ -202,7 +203,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         try:
             life = dev.getEstLife()
             calExp = dev.getCalExpiration()
-            freeSpace = dev.getFreeSpace()
+            freeSpace = dev.getFreeSpace() / 1024 / 1024
             
             if freeSpace is not None and freeSpace < 1:
                 tips.append("This device is nearly full (%.2f MB available). "
@@ -282,7 +283,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 self.itemDataMap[index] = [getattr(dev, c.propName, c.default) \
                                            for c in self.COLUMNS]
 
-                self.setItemIcon(index, dev)
+                if self.showWarnings:
+                    self.setItemIcon(index, dev)
                 
             except IOError:
                 wx.MessageBox(
@@ -300,6 +302,9 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             self.list.Fit()
             self.firstDrawing = False
 
+        if not self.recorders or not self.selected:
+            self.OnItemDeselected(None)
+            
         self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
 
 
@@ -341,7 +346,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.recordButton.Enable(False)
         self.recordButton.SetToolTipString(self.RECORD_UNSELECTED)
         
-        evt.Skip()
+        if evt is not None:
+            evt.Skip()
 
 
     def OnItemDoubleClick(self, evt):
@@ -403,6 +409,8 @@ def selectDevice(title="Select Recorder", parent=None, **kwargs):
             for changes to attached recorders. 0 will never update.
         @keyword parent: The parent window, if any.
         @keyword types: A list of possible recorder classes.
+        @keyword showWarnings: If `True`, battery age and calibration
+            expiration warnings will be shown for selected devices.
         @keyword hideClock: If `True`, the "Set all clocks" button will be
             hidden.
         @keyword hideRecord: If `True`, the "Start Recording" button will be

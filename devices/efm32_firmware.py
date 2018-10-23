@@ -12,6 +12,7 @@ from fnmatch import fnmatch
 from glob import glob
 import io
 import json
+import locale
 import os.path
 import struct
 import time
@@ -32,7 +33,9 @@ from logger import logger
 
 from mide_ebml.ebmlite import loadSchema
 
+from common import roundUp
 from updater import isNewer
+
 
 # TODO: Better way of identifying valid devices, probably part of the class.
 RECORDER_TYPES = [devices.SlamStickC, devices.SlamStickS, devices.SlamStickX]
@@ -791,6 +794,21 @@ class FirmwareFileUpdater(FirmwareUpdater):
         metadata.
     """
     
+    def getSpace(self):
+        """ Get the space required for the update and the device's free space,
+            both rounded up to the device filesystem's block size.
+        """
+        blockSize = devices.os_specific.getBlockSize(self.device.path)[0]
+        
+        needed = roundUp(self.PAGE_SIZE, blockSize)
+        if self.bootBin:
+            needed += roundUp(len(self.bootBin), blockSize)
+        if self.fwBin:
+            needed += roundUp(len(self.fwBin), blockSize)
+
+        return needed, self.device.getFreeSpace()
+        
+ 
     def isNewerBootloader(self, vers):
         """ Is the update package's bootloader newer than the one installed?
         """
@@ -896,16 +914,15 @@ class FirmwareFileUpdater(FirmwareUpdater):
         """ Apply the finishing touches to the firmware/bootloader/userpage
             update.
         """
-        # XXX: send the command to actually perform the update
-        pass
+        with open(self.device.commandFile, 'wb') as f:
+            f.write('ua')
     
 
     def disconnect(self):
         """ Reset the device.
         """
-        # XXX: Implement a reboot?
+        # Doesn't actually reset, since the device isn't in bootloader mode.
         self.clean()
-        pass
 
 
 #===============================================================================
@@ -1156,7 +1173,7 @@ class FirmwareUpdateDialog(wx.Dialog):
 # 
 #===============================================================================
 
-def updateFirmware(parent=None, device=None, filename=None):
+def updateFirmware(parent=None, device=None, filename=None, useFiles=True):
     """ Wrapper for starting the firmware update.
         
         @keyword parent: The parent window.
@@ -1164,6 +1181,9 @@ def updateFirmware(parent=None, device=None, filename=None):
             prompted to select one.
         @keyword filename: The firmware update package to use. If `None`, the
             user will be prompted to select one.
+        @keyword useFiles: If `True`, the filesystem-based update will be
+            used with devices that support it. If `False`, the serial-based
+            method will be used for all devices.
     """
     if len(devices.getDevices()) > 1:
         # warn user.
@@ -1172,16 +1192,18 @@ def updateFirmware(parent=None, device=None, filename=None):
                       "recorders except the one you wish to update.", 
                       "Update Firmware", parent=parent)
     if device is None:
-        device = device_dialog.selectDevice(parent=parent, hideClock=True,
-                                            hideRecord=True, okText="Update",
-                                            okHelp="Start firmware update on selected device", 
-                                            types=RECORDER_TYPES)
+        device = device_dialog.selectDevice(parent=parent, types=RECORDER_TYPES,
+                        showWarnings=False, hideClock=True, hideRecord=True, 
+                        okHelp="Start firmware update on selected device",
+                        okText="Update")
     if device is None:
         return False
     
-    logger.info("Device: %s, SN: %s, FwRev: %r" % (device.productName, device.serial, device.firmwareVersion))
+    logger.info("Device: %s, SN: %s, FwRev: %r" % (device.productName, 
+                                                   device.serial, 
+                                                   device.firmwareVersion))
     
-    useFiles = device.canCopyFirmware or wx.GetKeyState(wx.WXK_SHIFT)
+    useFiles = useFiles and device.canCopyFirmware
     
     if useFiles:
         logger.info("Preparing to use file transfer update method")
@@ -1214,9 +1236,24 @@ def updateFirmware(parent=None, device=None, filename=None):
     try:
         if useFiles:
             update = FirmwareFileUpdater(device, filename)
+            
+            need, free = update.getSpace()
+            need = roundUp(need, 1024)/1024
+            free = roundUp(free, 1024)/1024
+            if need > free:
+                free = locale.format("%d", free, grouping=True)
+                need = locale.format("%d", need, grouping=True)
+                wx.MessageBox(
+                  "The selected device does not have enough free space to update."
+                  "\n\nAt least %s KB required; only %s KB is free. Please delete "
+                  "some data from %s and try again." % (need, free, device.path), 
+                  "Firmware Update Error", parent=parent)
+                return False
         else:
             update = FirmwareUpdater(device, filename)
+            
         logger.info("Passed basic validation")
+        
     except (ValidationError, ValueError, KeyError) as err:
         # Various causes
         logger.error(str(err))
@@ -1228,12 +1265,14 @@ def updateFirmware(parent=None, device=None, filename=None):
                    "components, and is likely damaged.")
         wx.MessageBox(msg, "Validation Error", parent=parent)
         return False
+    
     except IOError as err:
         # Bad file
         logger.error(str(err))
         wx.MessageBox("This firmware update package could not be read.", 
                       "Validation Error", parent=parent)
         return False
+    
     except RuntimeError as err:
         # Bad password
         logger.error(str(err))

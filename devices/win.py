@@ -112,6 +112,7 @@ def getDeviceList(types):
 last_devices = 0
 last_recorders = None
 
+
 def deviceChanged(recordersOnly, types):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
@@ -140,13 +141,29 @@ def deviceChanged(recordersOnly, types):
 #===============================================================================
 
 def getFreeSpace(path):
-    """ Return the free space (in megabytes) on a drive.
+    """ Return the free space (in bytes) on a drive.
         
         @param path: The path to the drive to check. Can be a subdirectory.
-        @return: The free space on the drive, in megabytes.
-        @rtype: float
+        @return: The free space on the drive, in bytes.
+        @rtype: int
     """
     free_bytes = ctypes.c_ulonglong(0)
     kernel32.GetDiskFreeSpaceExW(ctypes.c_wchar_p(path), None, None, 
                                  ctypes.pointer(free_bytes))
-    return free_bytes.value / 1024.0 / 1024.0
+    return free_bytes.value
+
+
+def getBlockSize(path):
+    """ Return the bytes per sector and sectors per cluster of a drive.
+
+        @param path: The path to the drive to check. Can be a subdirectory.
+        @return: A tuple containing the bytes/sector and sectors/cluster.
+    """
+    sectorsPerCluster = ctypes.c_ulonglong(0)
+    bytesPerSector = ctypes.c_ulonglong(0)
+    kernel32.GetDiskFreeSpaceW(ctypes.c_wchar_p(path), 
+                                 ctypes.pointer(sectorsPerCluster),
+                                 ctypes.pointer(bytesPerSector),
+                                 None, None)
+    
+    return bytesPerSector.value, sectorsPerCluster.value
