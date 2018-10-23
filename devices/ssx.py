@@ -39,9 +39,13 @@ class SlamStickX(Recorder):
     CLOCK_FILE = os.path.join(SYSTEM_PATH, "DEV", "CLOCK")
     RECPROP_FILE = os.path.join(SYSTEM_PATH, "DEV", "DEVPROPS")
     CONFIG_UI_FILE = os.path.join(SYSTEM_PATH, "CONFIG.UI")
-    
+    COMMAND_FILE = os.path.join(SYSTEM_PATH, "DEV", "Command")
     CONFIG_FILE = os.path.join(SYSTEM_PATH, "config.cfg")
     USERCAL_FILE = os.path.join(SYSTEM_PATH, "usercal.dat")
+    
+    FW_UPDATE_FILE = os.path.join(SYSTEM_PATH, 'firmware.bin')
+    BOOTLOADER_UPDATE_FILE = os.path.join(SYSTEM_PATH, 'boot.bin')
+    USERPAGE_UPDATE_FILE = os.path.join(SYSTEM_PATH, 'userpage.bin')
     
     TIME_PARSER = struct.Struct("<L")
 
@@ -79,8 +83,10 @@ class SlamStickX(Recorder):
             self.userCalFile = os.path.join(self.path, self.USERCAL_FILE)
             self.configUIFile = os.path.join(self.path, self.CONFIG_UI_FILE)
             self.recpropFile = os.path.join(self.path, self.RECPROP_FILE)
+            self.commandFile = os.path.join(self.path, self.COMMAND_FILE)
         else:
             self.clockFile = self.userCalFile = self.configUIFile = None
+            self.recpropFile = self.commandFile = None
 
         # Parameters for importing saved config data.
         self._importOlderFwConfig = False
@@ -263,6 +269,18 @@ class SlamStickX(Recorder):
     @property
     def birthday(self):
         return self._getInfoAttr('DateOfManufacture')
+
+
+    @property
+    def canRecord(self):
+        """ Can the device record on command? """
+        return self.commandFile and self.firmwareVersion >= 17
+
+
+    @property
+    def canCopyFirmware(self):
+        """ Can the device get new firmware/bootloader/userpage from a file? """
+        return self.path is not None and self.firmwareVersion >= 20
 
 
     def getAccelRange(self, channel=8, subchannel=0, rounded=True, refresh=False):
@@ -810,6 +828,22 @@ class SlamStickX(Recorder):
         cal = self.generateCalEbml(transforms)
         with open(filename, 'wb') as f:
             f.write(cal)
+    
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def startRecording(self, *args, **kwargs):
+        """ Start the device recording, if supported.
+        """
+        if not self.canRecord:
+            return False
+        
+        with open(self.commandFile, 'wb') as f:
+            # FUTURE: Write additional commands using real EBML
+            f.write('rs')
+        
+        return True
     
     
     #===========================================================================

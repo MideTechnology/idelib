@@ -45,6 +45,15 @@ def nextPow2(x):
     return 2L**(len(bin(x))-2L)
 
 
+def roundUp(x, increment):
+    """ Round up to the next increment.
+    """
+    n = x//increment
+    if x % increment != 0:
+        n += 1
+    return n * increment
+
+
 def constrain(x, minVal, maxVal):
     """ Return a value within a given range. Values outside the given range
         will produce the specified minimum or maximum, respectively.

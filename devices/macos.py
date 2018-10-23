@@ -69,12 +69,21 @@ def deviceChanged(recordersOnly, types):
 
 
 def getFreeSpace(path):
-    """ Return the free space (in megabytes) on a drive.
+    """ Return the free space (in bytes) on a drive.
         
         @param path: The path to the drive to check. Can be a subdirectory.
-        @return: The free space on the drive, in megabytes.
-        @rtype: float
+        @return: The free space on the drive, in bytes.
+        @rtype: int
     """
     # TODO: Make sure this actually works. Should work on all POSIX OSes.
     st = os.statvfs(path)
-    return st.f_bavail * st.f_frsize / 1024.0 / 1024.0
+    return st.f_bavail * st.f_frsize
+
+
+def getBlockSize(path):
+    """ Return the bytes per sector and sectors per cluster of a drive.
+
+        @param path: The path to the drive to check. Can be a subdirectory.
+        @return: A tuple containing the bytes/sector and sectors/cluster.
+    """
+    raise NotImplementedError("XXX: IMPLEMENT macos.getBlockSize()!")

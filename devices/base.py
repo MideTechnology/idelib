@@ -128,6 +128,7 @@ class Recorder(object):
         self._name = userdata.get('RecorderName', '')
         return self._name
 
+
     @property
     def productName(self):
         """ The recording device's manufacturer-issued name. """
@@ -156,6 +157,11 @@ class Recorder(object):
     def birthday(self):
         return None
     
+    
+    @property
+    def canRecord(self):
+        return False
+
     
     def _configVersion(self):
         return self.productName, self.firmwareVersion
@@ -417,7 +423,12 @@ class Recorder(object):
             return os_specific.getFreeSpace(self.path)
         except (TypeError, IOError):
             return None
-        
+    
+    
+    def startRecording(self, *args, **kwargs):
+        """ Start the device recording, if supported.
+        """
+        return False
 
 
     
