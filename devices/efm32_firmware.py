@@ -955,7 +955,7 @@ class FirmwareUpdateDialog(wx.Dialog):
                     pass
             return False
         else:
-            logger.info('No driver required if not running Windows.')
+            logger.info('No serial driver required if not running Windows.')
             return True
     
     
@@ -1016,7 +1016,11 @@ class FirmwareUpdateDialog(wx.Dialog):
         else:
             self.but = 'main'
     
-        self.startSerialScan()
+        if isinstance(self.firmware, FirmwareFileUpdater):
+            self.setLabels('Starting firmware update...')
+            self.updateFirmware()
+        else:
+            self.startSerialScan()
 
     
     def setLabels(self, title=None, msg=None):
