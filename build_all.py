@@ -30,12 +30,14 @@ BETA_INFO_FILE = 'updater files/slam_stick_lab_beta.json'
 RELEASE_NOTES_FILE = 'updater files/slam_stick_lab_changelog.txt'
 RELEASE_NOTES_HTML = util.changeFilename(RELEASE_NOTES_FILE, ext=".html")
 
-VERPATCH_PATH = r"C:\Users\dstokes\workspace\verpatch-bin-1.0.10\verpatch.exe"
+VERPATCH_PATH = os.path.realpath(r"..\verpatch-bin-1.0.10\verpatch.exe")
 
-# TODO: Parameterize paths to PyInstaller, rather than hard-code.
+PYINSTALLER_32 = r'C:\Python27\Scripts\pyinstaller.exe'
+PYINSTALLER_64 = r'c:\Python27_64\Scripts\pyinstaller.exe'
+
 builds = (
-    r'C:\Python27\Scripts\pyinstaller.exe %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
-    r'c:\Python27_64\Scripts\pyinstaller --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer-win-onefile.spec',
+    PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
+    PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer-win-onefile.spec',
 )
 
 logger = logging.getLogger('SlamStickLab.BuildAll')
@@ -212,6 +214,10 @@ if __name__ == "__main__":
             else:
                 print("*** Repository is dirty! Commit all changes before building!")
                 exit(1)
+    
+    if not os.path.exists(VERPATCH_PATH):
+        logger.error("Could not find VERPATCH.EXE utility!")
+        exit(1)
     
     try:
         sys.path.append(HOME_DIR)
