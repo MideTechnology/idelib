@@ -70,6 +70,7 @@ def hijackWarning(parent, url):
         style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
     return d == wx.YES
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -79,8 +80,12 @@ class SaferHtmlWindow(wx.html.HtmlWindow):
         them. File and relative named anchor links open in the same window,
         all others in the default browser.
     """
-    allowExternalLinks = False
-        
+    def __init__(self, *args, **kwargs):
+        self.tracking = kwargs.pop('tracking', '')
+        self.allowExternalLinks = kwargs.pop('allowExternalLinks', False)
+        super(SaferHtmlWindow, self).__init__(*args, **kwargs)
+
+    
     def OnLinkClicked(self, linkinfo):
         """ Handle a link click. Does not permit outgoing links (for security).
         """
@@ -92,6 +97,9 @@ class SaferHtmlWindow(wx.html.HtmlWindow):
         if not isSafeUrl(href, self.allowExternalLinks):
             if not hijackWarning(self, href):
                 return
+
+        if 'mide.com' in href:
+            href += self.tracking
             
         # Launch external web browser
         logger.info('Updater HTML window opened %s' % href)
@@ -103,12 +111,10 @@ class SaferHtmlWindow(wx.html.HtmlWindow):
 #===============================================================================
 
 class HtmlDialog(SC.SizedDialog):
-    """ A simple dialog box containing HTML content. Intended to be a
-        replacement for the standard wxPython scrolled message dialog (for
-        certain purposes, anyway).
+    """
     """
     
-    DEFAULT_SIZE = (400,200)
+    DEFAULT_SIZE = (620,460)
     DEFAULT_STYLE = (wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER | \
                      wx.MAXIMIZE_BOX | wx.MINIMIZE_BOX | \
                      wx.DIALOG_EX_CONTEXTHELP | wx.SYSTEM_MENU)
@@ -116,18 +122,21 @@ class HtmlDialog(SC.SizedDialog):
 
     def __init__(self, parent, content, title, buttons=DEFAULT_BUTTONS,
                  size=DEFAULT_SIZE, pos=wx.DefaultPosition, style=DEFAULT_STYLE, 
-                 ID=-1, setBgColor=True):
+                 wxid=-1, setBgColor=True, plaintext=False):
         """
         """
         if style & 0b1111:
             buttons = style & 0b1111
         style = style & (2**32-1 ^ 0b111)
         
-        super(HtmlDialog, self).__init__(parent, ID, title, style=style)
+        super(HtmlDialog, self).__init__(parent, wxid, title, style=style)
+
+        if plaintext:
+            content = u'<pre>%s</pre>' % content
 
         if setBgColor:
             bg = "#%02x%02x%02x" % self.GetBackgroundColour()[:3]
-            content = '<body bgcolor="%s">%s</body>' % (bg, content)
+            content = u'<body bgcolor="%s">%s</body>' % (bg, content)
         
         pane = self.GetContentsPane()
         html = SaferHtmlWindow(pane, -1, style=wx.BORDER_THEME)

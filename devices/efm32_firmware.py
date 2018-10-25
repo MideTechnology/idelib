@@ -27,7 +27,7 @@ from wx.lib.wordwrap import wordwrap
 
 import xmodem
 
-from widgets import device_dialog, html_dialog
+from widgets import device_dialog, htmlwindow
 import devices
 from logger import logger
 
@@ -1171,7 +1171,7 @@ class FirmwareUpdateDialog(wx.Dialog):
             return
         
         title = "%s Release Notes" % os.path.basename(firmware.filename)
-        dlg = html_dialog.HtmlDialog(parent, content, title, setBgColor=False)
+        dlg = htmlwindow.HtmlDialog(parent, content, title, setBgColor=False)
         dlg.Center()
         dlg.ShowModal()
             

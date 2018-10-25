@@ -9,53 +9,25 @@ from glob import glob
 import os.path
 import sys
 
-# import wx
+import wx
 import wx.lib.sized_controls as SC
-import wx.html
 from wx.lib.wordwrap import wordwrap
 from wx.html import HtmlWindow
-wx = wx
+
+from widgets.htmlwindow import SaferHtmlWindow
 
 #===============================================================================
 # 
 #===============================================================================
 
+# "Licenses" tab template
 LICENSES = u"""<html><body>
 <a name='top'><h1>Third-Party Licenses</h1></a>
 %s
 </body></html>"""
 
-
+# Extra tracking info to add to Mide URLs
 TRACKING = "?utm_source=Slam-Stick-X-Data-Logger&utm_medium=Device&utm_content=Link-to-Slam-Stick-X-web-page-from-Device-About-Us&utm_campaign=Slam-Stick-X"
-
-
-#===============================================================================
-# 
-#===============================================================================
-
-class HtmlWindow(wx.html.HtmlWindow):
-    """
-    """
-    
-    def __init__(self, *args, **kwargs):
-        self.tracking = kwargs.pop('tracking', '')
-        super(HtmlWindow, self).__init__(*args, **kwargs)
-    
-    
-    def OnLinkClicked(self, linkinfo):
-        """ Handle a link click. Relative links and file links open in the
-            same window. All others launch the default app (browser, email,
-            etc.)
-        """
-        href = linkinfo.GetHref()
-        if href.startswith(('file:', '#')):
-            super(HtmlWindow, self).OnLinkClicked(linkinfo)
-        else:
-            # Launch external web browser
-            if 'mide.com' in href:
-                href += self.tracking
-                
-            wx.LaunchDefaultBrowser(href)
 
 #===============================================================================
 # 
@@ -70,21 +42,16 @@ class AboutBox(SC.SizedDialog):
     RELEASE_NOTES = os.path.join('ABOUT', "slam_stick_lab_changelog.html")
 
     def makeAboutFile(self):
-        escapedStrings = self.strings.copy()
-        for k in escapedStrings:
-            escapedStrings[k] = cgi.escape(unicode(escapedStrings[k]))
-        filename = os.path.join(self.rootDir, self.TEMPFILE)
-        if True:#not os.path.exists(filename):
-            with open(os.path.join(self.rootDir, self.TEMPLATE), 'rb') as f:
-                with open(filename, 'wb') as out:
-                    # A bit of gymnastics to convert the HTML to a formatting
-                    # template. This is to leverage existing, standard HTML
-                    # tools. Variable names are stored Django template style.
-                    template = f.read().replace('%', '%%')
-                    template = template.replace('{ ', '{').replace(' }', '}')
-                    template = template.replace('{{','%(').replace('}}',')s')
-                    out.write(template % escapedStrings)
-        return filename
+        """ Fill out the main About Box page with current info. 
+        """
+        escapedStrings = {k: cgi.escape(unicode(v)) for k,v in self.strings.items()}
+
+        with open(os.path.join(self.rootDir, self.TEMPLATE), 'rb') as f:
+            template = f.read()
+            
+        with open(os.path.join(self.rootDir, self.TEMPFILE), 'wb') as out:
+            out.write(template.format(**escapedStrings))
+            return out.name
             
 
     def getLicenses(self):
@@ -164,7 +131,15 @@ class AboutBox(SC.SizedDialog):
 
 
     def __init__(self, *args, **kwargs):
-        self.strings = kwargs.pop('strings', None)
+        """ Constructor. Standard `wx.lib.sized_controls.SizedDialog` 
+            arguments, plus:
+        
+            @keyword strings: A dictionary of strings to insert into the
+                About HTML.
+            @keyword tracking: A URL query string to append to Mide links
+                for tracking.
+        """
+        self.strings = kwargs.pop('strings', {})
         tracking = kwargs.pop('tracking', TRACKING)
         
         kwargs.setdefault("style", 
@@ -185,7 +160,7 @@ class AboutBox(SC.SizedDialog):
         notebook = wx.Notebook(pane, -1)#, style=wx.NB_BOTTOM)
         notebook.SetSizerProps(expand=True, proportion=-1)
         
-        about = HtmlWindow(notebook, -1, tracking=tracking)
+        about = SaferHtmlWindow(notebook, -1, tracking=tracking)
         notebook.AddPage(about, self.strings.get('appName'))
         about.LoadFile(self.makeAboutFile())
         
@@ -214,6 +189,15 @@ class AboutBox(SC.SizedDialog):
 
     @classmethod
     def showDialog(cls, *args, **kwargs):
+        """ Display the About Box.
+        
+            @see: `AboutBox.__init__()`
+
+            @keyword strings: A dictionary of strings to insert into the
+                About HTML.
+            @keyword tracking: A URL query string to append to Mide links
+                for tracking.
+        """
         appname = kwargs.setdefault('strings', {}).setdefault('appName', u"Slam\u2022Stick Lab")
         dlg = cls(*args, **kwargs)
         dlg.SetTitle(u"About %s" % appname)
@@ -225,6 +209,7 @@ class AboutBox(SC.SizedDialog):
 #===============================================================================
 
 if __name__ == '__main__':
+    # Test the About Box
     from viewer import APPNAME
     from build_info import VERSION, BUILD_TIME, BUILD_NUMBER
     app = wx.App()
