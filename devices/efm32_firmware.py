@@ -833,9 +833,10 @@ class FirmwareFileUpdater(FirmwareUpdater):
             filename = os.path.join(self.device.path, f)
             try:
                 if os.path.exists(filename):
+                    logger.info('Removing old file: %s' % filename)
                     os.remove(filename)
             except (IOError, WindowsError):
-                logger.error('Could not remove file %r' % filename)
+                logger.error('Could not remove file %s' % filename)
                 return False
             
         return True
@@ -846,10 +847,12 @@ class FirmwareFileUpdater(FirmwareUpdater):
         """
         filename = os.path.join(self.device.path, filename)
         try:
+            logger.info("Writing %s" % filename)
             with open(filename, 'wb') as f:
                 f.write(content)
             return True
-        except (IOError, WindowsError):
+        except (IOError, WindowsError) as err:
+            logger.error(str(err))
             return False
         
     

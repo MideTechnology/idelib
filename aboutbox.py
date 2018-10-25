@@ -189,10 +189,11 @@ class AboutBox(SC.SizedDialog):
         notebook.AddPage(about, self.strings.get('appName'))
         about.LoadFile(self.makeAboutFile())
         
-        if os.path.exists(self.RELEASE_NOTES):
+        releaseNotes = os.path.join(self.rootDir, self.RELEASE_NOTES)
+        if os.path.exists(releaseNotes):
             notes = HtmlWindow(notebook, -1)
             notebook.AddPage(notes, "Release Notes")
-            notes.LoadPage(self.RELEASE_NOTES)
+            notes.LoadPage(releaseNotes)
         
         licenses = HtmlWindow(notebook, -1)
         notebook.AddPage(licenses, "Licenses")
@@ -232,4 +233,5 @@ if __name__ == '__main__':
            'version': '.'.join(map(str,VERSION)), 
            'buildNumber': BUILD_NUMBER, 
            'buildTime': datetime.fromtimestamp(BUILD_TIME),
+           'copyright': datetime.fromtimestamp(BUILD_TIME).year
         })

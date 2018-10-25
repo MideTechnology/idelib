@@ -1743,7 +1743,8 @@ class Viewer(wx.Frame, MenuMixin):
         
         AboutBox.showDialog(self, -1, strings={
            'appName': self.app.GetAppDisplayName(),
-           'version': self.app.versionString, 
+           'version': self.app.versionString,
+           'copyright': datetime.fromtimestamp(BUILD_TIME).year,
            'buildNumber': buildNum, 
            'buildTime': datetime.fromtimestamp(BUILD_TIME),
            'lastUpdateCheck': updateCheck,
