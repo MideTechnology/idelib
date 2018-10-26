@@ -826,6 +826,7 @@ class FirmwareFileUpdater(FirmwareUpdater):
     def clean(self):
         """ Remove any old update files.
         """
+        logger.info('Cleaning up...')
         for f in (self.device.BOOTLOADER_UPDATE_FILE, 
                   self.device.FW_UPDATE_FILE,
                   self.device.USERPAGE_UPDATE_FILE):
@@ -917,6 +918,7 @@ class FirmwareFileUpdater(FirmwareUpdater):
         """ Apply the finishing touches to the firmware/bootloader/userpage
             update.
         """
+        logger.info("Sending 'update all' command...")
         with open(self.device.commandFile, 'wb') as f:
             f.write('ua')
     
@@ -936,8 +938,9 @@ class FirmwareUpdateDialog(wx.Dialog):
     """ UI for uploading new firmware to a SSX/SSC/etc. recorder.
     """
     
-    SCAN_MS = 250
-    TIMEOUT_MS = 60000    
+    SERIAL_SCAN_MS = 250
+    REBOOT_SCAN_MS = 250
+    TIMEOUT_MS = 60000
     
     @classmethod
     def driverInstalled(cls):
@@ -971,7 +974,6 @@ class FirmwareUpdateDialog(wx.Dialog):
         """
         self.firmware = kwargs.pop('firmware', None)
         self.device = kwargs.pop('device', None)
-        self.useFiles = kwargs.pop('useFiles', False)
         kwargs.setdefault('style', wx.CAPTION|wx.CENTRE)
         kwargs.setdefault('title', "Update Firmware")
         
@@ -1004,8 +1006,10 @@ class FirmwareUpdateDialog(wx.Dialog):
         
         self.scanTimer = wx.Timer(self)
         self.timeoutTimer = wx.Timer(self)
+        self.rebootTimer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.checkSerial, self.scanTimer)
         self.Bind(wx.EVT_TIMER, self.OnTimeout, self.timeoutTimer)
+        self.Bind(wx.EVT_TIMER, self.checkForDeviceReconnect, self.rebootTimer)
 
         self.SetSizerAndFit(sizer)
         self.SetSizeWH(400,-1)
@@ -1020,8 +1024,7 @@ class FirmwareUpdateDialog(wx.Dialog):
             self.but = 'main'
     
         if isinstance(self.firmware, FirmwareFileUpdater):
-            self.setLabels('Starting firmware update...')
-            self.updateFirmware()
+            self.startFileMode()
         else:
             self.startSerialScan()
 
@@ -1049,7 +1052,7 @@ class FirmwareUpdateDialog(wx.Dialog):
                         "for 3 seconds." % self.but)
         
         self.throbber.Start()
-        self.scanTimer.Start(self.SCAN_MS)
+        self.scanTimer.Start(self.SERIAL_SCAN_MS)
         self.timeoutTimer.Start(self.TIMEOUT_MS)
 
 
@@ -1095,19 +1098,95 @@ class FirmwareUpdateDialog(wx.Dialog):
         
         logger.info("Connected to bootloader.")
         self.updateFirmware()
-                
+    
+    
+    def startRebootWait(self):
+        """ Start the process of waiting for a device to restart (i.e. after
+            exiting the bootloader, or sending the ``ua`` command). It's a 
+            two-step process: wait for the recorder to disconnect as a USB
+            disk (happens immediately if using bootloader mode), and then
+            wait for the recorder to reappear as a USB disk.
+        """
+        # Start checking for the device to disconnect and reconnect as 
+        # USB disk.
+        logger.info('Rebooting: waiting for device to disconnect...')
+        self.Bind(wx.EVT_TIMER, self.OnRebootTimeout, self.timeoutTimer)
+        self.Bind(wx.EVT_TIMER, self.checkForDeviceDisconnect, self.rebootTimer)
+        self.rebootTimer.Start(self.REBOOT_SCAN_MS)
+        self.timeoutTimer.Start(self.TIMEOUT_MS)
+        
+    
+    def checkForDeviceDisconnect(self, evt):
+        """ Timer event handler for checking if a device has disconnected.
+            Part of the routine to wait for a recorder to reboot. Starts
+            the wait for the device to reconnect if the device is no longer
+            present.
+        """
+        # This will immediately detect disconnect for devices in bootloader
+        # mode, which is what we want to happen. 
+        devs = devices.getDevices([self.device.path], types=RECORDER_TYPES)
+        if not devs:
+            logger.info('Rebooting: waiting for device to reconnect...')
+            self.rebootTimer.Stop()
+            self.Bind(wx.EVT_TIMER, self.checkForDeviceReconnect, self.rebootTimer)
+            self.rebootTimer.Start(self.REBOOT_SCAN_MS)
+            
+    
+    def checkForDeviceReconnect(self, evt):
+        """ Timer event handler for checking if the updated device has 
+            reappeared as a USB disk.
+        """
+        devs = devices.getDevices(types=RECORDER_TYPES)
+        serials = [d.serial for d in devs]
+        
+        if self.device.serial in serials:
+            self.timeoutTimer.Stop()
+            self.rebootTimer.Stop()
+            self.throbber.Rest()
+            
+            wx.MessageBox("Firmware Update Complete!\n\n"
+                          "You may now disconnect your recorder.", 
+                          "Update Complete")
+            
+            self.Close()
+    
 
     def OnTimeout(self, evt):
         """ Handle serial scan timeout.
         """
-        self.throbber.Rest()        
+        self.throbber.Rest()
         self.scanTimer.Stop()
         self.timeoutTimer.Stop()
         wx.MessageBox("No recording device was found.\n\n"
                       "Make sure the required driver has been installed and "
                       "try again.", "No Device Found", wx.OK|wx.ICON_ERROR)
         self.Close()
+        
 
+    def OnRebootTimeout(self, evt):
+        """ Handle timeout waiting for device to reappear as USB disk.
+        """
+        self.throbber.Rest()
+        self.rebootTimer.Stop()
+        self.timeoutTimer.Stop()
+        wx.MessageBox("Could no reboot recording device.\n\n"
+                      "The recording device did not reset within the expected "
+                      "length of time.\nThe firmware update may or may not "
+                      "have been successful.", "Device Reset Timeout", 
+                      wx.OK|wx.ICON_ERROR)
+        self.Close()
+        
+
+    def startFileMode(self):
+        """ Begin the file-based firmware update.
+        """
+        self.setLabels('Starting firmware update...')
+        
+        # Start all the stuff that the serial bootloader mode does.
+        self.throbber.Start()
+        self.firmware.clean()
+        wx.CallAfter(self.updateFirmware)
+        
 
     def updateFirmware(self):
         """ Perform the firmware/userpage and/or bootloader update.
@@ -1131,15 +1210,11 @@ class FirmwareUpdateDialog(wx.Dialog):
             self.setLabels("%s..." % msg.title())
             self.firmware.uploadUserpage()
 
-            try:
-                self.firmware.finalize()
-                wx.MilliSleep(250)
-            except IOError:
-                pass
-            
-            wx.MessageBox("Firmware Update Complete!\n\n"
-                          "You may now disconnect your recorder.", 
-                          "Update Complete")
+            msg = "resetting device"
+            self.setLabels("%s..." % msg.title())
+            self.firmware.finalize()
+
+            self.startRebootWait()
             
         except (ValueError, IOError) as err:
             logger.error(str(err))
@@ -1152,7 +1227,7 @@ class FirmwareUpdateDialog(wx.Dialog):
                           "Please try again." % msg,
                           "Update Failure", wx.OK|wx.ICON_ERROR)
         
-        self.Close()
+            self.Close()
 
 
     @classmethod
@@ -1312,8 +1387,7 @@ def updateFirmware(parent=None, device=None, filename=None, useFiles=True):
     logger.info("Creating updated manifest data")
     update.updateManifest()
     
-    dlg = FirmwareUpdateDialog(parent, device=device, firmware=update,
-                               useFiles=useFiles)
+    dlg = FirmwareUpdateDialog(parent, device=device, firmware=update)
     dlg.ShowModal()
     
         
