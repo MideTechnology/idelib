@@ -113,7 +113,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.list.SetSizerProps(expand=True, proportion=1)
 
         # Selected device info
-        self.infoText = wx.StaticText(pane, -1, "\n")
+        self.infoText = wx.StaticText(pane, -1, "")
         self.infoText.SetSizerProps(expand=True)
 
         buttonpane = sc.SizedPanel(pane, -1)
@@ -168,6 +168,9 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             self.recordButton.Hide()
         else:
             self.Bind(wx.EVT_BUTTON, self.startRecording, id=self.ID_START_RECORDING)
+        
+        if not self.showWarnings:
+            self.infoText.Hide()
         
         # For doing per-item tool tips in the list
         self.lastToolTipItem = -1
@@ -341,7 +344,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     def OnItemDeselected(self, evt):
         self.selected = None
         self.okButton.Enable(False)
-        self.infoText.SetLabel("")
+        if self.showWarnings:
+            self.infoText.SetLabel("\n")
+        else:
+            self.infoText.SetLabel("")
         
         self.recordButton.Enable(False)
         self.recordButton.SetToolTipString(self.RECORD_UNSELECTED)
@@ -441,6 +447,6 @@ def selectDevice(title="Select Recorder", parent=None, **kwargs):
 if __name__ == '__main__':
     app = wx.App()
     
-    result = selectDevice()#hideClock=True, hideRecord=True)
+    result = selectDevice(showWarnings=False)#hideClock=True, hideRecord=True)
     print result
     
