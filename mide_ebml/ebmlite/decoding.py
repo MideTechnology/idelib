@@ -1,12 +1,23 @@
 """
 Functions for decoding EBML elements and their values.
+
+Note: this module does not decode `Document`, `BinaryElement`, or
+`MasterElement` objects; these are handled entirely in `core.py`. `Document`
+and `MasterElement` objects are special cases, and `BinaryElement` objects do
+not require special decoding. 
 """
+
+__author__ = "dstokes"
+__copyright__ = "Copyright 2018 Mide Technology Corporation"
+
+__all__ = ['readElementID', 'readElementSize', 'readFloat', 'readInt',
+           'readUInt', 'readDate', 'readString', 'readUnicode']
 
 from datetime import datetime, timedelta
 import struct
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 # Pre-built structs for packing/unpacking various data types
@@ -51,7 +62,7 @@ def decodeIntLength(byte):
         return 6, byte & 0b11
     elif byte >= 2:
         return 7, byte & 0b1
-    
+
     return 8, 0
 
 
@@ -59,6 +70,7 @@ def decodeIDLength(byte):
     """ Extract the encoded ID size from an initial byte.
 
         @return: The size and the original byte (it is part of the ID).
+        @raise IOError: raise if the length of an ID is invalid.
     """
     if byte >= 128:
         return 1, byte
@@ -78,6 +90,7 @@ def readElementID(stream):
 
         @param stream: The source file-like object.
         @return: The decoded element ID and its length in bytes.
+        @raise IOError: raised if the length of the ID of an element is greater than 4 bytes.
     """
     ch = stream.read(1)
     length, eid = decodeIDLength(ord(ch))
@@ -104,6 +117,8 @@ def readElementSize(stream):
         size = _struct_uint64_unpack((chr(size) + stream.read(length-1)
                                       ).rjust(8,'\x00'))[0]
 
+    # print("size = %x, length = %x" % (size, int(2**(7*length))))
+
     if size == (2**(7*length)) - 1:
         # EBML 'unknown' size, all bytes 0xFF
         size = None
@@ -120,7 +135,7 @@ def readUInt(stream, size):
 
     if size == 0:
         return 0
-    
+
     data = stream.read(size)
     return _struct_uint64_unpack_from(data.rjust(8,'\x00'))[0]
 
@@ -134,7 +149,7 @@ def readInt(stream, size):
 
     if size == 0:
         return 0
-    
+
     data = stream.read(size)
     if ord(data[0]) & 0b10000000:
         pad = '\xff'
@@ -148,6 +163,7 @@ def readFloat(stream, size):
 
         @param stream: The source file-like object.
         @return: The decoded value.
+        @raise IOError: raised if the length of this floating point number is not valid (0, 4, 8 bytes)
     """
     if size == 4:
         return _struct_float32_unpack(stream.read(size))[0]
@@ -195,6 +211,7 @@ def readDate(stream, size=8):
 
         @param stream: The source file-like object.
         @return: The decoded value (as `datetime.datetime`).
+        @raise IOError: raised if the length of the date is not 8 bytes.
     """
     if size != 8:
         raise IOError("Cannot read date value of length %d, only 8." % size)
@@ -202,4 +219,3 @@ def readDate(stream, size=8):
     nanoseconds = _struct_int64_unpack(data)[0]
     delta = timedelta(microseconds=(nanoseconds // 1000))
     return datetime(2001, 1, 1, tzinfo=None) + delta
-
