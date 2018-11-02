@@ -1697,7 +1697,7 @@ class Viewer(wx.Frame, MenuMixin):
         showAdvanced = self.app.getPref('showAdvancedOptions', False)
         useUtc = self.app.getPref('configure.useUtc', True)
         setTime = self.app.getPref('configure.setTime', True)
-        dev = selectDevice()
+        dev = selectDevice(showAdvanced=showAdvanced)
         if dev is not None:
             result = config_dialog.configureRecorder(dev, setTime=setTime, 
                                                      useUtc=useUtc, parent=self,

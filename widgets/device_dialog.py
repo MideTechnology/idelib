@@ -41,6 +41,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                ColumnInfo("Type", "productName", cleanUnicode, ''),
                ColumnInfo("Serial #", "serial", cleanUnicode, ''))
 
+    ADVANCED_COLUMNS = (COLUMNS + 
+                        (ColumnInfo("HW Rev.", "hardwareVersion", cleanUnicode, ''),
+                         ColumnInfo("FW Rev.", "firmwareVersion", cleanUnicode, '')))
+
     # Tool tips for the 'record' button
     RECORD_UNSELECTED = "No recorder selected"
     RECORD_UNSUPPORTED = "Device does not support recording via software"
@@ -80,12 +84,16 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.hideClock = kwargs.pop('hideClock', False)
         self.hideRecord = kwargs.pop('hideRecord', False)
         self.showWarnings = kwargs.pop('showWarnings', True)
+        self.showAdvanced = kwargs.pop('showAdvanced', False)
         okText = kwargs.pop('okText', "Configure")
         okHelp = kwargs.pop('okHelp', 'Configure the selected device')
         cancelText = kwargs.pop('cancelText', "Close")
         kwargs.setdefault('style', style)
         
         sc.SizedDialog.__init__(self, *args, **kwargs)
+        
+        if self.showAdvanced:
+            self.COLUMNS = self.ADVANCED_COLUMNS
         
         self.recorders = {}
         self.recorderPaths = tuple(getDeviceList(types=self.deviceTypes))
@@ -447,6 +455,6 @@ def selectDevice(title="Select Recorder", parent=None, **kwargs):
 if __name__ == '__main__':
     app = wx.App()
     
-    result = selectDevice(showWarnings=False)#hideClock=True, hideRecord=True)
+    result = selectDevice(showAdvanced=True)#hideClock=True, hideRecord=True)
     print result
     

@@ -1275,9 +1275,9 @@ def updateFirmware(parent=None, device=None, filename=None, useFiles=True):
                       "Update Firmware", parent=parent)
     if device is None:
         device = device_dialog.selectDevice(parent=parent, types=RECORDER_TYPES,
-                        showWarnings=False, hideClock=True, hideRecord=True, 
-                        okHelp="Start firmware update on selected device",
-                        okText="Update")
+                        showWarnings=False, hideClock=True, hideRecord=True,
+                        showAdvanced=True, okText="Update",
+                        okHelp="Start firmware update on selected device")
     if device is None:
         return False
     
