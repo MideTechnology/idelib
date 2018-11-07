@@ -1964,7 +1964,7 @@ class ConfigDialog(SC.SizedDialog):
         
         self.Fit()
         self.SetMinSize((500, 480))
-        self.SetSize((600, 700))
+        self.SetSize((620, 700))
 
 
     def buildUI(self):
@@ -2387,7 +2387,7 @@ if __name__ == "__main__":
     # XXX: TEST CODE, loads the UI from a file (XML or EBML), specified as a 
     # command line argument. If no file is specified, the first recorder found 
     # is used.
-#     sys.argv = ['',  'badCONFIG.UI']
+    sys.argv = ['',  'old test files/fw20_test.xml']
     if len(sys.argv) > 1:
         device = None
         if sys.argv[-1].endswith('.xml'):
