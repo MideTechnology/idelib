@@ -817,7 +817,19 @@ class TextField(ConfigWidget):
         if not v:
             return None
         return v
-    
+
+
+    def Enable(self, enabled=True):
+        # Fields nested within groups look different when their parent is
+        # disabled; disable explicitly to make it look right.
+        if self.checkbox is not None:
+            self.enableChildren(self.checkbox.GetValue())
+        else:
+            self.field.Enable(enabled)
+        wx.Panel.Enable(self, enabled)
+
+
+
 
 #===============================================================================
 
@@ -2387,7 +2399,9 @@ if __name__ == "__main__":
     # XXX: TEST CODE, loads the UI from a file (XML or EBML), specified as a 
     # command line argument. If no file is specified, the first recorder found 
     # is used.
-    sys.argv = ['',  'old test files/fw20_test.xml']
+#     sys.argv = ['',  'old test files/fw20_test.xml']
+#     sys.argv = ['',  'old test files/newBadCONFIG.UI']
+    sys.argv = ['',  'old test files/NoText.UI']
     if len(sys.argv) > 1:
         device = None
         if sys.argv[-1].endswith('.xml'):
