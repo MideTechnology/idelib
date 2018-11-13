@@ -578,7 +578,7 @@ class ConfigWidget(wx.Panel, ConfigBase):
         """
         self.field = None
         p = wx.Panel(self, -1)
-        self.sizer.Add(p, 3)
+        self.sizer.Add(p, 4)
         return p
 
     
@@ -591,11 +591,11 @@ class ConfigWidget(wx.Panel, ConfigBase):
         if self.CHECK:
             self.checkbox = wx.CheckBox(self, -1, self.label or '')
             self.labelWidget = self.checkbox
-            self.sizer.Add(self.checkbox, 2, wx.ALIGN_CENTER_VERTICAL)
+            self.sizer.Add(self.checkbox, 3, wx.ALIGN_CENTER_VERTICAL)
         else:
             self.checkbox = None
             self.labelWidget = wx.StaticText(self, -1, self.label or '')
-            self.sizer.Add(self.labelWidget, 2, wx.ALIGN_CENTER_VERTICAL)
+            self.sizer.Add(self.labelWidget, 3, wx.ALIGN_CENTER_VERTICAL)
         
         self.addField()
         
@@ -808,7 +808,7 @@ class TextField(ConfigWidget):
             self.field = wx.TextCtrl(self, -1, str(self.default or ''),
                                      validator=validator)
             
-        self.sizer.Add(self.field, 3, wx.EXPAND)
+        self.sizer.Add(self.field, 4, wx.EXPAND)
         return self.field
     
     
@@ -881,7 +881,7 @@ class IntField(ConfigWidget):
                                  style=wx.SP_VERTICAL|wx.TE_RIGHT,
                                  min=self.min, max=self.max, 
                                  initial=self.default)
-        self.sizer.Add(self.field, 2)
+        self.sizer.Add(self.field, 4)
         return self.field
 
     
@@ -946,7 +946,7 @@ class FloatField(IntField):
                                        min=self.min, max=self.max, 
                                        value=str(self.default))
         self.field.SetDigits(self.floatDigits)
-        self.sizer.Add(self.field)
+        self.sizer.Add(self.field,4)
         return self.field
 
 
@@ -987,7 +987,7 @@ class EnumField(ConfigWidget):
         choices = [u"%s" % o.label for o in self.options]
         
         self.field = wx.Choice(self, -1, choices=choices)
-        self.sizer.Add(self.field, 3)
+        self.sizer.Add(self.field, 4)
         
         self.Bind(wx.EVT_CHOICE, self.OnChoice)
         return self.field
@@ -1211,8 +1211,8 @@ class DateTimeField(IntField):
         h = int(1.6*self.labelWidget.GetSizeTuple()[1])
         self.field = DateTimeCtrl(self, -1, size=(-1,h))
         self.utcCheck = wx.CheckBox(self, -1, "UTC")
-        self.sizer.Add(self.field, 3)
-        self.sizer.Add(self.utcCheck, 0, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
+        self.sizer.Add(self.field, 4)
+        self.sizer.Add(self.utcCheck, -1, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
                            border=8)
         
         self.utcCheck.SetValue(self.root.useUtc)
@@ -1322,7 +1322,7 @@ class BinaryField(ConfigWidget):
         """ Class-specific method for adding the appropriate type of widget.
         """
         self.field = FB.FileBrowseButton(self, -1)
-        self.sizer.Add(self.field, 3)
+        self.sizer.Add(self.field, 4)
         return self.field
 
 
@@ -2399,9 +2399,9 @@ if __name__ == "__main__":
     # XXX: TEST CODE, loads the UI from a file (XML or EBML), specified as a 
     # command line argument. If no file is specified, the first recorder found 
     # is used.
-#     sys.argv = ['',  'old test files/fw20_test.xml']
-#     sys.argv = ['',  'old test files/newBadCONFIG.UI']
-    sys.argv = ['',  'old test files/NoText.UI']
+#     sys.argv = ['',  'drs_test/fw20_test.xml']
+#     sys.argv = ['',  'drs_test/newBadCONFIG.xml']
+#     sys.argv = ['',  'drs_test/NoText.UI']
     if len(sys.argv) > 1:
         device = None
         if sys.argv[-1].endswith('.xml'):
