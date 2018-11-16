@@ -7,6 +7,7 @@ Some utility functions and the like for handling `wxPython.DateTime` objects.
 
 import calendar
 from datetime import datetime
+import time
 
 import wx
 
@@ -45,6 +46,17 @@ def makeWxDateTime(val):
     # Assume a struct_time or other sequence:
     return wx.DateTimeFromDMY(val[2], val[1]-1, val[0], val[3], val[4], val[5])
         
+
+def getUtcOffset():
+    """ Get the local offset from UTC time, in hours (float).
+    """
+    gt = time.gmtime()
+    lt = time.localtime()
+    val = (time.mktime(lt) - time.mktime(gt)) / 60.0 / 60.0
+    if lt.tm_isdst == 1:
+        val += 1
+    return val
+
 
 #===============================================================================
 # Field validators
