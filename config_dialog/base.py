@@ -74,7 +74,7 @@ import classic
 #===============================================================================
 
 # XXX: Remove all this debugging stuff
-__DEBUG__ =  True
+__DEBUG__ = not True
 
 #===============================================================================
 #--- Utility functions
@@ -1214,17 +1214,11 @@ class DateTimeField(IntField):
         h = int(1.6*self.labelWidget.GetSizeTuple()[1])
         self.field = DateTimeCtrl(self, -1, size=(-1,h))
         self.sizer.Add(self.field, 4)
-#         self.utcCheck = wx.CheckBox(self, -1, "UTC")
-#         self.sizer.Add(self.utcCheck, -1, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
-#                            border=8)
-#          
-#         self.utcCheck.SetValue(self.root.useUtc)
-#         self.utcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
-                
+        
         self.tzList = wx.Choice(self, -1, choices=['Local Time', 'UTC Time'])
         self.tzList.SetSelection(int(self.root.useUtc))
         self.sizer.Add(self.tzList, -1, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
-                           border=8)
+                       border=8)
         
         self.tzList.Bind(wx.EVT_CHOICE, self.OnTzChange)
         
@@ -1235,16 +1229,20 @@ class DateTimeField(IntField):
         """ Enable/Disable the Field's children.
         """
         super(DateTimeField, self).enableChildren(enabled=enabled)
-#         self.utcCheck.Enable(enabled)
         self.tzList.Enable(enabled)
+    
+    
+    def isLocalTime(self):
+        """ Is the widget showing local time (vs. UTC)?
+        """
+        return self.tzList.GetSelection() == self.LOCAL_TIME
     
     
     def updateToolTips(self):
         """ Update the Choice's tooltip to match the item displayed.
         """
         offset = getUtcOffset()
-        showingLocal = self.tzList.GetSelection() == self.LOCAL_TIME
-        if showingLocal:
+        if self.isLocalTime():
             msg = "Time shown is the computer's local time (UTC %s hours)"
         else:
             offset *= -1
@@ -1264,15 +1262,10 @@ class DateTimeField(IntField):
             val = wx.DateTimeFromTimeT(time.time())
         else:
             val = makeWxDateTime(val)
-        
-#         if self.tzList.GetSelection() == self.LOCAL_TIME:
-#             val = val.FromUTC()
-        if self.tzList.GetSelection() == self.UTC_TIME:
+
+        if not self.isLocalTime():
             val = val.ToUTC()
             
-#         if not self.utcCheck.GetValue():
-#             val = val.FromUTC()
-        
         self.updateToolTips()
         super(DateTimeField, self).setDisplayValue(val, check)
     
@@ -1283,35 +1276,25 @@ class DateTimeField(IntField):
         val = super(DateTimeField, self).getDisplayValue()
         if val is None:
             return None
-#         if not self.utcCheck.GetValue():
-#             val = val.ToUTC()
-        if self.tzList.GetSelection() == self.LOCAL_TIME:
-            val = val.ToUTC()
+        if not self.isLocalTime():
+            val = val.FromUTC()
         return val.GetTicks()
-    
-    
-#     def OnUtcCheck(self, evt):
-#         # NOTE: This changes the main dialog's useUtc attribute, but it will
-#         # not update other DateTimeFields. Will need revision if/when we use
-#         # more than one.
-#         self.root.useUtc = evt.Checked()
-#         evt.Skip()
 
 
     def OnTzChange(self, evt):
-        """
+        """ Handle Local/UTC selection change.
         """
         # NOTE: This changes the main dialog's useUtc attribute, but it will
         # not update other DateTimeFields. Will need revision if/when we use
         # more than one.
-        showingLocal = evt.GetSelection() == self.LOCAL_TIME
         val = self.field.GetValue()
-        if showingLocal:
+        if self.isLocalTime():
             self.field.SetValue(val.FromUTC())
+            self.root.useUtc = False
         else:
             self.field.SetValue(val.ToUTC())
+            self.root.useUtc = True
 
-        self.root.useUtc = not showingLocal
         self.updateToolTips()
         
 
