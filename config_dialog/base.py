@@ -2402,7 +2402,7 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
         return classic.configureRecorder(path, saveOnOk, setTime, useUtc, parent)
 
     # remove
-    global dlg
+#     global dlg
     dlg = ConfigDialog(parent, hints=hints, device=dev, setTime=setTime,
                        useUtc=useUtc, keepUnknownItems=keepUnknownItems,
                        saveOnOk=saveOnOk, showAdvanced=showAdvanced)
@@ -2414,6 +2414,7 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
     
     result = dlg.configData
     setTime = dlg.setClockCheck.GetValue()
+    useUtc = dlg.useUtc
     
     if not modal:
         return dlg
@@ -2431,7 +2432,7 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
 #===============================================================================
 
 # XXX: Remove all this debugging stuff
-dlg = None
+# dlg = None
 
 if __name__ == "__main__":
     print "running %s main" % __file__
