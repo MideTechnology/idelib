@@ -1216,10 +1216,11 @@ class DateTimeField(IntField):
         self.sizer.Add(self.field, 4)
         
         self.tzList = wx.Choice(self, -1, choices=['Local Time', 'UTC Time'])
-        self.tzList.SetSelection(int(self.root.useUtc))
         self.sizer.Add(self.tzList, -1, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
                        border=8)
         
+        self.lastTz = int(self.root.useUtc)
+        self.tzList.SetSelection(self.lastTz)
         self.tzList.Bind(wx.EVT_CHOICE, self.OnTzChange)
         
         return self.field
@@ -1287,12 +1288,20 @@ class DateTimeField(IntField):
         # NOTE: This changes the main dialog's useUtc attribute, but it will
         # not update other DateTimeFields. Will need revision if/when we use
         # more than one.
+        
+        # Don't modify time if selection is the same (event gets fired even if
+        # the same Choice item was selected).
+        if self.tzList.GetSelection() == self.lastTz:
+            return
+        
         val = self.field.GetValue()
         if self.isLocalTime():
             self.field.SetValue(val.FromUTC())
+            self.lastTz = self.LOCAL_TIME
             self.root.useUtc = False
         else:
             self.field.SetValue(val.ToUTC())
+            self.lastTz = self.UTC_TIME
             self.root.useUtc = True
 
         self.updateToolTips()
