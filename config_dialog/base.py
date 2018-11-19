@@ -58,7 +58,7 @@ import wx.lib.sized_controls as SC
 
 from widgets.shared import DateTimeCtrl
 from common import makeBackup, restoreBackup
-from timeutil import makeWxDateTime
+from timeutil import makeWxDateTime, getUtcOffset
 
 import legacy
 from mide_ebml.ebmlite import loadSchema
@@ -1205,25 +1205,55 @@ class DateTimeField(IntField):
     DEFAULT_TYPE = "IntValue"
     LABEL = False
     
+    LOCAL_TIME = 0
+    UTC_TIME = 1
+    
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
         h = int(1.6*self.labelWidget.GetSizeTuple()[1])
         self.field = DateTimeCtrl(self, -1, size=(-1,h))
-        self.utcCheck = wx.CheckBox(self, -1, "UTC")
         self.sizer.Add(self.field, 4)
-        self.sizer.Add(self.utcCheck, -1, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
-                           border=8)
         
-        self.utcCheck.SetValue(self.root.useUtc)
-        self.utcCheck.Bind(wx.EVT_CHECKBOX, self.OnUtcCheck)
+        self.tzList = wx.Choice(self, -1, choices=['Local Time', 'UTC Time'])
+        self.tzList.SetSelection(int(self.root.useUtc))
+        self.sizer.Add(self.tzList, -1, wx.WEST|wx.ALIGN_CENTER_VERTICAL, 
+                       border=8)
+        
+        self.tzList.Bind(wx.EVT_CHOICE, self.OnTzChange)
+        
         return self.field
 
-    
+
     def enableChildren(self, enabled=True):
+        """ Enable/Disable the Field's children.
+        """
         super(DateTimeField, self).enableChildren(enabled=enabled)
-        self.utcCheck.Enable(enabled)
+        self.tzList.Enable(enabled)
     
+    
+    def isLocalTime(self):
+        """ Is the widget showing local time (vs. UTC)?
+        """
+        return self.tzList.GetSelection() == self.LOCAL_TIME
+    
+    
+    def updateToolTips(self):
+        """ Update the Choice's tooltip to match the item displayed.
+        """
+        offset = getUtcOffset()
+        if self.isLocalTime():
+            msg = "Time shown is the computer's local time (UTC %s hours)"
+        else:
+            offset *= -1
+            msg = "Time shown is UTC time (local computer time %s hours)"
+        if offset >= 0:
+            offsetStr = "+ %0.2f" % offset
+        else:
+            
+            offsetStr = "- %0.2f" % abs(offset)
+        self.tzList.SetToolTipString(msg % offsetStr)
+        
     
     def setDisplayValue(self, val, check=True):
         """ Set the Field's value, in epoch seconds UTC.
@@ -1232,10 +1262,11 @@ class DateTimeField(IntField):
             val = wx.DateTimeFromTimeT(time.time())
         else:
             val = makeWxDateTime(val)
-        
-        if not self.utcCheck.GetValue():
-            val = val.FromUTC()
-        
+
+        if not self.isLocalTime():
+            val = val.ToUTC()
+            
+        self.updateToolTips()
         super(DateTimeField, self).setDisplayValue(val, check)
     
     
@@ -1245,18 +1276,27 @@ class DateTimeField(IntField):
         val = super(DateTimeField, self).getDisplayValue()
         if val is None:
             return None
-        if not self.utcCheck.GetValue():
-            val = val.ToUTC()
+        if not self.isLocalTime():
+            val = val.FromUTC()
         return val.GetTicks()
-    
-    
-    def OnUtcCheck(self, evt):
+
+
+    def OnTzChange(self, evt):
+        """ Handle Local/UTC selection change.
+        """
         # NOTE: This changes the main dialog's useUtc attribute, but it will
         # not update other DateTimeFields. Will need revision if/when we use
         # more than one.
-        self.root.useUtc = evt.Checked()
-        evt.Skip()
+        val = self.field.GetValue()
+        if self.isLocalTime():
+            self.field.SetValue(val.FromUTC())
+            self.root.useUtc = False
+        else:
+            self.field.SetValue(val.ToUTC())
+            self.root.useUtc = True
 
+        self.updateToolTips()
+        
 
 #===============================================================================
 
@@ -1299,14 +1339,7 @@ class UTCOffsetField(FloatField):
         """ Handle the 'Get Local Offset' button press by getting the local
             time zone offset.
         """
-#         val = int(-time.timezone / 60 / 60) + time.daylight
-        # `time.timezone` and `time.daylight` not reliable under Windows.
-        gt = time.gmtime()
-        lt = time.localtime()
-        val = (time.mktime(lt) - time.mktime(gt)) / 60.0 / 60.0
-        if lt.tm_isdst == 1:
-            val += 1
-        self.setDisplayValue(val)
+        self.setDisplayValue(getUtcOffset())
 
 
 #===============================================================================
