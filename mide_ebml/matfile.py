@@ -691,6 +691,9 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
                 createTime = os.path.getctime(events.dataset.filename)
             except IOError:
                 pass
+            
+        # Scale to increments used in the source.
+        createTime /= timeScalar
    
     # If specific subchannels are specified, export them in order.
     if events.hasSubchannels:
