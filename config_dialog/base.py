@@ -126,17 +126,17 @@ def getClipboardText():
 #===============================================================================
 
 class TextValidator(wx.PyValidator):
-    """ Validator for TextField and ASCIIField text widgets.
+    """ Generic Validator for TextField and ASCIIField text widgets.
     """
     
     VALID_KEYS = (wx.WXK_LEFT, wx.WXK_UP, wx.WXK_RIGHT, wx.WXK_DOWN,
                   wx.WXK_HOME, wx.WXK_END, wx.WXK_PAGEUP, wx.WXK_PAGEDOWN,
                   wx.WXK_INSERT, wx.WXK_DELETE)
     
-    def __init__(self, validator=None, maxLen=None):
+    def __init__(self, validator, maxLen=None):
         """ Instantiate a text field validator.
         
-            @keyword validChars: A string of chars 
+            @keyword validator: A function that validates the string. 
         """
         self.maxLen = maxLen
         self.isValid = validator 
@@ -146,6 +146,7 @@ class TextValidator(wx.PyValidator):
         
 
     def Clone(self):
+        """ Required in wx.PyValidator subclasses. """
         return TextValidator(self.isValid, self.maxLen)
     
     
@@ -671,12 +672,18 @@ class ConfigWidget(wx.Panel, ConfigBase):
     def setDisplayValue(self, val, check=True):
         """ Set the Field's value, using the data type native to the widget. 
         """
-        if val is not None:
-            if self.field is not None:
-                self.field.SetValue(val)
-            else:
-                check = bool(val)
-        self.setCheck(check)
+        try:
+            if val is not None:
+                if self.field is not None:
+                    self.field.SetValue(val)
+                else:
+                    check = bool(val)
+            self.setCheck(check)
+        except TypeError:
+            # Shouldn't happen, but could if the config file is damaged.
+            logger.error('Config file had wrong type for %s (ConfigID 0x%X): '
+                         '%r (%s)' % (self.__class__.__name__, self.configId,
+                                      val, val.__class__.__name__))
         
 
     def setToDefault(self, check=False):
@@ -740,7 +747,8 @@ class ConfigWidget(wx.Panel, ConfigBase):
 @registerField
 class BooleanField(ConfigWidget):
     """ UI widget for editing a Boolean value. This is a special case; although
-        it is a checkbox, it is not considered a 'check' field
+        it is a checkbox, it is not considered a 'check' field because the
+        check *is* its value.
     """
     CHECK = True
 
@@ -778,13 +786,20 @@ class TextField(ConfigWidget):
     VALID_CHARS = None
 
     def __init__(self, *args, **kwargs):
+        """ Constructor.
+        
+            @see: `ConfigWidget.__init__()`
+        """
         self.setAttribDefault('default', '')
         self.setAttribDefault('textLines', 1)
         super(TextField, self).__init__(*args, **kwargs)
 
     
     def isValid(self, s):
-        """ Filter for characters valid in the text field. """
+        """ Filter for characters valid in the text field. Used by the field's
+            Validator. It just checks the string contents vs. `VALID_CHARS` and
+            its length vs. `maxLength`.
+        """
         # All characters are permitted in UTF-8 fields.
         if self.maxLength is not None and len(s) > self.maxLength:
             return False
@@ -829,8 +844,6 @@ class TextField(ConfigWidget):
         wx.Panel.Enable(self, enabled)
 
 
-
-
 #===============================================================================
 
 @registerField
@@ -857,12 +870,9 @@ class IntField(ConfigWidget):
     
         
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes standard `wx.Panel` arguments, plus:
-            
-            @keyword element: The EBML element for which the UI element is
-                being generated.
-            @keyword root: The main dialog.
-            @keyword group: The parent group containing the Field.
+        """ Constructor.
+        
+            @see: `ConfigWidget.__init__()`
         """
         # Set some default values
         self.setAttribDefault('default', 0)
@@ -904,12 +914,9 @@ class UIntField(IntField):
     DEFAULT_TYPE = "UIntValue"
     
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes standard `wx.Panel` arguments, plus:
-            
-            @keyword element: The EBML element for which the UI element is
-                being generated.
-            @keyword root: The main dialog.
-            @keyword group: The parent group containing the Field.
+        """ Constructor.
+        
+            @see: `ConfigWidget.__init__()`
         """
         self.setAttribDefault('min', 0)
         super(UIntField, self).__init__(*args, **kwargs)
@@ -926,12 +933,9 @@ class FloatField(IntField):
     CLASS_ARGS = {'FloatIncrement': 'increment'}
         
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes standard `wx.Panel` arguments, plus:
-            
-            @keyword element: The EBML element for which the UI element is
-                being generated.
-            @keyword root: The main dialog.
-            @keyword group: The parent group containing the Field.
+        """ Constructor.
+        
+            @see: `ConfigWidget.__init__()`
         """
         self.setAttribDefault('increment', 0.25)
         self.setAttribDefault("floatDigits", 2)
@@ -962,15 +966,10 @@ class EnumField(ConfigWidget):
 
     
     def __init__(self, *args, **kwargs):
-        """ Constructor. Takes standard `wx.Panel` arguments, plus:
-            
-            @keyword element: The EBML element for which the UI element is
-                being generated. The element's name typically matches that of
-                the class.
-            @keyword root: The main dialog.
-            @keyword group: The parent group containing the Field (if any).
-        """
+        """ Constructor.
         
+            @see: `ConfigWidget.__init__()`
+        """
         self.setAttribDefault('default', 0) 
         super(EnumField, self).__init__(*args, **kwargs)
 
@@ -1062,6 +1061,7 @@ class EnumOption(ConfigBase):
     
     def __init__(self, element, parent, index, **kwargs):
         """ Constructor.
+        
             @keyword element: The EBML element for which the enumeration option
                 is being generated.
             @param parent: The parent `EnumField`. 
@@ -1317,6 +1317,10 @@ class UTCOffsetField(FloatField):
     DEFAULT_TYPE = "IntValue"
 
     def __init__(self, *args, **kwargs):
+        """ Constructor.
+        
+            @see: `ConfigWidget.__init__()`
+        """
         self.setAttribDefault('min', -23.0)
         self.setAttribDefault('max', 23.0)
         self.setAttribDefault('units', "Hours")
@@ -1461,6 +1465,10 @@ class FloatTemperatureField(FloatField):
     """ `FloatField` variant with appropriate defaults for temperature display.
     """
     def __init__(self, *args, **kwargs):
+        """ Constructor.
+        
+            @see: `ConfigWidget.__init__()`
+        """
         self.setAttribDefault("units", u"\u00b0C")
         self.setAttribDefault("label", "Temperature")
         self.setAttribDefault("min", -40.0)
@@ -1481,6 +1489,10 @@ class FloatAccelerationField(FloatField):
     """ `FloatField` variant with appropriate defaults for acceleration display.
     """
     def __init__(self, *args, **kwargs):
+        """ Constructor.
+        
+            @see: `ConfigWidget.__init__()`
+        """
         self.setAttribDefault("units", u"g")
         self.setAttribDefault("label", "Acceleration")
         self.setAttribDefault("min", -100.0)
@@ -1511,6 +1523,10 @@ class CheckDriftButton(ConfigWidget):
     DEFAULT_TYPE = None
 
     def __init__(self, *args, **kwargs):
+        """ Constructor.
+        
+            @see: `ConfigWidget.__init__()`
+        """
         self.setAttribDefault("label", "Check Clock Drift")
         self.setAttribDefault("tooltip", "Read the recorder's clock and "
                                          "compare to the current system time.")
@@ -1572,6 +1588,10 @@ class ResetButton(CheckDriftButton):
         sibling fields in its group or tab.
     """
     def __init__(self, *args, **kwargs):
+        """ Constructor.
+        
+            @see: `ConfigWidget.__init__()`
+        """
         self.setAttribDefault("label", "Reset to Defaults")
         self.setAttribDefault("tooltip", "Reset this set of fields to their "
                                          "default values")
