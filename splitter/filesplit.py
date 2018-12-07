@@ -27,7 +27,7 @@ from mide_ebml.importer import nullUpdater
 
 from mide_ebml import ebmlite
 mideSchema = ebmlite.loadSchema(os.path.join(os.path.dirname(mide_ebml.__file__), 
-                                             'ebml/schema/mide.xml'))
+                                             'ebmlite/schemata/mide.xml'))
 
 #===============================================================================
 # 
