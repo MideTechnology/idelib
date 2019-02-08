@@ -11,13 +11,13 @@ import time
 Drive = namedtuple("Drive", ("path","label","sn","fs","type"))
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 def getDriveInfo(dev):
     # XXX: Total hack.
-    return dev, os.path.basename(dev), None, 'fat', None
-    
+    return Drive(dev, os.path.basename(dev), None, 'fat', None)
+
 
 def readRecorderClock(clockfile):
     t0 = time.time()
@@ -47,7 +47,7 @@ last_recorders = None
 def deviceChanged(recordersOnly, types):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
-        
+
         @keyword recordersOnly: If `False`, any change to the mounted drives
             is reported as a change. If `True`, the mounted drives are checked
             and `True` is only returned if the change occurred to a recorder.
@@ -57,11 +57,11 @@ def deviceChanged(recordersOnly, types):
     newDevices = os.listdir("/Volumes/")
     changed = newDevices != last_devices
     last_devices = newDevices
-    
+
 #     if not changed or not recordersOnly:
     if not recordersOnly:
         return changed
-    
+
     newRecorders = tuple(getDeviceList(types=types))
     changed = newRecorders != last_recorders
     last_recorders = newRecorders
@@ -70,7 +70,7 @@ def deviceChanged(recordersOnly, types):
 
 def getFreeSpace(path):
     """ Return the free space (in bytes) on a drive.
-        
+
         @param path: The path to the drive to check. Can be a subdirectory.
         @return: The free space on the drive, in bytes.
         @rtype: int
