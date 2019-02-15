@@ -3,6 +3,7 @@ import unittest
 
 import mock
 import numpy as np
+from mide_ebml.importer import openFile
 
 from mide_ebml.parsers import ChannelDataArrayParser, ChannelDataArrayBlock
 from mide_ebml.ebmlite.core import *
@@ -11,15 +12,13 @@ from mide_ebml.ebmlite.core import *
 class TestChannelDataArrayParser(unittest.TestCase):
 
     def setUp(self):
-        self.schema = loadSchema('./mide_ebml/ebmlite/schemata/mide.xml')
-        self.doc = self.schema.load('./mide_ebml/testing/SSX70065.IDE')
-        self.element = [x for x in self.doc.value if type(x) is self.doc.children[161] and x[0].value == 32][0]
+        self.doc = openFile('./mide_ebml/testing/SSX70065.IDE')
+        self.element = [x for x in self.doc.ebmldoc.value if type(x) is self.doc.ebmldoc.children[161] and x[0].value == 32][0]
         self.block = ChannelDataArrayBlock(self.element)
 
         self.parser = ChannelDataArrayParser(self.doc)
 
     def testConstructor(self):
-        print(self.block.payload)
         self.assertIsNone(self.parser.children)
         self.assertFalse(self.parser.isSubElement)
         self.assertFalse(self.parser.isHeader)
@@ -45,7 +44,7 @@ class TestChannelDataArrayParser(unittest.TestCase):
     def testParse(self):
         # TODO fix the iterator on the mock after implementing ChannlDataArrayBlock
         # Straightforward case
-        ch = self.block.channel
+        ch = self.doc.channels[self.block.channel]
         self.assertEqual(self.parser.parse(self.element), self.block.getNumSamples(ch.parser) * len(ch.children))
 
         # TODO tests for: attributeErrors, None endtime, invalid channel, zeroDivision in getNumSamples
@@ -55,7 +54,7 @@ class TestChannelDataArrayParser(unittest.TestCase):
 
     def testGetElementName(self):
         """ Test getElementName from ElementHandler. """
-        self.assertEqual(self.parser.getElementName(self.element), "'ChannelDataBlock' (0xa1) @766L")
+        self.assertEqual(self.parser.getElementName(self.element), "'ChannelDataBlock' (0xa1) @1322L")
 
     def testMakesData(self):
         """ Test makesData from ElementHandler. """
@@ -67,23 +66,45 @@ class TestChannelDataArrayBlock(unittest.TestCase):
     # with new stuff, but (most of) the other stuff should be fine as-is
 
     def setUp(self):
-        self.schema = loadSchema('./mide_ebml/ebmlite/schemata/mide.xml')
-        self.doc = self.schema.load('./mide_ebml/testing/SSX70065.IDE')
-        self.element = [x for x in self.doc.value if type(x) is self.doc.children[161] and x[0].value == 32][0]
+        self.doc = openFile('./mide_ebml/testing/SSX70065.IDE')
+        self.ebmldoc = self.doc.ebmldoc
+
+        def chFilter(x):
+            return type(x) is self.ebmldoc.children[161] and x[0].value == 32
+
+        self.element = [x for x in self.ebmldoc.value if chFilter(x)][0]
         self.block = ChannelDataArrayBlock(self.element)
 
     def testConstructor(self):
         # TODO THIS
-        1+1
-        pass
+        self.assertIs(self.block.element, self.element)
+        self.assertIsNone(self.block.numSamples)
+        self.assertIsNone(self.block.sampleRate)
+        self.assertIsNone(self.block.sampleTime)
+        self.assertIsNone(self.block.indexRange)
+        # self.assertIsNone(self.block.minMeanMax)
+        # self.assertIsNone(self.block.min)
+        # self.assertIsNone(self.block.mean)
+        # self.assertIsNone(self.block.max)
+        self.assertIsNone(self.block._rollingMean)
+        self.assertIsNone(self.block._rollingMeanLen)
+
+        self.assertFalse(self.block.cache)
+
+        self.assertEqual(self.block.maxTimestamp, 16777216)
+        self.assertEqual(self.block.timeScalar, 30.517578125)
+        self.assertEqual(self.block.blockIndex, -1)
+        self.assertEqual(self.block.startTime, 211)
+        self.assertEqual(self.block.endTime, 14721)
+        self.assertEqual(self.block.payloadSize, 8142)
 
     def testRepr(self):
-        # TODO THIS
-        pass
+        self.assertEqual(unicode(repr(self.block)),
+                         unicode('<ChannelDataArrayBlock Channel: 32>'))
 
     def testPayload(self):
-        # TODO THIS
-        pass
+        np.testing.assert_array_equal(self.block.payload,
+                                      np.asarray(self.block._payloadEl.value))
 
     def testMinMeanMax(self):
         # TODO THIS
