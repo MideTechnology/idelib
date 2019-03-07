@@ -689,7 +689,6 @@ class SimpleChannelDataBlock(BaseDataBlock):
 
 
 
-
 class SimpleChannelDataBlockParser(ElementHandler):
     """ 'Factory' for SimpleChannelDataBlock elements. Instantiated once
         per session (or maybe channel, depending). It handles the modulus
@@ -875,6 +874,63 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         if self._payload is None:
             self._payload = np.array(self._payloadEl.value)
         return self._payload
+
+    def parseWith(self, parser, start=0, end=-1, step=1, subchannel=None):
+        """ Parse an element's payload. Use this instead of directly using
+            `parser.parse()` for consistency's sake.
+
+            @param parser: The DataParser to use
+            @keyword start: First subsample index to parse
+            @keyword end: Last subsample index to parse
+            @keyword step: The number of samples to skip, if the start and end
+                cover more than one sample.
+            @keyword subchannel: The subchannel to get, if specified.
+        """
+        if end < 0:
+            end += len(self.payload)/parser.size + 1
+
+        parser_format = parser.format
+        if parser_format[0] in ['<', '>']:
+            endian = parser_format[0]
+            parser_format = parser_format[1:]
+        else:
+            endian = '>'
+
+        if len(parser_format) == 1:
+            data = np.frombuffer(self.payload, dtype=endian + parser_format)
+            data = data[start:end:step]
+        else:
+            if all([parser_format[0] == x for x in parser_format]):  # homogeneous datatypes
+                data = np.frombuffer(self.payload, dtype=endian + parser_format[0])
+                data = data.reshape(len(data) / len(parser_format), len(parser_format))
+                if subchannel is None:
+                    data = data[start:end:step, :]
+                else:
+                    data = data[start:end:step, subchannel]
+            else:  # heterogeneous datatypes
+                dt = [('x' + str(i), endian + x) for x, i in zip(parser_format, range(len(parser_format)))]
+                data = np.frombuffer(self.payload, dtype=dt)
+                if subchannel is None:
+                    data = data[start:end:step]
+                else:
+                    data = data[start:end:step, subchannel]
+        return data
+
+
+    def parseByIndexWith(self, parser, indices, subchannel=None):
+        """ Parse an element's payload and get a specific set of samples. Used
+            primarily for resampling tricks.
+
+            @param parser: The DataParser to use
+            @param indices: A list of indices into the block's data.
+            @keyword subchannel: The subchannel to get, if specified.
+        """
+        # SimpleChannelDataBlock payloads contain header info; skip it.
+        data = self.parseWith(parser)
+        if subchannel is None:
+            return data[indices, :]
+        else:
+            return data[indices, subchannel]
 
     
 class ChannelDataBlockParser(SimpleChannelDataBlockParser):

@@ -114,22 +114,61 @@ class TestChannelDataArrayBlock(unittest.TestCase):
         # TODO THIS
         pass
 
-    def parseWith(self):
-        # TODO THIS
-        pass
+    def testParseWith(self):
+        parser = self.doc.channels[32].parser
 
-    def parseByIndexWith(self):
-        # TODO THIS
-        pass
+        # Plain case
+        blockOut = self.block.parseWith(parser)
+        oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser)]
+        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        np.testing.assert_array_equal(blockOut, oldOut)
 
-    def parseMinMeanMax(self):
-        # TODO THIS
-        pass
+        # different start
+        blockOut = self.block.parseWith(parser, start=5)
+        oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, start=5)]
+        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        np.testing.assert_array_equal(blockOut, oldOut)
+
+        # different end
+        blockOut = self.block.parseWith(parser, end=100)
+        oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, end=100)]
+        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        np.testing.assert_array_equal(blockOut, oldOut)
+
+        # different step
+        blockOut = self.block.parseWith(parser, step=10)
+        oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, step=10)]
+        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        np.testing.assert_array_equal(blockOut, oldOut)
+
+        # fully different params
+        blockOut = self.block.parseWith(parser, start=10, end=100, step=10)
+        oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, start= 10, end=100, step=10)]
+        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        np.testing.assert_array_equal(blockOut, oldOut)
+
+        # specific subchannel
+        blockOut = self.block.parseWith(parser, subchannel=1)
+        oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, subchannel=1)]
+        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        np.testing.assert_array_equal(blockOut, oldOut)
+
+
+
+    def testParseByIndexWith(self):
+        parser = self.doc.channels[32].parser
+        self.block.getNumSamples(parser)
+        blockOut = self.block.parseByIndexWith(parser, range(20, 100))
+        oldOut = [x for x in super(self.block.__class__, self.block).parseByIndexWith(parser, range(20, 100))]
+        oldOut = np.array(oldOut, dtype= parser.format[0:2])
+        np.testing.assert_array_equal(blockOut, oldOut)
 
     def testGetNumSamples(self):
-        # TODO THIS
-        pass
+        self.assertEqual(self.block.getNumSamples(self.doc.channels[32].parser), 1357)
 
     def testIsValidLength(self):
-        # TODO THIS
-        pass
+        parser = self.doc.channels[32].parser
+        self.assertTrue(self.block.isValidLength(parser))
+
+        self.block.payloadSize -= 1
+        self.assertFalse(self.block.isValidLength(parser))
