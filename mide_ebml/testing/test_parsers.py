@@ -1,5 +1,6 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 import unittest
+from builtins import str
 
 import mock
 import numpy as np
@@ -10,10 +11,12 @@ from mide_ebml.ebmlite.core import *
 
 
 class TestChannelDataArrayParser(unittest.TestCase):
+    """ Tests for ChannelDataArrayParser """
 
     def setUp(self):
         self.doc = openFile('./mide_ebml/testing/SSX70065.IDE')
-        self.element = [x for x in self.doc.ebmldoc.value if type(x) is self.doc.ebmldoc.children[161] and x[0].value == 32][0]
+        chDatBlockEl = self.doc.ebmldoc.children[161]
+        self.element = [x for x in self.doc.ebmldoc.value if type(x) is chDatBlockEl and x[0].value == 32][0]
         self.block = ChannelDataArrayBlock(self.element)
 
         self.parser = ChannelDataArrayParser(self.doc)
@@ -32,22 +35,11 @@ class TestChannelDataArrayParser(unittest.TestCase):
         self.assertEqual(self.parser.timeScalars, {})
         self.assertEqual(self.parser.timeModulus, {})
 
-    def testFixOverflow(self):
-        """ Test fixOverflow from SimpleChannelDataBlockParser. """
-        # TODO test without modulus
-
-        # TODO test with modulus
-
-        # TODO test with timestamp greater than modulus
-        pass
-
     def testParse(self):
-        # TODO fix the iterator on the mock after implementing ChannlDataArrayBlock
+        """ Test parsing for ChannelDataArrayBlocks, which is basically the same """
         # Straightforward case
         ch = self.doc.channels[self.block.channel]
         self.assertEqual(self.parser.parse(self.element), self.block.getNumSamples(ch.parser) * len(ch.children))
-
-        # TODO tests for: attributeErrors, None endtime, invalid channel, zeroDivision in getNumSamples
 
         # None element
         self.assertRaises(TypeError, self.parser.parse, None)
@@ -62,6 +54,7 @@ class TestChannelDataArrayParser(unittest.TestCase):
 
 
 class TestChannelDataArrayBlock(unittest.TestCase):
+    """ Tests for ChannelDataArrayBlock """
     # NOTE: payload and parse* definitely need to be re-written, and tested
     # with new stuff, but (most of) the other stuff should be fine as-is
 
@@ -76,7 +69,6 @@ class TestChannelDataArrayBlock(unittest.TestCase):
         self.block = ChannelDataArrayBlock(self.element)
 
     def testConstructor(self):
-        # TODO THIS
         self.assertIs(self.block.element, self.element)
         self.assertIsNone(self.block.numSamples)
         self.assertIsNone(self.block.sampleRate)
@@ -92,27 +84,29 @@ class TestChannelDataArrayBlock(unittest.TestCase):
         self.assertFalse(self.block.cache)
 
         self.assertEqual(self.block.maxTimestamp, 16777216)
-        self.assertEqual(self.block.timeScalar, 30.517578125)
-        self.assertEqual(self.block.blockIndex, -1)
-        self.assertEqual(self.block.startTime, 211)
-        self.assertEqual(self.block.endTime, 14721)
-        self.assertEqual(self.block.payloadSize, 8142)
+        self.assertEqual(self.block.timeScalar,   30.517578125)
+        self.assertEqual(self.block.blockIndex,   -1)
+        self.assertEqual(self.block.startTime,    211)
+        self.assertEqual(self.block.endTime,      14721)
+        self.assertEqual(self.block.payloadSize,  8142)
 
     def testRepr(self):
-        self.assertEqual(unicode(repr(self.block)),
-                         unicode('<ChannelDataArrayBlock Channel: 32>'))
+        self.assertEqual(repr(self.block),
+                         '<ChannelDataArrayBlock Channel: 32>')
 
     def testPayload(self):
         np.testing.assert_array_equal(self.block.payload,
                                       np.asarray(self.block._payloadEl.value))
 
-    def testMinMeanMax(self):
-        # TODO THIS
-        pass
+    def testParseMinMeanMax(self):
+        parser = self.doc.channels[32].parser
+
+        oldVal = super(self.block.__class__, self.block).parseMinMeanMax(parser)
+        newVal = self.block.parseMinMeanMax(parser)
+        np.testing.assert_array_equal(oldVal, newVal)
 
     def testGetHeader(self):
-        # TODO THIS
-        pass
+        self.assertEqual(self.block.getHeader(), (211, 32))
 
     def testParseWith(self):
         parser = self.doc.channels[32].parser
@@ -153,14 +147,12 @@ class TestChannelDataArrayBlock(unittest.TestCase):
         oldOut = np.array(oldOut, dtype=parser.format[0:2])
         np.testing.assert_array_equal(blockOut, oldOut)
 
-
-
     def testParseByIndexWith(self):
         parser = self.doc.channels[32].parser
         self.block.getNumSamples(parser)
         blockOut = self.block.parseByIndexWith(parser, range(20, 100))
         oldOut = [x for x in super(self.block.__class__, self.block).parseByIndexWith(parser, range(20, 100))]
-        oldOut = np.array(oldOut, dtype= parser.format[0:2])
+        oldOut = np.array(oldOut, dtype=parser.format[0:2])
         np.testing.assert_array_equal(blockOut, oldOut)
 
     def testGetNumSamples(self):

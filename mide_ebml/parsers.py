@@ -916,7 +916,6 @@ class ChannelDataArrayBlock(ChannelDataBlock):
                     data = data[start:end:step, subchannel]
         return data
 
-
     def parseByIndexWith(self, parser, indices, subchannel=None):
         """ Parse an element's payload and get a specific set of samples. Used
             primarily for resampling tricks.
@@ -931,6 +930,23 @@ class ChannelDataArrayBlock(ChannelDataBlock):
             return data[indices, :]
         else:
             return data[indices, subchannel]
+
+    def parseMinMeanMax(self, parser):
+        if self.minMeanMax is None:
+            return None
+        try:
+            # NOTE: Because the SSX Z axis is inverted, the min/max need correction
+            # This may create a performance hit. Optimize?
+            self.min = list(parser.unpack_from(self.minMeanMax))
+            self.mean = parser.unpack_from(self.minMeanMax, parser.size)
+            self.max = list(parser.unpack_from(self.minMeanMax, parser.size*2))
+            for i, vals in enumerate(zip(self.min, self.max)):
+                self.min[i], self.max[i] = sorted(vals)
+            return np.array((self.min, self.mean, self.max))
+        except struct.error:
+            # Bad min/mean/max data: too short. Ignore it.
+            self.minMeanMax = None
+            return None
 
     
 class ChannelDataBlockParser(SimpleChannelDataBlockParser):
@@ -957,31 +973,6 @@ class ChannelDataArrayParser(ChannelDataBlockParser):
     """
     product = ChannelDataArrayBlock
     elementName = product.__name__
-
-
-    # NOTE: This may actually not be necessary
-    def parse(self, element, sessionId=None, timeOffset=0):
-        return super(self.__class__, self).parse(element, sessionId=sessionId,
-                                                 timeOffset=timeOffset)
-
-
-    def fixOverflow(self, block, timestamp):
-        return super(self.__class__, self).fixOverflow(block, timestamp)
-
-
-    def getElementName(self, element):
-        """ NOTE: This probably doesn't need to be overloaded
-            Generate a string with an element's name, ID, and file position
-            for debugging/error reporting.
-        """
-        return super(self.__class__, self).getElementName(element)
-
-
-    def makesData(self):
-        """ NOTE: This probably doesn't need to be overloaded
-            Does this handler produce sample data?
-        """
-        return super(self.__class__, self).makesData()
 
 
 ################################################################################
