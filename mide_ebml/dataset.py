@@ -52,6 +52,10 @@ Created on Sep 26, 2013
 # 
 # TODO: Clean up the min/mean/max stuff.
 
+#from __future__ import (absolute_import, division, print_function,
+#                        unicode_literals)
+from __future__ import (division, print_function)
+
 __all__ = ['Channel','Dataset','EventList','Plot','Sensor','Session',
            'SubChannel','WarningRange','Cascading','Transformable']
 
@@ -66,6 +70,7 @@ import sys
 from time import sleep
 
 import numpy
+import numpy as np
 
 from calibration import Transform, CombinedPoly, PolyPoly
 from parsers import getParserTypes, getParserRanges
@@ -2471,8 +2476,767 @@ class EventList(Transformable):
             callback(error=e)
 
         return num+1, datetime.now() - t0
-    
-        
+
+
+#===============================================================================
+#
+#===============================================================================
+
+def retryUntilReturn(func, max_tries, delay=0, on_fail=lambda: None,
+                     on_abort=lambda: None, default=None):
+    """ Repeats a function call until a non-None value is returned, and
+        returns that value.
+    """
+    def separated_iter(iterable, separator):
+        """ Calls a function *strictly between* every yielded item in
+            an iterator. Useful for adding delay between iterations
+            without an unnecessary delay following the final item.
+        """
+        it = iter(iterable)
+        yield next(it)
+        while True:
+            next_value = next(it)  # skips separator on last item yield
+            separator()
+            yield next_value
+
+    for _ in separated_iter(range(max_tries), lambda: sleep(delay)):
+        value = func()
+        if value is not None:
+            return value
+        on_fail()
+    else:
+        return on_abort() or default
+
+
+def np_structured_concatenate(arrays_names, fill_fields_names=True,
+                              nest_arrays=False, squeeze_homogeneous=False):
+    """ Takes a sequence of arrays with potentially differing types, and merges
+        them into a new structured array. The number of data types given to
+        each input array is:
+        - the length of the array along axis=0 for arays of scalar dtype
+        - the length of the dtype for structured arrays
+    """
+    from collections import namedtuple, Sequence
+
+    assert len(arrays_names) > 0
+
+    def is_structarray(array):
+        return array.dtype.names is not None
+
+    def generate_names(array, names, array_no):
+        """ Auto-generates/validates field names for an array.
+        """
+        if names is None:
+            return array.dtype.names
+        elif len(names) > array.shape[0]:
+            raise ValueError('too many field names passed for array')
+        names.extend(None for _ in range(len(names), array.shape[0]))
+
+        if fill_fields_names:
+            names = [name or '_'.join(['f{}'.format(array_no), str(i)])
+                     for i, name in enumerate(names)]
+        elif not all(names[::-1]):
+            raise ValueError('missing field names for array')
+
+        return names
+
+    def generate_top_name(array, name, array_no):
+        """ Auto-generates/validates a top-level field name for an array.
+        """
+        if name is None:
+            if not fill_fields_names:
+                raise ValueError('missing top-level field name for array')
+            return 'f{}'.format(array_no)
+        return name
+
+    BlockDescription = namedtuple('BlockDescription', 'array names, topname')
+
+    def process_block_desc(array_desc, array_no):
+        if not isinstance(array_desc, tuple):
+            array = np.asanyarray(array_desc)
+            array_desc = (array_desc,)
+        else:
+            array = np.asanyarray(array_desc[0])
+
+        # With no parameters provided
+        if len(array_desc) == 1:
+            names = generate_names(array, None, array_no)
+            topname = (generate_top_name(array, None, array_no)
+                       if nest_arrays or not is_structarray(array)
+                       else None)
+
+        elif len(array_desc) == 2:
+            # With field names provided
+            if any(isinstance(array_desc[1], type) for type in (list, tuple)):
+                names = generate_names(array, array_desc[1], array_no),
+                topname = (generate_top_name(array, None, array_no)
+                           if nest_arrays else None)
+            # With nested top-level name provided
+            else:
+                names = generate_names(array, None, array_no)
+                topname = generate_top_name(array, array_desc[1], array_no)
+
+        # With nested top-level name & field names provided
+        elif len(array_desc) == 3:
+            names = generate_names(array, array_desc[1], array_no)
+            topname = generate_top_name(array, array_desc[2], array_no)
+
+        else:
+            raise ValueError('invalid array descriptor, {}'.format(array_desc))
+
+        return BlockDescription(array, names, topname)
+
+    # Checking for homogeneousness is done inside the "make_block_spec"
+    #   function, since it touches all the dtypes before reorganizing them into
+    #   nested arrays.
+    is_homogeneous = True
+    h_dtype = None
+
+    def check_homogeneousness(dtype):
+        """ Logs dtypes of all arrays passed to determine type homogeneousness.
+        """
+        if h_dtype is None:
+            h_dtype = dtype
+        elif not is_homogeneous:
+            is_homogeneous = is_homogeneous and (dtype == h_dtype)
+
+    BlockSpecification = namedtuple('BlockSpecification',
+                                    'array subdtypes shape')
+
+    def make_block_spec(array, names, top_name):
+        if is_structarray(array):
+            dtypes = (i[0] for i in sorted(array.dtype.fields.values(),
+                                           cmp=lambda x: x[1]))
+            #if squeeze_homogeneous:
+            #    for dt in dtypes:
+            #        check_homogeneousness(dt)
+            is_homogeneous = False
+
+            fields = zip(names, dtypes)
+            shape = array.shape
+        else:
+            if squeeze_homogeneous:
+                check_homogeneousness(array.dtype)
+
+            if names is not None:
+                fields = [(name, array.dtype) for name in names]
+                shape = array.shape[1:] or (1,)
+            else:
+                return BlockSpecification(
+                    array, subdtypes=[(top_name, array.dtype)], shape=array.shape
+                )
+
+        if top_name:
+            return BlockSpecification(
+                array, subdtypes=[topname, np.dtype(fields)], shape=shape
+            )
+        else:
+            return BlockSpecification(array, subdtypes=fields, shape=shape)
+
+    block_specs = [
+        make_block_spec(*process_block_desc(array_desc, i))
+        for (i, array_desc) in enumerate(arrays_names)
+    ]
+
+    shape = block_specs[0].shape
+    if not all(s == b.shape for b in block_specs[1:]):
+        raise ValueError('mismatched array shapes')
+
+    if squeeze_homogeneous and is_homogeneous:
+        return np.concatenate([
+            a for a in
+            (
+                [array] if array.shape == shape
+                else [i for i in array]
+            )
+            for array, subdtypes, shape in block_specs
+        ])
+
+    struct_dtype = np.dtype([dt for b in block_specs for dt in b.subdtypes])
+    new_array = np.empty(shape, dtype=struct_dtype)
+    for array, subdtypes, shape in block_specs:
+        is_nested_dtype = (len(subdtypes) == 1 and subdtypes[0][1].names)
+        if is_nested_dtype:
+            new_array[subdtypes[0][0], list(subdtypes[0][1].names)] = array
+        else:
+            new_array[[subdtype[0] for subdtype in subdtypes]] = array
+
+    return new_array
+
+
+class EventArray(EventList):
+
+    def itervalues(self, start=None, end=None, step=None, subchannels=True,
+                   display=False):
+        # TODO: Optimize; times don't need to be computed since they aren't used
+        if self.hasSubchannels and subchannels is not True:
+            for v in self.iterSlice(start, end, step, display):
+                yield tuple(v[-1][c] for c in subchannels)
+        else:
+            for v in self.iterSlice(start, end, step, display):
+                yield v[-1]
+
+    def iterSlice(self, start=None, end=None, step=None, display=False):
+        if isinstance(start, slice):
+            idxSlice = start
+        else:
+            idxSlice = slice(start, end, step)
+        start, end, step = idxSlice.indices(len(self))
+
+        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
+        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
+
+        blockStep = max(1, step / self._data[startBlockIdx].numSamples)
+        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
+
+        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
+        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
+
+        # OPTIMIZATION: making local variables for faster access
+        parent = self.parent
+        parent_parseBlock = parent.parseBlock
+        session = self.session
+        hasSubchannels = self.hasSubchannels
+        if not hasSubchannels:
+            subchannelId = parent.id
+        _data = self._data
+        _getBlockSampleTime = self._getBlockSampleTime
+        _getBlockRollingMean = self._getBlockRollingMean
+        numpy_array = numpy.array
+        removeMean = (self.allowMeanRemoval and self.removeMean
+                      and self.hasMinMeanMax)
+        offset = None
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        # in each block, the next subIdx is (step+subIdx)%numSamples
+        for i in xrange(numBlocks):
+            blockIdx = int(startBlockIdx + (i * blockStep))
+            block = _data[blockIdx]
+            sampleTime = _getBlockSampleTime(blockIdx)
+            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
+                          else block.numSamples)
+
+            times = np.arange(block.startTime + sampleTime*subIdx,
+                              block.startTime + sampleTime*lastSubIdx,
+                              sampleTime*step)
+            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx,
+                                       step=step)
+
+            if removeMean:
+                offset = retryUntilReturn(
+                    lambda: _getBlockRollingMean(blockIdx),
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.info(
+                        "%s: bad offset (1) @%s"
+                        % (self.parent.name, block.startTime)
+                    ),
+                )
+                offsetx = retryUntilReturn(
+                    lambda: xform((block.startTime, offset), session=session,
+                                  noBivariates=self.noBivariates),
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.info(
+                        "%s: bad offset(2) @%s"
+                        % (self.parent.name, block.startTime)
+                    ),
+                )
+                if offsetx is not None:
+                    offset = numpy_array(offsetx[-1])
+
+            events = np.empty(values.shape[-1])
+            for event in izip(times, values):
+                event = retryUntilReturn(
+                    lambda: xform(event, session, self.noBivariates),
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.info(
+                        "%s: bad transform @%s"
+                        % (self.parent.name, blockEvents[0])
+                    ),
+                )
+
+                if offset is not None:
+                    event = (event[0], tuple(event[1]-offset))
+
+                if hasSubchannels:
+                    yield event
+                else:
+                    yield (event[0], event[1][subchannelId])
+
+            subIdx = (lastSubIdx-1+step) % block.numSamples
+
+    def iterJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
+                         display=False):
+        # Fill slice values
+        if isinstance(start, slice):
+            idxSlice = start
+        else:
+            idxSlice = slice(start, end, step)
+        start, end, step = idxSlice.indices(len(self))
+        scaledJitter = jitter * abs(step)
+
+        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
+        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
+
+        blockStep = max(1, (step + 0.0) / self._data[startBlockIdx].numSamples)
+        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
+
+        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
+        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
+
+        # OPTIMIZATION: making local variables for faster access
+        parent = self.parent
+        parent_parseBlockByIndex = parent.parseBlockByIndex
+        session = self.session
+        hasSubchannels = self.hasSubchannels
+        if not hasSubchannels:
+            subchannelId = parent.id
+        _data = self._data
+        _getBlockSampleTime = self._getBlockSampleTime
+        _getBlockRollingMean = self._getBlockRollingMean
+        removeMean = self.allowMeanRemoval and self.removeMean
+        offset = None
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        # in each block, the next subIdx is (step+subIdx)%numSamples
+        for i in xrange(numBlocks):
+            blockIdx = int(startBlockIdx + (i * blockStep))
+            block = _data[blockIdx]
+            sampleTime = _getBlockSampleTime(blockIdx)
+            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
+                          else block.numSamples)
+
+            indices = np.arange(subIdx, lastSubIdx, step)
+            if scaledJitter > 0.5:
+                indices[1:-1] += np.rint(np.random.uniform(
+                    -scaledJitter, scaledJitter, len(indices)-2
+                )).astype(indices.dtype)
+
+            times = (block.startTime + sampleTime*indices)
+            values = parent_parseBlockByIndex(block, indices)
+
+            # Note: _getBlockRollingMean returns None if removeMean==False
+            if removeMean:
+                offset = retryUntilReturn(
+                    lambda: _getBlockRollingMean(blockIdx),
+                    max_tries=2, delay=0.001
+                )
+
+                offsetx = retryUntilReturn(
+                    lambda: xform((block.startTime, offset), session=session,
+                                  noBivariates=self.noBivariates),
+                    on_fail=lambda: logger.warning("iterJitterySlice: offset is None"),
+                    max_tries=2, delay=0.001
+                )
+                offset = numpy.array(offsetx[-1])
+
+            for event in izip(times, values):
+                event = retryUntilReturn(
+                    lambda: xform(event, session, noBivariates=self.noBivariates),
+                    max_tries=2, delay=0.001
+                )
+
+                if offset is not None:
+                    event = (event[0], tuple(event[1]-offset))
+                else:
+                    logger.info('%r event offset is None' % self.parent.name)
+                if hasSubchannels:
+                    yield event
+                else:
+                    yield (event[0], event[1][subchannelId])
+
+            subIdx = (lastSubIdx-1+step) % block.numSamples
+
+    def getRange(self, startTime=None, endTime=None, display=False):
+        return self.arrayRange(startTime, endTime, display=display)
+
+    # def iterRange(self, startTime=None, endTime=None, step=1, display=False):
+
+    def iterMinMeanMax(self):
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+
+        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
+
+        # OPTIMIZATION: Local variables for things used in inner loops
+        hasSubchannels = self.hasSubchannels
+        session = self.session
+        removeMean = self.removeMean and self.allowMeanRemoval
+        _getBlockRollingMean = self._getBlockRollingMean
+        if not hasSubchannels:
+            parent_id = self.subchannelId
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        for block in self._data[startBlockIdx:endBlockIdx]:
+            # NOTE: Without this, a file in which some blocks don't have
+            # min/mean/max will fail. Should not happen, though.
+#             if block.minMeanMax is None:
+#                 continue
+
+            t = block.startTime
+
+            # HACK: Multithreaded loading can (very rarely) fail at start.
+            # The problem is almost instantly resolved, though. Find root cause.
+            if removeMean:
+                m = retryUntilReturn(
+                    lambda: _getBlockRollingMean(block.blockIndex),
+                    max_tries=10, delay=0.01
+                )
+            else:
+                m = _getBlockRollingMean(block.blockIndex)
+
+            if m is not None:
+                tx, mx = retryUntilReturn(
+                    lambda: xform((t, m), session, self.noBivariates),
+                    max_tries=2, delay=0.005, default=(t, m)
+                )
+                m = np.array(mx)
+
+            result = []
+            result_append = result.append
+            for val in (block.min, block.mean, block.max):
+                tx, valsx = retryUntilReturn(
+                    lambda: xform((t, val), session, self.noBivariates),
+                    max_tries=2, delay=0.005, default=(t, vals)
+                )
+                if m is not None:
+                    valsx -= m
+                result_append(valsx)
+
+            # Make sure transformed min < max
+            if hasSubchannels:
+                # 'rotate' the arrays, sort them, 'rotate' back.
+                result = zip(*map(sorted, zip(*result)))
+            else:
+                result = [v[parent_id] for v in result]
+                if result[0] > result[2]:
+                    result = result[2], result[1], result[0]
+
+            if times:
+                yield [(tx, x) for x in result]
+            else:
+                yield result
+
+    #def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
+    #                  times=True, display=False):
+    #    # TODO check with Connor
+    #    array = arrayMinMeanMax(self, startTime, endTime, padding, times, display)
+    #    return [array[[0, 1]], array[[0, 2]], array[[0, 3]]]
+
+    # def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
+    #                        jitter=0, display=False):
+
+    def arrayValues(self, start=None, end=None, step=None, subchannels=True,
+                    display=False):
+        # TODO: Optimize; times don't need to be computed since they aren't used
+        if self.hasSubchannels and subchannels is not True:
+            index = np.array(subchannels) + 1
+        else:
+            index = slice(1, None, None)
+        return self.arraySlice(start, end, step, display)[index]
+
+    def arraySlice(self, start=None, end=None, step=None, display=False):
+        if isinstance(start, slice):
+            idxSlice = start
+        else:
+            idxSlice = slice(start, end, step)
+        start, end, step = idxSlice.indices(len(self))
+
+        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
+        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
+
+        blockStep = max(1, step / self._data[startBlockIdx].numSamples)
+        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
+
+        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
+        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
+
+        # OPTIMIZATION: making local variables for faster access
+        parent = self.parent
+        parent_parseBlock = parent.parseBlock
+        session = self.session
+        hasSubchannels = self.hasSubchannels
+        if not hasSubchannels:
+            subchannelId = parent.id
+        _data = self._data
+        _getBlockSampleTime = self._getBlockSampleTime
+        _getBlockRollingMean = self._getBlockRollingMean
+        numpy_array = numpy.array
+        removeMean = (self.allowMeanRemoval and self.removeMean
+                      and self.hasMinMeanMax)
+        offset = None
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        # in each block, the next subIdx is (step+subIdx)%numSamples
+        events = []
+        for i in xrange(numBlocks):
+            blockIdx = int(startBlockIdx + (i * blockStep))
+            block = _data[blockIdx]
+            sampleTime = _getBlockSampleTime(blockIdx)
+            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
+                          else block.numSamples)
+
+            times = np.arange(block.startTime + sampleTime*subIdx,
+                              block.startTime + sampleTime*lastSubIdx,
+                              sampleTime*step)
+            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx,
+                                       step=step)
+            blockEvents = np_structured_concatenate(
+                [(times, 't'), values],
+                squeeze_homogeneous=True
+            )
+
+            if removeMean:
+                offset = retryUntilReturn(
+                    lambda: _getBlockRollingMean(blockIdx),
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.info(
+                        "%s: bad offset (1) @%s"
+                        % (self.parent.name, block.startTime)
+                    ),
+                )
+                offsetx = retryUntilReturn(
+                    lambda: xform((block.startTime, offset), session=session,
+                                  noBivariates=self.noBivariates),
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.info(
+                        "%s: bad offset(2) @%s"
+                        % (self.parent.name, block.startTime)
+                    ),
+                )
+                if offsetx is not None:
+                    offset = numpy_array(offsetx[-1])
+
+            eventx = retryUntilReturn(
+                lambda: xform(blockEvents, session=session,
+                              noBivariates=self.noBivariates),
+                max_tries=2, delay=0.001,
+                on_fail=lambda: logger.info(
+                    "%s: bad transform @%s"
+                    % (self.parent.name, blockEvents[0])
+                ),
+            )
+            blockEvents = eventx
+
+            if offset is not None:
+                blockEvents[1] -= offset
+
+            events.append(blockEvents)
+            subIdx = (lastSubIdx-1+step) % block.numSamples
+
+        if not hasSubchannels:
+            events = [(event[0], event[subchannelId]) for event in events]
+
+        return np.block(events)
+
+    def arrayJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
+                          display=False):
+        """
+            @ todo implement
+        """
+        # Fill slice values
+        if isinstance(start, slice):
+            idxSlice = start
+        else:
+            idxSlice = slice(start, end, step)
+        start, end, step = idxSlice.indices(len(self))
+        scaledJitter = jitter * abs(step)
+
+        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
+        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
+
+        blockStep = max(1, (step + 0.0) / self._data[startBlockIdx].numSamples)
+        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
+
+        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
+        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
+
+        # OPTIMIZATION: making local variables for faster access
+        parent = self.parent
+        parent_parseBlockByIndex = parent.parseBlockByIndex
+        session = self.session
+        hasSubchannels = self.hasSubchannels
+        if not hasSubchannels:
+            subchannelId = parent.id
+        _data = self._data
+        _getBlockSampleTime = self._getBlockSampleTime
+        _getBlockRollingMean = self._getBlockRollingMean
+        removeMean = self.allowMeanRemoval and self.removeMean
+        offset = None
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        # in each block, the next subIdx is (step+subIdx)%numSamples
+        events = []
+        for i in xrange(numBlocks):
+            blockIdx = int(startBlockIdx + (i * blockStep))
+            block = _data[blockIdx]
+            sampleTime = _getBlockSampleTime(blockIdx)
+            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
+                          else block.numSamples)
+
+            indices = np.arange(subIdx, lastSubIdx, step)
+            if scaledJitter > 0.5:
+                indices[1:-1] += np.rint(np.random.uniform(
+                    -scaledJitter, scaledJitter, len(indices)-2
+                )).astype(indices.dtype)
+
+            times = (block.startTime + sampleTime*indices)
+            values = parent_parseBlockByIndex(block, indices)
+            blockEvents = (times, values)
+
+            # Note: _getBlockRollingMean returns None if removeMean==False
+            if removeMean:
+                offset = retryUntilReturn(
+                    lambda: _getBlockRollingMean(blockIdx),
+                    max_tries=2, delay=0.001
+                )
+
+                offsetx = retryUntilReturn(
+                    lambda: xform((block.startTime, offset), session=session,
+                                  noBivariates=self.noBivariates),
+                    on_fail=lambda: logger.warning("iterJitterySlice: offset is None"),
+                    max_tries=2, delay=0.001
+                )
+                offset = numpy.array(offsetx[-1])
+
+            eventx = retryUntilReturn(
+                lambda: xform(blockEvents, session, noBivariates=self.noBivariates),
+                max_tries=2, delay=0.001
+            )
+            blockEvents = eventx
+
+            if offset is not None:
+                blockEvents[1] -= offset
+            else:
+                logger.info('%r event offset is None' % self.parent.name)
+
+            events.append(blockEvents)
+
+        if not hasSubchannels:
+            events = [(event[0], event[subchannelId]) for event in events]
+
+        return np.block(events)
+
+    def arrayRange(self, startTime=None, endTime=None, step=1, display=False):
+        startIdx, endIdx = self.getRangeIndices(startTime, endTime)
+        return self.arraySlice(startIdx, endIdx, step, display=display)
+
+    def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
+                        times=True, display=False):
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+
+        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
+
+        # OPTIMIZATION: Local variables for things used in inner loops
+        hasSubchannels = self.hasSubchannels
+        session = self.session
+        removeMean = self.removeMean and self.allowMeanRemoval
+        _getBlockRollingMean = self._getBlockRollingMean
+        if not hasSubchannels:
+            parent_id = self.subchannelId
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        results = []
+        for block in self._data[startBlockIdx:endBlockIdx]:
+            # NOTE: Without this, a file in which some blocks don't have
+            # min/mean/max will fail. Should not happen, though.
+#             if block.minMeanMax is None:
+#                 continue
+
+            t = block.startTime
+
+            # HACK: Multithreaded loading can (very rarely) fail at start.
+            # The problem is almost instantly resolved, though. Find root cause.
+            if removeMean:
+                m = retryUntilReturn(
+                    lambda: _getBlockRollingMean(block.blockIndex),
+                    max_tries=10, delay=0.01
+                )
+            else:
+                m = _getBlockRollingMean(block.blockIndex)
+
+            if m is not None:
+                tx, mx = retryUntilReturn(
+                    lambda: xform((t, m), session, noBivariates=self.noBivariates),
+                    max_tries=2, delay=0.005, default=(t, m)
+                )
+                m = np.array(mx)
+
+            vals = np.array((block.min, block.mean, block.max))
+            tx, valsx = retryUntilReturn(
+                lambda: xform((t, vals), session, noBivariates=self.noBivariates),
+                max_tries=2, delay=0.005, default=(t, vals)
+            )
+            if m is not None:
+                valsx -= m
+            t, vals = tx, valsx
+
+            # Make sure transformed min < max
+            if hasSubchannels:
+                vals = np.sort(vals, axis=0)
+            elif vals[0, parent_id] > vals[2, parent_id]:
+                vals = vals[::-1, parent_id]
+            else:
+                vals = vals[:, parent_id]
+
+            if times:
+                if not isinstance(t, np.ndarray):
+                    t = np.full(vals.shape[1], t)
+                vals = (t, vals)
+
+            results.append(vals)
+
+        return (np.block(results) if results
+                else np.empty((0, 4), dtype=np.float))
+
+    def arrayResampledRange(self):
+        startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
+        numPoints = (stopIdx - startIdx)
+        startIdx = max(startIdx-padding, 0)
+        stopIdx = min(stopIdx+padding+1, len(self))
+        step = max(int(numPoints / maxPoints),1)
+        if jitter != 0:
+            return self.arrayJitterySlice(startIdx, stopIdx, step, jitter,
+                                         display=display)
+        return self.arraySlice(startIdx, stopIdx, step, display=display)
+
+
 #===============================================================================
 # 
 #===============================================================================
