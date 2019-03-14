@@ -71,6 +71,7 @@ from time import sleep
 
 import numpy
 import numpy as np
+from numpy.lib import recfunctions as np_recfuncs
 
 from calibration import Transform, CombinedPoly, PolyPoly
 from parsers import getParserTypes, getParserRanges
@@ -2507,9 +2508,9 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=lambda: None,
     else:
         return on_abort() or default
 
-
-def np_structured_concatenate(arrays_names, fill_fields_names=True,
-                              nest_arrays=False, squeeze_homogeneous=False):
+'''
+def np_structarray_concatenate(arrays_names, fill_fields_names=True,
+                               nest_arrays=False, squeeze_homogeneous=False):
     """ Takes a sequence of arrays with potentially differing types, and merges
         them into a new structured array. The number of data types given to
         each input array is:
@@ -2589,16 +2590,21 @@ def np_structured_concatenate(arrays_names, fill_fields_names=True,
     # Checking for homogeneousness is done inside the "make_block_spec"
     #   function, since it touches all the dtypes before reorganizing them into
     #   nested arrays.
-    is_homogeneous = True
-    h_dtype = None
-
-    def check_homogeneousness(dtype):
+    def check_homogen(dtype):
         """ Logs dtypes of all arrays passed to determine type homogeneousness.
         """
-        if h_dtype is None:
-            h_dtype = dtype
-        elif not is_homogeneous:
-            is_homogeneous = is_homogeneous and (dtype == h_dtype)
+        # TODO in Python 3, use nonlocal dtype/is_homogen
+        if check_homogen.dtype is None:
+            check_homogen.dtype = dtype
+
+        elif not check_homogen.is_homogen:
+            check_homogen.is_homogen = (
+                check_homogen.is_homogen
+                and (dtype == check_homogen.dtype)
+            )
+
+    check_homogen.is_homogen = True
+    check_homogen.dtype = None
 
     BlockSpecification = namedtuple('BlockSpecification',
                                     'array subdtypes shape')
@@ -2606,17 +2612,17 @@ def np_structured_concatenate(arrays_names, fill_fields_names=True,
     def make_block_spec(array, names, top_name):
         if is_structarray(array):
             dtypes = (i[0] for i in sorted(array.dtype.fields.values(),
-                                           cmp=lambda x: x[1]))
+                                           key=lambda x: x[1]))
             #if squeeze_homogeneous:
             #    for dt in dtypes:
-            #        check_homogeneousness(dt)
-            is_homogeneous = False
+            #        check_homogen(dt)
+            check_homogen.is_homogen = False
 
             fields = zip(names, dtypes)
             shape = array.shape
         else:
             if squeeze_homogeneous:
-                check_homogeneousness(array.dtype)
+                check_homogen(array.dtype)
 
             if names is not None:
                 fields = [(name, array.dtype) for name in names]
@@ -2639,17 +2645,18 @@ def np_structured_concatenate(arrays_names, fill_fields_names=True,
     ]
 
     shape = block_specs[0].shape
-    if not all(s == b.shape for b in block_specs[1:]):
+    if any(b.shape != shape for b in block_specs[1:]):
         raise ValueError('mismatched array shapes')
 
-    if squeeze_homogeneous and is_homogeneous:
+    if squeeze_homogeneous and check_homogen.is_homogen:
         return np.concatenate([
-            a for a in
+            a
+            for array, subdtypes, shape in block_specs
+            for a in
             (
                 [array] if array.shape == shape
                 else [i for i in array]
             )
-            for array, subdtypes, shape in block_specs
         ])
 
     struct_dtype = np.dtype([dt for b in block_specs for dt in b.subdtypes])
@@ -2662,9 +2669,48 @@ def np_structured_concatenate(arrays_names, fill_fields_names=True,
             new_array[[subdtype[0] for subdtype in subdtypes]] = array
 
     return new_array
-
+'''
 
 class EventArray(EventList):
+
+    @staticmethod
+    def _joinTimesValues(times, values):
+        """ Joins arrays of times and values together into a contiguous
+            structured array.
+        """
+        split_values = [values[n] for name in values.dtype.names]
+        values_dtype = np.dtype([
+            ('ch'+str(i), v.dtype)
+            for i, v in enumerate(split_values)
+        ])
+        struct_dtype_desc = [('t', times.dtype), ('channels', values_dtype)]
+
+        array = np.empty_like(times, dtype=struct_dtype_desc)
+        array['t'] = times
+        for i, v in enumerate(split_values):
+            array['channels']['ch'+str(i)] = v
+
+        return array
+
+
+        '''
+        split_values = (
+            [values[n] for n in values.dtype.names] if values.dtype.names
+            else [v for v in values.T] if len(values.shape) > 1
+            else values
+        )
+        if times.dtype != values.dtype:
+            blockEvents = np.rec.fromarrays(
+                [times] + split_values,
+                names=['t'] + ['ch{}'.format(i) for i in range(len(split_values))]
+            )
+        else:
+            blockEvents = np.concatenate(
+                [times[np.newaxis]] + [v[np.newaxis] for v in split_values],
+                axis=0
+            )
+        '''
+
 
     def itervalues(self, start=None, end=None, step=None, subchannels=True,
                    display=False):
@@ -2722,12 +2768,6 @@ class EventArray(EventList):
             lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
                           else block.numSamples)
 
-            times = np.arange(block.startTime + sampleTime*subIdx,
-                              block.startTime + sampleTime*lastSubIdx,
-                              sampleTime*step)
-            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx,
-                                       step=step)
-
             if removeMean:
                 offset = retryUntilReturn(
                     lambda: _getBlockRollingMean(blockIdx),
@@ -2749,24 +2789,33 @@ class EventArray(EventList):
                 if offsetx is not None:
                     offset = numpy_array(offsetx[-1])
 
-            events = np.empty(values.shape[-1])
-            for event in izip(times, values):
-                event = retryUntilReturn(
-                    lambda: xform(event, session, self.noBivariates),
-                    max_tries=2, delay=0.001,
-                    on_fail=lambda: logger.info(
-                        "%s: bad transform @%s"
-                        % (self.parent.name, blockEvents[0])
-                    ),
-                )
+            times = block.startTime + sampleTime*np.arange(subIdx, lastSubIdx,
+                                                           step)
+            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx,
+                                       step=step)
+            blockEvents = EventArray._joinTimesValues(times, values)
 
-                if offset is not None:
-                    event = (event[0], tuple(event[1]-offset))
+            blockEvents = retryUntilReturn(
+                lambda: xform(blockEvents, session=session,
+                              noBivariates=self.noBivariates),
+                max_tries=2, delay=0.001,
+                on_fail=lambda: logger.info(
+                    "%s: bad transform @%s"
+                    % (self.parent.name, blockEvents['t'])
+                ),
+            )
 
-                if hasSubchannels:
-                    yield event
-                else:
-                    yield (event[0], event[1][subchannelId])
+            if offset is not None:
+                blockEvents['channels'] -= offset
+
+            if not hasSubchannels:
+                blockEvents = np_recfuncs.drop_fields(blockEvents, [
+                    n for n in blockEvents['channels'].dtype.names
+                    if n != blockEvents['channels'].dtype.names[subchannelId]
+                ])
+
+            for event in blockEvents:
+                yield event
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -2817,15 +2866,6 @@ class EventArray(EventList):
             lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
                           else block.numSamples)
 
-            indices = np.arange(subIdx, lastSubIdx, step)
-            if scaledJitter > 0.5:
-                indices[1:-1] += np.rint(np.random.uniform(
-                    -scaledJitter, scaledJitter, len(indices)-2
-                )).astype(indices.dtype)
-
-            times = (block.startTime + sampleTime*indices)
-            values = parent_parseBlockByIndex(block, indices)
-
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
                 offset = retryUntilReturn(
@@ -2836,25 +2876,42 @@ class EventArray(EventList):
                 offsetx = retryUntilReturn(
                     lambda: xform((block.startTime, offset), session=session,
                                   noBivariates=self.noBivariates),
-                    on_fail=lambda: logger.warning("iterJitterySlice: offset is None"),
-                    max_tries=2, delay=0.001
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.warning(
+                        "iterJitterySlice: offset is None"
+                    ),
                 )
                 offset = numpy.array(offsetx[-1])
 
-            for event in izip(times, values):
-                event = retryUntilReturn(
-                    lambda: xform(event, session, noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001
-                )
+            indices = np.arange(subIdx, lastSubIdx, step)
+            if scaledJitter > 0.5:
+                indices[1:-1] += np.rint(
+                    scaledJitter * np.random.uniform(-1, 1, len(indices)-2)
+                ).astype(indices.dtype)
 
-                if offset is not None:
-                    event = (event[0], tuple(event[1]-offset))
-                else:
-                    logger.info('%r event offset is None' % self.parent.name)
-                if hasSubchannels:
-                    yield event
-                else:
-                    yield (event[0], event[1][subchannelId])
+            times = (block.startTime + sampleTime*indices)
+            values = parent_parseBlockByIndex(block, indices)
+            blockEvents = EventArray._joinTimesValues(times, values)
+
+            blockEvents = retryUntilReturn(
+                lambda: xform(blockEvents, session,
+                              noBivariates=self.noBivariates),
+                max_tries=2, delay=0.001
+            )
+
+            if offset is not None:
+                blockEvents['channels'] -= offset
+            else:
+                logger.info('%r event offset is None' % self.parent.name)
+
+            if not hasSubchannels:
+                blockEvents = np_recfuncs.drop_fields(blockEvents, [
+                    n for n in blockEvents['channels'].dtype.names
+                    if n != blockEvents['channels'].dtype.names[subchannelId]
+                ])
+
+            for event in blockEvents:
+                yield event
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -2999,16 +3056,6 @@ class EventArray(EventList):
             lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
                           else block.numSamples)
 
-            times = np.arange(block.startTime + sampleTime*subIdx,
-                              block.startTime + sampleTime*lastSubIdx,
-                              sampleTime*step)
-            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx,
-                                       step=step)
-            blockEvents = np_structured_concatenate(
-                [(times, 't'), values],
-                squeeze_homogeneous=True
-            )
-
             if removeMean:
                 offset = retryUntilReturn(
                     lambda: _getBlockRollingMean(blockIdx),
@@ -3030,27 +3077,38 @@ class EventArray(EventList):
                 if offsetx is not None:
                     offset = numpy_array(offsetx[-1])
 
-            eventx = retryUntilReturn(
+            times = block.startTime + sampleTime*np.arange(subIdx, lastSubIdx,
+                                                           step)
+            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx,
+                                       step=step)
+            blockEvents = EventArray._joinTimesValues(times, values)
+
+            blockEvents = retryUntilReturn(
                 lambda: xform(blockEvents, session=session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=lambda: logger.info(
                     "%s: bad transform @%s"
-                    % (self.parent.name, blockEvents[0])
+                    % (self.parent.name, blockEvents['t'])
                 ),
             )
-            blockEvents = eventx
 
             if offset is not None:
-                blockEvents[1] -= offset
+                blockEvents['channels'] -= offset
 
             events.append(blockEvents)
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
         if not hasSubchannels:
-            events = [(event[0], event[subchannelId]) for event in events]
+            events = [
+                np_recfuncs.drop_fields(event, [
+                    n for n in event['channels'].dtype.names
+                    if n != event['channels'].dtype.names[subchannelId]
+                ])
+                for event in events
+            ]
 
-        return np.block(events)
+        return np.concatenate(events)
 
     def arrayJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
                           display=False):
@@ -3103,16 +3161,6 @@ class EventArray(EventList):
             lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
                           else block.numSamples)
 
-            indices = np.arange(subIdx, lastSubIdx, step)
-            if scaledJitter > 0.5:
-                indices[1:-1] += np.rint(np.random.uniform(
-                    -scaledJitter, scaledJitter, len(indices)-2
-                )).astype(indices.dtype)
-
-            times = (block.startTime + sampleTime*indices)
-            values = parent_parseBlockByIndex(block, indices)
-            blockEvents = (times, values)
-
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
                 offset = retryUntilReturn(
@@ -3123,28 +3171,46 @@ class EventArray(EventList):
                 offsetx = retryUntilReturn(
                     lambda: xform((block.startTime, offset), session=session,
                                   noBivariates=self.noBivariates),
-                    on_fail=lambda: logger.warning("iterJitterySlice: offset is None"),
-                    max_tries=2, delay=0.001
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.warning(
+                        "iterJitterySlice: offset is None"
+                    ),
                 )
                 offset = numpy.array(offsetx[-1])
 
-            eventx = retryUntilReturn(
-                lambda: xform(blockEvents, session, noBivariates=self.noBivariates),
-                max_tries=2, delay=0.001
+            indices = np.arange(subIdx, lastSubIdx, step)
+            if scaledJitter > 0.5:
+                indices[1:-1] += np.rint(
+                    scaledJitter * np.random.uniform(-1, 1, len(indices)-2)
+                ).astype(indices.dtype)
+
+            times = (block.startTime + sampleTime*indices)
+            values = parent_parseBlockByIndex(block, indices)
+            blockEvents = EventArray._joinTimesValues(times, values)
+
+            blockEvents = retryUntilReturn(
+                lambda: xform(blockEvents, session=session,
+                              noBivariates=self.noBivariates),
+                max_tries=2, delay=0.001,
             )
-            blockEvents = eventx
 
             if offset is not None:
-                blockEvents[1] -= offset
+                blockEvents['channels'] -= offset
             else:
                 logger.info('%r event offset is None' % self.parent.name)
 
             events.append(blockEvents)
 
         if not hasSubchannels:
-            events = [(event[0], event[subchannelId]) for event in events]
+            events = [
+                np_recfuncs.drop_fields(event, [
+                    n for n in event['channels'].dtype.names
+                    if n != event['channels'].dtype.names[subchannelId]
+                ])
+                for event in events
+            ]
 
-        return np.block(events)
+        return np.concatenate(events)
 
     def arrayRange(self, startTime=None, endTime=None, step=1, display=False):
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)

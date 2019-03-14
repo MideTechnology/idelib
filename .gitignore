@@ -62,4 +62,5 @@ mide_ebml/devinfo.xml
 
 drs_test/
 env/
-
+.eggs/
+SlamStickLab.egg-info/
