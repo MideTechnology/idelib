@@ -2508,6 +2508,7 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=lambda: None,
     else:
         return on_abort() or default
 
+
 '''
 def np_structarray_concatenate(arrays_names, fill_fields_names=True,
                                nest_arrays=False, squeeze_homogeneous=False):
@@ -2671,6 +2672,7 @@ def np_structarray_concatenate(arrays_names, fill_fields_names=True,
     return new_array
 '''
 
+
 class EventArray(EventList):
 
     @staticmethod
@@ -2692,35 +2694,16 @@ class EventArray(EventList):
 
         return array
 
-
-        '''
-        split_values = (
-            [values[n] for n in values.dtype.names] if values.dtype.names
-            else [v for v in values.T] if len(values.shape) > 1
-            else values
-        )
-        if times.dtype != values.dtype:
-            blockEvents = np.rec.fromarrays(
-                [times] + split_values,
-                names=['t'] + ['ch{}'.format(i) for i in range(len(split_values))]
-            )
-        else:
-            blockEvents = np.concatenate(
-                [times[np.newaxis]] + [v[np.newaxis] for v in split_values],
-                axis=0
-            )
-        '''
-
-
     def itervalues(self, start=None, end=None, step=None, subchannels=True,
                    display=False):
         # TODO: Optimize; times don't need to be computed since they aren't used
         if self.hasSubchannels and subchannels is not True:
             for v in self.iterSlice(start, end, step, display):
-                yield tuple(v[-1][c] for c in subchannels)
+                v_ch = v['channels']
+                yield tuple(v_ch[v_ch.dtype.names[c]] for c in subchannels)
         else:
             for v in self.iterSlice(start, end, step, display):
-                yield v[-1]
+                yield v['channels']
 
     def iterSlice(self, start=None, end=None, step=None, display=False):
         if isinstance(start, slice):
@@ -2920,7 +2903,8 @@ class EventArray(EventList):
 
     # def iterRange(self, startTime=None, endTime=None, step=1, display=False):
 
-    def iterMinMeanMax(self):
+    def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
+                       times=True, display=False):
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
 
@@ -2944,27 +2928,24 @@ class EventArray(EventList):
         for block in self._data[startBlockIdx:endBlockIdx]:
             # NOTE: Without this, a file in which some blocks don't have
             # min/mean/max will fail. Should not happen, though.
-#             if block.minMeanMax is None:
-#                 continue
+            # if block.minMeanMax is None:
+            #     continue
 
             t = block.startTime
 
             # HACK: Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
-            if removeMean:
-                m = retryUntilReturn(
-                    lambda: _getBlockRollingMean(block.blockIndex),
-                    max_tries=10, delay=0.01
-                )
-            else:
-                m = _getBlockRollingMean(block.blockIndex)
+            m = retryUntilReturn(
+                lambda: _getBlockRollingMean(block.blockIndex),
+                max_tries=(10 if removeMean else 1), delay=0.01
+            )
 
             if m is not None:
                 tx, mx = retryUntilReturn(
                     lambda: xform((t, m), session, self.noBivariates),
                     max_tries=2, delay=0.005, default=(t, m)
                 )
-                m = np.array(mx)
+                m = np.asanyarray(mx)
 
             result = []
             result_append = result.append
@@ -3003,11 +2984,11 @@ class EventArray(EventList):
     def arrayValues(self, start=None, end=None, step=None, subchannels=True,
                     display=False):
         # TODO: Optimize; times don't need to be computed since they aren't used
+        array_chs = self.arraySlice(start, end, step, display)['channels']
         if self.hasSubchannels and subchannels is not True:
-            index = np.array(subchannels) + 1
+            return array_chs[[array_chs.dtype.names[sch] for sch in subchannels]]
         else:
-            index = slice(1, None, None)
-        return self.arraySlice(start, end, step, display)[index]
+            return array_chs
 
     def arraySlice(self, start=None, end=None, step=None, display=False):
         if isinstance(start, slice):
@@ -3101,10 +3082,10 @@ class EventArray(EventList):
 
         if not hasSubchannels:
             events = [
-                np_recfuncs.drop_fields(event, [
-                    n for n in event['channels'].dtype.names
-                    if n != event['channels'].dtype.names[subchannelId]
-                ])
+                np_recfuncs.drop_fields(event, (
+                    event['channels'].dtype.names[:subchannelId]
+                    + event['channels'].dtype.names[subchannelId+1:]
+                ))
                 for event in events
             ]
 
@@ -3203,10 +3184,10 @@ class EventArray(EventList):
 
         if not hasSubchannels:
             events = [
-                np_recfuncs.drop_fields(event, [
-                    n for n in event['channels'].dtype.names
-                    if n != event['channels'].dtype.names[subchannelId]
-                ])
+                np_recfuncs.drop_fields(event, (
+                    event['channels'].dtype.names[:subchannelId]
+                    + event['channels'].dtype.names[subchannelId+1:]
+                ))
                 for event in events
             ]
 
@@ -3218,80 +3199,51 @@ class EventArray(EventList):
 
     def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
                         times=True, display=False):
-        if not self.hasMinMeanMax:
-            self._computeMinMeanMax()
 
-        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
+        def determine_structured_dtype(data):
+            def npdtype_of(dt):
+                return np.find_common_type([dt], [])
 
-        # OPTIMIZATION: Local variables for things used in inner loops
-        hasSubchannels = self.hasSubchannels
-        session = self.session
-        removeMean = self.removeMean and self.allowMeanRemoval
-        _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
-            parent_id = self.subchannelId
+            if not self.hasSubchannels and not times:
+                dtype = np.dtype((
+                    (name, npdtype_of(value))
+                    for name, value in zip('min mean max'.split(), data)
+                ))
+            elif not self.hasSubchannels and times:
+                dtype = np.dtype((
+                    (name, [
+                        ('time', npdtype_of(data[i][0])),
+                        ('value', npdtype_of(data[i][1])),
+                    ])
+                    for name, (time, value) in zip('min mean max'.split(), data)
+                ))
+            elif self.hasSubchannels and not times:
+                dtype = np.dtype((
+                    (name, [
+                        ('ch'+str(j), npdtype_of(chValue))
+                        for j, chValue in enumerate(values)
+                    ])
+                    for name, values in zip('min mean max'.split(), data)
+                ))
+            else:  # if self.hasSubchannels and times:
+                dtype = np.dtype((
+                    (name, [('time', npdtype_of(time)), [
+                        ('ch'+str(j), npdtype_of(chValue))
+                        for j, chValue in enumerate(values)
+                    ]])
+                    for name, (time, values) in zip('min mean max'.split(),
+                                                    data)
+                ))
 
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
+        blocksStats = [i for i in self.iterMinMeanMax(
+            startTime, endTime, padding, times, display
+        )]
 
-        results = []
-        for block in self._data[startBlockIdx:endBlockIdx]:
-            # NOTE: Without this, a file in which some blocks don't have
-            # min/mean/max will fail. Should not happen, though.
-#             if block.minMeanMax is None:
-#                 continue
+        dtype = determine_structured_dtype(blocksStats[0])
+        return np.array(blocksStats, dtype=dtype)
 
-            t = block.startTime
-
-            # HACK: Multithreaded loading can (very rarely) fail at start.
-            # The problem is almost instantly resolved, though. Find root cause.
-            if removeMean:
-                m = retryUntilReturn(
-                    lambda: _getBlockRollingMean(block.blockIndex),
-                    max_tries=10, delay=0.01
-                )
-            else:
-                m = _getBlockRollingMean(block.blockIndex)
-
-            if m is not None:
-                tx, mx = retryUntilReturn(
-                    lambda: xform((t, m), session, noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.005, default=(t, m)
-                )
-                m = np.array(mx)
-
-            vals = np.array((block.min, block.mean, block.max))
-            tx, valsx = retryUntilReturn(
-                lambda: xform((t, vals), session, noBivariates=self.noBivariates),
-                max_tries=2, delay=0.005, default=(t, vals)
-            )
-            if m is not None:
-                valsx -= m
-            t, vals = tx, valsx
-
-            # Make sure transformed min < max
-            if hasSubchannels:
-                vals = np.sort(vals, axis=0)
-            elif vals[0, parent_id] > vals[2, parent_id]:
-                vals = vals[::-1, parent_id]
-            else:
-                vals = vals[:, parent_id]
-
-            if times:
-                if not isinstance(t, np.ndarray):
-                    t = np.full(vals.shape[1], t)
-                vals = (t, vals)
-
-            results.append(vals)
-
-        return (np.block(results) if results
-                else np.empty((0, 4), dtype=np.float))
-
-    def arrayResampledRange(self):
+    def arrayResampledRange(self, startTime, stopTime, maxPoints, padding=0,
+                            jitter=0, display=False):
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
         numPoints = (stopIdx - startIdx)
         startIdx = max(startIdx-padding, 0)
