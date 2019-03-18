@@ -1462,60 +1462,6 @@ class EventListTestCase(unittest.TestCase):
 #
 #===============================================================================
 
-'''
-class NpStructarrayConcatenateTestCase(unittest.TestCase):
-    def setUp(self):
-        self.flat_array = np.arange(2)
-        self.thicc_array = np.arange(6).reshape(3, 2)
-        self.struct_array = np.array([('hello', 3), ('cya', 4)],
-                                     dtype=[('f0', '<U11'), ('f1', '<i4')])
-
-    def testBasic(self):
-        fmonster = np_structarray_concatenate([
-            self.flat_array,
-            self.struct_array
-        ])
-
-        self.assertEqual(fmonster[fmonster.dtype.names[0]], self.flat_array)
-        self.assertSequenceEqual(fmonster.dtype.names[1:],
-                                 self.struct_array.dtype.names)
-        self.assertEqual(fmonster[self.struct_array.dtype.names],
-                         self.struct_array)
-
-    def testManualDescription(self):
-        thicc_fieldnames = ['Did you know', 'Shinigami', 'love apples?']
-        fmonster = np_structarray_concatenate([
-            (self.flat_array, 'flat'),
-            (self.thicc_array, thicc_fieldnames),
-        ])
-
-        self.assertEqual(fmonster['flat'], self.flat_array)
-        for i, name in enumerate(thicc_fieldnames):
-            self.assertEqual(fmonster[name], self.thicc_array[i])
-
-    def testDefault(self):
-        fmonster = np_structarray_concatenate([
-            (self.flat_array, None),
-            (self.thicc_array, [])
-        ])
-
-        autogen_fieldnames = ['f0', 'f1_0', 'f1_1', 'f1_2']
-
-        self.assertSequenceEqual(fmonster.dtype.names, autogen_fieldnames)
-        self.assertEqual(fmonster['f0'], self.flat_array)
-        for i, name in enumerate(autogen_fieldnames):
-            self.assertEqual(fmonster[name], self.thicc_array[i])
-
-    def testSqueezeHomogeneous(self):
-        fmonster = np_structarray_concatenate([
-            (self.flat_array, 't'),
-            (self.thicc_array, ['x1', 'x2', 'x3'])
-        ], squeeze_homogeneous=True)
-
-        self.assertEqual(fmonster, np.concatenate([self.flat_array[None],
-                                                   self.thicc_array]))
-'''
-
 
 #'''
 class EventArrayTestCase(unittest.TestCase):
