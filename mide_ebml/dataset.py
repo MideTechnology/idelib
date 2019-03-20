@@ -2483,8 +2483,8 @@ class EventList(Transformable):
 #
 #===============================================================================
 
-def retryUntilReturn(func, max_tries, delay=0, on_fail=lambda: None,
-                     on_abort=lambda: None, default=None):
+def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
+                     on_abort=(lambda: None), default=None):
     """ Repeats a function call until a non-None value is returned, and
         returns that value.
     """
@@ -2516,23 +2516,95 @@ class EventArray(EventList):
         """ Joins arrays of times and values together into a contiguous
             structured array.
         """
-        split_values = [values[n] for name in values.dtype.names]
-        values_dtype = np.dtype([
+        split_values = [values[name] for name in values.dtype.names]
+        values_dtype_desc = [
             ('ch'+str(i), v.dtype)
             for i, v in enumerate(split_values)
-        ])
-        struct_dtype_desc = [('t', times.dtype), ('channels', values_dtype)]
+        ]
+        struct_dtype_desc = [('time', times.dtype),
+                             ('channels', values_dtype_desc)]
 
         array = np.empty_like(times, dtype=struct_dtype_desc)
-        array['t'] = times
+        array['time'] = times
         for i, v in enumerate(split_values):
             array['channels']['ch'+str(i)] = v
 
         return array
 
+    def __getitem__(self, idx, display=False):
+        """ Get a specific data point by index.
+
+            @param idx: An integer index or a `slice`
+            @return: For single results, a tuple containing (time, value).
+                For multiple results, a structured array of (time, value)
+                pairs.
+        """
+        # TODO: Cache this; a Channel's SubChannels will often be used together.
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        if isinstance(idx, int):
+
+            if idx >= len(self):
+                raise IndexError("EventArray index out of range")
+
+            if idx < 0:
+                idx = max(0, len(self) + idx)
+
+            blockIdx = self._getBlockIndexWithIndex(idx)
+            subIdx = idx - self._getBlockIndexRange(blockIdx)[0]
+
+            block = self._data[blockIdx]
+
+            timestamp = (block.startTime
+                         + self._getBlockSampleTime(blockIdx)*subIdx)
+            value = self.parent.parseBlock(block, start=subIdx,
+                                           end=subIdx+1)[0]
+
+            event = retryUntilReturn(
+                lambda: xform((timestamp, value), session=self.session,
+                              noBivariates=self.noBivariates),
+                max_tries=2, delay=0.001,
+                on_fail=lambda: logger.info(
+                    "%s: bad transform %r %r"
+                    % (self.parent.name, timestamp, value)
+                ),
+            )
+
+            offset = self._getBlockRollingMean(blockIdx)
+            if offset is not None:
+                offsetx = retryUntilReturn(
+                    lambda: xform((timestamp, offset), session=self.session,
+                                  noBivariates=self.noBivariates),
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.info(
+                        "%s: bad offset @%s"
+                        % (self.parent.name, timestamp)
+                    ),
+                )
+                event = (timestamp, tuple(numpy.array(event[-1])-offsetx[-1]))
+
+            if not self.hasSubchannels:
+                # Doesn't quite work; transform dataset attribute not set?
+                return (event[-2], event[-1][self.subchannelId])
+            else:
+                return event
+
+        elif isinstance(idx, slice):
+            # vvv Main difference from `EventList.__getitem__` vvv
+            return self.arraySlice(idx)
+
+        raise TypeError("EventList indices must be integers or slices,"
+                        " not %s (%r)" % (type(idx), idx))
+
     def itervalues(self, start=None, end=None, step=None, subchannels=True,
                    display=False):
         # TODO: Optimize; times don't need to be computed since they aren't used
+        # TODO: use arraySlice instead?
         if self.hasSubchannels and subchannels is not True:
             for v in self.iterSlice(start, end, step, display):
                 v_ch = v['channels']
@@ -2540,6 +2612,16 @@ class EventArray(EventList):
         else:
             for v in self.iterSlice(start, end, step, display):
                 yield v['channels']
+
+    def arrayValues(self, start=None, end=None, step=None, subchannels=True,
+                    display=False):
+        # TODO: Optimize; times don't need to be computed since they aren't used
+        array_chs = self.arraySlice(start, end, step, display)['channels']
+        if self.hasSubchannels and subchannels is not True:
+            return array_chs[[array_chs.dtype.names[sch]
+                              for sch in subchannels]]
+        else:
+            return array_chs
 
     def iterSlice(self, start=None, end=None, step=None, display=False):
         if isinstance(start, slice):
@@ -2637,194 +2719,6 @@ class EventArray(EventList):
                 yield event
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
-
-    def iterJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
-                         display=False):
-        # Fill slice values
-        if isinstance(start, slice):
-            idxSlice = start
-        else:
-            idxSlice = slice(start, end, step)
-        start, end, step = idxSlice.indices(len(self))
-        scaledJitter = jitter * abs(step)
-
-        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
-        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
-
-        blockStep = max(1, (step + 0.0) / self._data[startBlockIdx].numSamples)
-        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
-
-        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
-        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-
-        # OPTIMIZATION: making local variables for faster access
-        parent = self.parent
-        parent_parseBlockByIndex = parent.parseBlockByIndex
-        session = self.session
-        hasSubchannels = self.hasSubchannels
-        if not hasSubchannels:
-            subchannelId = parent.id
-        _data = self._data
-        _getBlockSampleTime = self._getBlockSampleTime
-        _getBlockRollingMean = self._getBlockRollingMean
-        removeMean = self.allowMeanRemoval and self.removeMean
-        offset = None
-
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
-
-        # in each block, the next subIdx is (step+subIdx)%numSamples
-        for i in xrange(numBlocks):
-            blockIdx = int(startBlockIdx + (i * blockStep))
-            block = _data[blockIdx]
-            sampleTime = _getBlockSampleTime(blockIdx)
-            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
-                          else block.numSamples)
-
-            # Note: _getBlockRollingMean returns None if removeMean==False
-            if removeMean:
-                offset = retryUntilReturn(
-                    lambda: _getBlockRollingMean(blockIdx),
-                    max_tries=2, delay=0.001
-                )
-
-                offsetx = retryUntilReturn(
-                    lambda: xform((block.startTime, offset), session=session,
-                                  noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001,
-                    on_fail=lambda: logger.warning(
-                        "iterJitterySlice: offset is None"
-                    ),
-                )
-                offset = numpy.array(offsetx[-1])
-
-            indices = np.arange(subIdx, lastSubIdx, step)
-            if scaledJitter > 0.5:
-                indices[1:-1] += np.rint(
-                    scaledJitter * np.random.uniform(-1, 1, len(indices)-2)
-                ).astype(indices.dtype)
-
-            times = (block.startTime + sampleTime*indices)
-            values = parent_parseBlockByIndex(block, indices)
-            blockEvents = EventArray._joinTimesValues(times, values)
-
-            blockEvents = retryUntilReturn(
-                lambda: xform(blockEvents, session,
-                              noBivariates=self.noBivariates),
-                max_tries=2, delay=0.001
-            )
-
-            if offset is not None:
-                blockEvents['channels'] -= offset
-            else:
-                logger.info('%r event offset is None' % self.parent.name)
-
-            if not hasSubchannels:
-                blockEvents = np_recfuncs.drop_fields(blockEvents, [
-                    n for n in blockEvents['channels'].dtype.names
-                    if n != blockEvents['channels'].dtype.names[subchannelId]
-                ])
-
-            for event in blockEvents:
-                yield event
-
-            subIdx = (lastSubIdx-1+step) % block.numSamples
-
-    def getRange(self, startTime=None, endTime=None, display=False):
-        return self.arrayRange(startTime, endTime, display=display)
-
-    # def iterRange(self, startTime=None, endTime=None, step=1, display=False):
-
-    def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                       times=True, display=False):
-        if not self.hasMinMeanMax:
-            self._computeMinMeanMax()
-
-        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
-
-        # OPTIMIZATION: Local variables for things used in inner loops
-        hasSubchannels = self.hasSubchannels
-        session = self.session
-        removeMean = self.removeMean and self.allowMeanRemoval
-        _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
-            parent_id = self.subchannelId
-
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
-
-        for block in self._data[startBlockIdx:endBlockIdx]:
-            # NOTE: Without this, a file in which some blocks don't have
-            # min/mean/max will fail. Should not happen, though.
-            # if block.minMeanMax is None:
-            #     continue
-
-            t = block.startTime
-
-            # HACK: Multithreaded loading can (very rarely) fail at start.
-            # The problem is almost instantly resolved, though. Find root cause.
-            m = retryUntilReturn(
-                lambda: _getBlockRollingMean(block.blockIndex),
-                max_tries=(10 if removeMean else 1), delay=0.01
-            )
-
-            if m is not None:
-                tx, mx = retryUntilReturn(
-                    lambda: xform((t, m), session, self.noBivariates),
-                    max_tries=2, delay=0.005, default=(t, m)
-                )
-                m = np.asanyarray(mx)
-
-            result = []
-            result_append = result.append
-            for val in (block.min, block.mean, block.max):
-                tx, valsx = retryUntilReturn(
-                    lambda: xform((t, val), session, self.noBivariates),
-                    max_tries=2, delay=0.005, default=(t, vals)
-                )
-                if m is not None:
-                    valsx -= m
-                result_append(valsx)
-
-            # Make sure transformed min < max
-            if hasSubchannels:
-                # 'rotate' the arrays, sort them, 'rotate' back.
-                result = zip(*map(sorted, zip(*result)))
-            else:
-                result = [v[parent_id] for v in result]
-                if result[0] > result[2]:
-                    result = result[2], result[1], result[0]
-
-            if times:
-                yield [(tx, x) for x in result]
-            else:
-                yield result
-
-    #def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
-    #                  times=True, display=False):
-    #    # TODO check with Connor
-    #    array = arrayMinMeanMax(self, startTime, endTime, padding, times, display)
-    #    return [array[[0, 1]], array[[0, 2]], array[[0, 3]]]
-
-    # def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
-    #                        jitter=0, display=False):
-
-    def arrayValues(self, start=None, end=None, step=None, subchannels=True,
-                    display=False):
-        # TODO: Optimize; times don't need to be computed since they aren't used
-        array_chs = self.arraySlice(start, end, step, display)['channels']
-        if self.hasSubchannels and subchannels is not True:
-            return array_chs[[array_chs.dtype.names[sch] for sch in subchannels]]
-        else:
-            return array_chs
 
     def arraySlice(self, start=None, end=None, step=None, display=False):
         if isinstance(start, slice):
@@ -2926,6 +2820,102 @@ class EventArray(EventList):
             ]
 
         return np.concatenate(events)
+
+    def iterJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
+                         display=False):
+        # Fill slice values
+        if isinstance(start, slice):
+            idxSlice = start
+        else:
+            idxSlice = slice(start, end, step)
+        start, end, step = idxSlice.indices(len(self))
+        scaledJitter = jitter * abs(step)
+
+        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
+        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
+
+        blockStep = max(1, step / self._data[startBlockIdx].numSamples)
+        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
+
+        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
+        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
+
+        # OPTIMIZATION: making local variables for faster access
+        parent = self.parent
+        parent_parseBlockByIndex = parent.parseBlockByIndex
+        session = self.session
+        hasSubchannels = self.hasSubchannels
+        if not hasSubchannels:
+            subchannelId = parent.id
+        _data = self._data
+        _getBlockSampleTime = self._getBlockSampleTime
+        _getBlockRollingMean = self._getBlockRollingMean
+        removeMean = self.allowMeanRemoval and self.removeMean
+        offset = None
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        # in each block, the next subIdx is (step+subIdx)%numSamples
+        for i in xrange(numBlocks):
+            blockIdx = int(startBlockIdx + (i * blockStep))
+            block = _data[blockIdx]
+            sampleTime = _getBlockSampleTime(blockIdx)
+            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
+                          else block.numSamples)
+
+            # Note: _getBlockRollingMean returns None if removeMean==False
+            if removeMean:
+                offset = retryUntilReturn(
+                    lambda: _getBlockRollingMean(blockIdx),
+                    max_tries=2, delay=0.001
+                )
+
+                offsetx = retryUntilReturn(
+                    lambda: xform((block.startTime, offset), session=session,
+                                  noBivariates=self.noBivariates),
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.warning(
+                        "iterJitterySlice: offset is None"
+                    ),
+                )
+                offset = numpy.array(offsetx[-1])
+
+            indices = np.arange(subIdx, lastSubIdx, step)
+            if scaledJitter > 0.5:
+                indices[1:-1] += np.rint(
+                    scaledJitter * np.random.uniform(-1, 1, len(indices)-2)
+                ).astype(indices.dtype)
+
+            times = (block.startTime + sampleTime*indices)
+            values = parent_parseBlockByIndex(block, indices)
+            blockEvents = EventArray._joinTimesValues(times, values)
+
+            blockEvents = retryUntilReturn(
+                lambda: xform(blockEvents, session,
+                              noBivariates=self.noBivariates),
+                max_tries=2, delay=0.001
+            )
+
+            if offset is not None:
+                blockEvents['channels'] -= offset
+            else:
+                logger.info('%r event offset is None' % self.parent.name)
+
+            if not hasSubchannels:
+                blockEvents = np_recfuncs.drop_fields(blockEvents, [
+                    n for n in blockEvents['channels'].dtype.names
+                    if n != blockEvents['channels'].dtype.names[subchannelId]
+                ])
+
+            for event in blockEvents:
+                yield event
+
+            subIdx = (lastSubIdx-1+step) % block.numSamples
 
     def arrayJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
                           display=False):
@@ -3029,65 +3019,154 @@ class EventArray(EventList):
 
         return np.concatenate(events)
 
+    # EventList implementation suffices -> no overload required
+    # def iterRange(self, startTime=None, endTime=None, step=1, display=False):
+
     def arrayRange(self, startTime=None, endTime=None, step=1, display=False):
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
         return self.arraySlice(startIdx, endIdx, step, display=display)
+
+    def getRange(self, startTime=None, endTime=None, display=False):
+        return self.arrayRange(startTime, endTime, display=display)
+
+    # EventList implementation suffices -> no overload required
+    # def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
+    #                    times=True, display=False):
 
     def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
                         times=True, display=False):
 
         def determine_structured_dtype(data):
-            def npdtype_of(dt):
-                return np.find_common_type([dt], [])
+            def npdtype_of(value):
+                return np.find_common_type([type(value)], [])
 
             if not self.hasSubchannels and not times:
-                dtype = np.dtype((
+                dtype = np.dtype([
                     (name, npdtype_of(value))
                     for name, value in zip('min mean max'.split(), data)
-                ))
+                ])
             elif not self.hasSubchannels and times:
-                dtype = np.dtype((
+                dtype = np.dtype([
                     (name, [
                         ('time', npdtype_of(data[i][0])),
                         ('value', npdtype_of(data[i][1])),
                     ])
                     for name, (time, value) in zip('min mean max'.split(), data)
-                ))
+                ])
             elif self.hasSubchannels and not times:
-                dtype = np.dtype((
+                dtype = np.dtype([
                     (name, [
-                        ('ch'+str(j), npdtype_of(chValue))
-                        for j, chValue in enumerate(values)
+                        ('ch'+str(j), npdtype_of(subChValue))
+                        for j, subChValue in enumerate(values)
                     ])
                     for name, values in zip('min mean max'.split(), data)
-                ))
+                ])
             else:  # if self.hasSubchannels and times:
-                dtype = np.dtype((
-                    (name, [('time', npdtype_of(time)), [
-                        ('ch'+str(j), npdtype_of(chValue))
-                        for j, chValue in enumerate(values)
-                    ]])
+                dtype = np.dtype([
+                    (name, [('time', npdtype_of(time)), ('values', [
+                        ('ch'+str(j), npdtype_of(subChValue))
+                        for j, subChValue in enumerate(values)
+                    ])])
                     for name, (time, values) in zip('min mean max'.split(),
                                                     data)
-                ))
+                ])
 
-        blocksStats = [i for i in self.iterMinMeanMax(
-            startTime, endTime, padding, times, display
-        )]
+        blocksStats = list(self.iterMinMeanMax(startTime, endTime, padding,
+                                               times, display))
 
         dtype = determine_structured_dtype(blocksStats[0])
         return np.array(blocksStats, dtype=dtype)
 
+    def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
+                      times=True, display=False):
+        return self.arrayMinMeanMax(startTime, endTime, padding, times,
+                                    display)
+
+    def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
+                           display=False):
+        from collections import namedtuple
+
+        DataRangeStats = namedtuple('DataRangeStats', 'min mean max')
+
+        stats = self.arrayMinMeanMax(startTime, endTime, times=False,
+                                     display=display)
+
+        if stats.size == 0:
+            return None
+        if not self.hasSubchannels:
+            return DataRangeStats(
+                min=stats['min'].min(),
+                mean=np.median(stats['mean']),
+                max=stats['max'].max()
+            )
+        if subchannel is not None:
+            chName = stats['min'].dtype.names[subchannel]
+            return DataRangeStats(
+                min=stats['min'][chName].min(),
+                mean=np.median(stats['mean'][chName]),
+                max=stats['max'][chName].max()
+            )
+        else:
+            chNames = stats['min'].dtype.names
+            return DataRangeStats(
+                min=min(stats['min'][n].min() for n in chNames),
+                mean=np.mean([np.median(stats['mean'][n]) for n in chNames]),
+                max=max(stats['max'][n].max() for n in chNames),
+            )
+
+    def getMax(self, startTime=None, endTime=None, display=False):
+        maxs = self.arrayMinMeanMax(startTime, endTime, times=False,
+                                    display=display)['max']
+        if self.hasSubchannels:
+            maxs = np.maximum.reduce([maxs[n] for n in maxs.dtype.names])
+
+        blockIdx = maxs.argmax()  # TODO is this bug-free? double-check
+        sampleIdxRange = self._data[blockIdx].indexRange
+        blockData = self.arraySlice(*sampleIdxRange, display=display)
+
+        blockMaxs = np.maximum.reduce([
+            blockData['channels'][n]
+            for n in blockData['channels'].dtype.names
+        ])
+        subIdx = blockMaxs.argmax()
+
+        return blockData[subIdx]
+
+    def getMin(self, startTime=None, endTime=None, display=False):
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+
+        mins = self.arrayMinMeanMax(startTime, endTime, times=False,
+                                    display=display)['min']
+        if self.hasSubchannels:
+            mins = np.minimum.reduce([mins[n] for n in mins.dtype.names])
+
+        blockIdx = mins.argmin()  # TODO is this bug-free? double-check
+        sampleIdxRange = self._data[blockIdx].indexRange
+        blockData = self.arraySlice(*sampleIdxRange, display=display)
+
+        blockMins = np.minimum.reduce([
+            blockData['channels'][n]
+            for n in blockData['channels'].dtype.names
+        ])
+        subIdx = blockMins.argmin()
+
+        return blockData[subIdx]
+
+    # EventList implementation suffices -> no overload required
+    # def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
+    #                        jitter=0, display=False):
+
     def arrayResampledRange(self, startTime, stopTime, maxPoints, padding=0,
                             jitter=0, display=False):
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
-        numPoints = (stopIdx - startIdx)
         startIdx = max(startIdx-padding, 0)
         stopIdx = min(stopIdx+padding+1, len(self))
-        step = max(int(numPoints / maxPoints),1)
+        step = max((stopIdx - startIdx) // int(maxPoints), 1)
+
         if jitter != 0:
             return self.arrayJitterySlice(startIdx, stopIdx, step, jitter,
-                                         display=display)
+                                          display=display)
         return self.arraySlice(startIdx, stopIdx, step, display=display)
 
 
