@@ -54,7 +54,7 @@ Created on Sep 26, 2013
 
 #from __future__ import (absolute_import, division, print_function,
 #                        unicode_literals)
-from __future__ import (division, print_function)
+from __future__ import (absolute_import, division, print_function)
 
 __all__ = ['Channel','Dataset','EventList','Plot','Sensor','Session',
            'SubChannel','WarningRange','Cascading','Transformable']
@@ -73,10 +73,10 @@ import numpy
 import numpy as np
 from numpy.lib import recfunctions as np_recfuncs
 
-from calibration import Transform, CombinedPoly, PolyPoly
-from parsers import getParserTypes, getParserRanges
+from .calibration import Transform, CombinedPoly, PolyPoly
+from .parsers import getParserTypes, getParserRanges
 
-from ebmlite.core import loadSchema
+from .ebmlite.core import loadSchema
 
 SCHEMA_FILE = 'mide.xml'
 
