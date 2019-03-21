@@ -2297,8 +2297,88 @@ class EventArrayTestCase(unittest.TestCase):
         self.assertEqual(self.comboArgs, ((0, 0),))
         self.assertEqual(self.comboKwargs, {})
 
+    def testIterResampledRange(self):
+        """ Test for iterResampledRange method. """
+        
+        # Stub data/methods
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.__len__ = lambda self: 100
+        eventArray.getRangeIndices.return_value = 0, 105
+
+        eventArray.iterSlice.return_value = mock.sentinel.a
+        eventArray.iterJitterySlice.return_value = mock.sentinel.b
+
+        startTime = mock.sentinel.startTime
+        stopTime = mock.sentinel.stopTime
+        maxPoints = 43
+
+        # Run tests
+        self.assertEqual(
+            EventArray.iterResampledRange(eventArray, startTime, stopTime,
+                                          maxPoints),
+            mock.sentinel.a
+        )
+        startIdx, stopIdx, step = (
+            eventArray.iterSlice.call_args[0]
+        )
+        self.assertTrue(startIdx >= 0)
+        self.assertTrue(stopIdx <= len(eventArray))
+        self.assertTrue(len(xrange(startIdx, stopIdx, step)) <= maxPoints)
+
+        self.assertEqual(
+            EventArray.iterResampledRange(eventArray, startTime, stopTime,
+                                          maxPoints, jitter=0.1,),
+            mock.sentinel.b
+        )
+        startIdx, stopIdx, step, jitter = (
+            eventArray.iterJitterySlice.call_args[0]
+        )
+        self.assertTrue(startIdx >= 0)
+        self.assertTrue(stopIdx <= len(eventArray))
+        self.assertTrue(len(xrange(startIdx, stopIdx, step)) <= maxPoints)
+
+    def testArrayResampledRange(self):
+        """ Test for arrayResampledRange method. """
+        
+        # Stub data/methods
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.__len__ = lambda self: 100
+        eventArray.getRangeIndices.return_value = 0, 105
+
+        eventArray.arraySlice.return_value = mock.sentinel.a
+        eventArray.arrayJitterySlice.return_value = mock.sentinel.b
+
+        startTime = mock.sentinel.startTime
+        stopTime = mock.sentinel.stopTime
+        maxPoints = 43
+
+        # Run tests
+        self.assertEqual(
+            EventArray.arrayResampledRange(eventArray, startTime, stopTime,
+                                          maxPoints),
+            mock.sentinel.a
+        )
+        startIdx, stopIdx, step = (
+            eventArray.arraySlice.call_args[0]
+        )
+        self.assertTrue(startIdx >= 0)
+        self.assertTrue(stopIdx <= len(eventArray))
+        self.assertTrue(len(xrange(startIdx, stopIdx, step)) <= maxPoints)
+
+        self.assertEqual(
+            EventArray.arrayResampledRange(eventArray, startTime, stopTime,
+                                          maxPoints, jitter=0.1,),
+            mock.sentinel.b
+        )
+        startIdx, stopIdx, step, jitter = (
+            eventArray.arrayJitterySlice.call_args[0]
+        )
+        self.assertTrue(startIdx >= 0)
+        self.assertTrue(stopIdx <= len(eventArray))
+        self.assertTrue(len(xrange(startIdx, stopIdx, step)) <= maxPoints)
+
     def testExportCSV(self):
-        """ Test exportCsv, """
+        """ Test for exportCsv method."""
         self.mockData()
         self.eventArray1._data[0].minMeanMax = 1
         self.eventArray1._data[0].blockIndex = 2

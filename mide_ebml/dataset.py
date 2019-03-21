@@ -2598,11 +2598,24 @@ class EventArray(EventList):
             # vvv Main difference from `EventList.__getitem__` vvv
             return self.arraySlice(idx)
 
-        raise TypeError("EventList indices must be integers or slices,"
+        raise TypeError("EventArray indices must be integers or slices,"
                         " not %s (%r)" % (type(idx), idx))
 
     def itervalues(self, start=None, end=None, step=None, subchannels=True,
                    display=False):
+        """ Iterate all values in the given index range (w/o times).
+
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword subchannels: A list of subchannel IDs or Boolean. `True`
+                will return all subchannels in native order.
+            @keyword display: If `True`, the `EventArray` transform (i.e. the
+                'display' transform) will be applied to the data.
+            @return: an iterable of structured array value blocks in the
+                specified index range.
+        """
         # TODO: Optimize; times don't need to be computed since they aren't used
         # TODO: use arraySlice instead?
         if self.hasSubchannels and subchannels is not True:
@@ -2615,6 +2628,18 @@ class EventArray(EventList):
 
     def arrayValues(self, start=None, end=None, step=None, subchannels=True,
                     display=False):
+        """ Get all values in the given index range (w/o times).
+
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword subchannels: A list of subchannel IDs or Boolean. `True`
+                will return all subchannels in native order.
+            @keyword display: If `True`, the `EventArray` transform (i.e. the
+                'display' transform) will be applied to the data.
+            @return: a structured array of values in the specified index range.
+        """
         # TODO: Optimize; times don't need to be computed since they aren't used
         array_chs = self.arraySlice(start, end, step, display)['channels']
         if self.hasSubchannels and subchannels is not True:
@@ -2624,6 +2649,16 @@ class EventArray(EventList):
             return array_chs
 
     def iterSlice(self, start=None, end=None, step=None, display=False):
+        """ Create an iterator producing events for a range of indices.
+
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword display: If `True`, the `EventList` transform (i.e. the
+                'display' transform) will be applied to the data.
+            @return: an iterable of events in the specified index range.
+        """
         if isinstance(start, slice):
             idxSlice = start
         else:
@@ -2721,6 +2756,16 @@ class EventArray(EventList):
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
     def arraySlice(self, start=None, end=None, step=None, display=False):
+        """ Create an array of events within a range of indices.
+
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword display: If `True`, the `EventList` transform (i.e. the
+                'display' transform) will be applied to the data.
+            @return: a structured array of events in the specified index range.
+        """
         if isinstance(start, slice):
             idxSlice = start
         else:
@@ -2823,6 +2868,18 @@ class EventArray(EventList):
 
     def iterJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
                          display=False):
+        """ Create an iterator producing events for a range of indices.
+
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword jitter: The amount by which to vary the sample time, as a
+                normalized percentage of the regular time between samples.
+            @keyword display: If `True`, the `EventList` transform (i.e. the
+                'display' transform) will be applied to the data.
+            @return: an iterable of events in the specified index range.
+        """
         # Fill slice values
         if isinstance(start, slice):
             idxSlice = start
@@ -2919,8 +2976,17 @@ class EventArray(EventList):
 
     def arrayJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
                           display=False):
-        """
-            @ todo implement
+        """ Create an array of events within a range of indices.
+
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword jitter: The amount by which to vary the sample time, as a
+                normalized percentage of the regular time between samples.
+            @keyword display: If `True`, the `EventList` transform (i.e. the
+                'display' transform) will be applied to the data.
+            @return: a structured array of events in the specified index range.
         """
         # Fill slice values
         if isinstance(start, slice):
@@ -3023,10 +3089,28 @@ class EventArray(EventList):
     # def iterRange(self, startTime=None, endTime=None, step=1, display=False):
 
     def arrayRange(self, startTime=None, endTime=None, step=1, display=False):
+        """ Get a set of data occurring in a given time interval.
+
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @return: a structured array of events in the specified time
+                interval.
+        """
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
         return self.arraySlice(startIdx, endIdx, step, display=display)
 
     def getRange(self, startTime=None, endTime=None, display=False):
+        """ Get a set of data occurring in a given time interval. (Currently
+            an alias of `arrayRange`.)
+
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @return: a collection of events in the specified time interval.
+        """
         return self.arrayRange(startTime, endTime, display=display)
 
     # EventList implementation suffices -> no overload required
@@ -3035,6 +3119,23 @@ class EventArray(EventList):
 
     def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
                         times=True, display=False):
+        """ Get the minimum, mean, and maximum values for blocks within a
+            specified interval.
+
+            @todo: Remember what `padding` was for, and either implement or
+                remove it completely. Related to plotting; see `plots`.
+
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @keyword times: If `True` (default), the results include the
+                block's starting time.
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            @return: A structured array of data block statistics (min, mean,
+                and max, respectively).
+        """
 
         def determine_structured_dtype(data):
             def npdtype_of(value):
@@ -3079,11 +3180,44 @@ class EventArray(EventList):
 
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
                       times=True, display=False):
+        """ Get the minimum, mean, and maximum values for blocks within a
+            specified interval. (Currently an alias of `arrayMinMeanMax`.)
+
+            @todo: Remember what `padding` was for, and either implement or
+                remove it completely. Related to plotting; see `plots`.
+
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @keyword times: If `True` (default), the results include the
+                block's starting time.
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            @return: A structured array of data block statistics (min, mean,
+                and max, respectively).
+        """
         return self.arrayMinMeanMax(startTime, endTime, padding, times,
                                     display)
 
     def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
                            display=False):
+        """ Get the single minimum, mean, and maximum value for blocks within a
+            specified interval. Note: Using this with a parent channel without
+            specifying a subchannel number can produce meaningless data if the
+            channels use different units or are on different scales.
+
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @keyword subchannel: The subchannel ID to retrieve, if the
+                EventArray's parent has subchannels.
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            @return: A namedtuple of aggregated event statistics (min, mean,
+                and max, respectively).
+        """
         from collections import namedtuple
 
         DataRangeStats = namedtuple('DataRangeStats', 'min mean max')
@@ -3115,6 +3249,16 @@ class EventArray(EventList):
             )
 
     def getMax(self, startTime=None, endTime=None, display=False):
+        """ Get the event with the maximum value, optionally within a specified
+            time range. For Channels, returns the maximum among all
+                Subchannels.
+
+            @keyword startTime: The starting time. Defaults to the start.
+            @keyword endTime: The ending time. Defaults to the end.
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            @return: The event with the maximum value.
+        """
         maxs = self.arrayMinMeanMax(startTime, endTime, times=False,
                                     display=display)['max']
         if self.hasSubchannels:
@@ -3133,6 +3277,16 @@ class EventArray(EventList):
         return blockData[subIdx]
 
     def getMin(self, startTime=None, endTime=None, display=False):
+        """ Get the event with the minimum value, optionally within a specified
+            time range. For Channels, returns the minimum among all
+                Subchannels.
+
+            @keyword startTime: The starting time. Defaults to the start.
+            @keyword endTime: The ending time. Defaults to the end.
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            @return: The event with the minimum value.
+        """
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
 
@@ -3159,10 +3313,19 @@ class EventArray(EventList):
 
     def arrayResampledRange(self, startTime, stopTime, maxPoints, padding=0,
                             jitter=0, display=False):
+        """ Retrieve the events occurring within a given interval,
+            undersampled as to not exceed a given length (e.g. the size of
+            the data viewer's screen width).
+
+            @todo: Optimize iterResampledRange().
+            Not very efficient, particularly not with single-sample blocks.
+        """
+        from math import ceil
+
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
         startIdx = max(startIdx-padding, 0)
         stopIdx = min(stopIdx+padding+1, len(self))
-        step = max((stopIdx - startIdx) // int(maxPoints), 1)
+        step = max(int(ceil((stopIdx - startIdx) / maxPoints)), 1)
 
         if jitter != 0:
             return self.arrayJitterySlice(startIdx, stopIdx, step, jitter,
