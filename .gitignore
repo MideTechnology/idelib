@@ -64,3 +64,4 @@ drs_test/
 env/
 .eggs/
 SlamStickLab.egg-info/
+venv/

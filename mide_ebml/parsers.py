@@ -36,15 +36,18 @@ Created on Sep 26, 2013
 @author: dstokes
 '''
 
+from __future__ import absolute_import  # division, absolute_import, print_function, unicode_literals
 from collections import OrderedDict, Sequence
 import math
 import struct
 import sys
 import types
 
-import calibration
+import numpy as np
+
+from . import calibration
 # from util import parse_ebml, decode_attributes
-from util import decode_attributes
+from .util import decode_attributes
 
 #===============================================================================
 # 
@@ -686,7 +689,6 @@ class SimpleChannelDataBlock(BaseDataBlock):
 
 
 
-
 class SimpleChannelDataBlockParser(ElementHandler):
     """ 'Factory' for SimpleChannelDataBlock elements. Instantiated once
         per session (or maybe channel, depending). It handles the modulus
@@ -748,13 +750,13 @@ class SimpleChannelDataBlockParser(ElementHandler):
         try:
             block = self.product(element)
             timestamp, channel = block.getHeader()
-        except struct.error, e:
+        except struct.error as e:
             raise ParsingError("Element would not parse: %s (ID %d) @%d (%s)" % 
                                (element.name, element.id, element.offset, e))
         except AttributeError:
             # Can happen if the block had no timestamp (broken imported data?)
             # TODO: Actually handle, instead of ignoring?
-            print "XXX: bad attribute in element", element
+            print("XXX: bad attribute in element", element)
             return 0
             
         
@@ -860,6 +862,92 @@ class ChannelDataBlock(BaseDataBlock):
         """
         return self._timestamp, self.channel
 
+
+class ChannelDataArrayBlock(ChannelDataBlock):
+
+    def __init__(self, element):
+        super(ChannelDataArrayBlock, self).__init__(element)
+        self._payload = None
+
+    @property
+    def payload(self):
+        if self._payload is None:
+            self._payload = np.array(self._payloadEl.value)
+        return self._payload
+
+    def parseWith(self, parser, start=0, end=-1, step=1, subchannel=None):
+        """ Parse an element's payload. Use this instead of directly using
+            `parser.parse()` for consistency's sake.
+
+            @param parser: The DataParser to use
+            @keyword start: First subsample index to parse
+            @keyword end: Last subsample index to parse
+            @keyword step: The number of samples to skip, if the start and end
+                cover more than one sample.
+            @keyword subchannel: The subchannel to get, if specified.
+        """
+        if end < 0:
+            end += len(self.payload)/parser.size + 1
+
+        parser_format = parser.format
+        if parser_format[0] in ['<', '>']:
+            endian = parser_format[0]
+            parser_format = parser_format[1:]
+        else:
+            endian = '>'
+
+        if len(parser_format) == 1:
+            data = np.frombuffer(self.payload, dtype=endian + parser_format)
+            data = data[start:end:step]
+        else:
+            if all([parser_format[0] == x for x in parser_format]):  # homogeneous datatypes
+                data = np.frombuffer(self.payload, dtype=endian + parser_format[0])
+                data = data.reshape(len(data) / len(parser_format), len(parser_format))
+                if subchannel is None:
+                    data = data[start:end:step, :]
+                else:
+                    data = data[start:end:step, subchannel]
+            else:  # heterogeneous datatypes
+                dt = [('x' + str(i), endian + x) for x, i in zip(parser_format, range(len(parser_format)))]
+                data = np.frombuffer(self.payload, dtype=dt)
+                if subchannel is None:
+                    data = data[start:end:step]
+                else:
+                    data = data[start:end:step, subchannel]
+        return data
+
+    def parseByIndexWith(self, parser, indices, subchannel=None):
+        """ Parse an element's payload and get a specific set of samples. Used
+            primarily for resampling tricks.
+
+            @param parser: The DataParser to use
+            @param indices: A list of indices into the block's data.
+            @keyword subchannel: The subchannel to get, if specified.
+        """
+        # SimpleChannelDataBlock payloads contain header info; skip it.
+        data = self.parseWith(parser)
+        if subchannel is None:
+            return data[indices, :]
+        else:
+            return data[indices, subchannel]
+
+    def parseMinMeanMax(self, parser):
+        if self.minMeanMax is None:
+            return None
+        try:
+            # NOTE: Because the SSX Z axis is inverted, the min/max need correction
+            # This may create a performance hit. Optimize?
+            self.min = list(parser.unpack_from(self.minMeanMax))
+            self.mean = parser.unpack_from(self.minMeanMax, parser.size)
+            self.max = list(parser.unpack_from(self.minMeanMax, parser.size*2))
+            for i, vals in enumerate(zip(self.min, self.max)):
+                self.min[i], self.max[i] = sorted(vals)
+            return np.array((self.min, self.mean, self.max))
+        except struct.error:
+            # Bad min/mean/max data: too short. Ignore it.
+            self.minMeanMax = None
+            return None
+
     
 class ChannelDataBlockParser(SimpleChannelDataBlockParser):
     """ 'Factory' for ChannelDataBlock elements. Instantiated once per 
@@ -873,6 +961,18 @@ class ChannelDataBlockParser(SimpleChannelDataBlockParser):
     elementName = product.__name__
 
     timeScalar = 1000000.0 / 2**15
+
+
+class ChannelDataArrayParser(ChannelDataBlockParser):
+    """ Factory for ChannelDataArrayBlock elements.  Instantiated once per
+        session/channel, handles modulus correction for the blocks' timestamps.
+        Unlike the ChannelDataBlockParser, this returns blocks which store
+        (cache?) data as numpy arrays.
+
+        @cvar product: The class of object generated by the parser
+    """
+    product = ChannelDataArrayBlock
+    elementName = product.__name__
 
 
 ################################################################################
