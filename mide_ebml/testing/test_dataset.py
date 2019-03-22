@@ -10,8 +10,7 @@ Basic IDE library unit tests.
 """
 
 from __future__ import (absolute_import, division, print_function,
-                        #unicode_literals)
-                        )
+                        unicode_literals)
 
 from StringIO import StringIO
 import sys
@@ -104,7 +103,7 @@ class CascadingTestCase(unittest.TestCase):
      
     def testRepr(self):
         """ Test that casting to a string creates the correct string. """
-        self.assertIn("<Cascading 'parent' at", repr(self.casc1))
+        self.assertIn("<Cascading %r at" % 'parent', repr(self.casc1))
         
 
 #===============================================================================
@@ -612,7 +611,7 @@ class ChannelTestCase(unittest.TestCase):
         
     def testRepr(self):
         """ Test the repr special method. """
-        self.assertIn("<Channel 0: 'channel1' at", repr(self.channel1))
+        self.assertIn("<Channel 0: %r at" % 'channel1', repr(self.channel1))
         
         
     def testGetitem(self):
@@ -772,7 +771,7 @@ class SubChannelTestCase(unittest.TestCase):
     def testRepr(self):
         """ Test the repr special method. """
         self.assertIn(
-            "<SubChannel 2.0: 'SSX70065:3:channel2:channel2:00' at", 
+            "<SubChannel 2.0: %r at" % 'SSX70065:3:channel2:channel2:00', 
             repr(self.subChannel1))
         
         

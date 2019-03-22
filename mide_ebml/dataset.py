@@ -52,9 +52,8 @@ Created on Sep 26, 2013
 # 
 # TODO: Clean up the min/mean/max stuff.
 
-#from __future__ import (absolute_import, division, print_function,
-#                        unicode_literals)
-from __future__ import (absolute_import, division, print_function)
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
 __all__ = ['Channel','Dataset','EventList','Plot','Sensor','Session',
            'SubChannel','WarningRange','Cascading','Transformable']
