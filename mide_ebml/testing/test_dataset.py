@@ -18,7 +18,6 @@ import unittest
 import mock
 
 from mide_ebml.dataset import *
-from mide_ebml.dataset import EventArray  # TODO why won't my tests run w/o this? T-T
 
 from mide_ebml.calibration import Transform, CombinedPoly, PolyPoly
 from mide_ebml.calibration import AccelTransform

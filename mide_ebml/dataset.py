@@ -55,8 +55,8 @@ Created on Sep 26, 2013
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-__all__ = ['Channel','Dataset','EventList','Plot','Sensor','Session',
-           'SubChannel','WarningRange','Cascading','Transformable']
+__all__ = ('Channel Dataset EventList EventArray Plot Sensor Session'
+           ' SubChannel WarningRange Cascading Transformable'.split())
 
 from bisect import bisect_right
 from collections import Iterable
