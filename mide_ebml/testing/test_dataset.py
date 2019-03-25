@@ -119,7 +119,7 @@ class TransformableTestCase(unittest.TestCase):
         
         # configure above objects
         fileStream = open(
-            './SSX70065.IDE', 'rb')
+            './mide_ebml/testing/SSX70065.IDE', 'rb')
         self.xform1.dataset = Dataset(fileStream)
         self.xform1.dataset.transforms = {1: "123", 2: "456"}
         self.xform1.children = [self.genericObject]
@@ -189,7 +189,7 @@ class DatasetTestCase(unittest.TestCase):
     def setUp(self):
         """ Open a file for testing in a new dataset. """
         self.fileStream = open(
-            './SSX70065.IDE', 'rb')
+            './mide_ebml/testing/SSX70065.IDE', 'rb')
         self.dataset = Dataset(self.fileStream)
 
         self.channelCheck = {}
@@ -427,7 +427,7 @@ class SessionTestCase(unittest.TestCase):
     """ Test case for methods in the Session class. """
     
     def testInitAndEQ(self):
-        self.dataset = importer.importFile('./SSX70065.IDE')
+        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
         session1 = Session(
             self.dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
         session2 = Session(
@@ -446,7 +446,7 @@ class SessionTestCase(unittest.TestCase):
     def testRepr(self):
         """ Test that __repr__ is creating the correct string. """
         fileStream = open(
-            './SSX70065.IDE', 'rb')
+            './mide_ebml/testing/SSX70065.IDE', 'rb')
         dataset = Dataset(fileStream)
         session1 = Session(
             dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
@@ -462,7 +462,7 @@ class SensorTestCase(unittest.TestCase):
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.dataset = importer.importFile('./SSX70065.IDE')
+        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
         
         self.sensor1 = Sensor(self.dataset, 1)
         self.sensor2 = Sensor(self.dataset, 2, "3", 4, 5, 6, 7)
@@ -531,7 +531,7 @@ class ChannelTestCase(unittest.TestCase):
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.dataset = importer.importFile('./SSX70065.IDE')
+        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
         self.dataset.addSensor(0)
         
         self.fakeParser = GenericObject()
@@ -701,7 +701,7 @@ class SubChannelTestCase(unittest.TestCase):
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.dataset = importer.importFile('./SSX70065.IDE')
+        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
         self.dataset.addSensor(0)
         
         self.fakeParser = GenericObject()
@@ -847,7 +847,7 @@ class EventListTestCase(unittest.TestCase):
     """ Test case for methods in the EventList class. """
     
     def setUp(self):
-        self.dataset = importer.importFile('./SSX70065.IDE')
+        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
         self.dataset.addSession(0, 1, 2)
         self.dataset.addSensor(0)
         
@@ -1472,7 +1472,7 @@ class EventArrayTestCase(unittest.TestCase):
         self.assertTrue(np.all(array1 == array2))
 
     def setUp(self):
-        self.dataset = importer.importFile('./SSX70065.IDE')
+        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
         self.dataset.addSession(0, 1, 2)
         self.dataset.addSensor(0)
 
@@ -1862,7 +1862,7 @@ class EventArrayTestCase(unittest.TestCase):
                                           return_value=blockDataStub)
 
         # Run tests
-        self.assertArrayEqual(
+        np.testing.assert_array_equal(
             EventArray.arrayValues(
                 eventArray,
                 start=mock.sentinel.start,
@@ -1929,7 +1929,7 @@ class EventArrayTestCase(unittest.TestCase):
             ][block.id]
         )
 
-        self.assertArrayEqual(
+        np.testing.assert_array_equal(
             self.eventArray1.arraySlice(),
             np.array(
                 [(0, (i,)) for i in [1, 2, 3, 4]],
@@ -1989,7 +1989,7 @@ class EventArrayTestCase(unittest.TestCase):
             ][block.id]
         )
 
-        self.assertArrayEqual(
+        np.testing.assert_array_equal(
             self.eventArray1.arrayJitterySlice(),
             np.array(
                 [(0, (i,)) for i in [1, 2, 3, 4]],
@@ -2064,7 +2064,7 @@ class EventArrayTestCase(unittest.TestCase):
             lambda w, x, y, display: np.array([w+1, x, y, display])
         )
 
-        self.assertArrayEqual(
+        np.testing.assert_array_equal(
             self.eventArray1.arrayRange(1, 3, 1, display=False),
             self.eventArray1.arraySlice(2, 3, 1, display=False)
         )
@@ -2105,9 +2105,9 @@ class EventArrayTestCase(unittest.TestCase):
 
         # Run tests
         result = EventArray.arrayMinMeanMax(eventArray)
-        self.assertArrayEqual(
+        np.testing.assert_array_equal(
             result,
-            np.array(statsStub[0], dtype=result.dtype)
+            np.array(statsStub, dtype=result.dtype)
         )
 
     def testGetMinMeanMax(self):
@@ -2393,7 +2393,7 @@ class PlotTestCase(unittest.TestCase):
     """ Unit test for the Plot class. """
     
     def setUp(self):
-        self.dataset = importer.importFile('./SSX70065.IDE')
+        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
         self.dataset.addSession(0, 1, 2)
         self.dataset.addSensor(0)
         
@@ -2475,7 +2475,7 @@ class DataTestCase(unittest.TestCase):
     """
 
     def setUp(self):
-        self.dataset = importer.importFile('./SSX_Data.IDE')
+        self.dataset = importer.importFile('./mide_ebml/testing/SSX_Data.IDE')
         self.delta = 0.0015
 
 
@@ -2488,7 +2488,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./SSX_Data_Ch8_Calibrated.csv', 'rb') as f:
+        with open('./mide_ebml/testing/SSX_Data_Ch8_Calibrated.csv', 'rb') as f:
             for new, old in zip(out, f):
 #                 self.assertEqual(old.strip(), new.strip())
                 for a,b in zip(eval(new),eval(old)):
@@ -2510,7 +2510,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./SSX_Data_Ch8_NoCalibration.csv', 'rb') as f:
+        with open('./mide_ebml/testing/SSX_Data_Ch8_NoCalibration.csv', 'rb') as f:
             for new, old in zip(out, f):
 #                 self.assertEqual(old.strip(), new.strip())
                 for a,b in zip(eval(new),eval(old)):
@@ -2530,7 +2530,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./SSX_Data_Ch8_NoBivariates.csv', 'rb') as f:
+        with open('./mide_ebml/testing/SSX_Data_Ch8_NoBivariates.csv', 'rb') as f:
             for new, old in zip(out, f):
 #                 self.assertEqual(old.strip(), new.strip())
                 for a,b in zip(eval(new),eval(old)):
@@ -2554,7 +2554,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./SSX_Data_Ch8_RollingMean_NoCal.csv', 'rb') as f:
+        with open('./mide_ebml/testing/SSX_Data_Ch8_RollingMean_NoCal.csv', 'rb') as f:
             for new, old in zip(out, f):
                 for a,b in zip(eval(new),eval(old)):
                     self.assertAlmostEqual(a, b, delta=self.delta, 
@@ -2578,7 +2578,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./SSX_Data_Ch8_TotalMean_NoCal.csv', 'rb') as f:
+        with open('./mide_ebml/testing/SSX_Data_Ch8_TotalMean_NoCal.csv', 'rb') as f:
             for new, old in zip(out, f):
                 for a,b in zip(eval(new),eval(old)):
                     self.assertAlmostEqual(a, b, delta=self.delta, 
@@ -2598,7 +2598,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./SSX_Data_Ch8_RollingMean.csv', 'rb') as f:
+        with open('./mide_ebml/testing/SSX_Data_Ch8_RollingMean.csv', 'rb') as f:
             for new, old in zip(out, f):
                 for a,b in zip(eval(new),eval(old)):
                     self.assertAlmostEqual(a, b, delta=self.delta, 
@@ -2617,7 +2617,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./SSX_Data_Ch8_TotalMean.csv', 'rb') as f:
+        with open('./mide_ebml/testing/SSX_Data_Ch8_TotalMean.csv', 'rb') as f:
             for new, old in zip(out, f):
                 for a,b in zip(eval(new),eval(old)):
                     self.assertAlmostEqual(a, b, delta=self.delta, 

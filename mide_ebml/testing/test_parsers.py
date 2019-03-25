@@ -1,6 +1,5 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 import unittest
-from builtins import str
 
 import mock
 import numpy as np
@@ -110,49 +109,54 @@ class TestChannelDataArrayBlock(unittest.TestCase):
 
     def testParseWith(self):
         parser = self.doc.channels[32].parser
+        dtype_desc = [('ch'+str(i), parser.format[0:2])
+                      for i in xrange(len(parser.format[1:]))]
 
         # Plain case
         blockOut = self.block.parseWith(parser)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser)]
-        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        oldOut = np.array(oldOut, dtype=dtype_desc)
         np.testing.assert_array_equal(blockOut, oldOut)
 
         # different start
         blockOut = self.block.parseWith(parser, start=5)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, start=5)]
-        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        oldOut = np.array(oldOut, dtype=dtype_desc)
         np.testing.assert_array_equal(blockOut, oldOut)
 
         # different end
         blockOut = self.block.parseWith(parser, end=100)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, end=100)]
-        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        oldOut = np.array(oldOut, dtype=dtype_desc)
         np.testing.assert_array_equal(blockOut, oldOut)
 
         # different step
         blockOut = self.block.parseWith(parser, step=10)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, step=10)]
-        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        oldOut = np.array(oldOut, dtype=dtype_desc)
         np.testing.assert_array_equal(blockOut, oldOut)
 
         # fully different params
         blockOut = self.block.parseWith(parser, start=10, end=100, step=10)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, start= 10, end=100, step=10)]
-        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        oldOut = np.array(oldOut, dtype=dtype_desc)
         np.testing.assert_array_equal(blockOut, oldOut)
 
         # specific subchannel
         blockOut = self.block.parseWith(parser, subchannel=1)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, subchannel=1)]
-        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        oldOut = np.array(oldOut, dtype=dtype_desc[1:2])
         np.testing.assert_array_equal(blockOut, oldOut)
 
     def testParseByIndexWith(self):
         parser = self.doc.channels[32].parser
+        dtype_desc = [('ch'+str(i), parser.format[0:2])
+                      for i in xrange(len(parser.format[1:]))]
         self.block.getNumSamples(parser)
+
         blockOut = self.block.parseByIndexWith(parser, range(20, 100))
         oldOut = [x for x in super(self.block.__class__, self.block).parseByIndexWith(parser, range(20, 100))]
-        oldOut = np.array(oldOut, dtype=parser.format[0:2])
+        oldOut = np.array(oldOut, dtype=dtype_desc)
         np.testing.assert_array_equal(blockOut, oldOut)
 
     def testGetNumSamples(self):

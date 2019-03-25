@@ -2515,19 +2515,14 @@ class EventArray(EventList):
         """ Joins arrays of times and values together into a contiguous
             structured array.
         """
-        split_values = [values[name] for name in values.dtype.names]
-        values_dtype_desc = [
-            ('ch'+str(i), v.dtype)
-            for i, v in enumerate(split_values)
-        ]
+        values.dtype.names = [str('ch'+str(i))
+                              for i in xrange(len(values.dtype.names))]
         struct_dtype_desc = [('time', times.dtype),
-                             ('channels', values_dtype_desc)]
+                             ('channels', values.dtype)]
 
         array = np.empty_like(times, dtype=struct_dtype_desc)
         array['time'] = times
-        for i, v in enumerate(split_values):
-            array['channels']['ch'+str(i)] = v
-
+        array['channels'] = values
         return array
 
     def __getitem__(self, idx, display=False):
@@ -2654,7 +2649,7 @@ class EventArray(EventList):
             @keyword end: The last index in the range. Not used if `start` is
                 a slice.
             @keyword step: The step increment. Not used if `start` is a slice.
-            @keyword display: If `True`, the `EventList` transform (i.e. the
+            @keyword display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
@@ -2761,7 +2756,7 @@ class EventArray(EventList):
             @keyword end: The last index in the range. Not used if `start` is
                 a slice.
             @keyword step: The step increment. Not used if `start` is a slice.
-            @keyword display: If `True`, the `EventList` transform (i.e. the
+            @keyword display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             @return: a structured array of events in the specified index range.
         """
@@ -2875,7 +2870,7 @@ class EventArray(EventList):
             @keyword step: The step increment. Not used if `start` is a slice.
             @keyword jitter: The amount by which to vary the sample time, as a
                 normalized percentage of the regular time between samples.
-            @keyword display: If `True`, the `EventList` transform (i.e. the
+            @keyword display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
@@ -2983,7 +2978,7 @@ class EventArray(EventList):
             @keyword step: The step increment. Not used if `start` is a slice.
             @keyword jitter: The amount by which to vary the sample time, as a
                 normalized percentage of the regular time between samples.
-            @keyword display: If `True`, the `EventList` transform (i.e. the
+            @keyword display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             @return: a structured array of events in the specified index range.
         """
@@ -3572,4 +3567,5 @@ class WarningRange(object):
 # HACK to work around the fact that the `register` method doesn't show up
 # in `dir()`, which creates an error display in PyLint/PyDev/etc. 
 getattr(Iterable, 'register')(EventList)
+getattr(Iterable, 'register')(EventArray)
 getattr(Iterable, 'register')(WarningRange)

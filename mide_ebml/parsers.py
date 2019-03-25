@@ -36,7 +36,11 @@ Created on Sep 26, 2013
 @author: dstokes
 '''
 
-from __future__ import absolute_import  # division, absolute_import, print_function, unicode_literals
+from __future__ import (absolute_import,
+                        #division,
+                        #print_function,
+                        #unicode_literals
+                        )
 from collections import OrderedDict, Sequence
 import math
 import struct
@@ -896,24 +900,10 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         else:
             endian = '>'
 
-        if len(parser_format) == 1:
-            data = np.frombuffer(self.payload, dtype=endian + parser_format)
-            data = data[start:end:step]
-        else:
-            if all([parser_format[0] == x for x in parser_format]):  # homogeneous datatypes
-                data = np.frombuffer(self.payload, dtype=endian + parser_format[0])
-                data = data.reshape(len(data) / len(parser_format), len(parser_format))
-                if subchannel is None:
-                    data = data[start:end:step, :]
-                else:
-                    data = data[start:end:step, subchannel]
-            else:  # heterogeneous datatypes
-                dt = [('x' + str(i), endian + x) for x, i in zip(parser_format, range(len(parser_format)))]
-                data = np.frombuffer(self.payload, dtype=dt)
-                if subchannel is None:
-                    data = data[start:end:step]
-                else:
-                    data = data[start:end:step, subchannel]
+        dt = [('ch' + str(i), endian + typeId) for i, typeId in enumerate(parser_format)]
+        data = np.frombuffer(self.payload, dtype=dt)[start:end:step]
+        if subchannel is not None:
+            data = data[[data.dtype.names[subchannel]]]
         return data
 
     def parseByIndexWith(self, parser, indices, subchannel=None):
@@ -925,11 +915,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
             @keyword subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
-        data = self.parseWith(parser)
-        if subchannel is None:
-            return data[indices, :]
-        else:
-            return data[indices, subchannel]
+        return self.parseWith(parser, subchannel=subchannel)[indices]
 
     def parseMinMeanMax(self, parser):
         if self.minMeanMax is None:
@@ -948,7 +934,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
             self.minMeanMax = None
             return None
 
-    
+
 class ChannelDataBlockParser(SimpleChannelDataBlockParser):
     """ 'Factory' for ChannelDataBlock elements. Instantiated once per 
         session (or maybe channel, depending). It handles the modulus
