@@ -779,7 +779,7 @@ class Channel(Transformable):
             return self.sessions[sessionId]
         
         session = self.dataset.sessions[sessionId]
-        return self.sessions.setdefault(sessionId, EventList(self, session))
+        return self.sessions.setdefault(sessionId, EventArray(self, session))
     
     
     def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None):
@@ -801,8 +801,10 @@ class Channel(Transformable):
         if self.singleSample:
             start = 0
             end = 1
-        result = list(block.parseWith(self.parser, start=start, end=end, 
-                                      step=step, subchannel=subchannel))
+        result = block.parseWith(self.parser, start=start, end=end,
+                                 step=step, subchannel=subchannel)
+        if not isinstance(result, np.ndarray):
+            result = list(result)
         
         self._lastParsed = (p, result)
         return result
@@ -818,8 +820,11 @@ class Channel(Transformable):
                 specific subchannel
             @return: A list of tuples, one for each subsample.
         """
-        return list(block.parseByIndexWith(self.parser, indices, 
-                                           subchannel=subchannel))
+        result = block.parseByIndexWith(self.parser, indices, 
+                                        subchannel=subchannel)
+        if not isinstance(result, np.ndarray):
+            result = list(result)
+        return result
 
 
     def updateTransforms(self):
@@ -3136,12 +3141,12 @@ class EventArray(EventList):
                 return np.find_common_type([type(value)], [])
 
             if not self.hasSubchannels and not times:
-                dtype = np.dtype([
+                return np.dtype([
                     (name, npdtype_of(value))
                     for name, value in zip('min mean max'.split(), data)
                 ])
             elif not self.hasSubchannels and times:
-                dtype = np.dtype([
+                return np.dtype([
                     (name, [
                         ('time', npdtype_of(data[i][0])),
                         ('value', npdtype_of(data[i][1])),
@@ -3149,7 +3154,7 @@ class EventArray(EventList):
                     for name, (time, value) in zip('min mean max'.split(), data)
                 ])
             elif self.hasSubchannels and not times:
-                dtype = np.dtype([
+                return np.dtype([
                     (name, [
                         ('ch'+str(j), npdtype_of(subChValue))
                         for j, subChValue in enumerate(values)
@@ -3157,7 +3162,7 @@ class EventArray(EventList):
                     for name, values in zip('min mean max'.split(), data)
                 ])
             else:  # if self.hasSubchannels and times:
-                dtype = np.dtype([
+                return np.dtype([
                     (name, [('time', npdtype_of(time)), ('values', [
                         ('ch'+str(j), npdtype_of(subChValue))
                         for j, subChValue in enumerate(values)
