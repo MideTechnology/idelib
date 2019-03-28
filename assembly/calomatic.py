@@ -492,7 +492,8 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
     try:
 #         calXml = xml2ebml.dumpXmlElement(xml2ebml.readEbml(caldata, schema='mide_ebml.ebml.schema.mide').roots[0])
 #         utils.writeFile(calCurrentXml, calXml)
-        calXml = ET.tostring(ebml_util.toXml(caldata), encoding="utf-8")
+        caldoc = calibration.schema_mide.load(calCurrentName)
+        calXml = ET.tostring(ebml_util.toXml(caldoc), encoding="utf-8")
         calXml = parseString(calXml).writexml(calCurrentXml, addindent='\t', newl='\n', encoding='utf-8')
     except (IndexError, AttributeError) as err:
         print "!!! Problem writing calibration XML: %s"  % err.message

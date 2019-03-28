@@ -537,9 +537,12 @@ class SlamStickX(Recorder):
         self._calData = StringIO(data[calOffset:calOffset+calSize])
         
         # _propData is read here but parsed in `getSensors()`
-        # Zero offset means no property data. Size should also be zero, but JIC:
-        propSize = 0 if propOffset == 0 else propSize
+        # Zero offset means no property data (very old devices). For new
+        # devices, a size of 1 also means no data (it's a null byte). 
+        propSize = 0 if (propOffset == 0 or propSize <= 1) else propSize
         
+        # New devices use a dynamically-generated properties file, which
+        # overrides any property data in the USERPAGE.
         if os.path.exists(self.recpropFile):
             with open(self.recpropFile, 'rb') as f:
                 self._propData = f.read()
