@@ -655,8 +655,8 @@ class ChannelTestCase(unittest.TestCase):
     def testGetSession(self):
         """ Test the getSession method. """
         self.dataset.addSession(0, 1, 2) 
-        eventList = EventList(self.channel1, self.dataset.lastSession)
-        self.assertEqual(self.channel1.getSession(), eventList)
+        eventArray = EventArray(self.channel1, self.dataset.lastSession)
+        self.assertEqual(self.channel1.getSession(), eventArray)
         self.assertEqual(self.channel1.getSession(),
                          self.channel1.getSession(1))
         self.assertRaises(KeyError, self.channel1.getSession, 5)
@@ -818,15 +818,15 @@ class SubChannelTestCase(unittest.TestCase):
         self.channel2.subchannels = [GenericObject()]
         parentList = self.dataset.channels[32].getSession()
         parentList.dataset.addSession(0, 1, 2)
-        eventList = EventList(
+        eventArray = EventArray(
             self.subChannel1,
             session=self.dataset.lastSession,
             parentList=self.subChannel1.parent.getSession())
         
         # check the session was added
-        self.assertEqual(self.subChannel1.getSession(), eventList)
-        self.assertEqual(self.subChannel1._sessions[2], eventList)
-        self.assertEqual(self.subChannel1.getSession(2), eventList)
+        self.assertEqual(self.subChannel1.getSession(), eventArray)
+        self.assertEqual(self.subChannel1._sessions[2], eventArray)
+        self.assertEqual(self.subChannel1.getSession(2), eventArray)
         
         
     def testAddSubChannel(self):
@@ -2099,7 +2099,10 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray = mock.Mock(spec=EventArray)
         eventArray.iterMinMeanMax = mock.Mock(spec=EventArray.iterMinMeanMax)
 
-        statsStub = [[(0., (3,)), (0., (4,)), (0., (5,))]]
+        statsStub = [((0., (3,)), (0., (4,)), (0., (5,)),)]
+        statsDtype = np.dtype([('min', [('ch0', 'i')]),
+                               ('mean', [('ch0', 'i')]),
+                               ('max', [('ch0', 'i')])])
         eventArray.hasSubchannels = True
         eventArray.iterMinMeanMax.return_value = iter(statsStub)
 

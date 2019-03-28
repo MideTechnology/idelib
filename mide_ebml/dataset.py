@@ -2516,19 +2516,50 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
 class EventArray(EventList):
 
     @staticmethod
-    def _joinTimesValues(times, values):
+    def _joinTimesValues(times, splitValues):
         """ Joins arrays of times and values together into a contiguous
             structured array.
         """
-        values.dtype.names = [str('ch'+str(i))
-                              for i in xrange(len(values.dtype.names))]
-        struct_dtype_desc = [('time', times.dtype),
-                             ('channels', values.dtype)]
+        chNames = [str('ch'+str(i)) for i in xrange(len(splitValues))]
+        aggregateDtype = np.dtype([
+            ('time', times.dtype),
+            ('channels', [
+                (name, vals.dtype)
+                for name, vals in zip(chNames, splitValues)
+            ])
+        ])
 
-        array = np.empty_like(times, dtype=struct_dtype_desc)
+        array = np.empty_like(times, dtype=aggregateDtype)
         array['time'] = times
-        array['channels'] = values
+        for name, vals in zip(chNames, splitValues):
+            array['channels'][name] = vals
+
         return array
+
+    def _makeBlockEvents(self, times, values, offset, xform, session,
+                         noBivariates):
+        """ Creates a structured array of event data for a given set of event
+            times and values using the provided transformation data. (Used in
+            event iteration methods.)
+        """
+        splitValues = tuple(values[n] for n in values.dtype.names)
+        times, splitValues = retryUntilReturn(
+            lambda: xform((times, splitValues), session=self.session,
+                          noBivariates=self.noBivariates),
+            max_tries=2, delay=0.001,
+            on_fail=lambda: logger.info(
+                "%s: bad transform @%s"
+                % (self.parent.name, times)
+            ),
+        )
+        blockEvents = EventArray._joinTimesValues(times, splitValues)
+
+        if offset is not None:
+            blockEvents['channels'] -= offset
+        else:
+            logger.info('%r event offset is None' % self.parent.name)
+
+        return blockEvents
 
     def __getitem__(self, idx, display=False):
         """ Get a specific data point by index.
@@ -2724,24 +2755,13 @@ class EventArray(EventList):
                 if offsetx is not None:
                     offset = numpy_array(offsetx[-1])
 
-            times = block.startTime + sampleTime*np.arange(subIdx, lastSubIdx,
-                                                           step)
-            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx,
-                                       step=step)
-            blockEvents = EventArray._joinTimesValues(times, values)
-
-            blockEvents = retryUntilReturn(
-                lambda: xform(blockEvents, session=session,
-                              noBivariates=self.noBivariates),
-                max_tries=2, delay=0.001,
-                on_fail=lambda: logger.info(
-                    "%s: bad transform @%s"
-                    % (self.parent.name, blockEvents['t'])
-                ),
+            blockEvents = self._makeBlockEvents(
+                times=(block.startTime
+                       + sampleTime*np.arange(subIdx, lastSubIdx, step)),
+                values=parent_parseBlock(block, subIdx, lastSubIdx, step),
+                offset=offset,
+                xform=xform, session=session, noBivariates=self.noBivariates
             )
-
-            if offset is not None:
-                blockEvents['channels'] -= offset
 
             if not hasSubchannels:
                 blockEvents = np_recfuncs.drop_fields(blockEvents, [
@@ -2832,24 +2852,13 @@ class EventArray(EventList):
                 if offsetx is not None:
                     offset = numpy_array(offsetx[-1])
 
-            times = block.startTime + sampleTime*np.arange(subIdx, lastSubIdx,
-                                                           step)
-            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx,
-                                       step=step)
-            blockEvents = EventArray._joinTimesValues(times, values)
-
-            blockEvents = retryUntilReturn(
-                lambda: xform(blockEvents, session=session,
-                              noBivariates=self.noBivariates),
-                max_tries=2, delay=0.001,
-                on_fail=lambda: logger.info(
-                    "%s: bad transform @%s"
-                    % (self.parent.name, blockEvents['t'])
-                ),
+            blockEvents = self._makeBlockEvents(
+                times=(block.startTime
+                       + sampleTime*np.arange(subIdx, lastSubIdx, step)),
+                values=parent_parseBlock(block, subIdx, lastSubIdx, step),
+                offset=offset,
+                xform=xform, session=session, noBivariates=self.noBivariates
             )
-
-            if offset is not None:
-                blockEvents['channels'] -= offset
 
             events.append(blockEvents)
             subIdx = (lastSubIdx-1+step) % block.numSamples
@@ -2947,20 +2956,12 @@ class EventArray(EventList):
                     scaledJitter * np.random.uniform(-1, 1, len(indices)-2)
                 ).astype(indices.dtype)
 
-            times = (block.startTime + sampleTime*indices)
-            values = parent_parseBlockByIndex(block, indices)
-            blockEvents = EventArray._joinTimesValues(times, values)
-
-            blockEvents = retryUntilReturn(
-                lambda: xform(blockEvents, session,
-                              noBivariates=self.noBivariates),
-                max_tries=2, delay=0.001
+            blockEvents = self._makeBlockEvents(
+                times=(block.startTime + sampleTime*indices),
+                values=parent_parseBlockByIndex(block, indices),
+                offset=offset,
+                xform=xform, session=session, noBivariates=self.noBivariates
             )
-
-            if offset is not None:
-                blockEvents['channels'] -= offset
-            else:
-                logger.info('%r event offset is None' % self.parent.name)
 
             if not hasSubchannels:
                 blockEvents = np_recfuncs.drop_fields(blockEvents, [
@@ -3056,20 +3057,12 @@ class EventArray(EventList):
                     scaledJitter * np.random.uniform(-1, 1, len(indices)-2)
                 ).astype(indices.dtype)
 
-            times = (block.startTime + sampleTime*indices)
-            values = parent_parseBlockByIndex(block, indices)
-            blockEvents = EventArray._joinTimesValues(times, values)
-
-            blockEvents = retryUntilReturn(
-                lambda: xform(blockEvents, session=session,
-                              noBivariates=self.noBivariates),
-                max_tries=2, delay=0.001,
+            blockEvents = self._makeBlockEvents(
+                times=(block.startTime + sampleTime*indices),
+                values=parent_parseBlockByIndex(block, indices),
+                offset=offset,
+                xform=xform, session=session, noBivariates=self.noBivariates
             )
-
-            if offset is not None:
-                blockEvents['channels'] -= offset
-            else:
-                logger.info('%r event offset is None' % self.parent.name)
 
             events.append(blockEvents)
 
@@ -3173,6 +3166,10 @@ class EventArray(EventList):
 
         blocksStats = list(self.iterMinMeanMax(startTime, endTime, padding,
                                                times, display))
+
+        if len(blocksStats) == 0:
+            # TODO check that this works :|
+            return []
 
         dtype = determine_structured_dtype(blocksStats[0])
         return np.array(blocksStats, dtype=dtype)

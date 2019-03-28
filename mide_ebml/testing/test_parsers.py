@@ -5,12 +5,12 @@ import mock
 import numpy as np
 from mide_ebml.importer import openFile
 
-from mide_ebml.parsers import ChannelDataArrayParser, ChannelDataArrayBlock
+from mide_ebml.parsers import ChannelDataArrayBlockParser, ChannelDataArrayBlock
 from mide_ebml.ebmlite.core import *
 
 
-class TestChannelDataArrayParser(unittest.TestCase):
-    """ Tests for ChannelDataArrayParser """
+class TestChannelDataArrayBlockParser(unittest.TestCase):
+    """ Tests for ChannelDataArrayBlockParser """
 
     def setUp(self):
         self.doc = openFile('./mide_ebml/testing/SSX70065.IDE')
@@ -18,7 +18,7 @@ class TestChannelDataArrayParser(unittest.TestCase):
         self.element = [x for x in self.doc.ebmldoc.value if type(x) is chDatBlockEl and x[0].value == 32][0]
         self.block = ChannelDataArrayBlock(self.element)
 
-        self.parser = ChannelDataArrayParser(self.doc)
+        self.parser = ChannelDataArrayBlockParser(self.doc)
 
     def testConstructor(self):
         self.assertIsNone(self.parser.children)
