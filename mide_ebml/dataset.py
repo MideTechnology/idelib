@@ -2515,6 +2515,10 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
 
 class EventArray(EventList):
 
+    # --------------------------------------------------------------------------
+    # New utility methods
+    # --------------------------------------------------------------------------
+
     @staticmethod
     def _joinTimesValues(times, splitValues):
         """ Joins arrays of times and values together into a contiguous
@@ -2555,11 +2559,48 @@ class EventArray(EventList):
         blockEvents = EventArray._joinTimesValues(times, splitValues)
 
         if offset is not None:
-            blockEvents['channels'] -= offset
+            # blockEvents['channels'] -= offset
+            for ch, off in zip(blockEvents['channels'].dtype.names, offset):
+                blockEvents['channels'][ch] -= off
         else:
             logger.info('%r event offset is None' % self.parent.name)
 
         return blockEvents
+
+    # --------------------------------------------------------------------------
+    # Derived utility methods
+    # --------------------------------------------------------------------------
+
+    def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
+        """ Get the index of a raw data block that contains the given event
+            index.
+
+            @param idx: The event index to find
+            @keyword start: The first block index to search
+            @keyword stop: The last block index to search
+        """
+        # TODO cache numpy array casting of `self._blockIndices`
+        # TODO profile & determine if this change is beneficial
+        return start + np.searchsorted(
+            self._blockIndices[start+1:stop], idx, side='right'
+        )
+
+    def _getBlockIndexWithTime(self, t, start=0, stop=None):
+        """ Get the index of a raw data block in which the given time occurs.
+
+            @param t: The time to find
+            @keyword start: The first block index to search
+            @keyword stop: The last block index to search
+        """
+        # TODO cache numpy array casting of `self._blockTimes`
+        # TODO profile & determine if this change is beneficial
+        return start + np.searchsorted(
+            self._blockTimes[start+1:stop], t, side='right'
+        )
+
+    # --------------------------------------------------------------------------
+    # Main API methods
+    # --------------------------------------------------------------------------
 
     def __getitem__(self, idx, display=False):
         """ Get a specific data point by index.
@@ -2743,17 +2784,15 @@ class EventArray(EventList):
                         % (self.parent.name, block.startTime)
                     ),
                 )
-                offsetx = retryUntilReturn(
+                _, offset = retryUntilReturn(
                     lambda: xform((block.startTime, offset), session=session,
                                   noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001,
+                    max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=lambda: logger.info(
                         "%s: bad offset(2) @%s"
                         % (self.parent.name, block.startTime)
                     ),
                 )
-                if offsetx is not None:
-                    offset = numpy_array(offsetx[-1])
 
             blockEvents = self._makeBlockEvents(
                 times=(block.startTime
@@ -2840,17 +2879,15 @@ class EventArray(EventList):
                         % (self.parent.name, block.startTime)
                     ),
                 )
-                offsetx = retryUntilReturn(
+                _, offset = retryUntilReturn(
                     lambda: xform((block.startTime, offset), session=session,
                                   noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001,
+                    max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=lambda: logger.info(
                         "%s: bad offset(2) @%s"
                         % (self.parent.name, block.startTime)
                     ),
                 )
-                if offsetx is not None:
-                    offset = numpy_array(offsetx[-1])
 
             blockEvents = self._makeBlockEvents(
                 times=(block.startTime
@@ -2940,15 +2977,14 @@ class EventArray(EventList):
                     max_tries=2, delay=0.001
                 )
 
-                offsetx = retryUntilReturn(
+                _, offset = retryUntilReturn(
                     lambda: xform((block.startTime, offset), session=session,
                                   noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001,
+                    max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=lambda: logger.warning(
                         "iterJitterySlice: offset is None"
                     ),
                 )
-                offset = numpy.array(offsetx[-1])
 
             indices = np.arange(subIdx, lastSubIdx, step)
             if scaledJitter > 0.5:
@@ -3041,15 +3077,14 @@ class EventArray(EventList):
                     max_tries=2, delay=0.001
                 )
 
-                offsetx = retryUntilReturn(
+                _, offset = retryUntilReturn(
                     lambda: xform((block.startTime, offset), session=session,
                                   noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001,
+                    max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=lambda: logger.warning(
-                        "iterJitterySlice: offset is None"
+                        "arrayJitterySlice: offset is None"
                     ),
                 )
-                offset = numpy.array(offsetx[-1])
 
             indices = np.arange(subIdx, lastSubIdx, step)
             if scaledJitter > 0.5:
