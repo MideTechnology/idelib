@@ -2540,32 +2540,80 @@ class EventArray(EventList):
 
         return array
 
-    def _makeBlockEvents(self, times, values, offset, xform, session,
-                         noBivariates):
-        """ Creates a structured array of event data for a given set of event
-            times and values using the provided transformation data. (Used in
-            event iteration methods.)
+    def _makeBlockEventsFactory(self, display):
+        """ Generates a function that makes numpy arrays of event data.
+            The generated function is optimized to be run repeatedly in a loop.
         """
-        splitValues = tuple(values[n] for n in values.dtype.names)
-        times, splitValues = retryUntilReturn(
-            lambda: xform((times, splitValues), session=self.session,
-                          noBivariates=self.noBivariates),
-            max_tries=2, delay=0.001,
-            on_fail=lambda: logger.info(
-                "%s: bad transform @%s"
-                % (self.parent.name, times)
-            ),
-        )
-        blockEvents = EventArray._joinTimesValues(times, splitValues)
 
-        if offset is not None:
-            # blockEvents['channels'] -= offset
-            for ch, off in zip(blockEvents['channels'].dtype.names, offset):
-                blockEvents['channels'][ch] -= off
+        # OPTIMIZATION: making local variables for faster access
+        parent = self.parent
+        session = self.session
+        hasSubchannels = self.hasSubchannels
+        if not hasSubchannels:
+            subchannelId = parent.id
+        _getBlockRollingMean = self._getBlockRollingMean
+        removeMean = (self.allowMeanRemoval and self.removeMean
+                      and self.hasMinMeanMax)
+
+        if not self.useAllTransforms:
+            xform = self._comboXform
+        elif display:
+            xform = self._displayXform or self._fullXform
         else:
-            logger.info('%r event offset is None' % self.parent.name)
+            xform = self._fullXform
 
-        return blockEvents
+        def _makeBlockEvents(times, values, block, blockIdx):
+            """ Creates a structured array of event data for a given set of
+                event times and values. (Used in event iteration methods.)
+            """
+            splitValues = tuple(values[n] for n in values.dtype.names)
+            times, splitValues = retryUntilReturn(
+                lambda: xform((times, splitValues), session=session,
+                              noBivariates=self.noBivariates),
+                max_tries=2, delay=0.001,
+                on_fail=lambda: logger.info(
+                    "%s: bad transform @%s"
+                    % (parent.name, times)
+                ),
+            )
+            blockEvents = EventArray._joinTimesValues(times, splitValues)
+
+            # Note: _getBlockRollingMean returns None if removeMean==False
+            if removeMean:
+                offset = retryUntilReturn(
+                    lambda: _getBlockRollingMean(blockIdx),
+                    max_tries=2, delay=0.001,
+                    on_fail=lambda: logger.info(
+                        "%s: bad offset (1) @%s"
+                        % (parent.name, block.startTime)
+                    ),
+                )
+                _, offset = retryUntilReturn(
+                    lambda: xform((block.startTime, offset), session=session,
+                                  noBivariates=self.noBivariates),
+                    max_tries=2, delay=0.001, default=(None, offset),
+                    on_fail=lambda: logger.info(
+                        "%s: bad offset(2) @%s"
+                        % (parent.name, block.startTime)
+                    ),
+                )
+
+                if offset is not None:
+                    # blockEvents['channels'] -= offset
+                    for ch, off in zip(blockEvents['channels'].dtype.names, offset):
+                        blockEvents['channels'][ch] -= off
+                else:
+                    logger.info('%r event offset is None' % parent.name)
+
+            if not hasSubchannels:
+                blockEvents = np_recfuncs.drop_fields(blockEvents, [
+                    n for n in blockEvents['channels'].dtype.names
+                    if n != blockEvents['channels'].dtype.names[subchannelId]
+                ])
+
+            return blockEvents
+
+        return _makeBlockEvents
 
     # --------------------------------------------------------------------------
     # Derived utility methods
@@ -2611,12 +2659,12 @@ class EventArray(EventList):
                 pairs.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
+        if not self.useAllTransforms:
             xform = self._comboXform
+        elif display:
+            xform = self._displayXform or self._fullXform
+        else:
+            xform = self._fullXform
 
         if isinstance(idx, int):
 
@@ -2719,8 +2767,9 @@ class EventArray(EventList):
         else:
             return array_chs
 
-    def iterSlice(self, start=None, end=None, step=None, display=False):
-        """ Create an iterator producing events for a range of indices.
+    def _blockSlice(self, start=None, end=None, step=None, display=False):
+        """ Create an iterator producing events packed into numpy arrays for a
+            range of indices.
 
             @keyword start: The first index in the range, or a slice.
             @keyword end: The last index in the range. Not used if `start` is
@@ -2746,26 +2795,10 @@ class EventArray(EventList):
         endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
 
         # OPTIMIZATION: making local variables for faster access
-        parent = self.parent
-        parent_parseBlock = parent.parseBlock
-        session = self.session
-        hasSubchannels = self.hasSubchannels
-        if not hasSubchannels:
-            subchannelId = parent.id
         _data = self._data
         _getBlockSampleTime = self._getBlockSampleTime
-        _getBlockRollingMean = self._getBlockRollingMean
-        numpy_array = numpy.array
-        removeMean = (self.allowMeanRemoval and self.removeMean
-                      and self.hasMinMeanMax)
-        offset = None
-
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
+        parent_parseBlock = self.parent.parseBlock
+        makeBlockEvents = self._makeBlockEventsFactory(display)
 
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
@@ -2775,43 +2808,31 @@ class EventArray(EventList):
             lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
                           else block.numSamples)
 
-            if removeMean:
-                offset = retryUntilReturn(
-                    lambda: _getBlockRollingMean(blockIdx),
-                    max_tries=2, delay=0.001,
-                    on_fail=lambda: logger.info(
-                        "%s: bad offset (1) @%s"
-                        % (self.parent.name, block.startTime)
-                    ),
-                )
-                _, offset = retryUntilReturn(
-                    lambda: xform((block.startTime, offset), session=session,
-                                  noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001, default=(None, offset),
-                    on_fail=lambda: logger.info(
-                        "%s: bad offset(2) @%s"
-                        % (self.parent.name, block.startTime)
-                    ),
-                )
-
-            blockEvents = self._makeBlockEvents(
+            blockEvents = makeBlockEvents(
                 times=(block.startTime
                        + sampleTime*np.arange(subIdx, lastSubIdx, step)),
                 values=parent_parseBlock(block, subIdx, lastSubIdx, step),
-                offset=offset,
-                xform=xform, session=session, noBivariates=self.noBivariates
+                block=block, blockIdx=blockIdx,
             )
 
-            if not hasSubchannels:
-                blockEvents = np_recfuncs.drop_fields(blockEvents, [
-                    n for n in blockEvents['channels'].dtype.names
-                    if n != blockEvents['channels'].dtype.names[subchannelId]
-                ])
-
-            for event in blockEvents:
-                yield event
+            yield blockEvents
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
+
+    def iterSlice(self, start=None, end=None, step=None, display=False):
+        """ Create an iterator producing events for a range of indices.
+
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword display: If `True`, the `EventArray` transform (i.e. the
+                'display' transform) will be applied to the data.
+            @return: an iterable of events in the specified index range.
+        """
+        for blockEvents in self._blockSlice(start, end, step, display):
+            for event in blockEvents:
+                yield event
 
     def arraySlice(self, start=None, end=None, step=None, display=False):
         """ Create an array of events within a range of indices.
@@ -2824,94 +2845,11 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: a structured array of events in the specified index range.
         """
-        if isinstance(start, slice):
-            idxSlice = start
-        else:
-            idxSlice = slice(start, end, step)
-        start, end, step = idxSlice.indices(len(self))
+        return np.concatenate([
+            i for i in self._blockSlice(start, end, step, display)
+        ])
 
-        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
-        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
-
-        blockStep = max(1, step / self._data[startBlockIdx].numSamples)
-        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
-
-        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
-        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-
-        # OPTIMIZATION: making local variables for faster access
-        parent = self.parent
-        parent_parseBlock = parent.parseBlock
-        session = self.session
-        hasSubchannels = self.hasSubchannels
-        if not hasSubchannels:
-            subchannelId = parent.id
-        _data = self._data
-        _getBlockSampleTime = self._getBlockSampleTime
-        _getBlockRollingMean = self._getBlockRollingMean
-        numpy_array = numpy.array
-        removeMean = (self.allowMeanRemoval and self.removeMean
-                      and self.hasMinMeanMax)
-        offset = None
-
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
-
-        # in each block, the next subIdx is (step+subIdx)%numSamples
-        events = []
-        for i in xrange(numBlocks):
-            blockIdx = int(startBlockIdx + (i * blockStep))
-            block = _data[blockIdx]
-            sampleTime = _getBlockSampleTime(blockIdx)
-            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
-                          else block.numSamples)
-
-            if removeMean:
-                offset = retryUntilReturn(
-                    lambda: _getBlockRollingMean(blockIdx),
-                    max_tries=2, delay=0.001,
-                    on_fail=lambda: logger.info(
-                        "%s: bad offset (1) @%s"
-                        % (self.parent.name, block.startTime)
-                    ),
-                )
-                _, offset = retryUntilReturn(
-                    lambda: xform((block.startTime, offset), session=session,
-                                  noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001, default=(None, offset),
-                    on_fail=lambda: logger.info(
-                        "%s: bad offset(2) @%s"
-                        % (self.parent.name, block.startTime)
-                    ),
-                )
-
-            blockEvents = self._makeBlockEvents(
-                times=(block.startTime
-                       + sampleTime*np.arange(subIdx, lastSubIdx, step)),
-                values=parent_parseBlock(block, subIdx, lastSubIdx, step),
-                offset=offset,
-                xform=xform, session=session, noBivariates=self.noBivariates
-            )
-
-            events.append(blockEvents)
-            subIdx = (lastSubIdx-1+step) % block.numSamples
-
-        if not hasSubchannels:
-            events = [
-                np_recfuncs.drop_fields(event, (
-                    event['channels'].dtype.names[:subchannelId]
-                    + event['channels'].dtype.names[subchannelId+1:]
-                ))
-                for event in events
-            ]
-
-        return np.concatenate(events)
-
-    def iterJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
+    def _blockJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
                          display=False):
         """ Create an iterator producing events for a range of indices.
 
@@ -2943,24 +2881,10 @@ class EventArray(EventList):
         endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
 
         # OPTIMIZATION: making local variables for faster access
-        parent = self.parent
-        parent_parseBlockByIndex = parent.parseBlockByIndex
-        session = self.session
-        hasSubchannels = self.hasSubchannels
-        if not hasSubchannels:
-            subchannelId = parent.id
         _data = self._data
         _getBlockSampleTime = self._getBlockSampleTime
-        _getBlockRollingMean = self._getBlockRollingMean
-        removeMean = self.allowMeanRemoval and self.removeMean
-        offset = None
-
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
+        parent_parseBlockByIndex = self.parent.parseBlockByIndex
+        makeBlockEvents = self._makeBlockEventsFactory(display)
 
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
@@ -2970,45 +2894,41 @@ class EventArray(EventList):
             lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
                           else block.numSamples)
 
-            # Note: _getBlockRollingMean returns None if removeMean==False
-            if removeMean:
-                offset = retryUntilReturn(
-                    lambda: _getBlockRollingMean(blockIdx),
-                    max_tries=2, delay=0.001
-                )
-
-                _, offset = retryUntilReturn(
-                    lambda: xform((block.startTime, offset), session=session,
-                                  noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001, default=(None, offset),
-                    on_fail=lambda: logger.warning(
-                        "iterJitterySlice: offset is None"
-                    ),
-                )
-
             indices = np.arange(subIdx, lastSubIdx, step)
             if scaledJitter > 0.5:
                 indices[1:-1] += np.rint(
                     scaledJitter * np.random.uniform(-1, 1, len(indices)-2)
                 ).astype(indices.dtype)
 
-            blockEvents = self._makeBlockEvents(
+            blockEvents = makeBlockEvents(
                 times=(block.startTime + sampleTime*indices),
                 values=parent_parseBlockByIndex(block, indices),
-                offset=offset,
-                xform=xform, session=session, noBivariates=self.noBivariates
+                block=block, blockIdx=blockIdx,
             )
-
-            if not hasSubchannels:
-                blockEvents = np_recfuncs.drop_fields(blockEvents, [
-                    n for n in blockEvents['channels'].dtype.names
-                    if n != blockEvents['channels'].dtype.names[subchannelId]
-                ])
 
             for event in blockEvents:
                 yield event
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
+
+    def iterJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
+                         display=False):
+        """ Create an iterator producing events for a range of indices.
+
+            @keyword start: The first index in the range, or a slice.
+            @keyword end: The last index in the range. Not used if `start` is
+                a slice.
+            @keyword step: The step increment. Not used if `start` is a slice.
+            @keyword jitter: The amount by which to vary the sample time, as a
+                normalized percentage of the regular time between samples.
+            @keyword display: If `True`, the `EventArray` transform (i.e. the
+                'display' transform) will be applied to the data.
+            @return: an iterable of events in the specified index range.
+        """
+        for blockEvents in self._blockJitterySlice(start, end, step, jitter,
+                                                   display):
+            for event in blockEvents:
+                yield event
 
     def arrayJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
                           display=False):
@@ -3024,93 +2944,10 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: a structured array of events in the specified index range.
         """
-        # Fill slice values
-        if isinstance(start, slice):
-            idxSlice = start
-        else:
-            idxSlice = slice(start, end, step)
-        start, end, step = idxSlice.indices(len(self))
-        scaledJitter = jitter * abs(step)
-
-        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
-        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
-
-        blockStep = max(1, (step + 0.0) / self._data[startBlockIdx].numSamples)
-        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
-
-        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
-        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-
-        # OPTIMIZATION: making local variables for faster access
-        parent = self.parent
-        parent_parseBlockByIndex = parent.parseBlockByIndex
-        session = self.session
-        hasSubchannels = self.hasSubchannels
-        if not hasSubchannels:
-            subchannelId = parent.id
-        _data = self._data
-        _getBlockSampleTime = self._getBlockSampleTime
-        _getBlockRollingMean = self._getBlockRollingMean
-        removeMean = self.allowMeanRemoval and self.removeMean
-        offset = None
-
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
-
-        # in each block, the next subIdx is (step+subIdx)%numSamples
-        events = []
-        for i in xrange(numBlocks):
-            blockIdx = int(startBlockIdx + (i * blockStep))
-            block = _data[blockIdx]
-            sampleTime = _getBlockSampleTime(blockIdx)
-            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
-                          else block.numSamples)
-
-            # Note: _getBlockRollingMean returns None if removeMean==False
-            if removeMean:
-                offset = retryUntilReturn(
-                    lambda: _getBlockRollingMean(blockIdx),
-                    max_tries=2, delay=0.001
-                )
-
-                _, offset = retryUntilReturn(
-                    lambda: xform((block.startTime, offset), session=session,
-                                  noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001, default=(None, offset),
-                    on_fail=lambda: logger.warning(
-                        "arrayJitterySlice: offset is None"
-                    ),
-                )
-
-            indices = np.arange(subIdx, lastSubIdx, step)
-            if scaledJitter > 0.5:
-                indices[1:-1] += np.rint(
-                    scaledJitter * np.random.uniform(-1, 1, len(indices)-2)
-                ).astype(indices.dtype)
-
-            blockEvents = self._makeBlockEvents(
-                times=(block.startTime + sampleTime*indices),
-                values=parent_parseBlockByIndex(block, indices),
-                offset=offset,
-                xform=xform, session=session, noBivariates=self.noBivariates
-            )
-
-            events.append(blockEvents)
-
-        if not hasSubchannels:
-            events = [
-                np_recfuncs.drop_fields(event, (
-                    event['channels'].dtype.names[:subchannelId]
-                    + event['channels'].dtype.names[subchannelId+1:]
-                ))
-                for event in events
-            ]
-
-        return np.concatenate(events)
+        return np.concatenate([
+            i for i in self._blockJitterySlice(start, end, step, jitter,
+                                               display)
+        ])
 
     # EventList implementation suffices -> no overload required
     # def iterRange(self, startTime=None, endTime=None, step=1, display=False):
