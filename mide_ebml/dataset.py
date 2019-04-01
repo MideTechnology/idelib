@@ -2629,8 +2629,9 @@ class EventArray(EventList):
         """
         # TODO cache numpy array casting of `self._blockIndices`
         # TODO profile & determine if this change is beneficial
-        return start + np.searchsorted(
-            self._blockIndices[start+1:stop], idx, side='right'
+        idxOffset = max(start, 1)
+        return idxOffset-1 + np.searchsorted(
+            self._blockIndices[idxOffset:stop], idx, side='right'
         )
 
     def _getBlockIndexWithTime(self, t, start=0, stop=None):
@@ -2642,8 +2643,9 @@ class EventArray(EventList):
         """
         # TODO cache numpy array casting of `self._blockTimes`
         # TODO profile & determine if this change is beneficial
-        return start + np.searchsorted(
-            self._blockTimes[start+1:stop], t, side='right'
+        idxOffset = max(start, 1)
+        return idxOffset-1 + np.searchsorted(
+            self._blockTimes[idxOffset:stop], t, side='right'
         )
 
     # --------------------------------------------------------------------------
