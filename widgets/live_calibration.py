@@ -231,7 +231,7 @@ class LiveCalibrationDialog(SC.SizedDialog):
                             message="Export calibration",
                             wildcard=("Exported calibration file (*.cal)|*.cal|"
                                       "User calibration file (usercal.dat)|*.dat"),
-                            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+                            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             try:
                 self.dev.writeUserCal(self.calList.info, filename=dlg.GetPath())

@@ -77,7 +77,7 @@ class ViewerPanel(wx.Panel):
             btn.SetBitmapDisabled(bitmaps[1].GetBitmap())
             
         if tooltip is not None:
-            btn.SetToolTipString(tooltip)
+            btn.SetToolTip(tooltip)
      
         sizer.Add(btn, 0, sizerFlags)
         if Id == -1:
@@ -249,7 +249,7 @@ class MenuMixin(object):
         if id_ == -1:
             id_ = wx.NewId()
         subM = wx.Menu()
-        menu.AppendMenu(id_, text, subM)
+        menu.Append(id_, text, subM)
         menu.Enable(id_, enabled)
         return subM
 

@@ -101,7 +101,7 @@ class VerticalScale(ViewerPanel):
                                        style=wx.NO_BORDER|wx.ALIGN_RIGHT)
         self.scale.SetRange(*self.visibleRange)
         self.scale.SetBackgroundColour(self.root.uiBgColor)
-        self.scale.SetCursor(wx.StockCursor(wx.CURSOR_SIZENS))
+        self.scale.SetCursor(wx.Cursor(wx.CURSOR_SIZENS))
         sizer.Add(self.scale, -1, wx.EXPAND)
         self.SetSizer(sizer)
         self.SetMinSize((self.root.corner.GetSize()[0],-1))
@@ -172,7 +172,7 @@ class VerticalScale(ViewerPanel):
         """
         if setSize:
             w = self.unitLabel.GetTextExtent(units)[0]
-            bw = self.zoomInButton.GetSizeTuple()[0]
+            bw = self.zoomInButton.GetSize()[0]
             if w > bw:
                 scaledFont = self.defaultFont.Scaled(bw/(w+0.0))
                 if scaledFont.GetPointSize() < self.MIN_LABEL_PT_SIZE:
@@ -357,8 +357,8 @@ class PlotCanvas(wx.ScrolledWindow):
         self.NO_PEN = wx.Pen("white", style=wx.TRANSPARENT)
         self.BLACK_PEN = wx.Pen("black", style=wx.SOLID)
         
-        self._cursor_arrowwait = wx.StockCursor(wx.CURSOR_ARROWWAIT)
-        self._cursor_default = wx.StockCursor(wx.CURSOR_DEFAULT)
+        self._cursor_arrowwait = wx.Cursor(wx.CURSOR_ARROWWAIT)
+        self._cursor_default = wx.Cursor(wx.CURSOR_DEFAULT)
 
         self.pauseTimer = wx.Timer()
         self.abortRendering = False
@@ -431,7 +431,7 @@ class PlotCanvas(wx.ScrolledWindow):
                      self.minRangePen,
                      self.maxRangePen)
         
-        self._pointPen = wx.Pen(wx.Colour(255,255,255,.5), 1, self.style)
+        self._pointPen = wx.Pen(wx.Colour(255,255,255,128), 1, self.style)
         self.legendRect = None
         
     
@@ -738,7 +738,7 @@ class PlotCanvas(wx.ScrolledWindow):
             msg = "An error occurred while trying to read the recording file."
             self.root.handleError(err, msg, closeFile=True)
             
-        except wx.PyDeadObjectError:
+        except RuntimeError:
             # Could occur when shutting down. Ignore it.
             pass
         
@@ -753,7 +753,7 @@ class PlotCanvas(wx.ScrolledWindow):
         
         try:
             self.SetCursor(self._cursor_default)
-        except wx.PyDeadObjectError:
+        except RuntimeError:
             # May occur when shutting down. Ignore.
             pass
         
@@ -785,7 +785,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc = wx.GCDC(dc)
             dc.SetUserScale(self.userScale, self.userScale)
         
-        dc.BeginDrawing()
+#         dc.BeginDrawing()
         
         parent = self.Parent
         legend = parent.legend
@@ -871,7 +871,7 @@ class PlotCanvas(wx.ScrolledWindow):
                 break
             linesDrawn += self._drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
             
-        dc.EndDrawing()
+#         dc.EndDrawing()
         self.SetCursor(self._cursor_default)
         
         if DEBUG and linesDrawn > 0:# and len(parent.sources) > 1:
@@ -1059,7 +1059,7 @@ class PlotCanvas(wx.ScrolledWindow):
             parent.zoomToFit(self)
             parent.firstPlot = False
             self.SetCursor(self._cursor_default)
-            dc.EndDrawing()
+#             dc.EndDrawing()
             return 0
         
         if self.drawPoints and len(lines) < size[0] / 4:
@@ -1110,7 +1110,7 @@ class PlotCanvas(wx.ScrolledWindow):
         else:
             x, y, w, h, swatchSize, items = self.legendRect
 
-        dc.BeginDrawing()
+#         dc.BeginDrawing()
         dc.SetPen(self.BLACK_PEN)
         dc.SetBrush(self.legendBrush)
         dc.DrawRectangle(x, y, w, h)
@@ -1121,7 +1121,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetBrush(b)
             dc.DrawText(n, textPos, vpos)
             dc.DrawRectangle(swatchPos, vpos, swatchSize, swatchSize)
-        dc.EndDrawing()
+#         dc.EndDrawing()
 
 
     #===========================================================================
@@ -1138,13 +1138,13 @@ class PlotCanvas(wx.ScrolledWindow):
         
         # draw rectangle
         dc = wx.ClientDC( self )
-        dc.BeginDrawing()
+#         dc.BeginDrawing()
         dc.SetPen(wx.Pen(wx.BLACK))
         dc.SetBrush(wx.Brush( wx.WHITE, wx.TRANSPARENT ))
         dc.SetLogicalFunction(wx.INVERT)
         dc.DrawRectangle( ptx,pty, rectWidth,rectHeight)
         dc.SetLogicalFunction(wx.COPY)
-        dc.EndDrawing()
+#         dc.EndDrawing()
  
 
     #===========================================================================
@@ -2133,7 +2133,7 @@ class PlotSet(aui.AuiNotebook):
         
         plot = Plot(self, source=source, root=self.root, name=name, units=units, 
                     initialRange=initialRange)
-        plot.SetToolTipString(name)
+        plot.SetToolTip(name)
         self.AddPage(plot, title)
         plot.setTabText()
         self.Refresh()

@@ -352,8 +352,8 @@ class FFTView(wx.Frame, MenuMixin):
             for i in range(4):
                 self.menubar.EnableTop(i, True)
             self.Update()
-            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
-        except wx.PyDeadObjectError:
+            self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+        except RuntimeError:
             pass
 
 
@@ -374,7 +374,7 @@ class FFTView(wx.Frame, MenuMixin):
             return self.finishDraw(None)
 
         self.statusBar.startProgress(label="Calculating...", initialVal=-1, cancellable=False, delay=100)
-        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
         t = delayedresult.startWorker(self.finishDraw, self._draw, daemon=True)
         t.setName("%sThread" % self.NAME)
         
@@ -405,7 +405,7 @@ class FFTView(wx.Frame, MenuMixin):
                 self.makeLineList()
             else:
                 logger.info("No data for %s!" % self.FULLNAME)
-                self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+                self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
                 return
 
             logger.info("%d samples x%d columns calculated. Elapsed time (%s): %0.6f s." % (stop-start, len(self.subchannels), self.FULLNAME, time.time() - drawStart))
@@ -419,9 +419,9 @@ class FFTView(wx.Frame, MenuMixin):
             self.canvas.SetEnableZoom(True)
 #             self.canvas.SetShowScrollbars(True)
 
-            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+            self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
             
-        except wx.PyDeadObjectError:
+        except RuntimeError:
             pass
 
         
@@ -707,7 +707,7 @@ class FFTView(wx.Frame, MenuMixin):
             message="Export CSV...", 
 #             defaultDir=defaultDir,  defaultFile=defaultFile, 
             wildcard = "Comma Separated Values (*.csv)|*.csv",
-            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMP)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
@@ -731,7 +731,7 @@ class FFTView(wx.Frame, MenuMixin):
         dlg = wx.FileDialog(self, 
             message="Export Image...", 
             wildcard=self.IMAGE_FORMATS, 
-            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMP)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
@@ -768,18 +768,18 @@ class FFTView(wx.Frame, MenuMixin):
         self.zoomPlot(self.canvas, -.1)
     
     def OnMenuViewReset(self, evt):
-        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
         self.canvas.Reset()
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
     def OnMenuDataLog(self, evt):
         """
         """
-        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
         self.logarithmic = (self.logFreq.IsChecked(), self.logAmp.IsChecked())
         self.canvas.setLogScale(self.logarithmic)
         self.canvas.Redraw()
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
     def OnMenuViewLegend(self, evt):
         self.showLegend = evt.IsChecked()
@@ -792,11 +792,11 @@ class FFTView(wx.Frame, MenuMixin):
         self.canvas.Redraw()
 
     def OnMenuViewGrid(self, evt):
-        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
         self.showGrid = evt.IsChecked()
         self.canvas.SetEnableGrid(self.showGrid)
         self.root.app.setPref('fft.showGrid', self.showGrid)
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 #         self.canvas.Redraw()
 
     def OnViewChangeTitle(self, evt):
@@ -1238,7 +1238,7 @@ class SpectrogramView(FFTView):
                                              self.colorizer)
                 self.makeLineList()
             
-        except wx.PyDeadObjectError:
+        except RuntimeError:
             pass
 
 
@@ -1375,7 +1375,7 @@ class SpectrogramView(FFTView):
     #===========================================================================
 
     def redrawPlots(self):
-        self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
         self.images = self.makePlots(self.data, self.logarithmic, self.colorizer)
         self.makeLineList()
         for i in range(self.canvas.GetPageCount()):
@@ -1385,7 +1385,7 @@ class SpectrogramView(FFTView):
             p.SetEnableTitle(self.showTitle)
             p.outOfRangeColor = self.outOfRangeColor
             p.Redraw()
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
         
 
     #===========================================================================
@@ -1417,7 +1417,7 @@ class SpectrogramView(FFTView):
             dlg = wx.FileDialog(self, 
                 message="Export CSV(s)...", 
                 wildcard="Comma Separated Values (*.csv)|*.csv", 
-                style=wx.SAVE)
+                style=wx.FD_SAVE)
             
             if dlg.ShowModal() == wx.ID_OK:
                 baseName = dlg.GetPath()
@@ -1521,7 +1521,7 @@ class SpectrogramView(FFTView):
         dlg = wx.FileDialog(self, 
             message="Export Image...", 
             wildcard=self.IMAGE_FORMATS, 
-            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMP)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()

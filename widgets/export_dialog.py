@@ -100,7 +100,7 @@ class ExportDialog(sc.SizedDialog):
 
         super(ExportDialog, self).__init__(*args, **kwargs)
         
-        self.noBmp = wx.EmptyBitmapRGBA(16,16,0,0,0,1.0)
+        self.noBmp = wx.Bitmap.FromRGBA(16,16,0,0,0,255)
         self.rangeBtns = []
         
         self.buildUI()
@@ -347,7 +347,7 @@ class ExportDialog(sc.SizedDialog):
         l.SetSizerProps(valign="center")
         ctrl = wx.Choice(parent, -1, choices=choices)
         if tooltip:
-            ctrl.SetToolTipString(tooltip)
+            ctrl.SetToolTip(tooltip)
         ctrl.SetSizerProps(expand=True)
         if isinstance(default, basestring) and default in choices:
             ctrl.Select(choices.index(default))
@@ -371,7 +371,7 @@ class ExportDialog(sc.SizedDialog):
         ctrl = wx.CheckBox(parent, -1, label)
         ctrl.SetValue(default)
         if isinstance(tooltip, basestring):
-            ctrl.SetToolTipString(tooltip)
+            ctrl.SetToolTip(tooltip)
         return ctrl, parent
     
     

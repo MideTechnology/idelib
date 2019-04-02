@@ -1252,7 +1252,7 @@ class ConfigDialog(SC.SizedDialog):
         dlg = wx.FileDialog(self, message="Export Device Configuration", 
                             wildcard=("Exported config file (*.cfx)|*.cfx|"
                                       "All files (*.*)|*.*"),
-                            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+                            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             try:
                 self.device.exportConfig(dlg.GetPath(), data=self.getData())

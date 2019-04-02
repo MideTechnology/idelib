@@ -348,7 +348,7 @@ class Timeline(ViewerPanel):
                                     style=wx.NO_BORDER)
         sizer.Add(self.timebar, 0, wx.EXPAND)
         self.timebar.SetBackgroundColour(self.root.uiBgColor)
-        self.timebar.SetCursor(wx.StockCursor(wx.CURSOR_SIZEWE))
+        self.timebar.SetCursor(wx.Cursor(wx.CURSOR_SIZEWE))
         self.timebar.SetRange(self.timerange[0] * self.root.timeScalar,
                               self.timerange[1] * self.root.timeScalar)
         

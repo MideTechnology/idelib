@@ -42,7 +42,9 @@ def makeWxDateTime(val):
     if isinstance(val, (int, float)):
         return wx.DateTimeFromTimeT(float(val))
     elif isinstance(val, wx.DateTime):
-        return wx.DateTimeFromDateTime(val)
+        # XXX: Not sure this is correct for wxPython4
+        # return wx.DateTimeFromDateTime(val)
+        return val
     # Assume a struct_time or other sequence:
     return wx.DateTimeFromDMY(val[2], val[1]-1, val[0], val[3], val[4], val[5])
         
@@ -62,7 +64,7 @@ def getUtcOffset():
 # Field validators
 #===============================================================================
 
-class TimeValidator(wx.PyValidator):
+class TimeValidator(wx.Validator):
     """
     """
     validCharacters = "-.0123456789"

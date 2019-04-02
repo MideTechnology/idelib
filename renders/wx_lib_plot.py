@@ -246,7 +246,7 @@ class PolyLine(PolyPoints):
         :keyword `attr`: keyword attributes, default to:
 
          ==========================  ================================  
-         'colour'= 'black'           wx.Pen Colour any wx.NamedColour
+         'colour'= 'black'           wx.Pen Colour any wx.Colour
          'width'= 1                  Pen width
          'style'= wx.SOLID           wx.Pen style
          'legend'= ''                Line Legend to display
@@ -260,7 +260,7 @@ class PolyLine(PolyPoints):
         width = self.attributes['width'] * printerScale * self._pointSize[0]
         style= self.attributes['style']
         if not isinstance(colour, wx.Colour):
-            colour = wx.NamedColour(colour)
+            colour = wx.Colour(colour)
         pen = wx.Pen(colour, width, style)
         pen.SetCap(wx.CAP_BUTT)
         dc.SetPen(pen)
@@ -294,7 +294,7 @@ class PolySpline(PolyLine):
         :keyword `attr`: keyword attributes, default to:
 
          ==========================  ================================  
-         'colour'= 'black'           wx.Pen Colour any wx.NamedColour
+         'colour'= 'black'           wx.Pen Colour any wx.Colour
          'width'= 1                  Pen width
          'style'= wx.SOLID           wx.Pen style
          'legend'= ''                Line Legend to display
@@ -308,7 +308,7 @@ class PolySpline(PolyLine):
         width = self.attributes['width'] * printerScale * self._pointSize[0]
         style= self.attributes['style']
         if not isinstance(colour, wx.Colour):
-            colour = wx.NamedColour(colour)
+            colour = wx.Colour(colour)
         pen = wx.Pen(colour, width, style)
         pen.SetCap(wx.CAP_ROUND)
         dc.SetPen(pen)
@@ -339,10 +339,10 @@ class PolyMarker(PolyPoints):
         :keyword `attr`: keyword attributes, default to:
 
          ============================  ================================  
-         'colour'= 'black'             wx.Pen Colour any wx.NamedColour
+         'colour'= 'black'             wx.Pen Colour any wx.Colour
          'width'= 1                    Pen width
          'size'= 2                     Marker size
-         'fillcolour'= same as colour  wx.Brush Colour any wx.NamedColour
+         'fillcolour'= same as colour  wx.Brush Colour any wx.Colour
          'fillstyle'= wx.SOLID         wx.Brush fill style (use wx.TRANSPARENT for no fill)
          'style'= wx.SOLID             wx.Pen style
          'marker'= 'circle'            Marker shape
@@ -370,9 +370,9 @@ class PolyMarker(PolyPoints):
         marker = self.attributes['marker']
 
         if colour and not isinstance(colour, wx.Colour):
-            colour = wx.NamedColour(colour)
+            colour = wx.Colour(colour)
         if fillcolour and not isinstance(fillcolour, wx.Colour):
-            fillcolour = wx.NamedColour(fillcolour)
+            fillcolour = wx.Colour(fillcolour)
             
         dc.SetPen(wx.Pen(colour, width))
         if fillcolour:
@@ -594,9 +594,9 @@ class PlotCanvas(wx.Panel):
 
         # set curser as cross-hairs
         self.canvas.SetCursor(wx.CROSS_CURSOR)
-        self.HandCursor = wx.CursorFromImage(Hand.GetImage())
-        self.GrabHandCursor = wx.CursorFromImage(GrabHand.GetImage())
-        self.MagCursor = wx.CursorFromImage(MagPlus.GetImage())
+        self.HandCursor = wx.Cursor(Hand.GetImage())
+        self.GrabHandCursor = wx.Cursor(GrabHand.GetImage())
+        self.MagCursor = wx.Cursor(MagPlus.GetImage())
             
         # Things for printing
         self._print_data = None
@@ -667,7 +667,7 @@ class PlotCanvas(wx.Panel):
         # platforms at initialization, but little harm done.
         self.OnSize(None) # sets the initial size based on client size
 
-        self._gridColour = wx.NamedColour('black')
+        self._gridColour = wx.Colour('black')
 
     def SetCursor(self, cursor):
         self.canvas.SetCursor(cursor)
@@ -679,7 +679,7 @@ class PlotCanvas(wx.Panel):
         if isinstance(colour, wx.Colour):
             self._gridColour = colour
         else:
-            self._gridColour = wx.NamedColour(colour)
+            self._gridColour = wx.Colour(colour)
 
         
     # SaveFile
@@ -719,7 +719,7 @@ class PlotCanvas(wx.Panel):
                     self, 
                     "Choose a file with extension bmp, gif, xbm, xpm, png, or jpg", ".", "",
                     "BMP files (*.bmp)|*.bmp|XBM files (*.xbm)|*.xbm|XPM file (*.xpm)|*.xpm|PNG files (*.png)|*.png|JPG files (*.jpg)|*.jpg",
-                    wx.SAVE|wx.OVERWRITE_PROMPT
+                    wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT
                     )
 
             if dlg1.ShowModal() == wx.ID_OK:
@@ -1474,7 +1474,7 @@ class PlotCanvas(wx.Panel):
         # Make new offscreen bitmap: this bitmap will always have the
         # current drawing in it, so it can be used to save the image to
         # a file, or whatever.
-        self._Buffer = wx.EmptyBitmap(Size.width, Size.height)
+        self._Buffer = wx.Bitmap(Size.width, Size.height)
         self._setSize()
 
         self.last_PointLabel = None        #reset pointLabel
@@ -1536,7 +1536,7 @@ class PlotCanvas(wx.Panel):
         width = self._Buffer.GetWidth()
         height = self._Buffer.GetHeight()
         if sys.platform != "darwin":
-            tmp_Buffer = wx.EmptyBitmap(width,height)
+            tmp_Buffer = wx.Bitmap(width,height)
             dcs = wx.MemoryDC()
             dcs.SelectObject(tmp_Buffer)
             dcs.Clear()

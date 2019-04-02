@@ -795,7 +795,7 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def getSaveFile(self, message, defaults=None, types=None, 
-                    style=wx.SAVE|wx.OVERWRITE_PROMPT, deviceWarning=True):
+                    style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT, deviceWarning=True):
         """ Wrapper for getting the name of an output file.
         
             @param message: The message to be shown in the file dialog.
@@ -947,7 +947,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Disable (or enable) bivariate calibration polynomials. Disabling
             them makes things faster.
         """
-        self.FindItemInMenuBar(self.ID_DATA_DISABLE_BIVARIATES).Check(disabled)
+        self.menubar.FindItemById(self.ID_DATA_DISABLE_BIVARIATES).Check(disabled)
         self.noBivariates = disabled
         for source in self.dataSources.values():
             source.noBivariates = self.noBivariates
@@ -1564,7 +1564,7 @@ class Viewer(wx.Frame, MenuMixin):
         for fft in self.childViews.itervalues():
             try:
                 fft.Destroy()
-            except (AttributeError, wx.PyDeadObjectError):
+            except (AttributeError, RuntimeError):#, wx.PyDeadObjectError):
                 # FFT view may already have been destroyed; that's okay.
                 pass
         
@@ -1602,7 +1602,7 @@ class Viewer(wx.Frame, MenuMixin):
                             defaultDir=defaultDir, 
                             defaultFile=defaultFile,
                             wildcard=importTypes,
-                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST)
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
@@ -1643,7 +1643,7 @@ class Viewer(wx.Frame, MenuMixin):
                             message="Choose Multiple Files",
                             defaultDir=defaultDir, 
                             wildcard=importTypes,
-                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST|wx.MULTIPLE)
+                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST|wx.FD_MULTIPLE)
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
             filenames = dlg.GetPaths()
@@ -1664,9 +1664,9 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handle File->Recording Properties menu events.
         """
         if self.dataset:
-            self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+            self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
             RecorderInfoDialog.showRecorderInfo(self.dataset)
-            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+            self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
         
         
 #     def OnPickRecentFile(self, evt):
@@ -2294,9 +2294,9 @@ class Viewer(wx.Frame, MenuMixin):
                 the 'wait arrow' one is used.
         """
         if modal:
-            self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+            self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
         else:
-            self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+            self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
         if cancellable:
             self.menubar.FindItemById(wx.ID_CANCEL).Enable(True)
         self.busy = True
@@ -2306,7 +2306,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Change the cursor and cancel button back, presumably after calling
             `startBusy`.
         """
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
         self.menubar.FindItemById(wx.ID_CANCEL).Enable(False)
         self.busy = False
 

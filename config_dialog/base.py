@@ -180,7 +180,7 @@ class TextValidator(wx.PyValidator):
             evt.Skip()
             return
 
-        if not wx.Validator_IsSilent():
+        if not wx.Validator.IsSilent():
             wx.Bell()
 
         return
@@ -193,7 +193,7 @@ class TextValidator(wx.PyValidator):
         current = self.GetWindow().GetValue()
         if self.isValid(current + txt):
             evt.Skip()
-        elif not wx.Validator_IsSilent():
+        elif not wx.Validator.IsSilent():
             wx.Bell()
     
     
@@ -1555,7 +1555,7 @@ class CheckDriftButton(ConfigWidget):
     def OnButtonPress(self, evt):
         """ Handle button press: perform the clock drift test.
         """
-        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
         try:
             times = self.root.device.getTime()
         except Exception:
@@ -1566,7 +1566,7 @@ class CheckDriftButton(ConfigWidget):
             return
         
         drift = times[0] - times[1]
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
         wx.MessageBox("Clock drift: %.4f seconds" % drift, self.label,
                       parent=self, style=wx.OK|wx.ICON_INFORMATION)
 
@@ -2261,7 +2261,7 @@ class ConfigDialog(SC.SizedDialog):
                 things in the `devices` module).
         """ 
         dlg = wx.FileDialog(self, message="Export Device Configuration", 
-                            style=wx.SAVE|wx.OVERWRITE_PROMPT, 
+                            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT, 
                             wildcard=("Exported config file (*.cfx)|*.cfx|"
                                       "All files (*.*)|*.*"))
         if dlg.ShowModal() == wx.ID_OK:

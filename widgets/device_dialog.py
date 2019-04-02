@@ -195,14 +195,14 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         """ Handle timer 'tick' by refreshing device list.
         """
         if deviceChanged(recordersOnly=True):
-            self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+            self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
             newPaths = tuple(getDeviceList(types=self.deviceTypes))
             if newPaths == self.recorderPaths:
-                self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+                self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
                 return
             self.recorderPaths = newPaths
             self.populateList()
-            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+            self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
 
     def setItemIcon(self, index, dev):
@@ -278,7 +278,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.listMsgs = [None] * len(self.recorderPaths)
         self.listToolTips = [None] * len(self.recorderPaths)
 
-        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
         
         for dev in getDevices(self.recorderPaths):
             try:
@@ -316,7 +316,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         if not self.recorders or not self.selected:
             self.OnItemDeselected(None)
             
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
 
     def getSelected(self):
@@ -391,14 +391,14 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         """ Set all clocks. Used as an event handler.
         """
         butts = self.okButton, self.cancelButton, self.setClockButton
-        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
         for b in butts:
             b.Enable(False)
         for rec in self.recorders.values():
             rec.setTime()
         for b in butts:
             b.Enable(True)
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
 
     def startRecording(self, evt=None):

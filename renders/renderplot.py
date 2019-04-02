@@ -92,7 +92,7 @@ class PlotView(FFTView):
             self.canvas.SetEnableZoom(True)
             self.canvas.SetShowScrollbars(True)
 
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
     #===========================================================================
     # 

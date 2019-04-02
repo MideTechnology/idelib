@@ -54,16 +54,16 @@ class MemoryDialog(GMD.GenericMessageDialog):
             checkSizer = wx.BoxSizer(wx.HORIZONTAL)
             checkSizer.Add((margin[0]+10, margin[1]), 0, wx.EXPAND, 10)
             self.rememberCheck = wx.CheckBox(self, -1, self.rememberMsg, pos=(100,-1))
-            checkSizer.AddF(self.rememberCheck, wx.SizerFlags().Expand())
-            topsizer.AddF(checkSizer, wx.SizerFlags().Expand())
+            checkSizer.Add(self.rememberCheck, wx.SizerFlags().Expand())
+            topsizer.Add(checkSizer, wx.SizerFlags().Expand())
             self.rememberCheck.SetValue(self.rememberDefault)
         
         # Mac Human Interface Guidelines recommend not to use static lines as
         # grouping elements
         if wx.Platform != "__WXMAC__":
-            topsizer.AddF(wx.StaticLine(self), wx.SizerFlags().Expand().DoubleBorder(wx.BOTTOM))
+            topsizer.Add(wx.StaticLine(self), wx.SizerFlags().Expand().DoubleBorder(wx.BOTTOM))
             
-        topsizer.AddF(sizer, wx.SizerFlags().Expand())
+        topsizer.Add(sizer, wx.SizerFlags().Expand())
             
         return topsizer
 
