@@ -720,6 +720,8 @@ class PlotCanvas(wx.ScrolledWindow):
                                err.message) 
                 wx.MilliSleep(50)
                 wx.PostEvent(self, evt)
+            elif DEBUG:
+                logger.exception("%s; no data?" % err.message)
             else:
                 logger.warning("%s; no data?" % err.message)
                 
@@ -732,6 +734,10 @@ class PlotCanvas(wx.ScrolledWindow):
                 wx.PostEvent(self, evt)
             else:
                 self.Parent.validateTransforms()
+
+            if DEBUG:
+                logger.exception("%s; no data?" % err.message)
+            else:
                 logger.warning("%s; no data?" % err.message)
 
         except IOError as err:
