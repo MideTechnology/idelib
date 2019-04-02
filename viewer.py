@@ -2858,7 +2858,7 @@ class ViewerApp(wx.App):
 # 
 #===============================================================================
 
-if __name__ == '__main__':
+def main():
     import argparse
     # Windows shell does not like high Unicode characters; remove the dot.
     desc = cleanUnicode("%s v%s \n%s" % (APPNAME.replace(u'\u2022', ' '), 
@@ -2904,3 +2904,6 @@ if __name__ == '__main__':
 
     app = ViewerApp(**args)
     app.MainLoop()
+
+if __name__ == '__main__':
+    main()
