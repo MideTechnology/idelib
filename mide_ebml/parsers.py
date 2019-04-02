@@ -560,6 +560,9 @@ class BaseDataBlock(object):
             self.max = list(parser.unpack_from(self.minMeanMax, parser.size*2))
             for i, vals in enumerate(zip(self.min, self.max)):
                 self.min[i], self.max[i] = sorted(vals)
+            self.min = tuple(self.min)
+            self.max = tuple(self.max)
+
             return self.min, self.mean, self.max
         except struct.error:
             # Bad min/mean/max data: too short. Ignore it.

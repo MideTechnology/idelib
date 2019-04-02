@@ -106,7 +106,7 @@ class Transform(object):
         if session != self._lastSession:
             self._timeOffset = 0 if session.startTime is None else session.startTime
             self._session = session
-        return event[-2] + self._timeOffset, self._function(event[-1])
+        return event[0] + self._timeOffset, self._function(*event[1:])
 
 
     def isValid(self, session=None, noBivariates=False):
@@ -514,14 +514,14 @@ class Bivariate(Univariate):
             if len(self._eventlist) == 0:
                 return event
             
-            x = event[-1]
+            x = event[1:]
             
             # Optimization: don't check the other channel if Y is unused
             if noBivariates:
                 y = (0,1)
             else:
-                y = self._noY or self._eventlist.getMeanNear(event[-2])
-            return event[-2],self._function(x,y)
+                y = self._noY or self._eventlist.getMeanNear(event[0])
+            return event[0], self._function(x, y)
         
         except (IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition
@@ -732,11 +732,11 @@ class PolyPoly(CombinedPoly):
             @keyword session: The session containing the event.
         """
         try:
-            x = event[-1]
+            x = event[1:]
             # Optimization: don't check the other channel if Y is unused
             if self._noY is False:
                 if noBivariates:
-                    return event[-2], self._function(0, *x)
+                    return event[0], self._function(0, *x)
                     
                 session = self.dataset.lastSession if session is None else session
                 sessionId = None if session is None else session.sessionId
@@ -749,17 +749,17 @@ class PolyPoly(CombinedPoly):
                 # XXX: Hack! EventList length can be 0 if a thread is running.
                 # This almost immediately gets fixed. Find real cause.
                 try:    
-                    y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
+                    y = self._eventlist.getMeanNear(event[0], outOfRange=True)
                 except IndexError:
                     sleep(0.001)
                     if len(self._eventlist) == 0:
                         return None
-                    y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
+                    y = self._eventlist.getMeanNear(event[0], outOfRange=True)
                     
-                return event[-2],self._function(y, *x)
+                return event[:1] + self._function(y, *x)
             
             else:
-                return event[-2],self._function(*x)
+                return event[:1] + self._function(*x)
             
         except (TypeError, IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition
