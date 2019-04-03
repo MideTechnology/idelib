@@ -6,6 +6,7 @@ Created on Sep 10, 2015
 from datetime import datetime
 
 import wx
+import wx.adv
 import wx.lib.masked as wx_mc
 
 import images as images
@@ -20,11 +21,11 @@ class DateTimeCtrl(wx.Panel):
     """
     
     def __init__(self, *args, **kwargs):
-        dateStyle = kwargs.pop('dateStyle', wx.DP_DROPDOWN)
+        dateStyle = kwargs.pop('dateStyle', wx.adv.DP_DROPDOWN)
         fmt24hr = kwargs.pop('fmt24hr', True)
         super(DateTimeCtrl, self).__init__(*args, **kwargs)
             
-        self.dateCtrl = wx.DatePickerCtrl(self, -1, style=dateStyle)
+        self.dateCtrl = wx.adv.DatePickerCtrl(self, -1, style=dateStyle)
         self.timeCtrl = wx_mc.TimeCtrl(self, 1, fmt24hr=fmt24hr)
         timeSpin = wx.SpinButton(self, 1, style=wx.SP_VERTICAL)
         

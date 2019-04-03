@@ -94,9 +94,9 @@ class MultiFileSelect(wx.Panel):
         index = self.listbox.HitTest(evt.GetPosition())
         if index != self.lastIndex:
             if index >= 0:
-                self.listbox.SetToolTipString(self.files[index])
+                self.listbox.SetToolTip(self.files[index])
             else:
-                self.listbox.SetToolTipString('')
+                self.listbox.SetToolTip('')
         self.lastIndex = index
         evt.Skip()
         

@@ -23,8 +23,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     """ The dialog for selecting data to export.
     """
 
-    ID_SET_TIME = wx.NewId()
-    ID_START_RECORDING = wx.NewId()
+    ID_SET_TIME = wx.NewIdRef()
+    ID_START_RECORDING = wx.NewIdRef()
     
     # Indices of icons. Proportional to severity.
     ICON_INFO, ICON_WARN, ICON_ERROR = range(3)
@@ -131,19 +131,19 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.setClockButton = wx.Button(buttonpane, self.ID_SET_TIME, 
                                         "Set All Clocks")
         self.setClockButton.SetSizerProps(halign="left")
-        self.setClockButton.SetToolTipString("Set the time of every attached "
+        self.setClockButton.SetToolTip("Set the time of every attached "
                                              "recorder with a RTC")
         
         self.recordButton = wx.Button(buttonpane, self.ID_START_RECORDING,
                                       "Start Recording")
         self.recordButton.SetSizerProps(halign="left")
-        self.recordButton.SetToolTipString(self.RECORD_ENABLED)
+        self.recordButton.SetToolTip(self.RECORD_ENABLED)
         self.recordButton.Enable(False)
         
         sc.SizedPanel(buttonpane, -1).SetSizerProps(proportion=1) # Spacer
         
         self.okButton = wx.Button(buttonpane, wx.ID_OK, okText)
-        self.okButton.SetToolTipString(okHelp)
+        self.okButton.SetToolTip(okHelp)
         self.okButton.SetSizerProps(halign="right")
         self.okButton.Enable(False)
         self.cancelButton = wx.Button(buttonpane, wx.ID_CANCEL, cancelText)
@@ -282,10 +282,10 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         
         for dev in getDevices(self.recorderPaths):
             try:
-                index = self.list.InsertStringItem(sys.maxint, dev.path)
+                index = self.list.InsertItem(sys.maxint, dev.path)
                 self.recorders[index] = dev
                 for i, col in enumerate(self.COLUMNS[1:], 1):
-                    self.list.SetStringItem(index, i, self._thing2string(dev, col))
+                    self.list.SetItem(index, i, self._thing2string(dev, col))
                     self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
                     self.listWidth = max(self.listWidth, 
                                          self.list.GetItemRect(index)[2])
@@ -333,17 +333,17 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
 
     def OnItemSelected(self,evt):
-        self.selected = self.list.GetItemData(evt.m_item.GetId())
+        self.selected = self.list.GetItemData(evt.Item.GetId())
         if self.listMsgs[self.selected] is not None:
             self.infoText.SetLabel(self.listMsgs[self.selected])
         self.okButton.Enable(True)
         
         recorder = self.recorders.get(self.selected, None)
         if recorder.canRecord:
-            self.recordButton.SetToolTipString(self.RECORD_ENABLED)
+            self.recordButton.SetToolTip(self.RECORD_ENABLED)
             self.recordButton.Enable(True)
         else:
-            self.recordButton.SetToolTipString(self.RECORD_UNSUPPORTED)
+            self.recordButton.SetToolTip(self.RECORD_UNSUPPORTED)
             self.recordButton.Enable(False)
         
         evt.Skip()
@@ -358,7 +358,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             self.infoText.SetLabel("")
         
         self.recordButton.Enable(False)
-        self.recordButton.SetToolTipString(self.RECORD_UNSELECTED)
+        self.recordButton.SetToolTip(self.RECORD_UNSELECTED)
         
         if evt is not None:
             evt.Skip()
@@ -380,7 +380,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         if index != -1 and index != self.lastToolTipItem:
             item = self.list.GetItemData(index)
             if self.listToolTips[item] is not None:
-                self.list.SetToolTipString(self.listToolTips[item])
+                self.list.SetToolTip(self.listToolTips[item])
             else:
                 self.list.UnsetToolTip()
             self.lastToolTipItem = index

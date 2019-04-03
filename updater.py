@@ -88,8 +88,8 @@ class UpdateDialog(SC.SizedDialog):
         list and launching the user's default web browser (if the user opts to
         download the new version).
     """
-    ID_SKIP = wx.NewId()
-    ID_DOWNLOAD = wx.NewId()
+    ID_SKIP = wx.NewIdRef()
+    ID_DOWNLOAD = wx.NewIdRef()
     
     DEFAULT_CHANGELIST = ("<html><body>"
                           "See the Download Page for more information."
@@ -175,14 +175,14 @@ class UpdateDialog(SC.SizedDialog):
         cancelBtn = wx.Button(buttonpane, wx.ID_CANCEL)
         cancelBtn.SetSizerProps(halign="right")
         
-        cancelBtn.SetToolTipString(
+        cancelBtn.SetToolTip(
             "Ignore this update for now. You will be notified again the next "
             "time the update check is run.")
-        skipBtn.SetToolTipString(
+        skipBtn.SetToolTip(
             'Do not receive further automatic notifications for version %s. '
             'It will still appear in user-initiated version checks '
             '(Help menu, Check for Updates sub-menu).' % self.newVersion)
-        downloadBtn.SetToolTipString('Open "%s" in your default browser' % \
+        downloadBtn.SetToolTip('Open "%s" in your default browser' % \
                                      urllib.splitquery(self.downloadUrl)[0])
         
         skipBtn.Bind(wx.EVT_BUTTON, self.OnSkip)

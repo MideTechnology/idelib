@@ -33,8 +33,8 @@ class LiveCalibrationDialog(SC.SizedDialog):
         recording. 
     """
     
-    ID_IMPORT = wx.NewId()
-    ID_EXPORT = wx.NewId()
+    ID_IMPORT = wx.NewIdRef()
+    ID_EXPORT = wx.NewIdRef()
     
     IMPORT_TYPES=("Any Calibration File Type (*.cal, *.dat, *.ide)|*.cal;*.dat;*.ide|"
                   "Exported Calibration File (*.cal)|*.cal|"

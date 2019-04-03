@@ -301,7 +301,7 @@ class SSXInfoPanel(InfoPanel):
 class CalibrationPanel(InfoPanel):
     """ Panel for displaying SSX calibration polynomials. Read-only.
     """
-    ID_CREATE_CAL = wx.NewId()
+    ID_CREATE_CAL = wx.NewIdRef()
     
     def __init__(self, parent, id_, calSerial=None, calDate=None, 
                  calExpiry=None, channels=None, editable=False, 
@@ -353,8 +353,8 @@ class CalibrationPanel(InfoPanel):
         """ Helper method to embed wxPython Buttons in the HTML display (the
             widget does not support forms, so it can't be done in HTML).
         """
-        wxid = self.calWxIds.setdefault(cal.id, wx.NewId())
-        wxrevid = self.revertWxIds.setdefault(cal.id, wx.NewId())
+        wxid = self.calWxIds.setdefault(cal.id, wx.NewIdRef())
+        wxrevid = self.revertWxIds.setdefault(cal.id, wx.NewIdRef())
         self.calIds[wxid] = cal
         self.revertIds[wxrevid] = cal
         return ('<wxp module="wx" class="Button" width="60" height="20">'

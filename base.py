@@ -217,7 +217,7 @@ class MenuMixin(object):
             @return: The new menu item.
         """
         if id_ == -1:
-            id_ = wx.NewId()
+            id_ = wx.NewIdRef()
         item = menu.Append(id_, text, helpString, kind)
         item.Enable(enabled)
         if kind == wx.ITEM_CHECK:
@@ -247,7 +247,7 @@ class MenuMixin(object):
             @keyword enabled: The initial enabled state of the submenu.
         """
         if id_ == -1:
-            id_ = wx.NewId()
+            id_ = wx.NewIdRef()
         subM = wx.Menu()
         menu.Append(id_, text, subM)
         menu.Enable(id_, enabled)

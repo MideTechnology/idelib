@@ -55,11 +55,11 @@ class BaseConfigPanel(SC.SizedScrolledPanel):
         if tooltip is None:
             return
         tooltip = cleanUnicode(tooltip)
-        cb.SetToolTipString(tooltip)
+        cb.SetToolTip(tooltip)
         if cb in self.controls:
             for c in self.controls[cb]:
                 try:
-                    c.SetToolTipString(tooltip)
+                    c.SetToolTip(tooltip)
                 except AttributeError:
                     pass
         
@@ -154,7 +154,7 @@ class BaseConfigPanel(SC.SizedScrolledPanel):
             self.controls[b].append(pad)
 
         if tooltip is not None:
-            b.SetToolTipString(cleanUnicode(tooltip))
+            b.SetToolTip(cleanUnicode(tooltip))
         if handler is not None:
             b.Bind(wx.EVT_BUTTON, handler)
         return b
@@ -182,7 +182,7 @@ class BaseConfigPanel(SC.SizedScrolledPanel):
         SC.SizedPanel(self, -1) # Spacer
         
         if tooltip is not None:
-            c.SetToolTipString(cleanUnicode(tooltip))
+            c.SetToolTip(cleanUnicode(tooltip))
             
         self.controls[c] = [None]
         if col1 != self:
@@ -1102,8 +1102,8 @@ class ConfigDialog(SC.SizedDialog):
             there are multiple types of recorders using the MIDE format.
     """
     
-    ID_IMPORT = wx.NewId()
-    ID_EXPORT = wx.NewId()
+    ID_IMPORT = wx.NewIdRef()
+    ID_EXPORT = wx.NewIdRef()
     
     ICON_INFO = 0
     ICON_WARN = 1

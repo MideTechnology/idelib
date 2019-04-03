@@ -1326,15 +1326,15 @@ class Plot(ViewerPanel, MenuMixin):
     """ A display of one or more subchannels of data, consisting of the 
         vertical scale and actual plot-drawing canvas.
     """
-    ID_MENU_SETCOLOR = wx.NewId()
-    ID_MENU_SETPOS_UL = wx.NewId()
-    ID_MENU_SETPOS_UR = wx.NewId()
-    ID_MENU_SETPOS_LR = wx.NewId()
-    ID_MENU_SETPOS_LL = wx.NewId()
-    ID_MENU_MOVE_TOP = wx.NewId()
-    ID_MENU_MOVE_BOTTOM = wx.NewId()
-    ID_MENU_REMOVE = wx.NewId()
-    ID_MENU_HIDE_LEGEND = wx.NewId()
+    ID_MENU_SETCOLOR = wx.NewIdRef()
+    ID_MENU_SETPOS_UL = wx.NewIdRef()
+    ID_MENU_SETPOS_UR = wx.NewIdRef()
+    ID_MENU_SETPOS_LR = wx.NewIdRef()
+    ID_MENU_SETPOS_LL = wx.NewIdRef()
+    ID_MENU_MOVE_TOP = wx.NewIdRef()
+    ID_MENU_MOVE_BOTTOM = wx.NewIdRef()
+    ID_MENU_REMOVE = wx.NewIdRef()
+    ID_MENU_HIDE_LEGEND = wx.NewIdRef()
     LEGEND_POS_IDS = [ID_MENU_SETPOS_UL, ID_MENU_SETPOS_UR,
                       ID_MENU_SETPOS_LL, ID_MENU_SETPOS_LR]
         

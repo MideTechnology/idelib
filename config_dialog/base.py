@@ -125,7 +125,7 @@ def getClipboardText():
 # 
 #===============================================================================
 
-class TextValidator(wx.PyValidator):
+class TextValidator(wx.Validator):
     """ Generic Validator for TextField and ASCIIField text widgets.
     """
     
@@ -140,7 +140,7 @@ class TextValidator(wx.PyValidator):
         """
         self.maxLen = maxLen
         self.isValid = validator 
-        wx.PyValidator.__init__(self)
+        wx.Validator.__init__(self)
         self.Bind(wx.EVT_CHAR, self.OnChar)
         self.Bind(wx.EVT_TEXT_PASTE, self.OnPaste)
         
@@ -608,12 +608,12 @@ class ConfigWidget(wx.Panel, ConfigBase):
             self.unitLabel = None
 
         if self.tooltip:
-            self.SetToolTipString(self.tooltip)
-            self.labelWidget.SetToolTipString(self.tooltip)
+            self.SetToolTip(self.tooltip)
+            self.labelWidget.SetToolTip(self.tooltip)
             if self.units:
-                self.unitLabel.SetToolTipString(self.tooltip)
+                self.unitLabel.SetToolTip(self.tooltip)
             if self.field is not None:
-                self.field.SetToolTipString(self.tooltip)
+                self.field.SetToolTip(self.tooltip)
         
         if self.checkbox is not None:
             self.Bind(wx.EVT_CHECKBOX, self.OnCheck)
@@ -818,7 +818,7 @@ class TextField(ConfigWidget):
                                      validator=validator)
             # XXX: This is supposed to set multi-line field height, doesn't work
             s = self.field.GetSize()[1]
-            self.field.SetSizeWH(-1, s * self.textLines)
+            self.field.SetSize(-1, s * self.textLines)
         else:
             self.field = wx.TextCtrl(self, -1, str(self.default or ''),
                                      validator=validator)
@@ -1002,7 +1002,7 @@ class EnumField(ConfigWidget):
         if index != wx.NOT_FOUND and index < len(self.options):
             tt = self.options[index].tooltip or tt
             
-        self.field.SetToolTipString(tt)
+        self.field.SetToolTip(tt)
 
 
     def OnChoice(self, evt):
@@ -1109,7 +1109,7 @@ class BitField(EnumField):
             
             tooltip = o.tooltip or self.tooltip
             if tooltip:
-                o.checkbox.SetToolTipString(tooltip)
+                o.checkbox.SetToolTip(tooltip)
         
         self.field = None
         return childSizer
@@ -1153,9 +1153,9 @@ class BitField(EnumField):
         self.unitLabel = None
 
         if self.tooltip:
-            self.SetToolTipString(self.tooltip)
+            self.SetToolTip(self.tooltip)
             if self.labelWidget is not None:
-                self.labelWidget.SetToolTipString(self.tooltip)
+                self.labelWidget.SetToolTip(self.tooltip)
         
         self.SetSizer(self.sizer)
         
@@ -1211,7 +1211,7 @@ class DateTimeField(IntField):
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
-        h = int(1.6*self.labelWidget.GetSizeTuple()[1])
+        h = int(1.6*self.labelWidget.GetSize()[1])
         self.field = DateTimeCtrl(self, -1, size=(-1,h))
         self.sizer.Add(self.field, 4)
         
@@ -1253,14 +1253,14 @@ class DateTimeField(IntField):
         else:
             
             offsetStr = "- %0.2f" % abs(offset)
-        self.tzList.SetToolTipString(msg % offsetStr)
+        self.tzList.SetToolTip(msg % offsetStr)
         
     
     def setDisplayValue(self, val, check=True):
         """ Set the Field's value, in epoch seconds UTC.
         """
         if not val:
-            val = wx.DateTimeFromTimeT(time.time())
+            val = wx.DateTime.FromTimeT(time.time())
         else:
             val = makeWxDateTime(val)
 
@@ -1340,12 +1340,12 @@ class UTCOffsetField(FloatField):
         super(UTCOffsetField, self).initUI()
 
         self.getOffsetBtn = wx.Button(self, -1, "Get Local Offset")
-        self.getOffsetBtn.SetSizeWH(-1, self.field.GetSizeTuple()[1])
+        self.getOffsetBtn.SetSize(-1, self.field.GetSize()[1])
         self.getOffsetBtn.Bind(wx.EVT_BUTTON, self.OnSetTZ)
         self.sizer.Add(self.getOffsetBtn, 0)
 
         if self.tooltip:
-            self.getOffsetBtn.SetToolTipString(self.tooltip)
+            self.getOffsetBtn.SetToolTip(self.tooltip)
 
     
     def OnSetTZ(self, event):
@@ -1544,8 +1544,8 @@ class CheckDriftButton(ConfigWidget):
         self.sizer.Add(self.field, 0)
 
         if self.tooltip:
-            self.SetToolTipString(self.tooltip)
-            self.field.SetToolTipString(self.tooltip)
+            self.SetToolTip(self.tooltip)
+            self.field.SetToolTip(self.tooltip)
         
         self.SetSizer(self.sizer)
 

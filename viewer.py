@@ -122,57 +122,57 @@ class Viewer(wx.Frame, MenuMixin):
     # Custom menu IDs
     # TODO: Consider using literal IDs, so they are sure to be consistent
     #     between runs of the application.
-    ID_RECENTFILES = wx.NewId()
-    ID_EXPORT = wx.NewId()
-    ID_RENDER = wx.NewId()
-    ID_RENDER_FFT = wx.NewId()
-    ID_RENDER_PSD = wx.NewId()
-    ID_RENDER_SPEC = wx.NewId()
-    ID_RENDER_PLOTS = wx.NewId()
-    ID_FILE_PROPERTIES = wx.NewId()
-    ID_FILE_MULTI = wx.NewId()
-    ID_EDIT_CLEARPREFS = wx.NewId()
-    ID_EDIT_RANGES = wx.NewId()
-    ID_DEVICE_CONFIG = wx.NewId()
-    ID_DEVICE_UPDATE = wx.NewId()
-    ID_VIEW_ADDSOURCE = wx.NewId()
-    ID_VIEW_NEWTAB = wx.NewId()
-    ID_VIEW_ZOOM_OUT_Y = wx.NewId()
-    ID_VIEW_ZOOM_IN_Y = wx.NewId()
-    ID_VIEW_ZOOM_FIT_Y = wx.NewId()
-    ID_VIEW_ZOOM_FIT_ALL = wx.NewId()
-    ID_VIEW_ANTIALIAS = wx.NewId()
-    ID_VIEW_JITTER = wx.NewId()
-    ID_VIEW_UTCTIME = wx.NewId()
-    ID_VIEW_MINMAX = wx.NewId()
-    ID_VIEW_MEAN = wx.NewId()
-    ID_VIEW_LINES_MAJOR = wx.NewId()
-    ID_VIEW_LINES_MINOR = wx.NewId()
-    ID_VIEW_LEGEND = wx.NewId()
-    ID_VIEW_HOLLOW = wx.NewId()
-    ID_DATA_MEAN_SUBMENU = wx.NewId()
-    ID_DATA_NOMEAN = wx.NewId()
-    ID_DATA_MEAN = wx.NewId()
-    ID_DATA_MEAN_TOTAL = wx.NewId()
-    ID_DATA_WARNINGS = wx.NewId()
-    ID_DATA_DISPLAY = wx.NewId()
-    ID_DATA_DISPLAY_NATIVE = wx.NewId()
-    ID_DATA_DISPLAY_CONFIG = wx.NewId()
-    ID_DATA_EDIT_CAL = wx.NewId()
-    ID_DATA_DISABLE_BIVARIATES = wx.NewId()
-    ID_TOOLS = wx.NewId()
-    ID_HELP_CHECK_UPDATES = wx.NewId()
-    ID_HELP_FEEDBACK = wx.NewId()
-    ID_HELP_RESOURCES = wx.NewId()
+    ID_RECENTFILES = wx.NewIdRef()
+    ID_EXPORT = wx.NewIdRef()
+    ID_RENDER = wx.NewIdRef()
+    ID_RENDER_FFT = wx.NewIdRef()
+    ID_RENDER_PSD = wx.NewIdRef()
+    ID_RENDER_SPEC = wx.NewIdRef()
+    ID_RENDER_PLOTS = wx.NewIdRef()
+    ID_FILE_PROPERTIES = wx.NewIdRef()
+    ID_FILE_MULTI = wx.NewIdRef()
+    ID_EDIT_CLEARPREFS = wx.NewIdRef()
+    ID_EDIT_RANGES = wx.NewIdRef()
+    ID_DEVICE_CONFIG = wx.NewIdRef()
+    ID_DEVICE_UPDATE = wx.NewIdRef()
+    ID_VIEW_ADDSOURCE = wx.NewIdRef()
+    ID_VIEW_NEWTAB = wx.NewIdRef()
+    ID_VIEW_ZOOM_OUT_Y = wx.NewIdRef()
+    ID_VIEW_ZOOM_IN_Y = wx.NewIdRef()
+    ID_VIEW_ZOOM_FIT_Y = wx.NewIdRef()
+    ID_VIEW_ZOOM_FIT_ALL = wx.NewIdRef()
+    ID_VIEW_ANTIALIAS = wx.NewIdRef()
+    ID_VIEW_JITTER = wx.NewIdRef()
+    ID_VIEW_UTCTIME = wx.NewIdRef()
+    ID_VIEW_MINMAX = wx.NewIdRef()
+    ID_VIEW_MEAN = wx.NewIdRef()
+    ID_VIEW_LINES_MAJOR = wx.NewIdRef()
+    ID_VIEW_LINES_MINOR = wx.NewIdRef()
+    ID_VIEW_LEGEND = wx.NewIdRef()
+    ID_VIEW_HOLLOW = wx.NewIdRef()
+    ID_DATA_MEAN_SUBMENU = wx.NewIdRef()
+    ID_DATA_NOMEAN = wx.NewIdRef()
+    ID_DATA_MEAN = wx.NewIdRef()
+    ID_DATA_MEAN_TOTAL = wx.NewIdRef()
+    ID_DATA_WARNINGS = wx.NewIdRef()
+    ID_DATA_DISPLAY = wx.NewIdRef()
+    ID_DATA_DISPLAY_NATIVE = wx.NewIdRef()
+    ID_DATA_DISPLAY_CONFIG = wx.NewIdRef()
+    ID_DATA_EDIT_CAL = wx.NewIdRef()
+    ID_DATA_DISABLE_BIVARIATES = wx.NewIdRef()
+    ID_TOOLS = wx.NewIdRef()
+    ID_HELP_CHECK_UPDATES = wx.NewIdRef()
+    ID_HELP_FEEDBACK = wx.NewIdRef()
+    ID_HELP_RESOURCES = wx.NewIdRef()
 
-    ID_DEBUG_SUBMENU = wx.NewId()
-    ID_DEBUG_SAVEPREFS = wx.NewId()
-    ID_DEBUG_CONSOLE = wx.NewId()
-    ID_DEBUG0 = wx.NewId()
-    ID_DEBUG1 = wx.NewId()
-    ID_DEBUG2 = wx.NewId()
-    ID_DEBUG3 = wx.NewId()
-    ID_DEBUG4 = wx.NewId()
+    ID_DEBUG_SUBMENU = wx.NewIdRef()
+    ID_DEBUG_SAVEPREFS = wx.NewIdRef()
+    ID_DEBUG_CONSOLE = wx.NewIdRef()
+    ID_DEBUG0 = wx.NewIdRef()
+    ID_DEBUG1 = wx.NewIdRef()
+    ID_DEBUG2 = wx.NewIdRef()
+    ID_DEBUG3 = wx.NewIdRef()
+    ID_DEBUG4 = wx.NewIdRef()
 
 
     def __init__(self, *args, **kwargs):
@@ -468,7 +468,7 @@ class Viewer(wx.Frame, MenuMixin):
                 toolMenu = self.addMenu(self.menubar, "Tools")
                 tools.sort(key=lambda x: x.name)
                 for t in tools:
-                    tid = t.info.setdefault('_wxId', wx.NewId())
+                    tid = t.info.setdefault('_wxId', wx.NewIdRef())
                     self.toolPlugins[tid] = t
                     self.addMenuItem(toolMenu, tid, t.name, "", 
                                      self.OnToolMenuSelection)
@@ -476,7 +476,7 @@ class Viewer(wx.Frame, MenuMixin):
                     extTools.sort(key=lambda x: x.name)
                     toolMenu.AppendSeparator()
                     for t in extTools:
-                        tid = t.info.setdefault('_wxId', wx.NewId())
+                        tid = t.info.setdefault('_wxId', wx.NewIdRef())
                         self.toolPlugins[tid] = t
                         self.addMenuItem(toolMenu, tid, t.name, "", 
                                          self.OnToolMenuSelection)
@@ -655,7 +655,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.tabTypes.clear()
         map(self.viewNewTabMenu.DestroyItem, self.viewNewTabMenu.GetMenuItems())
         for t in sorted(set([p.parent.units for p in self.dataSources.values()])):
-            tid = wx.NewId()
+            tid = wx.NewIdRef()
             self.tabTypes[tid] = t
             self.addMenuItem(self.viewNewTabMenu, tid, t[0], "", 
                              self.OnNewTabPicked)
@@ -673,7 +673,7 @@ class Viewer(wx.Frame, MenuMixin):
             return
         
         for w in sorted(self.plotarea.warningRanges.values()):
-            wid = wx.NewId()
+            wid = wx.NewIdRef()
             self.warningRanges[wid] = w
             self.addMenuItem(self.viewWarningsMenu, wid, w.source.displayName, "",
                              self.OnDataWarningsCheck, kind=wx.ITEM_CHECK)
@@ -698,7 +698,7 @@ class Viewer(wx.Frame, MenuMixin):
             if c.parameters is not None:
                 for p in c.parameters:
                     params[p[0]] = self.app.getPref(p[0], p[-1], section=c.__name__)
-            cid = wx.NewId()
+            cid = wx.NewIdRef()
             self.unitConverters[cid] = c(dataset=self.dataset, **params)
             
             if c.units[0] is None:
@@ -885,7 +885,7 @@ class Viewer(wx.Frame, MenuMixin):
             # Old style: one tab per subchannel
             for d in self.dataset.getPlots(debug=self.showDebugChannels):
                 el = d.getSession(self.session.sessionId)
-                self.dataSources[wx.NewId()] = el
+                self.dataSources[wx.NewIdRef()] = el
                 p = self.plotarea.addPlot(el, title=d.displayName)
                 if p is not None:
                     p.removeMean(removeMean, meanSpan)
@@ -898,7 +898,7 @@ class Viewer(wx.Frame, MenuMixin):
                     units = None
                 for subc in ch.subchannels:
                     el = subc.getSession(self.session.sessionId)
-                    self.dataSources[wx.NewId()] = el
+                    self.dataSources[wx.NewIdRef()] = el
                     if subc.units != units:
                         p = self.plotarea.addPlot(el, subc.displayName)
                         p.removeMean(removeMean, meanSpan)
@@ -1489,7 +1489,7 @@ class Viewer(wx.Frame, MenuMixin):
             np.savetxt(outFile, renderData)
             return
 
-        viewId = wx.NewId()
+        viewId = wx.NewIdRef()
         size = self.GetSize()
         
         try:

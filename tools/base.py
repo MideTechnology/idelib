@@ -51,7 +51,7 @@ class ToolDialog(SC.SizedDialog):
             checked = False
         cb.SetSizerProps(valign='center')
         if tooltip is not None:
-            cb.SetToolTipString(tooltip)
+            cb.SetToolTip(tooltip)
         
         if units is not None:
             parent = SC.SizedPanel(parent, -1)
@@ -61,13 +61,13 @@ class ToolDialog(SC.SizedDialog):
             field.SetRange(*minmax)
         field.Enable(checked)
         if tooltip is not None:
-            field.SetToolTipString(tooltip)
+            field.SetToolTip(tooltip)
         if units is not None:
             units = cb._units = wx.StaticText(parent, -1, units)
             units.SetSizerProps(valign="center")
             units.Enable(checked)
             if tooltip is not None:
-                units.SetToolTipString(tooltip)
+                units.SetToolTip(tooltip)
                 
         return cb
 
@@ -162,7 +162,7 @@ class ToolDialog(SC.SizedDialog):
             checked = False
         cb.SetSizerProps(valign='center')
         if tooltip is not None:
-            cb.SetToolTipString(tooltip)
+            cb.SetToolTip(tooltip)
         
         if units is not None:
             parent = SC.SizedPanel(parent, -1)
@@ -174,13 +174,13 @@ class ToolDialog(SC.SizedDialog):
             
         field.Enable(checked)
         if tooltip is not None:
-            field.SetToolTipString(tooltip)
+            field.SetToolTip(tooltip)
         if units is not None:
             units = cb._units = wx.StaticText(parent, -1, units)
             units.SetSizerProps(valign="center")
             units.Enable(checked)
             if tooltip is not None:
-                units.SetToolTipString(tooltip)
+                units.SetToolTip(tooltip)
                 
         return cb
 
@@ -206,7 +206,7 @@ class ToolDialog(SC.SizedDialog):
         cb.SetSizerProps(valign='center')
         cb.SetValue(checked)
         if tooltip is not None:
-            cb.SetToolTipString(tooltip)
+            cb.SetToolTip(tooltip)
         if indent is False:
             SC.SizedPanel(parent, -1)
         return cb
@@ -251,15 +251,15 @@ class ToolDialog(SC.SizedDialog):
         field.Enable(enabled)
 
         if tooltip is not None:
-            cb.SetToolTipString(tooltip)
-            field.SetToolTipString(tooltip)
+            cb.SetToolTip(tooltip)
+            field.SetToolTip(tooltip)
         
         if units is not None:
             units = cb._units = wx.StaticText(parent, -1, units)
             units.SetSizerProps(valign="center")
             units.Enable(enabled)
             if tooltip is not None:
-                units.SetToolTipString(tooltip)
+                units.SetToolTip(tooltip)
         
         return cb
 

@@ -35,7 +35,7 @@ class ConverterEditor(SC.SizedDialog):
         for pname, plabel, ptype, prange, pdefault in self.converter.parameters:
             wx.StaticText(pane, -1, plabel).SetSizerProps(valign="center")
             pval = getattr(self.converter, pname, pdefault)
-            fid = wx.NewId()
+            fid = wx.NewIdRef()
             if ptype == float:
                 field = wx.SpinCtrlDouble(pane, fid, value=str(pval),
                           min=prange[0], max=prange[1], inc=0.01)

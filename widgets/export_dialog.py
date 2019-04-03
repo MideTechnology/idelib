@@ -66,9 +66,9 @@ class ExportDialog(sc.SizedDialog):
             for use in warning dialogs.
     """
     
-    RB_RANGE_ALL = wx.NewId()
-    RB_RANGE_VIS = wx.NewId()
-    RB_RANGE_CUSTOM = wx.NewId()
+    RB_RANGE_ALL = wx.NewIdRef()
+    RB_RANGE_VIS = wx.NewIdRef()
+    RB_RANGE_CUSTOM = wx.NewIdRef()
     
     DEFAULT_TITLE = "Export Data"
     DEFAULT_UNITS = ("seconds", "s")

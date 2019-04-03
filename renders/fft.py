@@ -20,8 +20,9 @@ import numpy as np
 from numpy.core import hstack, vstack
 #from pyfftw.builders import rfft
 
-# from wx.lib.plot import PolyLine, PlotGraphics, PlotCanvas
-from wx_lib_plot import PolyLine, PlotGraphics, PlotCanvas
+from wx.lib.plot import PolyLine, PlotGraphics, PlotCanvas
+# from wx_lib_plot import PolyLine, PlotGraphics, PlotCanvas
+
 from wx import aui
 import wx; wx = wx 
 import wx.lib.delayedresult as delayedresult
@@ -75,7 +76,13 @@ if DEBUG:
 #===============================================================================
 
 class FFTPlotCanvas(PlotCanvas):
-        
+
+    def SetGridColour(self, color):
+        """
+        """
+        self._gridPen.SetColour(color)
+
+
     def _Draw(self, graphics, xAxis = None, yAxis = None, dc = None):
         """ Zoom on the plot
             Centers on the X,Y coords given in Center
@@ -191,15 +198,15 @@ class FFTView(wx.Frame, MenuMixin):
     xLabel = "Frequency"
     yLabel = "Amplitude"
     
-    ID_EXPORT_CSV = wx.NewId()
-    ID_EXPORT_IMG = wx.NewId()
-    ID_DATA_LOG_AMP = wx.NewId()
-    ID_DATA_LOG_FREQ = wx.NewId()
-    ID_VIEW_SHOWTITLE = wx.NewId()
-    ID_VIEW_SHOWLEGEND = wx.NewId()
-    ID_VIEW_SHOWGRID = wx.NewId()
-    ID_VIEW_ANTIALIAS = wx.NewId()
-    ID_VIEW_CHANGETITLE = wx.NewId()
+    ID_EXPORT_CSV = wx.NewIdRef()
+    ID_EXPORT_IMG = wx.NewIdRef()
+    ID_DATA_LOG_AMP = wx.NewIdRef()
+    ID_DATA_LOG_FREQ = wx.NewIdRef()
+    ID_VIEW_SHOWTITLE = wx.NewIdRef()
+    ID_VIEW_SHOWLEGEND = wx.NewIdRef()
+    ID_VIEW_SHOWGRID = wx.NewIdRef()
+    ID_VIEW_ANTIALIAS = wx.NewIdRef()
+    ID_VIEW_CHANGETITLE = wx.NewIdRef()
     
     IMAGE_FORMATS = "Windows Bitmap (*.bmp)|*.bmp|" \
                      "JPEG (*.jpg)|*.jpg|" \
@@ -1068,8 +1075,8 @@ class SpectrogramView(FFTView):
     xLabel = "Time"
     yLabel = "Amplitude"
     
-    ID_COLOR_SPECTRUM = wx.NewId()
-    ID_COLOR_GRAY = wx.NewId()
+    ID_COLOR_SPECTRUM = wx.NewIdRef()
+    ID_COLOR_GRAY = wx.NewIdRef()
     
     def __init__(self, *args, **kwargs):
         """

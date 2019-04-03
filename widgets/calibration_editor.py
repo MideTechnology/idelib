@@ -77,7 +77,7 @@ class CoeffValidator(wx.PyValidator):
         
         if err is not None:
             textCtrl.errIcon.SetBitmap(self.root.errBmp)
-            textCtrl.errIcon.SetToolTipString(err)
+            textCtrl.errIcon.SetToolTip(err)
 #             textCtrl.SetBackgroundColour(self.root.errColor)
 
             if not quiet:
@@ -127,8 +127,8 @@ class PolyEditDialog(SC.SizedDialog):
     """ Dialog for editing Univariate and Bivariate polynomials.
     """
     
-    ID_UNIVARIATE = wx.NewId()
-    ID_BIVARIATE = wx.NewId()
+    ID_UNIVARIATE = wx.NewIdRef()
+    ID_BIVARIATE = wx.NewIdRef()
     
     DEFAULT_TITLE = "Edit Polynomial"
     DEFAULT_COEFFS = (1,0)
