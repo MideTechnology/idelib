@@ -228,10 +228,14 @@ class Viewer(wx.Frame, MenuMixin):
         self.Bind(wx.EVT_CLOSE, self.OnClose)
 
         if filename is not None:
+            if wx.GetKeyState(wx.WXK_SHIFT):
+                self.setNoBivariates(True)
+                
             if isinstance(filename, basestring):
                 self.openFile(filename)
             else:
                 self.openMultiple(filename)
+                
         elif self.app.getPref('openOnStart', True):
             self.OnFileOpenMenu(None)
 
