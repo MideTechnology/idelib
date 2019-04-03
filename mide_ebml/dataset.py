@@ -2417,26 +2417,26 @@ class EventList(Transformable):
         # Create a function for formatting the event time.        
         if useUtcTime and _self.session.utcStartTime:
             if useIsoFormat:
-                timeFormatter = lambda x: datetime.utcfromtimestamp(x[-2] * timeScalar + _self.session.utcStartTime).isoformat()
+                timeFormatter = lambda x: datetime.utcfromtimestamp(x[0] * timeScalar + _self.session.utcStartTime).isoformat()
             else:
-                timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar + _self.session.utcStartTime)
+                timeFormatter = lambda x: dataFormat % (x[0] * timeScalar + _self.session.utcStartTime)
         else:
-            timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar)
+            timeFormatter = lambda x: dataFormat % (x[0] * timeScalar)
         
         # Create the function for formatting an entire row.
         if _self.hasSubchannels:
             if isinstance(subchannels, Iterable):
                 fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(subchannels))
-                formatter = lambda x: fstr % ((timeFormatter(x),) + \
-                                              tuple([x[-1][v] for v in subchannels]))
+                formatter = lambda x: fstr % ((timeFormatter(x),) +
+                                              tuple(x[1+v] for v in subchannels))
                 names = [_self.parent.subchannels[x].name for x in subchannels]
             else:
                 fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(_self.parent.types))
-                formatter = lambda x: fstr % ((timeFormatter(x),) + x[-1])
+                formatter = lambda x: fstr % ((timeFormatter(x),) + x[1:])
                 names = [x.name for x in _self.parent.subchannels]
         else:
             fstr = "%%s%s%s" % (delimiter, dataFormat)
-            formatter = lambda x: fstr % (timeFormatter(x),x[-1])
+            formatter = lambda x: fstr % (timeFormatter(x), x[1:])
             names = [_self.parent.name]
 
         if removeMean is not None:
