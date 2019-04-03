@@ -1921,7 +1921,7 @@ class EventList(Transformable):
 
         if startBlockIdx not in xrange(min(len(self), endBlockIdx)):
             return
-        ReturnTuple = namedtuple('MinMeanMaxStruct', 'min mean max')
+        StatsTuple = namedtuple('MinMeanMaxStruct', 'min mean max')
         chFields = ((['time'] if times else []) + (
             [
                 'ch'+str(i)
@@ -1976,18 +1976,13 @@ class EventList(Transformable):
                 result_append(eVals)
             
             # Make sure transformed min < max
-            if hasSubchannels:
-                # 'rotate' the arrays, sort them, 'rotate' back.
-                result = zip(*map(sorted, zip(*result)))
-            else:
+            if not hasSubchannels:
                 result = tuple((v[parent_id],) for v in result)
-                if result[0][0] > result[2][0]:
-                    result = result[::-1]
             
             if times:
-                yield ReturnTuple(*(ChannelTuple(eTime, *x) for x in result))
+                yield StatsTuple(*(ChannelTuple(eTime, *x) for x in result))
             else:
-                yield ReturnTuple(*(ChannelTuple(*x) for x in result))
+                yield StatsTuple(*(ChannelTuple(*x) for x in result))
 
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
@@ -2171,17 +2166,10 @@ class EventList(Transformable):
             for block in self._data:
                 if not (block.min is None or block.mean is None or block.max is None):
                     continue
-                block_min = []
-                block_mean = []
-                block_max = []
                 vals = np.array(parseBlock(block))
-                for i in range(vals.shape[1]):
-                    block_min.append(vals[:,i].min())
-                    block_mean.append(vals[:,i].mean())
-                    block_max.append(vals[:,i].max())
-                block.min = tuple(block_min)
-                block.mean = tuple(block_mean)
-                block.max = tuple(block_max)
+                block.min = tuple(vals.min(axis=0))
+                block.mean = tuple(vals.mean(axis=0))
+                block.max = tuple(vals.max(axis=0))
             
                 self.hasMinMeanMax = True
                 
