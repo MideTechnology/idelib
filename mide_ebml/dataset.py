@@ -2519,27 +2519,6 @@ class EventArray(EventList):
     # New utility methods
     # --------------------------------------------------------------------------
 
-    @staticmethod
-    def _joinTimesValues(times, splitValues):
-        """ Joins arrays of times and values together into a contiguous
-            structured array.
-        """
-        chNames = [str('ch'+str(i)) for i in xrange(len(splitValues))]
-        aggregateDtype = np.dtype([
-            ('time', times.dtype),
-            ('channels', [
-                (name, vals.dtype)
-                for name, vals in zip(chNames, splitValues)
-            ])
-        ])
-
-        array = np.empty_like(times, dtype=aggregateDtype)
-        array['time'] = times
-        for name, vals in zip(chNames, splitValues):
-            array['channels'][name] = vals
-
-        return array
-
     def _makeBlockEventsFactory(self, display):
         """ Generates a function that makes numpy arrays of event data.
             The generated function is optimized to be run repeatedly in a loop.
@@ -2566,9 +2545,8 @@ class EventArray(EventList):
             """ Creates a structured array of event data for a given set of
                 event times and values. (Used in event iteration methods.)
             """
-            splitValues = tuple(values[n] for n in values.dtype.names)
             times, splitValues = retryUntilReturn(
-                lambda: xform((times, splitValues), session=session,
+                lambda: xform((times, values), session=session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=lambda: logger.info(
@@ -2576,7 +2554,10 @@ class EventArray(EventList):
                     % (parent.name, times)
                 ),
             )
-            blockEvents = EventArray._joinTimesValues(times, splitValues)
+            blockEvents = np.concatenate(
+                [i[np.newaxis] for i in (times,) + splitValues],
+                axis=0
+            )
 
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
@@ -2599,17 +2580,12 @@ class EventArray(EventList):
                 )
 
                 if offset is not None:
-                    # blockEvents['channels'] -= offset
-                    for ch, off in zip(blockEvents['channels'].dtype.names, offset):
-                        blockEvents['channels'][ch] -= off
+                    blockEvents[1:] -= offset[..., np.newaxis]
                 else:
                     logger.info('%r event offset is None' % parent.name)
 
             if not hasSubchannels:
-                blockEvents = np_recfuncs.drop_fields(blockEvents, [
-                    n for n in blockEvents['channels'].dtype.names
-                    if n != blockEvents['channels'].dtype.names[subchannelId]
-                ])
+                blockEvents = blockEvents[[0, 1+subchannelId]]
 
             return blockEvents
 
@@ -2684,7 +2660,7 @@ class EventArray(EventList):
             timestamp = (block.startTime
                          + self._getBlockSampleTime(blockIdx)*subIdx)
             value = self.parent.parseBlock(block, start=subIdx,
-                                           end=subIdx+1)[0]
+                                           end=subIdx+1)[:, 0]
 
             event = retryUntilReturn(
                 lambda: xform((timestamp, value), session=self.session,
@@ -2833,7 +2809,7 @@ class EventArray(EventList):
             @return: an iterable of events in the specified index range.
         """
         for blockEvents in self._blockSlice(start, end, step, display):
-            for event in blockEvents:
+            for event in blockEvents.T:
                 yield event
 
     def arraySlice(self, start=None, end=None, step=None, display=False):
@@ -2849,7 +2825,7 @@ class EventArray(EventList):
         """
         return np.concatenate([
             i for i in self._blockSlice(start, end, step, display)
-        ])
+        ], axis=-1)
 
     def _blockJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
                          display=False):
@@ -2929,7 +2905,7 @@ class EventArray(EventList):
         """
         for blockEvents in self._blockJitterySlice(start, end, step, jitter,
                                                    display):
-            for event in blockEvents:
+            for event in blockEvents.T:
                 yield event
 
     def arrayJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
@@ -2949,7 +2925,7 @@ class EventArray(EventList):
         return np.concatenate([
             i for i in self._blockJitterySlice(start, end, step, jitter,
                                                display)
-        ])
+        ], axis=0)
 
     # EventList implementation suffices -> no overload required
     # def iterRange(self, startTime=None, endTime=None, step=1, display=False):

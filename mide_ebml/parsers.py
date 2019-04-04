@@ -879,7 +879,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
             self._payload = np.array(self._payloadEl.value)
         return self._payload
 
-    def parseWith(self, parser, start=0, end=-1, step=1, subchannel=None):
+    def parseWith(self, parser, start=0, end=None, step=1, subchannel=None):
         """ Parse an element's payload. Use this instead of directly using
             `parser.parse()` for consistency's sake.
 
@@ -890,9 +890,6 @@ class ChannelDataArrayBlock(ChannelDataBlock):
                 cover more than one sample.
             @keyword subchannel: The subchannel to get, if specified.
         """
-        if end < 0:
-            end += len(self.payload)/parser.size + 1
-
         parser_format = parser.format
         if parser_format[0] in ['<', '>']:
             endian = parser_format[0]
@@ -900,10 +897,20 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         else:
             endian = '>'
 
-        dt = [('ch' + str(i), endian + typeId) for i, typeId in enumerate(parser_format)]
-        data = np.frombuffer(self.payload, dtype=dt)[start:end:step]
-        if subchannel is not None:
-            data = data[[data.dtype.names[subchannel]]]
+        rawDtype = np.dtype(','.join([endian+typeId
+                                      for typeId in parser_format]))
+        rawData = np.frombuffer(self.payload, dtype=rawDtype)[start:end:step]
+
+        if len(parser_format) == 1:
+            return rawData[np.newaxis]
+        elif subchannel is not None:
+            return rawData[[rawDtype.names[subchannel]]][np.newaxis]
+
+        data = np.empty((len(parser_format),) + rawData.shape,
+                        dtype=np.float64)
+        for i, chName in enumerate(rawDtype.names):
+            data[i] = rawData[chName]
+
         return data
 
     def parseByIndexWith(self, parser, indices, subchannel=None):
@@ -915,7 +922,27 @@ class ChannelDataArrayBlock(ChannelDataBlock):
             @keyword subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
-        return self.parseWith(parser, subchannel=subchannel)[indices]
+        return self.parseWith(parser, subchannel=subchannel)[:, indices]
+
+    def parseMinMeanMax(self, parser):
+        if self.minMeanMax is None:
+            return None
+        try:
+            stats = np.array([
+                parser.unpack_from(self.minMeanMax, parser.size*i)
+                for i in xrange(3)
+            ])
+            # NOTE: Because the SSX Z axis is inverted, the min/max need correction
+            # This may create a performance hit. Optimize?
+            idx = (stats[0] > stats[2])
+            stats[[0, 2]][..., idx] = stats[[2, 0]][..., idx]
+
+            self.min, self.mean, self.max = [i.copy() for i in stats]
+            return stats
+        except struct.error:
+            # Bad min/mean/max data: too short. Ignore it.
+            self.minMeanMax = None
+            return None
 
 
 class ChannelDataBlockParser(SimpleChannelDataBlockParser):
