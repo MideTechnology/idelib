@@ -1560,13 +1560,10 @@ class EventList(Transformable):
         # TODO: Optimize; times don't need to be computed since they aren't used
         if self.hasSubchannels and subchannels != True:
             # Create a function instead of chewing the subchannels every time
-            fun = eval("lambda x: (%s)" % \
-                       ",".join([("x[%d]" % c) for c in subchannels]))
-            for v in self.iterSlice(start, end, step, display):
-                yield fun(v[-1])
+            return (tuple(v[1+c] for c in subchannels)
+                    for v in self.iterSlice(start, end, step, display))
         else:
-            for v in self.iterSlice(start, end, step, display):
-                yield v[-1]
+            return (v[1:] for v in self.iterSlice(start, end, step, display))
 
 
     def iterSlice(self, start=0, end=-1, step=1, display=False):
@@ -2164,7 +2161,7 @@ class EventList(Transformable):
         Ex = None if __DEBUG__ else struct.error
         try:
             for block in self._data:
-                if not (block.min is None or block.mean is None or block.max is None):
+                if None not in (block.min, block.mean, block.max):
                     continue
                 vals = np.array(parseBlock(block))
                 block.min = tuple(vals.min(axis=0))
@@ -2340,10 +2337,10 @@ class EventList(Transformable):
         b = self._getBlockIndexWithTime(t)
         if outOfRange:
             b = min(len(self._data)-1,b)
-        m = self._comboXform((t,self._getBlockRollingMean(b, force=True)))[-1]
+        m = self._comboXform((t,)+self._getBlockRollingMean(b, force=True))
         if self.hasSubchannels:
-            return m
-        return m[self.subchannelId]
+            return m[1:]
+        return m[1+self.subchannelId]
         
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
