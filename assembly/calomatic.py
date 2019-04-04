@@ -33,6 +33,8 @@ import time
 from xml.dom.minidom import parseString
 from xml.etree import ElementTree as ET
 
+import traceback
+
 #===============================================================================
 # Rigmarole to ensure the right libraries are located.
 #===============================================================================
@@ -155,6 +157,9 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
         certTemplate = calibration.Calibrator.getCertTemplate(dev)
     except (ValueError, IOError) as err:
         print "!!! %s" % err
+        
+        traceback.print_exc()
+        
         totalTime += time.time() - startTime
         q = utils.getYesNo("No certificate will be generated (and calibration may fail). Continue (Y/N)? ")
         startTime = time.time()
@@ -204,6 +209,7 @@ def calibrate(devPath=None, rename=True, recalculate=False, certNum=None,
             birthInfo = utils.readBirthLog(birthFile)
     except IOError as err:
         utils.errMsg("!!! %s" % err)
+        traceback.print_exc()
         return
 
     if not birthInfo:
@@ -492,10 +498,14 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
     try:
 #         calXml = xml2ebml.dumpXmlElement(xml2ebml.readEbml(caldata, schema='mide_ebml.ebml.schema.mide').roots[0])
 #         utils.writeFile(calCurrentXml, calXml)
-        calXml = ET.tostring(ebml_util.toXml(caldata), encoding="utf-8")
+        caldoc = calibration.schema_mide.load(calCurrentName)
+        calXml = ET.tostring(ebml_util.toXml(caldoc), encoding="utf-8")
         calXml = parseString(calXml).writexml(calCurrentXml, addindent='\t', newl='\n', encoding='utf-8')
     except (IndexError, AttributeError) as err:
         print "!!! Problem writing calibration XML: %s"  % err.message
+        
+        traceback.print_exc()
+        
         print "!!! Ignoring the problem and continuing..."
         pass
     
