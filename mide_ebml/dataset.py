@@ -2580,7 +2580,7 @@ class EventArray(EventList):
                 )
 
                 if offset is not None:
-                    blockEvents[1:] -= offset[..., np.newaxis]
+                    blockEvents[1:] -= np.asarray(offset)[..., np.newaxis]
                 else:
                     logger.info('%r event offset is None' % parent.name)
 
