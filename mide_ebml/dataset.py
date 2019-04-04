@@ -2875,7 +2875,7 @@ class EventArray(EventList):
             indices = np.arange(subIdx, lastSubIdx, step)
             if scaledJitter > 0.5:
                 indices[1:-1] += np.rint(
-                    scaledJitter * np.random.uniform(-1, 1, len(indices)-2)
+                    scaledJitter * np.random.uniform(-1, 1, max(0, len(indices)-2))
                 ).astype(indices.dtype)
 
             blockEvents = makeBlockEvents(
@@ -2884,8 +2884,7 @@ class EventArray(EventList):
                 block=block, blockIdx=blockIdx,
             )
 
-            for event in blockEvents:
-                yield event
+            yield blockEvents
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
