@@ -1222,7 +1222,7 @@ class SpectrogramView(FFTView):
             # self.canvas is the plot canvas
             if self.subchannels is not None:
                 start, stop = self.indexRange #self.source.getRangeIndices(*self.range)
-                recordingTime = self.source[-1][-2] - self.source[0][-2]
+                recordingTime = self.source[-1][0] - self.source[0][0]
                 recordingTime *= self.timeScalar
                 fs = self.source.getSampleRate()
                 subchIds = [c.id for c in self.subchannels]
