@@ -10,7 +10,80 @@ TODO: Refactor and clean everything. This has grown organically since 2013.
 
 See other TODO items in the code.
 '''
+from __future__ import absolute_import, print_function
+
+#===============================================================================
+# 
+#===============================================================================
+
+from collections import OrderedDict
 from datetime import datetime
+import os
+import sys
+from threading import Event
+import time
+
+if (sys.hexversion & 0xffff0000) != 0x02070000:
+    raise RuntimeError("This branch requires Python 2.7!")
+
+
+import wx
+
+if wx.MAJOR_VERSION < 4:
+    raise RuntimeError("This branch requires wxPython 4!")
+
+from wx.lib.rcsizer import RowColSizer
+from wx.lib.wordwrap import wordwrap
+
+# Graphics (icons, etc.)
+import images
+
+# Custom controls, events and base classes
+from base import MenuMixin
+from common import cleanUnicode, wordJoin
+import events
+
+# Views, dialogs and such
+from aboutbox import AboutBox
+import config_dialog
+from converter_editor import ConverterEditor
+from fileinfo import RecorderInfoDialog
+from renders.fft import FFTView, SpectrogramView, PSDView
+from loader import Loader
+from plots import PlotSet
+from preferences import Preferences
+from renders.renderplot import PlotView
+import updater
+from widgets import debugging
+from widgets import export_dialog as xd
+from widgets import live_calibration
+from widgets.shared import StatusBar
+from widgets.device_dialog import selectDevice
+from widgets.memorydialog import MemoryDialog
+from widgets.range_dialog import RangeDialog
+from widgets.timeline import Corner, Timeline, TimeNavigator
+
+# Special helper objects and functions
+import devices.efm32_firmware
+from threaded_file import ThreadAwareFile
+
+# The actual data-related stuff
+from mide_ebml import ebmlite
+import mide_ebml.classic.importer
+import mide_ebml.multi_importer
+import mide_ebml.matfile
+import mide_ebml.unit_conversion
+
+# Plug-ins
+import plugins
+import tools.raw2mat
+import tools.filesplit
+import tools.ide2csv
+
+
+#===============================================================================
+# 
+#===============================================================================
 
 from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME
 from build_info import REPO_BRANCH, REPO_COMMIT_ID
@@ -40,65 +113,6 @@ FEEDBACK_URL = "https://www.surveymonkey.com/s/slam-stick-x"
 
 RESOURCES_URL = "http://info.mide.com/data-loggers/slam-stick-data-logger-resources?utm_source=Slam-Stick-X-Data-Logger&utm_medium=Device&utm_content=Link-to-Slam-Stick-Resources-web-page-from-Device&utm_campaign=Slam-Stick-X"
 
-#===============================================================================
-# 
-#===============================================================================
-
-from collections import OrderedDict
-import os
-from threading import Event
-import time
-
-import wx
-from wx.lib.rcsizer import RowColSizer #@UnresolvedImport - not sure why
-from wx.lib.wordwrap import wordwrap #@UnresolvedImport - also not sure why
-
-# Graphics (icons, etc.)
-import images
-
-# Custom controls, events and base classes
-from base import MenuMixin
-from common import cleanUnicode, wordJoin
-import events
-
-# Views, dialogs and such
-from aboutbox import AboutBox
-import config_dialog
-from converter_editor import ConverterEditor
-from fileinfo import RecorderInfoDialog
-from renders.fft import FFTView, SpectrogramView, PSDView
-from loader import Loader
-from plots import PlotSet
-from preferences import Preferences
-from renders.renderplot import PlotView
-import updater
-from widgets import debugging #@UnusedImport
-from widgets import export_dialog as xd
-from widgets import live_calibration
-from widgets.shared import StatusBar
-from widgets.device_dialog import selectDevice
-from widgets.memorydialog import MemoryDialog
-from widgets.range_dialog import RangeDialog
-from widgets.timeline import Corner, Timeline, TimeNavigator
-
-# Special helper objects and functions
-import devices #@UnusedImport
-import devices.efm32_firmware
-from threaded_file import ThreadAwareFile
-
-# The actual data-related stuff
-from mide_ebml import ebmlite
-import mide_ebml.classic.importer
-import mide_ebml.multi_importer
-import mide_ebml.matfile
-import mide_ebml.unit_conversion
-
-# Plug-ins
-import plugins
-import tools.raw2mat
-import tools.filesplit
-import tools.ide2csv
-
 
 #===============================================================================
 # 
@@ -108,6 +122,7 @@ ANTIALIASING_MULTIPLIER = 3.33
 RESAMPLING_JITTER = 0.125
 
 FILESIZE_WARNING = 33554432
+
 
 #===============================================================================
 # 
