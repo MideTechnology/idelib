@@ -9,7 +9,7 @@ import numpy as np; np=np
 import wx
 # from renders.wx_lib_plot import PolyLine, PlotGraphics
 
-from wx.lib.plot import PolyLine, PlotGraphics
+from wx.lib.plot import PolyLine, PlotGraphics, PlotCanvas
 
 from common import lesser
 from renders.fft import FFTPlotCanvas, FFTView
@@ -29,18 +29,19 @@ class PlotView(FFTView):
     def initPlot(self):
         """
         """
-        self.canvas = FFTPlotCanvas(self)
-        self.canvas.SetEnableAntiAliasing(True)
+#         self.canvas = FFTPlotCanvas(self)
+        self.canvas = PlotCanvas(self)
+        self.canvas.enableAntiAliasing = True
         self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
-        self.canvas.SetFontSizeAxis(10)
-        self.canvas.SetFontSizeLegend(7)
-        self.canvas.setLogScale(self.logarithmic)
-        self.canvas.SetXSpec('min')
-        self.canvas.SetYSpec('auto')
-        self.canvas.SetEnableLegend(self.showLegend)
-        self.canvas.SetEnableTitle(self.showTitle)
-        self.canvas.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
-        self.canvas.SetEnableGrid(self.showGrid)
+        self.canvas.fontSizeAxis = 10
+        self.canvas.fontSizeLegend = 7
+        self.canvas.logScale = self.logarithmic
+        self.canvas.xSpec = 'min'
+        self.canvas.ySpec = 'auto'
+        self.canvas.enableLegend = self.showLegend
+        self.canvas.enableTitle = self.showTitle
+        self.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
+        self.canvas.enableGrid = self.showGrid
         self.Fit()
         
 
@@ -91,11 +92,27 @@ class PlotView(FFTView):
 
         if self.lines is not None:
             self.canvas.Draw(self.lines)
-            self.canvas.SetEnableZoom(True)
-            self.canvas.SetShowScrollbars(True)
+            self.canvas.enableZoom = True
+            self.canvas.showScrollbars = True
 
         self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
+
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def SetGridColour(self, color):
+        """
+        """
+        if not isinstance(color, wx.Colour):
+            color = wx.Colour(color)
+            
+        pen = self.canvas.gridPen
+        pen.SetColour(color)
+        self.canvas.gridPen = pen
+    
+    
     #===========================================================================
     # 
     #===========================================================================

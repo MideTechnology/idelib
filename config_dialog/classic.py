@@ -1198,7 +1198,7 @@ class ConfigDialog(SC.SizedDialog):
                             message="Choose an exported configuration file",
                             wildcard=("Exported config file (*.cfx)|*.cfx|"
                                       "All files (*.*)|*.*"),
-                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST)
         while not done:
             try:
                 d = dlg.ShowModal()

@@ -105,7 +105,7 @@ class LiveCalibrationDialog(SC.SizedDialog):
         filename = None
         dlg = wx.FileDialog(self, wildcard=self.IMPORT_TYPES,
                             message="Choose a file containing calibration data",
-                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST)
         
         while True:
             try:
@@ -165,7 +165,7 @@ class LiveCalibrationDialog(SC.SizedDialog):
         # Created once, used multiple times later.
         dlg = wx.FileDialog(self, wildcard=self.IMPORT_TYPES,
                             message="Choose a file containing calibration data",
-                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST)
         
         # Keep prompting the user until they either successfully load cal data,
         # or they cancel.

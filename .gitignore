@@ -1,5 +1,6 @@
 .project
 .pydevproject
+.settings
 
 *.7z
 *.bak
@@ -61,3 +62,5 @@ mide_ebml/devinfo.xml
 .idea/
 
 drs_test/
+
+venv/

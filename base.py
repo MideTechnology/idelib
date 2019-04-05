@@ -204,7 +204,8 @@ class MenuMixin(object):
             item to a menu.
             
             @param menu: The menu to which to add the menu item.
-            @param id_: The menu item's ID (e.g. `wx.OPEN`, `wx.CLOSE`, etc.)
+            @param id_: The menu item's ID (e.g. `wx.ID_OPEN`, `wx.ID_CLOSE`,
+                etc.)
             @param text: The menu item text.
             @param helpString: Help text for the menu item.
             @keyword handler: A method for handling `wx.EVT_MENU` events.

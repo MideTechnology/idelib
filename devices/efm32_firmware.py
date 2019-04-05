@@ -948,7 +948,7 @@ class FirmwareUpdateDialog(wx.Dialog):
             driver. Not especially robust.
         """
         if wx.Platform == '__WXMSW__':
-            win = wx.PlatformInformation_GetOperatingSystemDirectory()
+            win = wx.PlatformInformation.GetOperatingSystemDirectory()
             for inf in glob(os.path.join(win, 'inf', 'oem*.inf')):
                 try:
                     with open(inf, 'rb') as f:
@@ -1307,7 +1307,7 @@ def updateFirmware(parent=None, device=None, filename=None, useFiles=True):
     if filename is None:
         dlg = wx.FileDialog(parent, message="Select a Slam Stick Firmware File",
                             wildcard="MIDE Firmware Package (*.fw)|*.fw",
-                            style=wx.OPEN | wx.CHANGE_DIR)
+                            style=wx.FD_OPEN | wx.FD_CHANGE_DIR)
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
         dlg.Destroy()
