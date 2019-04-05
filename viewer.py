@@ -2369,6 +2369,8 @@ class Viewer(wx.Frame, MenuMixin):
                 lightweight sort of traceback.
             @keyword fatal: If `True`, the app Viewer will shut down. 
         """
+        if DEBUG:
+            raise
         
         if isinstance(err, wx.Event):
             err = err.err
