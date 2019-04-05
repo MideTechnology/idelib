@@ -100,9 +100,6 @@ import tools.filesplit
 import tools.ide2csv
 
 
-# XXX: REMOVE
-import embedding_in_wx3
-
 #===============================================================================
 # 
 #===============================================================================
@@ -178,8 +175,6 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DEBUG3 = wx.NewIdRef()
     ID_DEBUG4 = wx.NewIdRef()
 
-    def XXXdeleteme(self):
-        return embedding_in_wx3.MyApp()
 
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Frame/MenuMixin arguments plus:
