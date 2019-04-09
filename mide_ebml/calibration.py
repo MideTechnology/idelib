@@ -736,7 +736,7 @@ class PolyPoly(CombinedPoly):
             # Optimization: don't check the other channel if Y is unused
             if self._noY is False:
                 if noBivariates:
-                    return event[0], self._function(0, *x)
+                    return event[:1] + self._function(0, *x)
                     
                 session = self.dataset.lastSession if session is None else session
                 sessionId = None if session is None else session.sessionId
