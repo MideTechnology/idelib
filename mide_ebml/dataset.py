@@ -1394,8 +1394,8 @@ class EventList(Transformable):
         block = self._data[blockIdx]
         
         if block.minMeanMax is None:
-            from mide_ebml.parsers import ChannelDataArrayBlockParser as parser
-            print(block.parseMinMeanMax(parser))
+            if block.min is not None and block.mean is not None and block.max is not None:
+                return block.min, block.mean, block.max
             return None
         
         span = self.rollingMeanSpan
@@ -3383,7 +3383,7 @@ class WarningRange(object):
         if outOfRange:
             result = [[start,start]]
 
-        print([(x, y) for x,y in source.iterRange(start, end)])
+        # print([(x, y) for x,y in source.iterRange(start, end)])
         
         for t,v in source.iterRange(start, end):
             if self.valid(v):

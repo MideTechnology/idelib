@@ -807,6 +807,7 @@ class ChannelDataBlock(BaseDataBlock):
         self._minMeanMax = None
         
         self.element = element
+        # print(element)
         for el in element:
             # These are roughly in order of probability, optional and/or
             # unimplemented elements are at the end.
