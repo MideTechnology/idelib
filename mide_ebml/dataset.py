@@ -1560,12 +1560,14 @@ class EventList(Transformable):
         # TODO: Optimize; times don't need to be computed since they aren't used
         if self.hasSubchannels and subchannels != True:
             # Create a function instead of chewing the subchannels every time
-            chFilter = eval("lambda x: (%s,)"
-                            % ",".join(["x[%d]" % (1+ch) for ch in channels]))
-            return (chFilter(v) for v in self.iterSlice(start, end, step,
-                                                        display))
+            chFilter = eval("lambda x: (%s,)" % ",".join(
+                "x[%d]" % (1+ch) for ch in subchannels
+            ))
+            return (chFilter(event)
+                    for event in self.iterSlice(start, end, step, display))
         else:
-            return (v[1:] for v in self.iterSlice(start, end, step, display))
+            return (event[1:]
+                    for event in self.iterSlice(start, end, step, display))
 
 
     def iterSlice(self, start=0, end=-1, step=1, display=False):
