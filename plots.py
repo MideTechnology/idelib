@@ -781,7 +781,7 @@ class PlotCanvas(wx.ScrolledWindow):
 
         self.InvalidateBestSize()
         dc = wx.PaintDC(self)
-        dc.SetAxisOrientation(True,False)
+        dc.SetAxisOrientation(True, False)
         dc.Clear()
 
         size = dc.GetSize()
@@ -875,7 +875,9 @@ class PlotCanvas(wx.ScrolledWindow):
         for s in parent.sources:
             if self.abortRendering:
                 break
-            linesDrawn += self._drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
+            a = self._drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
+            print(linesDrawn, a)
+            linesDrawn += a
             
         dc.EndDrawing()
         self.SetCursor(self._cursor_default)

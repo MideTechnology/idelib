@@ -25,6 +25,8 @@ from collections import OrderedDict
 import math
 from time import sleep
 
+import numpy as np
+
 import logging
 logger = logging.getLogger('mide_ebml')
 
@@ -736,7 +738,7 @@ class PolyPoly(CombinedPoly):
             # Optimization: don't check the other channel if Y is unused
             if self._noY is False:
                 if noBivariates:
-                    return event[0], self._function(0, *x)
+                    return np.append(event[0], self._function(0, *x))
                     
                 session = self.dataset.lastSession if session is None else session
                 sessionId = None if session is None else session.sessionId
@@ -756,10 +758,10 @@ class PolyPoly(CombinedPoly):
                         return None
                     y = self._eventlist.getMeanNear(event[0], outOfRange=True)
                     
-                return event[:1] + self._function(y, *x)
+                return np.append(event[0], self._function(y, *x))
             
             else:
-                return event[:1] + self._function(*x)
+                return np.append(event[:1], self._function(*x), axis=0)
             
         except (TypeError, IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition

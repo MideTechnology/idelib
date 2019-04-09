@@ -25,14 +25,14 @@ class TestChannelDataArrayBlockParser(unittest.TestCase):
         self.assertFalse(self.parser.isSubElement)
         self.assertFalse(self.parser.isHeader)
 
-        self.assertIs(self.parser.doc, self.doc)
-        self.assertIs(self.parser.product, ChannelDataArrayBlock)
-        self.assertEqual(self.parser.elementName, ChannelDataArrayBlock.__name__)
-        self.assertEqual(self.parser.timeScalar, 1000000.0 / 2**15)
-        self.assertEqual(self.parser.timestampOffset, {})
-        self.assertEqual(self.parser.lastStamp, {})
-        self.assertEqual(self.parser.timeScalars, {})
-        self.assertEqual(self.parser.timeModulus, {})
+        self.assertIs(self.doc,                          self.parser.doc)
+        self.assertIs(ChannelDataArrayBlock,             self.parser.product)
+        self.assertEqual(ChannelDataArrayBlock.__name__, self.parser.elementName)
+        self.assertEqual(1000000.0/2**15,                self.parser.timeScalar)
+        self.assertEqual({},                             self.parser.timestampOffset)
+        self.assertEqual({},                             self.parser.lastStamp)
+        self.assertEqual({},                             self.parser.timeScalars)
+        self.assertEqual({},                             self.parser.timeModulus, )
 
     def testParse(self):
         """ Test parsing for ChannelDataArrayBlocks, which is basically the same """
@@ -116,37 +116,37 @@ class TestChannelDataArrayBlock(unittest.TestCase):
         blockOut = self.block.parseWith(parser)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser)]
         oldOut = np.array(oldOut, dtype=dtype_desc)
-        np.testing.assert_array_equal(blockOut, oldOut)
+        np.testing.assert_array_equal(oldOut, blockOut)
 
         # different start
         blockOut = self.block.parseWith(parser, start=5)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, start=5)]
         oldOut = np.array(oldOut, dtype=dtype_desc)
-        np.testing.assert_array_equal(blockOut, oldOut)
+        np.testing.assert_array_equal(oldOut, blockOut)
 
         # different end
         blockOut = self.block.parseWith(parser, end=100)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, end=100)]
         oldOut = np.array(oldOut, dtype=dtype_desc)
-        np.testing.assert_array_equal(blockOut, oldOut)
+        np.testing.assert_array_equal(oldOut, blockOut)
 
         # different step
         blockOut = self.block.parseWith(parser, step=10)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, step=10)]
         oldOut = np.array(oldOut, dtype=dtype_desc)
-        np.testing.assert_array_equal(blockOut, oldOut)
+        np.testing.assert_array_equal(oldOut, blockOut)
 
         # fully different params
         blockOut = self.block.parseWith(parser, start=10, end=100, step=10)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, start= 10, end=100, step=10)]
         oldOut = np.array(oldOut, dtype=dtype_desc)
-        np.testing.assert_array_equal(blockOut, oldOut)
+        np.testing.assert_array_equal(oldOut, blockOut)
 
         # specific subchannel
         blockOut = self.block.parseWith(parser, subchannel=1)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, subchannel=1)]
         oldOut = np.array(oldOut, dtype=dtype_desc[1:2])
-        np.testing.assert_array_equal(blockOut, oldOut)
+        np.testing.assert_array_equal(oldOut, blockOut)
 
     def testParseByIndexWith(self):
         parser = self.doc.channels[32].parser
@@ -157,7 +157,7 @@ class TestChannelDataArrayBlock(unittest.TestCase):
         blockOut = self.block.parseByIndexWith(parser, range(20, 100))
         oldOut = [x for x in super(self.block.__class__, self.block).parseByIndexWith(parser, range(20, 100))]
         oldOut = np.array(oldOut, dtype=dtype_desc)
-        np.testing.assert_array_equal(blockOut, oldOut)
+        np.testing.assert_array_equal(oldOut, blockOut)
 
     def testGetNumSamples(self):
         self.assertEqual(self.block.getNumSamples(self.doc.channels[32].parser), 1357)

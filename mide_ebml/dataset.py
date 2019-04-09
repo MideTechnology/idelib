@@ -1394,6 +1394,8 @@ class EventList(Transformable):
         block = self._data[blockIdx]
         
         if block.minMeanMax is None:
+            from mide_ebml.parsers import ChannelDataArrayBlockParser as parser
+            print(block.parseMinMeanMax(parser))
             return None
         
         span = self.rollingMeanSpan
@@ -1970,12 +1972,12 @@ class EventList(Transformable):
             result_append = result.append
             
             for val in (block.min, block.mean, block.max):
-                event=xform((t,)+val, session, noBivariates=self.noBivariates)
+                event = xform(np.append(t, val), session, noBivariates=self.noBivariates)
                 if event is None:
                     sleep(0.005)
-                    event = xform((t,)+val, session, noBivariates=self.noBivariates)
+                    event = xform(np.append(t, val), session, noBivariates=self.noBivariates)
                     if event is None:
-                        event = (t,)+val
+                        event = xform(np.append(t, val), session, noBivariates=self.noBivariates )
                 eTime, eVals = event[0], event[1:]
                 if m is not None:
                     eVals -= m
@@ -2346,7 +2348,7 @@ class EventList(Transformable):
         b = self._getBlockIndexWithTime(t)
         if outOfRange:
             b = min(len(self._data)-1,b)
-        m = self._comboXform((t,)+self._getBlockRollingMean(b, force=True))
+        m = self._comboXform(np.append(t, self._getBlockRollingMean(b, force=True)))
         if self.hasSubchannels:
             return m[1:]
         return m[1+self.subchannelId]
@@ -2510,7 +2512,7 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
     for _ in separated_iter(range(max_tries), lambda: sleep(delay)):
         value = func()
         if value is not None:
-            return value
+            return value[0], value[1:]
         on_fail()
     else:
         return on_abort() or default
@@ -2549,7 +2551,7 @@ class EventArray(EventList):
                 event times and values. (Used in event iteration methods.)
             """
             times, splitValues = retryUntilReturn(
-                lambda: xform((times, values), session=session,
+                lambda: xform(np.append(np.expand_dims(times, 0), values, axis=0), session=session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=lambda: logger.info(
@@ -2557,10 +2559,7 @@ class EventArray(EventList):
                     % (parent.name, times)
                 ),
             )
-            blockEvents = np.concatenate(
-                [i[np.newaxis] for i in (times,) + splitValues],
-                axis=0
-            )
+            blockEvents = np.append(np.expand_dims(times, 0), splitValues, axis=0)
 
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
@@ -2588,7 +2587,7 @@ class EventArray(EventList):
                     logger.info('%r event offset is None' % parent.name)
 
             if not hasSubchannels:
-                blockEvents = blockEvents[[0, 1+subchannelId]]
+                blockEvents = blockEvents[[0, subchannelId]]
 
             return blockEvents
 
@@ -2666,7 +2665,7 @@ class EventArray(EventList):
                                            end=subIdx+1)[:, 0]
 
             event = retryUntilReturn(
-                lambda: xform((timestamp, value), session=self.session,
+                lambda: xform(np.append(timestamp, value), session=self.session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=lambda: logger.info(
@@ -2812,8 +2811,7 @@ class EventArray(EventList):
             @return: an iterable of events in the specified index range.
         """
         for blockEvents in self._blockSlice(start, end, step, display):
-            for event in blockEvents.T:
-                yield event
+            yield blockEvents
 
     def arraySlice(self, start=None, end=None, step=None, display=False):
         """ Create an array of events within a range of indices.
@@ -2881,11 +2879,11 @@ class EventArray(EventList):
                     scaledJitter * np.random.uniform(-1, 1, max(0, len(indices)-2))
                 ).astype(indices.dtype)
 
-            blockEvents = makeBlockEvents(
-                times=(block.startTime + sampleTime*indices),
-                values=parent_parseBlockByIndex(block, indices),
-                block=block, blockIdx=blockIdx,
-            )
+                blockEvents = makeBlockEvents(
+                        times=(block.startTime + sampleTime * indices),
+                        values=parent_parseBlockByIndex(block, indices),
+                        block=block, blockIdx=blockIdx,
+                )
 
             yield blockEvents
 
@@ -3077,9 +3075,9 @@ class EventArray(EventList):
             return None
         if not self.hasSubchannels:
             return DataRangeStats(
-                min=stats['min'].min(),
-                mean=np.median(stats['mean']),
-                max=stats['max'].max()
+                min=stats['min'].min()[0],
+                mean=np.median([x[0] for x in stats['mean']]),
+                max=stats['max'].max()[0]
             )
         if subchannel is not None:
             chName = stats['min'].dtype.names[subchannel]
@@ -3384,6 +3382,8 @@ class WarningRange(object):
 
         if outOfRange:
             result = [[start,start]]
+
+        print([(x, y) for x,y in source.iterRange(start, end)])
         
         for t,v in source.iterRange(start, end):
             if self.valid(v):
