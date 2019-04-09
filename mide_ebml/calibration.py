@@ -514,7 +514,7 @@ class Bivariate(Univariate):
             if len(self._eventlist) == 0:
                 return event
             
-            x = event[1:]
+            x = event[1]
             
             # Optimization: don't check the other channel if Y is unused
             if noBivariates:

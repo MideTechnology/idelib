@@ -2320,18 +2320,11 @@ class EventList(Transformable):
         relAt = at - startEvt[0]
         endTime = endEvt[0] - startEvt[0] + 0.0
         percent = relAt/endTime
-        if self.hasSubchannels:
-            result = list(startEvt[1:])
-            for i in xrange(len(self.parent.types)):
-                v1 = startEvt[1+i]
-                v2 = endEvt[1+i]
-                result[i] = v1 + (percent * (v2 - v1))
-            result = tuple(result)
-        else:
-            v1 = startEvt[-1]
-            v2 = endEvt[-1]
-            result = (v1 + (percent * (v2 - v1)),)
-        return (at,) + result
+        
+        return (at,) + tuple(
+            v1 + (percent * (v2-v1))
+            for v1, v2 in zip(startEvt[1:], endEvt[1:])
+        )
     
 
     def getMeanNear(self, t, outOfRange=False):
