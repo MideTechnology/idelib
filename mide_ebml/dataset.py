@@ -1276,7 +1276,7 @@ class EventList(Transformable):
         # which is just the same as the value of the sample. Set the values,
         # but don't set hasMinMeanMax.
         if self._singleSample is True and not self.hasMinMeanMax:
-            block.minMeanMax = block.payload*3
+            block.minMeanMax = np.tile(block.payload, 3)
             block.parseMinMeanMax(self.parent.parser)
             
     

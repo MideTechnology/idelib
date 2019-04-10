@@ -156,8 +156,7 @@ class TestChannelDataArrayBlock(unittest.TestCase):
 
         blockOut = self.block.parseByIndexWith(parser, range(20, 100))
         oldOut = [x for x in super(self.block.__class__, self.block).parseByIndexWith(parser, range(20, 100))]
-        oldOut = np.array(oldOut, dtype=dtype_desc)
-        np.testing.assert_array_equal(oldOut, blockOut)
+        np.testing.assert_array_equal(oldOut, tuplify(blockOut))
 
     def testGetNumSamples(self):
         self.assertEqual(self.block.getNumSamples(self.doc.channels[32].parser), 1357)
@@ -168,3 +167,11 @@ class TestChannelDataArrayBlock(unittest.TestCase):
 
         self.block.payloadSize -= 1
         self.assertFalse(self.block.isValidLength(parser))
+
+
+def tuplify(arr):
+
+    out = []
+    for i in range(len(arr.T)):
+        out.append(tuple(arr[:, i]))
+    return out
