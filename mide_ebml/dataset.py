@@ -1976,9 +1976,16 @@ class EventList(Transformable):
                     eVals -= m
                 result_append(eVals)
             
-            if not hasSubchannels:
+            # Transformation has negative coefficient for inverted z-axis data
+            # -> need to sort mins/maxes to compensate
+            if hasSubchannels:
+                # 'rotate' the arrays, sort them, 'rotate' back.
+                result = zip(*map(sorted, zip(*result)))
+            else:
                 result = tuple((v[parent_id],) for v in result)
-            
+                if result[0][0] > result[2][0]:
+                    result = result[::-1]
+
             if times:
                 yield StatsTuple(*(ChannelTuple(eTime, *x) for x in result))
             else:
