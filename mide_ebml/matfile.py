@@ -504,9 +504,9 @@ class MatStream(object):
 
         try:
             if self.arrayNoTimes:
-                data = self.rowFormatter.pack(*event[-1])
+                data = self.rowFormatter.pack(*event[:1])
             else:
-                data = self.rowFormatter.pack(event[-2]*self.timeScalar, *event[-1])
+                data = self.rowFormatter.pack(event[0]*self.timeScalar, *event[1:])
         except struct.error as err:
             print "ERROR: %s, formatter=%r, event=%r" % (self.arrayBaseName, self.rowFormatter.format, event)
             raise err
@@ -725,11 +725,11 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     
     try:
         for num, evt in enumerate(events.iterSlice(start, stop, step, display)):
-            t, v = evt
+            t, v = evt[0], evt[1:]
             if formatter is not None:
                 v = formatter(v)
 
-            matfile.writeRow((createTime + t, v))
+            matfile.writeRow((createTime + t,)+v)
             
             if callback is not None:
                 if getattr(callback, 'cancelled', False):

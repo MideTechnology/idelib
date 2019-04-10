@@ -65,3 +65,5 @@ env/
 .eggs/
 SlamStickLab.egg-info/
 venv/
+htmlcov*
+.coverage

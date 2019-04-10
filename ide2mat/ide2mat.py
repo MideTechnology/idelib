@@ -65,17 +65,18 @@ class StreamedEventList(object):
         else:
             sampleTime = (block.endTime - block.startTime) / len(values)
         times = (block.startTime + (i * sampleTime) for i in xrange(len(values)))
-        events = zip(times, values)
         
         # optimization: local variables for speed in loop
         parent_transform = self.parent._transform
         parent_subchannels = self.parent.subchannels
-        for event in events:
+        for t, vs in zip(times, values):
             # TODO: Refactor this ugliness
             # This is some nasty stuff to apply nested transforms
-            event=[c._transform(f((event[-2],v),self_session), self_session) 
-                   for f,c,v in izip(parent_transform, parent_subchannels, event[-1])]
-            event=(event[0][0], tuple((e[1] for e in event)))
+            subevents = [
+                c._transform(f((t, v), self_session), self_session)
+                for f, c, v in izip(parent_transform, parent_subchannels, vs)
+            ]
+            event = (subevents[0][0], *(e[1] for e in subevents))
             if self_writer is not None:
                 self_writer(event)
                 

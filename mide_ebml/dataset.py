@@ -1571,10 +1571,14 @@ class EventList(Transformable):
         # TODO: Optimize; times don't need to be computed since they aren't used
         if self.hasSubchannels and subchannels != True:
             # Create a function instead of chewing the subchannels every time
-            return (tuple(v[1+c] for c in subchannels)
-                    for v in self.iterSlice(start, end, step, display))
+            chFilter = eval("lambda x: (%s,)" % ",".join(
+                "x[%d]" % (1+ch) for ch in subchannels
+            ))
+            return (chFilter(event)
+                    for event in self.iterSlice(start, end, step, display))
         else:
-            return (v[1:] for v in self.iterSlice(start, end, step, display))
+            return (event[1:]
+                    for event in self.iterSlice(start, end, step, display))
 
 
     def iterSlice(self, start=0, end=-1, step=1, display=False):
@@ -1983,7 +1987,6 @@ class EventList(Transformable):
                     eVals -= m
                 result_append(eVals)
             
-            # Make sure transformed min < max
             if not hasSubchannels:
                 result = tuple((v[parent_id],) for v in result)
             
@@ -2075,13 +2078,13 @@ class EventList(Transformable):
         """
         # Optimization: actual functions are faster than building/using lambdas
         def _blockChannelMax(x):
-            return max(x[1][-1][-1])
+            return max(x[1][-1][1:])
 
         def _blockSubchannelMax(x):
             return x[1][-1][-1]
         
         def _channelMax(x):
-            return max(x[-1])
+            return max(x[1:])
 
         def _subChannelMax(x):
             return x[-1]
@@ -2114,13 +2117,13 @@ class EventList(Transformable):
         """
         # Optimization: actual functions are faster than building/using lambdas
         def _blockChannelMin(x):
-            return min(x[1][1][-1])
+            return min(x[1][0][1:])
 
         def _blockSubchannelMin(x):
-            return x[1][1][-1]
+            return x[1][0][-1]
         
         def _channelMin(x):
-            return min(x[-1])
+            return min(x[1:])
 
         def _subChannelMin(x):
             return x[-1]
@@ -2310,36 +2313,29 @@ class EventList(Transformable):
         startIdx = self.getEventIndexBefore(at)
         if startIdx < 0:
             first = self.__getitem__(0, display=display)
-            if first[-2] == at:
+            if first[0] == at:
                 return first
             if outOfRange:
                 return first
-            raise IndexError("Specified time occurs before first event (%d)" % first[-2])
+            raise IndexError("Specified time occurs before first event (%d)" % first[0])
         elif startIdx >= len(self) - 1:
             last = self.__getitem__(-1, display=display)
-            if last[-2] == at:
+            if last[0] == at:
                 return last
             if outOfRange:
                 return last
-            raise IndexError("Specified time occurs after last event (%d)" % last[-2])
+            raise IndexError("Specified time occurs after last event (%d)" % last[0])
         
         startEvt = self.__getitem__(startIdx, display=display)
         endEvt = self.__getitem__(startIdx+1, display=display)
-        relAt = at - startEvt[-2]
-        endTime = endEvt[-2] - startEvt[-2] + 0.0
+        relAt = at - startEvt[0]
+        endTime = endEvt[0] - startEvt[0] + 0.0
         percent = relAt/endTime
-        if self.hasSubchannels:
-            result = list(startEvt[-1])
-            for i in xrange(len(self.parent.types)):
-                v1 = startEvt[-1][i]
-                v2 = endEvt[-1][i]
-                result[i] = v1 + (percent * (v2 - v1))
-            result = tuple(result)
-        else:
-            v1 = startEvt[-1]
-            v2 = endEvt[-1]
-            result = v1 + (percent * (v2 - v1))
-        return at, result
+        
+        return (at,) + tuple(
+            v1 + (percent * (v2-v1))
+            for v1, v2 in zip(startEvt[1:], endEvt[1:])
+        )
     
 
     def getMeanNear(self, t, outOfRange=False):
@@ -3369,9 +3365,9 @@ class WarningRange(object):
         source = self.getSessionSource(sessionId)
 
         if start is None:
-            start = source[0][-2]
+            start = source[0][0]
         if end is None:
-            end = source[-1][-2]
+            end = source[-1][0]
             
         result = []
         v = self.getValueAt(start, source=source)
@@ -3409,7 +3405,7 @@ class WarningRange(object):
             return at, True
         
         source = self.getSessionSource(sessionId) if source is None else source
-        t = max(min(at, source[0][-2]),source[1][-2])
+        t = min(max(source[0][0], at), source[-1][0])
         val = source.getValueAt(t, outOfRange=True)
         return at, self.valid(val[-1])
 
