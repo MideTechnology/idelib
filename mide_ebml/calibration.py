@@ -738,7 +738,7 @@ class PolyPoly(CombinedPoly):
             # Optimization: don't check the other channel if Y is unused
             if self._noY is False:
                 if noBivariates:
-                    return np.append(event[0], self._function(0, *x))
+                    event[1:] = self._function(0, *event[1:])
                     
                 session = self.dataset.lastSession if session is None else session
                 sessionId = None if session is None else session.sessionId
@@ -757,11 +757,12 @@ class PolyPoly(CombinedPoly):
                     if len(self._eventlist) == 0:
                         return None
                     y = self._eventlist.getMeanNear(event[0], outOfRange=True)
-                    
-                return np.append(event[0], self._function(y, *x))
+
+                event[1:] = self._function(y, *event[1:])
             
             else:
-                return np.append(event[:1], self._function(*x), axis=0)
+                event[1:] = self._function(*event[1:])
+            return event
             
         except (TypeError, IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition

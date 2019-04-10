@@ -1950,7 +1950,9 @@ class EventList(Transformable):
 #             if block.minMeanMax is None:
 #                 continue
 
-            t = block.startTime
+            t = np.array(block.startTime, dtype=np.float64)
+            if t.ndim == 0:
+                t = np.expand_dims(t, 0)
             m = _getBlockRollingMean(block.blockIndex)
             
             # HACK: Multithreaded loading can (very rarely) fail at start.
@@ -1964,34 +1966,36 @@ class EventList(Transformable):
                     break
             
             if m is not None:
-                mx = xform((t,) + m, session, noBivariates=self.noBivariates)
+                m = np.append(t, m, axis=0)
+                mx = xform(m, session, noBivariates=self.noBivariates)
                 if mx is None:
                     sleep(0.005)
-                    mx = xform((t,) + m, session, noBivariates=self.noBivariates)
+                    mx = xform(m, session, noBivariates=self.noBivariates)
                     if mx is None:
-                        mx = (t,) + m
-                m = np.array(mx[1:])
+                        mx = m
+                m = mx[1:]
                 
             result = []
             result_append = result.append
             
             for val in (block.min, block.mean, block.max):
-                event = xform(np.append(t, val), session, noBivariates=self.noBivariates)
+                val = np.append(t, val.astype(np.float64))
+                event = xform(val, session, noBivariates=self.noBivariates)
                 if event is None:
                     sleep(0.005)
-                    event = xform(np.append(t, val), session, noBivariates=self.noBivariates)
+                    event = xform(val, session, noBivariates=self.noBivariates)
                     if event is None:
-                        event = xform(np.append(t, val), session, noBivariates=self.noBivariates )
-                eTime, eVals = event[0], event[1:]
+                        event = xform(val, session, noBivariates=self.noBivariates )
+
                 if m is not None:
-                    eVals -= m
-                result_append(eVals)
+                    event[1:] -= m
+                result_append(event[1:])
             
             if not hasSubchannels:
                 result = tuple((v[parent_id],) for v in result)
             
             if times:
-                yield StatsTuple(*(ChannelTuple(eTime, *x) for x in result))
+                yield StatsTuple(*(ChannelTuple(event[0], *x) for x in result))
             else:
                 yield StatsTuple(*(ChannelTuple(*x) for x in result))
 
@@ -2508,7 +2512,7 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
     for _ in separated_iter(range(max_tries), lambda: sleep(delay)):
         value = func()
         if value is not None:
-            return value[0], value[1:]
+            return value
         on_fail()
     else:
         return on_abort() or default
@@ -2546,7 +2550,7 @@ class EventArray(EventList):
             """ Creates a structured array of event data for a given set of
                 event times and values. (Used in event iteration methods.)
             """
-            times, splitValues = retryUntilReturn(
+            blockEvents = retryUntilReturn(
                 lambda: xform(np.append(np.expand_dims(times, 0), values, axis=0), session=session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
@@ -2555,7 +2559,6 @@ class EventArray(EventList):
                     % (parent.name, times)
                 ),
             )
-            blockEvents = np.append(np.expand_dims(times, 0), splitValues, axis=0)
 
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
@@ -2567,8 +2570,8 @@ class EventArray(EventList):
                         % (parent.name, block.startTime)
                     ),
                 )
-                _, offset = retryUntilReturn(
-                    lambda: xform((block.startTime, offset), session=session,
+                offset = retryUntilReturn(
+                    lambda: xform(np.append(block.startTime, offset), session=session,
                                   noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=lambda: logger.info(
@@ -2578,7 +2581,7 @@ class EventArray(EventList):
                 )
 
                 if offset is not None:
-                    blockEvents[1:] -= np.asarray(offset)[..., np.newaxis]
+                    blockEvents[1:] -= np.asarray(offset[1:])[..., np.newaxis]
                 else:
                     logger.info('%r event offset is None' % parent.name)
 
@@ -2681,11 +2684,11 @@ class EventArray(EventList):
                         % (self.parent.name, timestamp)
                     ),
                 )
-                event = (timestamp, tuple(numpy.array(event[-1])-offsetx[-1]))
+                event = (timestamp, tuple(np.array(event[-1])-offsetx[-1]))
 
             if not self.hasSubchannels:
                 # Doesn't quite work; transform dataset attribute not set?
-                return (event[-2], event[-1][self.subchannelId])
+                return (event[0], event[1:(1 + self.subchannelId)])
             else:
                 return event
 
@@ -2844,6 +2847,8 @@ class EventArray(EventList):
         else:
             idxSlice = slice(start, end, step)
         start, end, step = idxSlice.indices(len(self))
+        if jitter is True:
+            jitter = 0.5
         scaledJitter = jitter * abs(step)
 
         startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
@@ -2875,11 +2880,11 @@ class EventArray(EventList):
                     scaledJitter * np.random.uniform(-1, 1, max(0, len(indices)-2))
                 ).astype(indices.dtype)
 
-                blockEvents = makeBlockEvents(
-                        times=(block.startTime + sampleTime * indices),
-                        values=parent_parseBlockByIndex(block, indices),
-                        block=block, blockIdx=blockIdx,
-                )
+            blockEvents = makeBlockEvents(
+                    times=(block.startTime + sampleTime * indices),
+                    values=parent_parseBlockByIndex(block, indices),
+                    block=block, blockIdx=blockIdx,
+            )
 
             yield blockEvents
 
