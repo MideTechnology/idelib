@@ -1898,8 +1898,6 @@ class EventList(Transformable):
             @return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
         """
-        from collections import namedtuple
-
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
             
@@ -1922,16 +1920,6 @@ class EventList(Transformable):
 
         if startBlockIdx not in xrange(min(len(self), endBlockIdx)):
             return
-        StatsTuple = namedtuple('MinMeanMaxStruct', 'min mean max')
-        chFields = ((['time'] if times else []) + (
-            [
-                'ch'+str(i)
-                for i in xrange(len(self._data[startBlockIdx].min))
-            ]
-            if hasSubchannels else ['ch'+str(parent_id)]
-        ))
-
-        ChannelTuple = namedtuple('ChannelsStruct', chFields)
 
         for block in self._data[startBlockIdx:endBlockIdx]:
             # NOTE: Without this, a file in which some blocks don't have
@@ -1987,9 +1975,9 @@ class EventList(Transformable):
                     result = result[::-1]
 
             if times:
-                yield StatsTuple(*(ChannelTuple(eTime, *x) for x in result))
+                yield tuple((eTime,)+x for x in result)
             else:
-                yield StatsTuple(*(ChannelTuple(*x) for x in result))
+                yield tuple(result)
 
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
