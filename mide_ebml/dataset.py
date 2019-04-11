@@ -56,7 +56,7 @@ __all__ = ['Channel','Dataset','EventList','Plot','Sensor','Session',
            'SubChannel','WarningRange','Cascading','Transformable']
 
 from bisect import bisect_right
-from collections import Iterable, namedtuple
+from collections import Iterable
 from datetime import datetime
 from itertools import imap, izip
 import os.path
@@ -1113,15 +1113,7 @@ class EventList(Transformable):
         self.transform = None
         self.useAllTransforms = True
         self.updateTransforms(recurse=False)
-        self.allowMeanRemoval = parentChannel.allowMeanRemoval
-
-        if self.hasSubchannels:
-            chNames = ['ch'+str(i) for i in xrange(len(self.parent.types))]
-        else:
-            chNames = ['ch'+str(self.parent.id)]
-        self.EventTuple = namedtuple('EventTuple', ['time'] + chNames)
-        self.ValuesTuple = namedtuple('ValuesTuple', chNames)
-
+        self.allowMeanRemoval = parentChannel.allowMeanRemoval    
     
         
 #     def setTransform(self, xform, update=True):
@@ -1568,14 +1560,13 @@ class EventList(Transformable):
         # TODO: Optimize; times don't need to be computed since they aren't used
         if self.hasSubchannels and subchannels != True:
             # Create a function instead of chewing the subchannels every time
-            chFilter = eval("lambda x: struct(%s)" % ",".join(
+            chFilter = eval("lambda x: (%s,)" % ",".join(
                 "x[%d]" % (1+ch) for ch in subchannels
-            ), {'struct': self.ValuesTuple})
+            ))
             return (chFilter(event)
                     for event in self.iterSlice(start, end, step, display))
         else:
-            ValuesTuple = self.ValuesTuple
-            return (ValuesTuple(*event[1:])
+            return (event[1:]
                     for event in self.iterSlice(start, end, step, display))
 
 
@@ -1642,8 +1633,6 @@ class EventList(Transformable):
         else:
             xform = self._comboXform
 
-        EventTuple = self.EventTuple
-
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
             blockIdx = int(startBlockIdx + (i * blockStep))
@@ -1680,9 +1669,9 @@ class EventList(Transformable):
                 if offset is not None:
                     event = event[:1] + tuple(event[1:]-offset)
                 if hasSubchannels:
-                    yield EventTuple(*event)
+                    yield event
                 else:
-                    yield EventTuple(event[0], event[1+subchannelId])
+                    yield event[:1] + (event[1+subchannelId],)
             
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1742,8 +1731,6 @@ class EventList(Transformable):
                 xform = self._displayXform or xform
         else:
             xform = self._comboXform
-
-        EventTuple = self.EventTuple
         
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
@@ -1789,9 +1776,9 @@ class EventList(Transformable):
                 else:
                     logger.info('%r event offset is None' % self.parent.name)
                 if hasSubchannels:
-                    yield EventTuple(*event)
+                    yield event
                 else:
-                    yield EventTuple(event[0], event[1+subchannelId])
+                    yield event[:1] + (event[1+subchannelId],)
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1892,8 +1879,6 @@ class EventList(Transformable):
         return self.iterSlice(startIdx,endIdx,step,display=display)        
 
 
-    StatsTuple = namedtuple('StatsTuple', 'min mean max')
-
     def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
                        times=True, display=False):
         """ Get the minimum, mean, and maximum values for blocks within a
@@ -1913,6 +1898,8 @@ class EventList(Transformable):
             @return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
         """
+        from collections import namedtuple
+
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
             
@@ -1933,8 +1920,18 @@ class EventList(Transformable):
         else:
             xform = self._comboXform
 
-        StatsTuple = EventList.StatsTuple
-        SubchannelTuple = self.EventTuple if times else self.ValuesTuple
+        if startBlockIdx not in xrange(min(len(self), endBlockIdx)):
+            return
+        StatsTuple = namedtuple('MinMeanMaxStruct', 'min mean max')
+        chFields = ((['time'] if times else []) + (
+            [
+                'ch'+str(i)
+                for i in xrange(len(self._data[startBlockIdx].min))
+            ]
+            if hasSubchannels else ['ch'+str(parent_id)]
+        ))
+
+        ChannelTuple = namedtuple('ChannelsStruct', chFields)
 
         for block in self._data[startBlockIdx:endBlockIdx]:
             # NOTE: Without this, a file in which some blocks don't have
@@ -1990,9 +1987,9 @@ class EventList(Transformable):
                     result = result[::-1]
 
             if times:
-                yield StatsTuple(*(SubchannelTuple(eTime, *x) for x in result))
+                yield StatsTuple(*(ChannelTuple(eTime, *x) for x in result))
             else:
-                yield StatsTuple(*(SubchannelTuple(*x) for x in result))
+                yield StatsTuple(*(ChannelTuple(*x) for x in result))
 
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
