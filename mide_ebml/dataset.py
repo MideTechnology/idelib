@@ -2726,13 +2726,17 @@ class EventArray(EventList):
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
         # TODO: use arraySlice instead?
+        iterBlockEvents = self._blockSlice(start, end, step, display)
+
         if self.hasSubchannels and subchannels is not True:
-            for v in self.iterSlice(start, end, step, display):
-                v_ch = v['channels']
-                yield tuple(v_ch[v_ch.dtype.names[c]] for c in subchannels)
+            chIdx = np.asarray(subchannels)+1
+            return (event
+                    for blockEvents in iterBlockEvents
+                    for event in blockEvents[chIdx].T)
         else:
-            for v in self.iterSlice(start, end, step, display):
-                yield v['channels']
+            return (event
+                    for blockEvents in iterBlockEvents
+                    for event in blockEvents[1:].T)
 
     def arrayValues(self, start=None, end=None, step=None, subchannels=True,
                     display=False):
@@ -2749,12 +2753,12 @@ class EventArray(EventList):
             @return: a structured array of values in the specified index range.
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
-        array_chs = self.arraySlice(start, end, step, display)['channels']
+        arrayEvents = self.arraySlice(start, end, step, display)
+
         if self.hasSubchannels and subchannels is not True:
-            return array_chs[[array_chs.dtype.names[sch]
-                              for sch in subchannels]]
+            return arrayEvents[np.asarray(subchannels)+1]
         else:
-            return array_chs
+            return arrayEvents[1:]
 
     def _blockSlice(self, start=None, end=None, step=None, display=False):
         """ Create an iterator producing events packed into numpy arrays for a
@@ -2820,7 +2824,8 @@ class EventArray(EventList):
             @return: an iterable of events in the specified index range.
         """
         for blockEvents in self._blockSlice(start, end, step, display):
-            yield blockEvents
+            for event in blockEvents.T:
+                yield event
 
     def arraySlice(self, start=None, end=None, step=None, display=False):
         """ Create an array of events within a range of indices.
@@ -2833,9 +2838,10 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: a structured array of events in the specified index range.
         """
-        return np.concatenate([
-            i for i in self._blockSlice(start, end, step, display)
-        ], axis=-1)
+        return np.concatenate(
+            [i for i in self._blockSlice(start, end, step, display)],
+            axis=-1
+        )
 
     def _blockJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
                          display=False):
@@ -2933,10 +2939,11 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: a structured array of events in the specified index range.
         """
-        return np.concatenate([
-            i for i in self._blockJitterySlice(start, end, step, jitter,
-                                               display)
-        ], axis=0)
+        return np.concatenate(
+            [i for i in self._blockJitterySlice(start, end, step, jitter,
+                                                display)],
+            axis=-1
+        )
 
     # EventList implementation suffices -> no overload required
     # def iterRange(self, startTime=None, endTime=None, step=1, display=False):
@@ -2990,50 +2997,10 @@ class EventArray(EventList):
                 and max, respectively).
         """
 
-        def determine_structured_dtype(data):
-            def npdtype_of(value):
-                return np.find_common_type([type(value)], [])
+        return np.moveaxis([i for i in self.iterMinMeanMax(
+            startTime, endTime, padding, times, display
+        )], 0, -1)
 
-            if not self.hasSubchannels and not times:
-                return np.dtype([
-                    (name, npdtype_of(value))
-                    for name, value in zip('min mean max'.split(), data)
-                ])
-            elif not self.hasSubchannels and times:
-                return np.dtype([
-                    (name, [
-                        ('time', npdtype_of(data[i][0])),
-                        ('value', npdtype_of(data[i][1])),
-                    ])
-                    for name, (time, value) in zip('min mean max'.split(), data)
-                ])
-            elif self.hasSubchannels and not times:
-                return np.dtype([
-                    (name, [
-                        ('ch'+str(j), npdtype_of(subChValue))
-                        for j, subChValue in enumerate(values)
-                    ])
-                    for name, values in zip('min mean max'.split(), data)
-                ])
-            else:  # if self.hasSubchannels and times:
-                return np.dtype([
-                    (name, [('time', npdtype_of(time)), ('values', [
-                        ('ch'+str(j), npdtype_of(subChValue))
-                        for j, subChValue in enumerate(values)
-                    ])])
-                    for name, (time, values) in zip('min mean max'.split(),
-                                                    data)
-                ])
-
-        blocksStats = list(self.iterMinMeanMax(startTime, endTime, padding,
-                                               times, display))
-
-        if len(blocksStats) == 0:
-            # TODO check that this works :|
-            return []
-
-        dtype = determine_structured_dtype(blocksStats[0])
-        return np.array(blocksStats, dtype=dtype)
 
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
                       times=True, display=False):
@@ -3075,34 +3042,28 @@ class EventArray(EventList):
             @return: A namedtuple of aggregated event statistics (min, mean,
                 and max, respectively).
         """
-        from collections import namedtuple
-
-        DataRangeStats = namedtuple('DataRangeStats', 'min mean max')
-
         stats = self.arrayMinMeanMax(startTime, endTime, times=False,
                                      display=display)
 
         if stats.size == 0:
             return None
         if not self.hasSubchannels:
-            return DataRangeStats(
-                min=stats['min'].min()[0],
-                mean=np.median([x[0] for x in stats['mean']]),
-                max=stats['max'].max()[0]
+            return EventArray.StatsTuple(
+                min=stats[0].min(),
+                mean=np.median(stats[1], axis=-1),
+                max=stats[2].max()
             )
         if subchannel is not None:
-            chName = stats['min'].dtype.names[subchannel]
-            return DataRangeStats(
-                min=stats['min'][chName].min(),
-                mean=np.median(stats['mean'][chName]),
-                max=stats['max'][chName].max()
+            return EventArray.StatsTuple(
+                min=stats[0, subchannel].min(),
+                mean=np.median(stats[1, subchannel]),
+                max=stats[2, subchannel].max()
             )
         else:
-            chNames = stats['min'].dtype.names
-            return DataRangeStats(
-                min=min(stats['min'][n].min() for n in chNames),
-                mean=np.mean([np.median(stats['mean'][n]) for n in chNames]),
-                max=max(stats['max'][n].max() for n in chNames),
+            return EventArray.StatsTuple(
+                min=stats[0].min(),
+                mean=np.median(stats[1], axis=-1).mean(),
+                max=stats[2].max(),
             )
 
     def getMax(self, startTime=None, endTime=None, display=False):
@@ -3117,18 +3078,14 @@ class EventArray(EventList):
             @return: The event with the maximum value.
         """
         maxs = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                    display=display)['max']
+                                    display=display)[2]
         if self.hasSubchannels:
-            maxs = np.maximum.reduce([maxs[n] for n in maxs.dtype.names])
+            maxs = maxs.max(axis=0)
 
         blockIdx = maxs.argmax()  # TODO is this bug-free? double-check
         sampleIdxRange = self._data[blockIdx].indexRange
         blockData = self.arraySlice(*sampleIdxRange, display=display)
-
-        blockMaxs = np.maximum.reduce([
-            blockData['channels'][n]
-            for n in blockData['channels'].dtype.names
-        ])
+        blockMaxs = blockData.max(axis=0)
         subIdx = blockMaxs.argmax()
 
         return blockData[subIdx]
@@ -3148,19 +3105,15 @@ class EventArray(EventList):
             self._computeMinMeanMax()
 
         mins = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                    display=display)['min']
+                                    display=display)[0]
         if self.hasSubchannels:
-            mins = np.minimum.reduce([mins[n] for n in mins.dtype.names])
+            mins = mins.min(axis=0)
 
         blockIdx = mins.argmin()  # TODO is this bug-free? double-check
         sampleIdxRange = self._data[blockIdx].indexRange
         blockData = self.arraySlice(*sampleIdxRange, display=display)
-
-        blockMins = np.minimum.reduce([
-            blockData['channels'][n]
-            for n in blockData['channels'].dtype.names
-        ])
-        subIdx = blockMins.argmin()
+        blockMins = blockData.min(axis=0)
+        subIdx = blockMaxs.argmin()
 
         return blockData[subIdx]
 

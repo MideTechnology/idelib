@@ -910,7 +910,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         if len(parser_format) == 1:
             return rawData[np.newaxis]
         elif subchannel is not None:
-            return rawData[[rawDtype.names[subchannel]]][np.newaxis]
+            return rawData[rawDtype.names[subchannel]][np.newaxis]
 
         data = np.empty((len(parser_format),) + rawData.shape,
                         dtype=np.float64)
