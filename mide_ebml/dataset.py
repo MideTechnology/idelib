@@ -2530,6 +2530,12 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
 
 class EventArray(EventList):
 
+    def __init__(self, parentChannel, session=None, parentList=None):
+        super(EventArray, self).__init__(parentChannel, session, parentList)
+
+        self._blockIndicesArray = np.array([], dtype=np.float64)
+        self._blockTimesArray = np.array([], dtype=np.float64)
+
     # --------------------------------------------------------------------------
     # New utility methods
     # --------------------------------------------------------------------------
@@ -2561,7 +2567,8 @@ class EventArray(EventList):
                 event times and values. (Used in event iteration methods.)
             """
             blockEvents = retryUntilReturn(
-                lambda: xform(np.append(np.expand_dims(times, 0), values, axis=0), session=session,
+                lambda: xform(np.append(times[np.newaxis], values, axis=0),
+                              session=session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=lambda: logger.info(
@@ -2581,7 +2588,8 @@ class EventArray(EventList):
                     ),
                 )
                 offset = retryUntilReturn(
-                    lambda: xform(np.append(block.startTime, offset), session=session,
+                    lambda: xform(np.append(block.startTime, offset),
+                                  session=session,
                                   noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=lambda: logger.info(
@@ -2614,11 +2622,13 @@ class EventArray(EventList):
             @keyword start: The first block index to search
             @keyword stop: The last block index to search
         """
-        # TODO cache numpy array casting of `self._blockIndices`
         # TODO profile & determine if this change is beneficial
+        if len(self._blockIndicesArray) != len(self._blockIndices):
+            self._blockIndicesArray = np.array(self._blockIndices)
+
         idxOffset = max(start, 1)
         return idxOffset-1 + np.searchsorted(
-            self._blockIndices[idxOffset:stop], idx, side='right'
+            self._blockIndicesArray[idxOffset:stop], idx, side='right'
         )
 
     def _getBlockIndexWithTime(self, t, start=0, stop=None):
@@ -2628,11 +2638,13 @@ class EventArray(EventList):
             @keyword start: The first block index to search
             @keyword stop: The last block index to search
         """
-        # TODO cache numpy array casting of `self._blockTimes`
         # TODO profile & determine if this change is beneficial
+        if len(self._blockTimesArray) != len(self._blockTimes):
+            self._blockTimesArray = np.array(self._blockTimes)
+
         idxOffset = max(start, 1)
         return idxOffset-1 + np.searchsorted(
-            self._blockTimes[idxOffset:stop], t, side='right'
+            self._blockTimesArray[idxOffset:stop], t, side='right'
         )
 
     # --------------------------------------------------------------------------
