@@ -19,8 +19,8 @@ import time
 import zipfile
 
 from docutils.examples import html_body
-from git import InvalidGitRepositoryError
-from git.repo import Repo
+# from git import InvalidGitRepositoryError
+# from git.repo import Repo
 
 from assembly import birth_utils as util
 
@@ -32,11 +32,11 @@ RELEASE_NOTES_HTML = util.changeFilename(RELEASE_NOTES_FILE, ext=".html")
 
 VERPATCH_PATH = os.path.realpath(r"..\verpatch-bin-1.0.10\verpatch.exe")
 
-PYINSTALLER_32 = r'C:\Python27\Scripts\pyinstaller.exe'
-PYINSTALLER_64 = r'c:\Python27_64\Scripts\pyinstaller.exe'
+PYINSTALLER_32 = r'venv\python27_32\Scripts\pyinstaller.exe'
+PYINSTALLER_64 = r'venv\python27_64\Scripts\pyinstaller.exe'
 
 builds = (
-    PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
+#     PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
     PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer-win-onefile.spec',
 )
 
@@ -202,18 +202,19 @@ if __name__ == "__main__":
     
     t0 = datetime.now()
     
-    try:
-        repo = Repo('.')
-    except InvalidGitRepositoryError:
-        repo = None
-    
-    if repo is not None:
-        if repo.is_dirty:
-            if args.allowDirty:
-                logger.warning("Repository is dirty, but ignoring it.")
-            else:
-                print("*** Repository is dirty! Commit all changes before building!")
-                exit(1)
+#     try:
+#         repo = Repo('.')
+#     except InvalidGitRepositoryError:
+#         repo = None
+#     
+#     if repo is not None:
+#         if repo.is_dirty:
+#             if args.allowDirty:
+#                 logger.warning("Repository is dirty, but ignoring it.")
+#             else:
+#                 print("*** Repository is dirty! Commit all changes before building!")
+#                 exit(1)
+    repo = None
     
     if not os.path.exists(VERPATCH_PATH):
         logger.error("Could not find VERPATCH.EXE utility!")
