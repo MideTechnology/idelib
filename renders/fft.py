@@ -402,7 +402,7 @@ class FFTView(wx.Frame, MenuMixin):
                 start, stop = self.source.getRangeIndices(*self.range)
                 data = self.source.itervalues(start, stop, subchannels=subchannelIds, display=self.useConvertedUnits)
                 # BUG: Calculation of actual sample rate is wrong. Investigate.
-    #             fs = (channel[stop][-2]-channel[start][-2]) / ((stop-start) + 0.0)
+    #             fs = (channel[stop][0]-channel[start][0]) / ((stop-start) + 0.0)
                 fs = self.source.getSampleRate()
                 self.data = self.generateData(data, rows=stop-start,
                                               cols=len(self.subchannels), fs=fs, 
@@ -1138,8 +1138,8 @@ class SpectrogramView(FFTView):
         if self.data is None:
             return
         
-        start = self.source[self.indexRange[0]][-2] * self.timeScalar
-        end = self.source[self.indexRange[1]][-2] * self.timeScalar
+        start = self.source[self.indexRange[0]][0] * self.timeScalar
+        end = self.source[self.indexRange[1]][0] * self.timeScalar
         self.lines = []
         self.ranges = []
 
@@ -1229,7 +1229,7 @@ class SpectrogramView(FFTView):
             # self.canvas is the plot canvas
             if self.subchannels is not None:
                 start, stop = self.indexRange #self.source.getRangeIndices(*self.range)
-                recordingTime = self.source[-1][-2] - self.source[0][-2]
+                recordingTime = self.source[-1][0] - self.source[0][0]
                 recordingTime *= self.timeScalar
                 fs = self.source.getSampleRate()
                 subchIds = [c.id for c in self.subchannels]

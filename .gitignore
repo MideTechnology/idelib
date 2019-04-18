@@ -62,5 +62,9 @@ mide_ebml/devinfo.xml
 .idea/
 
 drs_test/
-
+env/
+.eggs/
+SlamStickLab.egg-info/
 venv/
+htmlcov*
+.coverage
