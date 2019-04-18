@@ -1458,19 +1458,19 @@ class EventList(Transformable):
             timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
             value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
             
-            event = xform((timestamp, value), session=self.session, noBivariates=self.noBivariates)
+            event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
             if event is None:
                 logger.info( "%s: bad transform %r %r" % (self.parent.name,timestamp, value))
                 sleep(0.001)
-                event = xform((timestamp, value), session=self.session, noBivariates=self.noBivariates)
+                event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
                 
             offset = self._getBlockRollingMean(blockIdx)
             if offset is not None:
-                offsetx = xform((timestamp, offset), session=self.session, noBivariates=self.noBivariates)
+                offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
                 if offsetx is None:
                     logger.info( "%s: bad offset @%s" % (self.parent.name,timestamp))
                     sleep(0.001)
-                    offsetx = xform((timestamp, offset), session=self.session, noBivariates=self.noBivariates)
+                    offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
                 event = (timestamp, tuple(numpy.array(event[-1])-offsetx[-1]))
                 
             if not self.hasSubchannels:
@@ -1646,20 +1646,20 @@ class EventList(Transformable):
                     logger.info( "%s: bad offset (1) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
-                offsetx = xform((block.startTime,offset), session=session, noBivariates=self.noBivariates)
+                offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
                 if offsetx is None:
                     logger.info( "%s: bad offset(2) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
-                    offsetx = xform((block.startTime,offset), session=session, noBivariates=self.noBivariates)
+                    offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
                 if offsetx is not None:
                     offset = numpy_array(offsetx[-1])
                 
-            for event in izip(times, values):
-                eventx = xform(event, session=session, noBivariates=self.noBivariates)
+            for t, vs in izip(times, values):
+                eventx = xform(t, vs, session=session, noBivariates=self.noBivariates)
                 if eventx is None:
                     logger.info( "%s: bad transform @%s" % (self.parent.name,event[0]))
                     sleep(0.001)
-                    eventx = xform(event, session=session, noBivariates=self.noBivariates)
+                    eventx = xform(t, vs, session=session, noBivariates=self.noBivariates)
                 event = eventx
                     
                 if offset is not None:
@@ -1750,20 +1750,20 @@ class EventList(Transformable):
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
                 
-                offsetx = xform((block.startTime,offset), session=session, noBivariates=self.noBivariates)
+                offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
                 if offsetx is None:
                     # Thread-induced race condition? Try again.
                     logger.warning("iterJitterySlice: offset is None")
                     sleep(0.001)
-                    offsetx = xform((block.startTime,offset), session=session, noBivariates=self.noBivariates)
+                    offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
                 offset = numpy.array(offsetx[-1])
                 
-            for event in izip(times, values):
-                eventx = xform(event, session, noBivariates=self.noBivariates)
+            for t, vs in izip(times, values):
+                eventx = xform(t, vs, session, noBivariates=self.noBivariates)
                 if eventx is None:
                     # Thread-induced race condition? Try again.
                     sleep(0.001)
-                    eventx = xform(event, session, noBivariates=self.noBivariates)
+                    eventx = xform(t, vs, session, noBivariates=self.noBivariates)
                 event = eventx
                     
                 if offset is not None:
@@ -1933,10 +1933,10 @@ class EventList(Transformable):
                     break
             
             if m is not None:
-                mx = xform((t,m), session, noBivariates=self.noBivariates)
+                mx = xform(t, m, session, noBivariates=self.noBivariates)
                 if mx is None:
                     sleep(0.005)
-                    mx = xform((t,m), session, noBivariates=self.noBivariates)
+                    mx = xform(t, m, session, noBivariates=self.noBivariates)
                     if mx is None:
                         mx = (t,m)
                 m = numpy.array(mx[1])
@@ -1945,10 +1945,10 @@ class EventList(Transformable):
             result_append = result.append
             
             for val in (block.min, block.mean, block.max):
-                event=xform((t,val), session, noBivariates=self.noBivariates)
+                event=xform(t, val, session, noBivariates=self.noBivariates)
                 if event is None:
                     sleep(0.005)
-                    event = xform((t, val), session, noBivariates=self.noBivariates)
+                    event = xform(t, val, session, noBivariates=self.noBivariates)
                     if event is None:
                         event = (t,val)
                 eTime, eVals = event
@@ -2333,7 +2333,7 @@ class EventList(Transformable):
         b = self._getBlockIndexWithTime(t)
         if outOfRange:
             b = min(len(self._data)-1,b)
-        m = self._comboXform((t,self._getBlockRollingMean(b, force=True)))[-1]
+        m = self._comboXform(t, self._getBlockRollingMean(b, force=True))[-1]
         if self.hasSubchannels:
             return m
         return m[self.subchannelId]

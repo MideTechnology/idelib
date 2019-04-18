@@ -102,11 +102,11 @@ class Transform(object):
         return self._source
     
     
-    def __call__(self, event, session=None, noBivariates=False):
+    def __call__(self, time, value, session=None, noBivariates=False):
         if session != self._lastSession:
             self._timeOffset = 0 if session.startTime is None else session.startTime
             self._session = session
-        return event[-2] + self._timeOffset, self._function(event[-1])
+        return time + self._timeOffset, self._function(value)
 
 
     def isValid(self, session=None, noBivariates=False):
@@ -495,10 +495,11 @@ class Bivariate(Univariate):
         self._noY = (0,1) if 'y' not in src else False 
 
 
-    def __call__(self, event, session=None, noBivariates=False):
+    def __call__(self, time, value, session=None, noBivariates=False):
         """ Apply the polynomial to an event. 
         
-            @param event: The event to process (a time/value tuple).
+            @param time: The time of the event to process.
+            @param value: The value of the event to process.
             @keyword session: The session containing the event.
             @keyword noBivariates: If `True`, the reference channel will not
                 be used.
@@ -512,16 +513,14 @@ class Bivariate(Univariate):
                 self._eventlist = channel.getSession(session.sessionId)
                 self._sessionId = session.sessionId
             if len(self._eventlist) == 0:
-                return event
-            
-            x = event[-1]
+                return time, value
             
             # Optimization: don't check the other channel if Y is unused
             if noBivariates:
                 y = (0,1)
             else:
-                y = self._noY or self._eventlist.getMeanNear(event[-2])
-            return event[-2],self._function(x,y)
+                y = self._noY or self._eventlist.getMeanNear(time)
+            return time, self._function(value, y)
         
         except (IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition
@@ -724,19 +723,18 @@ class PolyPoly(CombinedPoly):
         self._variables = params
 
 
-    def __call__(self, event, session=None, noBivariates=False):
+    def __call__(self, time, values, session=None, noBivariates=False):
         """ Apply the polynomial to an event. 
         
-            @param event: The event to process (a time/value tuple or a
-                `Dataset.Event` named tuple).
+            @param time: The time of the event to process.
+            @param values: The values of the event to process.
             @keyword session: The session containing the event.
         """
         try:
-            x = event[-1]
             # Optimization: don't check the other channel if Y is unused
             if self._noY is False:
                 if noBivariates:
-                    return event[-2], self._function(0, *x)
+                    return time, self._function(0, *values)
                     
                 session = self.dataset.lastSession if session is None else session
                 sessionId = None if session is None else session.sessionId
@@ -749,17 +747,17 @@ class PolyPoly(CombinedPoly):
                 # XXX: Hack! EventList length can be 0 if a thread is running.
                 # This almost immediately gets fixed. Find real cause.
                 try:    
-                    y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
+                    y = self._eventlist.getMeanNear(time, outOfRange=True)
                 except IndexError:
                     sleep(0.001)
                     if len(self._eventlist) == 0:
                         return None
-                    y = self._eventlist.getMeanNear(event[-2], outOfRange=True)
+                    y = self._eventlist.getMeanNear(time, outOfRange=True)
                     
-                return event[-2],self._function(y, *x)
+                return time, self._function(y, *values)
             
             else:
-                return event[-2],self._function(*x)
+                return time, self._function(*values)
             
         except (TypeError, IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition
