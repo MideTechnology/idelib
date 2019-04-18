@@ -2369,6 +2369,8 @@ class Viewer(wx.Frame, MenuMixin):
                 lightweight sort of traceback.
             @keyword fatal: If `True`, the app Viewer will shut down. 
         """
+        if DEBUG:
+            raise
         
         if isinstance(err, wx.Event):
             err = err.err
@@ -2858,7 +2860,7 @@ class ViewerApp(wx.App):
 # 
 #===============================================================================
 
-if __name__ == '__main__':
+def main():
     import argparse
     # Windows shell does not like high Unicode characters; remove the dot.
     desc = cleanUnicode("%s v%s \n%s" % (APPNAME.replace(u'\u2022', ' '), 
@@ -2904,3 +2906,6 @@ if __name__ == '__main__':
 
     app = ViewerApp(**args)
     app.MainLoop()
+
+if __name__ == '__main__':
+    main()

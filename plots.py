@@ -720,6 +720,8 @@ class PlotCanvas(wx.ScrolledWindow):
                                err.message) 
                 wx.MilliSleep(50)
                 wx.PostEvent(self, evt)
+            elif DEBUG:
+                logger.exception("%s; no data?" % err.message)
             else:
                 logger.warning("%s; no data?" % err.message)
                 
@@ -732,6 +734,10 @@ class PlotCanvas(wx.ScrolledWindow):
                 wx.PostEvent(self, evt)
             else:
                 self.Parent.validateTransforms()
+
+            if DEBUG:
+                logger.exception("%s; no data?" % err.message)
+            else:
                 logger.warning("%s; no data?" % err.message)
 
         except IOError as err:
@@ -988,8 +994,8 @@ class PlotCanvas(wx.ScrolledWindow):
             try:
                 # Handle the first sample explicitly before iterating over rest
                 event = events.next()
-                eTime = event[-2]
-                for chId, eVal in enumerate(event[-1]):
+                eTime = event[0]
+                for chId, eVal in enumerate(event[1:]):
                     s = siblings[chId]
                     if s is None:
                         continue
@@ -1007,8 +1013,8 @@ class PlotCanvas(wx.ScrolledWindow):
                     if self.abortRendering is True:
                         # Bail if user interrupted drawing (scrolling, etc.)
                         return
-                    eTime = event[-2]
-                    for chId, eVal in enumerate(event[-1]):
+                    eTime = event[0]
+                    for chId, eVal in enumerate(event[1:]):
                         s = siblings[chId]
                         if s is None:
                             continue
