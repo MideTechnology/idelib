@@ -65,7 +65,7 @@ import struct
 import sys
 from time import sleep
 
-import numpy
+import numpy as np
 
 from calibration import Transform, CombinedPoly, PolyPoly
 from parsers import getParserTypes, getParserRanges
@@ -1404,8 +1404,10 @@ class EventList(Transformable):
             firstBlock = lastBlock = None
         
         try:
-            block._rollingMean = rollingMean = numpy.median(
-                            [b.mean for b in self._data[firstBlock:lastBlock]], 0)
+            block._rollingMean = rollingMean = tuple(np.median(
+                [b.mean for b in self._data[firstBlock:lastBlock]],
+                axis=0, overwrite_input=True
+            ))
             block._rollingMeanSpan = rollingMeanSpan = span
             block._rollingMeanLen = rollingMeanLen = len(self._data)
         
@@ -1463,7 +1465,8 @@ class EventList(Transformable):
                 logger.info( "%s: bad transform %r %r" % (self.parent.name,timestamp, value))
                 sleep(0.001)
                 event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
-                
+            t, vs = event
+
             offset = self._getBlockRollingMean(blockIdx)
             if offset is not None:
                 offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
@@ -1471,13 +1474,15 @@ class EventList(Transformable):
                     logger.info( "%s: bad offset @%s" % (self.parent.name,timestamp))
                     sleep(0.001)
                     offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
-                event = (timestamp, tuple(numpy.array(event[-1])-offsetx[-1]))
+                offsetx = np.array(offsetx[1])
+                t = timestamp
+                vs = tuple(event[1:]-offsetx)
                 
-            if not self.hasSubchannels:
-                # Doesn't quite work; transform dataset attribute not set?
-                return (event[-2], event[-1][self.subchannelId])
+            if self.hasSubchannels:
+                return (t,) + vs
             else:
-                return event
+                # Doesn't quite work; transform dataset attribute not set?
+                return (t, vs[self.subchannelId])
 
         elif isinstance(idx, slice):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
@@ -1557,13 +1562,14 @@ class EventList(Transformable):
         # TODO: Optimize; times don't need to be computed since they aren't used
         if self.hasSubchannels and subchannels != True:
             # Create a function instead of chewing the subchannels every time
-            fun = eval("lambda x: (%s)" % \
-                       ",".join([("x[%d]" % c) for c in subchannels]))
-            for v in self.iterSlice(start, end, step, display):
-                yield fun(v[-1])
+            chFilter = eval("lambda x: (%s,)" % ",".join(
+                "x[%d]" % (1+ch) for ch in subchannels
+            ))
+            return (chFilter(event)
+                    for event in self.iterSlice(start, end, step, display))
         else:
-            for v in self.iterSlice(start, end, step, display):
-                yield v[-1]
+            return (event[1:]
+                    for event in self.iterSlice(start, end, step, display))
 
 
     def iterSlice(self, start=0, end=-1, step=1, display=False):
@@ -1619,7 +1625,6 @@ class EventList(Transformable):
         _data = self._data
         _getBlockSampleTime = self._getBlockSampleTime
         _getBlockRollingMean = self._getBlockRollingMean
-        numpy_array = numpy.array
         removeMean = self.allowMeanRemoval and self.removeMean and self.hasMinMeanMax
         offset = None
 
@@ -1652,7 +1657,7 @@ class EventList(Transformable):
                     sleep(0.001)
                     offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
                 if offsetx is not None:
-                    offset = numpy_array(offsetx[-1])
+                    offset = np.array(offsetx[1])
                 
             for t, vs in izip(times, values):
                 eventx = xform(t, vs, session=session, noBivariates=self.noBivariates)
@@ -1660,14 +1665,14 @@ class EventList(Transformable):
                     logger.info( "%s: bad transform @%s" % (self.parent.name,event[0]))
                     sleep(0.001)
                     eventx = xform(t, vs, session=session, noBivariates=self.noBivariates)
-                event = eventx
+                t, vs = eventx
                     
                 if offset is not None:
-                    event = (event[0], tuple(event[1]-offset))
+                    vs = tuple(vs-offset)
                 if hasSubchannels:
-                    yield event
+                    yield (t,) + vs
                 else:
-                    yield (event[0], event[1][subchannelId])
+                    yield (t, vs[subchannelId])
             
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1756,7 +1761,7 @@ class EventList(Transformable):
                     logger.warning("iterJitterySlice: offset is None")
                     sleep(0.001)
                     offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                offset = numpy.array(offsetx[-1])
+                offset = numpy.array(offsetx[1])
                 
             for t, vs in izip(times, values):
                 eventx = xform(t, vs, session, noBivariates=self.noBivariates)
@@ -1764,16 +1769,16 @@ class EventList(Transformable):
                     # Thread-induced race condition? Try again.
                     sleep(0.001)
                     eventx = xform(t, vs, session, noBivariates=self.noBivariates)
-                event = eventx
+                t, vs = eventx
                     
                 if offset is not None:
-                    event = (event[0], tuple(event[1]-offset))
+                    vs = tuple(vs-offset)
                 else:
                     logger.info('%r event offset is None' % self.parent.name)
                 if hasSubchannels:
-                    yield event
+                    yield (t,) + vs
                 else:
-                    yield (event[0], event[1][subchannelId])
+                    yield (t, vs[subchannelId])
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1808,9 +1813,9 @@ class EventList(Transformable):
             return 0
         idx = self.getEventIndexBefore(t)
         events = self[idx:idx+2]
-        if events[0][-2] == t or len(events) == 1:
+        if events[0][0] == t or len(events) == 1:
             return idx
-        if t - events[0][-2] < events[1][-2] - t:
+        if t - events[0][0] < events[1][0] - t:
             return idx+1
         return idx
 
@@ -1912,7 +1917,7 @@ class EventList(Transformable):
                 xform = self._displayXform or xform
         else:
             xform = self._comboXform
-                
+
         for block in self._data[startBlockIdx:endBlockIdx]:
             # NOTE: Without this, a file in which some blocks don't have
             # min/mean/max will fail. Should not happen, though.
@@ -1938,8 +1943,8 @@ class EventList(Transformable):
                     sleep(0.005)
                     mx = xform(t, m, session, noBivariates=self.noBivariates)
                     if mx is None:
-                        mx = (t,m)
-                m = numpy.array(mx[1])
+                        mx = t, m
+                m = np.array(mx[1])
                 
             result = []
             result_append = result.append
@@ -1950,25 +1955,26 @@ class EventList(Transformable):
                     sleep(0.005)
                     event = xform(t, val, session, noBivariates=self.noBivariates)
                     if event is None:
-                        event = (t,val)
+                        event = t, val
                 eTime, eVals = event
                 if m is not None:
                     eVals -= m
                 result_append(eVals)
             
-            # Make sure transformed min < max
+            # Transformation has negative coefficient for inverted z-axis data
+            # -> need to sort mins/maxes to compensate
             if hasSubchannels:
                 # 'rotate' the arrays, sort them, 'rotate' back.
                 result = zip(*map(sorted, zip(*result)))
             else:
-                result = [v[parent_id] for v in result]
-                if result[0] > result[2]:
-                    result = result[2], result[1], result[0]
-            
+                result = tuple((v[parent_id],) for v in result)
+                if result[0][0] > result[2][0]:
+                    result = result[::-1]
+
             if times:
-                yield [(eTime, x) for x in result]
+                yield tuple((eTime,)+x for x in result)
             else:
-                yield result
+                yield tuple(result)
 
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
@@ -2011,14 +2017,14 @@ class EventList(Transformable):
                 unit conversion) will be applied to the results. 
             @return: A set of three events (min, mean, and max, respectively).
         """
-        mmm = numpy.array(self.getMinMeanMax(startTime, endTime, times=False, display=display))
+        mmm = np.array(self.getMinMeanMax(startTime, endTime, times=False, display=display))
         if mmm.size == 0:
             return None
         if self.hasSubchannels and subchannel is not None:
             return (mmm[:,0,subchannel].min(), 
-                    numpy.median(mmm[:,1,subchannel]).mean(), 
+                    np.median(mmm[:,1,subchannel]).mean(), 
                     mmm[:,2,subchannel].max())
-        return (mmm[:,0].min(), numpy.median(mmm[:,1]), mmm[:,2].max())
+        return (mmm[:,0].min(), np.median(mmm[:,1]), mmm[:,2].max())
         
     
     def _getBlockRange(self, startTime=None, endTime=None):
@@ -2053,13 +2059,13 @@ class EventList(Transformable):
         """
         # Optimization: actual functions are faster than building/using lambdas
         def _blockChannelMax(x):
-            return max(x[1][-1][-1])
+            return max(x[1][-1][1:])
 
         def _blockSubchannelMax(x):
             return x[1][-1][-1]
         
         def _channelMax(x):
-            return max(x[-1])
+            return max(x[1:])
 
         def _subChannelMax(x):
             return x[-1]
@@ -2092,13 +2098,13 @@ class EventList(Transformable):
         """
         # Optimization: actual functions are faster than building/using lambdas
         def _blockChannelMin(x):
-            return min(x[1][1][-1])
+            return min(x[1][0][1:])
 
         def _blockSubchannelMin(x):
-            return x[1][1][-1]
+            return x[1][0][-1]
         
         def _channelMin(x):
-            return min(x[-1])
+            return min(x[1:])
 
         def _subChannelMin(x):
             return x[-1]
@@ -2150,19 +2156,12 @@ class EventList(Transformable):
         Ex = None if __DEBUG__ else struct.error
         try:
             for block in self._data:
-                if not (block.min is None or block.mean is None or block.max is None):
+                if None not in (block.min, block.mean, block.max):
                     continue
-                block_min = []
-                block_mean = []
-                block_max = []
-                vals = numpy.array(parseBlock(block))
-                for i in range(vals.shape[1]):
-                    block_min.append(vals[:,i].min())
-                    block_mean.append(vals[:,i].mean())
-                    block_max.append(vals[:,i].max())
-                block.min = tuple(block_min)
-                block.mean = tuple(block_mean)
-                block.max = tuple(block_max)
+                vals = np.array(parseBlock(block))
+                block.min = tuple(vals.min(axis=0))
+                block.mean = tuple(vals.mean(axis=0))
+                block.max = tuple(vals.max(axis=0))
             
                 self.hasMinMeanMax = True
                 
@@ -2295,36 +2294,29 @@ class EventList(Transformable):
         startIdx = self.getEventIndexBefore(at)
         if startIdx < 0:
             first = self.__getitem__(0, display=display)
-            if first[-2] == at:
+            if first[0] == at:
                 return first
             if outOfRange:
                 return first
-            raise IndexError("Specified time occurs before first event (%d)" % first[-2])
+            raise IndexError("Specified time occurs before first event (%d)" % first[0])
         elif startIdx >= len(self) - 1:
             last = self.__getitem__(-1, display=display)
-            if last[-2] == at:
+            if last[0] == at:
                 return last
             if outOfRange:
                 return last
-            raise IndexError("Specified time occurs after last event (%d)" % last[-2])
+            raise IndexError("Specified time occurs after last event (%d)" % last[0])
         
         startEvt = self.__getitem__(startIdx, display=display)
         endEvt = self.__getitem__(startIdx+1, display=display)
-        relAt = at - startEvt[-2]
-        endTime = endEvt[-2] - startEvt[-2] + 0.0
+        relAt = at - startEvt[0]
+        endTime = endEvt[0] - startEvt[0] + 0.0
         percent = relAt/endTime
-        if self.hasSubchannels:
-            result = list(startEvt[-1])
-            for i in xrange(len(self.parent.types)):
-                v1 = startEvt[-1][i]
-                v2 = endEvt[-1][i]
-                result[i] = v1 + (percent * (v2 - v1))
-            result = tuple(result)
-        else:
-            v1 = startEvt[-1]
-            v2 = endEvt[-1]
-            result = v1 + (percent * (v2 - v1))
-        return at, result
+        
+        return (at,) + tuple(
+            v1 + (percent * (v2-v1))
+            for v1, v2 in zip(startEvt[1:], endEvt[1:])
+        )
     
 
     def getMeanNear(self, t, outOfRange=False):
@@ -2333,10 +2325,10 @@ class EventList(Transformable):
         b = self._getBlockIndexWithTime(t)
         if outOfRange:
             b = min(len(self._data)-1,b)
-        m = self._comboXform(t, self._getBlockRollingMean(b, force=True))[-1]
+        m = self._comboXform(t, self._getBlockRollingMean(b, force=True))[1]
         if self.hasSubchannels:
-            return m
-        return m[self.subchannelId]
+            return m[1:]
+        return m[1+self.subchannelId]
         
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
@@ -2410,26 +2402,26 @@ class EventList(Transformable):
         # Create a function for formatting the event time.        
         if useUtcTime and _self.session.utcStartTime:
             if useIsoFormat:
-                timeFormatter = lambda x: datetime.utcfromtimestamp(x[-2] * timeScalar + _self.session.utcStartTime).isoformat()
+                timeFormatter = lambda x: datetime.utcfromtimestamp(x[0] * timeScalar + _self.session.utcStartTime).isoformat()
             else:
-                timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar + _self.session.utcStartTime)
+                timeFormatter = lambda x: dataFormat % (x[0] * timeScalar + _self.session.utcStartTime)
         else:
-            timeFormatter = lambda x: dataFormat % (x[-2] * timeScalar)
+            timeFormatter = lambda x: dataFormat % (x[0] * timeScalar)
         
         # Create the function for formatting an entire row.
         if _self.hasSubchannels:
             if isinstance(subchannels, Iterable):
                 fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(subchannels))
-                formatter = lambda x: fstr % ((timeFormatter(x),) + \
-                                              tuple([x[-1][v] for v in subchannels]))
+                formatter = lambda x: fstr % ((timeFormatter(x),) +
+                                              tuple(x[1+v] for v in subchannels))
                 names = [_self.parent.subchannels[x].name for x in subchannels]
             else:
                 fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(_self.parent.types))
-                formatter = lambda x: fstr % ((timeFormatter(x),) + x[-1])
+                formatter = lambda x: fstr % ((timeFormatter(x),) + x[1:])
                 names = [x.name for x in _self.parent.subchannels]
         else:
             fstr = "%%s%s%s" % (delimiter, dataFormat)
-            formatter = lambda x: fstr % (timeFormatter(x),x[-1])
+            formatter = lambda x: fstr % (timeFormatter(x), x[1:])
             names = [_self.parent.name]
 
         if removeMean is not None:
@@ -2663,9 +2655,9 @@ class WarningRange(object):
         source = self.getSessionSource(sessionId)
 
         if start is None:
-            start = source[0][-2]
+            start = source[0][0]
         if end is None:
-            end = source[-1][-2]
+            end = source[-1][0]
             
         result = []
         v = self.getValueAt(start, source=source)
@@ -2701,7 +2693,7 @@ class WarningRange(object):
             return at, True
         
         source = self.getSessionSource(sessionId) if source is None else source
-        t = max(min(at, source[0][-2]),source[1][-2])
+        t = min(max(source[0][0], at), source[-1][0])
         val = source.getValueAt(t, outOfRange=True)
         return at, self.valid(val[-1])
 

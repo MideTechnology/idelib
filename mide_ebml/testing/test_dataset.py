@@ -12,6 +12,7 @@ Basic IDE library unit tests.
 from StringIO import StringIO
 import sys
 import unittest
+import mock
 
 from mide_ebml.dataset import *
 from mide_ebml.calibration import Transform, CombinedPoly, PolyPoly
@@ -883,7 +884,7 @@ class EventListTestCase(unittest.TestCase):
         """
         self.iterArgs = args
         self.kwArgs = kwargs
-        return [[1], [2], [3], [4]]
+        return [(0, 1), (0, 2), (0, 3), (0, 4)]
     
     
     def mockXform(self, times, session=None, noBivariates=None):
@@ -1089,7 +1090,7 @@ class EventListTestCase(unittest.TestCase):
                 return (timeAndVal[0], [timeAndVal[1].id])
                 
             def mockParseBlock(block, start=None, end=None, step=None):
-                return [block]
+                return [(block,)]
             
             self.eventList1._getBlockIndexRange = mockGetBlockIndexRange
             self.eventList1._getBlockIndexWithIndex = mockGetBlockIndexWithIndex
@@ -1097,13 +1098,10 @@ class EventListTestCase(unittest.TestCase):
             self.eventList1._displayXform = self.eventList1._comboXform = \
                     self.eventList1._fullXform = mockXform
             
-            self.eventList1._data = [GenericObject(),
-                                     GenericObject(),
-                                     GenericObject(),
-                                     GenericObject()]
+            self.eventList1._data = [GenericObject() for _ in xrange(4)]
             
-            for x in xrange(len(self.eventList1._data)):
-                self.eventList1._data[x].id = x
+            for i, d in enumerate(self.eventList1._data):
+                d.id = i
             
         # mock without xforms
         elif section == 1:
@@ -1141,91 +1139,222 @@ class EventListTestCase(unittest.TestCase):
                         
     def testGetItem(self):
         """ Test the getitem special method. """
-        self.assertRaises(TypeError, self.eventList1.__getitem__, 'd')
-        
-        # Mock everything surrounding this method in order to test it in isolation
-        self.mockForGetItem(0)
-        
-        # if parent.parseBlock just bounces back data, then it should just
-        # get a tuple with the timestamp and data
-        self.assertEqual(self.eventList1[0], (0, [0]))
-        self.assertEqual(self.eventList1[1], (0, [1]))
-        self.assertEqual(self.eventList1[2], (0, [2]))
-        self.assertEqual(self.eventList1[3], (0, [3]))
-        
-        self.mockForGetItem(1)
-        
+        length = 4
+        eventList = mock.Mock(spec=EventList)
+        eventList.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=None,
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=lambda idx: range(length)[idx],
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+        )
+        eventList._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, startTime=eventList._getBlockSampleTime(i)
+            )
+        )
+        eventList.parent.configure_mock(
+            parseBlock=(lambda block, start=0, end=-1, step=1:
+                        [(range(length)[block.id],)])
+        )
+
+        self.assertRaises(TypeError, EventList.__getitem__, eventList, 'd')
+
         # if the transform returns a none type, it should just skip through
         # and return None
-        self.assertEqual(self.eventList1[0], None)
-        self.assertEqual(self.eventList1[1], None)
-        self.assertEqual(self.eventList1[2], None)
-        self.assertEqual(self.eventList1[3], None)
-        
-        self.mockForGetItem(2)
-        
+        eventList.configure_mock(
+            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
+                        None),
+            _getBlockRollingMean=lambda blockIdx: None,
+            hasSubchannels=True,
+        )
+        self.assertEqual(EventList.__getitem__(eventList, 0), None)
+        self.assertEqual(EventList.__getitem__(eventList, 1), None)
+        self.assertEqual(EventList.__getitem__(eventList, 2), None)
+        self.assertEqual(EventList.__getitem__(eventList, 3), None)
+
+        # if parent.parseBlock just bounces back data, then it should just
+        # get a tuple with the timestamp and data
+        eventList.configure_mock(
+            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
+                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _getBlockRollingMean=lambda blockIdx: None,
+            hasSubchannels=True,
+        )
+        self.assertEqual(EventList.__getitem__(eventList, 0), (0.00, 0))
+        self.assertEqual(EventList.__getitem__(eventList, 1), (0.01, 7))
+        self.assertEqual(EventList.__getitem__(eventList, 2), (0.02, 14))
+        self.assertEqual(EventList.__getitem__(eventList, 3), (0.03, 21))
+
         # If there is an offset, return a tuple of the timestamp and data,
         # minus the offset
-        self.assertEqual(self.eventList1[0], (0, (-1,)))
-        self.assertEqual(self.eventList1[1], (0, (0,)))
-        self.assertEqual(self.eventList1[2], (0, (1,)))
-        self.assertEqual(self.eventList1[3], (0, (2,)))
-        
+        eventList.configure_mock(
+            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
+                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _getBlockRollingMean=lambda blockIdx: (-5,),
+            hasSubchannels=True,
+        )
+
+        self.assertEqual(EventList.__getitem__(eventList, 0), (0.00, 35))
+        self.assertEqual(EventList.__getitem__(eventList, 1), (0.01, 42))
+        self.assertEqual(EventList.__getitem__(eventList, 2), (0.02, 49))
+        self.assertEqual(EventList.__getitem__(eventList, 3), (0.03, 56))
+
+        # if hasSubchannels is True, return a tuple of the timestamp and
+        # the single channel's data
+        eventList.configure_mock(
+            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
+                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _getBlockRollingMean=lambda blockIdx: None,
+            hasSubchannels=False, subchannelId=0
+        )
+        eventList.parent.configure_mock()
+        self.assertEqual(EventList.__getitem__(eventList, 0), (0.00, 0))
+        self.assertEqual(EventList.__getitem__(eventList, 1), (0.01, 7))
+        self.assertEqual(EventList.__getitem__(eventList, 2), (0.02, 14))
+        self.assertEqual(EventList.__getitem__(eventList, 3), (0.03, 21))
+
         
     def testIter(self):
-        """ Test for iter special method. """
-        self.eventList1._data = [GenericObject(),
-                                 GenericObject(),
-                                 GenericObject(),
-                                 GenericObject()]
-        self.eventList1._fullXform = lambda x, session, noBivariates: x
-        
-        self.assertListEqual(
-            [x for x in self.eventList1],
-            [x for x in self.eventList1.iterSlice()])
+        """ Test for iter magic method. """
+        eventList = mock.Mock(spec=EventList)
+        self.assertEqual(EventList.__iter__(eventList), eventList.iterSlice())
             
             
     # TODO talk to david about how to test these
     def testItervalues(self):
         """ Test for itervalues method. """
-        self.mockData()
-        self.eventList1.iterSlice = self.mockIterslice
-        
-        self.assertEqual([x for x in self.eventList1.itervalues()], [1, 2, 3, 4])            
-        self.assertEqual(self.iterArgs, (0, -1, 1, False))
-        
-        
-    def testIterSlice(self):
-        """ print(self.eventList1.iterSlice()) """
-        self.eventList1._data = [GenericObject(),
-                                 GenericObject(),
-                                 GenericObject(),
-                                 GenericObject()]
-        self.eventList1._fullXform = lambda x, session, noBivariates: x
-        
+
+        # Stub dependencies
+        length = 4
+        eventList = mock.Mock(spec=EventList)
+        eventList.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
+                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
+                                     range(length)[idx]),
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: (0,),
+            allowMeanRemoval=True,
+            removeMean=True,
+            hasMinMeanMax=True,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+            iterSlice=lambda *a, **kw: EventList.iterSlice(eventList, *a, **kw)
+        )
+        eventList._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, numSamples=1,
+                startTime=eventList._getBlockSampleTime(i),
+            )
+        )
+        eventList.parent.configure_mock(
+            parseBlock=(lambda block, start=0, end=-1, step=1:
+                        [(range(length)[block.id],)])
+        )
+
+        # Run test
         self.assertListEqual(
-            [x for x in self.eventList1.iterSlice()], 
-            [(0, self.channel1.parseBlock(self.eventList1._data[0])[0]), 
-             (0, -3), 
-             (0,1 ), 
-             (0, 1)])
-        
-        
+            list(EventList.itervalues(eventList)),
+            [(0,), (7,), (14,), (21,)]
+        )
+
+
+    def testIterSlice(self):
+        """ Test for iterSlice method. """
+        # Stub dependencies
+        length = 4
+        eventList = mock.Mock(spec=EventList)
+        eventList.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
+                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
+                                     range(length)[idx]),
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: (0,),
+            allowMeanRemoval=True,
+            removeMean=True,
+            hasMinMeanMax=True,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+        )
+        eventList._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, numSamples=1,
+                startTime=eventList._getBlockSampleTime(i),
+            )
+        )
+        eventList.parent.configure_mock(
+            parseBlock=(lambda block, start=0, end=-1, step=1:
+                        [(range(length)[block.id],)])
+        )
+
+        # Run test
+        self.assertListEqual(
+            list(EventList.iterSlice(eventList)),
+            [(0.00, 0), (0.01, 7), (0.02, 14), (0.03, 21)]
+        )
+
+
     def testIterJitterySlice(self):
         """ Test for the iterJitterySlice method. """
-        self.eventList1._data = [GenericObject(),
-                                 GenericObject(),
-                                 GenericObject(),
-                                 GenericObject()]
-        self.eventList1._fullXform = lambda x, session, noBivariates: x
-        
+        # Stub dependencies
+        length = 4
+        eventList = mock.Mock(spec=EventList)
+        eventList.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
+                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
+                                     range(length)[idx]),
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: (0,),
+            allowMeanRemoval=True,
+            removeMean=True,
+            hasMinMeanMax=True,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+        )
+        eventList._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, numSamples=1,
+                startTime=eventList._getBlockSampleTime(i),
+            )
+        )
+        eventList.parent.configure_mock(
+            parseBlockByIndex=(lambda block, indices, subchannel=None:
+                               [(range(length)[block.id],)])
+        )
+
+        # Run test
         self.assertListEqual(
-            [x for x in self.eventList1.iterJitterySlice()],
-            [(0, self.channel1.parseBlock(self.eventList1._data[0])[0]),
-             (0, [-3, -2, -1, 0]), 
-             (0, None)])
-
-
+            list(EventList.iterJitterySlice(eventList)),
+            [(0.00, 0), (0.01, 7), (0.02, 14), (0.03, 21)]
+        )
+        
+        
     def testGetEventIndexBefore(self):
         """ Test for getEventIndexBefore method. """
         self.mockData()
@@ -1285,76 +1414,80 @@ class EventListTestCase(unittest.TestCase):
         self.mockData()
         self.eventList1._data[0].minMeanMax = 1
         self.eventList1._data[0].blockIndex = 2
-        self.eventList1._data[0].min = [3]
-        self.eventList1._data[0].mean = [4]
-        self.eventList1._data[0].max = [5]
-        
-        self.assertListEqual(
-            [x for x in self.eventList1.iterMinMeanMax()], 
-            [[(0,(3,)),(0,(4,)),(0,(5,))]])
-         
-            
+        self.eventList1._data[0].min = (3,)
+        self.eventList1._data[0].mean = (4,)
+        self.eventList1._data[0].max = (5,)
+
+        self.assertSequenceEqual(
+            [x for x in self.eventList1.iterMinMeanMax()],
+            [((0, 3), (0, 4), (0, 5))])
+
+
     def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
         self.mockData()
         self.eventList1._data[0].minMeanMax = 1
         self.eventList1._data[0].blockIndex = 2
-        self.eventList1._data[0].min = [3]
-        self.eventList1._data[0].mean = [4]
-        self.eventList1._data[0].max = [5]
-        
-        self.assertEqual(
+        self.eventList1._data[0].min = (3,)
+        self.eventList1._data[0].mean = (4,)
+        self.eventList1._data[0].max = (5,)
+
+        self.assertListEqual(
             self.eventList1.getMinMeanMax(),
-            [[(0,(3,)), (0,(4,)), (0,(5,))]])
+            [((0, 3), (0, 4), (0, 5))])
         self.assertEqual(
             self.dataset.channels[32].getSession().getMinMeanMax(),
             [])
-            
-            
+
+
     def testGetRangeMinMeanMax(self):
         """ Test for getRangeMinMeanMax method. """
         self.mockData()
         self.eventList1._data[0].minMeanMax = 1
         self.eventList1._data[0].blockIndex = 2
-        self.eventList1._data[0].min = [3]
-        self.eventList1._data[0].mean = [4]
-        self.eventList1._data[0].max = [5]
-        
+        self.eventList1._data[0].min = (3,)
+        self.eventList1._data[0].mean = (4,)
+        self.eventList1._data[0].max = (5,)
+
         self.assertEqual(self.eventList1.getRangeMinMeanMax(), (3, 4, 5))
-        
-        
+
+
     def testGetMax(self):
         """ Test for getMax method. """
-        self.mockData()
-        self.eventList1._data[0].minMeanMax = [1]
-        self.eventList1._data[0].blockIndex = [2]
-        self.eventList1._data[0].min = [3]
-        self.eventList1._data[0].mean = [4]
-        self.eventList1._data[0].max = [5]
-        
-        def mockSliceForMax(*args, **kwargs):
-            return [[args]]
-        self.eventList1.iterSlice = mockSliceForMax
-             
-        self.assertEqual(self.eventList1.getMax(), [(0, 3)])
-        
-        
+        # Stub dependencies
+        eventList = mock.Mock(spec=EventList)
+        eventList.configure_mock(
+            _data=mock.Mock(__getitem__=lambda self, idx: mock.Mock(
+                indexRange=(mock.sentinel.start, mock.sentinel.end)
+            )),
+            hasMinMeanMax=False,
+            hasSubchannels=False,
+            iterMinMeanMax=lambda *a, **kw: [((0, 3), (0, 4), (0, 5))],
+            iterSlice=lambda *a, **kw: [(0, 3), (0, 3.5), (0, 4.5), (0, 5)],
+        )
+
+        # Run test
+        self.assertEqual(EventList.getMax(eventList), (0, 5))
+
+
     def testGetMin(self):
         """ test for getMin method. """
-        self.mockData()
-        self.eventList1._data[0].minMeanMax = [1]
-        self.eventList1._data[0].blockIndex = [2]
-        self.eventList1._data[0].min = [3]
-        self.eventList1._data[0].mean = [4]
-        self.eventList1._data[0].max = [5]
-        
-        def mockSliceForMax(*args, **kwargs):
-            return [[args]]
-        self.eventList1.iterSlice = mockSliceForMax
-             
-        self.assertEqual(self.eventList1.getMin(), [(0, 3)])
-        
-        
+        # Stub dependencies
+        eventList = mock.Mock(spec=EventList)
+        eventList.configure_mock(
+            _data=mock.Mock(__getitem__=lambda self, idx: mock.Mock(
+                indexRange=(mock.sentinel.start, mock.sentinel.end)
+            )),
+            hasMinMeanMax=False,
+            hasSubchannels=False,
+            iterMinMeanMax=lambda *a, **kw: [((0, 3), (0, 4), (0, 5))],
+            iterSlice=lambda *a, **kw: [(0, 3), (0, 3.5), (0, 4.5), (0, 5)],
+        )
+
+        # Run test
+        self.assertEqual(EventList.getMin(eventList), (0, 3))
+
+
     def testGetSampleTime(self):
         """ Test for getSampleTime method. """
         self.mockData()
@@ -1376,72 +1509,77 @@ class EventListTestCase(unittest.TestCase):
         self.assertEqual(self.eventList1.getSampleRate(0), 5)
         self.assertEqual(self.dataset.channels[32].getSession().getSampleRate(), 3)
         self.assertEqual(self.dataset.channels[32].getSession().getSampleRate(0), 5)
-        
-        
+
+
     def testGetValueAt(self):
         """ Test for getValueAt method. """
-        # mocking
-        self.mockData()
-        fakeData = GenericObject()
-        fakeData.numSamples = 1
-        fakeData.startTime = 0
-        fakeData.endTime = 4
-        fakeData.minMeanMax = (5, 6, 7)
-        fakeData.parseMinMeanMax = lambda x: x
-        
-        self.eventList1.append(fakeData)
-        
-        # bonus mocking.  repeating for every test to ensure that it's sending
-        # the values it needs to
-        self.eventList1._fullXform = self.mockXform
-        self.mockXformReturn = [[0], [0], 0, [0]] 
-        self.assertEqual(
-            self.eventList1.getValueAt(0, outOfRange=True), 
-            [[0], [0], 1, [0]])
-        
-        self.mockXformReturn = [[0], [0], -1, [0]]
-        self.assertEqual(self.eventList1.getValueAt(0), [[0], [0], 0, [0]])
-        
-        self.mockXformReturn = [[0], [0], -1, [0]]        
-        self.eventList1.getEventIndexBefore = lambda x: 1
-        self.assertEqual(self.eventList1.getValueAt(0), [[0], [0], 0, [0]])
-        
-        self.mockXformReturn = [[0], [0], -1, [0]]        
-        self.eventList1.getEventIndexBefore = lambda x: 0
-        self.mockXformReturn = [[0], [0], 0, [0]]
-        self.assertEqual(self.eventList1.getValueAt(0), (0, (0.0,)))
-        
-        
+        # Stub dependencies
+        length = 4
+        eventList = mock.Mock(spec=EventList)
+        eventList.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
+                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _data=mock.Mock(),
+            getEventIndexBefore=lambda at: min(max(-1, int(at//0.01)), length-1),
+            _getBlockIndexWithIndex=lambda idx: range(length)[idx],
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: None,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+            __getitem__=lambda self, *a, **kw: EventList.__getitem__(eventList, *a, **kw),
+        )
+        eventList._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, startTime=eventList._getBlockSampleTime(i)
+            )
+        )
+        eventList.parent.configure_mock(
+            parseBlock=(lambda block, start=0, end=-1, step=1:
+                        [(range(length)[block.id],)])
+        )
+        eventList.parent.types.__len__ = lambda self: 1
+
+        # Run test
+        self.assertRaises(IndexError, EventList.getValueAt, eventList, -0.01)
+        self.assertEqual(EventList.getValueAt(eventList, -0.01, outOfRange=True), (0.00, 0))
+        self.assertEqual(EventList.getValueAt(eventList, 0.00), (0.00, 0))
+        self.assertEqual(EventList.getValueAt(eventList, 0.01), (0.01, 7))
+        self.assertEqual(EventList.getValueAt(eventList, 0.02), (0.02, 14))
+        self.assertEqual(EventList.getValueAt(eventList, 0.03), (0.03, 21))
+        self.assertEqual(EventList.getValueAt(eventList, 0.04, outOfRange=True), (0.03, 21))
+        self.assertRaises(IndexError, EventList.getValueAt, eventList, 0.04)
+
+
     def testGetMeanNear(self):
         """ Test for getMeanNear method. """
-        # mock everthing up
-        self.mockData()
-        
-        def mockComboXform(*args, **kwargs):
-            self.comboArgs = args
-            self.comboKwargs = kwargs
-            
-            return [[0]]
-        
-        self.eventList1._comboXform = mockComboXform
-        self.eventList1._data[0].minMeanMax = 0
-        self.eventList1._data[0]._rollingMean = 0
-        self.eventList1._data[0]._rollingMeanSpan = 0
-        self.eventList1._data[0].mean = 0
-        
-        self.assertEqual(self.eventList1.getMeanNear(0), [0])
-        self.assertEqual(self.comboArgs, ((0,0),))
-        self.assertEqual(self.comboKwargs, {})
-        
-        # test for an eventlist with no subchannels
-        self.eventList1.hasSubchannels = False   
-        self.eventList1.subchannelId = 0 
-        
-        self.assertEqual(self.eventList1.getMeanNear(0), 0)
-        self.assertEqual(self.comboArgs, ((0,0),))
-        self.assertEqual(self.comboKwargs, {})
-        
-        
+        # Stub dependencies
+        length = 4
+        eventList = mock.Mock(spec=EventList)
+        eventList.configure_mock(
+            __len__=lambda self: length,
+            _comboXform=(lambda timeAndVal, session=None, noBivariates=False:
+                         timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _data=mock.Mock(),
+            _getBlockIndexWithTime=lambda at: min(max(-1, int((at+0.005)//0.01)), length-1),
+            _getBlockRollingMean=lambda blockIdx, force=False: (range(length)[blockIdx],),
+            hasSubchannels=True,
+        )
+        eventList._data.configure_mock(
+            __len__=eventList.__len__,
+        )
+
+        # Run test
+        self.assertEqual(EventList.getMeanNear(eventList, 0.00), (0,))
+        self.assertEqual(EventList.getMeanNear(eventList, 0.01), (7,))
+        self.assertEqual(EventList.getMeanNear(eventList, 0.02), (14,))
+        self.assertEqual(EventList.getMeanNear(eventList, 0.03), (21,))
+
+
     def testExportCSV(self):
         """ Test exportCsv, """
         self.mockData()

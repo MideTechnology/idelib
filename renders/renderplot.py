@@ -71,7 +71,7 @@ class PlotView(FFTView):
                         return
                     pts = points[col]
                     pts[row,0] = evt[0]*timeScalar
-                    pts[row,1] = evt[1][ch.id]
+                    pts[row,1] = evt[1+ch.id]
             
             lines = [None]*len(self.subchannels)
             for col, ch in enumerate(self.subchannels):
