@@ -1761,7 +1761,7 @@ class EventList(Transformable):
                     logger.warning("iterJitterySlice: offset is None")
                     sleep(0.001)
                     offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                offset = numpy.array(offsetx[1])
+                offset = np.array(offsetx[1])
                 
             for t, vs in izip(times, values):
                 eventx = xform(t, vs, session, noBivariates=self.noBivariates)
