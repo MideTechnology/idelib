@@ -1476,7 +1476,7 @@ class EventList(Transformable):
                     offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
                 offsetx = np.array(offsetx[1])
                 t = timestamp
-                vs = tuple(event[1:]-offsetx)
+                vs = tuple(vs-offsetx)
                 
             if self.hasSubchannels:
                 return (t,) + vs
@@ -2327,8 +2327,8 @@ class EventList(Transformable):
             b = min(len(self._data)-1,b)
         m = self._comboXform(t, self._getBlockRollingMean(b, force=True))[1]
         if self.hasSubchannels:
-            return m[1:]
-        return m[1+self.subchannelId]
+            return m
+        return m[self.subchannelId]
         
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
