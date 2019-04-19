@@ -1465,7 +1465,7 @@ class EventList(Transformable):
                 logger.info( "%s: bad transform %r %r" % (self.parent.name,timestamp, value))
                 sleep(0.001)
                 event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
-            t, vs = event
+            time, vals = event
 
             offset = self._getBlockRollingMean(blockIdx)
             if offset is not None:
@@ -1475,14 +1475,14 @@ class EventList(Transformable):
                     sleep(0.001)
                     offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
                 offsetx = np.array(offsetx[1])
-                t = timestamp
-                vs = tuple(vs-offsetx)
+                time = timestamp
+                vals = tuple(vals-offsetx)
                 
             if self.hasSubchannels:
-                return (t,) + vs
+                return (time,) + vals
             else:
                 # Doesn't quite work; transform dataset attribute not set?
-                return (t, vs[self.subchannelId])
+                return (time, vals[self.subchannelId])
 
         elif isinstance(idx, slice):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
@@ -1659,20 +1659,20 @@ class EventList(Transformable):
                 if offsetx is not None:
                     offset = np.array(offsetx[1])
                 
-            for t, vs in izip(times, values):
-                eventx = xform(t, vs, session=session, noBivariates=self.noBivariates)
+            for time, vals in izip(times, values):
+                eventx = xform(time, vals, session=session, noBivariates=self.noBivariates)
                 if eventx is None:
                     logger.info( "%s: bad transform @%s" % (self.parent.name,event[0]))
                     sleep(0.001)
-                    eventx = xform(t, vs, session=session, noBivariates=self.noBivariates)
-                t, vs = eventx
+                    eventx = xform(time, vals, session=session, noBivariates=self.noBivariates)
+                time, vals = eventx
                     
                 if offset is not None:
-                    vs = tuple(vs-offset)
+                    vals = tuple(vals-offset)
                 if hasSubchannels:
-                    yield (t,) + vs
+                    yield (time,) + vals
                 else:
-                    yield (t, vs[subchannelId])
+                    yield (time, vals[subchannelId])
             
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1763,22 +1763,22 @@ class EventList(Transformable):
                     offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
                 offset = np.array(offsetx[1])
                 
-            for t, vs in izip(times, values):
-                eventx = xform(t, vs, session, noBivariates=self.noBivariates)
+            for time, vals in izip(times, values):
+                eventx = xform(time, vals, session, noBivariates=self.noBivariates)
                 if eventx is None:
                     # Thread-induced race condition? Try again.
                     sleep(0.001)
-                    eventx = xform(t, vs, session, noBivariates=self.noBivariates)
-                t, vs = eventx
+                    eventx = xform(time, vals, session, noBivariates=self.noBivariates)
+                time, vals = eventx
                     
                 if offset is not None:
-                    vs = tuple(vs-offset)
+                    vals = tuple(vals-offset)
                 else:
                     logger.info('%r event offset is None' % self.parent.name)
                 if hasSubchannels:
-                    yield (t,) + vs
+                    yield (time,) + vals
                 else:
-                    yield (t, vs[subchannelId])
+                    yield (time, vals[subchannelId])
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1924,41 +1924,41 @@ class EventList(Transformable):
 #             if block.minMeanMax is None:
 #                 continue
 
-            t = block.startTime
-            m = _getBlockRollingMean(block.blockIndex)
+            time = block.startTime
+            mean = _getBlockRollingMean(block.blockIndex)
             
             # HACK: Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
             tries = 0
-            if removeMean and m is None:
+            if removeMean and mean is None:
                 sleep(0.01)
-                m = _getBlockRollingMean(block.blockIndex)
+                mean = _getBlockRollingMean(block.blockIndex)
                 tries += 1
                 if tries > 10:
                     break
             
-            if m is not None:
-                mx = xform(t, m, session, noBivariates=self.noBivariates)
+            if mean is not None:
+                mx = xform(time, mean, session, noBivariates=self.noBivariates)
                 if mx is None:
                     sleep(0.005)
-                    mx = xform(t, m, session, noBivariates=self.noBivariates)
+                    mx = xform(time, mean, session, noBivariates=self.noBivariates)
                     if mx is None:
-                        mx = t, m
-                m = np.array(mx[1])
+                        mx = time, mean
+                mean = np.array(mx[1])
                 
             result = []
             result_append = result.append
             
             for val in (block.min, block.mean, block.max):
-                event=xform(t, val, session, noBivariates=self.noBivariates)
+                event=xform(time, val, session, noBivariates=self.noBivariates)
                 if event is None:
                     sleep(0.005)
-                    event = xform(t, val, session, noBivariates=self.noBivariates)
+                    event = xform(time, val, session, noBivariates=self.noBivariates)
                     if event is None:
-                        event = t, val
+                        event = time, val
                 eTime, eVals = event
-                if m is not None:
-                    eVals -= m
+                if mean is not None:
+                    eVals -= mean
                 result_append(eVals)
             
             # Transformation has negative coefficient for inverted z-axis data
