@@ -1925,26 +1925,26 @@ class EventList(Transformable):
 #                 continue
 
             time = block.startTime
-            mean = _getBlockRollingMean(block.blockIndex)
+            offset = _getBlockRollingMean(block.blockIndex)
             
             # HACK: Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
             tries = 0
-            if removeMean and mean is None:
+            if removeMean and offset is None:
                 sleep(0.01)
-                mean = _getBlockRollingMean(block.blockIndex)
+                offset = _getBlockRollingMean(block.blockIndex)
                 tries += 1
                 if tries > 10:
                     break
             
-            if mean is not None:
-                mx = xform(time, mean, session, noBivariates=self.noBivariates)
-                if mx is None:
+            if offset is not None:
+                offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
+                if offsetx is None:
                     sleep(0.005)
-                    mx = xform(time, mean, session, noBivariates=self.noBivariates)
-                    if mx is None:
-                        mx = time, mean
-                mean = np.array(mx[1])
+                    offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
+                    if offsetx is None:
+                        offsetx = time, offset
+                offset = np.array(offsetx[1])
                 
             result = []
             result_append = result.append
@@ -1957,8 +1957,8 @@ class EventList(Transformable):
                     if event is None:
                         event = time, val
                 eTime, eVals = event
-                if mean is not None:
-                    eVals -= mean
+                if offset is not None:
+                    eVals -= offset
                 result_append(eVals)
             
             # Transformation has negative coefficient for inverted z-axis data
