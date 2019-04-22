@@ -1240,8 +1240,6 @@ class EventListTestCase(unittest.TestCase):
         length = 4
         eventList = mock.Mock(spec=EventList)
         eventList.configure_mock(
-            EventTuple=lambda *x: tuple(x),
-            ValuesTuple=lambda *x: tuple(x),
             useAllTransforms=True,
             __len__=lambda self: length,
             _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
@@ -1285,7 +1283,6 @@ class EventListTestCase(unittest.TestCase):
         length = 4
         eventList = mock.Mock(spec=EventList)
         eventList.configure_mock(
-            EventTuple=lambda *x: tuple(x),
             useAllTransforms=True,
             __len__=lambda self: length,
             _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
@@ -1328,7 +1325,6 @@ class EventListTestCase(unittest.TestCase):
         length = 4
         eventList = mock.Mock(spec=EventList)
         eventList.configure_mock(
-            EventTuple=lambda *x: tuple(x),
             useAllTransforms=True,
             __len__=lambda self: length,
             _fullXform=(lambda timeAndVal, session=None, noBivariates=False:

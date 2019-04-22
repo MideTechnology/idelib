@@ -59,7 +59,7 @@ __all__ = ('Channel Dataset EventList EventArray Plot Sensor Session'
            ' SubChannel WarningRange Cascading Transformable'.split())
 
 from bisect import bisect_right
-from collections import Iterable, namedtuple
+from collections import Iterable
 from datetime import datetime
 from itertools import imap, izip
 import os.path
@@ -1122,15 +1122,7 @@ class EventList(Transformable):
         self.transform = None
         self.useAllTransforms = True
         self.updateTransforms(recurse=False)
-        self.allowMeanRemoval = parentChannel.allowMeanRemoval
-
-        if self.hasSubchannels:
-            chNames = ['ch'+str(i) for i in xrange(len(self.parent.types))]
-        else:
-            chNames = ['ch'+str(self.parent.id)]
-        self.EventTuple = namedtuple('EventTuple', ['time'] + chNames)
-        self.ValuesTuple = namedtuple('ValuesTuple', chNames)
-
+        self.allowMeanRemoval = parentChannel.allowMeanRemoval    
     
         
 #     def setTransform(self, xform, update=True):
@@ -1425,8 +1417,8 @@ class EventList(Transformable):
         try:
             block._rollingMean = rollingMean = tuple(np.median(
                 [b.mean for b in self._data[firstBlock:lastBlock]],
-                axis=0, overwrite_input=True, keepdims=True
-            )[0])
+                axis=0, overwrite_input=True
+            ))
             block._rollingMeanSpan = rollingMeanSpan = span
             block._rollingMeanLen = rollingMeanLen = len(self._data)
         
@@ -1479,27 +1471,29 @@ class EventList(Transformable):
             timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
             value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
             
-            event = xform((timestamp,)+value, session=self.session, noBivariates=self.noBivariates)
+            event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
             if event is None:
                 logger.info( "%s: bad transform %r %r" % (self.parent.name,timestamp, value))
                 sleep(0.001)
-                event = xform((timestamp,)+value, session=self.session, noBivariates=self.noBivariates)
-                
+                event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
+            time, vals = event
+
             offset = self._getBlockRollingMean(blockIdx)
             if offset is not None:
-                offsetx = xform((timestamp,)+offset, session=self.session, noBivariates=self.noBivariates)
+                offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
                 if offsetx is None:
                     logger.info( "%s: bad offset @%s" % (self.parent.name,timestamp))
                     sleep(0.001)
-                    offsetx = xform((timestamp,)+offset, session=self.session, noBivariates=self.noBivariates)
-                offsetx = np.array(offsetx[1:])
-                event = (timestamp,) + tuple(event[1:]-offsetx)
+                    offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
+                offsetx = np.array(offsetx[1])
+                time = timestamp
+                vals = tuple(vals-offsetx)
                 
             if self.hasSubchannels:
-                return event
+                return (time,) + vals
             else:
                 # Doesn't quite work; transform dataset attribute not set?
-                return event[:1] + (event[1+self.subchannelId],)
+                return (time, vals[self.subchannelId])
 
         elif isinstance(idx, slice):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
@@ -1579,14 +1573,13 @@ class EventList(Transformable):
         # TODO: Optimize; times don't need to be computed since they aren't used
         if self.hasSubchannels and subchannels != True:
             # Create a function instead of chewing the subchannels every time
-            chFilter = eval("lambda x: struct(%s)" % ",".join(
+            chFilter = eval("lambda x: (%s,)" % ",".join(
                 "x[%d]" % (1+ch) for ch in subchannels
-            ), {'struct': self.ValuesTuple})
+            ))
             return (chFilter(event)
                     for event in self.iterSlice(start, end, step, display))
         else:
-            ValuesTuple = self.ValuesTuple
-            return (ValuesTuple(*event[1:])
+            return (event[1:]
                     for event in self.iterSlice(start, end, step, display))
 
 
@@ -1653,8 +1646,6 @@ class EventList(Transformable):
         else:
             xform = self._comboXform
 
-        EventTuple = self.EventTuple
-
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
             blockIdx = int(startBlockIdx + (i * blockStep))
@@ -1671,29 +1662,28 @@ class EventList(Transformable):
                     logger.info( "%s: bad offset (1) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
-                offsetx = xform((block.startTime,)+offset, session=session, noBivariates=self.noBivariates)
+                offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
                 if offsetx is None:
                     logger.info( "%s: bad offset(2) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
-                    offsetx = xform((block.startTime,)+offset, session=session, noBivariates=self.noBivariates)
+                    offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
                 if offsetx is not None:
-                    offset = np.array(offsetx[1:])
+                    offset = np.array(offsetx[1])
                 
-            for time, value in izip(times, values):
-                event = (time,)+value
-                eventx = xform(event, session=session, noBivariates=self.noBivariates)
+            for time, vals in izip(times, values):
+                eventx = xform(time, vals, session=session, noBivariates=self.noBivariates)
                 if eventx is None:
                     logger.info( "%s: bad transform @%s" % (self.parent.name,event[0]))
                     sleep(0.001)
-                    eventx = xform(event, session=session, noBivariates=self.noBivariates)
-                event = eventx
+                    eventx = xform(time, vals, session=session, noBivariates=self.noBivariates)
+                time, vals = eventx
                     
                 if offset is not None:
-                    event = event[:1] + tuple(event[1:]-offset)
+                    vals = tuple(vals-offset)
                 if hasSubchannels:
-                    yield EventTuple(*event)
+                    yield (time,) + vals
                 else:
-                    yield EventTuple(event[0], event[1+subchannelId])
+                    yield (time, vals[subchannelId])
             
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1753,8 +1743,6 @@ class EventList(Transformable):
                 xform = self._displayXform or xform
         else:
             xform = self._comboXform
-
-        EventTuple = self.EventTuple
         
         # in each block, the next subIdx is (step+subIdx)%numSamples
         for i in xrange(numBlocks):
@@ -1778,31 +1766,30 @@ class EventList(Transformable):
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
                 
-                offsetx = xform((block.startTime,)+offset, session=session, noBivariates=self.noBivariates)
+                offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
                 if offsetx is None:
                     # Thread-induced race condition? Try again.
                     logger.warning("iterJitterySlice: offset is None")
                     sleep(0.001)
-                    offsetx = xform((block.startTime,)+offset, session=session, noBivariates=self.noBivariates)
-                offset = np.array(offsetx[1:])
+                    offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
+                offset = np.array(offsetx[1])
                 
-            for time, value in izip(times, values):
-                event = (time,) + value
-                eventx = xform(event, session, noBivariates=self.noBivariates)
+            for time, vals in izip(times, values):
+                eventx = xform(time, vals, session, noBivariates=self.noBivariates)
                 if eventx is None:
                     # Thread-induced race condition? Try again.
                     sleep(0.001)
-                    eventx = xform(event, session, noBivariates=self.noBivariates)
-                event = eventx
+                    eventx = xform(time, vals, session, noBivariates=self.noBivariates)
+                time, vals = eventx
                     
                 if offset is not None:
-                    event = event[:1] + tuple(event[1:]-offset)
+                    vals = tuple(vals-offset)
                 else:
                     logger.info('%r event offset is None' % self.parent.name)
                 if hasSubchannels:
-                    yield EventTuple(*event)
+                    yield (time,) + vals
                 else:
-                    yield EventTuple(event[0], event[1+subchannelId])
+                    yield (time, vals[subchannelId])
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1903,8 +1890,6 @@ class EventList(Transformable):
         return self.iterSlice(startIdx,endIdx,step,display=display)        
 
 
-    StatsTuple = namedtuple('StatsTuple', 'min mean max')
-
     def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
                        times=True, display=False):
         """ Get the minimum, mean, and maximum values for blocks within a
@@ -1944,55 +1929,48 @@ class EventList(Transformable):
         else:
             xform = self._comboXform
 
-        StatsTuple = EventList.StatsTuple
-        SubchannelTuple = self.EventTuple if times else self.ValuesTuple
-
         for block in self._data[startBlockIdx:endBlockIdx]:
             # NOTE: Without this, a file in which some blocks don't have
             # min/mean/max will fail. Should not happen, though.
 #             if block.minMeanMax is None:
 #                 continue
 
-            t = np.array(block.startTime, dtype=np.float64)
-            if t.ndim == 0:
-                t = np.expand_dims(t, 0)
-            m = _getBlockRollingMean(block.blockIndex)
+            time = block.startTime
+            offset = _getBlockRollingMean(block.blockIndex)
             
             # HACK: Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
             tries = 0
-            if removeMean and m is None:
+            if removeMean and offset is None:
                 sleep(0.01)
-                m = _getBlockRollingMean(block.blockIndex)
+                offset = _getBlockRollingMean(block.blockIndex)
                 tries += 1
                 if tries > 10:
                     break
             
-            if m is not None:
-                m = np.append(t, m, axis=0)
-                mx = xform(m, session, noBivariates=self.noBivariates)
-                if mx is None:
+            if offset is not None:
+                offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
+                if offsetx is None:
                     sleep(0.005)
-                    mx = xform(m, session, noBivariates=self.noBivariates)
-                    if mx is None:
-                        mx = m
-                m = mx[1:]
+                    offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
+                    if offsetx is None:
+                        offsetx = time, offset
+                offset = np.array(offsetx[1])
                 
             result = []
             result_append = result.append
             
             for val in (block.min, block.mean, block.max):
-                val = np.append(t, val.astype(np.float64))
-                event = xform(val, session, noBivariates=self.noBivariates)
+                event=xform(time, val, session, noBivariates=self.noBivariates)
                 if event is None:
                     sleep(0.005)
-                    event = xform(val, session, noBivariates=self.noBivariates)
+                    event = xform(time, val, session, noBivariates=self.noBivariates)
                     if event is None:
-                        event = xform(val, session, noBivariates=self.noBivariates )
-
-                if m is not None:
-                    event[1:] -= m
-                result_append(event[1:])
+                        event = time, val
+                timex, valx = event
+                if offset is not None:
+                    valx -= offset
+                result_append(valx)
             
             # Transformation has negative coefficient for inverted z-axis data
             # -> need to sort mins/maxes to compensate
@@ -2005,9 +1983,9 @@ class EventList(Transformable):
                     result = result[::-1]
 
             if times:
-                yield StatsTuple(*(SubchannelTuple(event[0], *x) for x in result))
+                yield tuple((timex,)+x for x in result)
             else:
-                yield StatsTuple(*(SubchannelTuple(*x) for x in result))
+                yield tuple(result)
 
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
@@ -2358,10 +2336,10 @@ class EventList(Transformable):
         b = self._getBlockIndexWithTime(t)
         if outOfRange:
             b = min(len(self._data)-1,b)
-        m = self._comboXform(np.append(t, self._getBlockRollingMean(b, force=True)))
+        m = self._comboXform(t, self._getBlockRollingMean(b, force=True))[1]
         if self.hasSubchannels:
-            return m[1:]
-        return m[1+self.subchannelId]
+            return m
+        return m[self.subchannelId]
         
 
     def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
@@ -2566,9 +2544,8 @@ class EventArray(EventList):
             """ Creates a structured array of event data for a given set of
                 event times and values. (Used in event iteration methods.)
             """
-            blockEvents = retryUntilReturn(
-                lambda: xform(np.append(times[np.newaxis], values, axis=0),
-                              session=session,
+            times, values = retryUntilReturn(
+                lambda: xform(times, values, session=session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=lambda: logger.info(
@@ -2576,6 +2553,7 @@ class EventArray(EventList):
                     % (parent.name, times)
                 ),
             )
+            values = np.asarray(values)
 
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
@@ -2587,9 +2565,8 @@ class EventArray(EventList):
                         % (parent.name, block.startTime)
                     ),
                 )
-                offset = retryUntilReturn(
-                    lambda: xform(np.append(block.startTime, offset),
-                                  session=session,
+                _, offset = retryUntilReturn(
+                    lambda: xform(block.startTime, offset, session=session,
                                   noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=lambda: logger.info(
@@ -2599,14 +2576,14 @@ class EventArray(EventList):
                 )
 
                 if offset is not None:
-                    blockEvents[1:] -= np.asarray(offset[1:])[..., np.newaxis]
+                    values -= np.array(offset)[..., np.newaxis]
                 else:
                     logger.info('%r event offset is None' % parent.name)
 
             if not hasSubchannels:
-                blockEvents = blockEvents[[0, subchannelId]]
+                values = values[[subchannelId]]
 
-            return blockEvents
+            return (times, values)
 
         return _makeBlockEvents
 
@@ -2685,8 +2662,8 @@ class EventArray(EventList):
             value = self.parent.parseBlock(block, start=subIdx,
                                            end=subIdx+1)[:, 0]
 
-            event = retryUntilReturn(
-                lambda: xform(np.append(timestamp, value), session=self.session,
+            _, value = retryUntilReturn(
+                lambda: xform(timestamp, value, session=self.session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=lambda: logger.info(
@@ -2697,8 +2674,8 @@ class EventArray(EventList):
 
             offset = self._getBlockRollingMean(blockIdx)
             if offset is not None:
-                offsetx = retryUntilReturn(
-                    lambda: xform((timestamp, offset), session=self.session,
+                _, offset = retryUntilReturn(
+                    lambda: xform(timestamp, offset, session=self.session,
                                   noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001,
                     on_fail=lambda: logger.info(
@@ -2706,13 +2683,13 @@ class EventArray(EventList):
                         % (self.parent.name, timestamp)
                     ),
                 )
-                event = (timestamp, tuple(np.array(event[-1])-offsetx[-1]))
+                value -= np.array(offset)
 
             if not self.hasSubchannels:
                 # Doesn't quite work; transform dataset attribute not set?
-                return (event[0], event[1:(1 + self.subchannelId)])
+                return np.array([timestamp, value[self.subchannelId]])
             else:
-                return event
+                return np.append([timestamp], value)
 
         elif isinstance(idx, slice):
             # vvv Main difference from `EventList.__getitem__` vvv
@@ -2813,14 +2790,12 @@ class EventArray(EventList):
             lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
                           else block.numSamples)
 
-            blockEvents = makeBlockEvents(
+            yield makeBlockEvents(
                 times=(block.startTime
                        + sampleTime*np.arange(subIdx, lastSubIdx, step)),
                 values=parent_parseBlock(block, subIdx, lastSubIdx, step),
                 block=block, blockIdx=blockIdx,
             )
-
-            yield blockEvents
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -2835,7 +2810,8 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
-        for blockEvents in self._blockSlice(start, end, step, display):
+        for times, values in self._blockSlice(start, end, step, display):
+            blockEvents = np.append(times[np.newaxis], values, axis=0)
             for event in blockEvents.T:
                 yield event
 
@@ -2850,10 +2826,10 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: a structured array of events in the specified index range.
         """
-        return np.concatenate(
-            [i for i in self._blockSlice(start, end, step, display)],
-            axis=-1
-        )
+        return np.block([
+            [times[np.newaxis], values]
+            for times, values in self._blockSlice(start, end, step, display)
+        ])
 
     def _blockJitterySlice(self, start=None, end=None, step=None, jitter=0.5,
                          display=False):
@@ -2908,13 +2884,11 @@ class EventArray(EventList):
                     scaledJitter * np.random.uniform(-1, 1, max(0, len(indices)-2))
                 ).astype(indices.dtype)
 
-            blockEvents = makeBlockEvents(
-                    times=(block.startTime + sampleTime * indices),
-                    values=parent_parseBlockByIndex(block, indices),
-                    block=block, blockIdx=blockIdx,
+            yield makeBlockEvents(
+                times=(block.startTime + sampleTime * indices),
+                values=parent_parseBlockByIndex(block, indices),
+                block=block, blockIdx=blockIdx,
             )
-
-            yield blockEvents
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -2932,8 +2906,9 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
-        for blockEvents in self._blockJitterySlice(start, end, step, jitter,
-                                                   display):
+        for times, values in self._blockJitterySlice(start, end, step, jitter,
+                                                     display):
+            blockEvents = np.append(times[np.newaxis], values, axis=0)
             for event in blockEvents.T:
                 yield event
 
@@ -2951,10 +2926,11 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: a structured array of events in the specified index range.
         """
-        return np.concatenate(
-            [i for i in self._blockJitterySlice(start, end, step, jitter,
-                                                display)],
-            axis=-1
+        return np.block([
+            [times[np.newaxis], values]
+            for times, values in self._blockJitterySlice(
+                start, end, step, jitter, display
+            )]
         )
 
     # EventList implementation suffices -> no overload required
@@ -2985,9 +2961,104 @@ class EventArray(EventList):
         """
         return self.arrayRange(startTime, endTime, display=display)
 
-    # EventList implementation suffices -> no overload required
-    # def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
-    #                    times=True, display=False):
+    '''
+    def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
+                       times=True, display=False):
+        """ Get the minimum, mean, and maximum values for blocks within a
+            specified interval.
+
+            @todo: Remember what `padding` was for, and either implement or
+                remove it completely. Related to plotting; see `plots`.
+            
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @keyword times: If `True` (default), the results include the 
+                block's starting time. 
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results. 
+            @return: An iterator producing sets of three events (min, mean, 
+                and max, respectively).
+        """
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+            
+        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
+        
+        # OPTIMIZATION: Local variables for things used in inner loops
+        hasSubchannels = self.hasSubchannels
+        session = self.session
+        removeMean = self.removeMean and self.allowMeanRemoval
+        _getBlockRollingMean = self._getBlockRollingMean
+        if not hasSubchannels:
+            parent_id = self.subchannelId
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        for block in self._data[startBlockIdx:endBlockIdx]:
+            # NOTE: Without this, a file in which some blocks don't have
+            # min/mean/max will fail. Should not happen, though.
+#             if block.minMeanMax is None:
+#                 continue
+
+            time = block.startTime
+            offset = _getBlockRollingMean(block.blockIndex)
+            
+            # HACK: Multithreaded loading can (very rarely) fail at start.
+            # The problem is almost instantly resolved, though. Find root cause.
+            tries = 0
+            if removeMean and offset is None:
+                sleep(0.01)
+                offset = _getBlockRollingMean(block.blockIndex)
+                tries += 1
+                if tries > 10:
+                    break
+            
+            if offset is not None:
+                offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
+                if offsetx is None:
+                    sleep(0.005)
+                    offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
+                    if offsetx is None:
+                        offsetx = time, offset
+                offset = np.array(offsetx[1])
+                
+            result = []
+            result_append = result.append
+            
+            for val in (block.min, block.mean, block.max):
+                event=xform(time, val, session, noBivariates=self.noBivariates)
+                if event is None:
+                    sleep(0.005)
+                    event = xform(time, val, session, noBivariates=self.noBivariates)
+                    if event is None:
+                        event = time, val
+                val = event[1]
+                if offset is not None:
+                    val -= offset
+                result_append(eVals)
+            
+            # Transformation has negative coefficient for inverted z-axis data
+            # -> need to sort mins/maxes to compensate
+            if hasSubchannels:
+                # 'rotate' the arrays, sort them, 'rotate' back.
+                result = zip(*map(sorted, zip(*result)))
+            else:
+                result = tuple((v[parent_id],) for v in result)
+                if result[0][0] > result[2][0]:
+                    result = result[::-1]
+
+            if times:
+                yield tuple((eTime,)+x for x in result)
+            else:
+                yield tuple(result)
+    '''
 
     def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
                         times=True, display=False):
@@ -3060,22 +3131,22 @@ class EventArray(EventList):
         if stats.size == 0:
             return None
         if not self.hasSubchannels:
-            return EventArray.StatsTuple(
-                min=stats[0].min(),
-                mean=np.median(stats[1], axis=-1),
-                max=stats[2].max()
+            return (
+                stats[0].min(),
+                np.median(stats[1], axis=-1),
+                stats[2].max(),
             )
         if subchannel is not None:
-            return EventArray.StatsTuple(
-                min=stats[0, subchannel].min(),
-                mean=np.median(stats[1, subchannel]),
-                max=stats[2, subchannel].max()
+            return (
+                stats[0, subchannel].min(),
+                np.median(stats[1, subchannel]),
+                stats[2, subchannel].max(),
             )
         else:
-            return EventArray.StatsTuple(
-                min=stats[0].min(),
-                mean=np.median(stats[1], axis=-1).mean(),
-                max=stats[2].max(),
+            return (
+                stats[0].min(),
+                np.median(stats[1], axis=-1).mean(),
+                stats[2].max(),
             )
 
     def getMax(self, startTime=None, endTime=None, display=False):
@@ -3128,6 +3199,17 @@ class EventArray(EventList):
         subIdx = blockMaxs.argmin()
 
         return blockData[subIdx]
+
+    '''
+    def getMeanNear(self, t, outOfRange=False):
+        """ Retrieve the mean value near a given time.
+        """
+        b = self._getBlockIndexWithTime(t)
+        _, m = self._comboXform(t, self._getBlockRollingMean(b, force=True))
+        if self.hasSubchannels:
+            return m
+        return m[self.subchannelId]
+    '''
 
     # EventList implementation suffices -> no overload required
     # def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
@@ -3361,8 +3443,8 @@ class WarningRange(object):
 
         # print([(x, y) for x,y in source.iterRange(start, end)])
         
-        for t,v in source.iterRange(start, end):
-            if self.valid(v):
+        for event in source.iterRange(start, end):
+            if self.valid(event[1:]):
                 if outOfRange:
                     result[-1][1] = t
                     outOfRange = False
