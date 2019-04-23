@@ -3125,7 +3125,7 @@ class EventArray(EventList):
         sampleIdxRange = self._data[blockIdx].indexRange
         blockData = self.arraySlice(*sampleIdxRange, display=display)
         blockMins = blockData.min(axis=0)
-        subIdx = blockMaxs.argmin()
+        subIdx = blockMins.argmin()
 
         return blockData[subIdx]
 
