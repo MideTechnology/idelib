@@ -59,7 +59,7 @@ __all__ = ('Channel Dataset EventList EventArray Plot Sensor Session'
            ' SubChannel WarningRange Cascading Transformable'.split())
 
 from bisect import bisect_right
-from collections import Iterable
+from collections import Iterable, Sequence
 from datetime import datetime
 from itertools import imap, izip
 import os.path
@@ -1394,7 +1394,7 @@ class EventList(Transformable):
         block = self._data[blockIdx]
         
         if block.minMeanMax is None:
-            if block.min is not None and block.mean is not None and block.max is not None:
+            if None not in (block.min, block.mean, block.max):
                 return block.min, block.mean, block.max
             return None
         
@@ -1969,7 +1969,7 @@ class EventList(Transformable):
                         event = time, val
                 timex, valx = event
                 if offset is not None:
-                    valx -= offset
+                    valx = valx - offset
                 result_append(valx)
             
             # Transformation has negative coefficient for inverted z-axis data
@@ -2514,6 +2514,10 @@ class EventArray(EventList):
         self._blockIndicesArray = np.array([], dtype=np.float64)
         self._blockTimesArray = np.array([], dtype=np.float64)
 
+        self._getBlockRollingMeanVector = np.vectorize(
+            super(EventArray, self)._getBlockRollingMean
+        )
+
     # --------------------------------------------------------------------------
     # New utility methods
     # --------------------------------------------------------------------------
@@ -2623,6 +2627,28 @@ class EventArray(EventList):
         return idxOffset-1 + np.searchsorted(
             self._blockTimesArray[idxOffset:stop], t, side='right'
         )
+
+    def _getBlockRollingMean(self, blockIdx, force=False):
+        """ Get the mean of a block and its neighbors within a given time span.
+            Note: Values are taken pre-calibration, and all subchannels are
+            returned.
+            
+            @param blockIdx: The index of the block to check.
+            @return: An array containing the mean values of each subchannel. 
+        """
+        if isinstance(blockIdx, Sequence):
+            blockIdx = np.array(blockIdx)
+        elif not isinstance(blockIdx, np.ndarray):
+            return super(EventArray, self)._getBlockRollingMean(blockIdx, force)
+
+        uniqueBlockIndices, blocksPerm = np.unique(blockIdx, return_inverse=True)
+
+        uniqueBlockMeans = np.stack(
+            self._getBlockRollingMeanVector(uniqueBlockIndices, force),
+            axis=0
+        )
+        return uniqueBlockMeans[:, blocksPerm]
+
 
     # --------------------------------------------------------------------------
     # Main API methods
@@ -2961,100 +2987,6 @@ class EventArray(EventList):
     '''
     def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
                        times=True, display=False):
-        """ Get the minimum, mean, and maximum values for blocks within a
-            specified interval.
-
-            @todo: Remember what `padding` was for, and either implement or
-                remove it completely. Related to plotting; see `plots`.
-            
-            @keyword startTime: The first time (in microseconds by default),
-                `None` to start at the beginning of the session.
-            @keyword endTime: The second time, or `None` to use the end of
-                the session.
-            @keyword times: If `True` (default), the results include the 
-                block's starting time. 
-            @keyword display: If `True`, the final 'display' transform (e.g.
-                unit conversion) will be applied to the results. 
-            @return: An iterator producing sets of three events (min, mean, 
-                and max, respectively).
-        """
-        if not self.hasMinMeanMax:
-            self._computeMinMeanMax()
-            
-        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
-        
-        # OPTIMIZATION: Local variables for things used in inner loops
-        hasSubchannels = self.hasSubchannels
-        session = self.session
-        removeMean = self.removeMean and self.allowMeanRemoval
-        _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
-            parent_id = self.subchannelId
-
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
-
-        for block in self._data[startBlockIdx:endBlockIdx]:
-            # NOTE: Without this, a file in which some blocks don't have
-            # min/mean/max will fail. Should not happen, though.
-#             if block.minMeanMax is None:
-#                 continue
-
-            time = block.startTime
-            offset = _getBlockRollingMean(block.blockIndex)
-            
-            # HACK: Multithreaded loading can (very rarely) fail at start.
-            # The problem is almost instantly resolved, though. Find root cause.
-            tries = 0
-            if removeMean and offset is None:
-                sleep(0.01)
-                offset = _getBlockRollingMean(block.blockIndex)
-                tries += 1
-                if tries > 10:
-                    break
-            
-            if offset is not None:
-                offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
-                if offsetx is None:
-                    sleep(0.005)
-                    offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
-                    if offsetx is None:
-                        offsetx = time, offset
-                offset = np.array(offsetx[1])
-                
-            result = []
-            result_append = result.append
-            
-            for val in (block.min, block.mean, block.max):
-                event=xform(time, val, session, noBivariates=self.noBivariates)
-                if event is None:
-                    sleep(0.005)
-                    event = xform(time, val, session, noBivariates=self.noBivariates)
-                    if event is None:
-                        event = time, val
-                val = event[1]
-                if offset is not None:
-                    val -= offset
-                result_append(eVals)
-            
-            # Transformation has negative coefficient for inverted z-axis data
-            # -> need to sort mins/maxes to compensate
-            if hasSubchannels:
-                # 'rotate' the arrays, sort them, 'rotate' back.
-                result = zip(*map(sorted, zip(*result)))
-            else:
-                result = tuple((v[parent_id],) for v in result)
-                if result[0][0] > result[2][0]:
-                    result = result[::-1]
-
-            if times:
-                yield tuple((eTime,)+x for x in result)
-            else:
-                yield tuple(result)
     '''
 
     def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
@@ -3197,7 +3129,6 @@ class EventArray(EventList):
 
         return blockData[subIdx]
 
-    '''
     def getMeanNear(self, t, outOfRange=False):
         """ Retrieve the mean value near a given time.
         """
@@ -3206,7 +3137,6 @@ class EventArray(EventList):
         if self.hasSubchannels:
             return m
         return m[self.subchannelId]
-    '''
 
     # EventList implementation suffices -> no overload required
     # def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
