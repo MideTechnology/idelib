@@ -2714,18 +2714,14 @@ class EventArray(EventList):
                 specified index range.
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
-        # TODO: use arraySlice instead?
-        iterBlockEvents = self._blockSlice(start, end, step, display)
+        # -> take directly from _blockSlice
+        iterEvents = self.iterSlice(start, end, step, display)
 
         if self.hasSubchannels and subchannels is not True:
             chIdx = np.asarray(subchannels)+1
-            return (event
-                    for blockEvents in iterBlockEvents
-                    for event in blockEvents[chIdx].T)
+            return (event[chIdx] for event in iterEvents)
         else:
-            return (event
-                    for blockEvents in iterBlockEvents
-                    for event in blockEvents[1:].T)
+            return (event[1:] for event in iterEvents)
 
     def arrayValues(self, start=None, end=None, step=None, subchannels=True,
                     display=False):
@@ -2742,6 +2738,7 @@ class EventArray(EventList):
             @return: a structured array of values in the specified index range.
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
+        # -> take directly from _blockSlice
         arrayEvents = self.arraySlice(start, end, step, display)
 
         if self.hasSubchannels and subchannels is not True:
