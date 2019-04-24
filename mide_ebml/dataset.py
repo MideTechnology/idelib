@@ -777,7 +777,7 @@ class Channel(Transformable):
         return self.sessions.setdefault(sessionId, EventList(self, session))
     
     
-    def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None):
+    def parseBlock(self, block, start=None, end=None, step=1, subchannel=None):
         """ Parse subsamples out of a data block. Used internally.
         
             @param block: The data block from which to parse subsamples.
@@ -979,7 +979,7 @@ class SubChannel(Channel):
         return self._sessions
     
 
-    def parseBlock(self, block, start=0, end=-1, step=1):
+    def parseBlock(self, block, start=None, end=None, step=1):
         """ Parse subsamples out of a data block. Used internally.
         
             @param block: The data block from which to parse subsamples.

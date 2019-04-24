@@ -499,7 +499,7 @@ class BaseDataBlock(object):
         return "<%s Channel: %d>" % (self.__class__.__name__, self.getHeader()[1])
 
 
-    def parseWith(self, parser, start=0, end=-1, step=1, subchannel=None):
+    def parseWith(self, parser, start=None, end=None, step=1, subchannel=None):
         """ Parse an element's payload. Use this instead of directly using
             `parser.parse()` for consistency's sake.
             
@@ -512,11 +512,10 @@ class BaseDataBlock(object):
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
+        start, end, step = slice(start, end, step).indices(self.payloadSize // parser.size)
+
         start = (start*parser.size)
-        if end < 0:
-            end += self.payloadSize
-        else:
-            end = (end * parser.size)
+        end = (end*parser.size)
         
         parser_unpack_from = parser.unpack_from
         if subchannel is not None:
@@ -640,7 +639,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
         return self.getHeader()[0]
 
 
-    def parseWith(self, parser, start=0, end=-1, step=1, subchannel=None):
+    def parseWith(self, parser, start=None, end=None, step=1, subchannel=None):
         """ Parse an element's payload. Use this instead of directly using
             `parser.parse()` for consistency's sake.
             
@@ -653,11 +652,10 @@ class SimpleChannelDataBlock(BaseDataBlock):
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
+        start, end, step = slice(start, end, step).indices(self.payloadSize // parser.size)
+
         start = self.headerSize + (start*parser.size)
-        if end < 0:
-            end += self.payloadSize
-        else:
-            end = self.headerSize + (end * parser.size)
+        end = self.headerSize + (end*parser.size)
         
         parser_unpack_from = parser.unpack_from
         if subchannel is not None:
