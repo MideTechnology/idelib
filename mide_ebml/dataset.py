@@ -781,7 +781,7 @@ class Channel(Transformable):
         return self.sessions.setdefault(sessionId, EventArray(self, session))
     
     
-    def parseBlock(self, block, start=0, end=-1, step=1, subchannel=None):
+    def parseBlock(self, block, start=None, end=None, step=1, subchannel=None):
         """ Parse subsamples out of a data block. Used internally.
         
             @param block: The data block from which to parse subsamples.
@@ -988,7 +988,7 @@ class SubChannel(Channel):
         return self._sessions
     
 
-    def parseBlock(self, block, start=0, end=-1, step=1):
+    def parseBlock(self, block, start=None, end=None, step=1):
         """ Parse subsamples out of a data block. Used internally.
         
             @param block: The data block from which to parse subsamples.
@@ -1245,7 +1245,7 @@ class EventList(Transformable):
         block.blockIndex = len(self._data)
         self._data.append(block)
         self._length += block.numSamples
-        block.indexRange = (oldLength, self._length - 1)
+        block.indexRange = (oldLength, self._length)
         
         # _singleSample hint not explicitly set; set it based on this block. 
         # There will be problems if the first block has only one sample, but
@@ -1305,7 +1305,7 @@ class EventList(Transformable):
             for i in xrange(blockIdx+1):
                 if self._data[i].indexRange is None:
                     numSamples = block.getNumSamples(self.parent.parser)
-                    self._data[i].indexRange = (total, total+numSamples-1)
+                    self._data[i].indexRange = (total, total+numSamples)
                     total += numSamples 
         return block.indexRange
             
@@ -1519,7 +1519,7 @@ class EventList(Transformable):
         # For some reason, the cached self._length wasn't thread-safe.
 #         return self._length
         try:
-            return self._data[-1].indexRange[-1]+1
+            return self._data[-1].indexRange[-1]
         except (TypeError, IndexError):
             # Can occur early on while asynchronously loading.
             return self._length
@@ -1558,7 +1558,7 @@ class EventList(Transformable):
                and self.allowMeanRemoval == other.allowMeanRemoval 
 
 
-    def itervalues(self, start=0, end=-1, step=1, subchannels=True, display=False):
+    def itervalues(self, start=None, end=None, step=1, subchannels=True, display=False):
         """ Iterate all values in the list (no times).
         
             @keyword start: The first index in the range, or a slice.
@@ -1583,7 +1583,7 @@ class EventList(Transformable):
                     for event in self.iterSlice(start, end, step, display))
 
 
-    def iterSlice(self, start=0, end=-1, step=1, display=False):
+    def iterSlice(self, start=None, end=None, step=1, display=False):
         """ Create an iterator producing events for a range indices.
         
             @keyword start: The first index in the range, or a slice.
@@ -1593,29 +1593,9 @@ class EventList(Transformable):
             @keyword display: If `True`, the `EventList` transform (i.e. the 
                 'display' transform) will be applied to the data.
         """
-        if isinstance (start, slice):
-            step = start.step
-            end = start.stop
-            start = start.start
-        
-        if start is None:
-            start = 0
-        elif start < 0:
-            start = max(0, start + len(self))
-        elif start >= len(self):
-            start = len(self)-1
-            
-        if end is None:
-            end = len(self)
-        elif end < 0:
-            end = max(0, end + len(self) + 1)
-        else:
-            end = min(end, len(self))
-        
-        if start >= end:
-            end = start+1
-                
-        step = 1 if step is None else step
+        if not isinstance(start, slice):
+            start = slice(start, end, step)
+        start, end, step = start.indices(len(self))
 
         startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
         endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
@@ -1688,7 +1668,7 @@ class EventList(Transformable):
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
 
-    def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5, display=False):
+    def iterJitterySlice(self, start=None, end=None, step=1, jitter=0.5, display=False):
         """ Create an iterator producing events for a range indices.
         
             @keyword start: The first index in the range, or a slice.
@@ -1700,20 +1680,9 @@ class EventList(Transformable):
             @keyword display: If `True`, the `EventList` transform (i.e. the 
                 'display' transform) will be applied to the data.
         """
-        if start is None:
-            start = 0
-        elif start < 0:
-            start += len(self)
-            
-        if end is None:
-            end = len(self)
-        elif end < 0:
-            end += len(self) + 1
-        else:
-            end = min(end, len(self))
-        
-        if step is None:
-            step = 1
+        if not isinstance(start, slice):
+            start = slice(start, end, step)
+        start, end, step = start.indices(len(self))
         
         startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
         endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
@@ -1843,7 +1812,7 @@ class EventList(Transformable):
         if self.parent.singleSample:
             startIdx = self._getBlockIndexWithTime(startTime)
             if endTime is None:
-                endIdx = len(self)-1
+                endIdx = len(self)
             else:
                 endIdx = self._getBlockIndexWithTime(endTime, startIdx) + 1
             return startIdx, endIdx
@@ -1863,8 +1832,8 @@ class EventList(Transformable):
         elif endTime <= self._data[0].startTime:
             endIdx = 0
         else:
-            endIdx = self.getEventIndexBefore(endTime)
-        return max(0,startIdx), min(endIdx, len(self)-1)
+            endIdx = self.getEventIndexBefore(endTime)+1
+        return max(0, startIdx), min(endIdx, len(self))
     
 
     def getRange(self, startTime=None, endTime=None, display=False):
@@ -2362,7 +2331,7 @@ class EventList(Transformable):
         return self.iterSlice(startIdx, stopIdx, step, display=display)
 
 
-    def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
+    def exportCsv(self, stream, start=None, stop=None, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
                   useUtcTime=False, useIsoFormat=False, headers=False, 
@@ -3297,7 +3266,7 @@ class Plot(Transformable):
         return imap(self._transform, self.source.iterRange(startTime, endTime))
     
     
-    def iterSlice(self, start=0, end=-1, step=1):
+    def iterSlice(self, start=None, end=None, step=1):
         # Note: self._transform is used here instead of self._mapTransform;
         # itertools.imap(None, x) works differently than map(None,x)!
         return imap(self._transform, self.source.iterSlice(start, end, step))
