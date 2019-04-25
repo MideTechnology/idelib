@@ -1506,7 +1506,7 @@ class EventList(Transformable):
         # For some reason, the cached self._length wasn't thread-safe.
 #         return self._length
         try:
-            return self._data[-1].indexRange[-1]+1
+            return self._data[-1].indexRange[-1]
         except (TypeError, IndexError):
             # Can occur early on while asynchronously loading.
             return self._length
