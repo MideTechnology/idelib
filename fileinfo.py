@@ -100,7 +100,7 @@ class ChannelInfoPanel(InfoPanel):
                             
                     except (IndexError, AttributeError):
                         # These can occur in partially damaged files.
-                        raise  #pass
+                        pass
                     
 #                 mmm = events.getRangeMinMeanMax()
 #                 if mmm:
