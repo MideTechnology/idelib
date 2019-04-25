@@ -652,7 +652,9 @@ class SimpleChannelDataBlock(BaseDataBlock):
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
-        start, end, step = slice(start, end, step).indices(self.payloadSize // parser.size)
+        start, end, step = slice(start, end, step).indices(
+            (self.payloadSize-self.headerSize) // parser.size
+        )
 
         start = self.headerSize + (start*parser.size)
         end = self.headerSize + (end*parser.size)
