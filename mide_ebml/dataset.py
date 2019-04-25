@@ -2323,7 +2323,7 @@ class EventList(Transformable):
         return self.iterSlice(startIdx, stopIdx, step, display=display)
 
 
-    def exportCsv(self, stream, start=0, stop=-1, step=1, subchannels=True,
+    def exportCsv(self, stream, start=None, stop=None, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
                   useUtcTime=False, useIsoFormat=False, headers=False, 
@@ -2510,7 +2510,7 @@ class Plot(Transformable):
         return imap(self._transform, self.source.iterRange(startTime, endTime))
     
     
-    def iterSlice(self, start=0, end=-1, step=1):
+    def iterSlice(self, start=None, end=None, step=1):
         # Note: self._transform is used here instead of self._mapTransform;
         # itertools.imap(None, x) works differently than map(None,x)!
         return imap(self._transform, self.source.iterSlice(start, end, step))
