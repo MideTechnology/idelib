@@ -2693,7 +2693,7 @@ class EventArray(EventList):
         raise TypeError("EventArray indices must be integers or slices,"
                         " not %s (%r)" % (type(idx), idx))
 
-    def itervalues(self, start=0, end=-1, step=1, subchannels=True, display=False):
+    def itervalues(self, start=None, end=None, step=1, subchannels=True, display=False):
         """ Iterate all values in the given index range (w/o times).
 
             @keyword start: The first index in the range, or a slice.
@@ -2717,7 +2717,7 @@ class EventArray(EventList):
         else:
             return (event[1:] for event in iterEvents)
 
-    def arrayValues(self, start=0, end=-1, step=1, subchannels=True,
+    def arrayValues(self, start=None, end=None, step=1, subchannels=True,
                     display=False):
         """ Get all values in the given index range (w/o times).
 
@@ -2740,7 +2740,7 @@ class EventArray(EventList):
         else:
             return arrayEvents[1:]
 
-    def _blockSlice(self, start=0, end=-1, step=1, display=False):
+    def _blockSlice(self, start=None, end=None, step=1, display=False):
         """ Create an iterator producing events packed into numpy arrays for a
             range of indices.
 
@@ -2752,25 +2752,9 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
-        if isinstance(start, slice):
-            step = start.step
-            end = start.stop
-            start = start.start
-
-        if start is None:
-            start = 0
-        elif start < 0:
-            start += len(self)
-
-        if end is None:
-            end = len(self)
-        elif end < 0:
-            end += len(self) + 1
-        else:
-            end = min(end, len(self))
-
-        if step is None:
-            step = 1
+        if not isinstance(start, slice):
+            start = slice(start, end, step)
+        start, end, step = start.indices(len(self))
 
         startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
         endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
@@ -2804,7 +2788,7 @@ class EventArray(EventList):
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
-    def iterSlice(self, start=0, end=-1, step=1, display=False):
+    def iterSlice(self, start=None, end=None, step=1, display=False):
         """ Create an iterator producing events for a range of indices.
 
             @keyword start: The first index in the range, or a slice.
@@ -2820,7 +2804,7 @@ class EventArray(EventList):
             for event in blockEvents.T:
                 yield event
 
-    def arraySlice(self, start=0, end=-1, step=1, display=False):
+    def arraySlice(self, start=None, end=None, step=1, display=False):
         """ Create an array of events within a range of indices.
 
             @keyword start: The first index in the range, or a slice.
@@ -2841,7 +2825,7 @@ class EventArray(EventList):
 
         return np.block(raw_slice).T
 
-    def _blockJitterySlice(self, start=0, end=-1, step=1, jitter=0.5,
+    def _blockJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
                            display=False):
         """ Create an iterator producing events for a range of indices.
 
@@ -2855,25 +2839,9 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
-        if isinstance(start, slice):
-            step = start.step
-            end = start.stop
-            start = start.start
-
-        if start is None:
-            start = 0
-        elif start < 0:
-            start += len(self)
-
-        if end is None:
-            end = len(self)
-        elif end < 0:
-            end += len(self) + 1
-        else:
-            end = min(end, len(self))
-
-        if step is None:
-            step = 1
+        if not isinstance(start, slice):
+            start = slice(start, end, step)
+        start, end, step = start.indices(len(self))
 
         if jitter is True:
             jitter = 0.5
@@ -2916,7 +2884,7 @@ class EventArray(EventList):
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
-    def iterJitterySlice(self, start=0, end=-1, step=1, jitter=0.5,
+    def iterJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
                          display=False):
         """ Create an iterator producing events for a range of indices.
 
@@ -2936,7 +2904,7 @@ class EventArray(EventList):
             for event in blockEvents.T:
                 yield event
 
-    def arrayJitterySlice(self, start=0, end=-1, step=1, jitter=0.5,
+    def arrayJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
                           display=False):
         """ Create an array of events within a range of indices.
 
