@@ -1042,7 +1042,6 @@ class PlotCanvas(wx.ScrolledWindow):
                             lineSubset = []
                             
                         lastPt[chId] = pt
-            #"""
             except StopIteration:
                 # This will occur if there are 0-1 events, but that's okay.
                 pass

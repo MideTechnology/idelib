@@ -807,7 +807,6 @@ class ChannelDataBlock(BaseDataBlock):
         self._minMeanMax = None
         
         self.element = element
-        # print(element)
         for el in element:
             # These are roughly in order of probability, optional and/or
             # unimplemented elements are at the end.
@@ -885,7 +884,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
             self._payload = np.array(self._payloadEl.value)
         return self._payload
 
-    def parseWith(self, parser, start=0, end=None, step=1, subchannel=None):
+    def parseWith(self, parser, start=None, end=None, step=1, subchannel=None):
         """ Parse an element's payload. Use this instead of directly using
             `parser.parse()` for consistency's sake.
 
