@@ -1394,8 +1394,6 @@ class EventList(Transformable):
         block = self._data[blockIdx]
         
         if block.minMeanMax is None:
-            if not any(m is None for m in (block.min, block.mean, block.max)):
-                return block.min, block.mean, block.max
             return None
         
         span = self.rollingMeanSpan
@@ -1415,10 +1413,10 @@ class EventList(Transformable):
             firstBlock = lastBlock = None
         
         try:
-            block._rollingMean = rollingMean = tuple(np.median(
+            block._rollingMean = rollingMean = np.median(
                 [b.mean for b in self._data[firstBlock:lastBlock]],
                 axis=0, overwrite_input=True
-            ))
+            )
             block._rollingMeanSpan = rollingMeanSpan = span
             block._rollingMeanLen = rollingMeanLen = len(self._data)
         
@@ -2708,14 +2706,19 @@ class EventArray(EventList):
                 specified index range.
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
-        # -> take directly from _blockSlice
-        iterEvents = self.iterSlice(start, end, step, display)
-
+        iterBlockValues = (
+            np.stack(values)
+            for _, values in self._blockSlice(start, end, step, display)
+        )
         if self.hasSubchannels and subchannels is not True:
-            chIdx = np.asarray(subchannels)+1
-            return (event[chIdx] for event in iterEvents)
+            chIdx = np.asarray(subchannels)
+            return (vals
+                    for blockVals in iterBlockValues
+                    for vals in blockVals[chIdx].T)
         else:
-            return (event[1:] for event in iterEvents)
+            return (vals
+                    for blockVals in iterBlockValues
+                    for vals in blockVals.T)
 
     def arrayValues(self, start=None, end=None, step=1, subchannels=True,
                     display=False):
@@ -2959,8 +2962,94 @@ class EventArray(EventList):
         return self.arrayRange(startTime, endTime, display=display)
 
     '''
+    TODO: revisit overloading iterMinMeanMax for efficiency
     def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
                        times=True, display=False):
+        """ Get the minimum, mean, and maximum values for blocks within a
+            specified interval.
+
+            @todo: Remember what `padding` was for, and either implement or
+                remove it completely. Related to plotting; see `plots`.
+
+            @keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            @keyword endTime: The second time, or `None` to use the end of
+                the session.
+            @keyword times: If `True` (default), the results include the
+                block's starting time.
+            @keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            @return: An iterator producing sets of three events (min, mean,
+                and max, respectively).
+        """
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+
+        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
+
+        # OPTIMIZATION: Local variables for things used in inner loops
+        hasSubchannels = self.hasSubchannels
+        session = self.session
+        removeMean = self.removeMean and self.allowMeanRemoval
+        _getBlockRollingMean = self._getBlockRollingMean
+        if not hasSubchannels:
+            parent_id = self.subchannelId
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        for block in self._data[startBlockIdx:endBlockIdx]:
+            # NOTE: Without this, a file in which some blocks don't have
+            # min/mean/max will fail. Should not happen, though.
+#             if block.minMeanMax is None:
+#                 continue
+
+            times = block.startTime
+            if removeMean:
+                # HACK: Multithreaded loading can (very rarely) fail at start.
+                # The problem is almost instantly resolved, though. Find root cause.
+                offset = retryUntilReturn(
+                    (lambda: _getBlockRollingMean(block.blockIndex)),
+                    max_tries=10, delay=0.01
+                )
+            else:
+                offset = _getBlockRollingMean(block.blockIndex)
+
+            if offset is not None:
+                _, offsetx = retryUntilReturn(
+                    (lambda: xform(time, offset, session,
+                                   noBivariates=self.noBivariates)),
+                    max_tries=2, delay=0.005, default=(time, offset)
+                )
+                offset = np.array(offsetx)
+
+            values = np.stack((block.min, block.mean, block.max)).T
+            timex, values = retryUntilReturn(
+                (lambda: xform(time, values, session,
+                               noBivariates=self.noBivariates)),
+                max_tries=2, delay=0.005, default=(time, values)
+            )
+            values = np.array(values).T
+            if offset is not None:
+                values -= offset
+            # ^ shape -> (min/mean/max, channels)
+
+            # Transformation has negative coefficient for inverted z-axis data
+            # -> need to sort mins/maxes to compensate
+            values.sort(axis=0)
+
+            if not hasSubchannels:
+                values = values[:, [parent_id]]
+
+            if times:
+                timex = np.broadcast_to(timex, (values.shape[0], 1))
+                yield np.concatenate((timex, values), axis=-1)
+            else:
+                yield values
     '''
 
     def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
