@@ -1,10 +1,11 @@
-from __future__ import division, absolute_import, print_function, unicode_literals
-import unittest
+from __future__ import (absolute_import, division, print_function,
+                        unicode_literals)
 
+import unittest
 import mock
 import numpy as np
-from mide_ebml.importer import openFile
 
+from mide_ebml.importer import openFile
 from mide_ebml.parsers import ChannelDataArrayBlockParser, ChannelDataArrayBlock
 from mide_ebml.ebmlite.core import *
 
@@ -28,7 +29,7 @@ class TestChannelDataArrayBlockParser(unittest.TestCase):
         self.assertIs(self.doc,                          self.parser.doc)
         self.assertIs(ChannelDataArrayBlock,             self.parser.product)
         self.assertEqual(ChannelDataArrayBlock.__name__, self.parser.elementName)
-        self.assertEqual(1000000.0/2**15,                self.parser.timeScalar)
+        self.assertEqual(10**6 / 2**15,                  self.parser.timeScalar)
         self.assertEqual({},                             self.parser.timestampOffset)
         self.assertEqual({},                             self.parser.lastStamp)
         self.assertEqual({},                             self.parser.timeScalars)
@@ -109,43 +110,41 @@ class TestChannelDataArrayBlock(unittest.TestCase):
 
     def testParseWith(self):
         parser = self.doc.channels[32].parser
-        dtype_desc = [('ch'+str(i), parser.format[0:2])
-                      for i in xrange(len(parser.format[1:]))]
 
         # Plain case
         blockOut = self.block.parseWith(parser)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser)]
-        oldOut = np.array(oldOut, dtype=dtype_desc)
+        oldOut = np.array(oldOut).T
         np.testing.assert_array_equal(oldOut, blockOut)
 
         # different start
         blockOut = self.block.parseWith(parser, start=5)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, start=5)]
-        oldOut = np.array(oldOut, dtype=dtype_desc)
+        oldOut = np.array(oldOut).T
         np.testing.assert_array_equal(oldOut, blockOut)
 
         # different end
         blockOut = self.block.parseWith(parser, end=100)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, end=100)]
-        oldOut = np.array(oldOut, dtype=dtype_desc)
+        oldOut = np.array(oldOut).T
         np.testing.assert_array_equal(oldOut, blockOut)
 
         # different step
         blockOut = self.block.parseWith(parser, step=10)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, step=10)]
-        oldOut = np.array(oldOut, dtype=dtype_desc)
+        oldOut = np.array(oldOut).T
         np.testing.assert_array_equal(oldOut, blockOut)
 
         # fully different params
         blockOut = self.block.parseWith(parser, start=10, end=100, step=10)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, start= 10, end=100, step=10)]
-        oldOut = np.array(oldOut, dtype=dtype_desc)
+        oldOut = np.array(oldOut).T
         np.testing.assert_array_equal(oldOut, blockOut)
 
         # specific subchannel
         blockOut = self.block.parseWith(parser, subchannel=1)
         oldOut = [x for x in super(self.block.__class__, self.block).parseWith(parser, subchannel=1)]
-        oldOut = np.array(oldOut, dtype=dtype_desc[1:2])
+        oldOut = np.array(oldOut)[np.newaxis]
         np.testing.assert_array_equal(oldOut, blockOut)
 
     def testParseByIndexWith(self):
