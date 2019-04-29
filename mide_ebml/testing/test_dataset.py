@@ -1084,10 +1084,10 @@ class EventListTestCase(unittest.TestCase):
             def mockGetBlockIndexRange(idx):
                 return mockBlockIndex
             
-            def mockXform(timeAndVal, session=None, noBivariates=False):
-                if type(timeAndVal[1]) == list:
-                    return timeAndVal
-                return (timeAndVal[0], [timeAndVal[1].id])
+            def mockXform(time, val, session=None, noBivariates=False):
+                if type(val) is tuple:
+                    return time, val
+                return time, [val.id]
                 
             def mockParseBlock(block, start=None, end=None, step=None):
                 return [(block,)]
@@ -1168,7 +1168,7 @@ class EventListTestCase(unittest.TestCase):
         # if the transform returns a none type, it should just skip through
         # and return None
         eventList.configure_mock(
-            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
                         None),
             _getBlockRollingMean=lambda blockIdx: None,
             hasSubchannels=True,
@@ -1181,8 +1181,8 @@ class EventListTestCase(unittest.TestCase):
         # if parent.parseBlock just bounces back data, then it should just
         # get a tuple with the timestamp and data
         eventList.configure_mock(
-            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
-                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
             _getBlockRollingMean=lambda blockIdx: None,
             hasSubchannels=True,
         )
@@ -1194,8 +1194,8 @@ class EventListTestCase(unittest.TestCase):
         # If there is an offset, return a tuple of the timestamp and data,
         # minus the offset
         eventList.configure_mock(
-            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
-                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
             _getBlockRollingMean=lambda blockIdx: (-5,),
             hasSubchannels=True,
         )
@@ -1208,8 +1208,8 @@ class EventListTestCase(unittest.TestCase):
         # if hasSubchannels is True, return a tuple of the timestamp and
         # the single channel's data
         eventList.configure_mock(
-            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
-                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
             _getBlockRollingMean=lambda blockIdx: None,
             hasSubchannels=False, subchannelId=0
         )
@@ -1236,8 +1236,8 @@ class EventListTestCase(unittest.TestCase):
         eventList.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
-                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -1279,8 +1279,8 @@ class EventListTestCase(unittest.TestCase):
         eventList.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
-                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -1321,8 +1321,8 @@ class EventListTestCase(unittest.TestCase):
         eventList.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
-                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -1519,8 +1519,8 @@ class EventListTestCase(unittest.TestCase):
         eventList.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda timeAndVal, session=None, noBivariates=False:
-                        timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
             _data=mock.Mock(),
             getEventIndexBefore=lambda at: min(max(-1, int(at//0.01)), length-1),
             _getBlockIndexWithIndex=lambda idx: range(length)[idx],
@@ -1562,8 +1562,8 @@ class EventListTestCase(unittest.TestCase):
         eventList = mock.Mock(spec=EventList)
         eventList.configure_mock(
             __len__=lambda self: length,
-            _comboXform=(lambda timeAndVal, session=None, noBivariates=False:
-                         timeAndVal[:1] + tuple(7*i for i in timeAndVal[1:])),
+            _comboXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
             _data=mock.Mock(),
             _getBlockIndexWithTime=lambda at: min(max(-1, int((at+0.005)//0.01)), length-1),
             _getBlockRollingMean=lambda blockIdx, force=False: (range(length)[blockIdx],),

@@ -1465,6 +1465,8 @@ class EventList(Transformable):
                 logger.info( "%s: bad transform %r %r" % (self.parent.name,timestamp, value))
                 sleep(0.001)
                 event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
+                if event is None:
+                    return None
             time, vals = event
 
             offset = self._getBlockRollingMean(blockIdx)
