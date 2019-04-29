@@ -660,11 +660,11 @@ class ChannelTestCase(unittest.TestCase):
         """ Test the parseBlock method. """
         fakeBlock = GenericObject()
         self.assertEqual(self.channel1.parseBlock(fakeBlock),
-                         [self.channel1.parser, 0, -1, 1, None])
+                         [self.channel1.parser, None, None, 1, None])
         self.assertEqual(self.channel1._lastParsed[0],
-                         (fakeBlock, 0, -1, 1, None))
+                         (fakeBlock, None, None, 1, None))
         self.assertEqual(self.channel1._lastParsed[1],
-                         [self.channel1.parser, 0, -1, 1, None])
+                         [self.channel1.parser, None, None, 1, None])
         
         
     def testParseBlockByIndex(self):
@@ -872,7 +872,7 @@ class EventListTestCase(unittest.TestCase):
         """
         fakeData = GenericObject()
         fakeData.startTime = 0
-        fakeData.indexRange = [0, 3]
+        fakeData.indexRange = [0, 4]
         fakeData.sampleTime = 1
         fakeData.numSamples = 1
         self.eventList1._data = [fakeData]
@@ -1007,7 +1007,7 @@ class EventListTestCase(unittest.TestCase):
         
         self.assertEqual(fakeData.blockIndex, 0)
         self.assertFalse(fakeData.cache)
-        self.assertEqual(fakeData.indexRange, (0, 0))
+        self.assertEqual(fakeData.indexRange, (0, 1))
         self.assertEqual(self.eventList1._blockIndices,[0])
         self.assertEqual(self.eventList1._blockTimes, [2])
         self.assertEqual(self.eventList1._firstTime, 2)
@@ -1022,7 +1022,7 @@ class EventListTestCase(unittest.TestCase):
         
         self.assertEqual(fakeData.blockIndex, 1)
         self.assertFalse(fakeData.cache)
-        self.assertEqual(fakeData.indexRange, (1, 1))
+        self.assertEqual(fakeData.indexRange, (1, 2))
         self.assertEqual(self.eventList1._blockIndices,[0, 1])
         self.assertEqual(self.eventList1._blockTimes, [2,2])
         self.assertEqual(self.eventList1._firstTime, 2)
@@ -1039,7 +1039,7 @@ class EventListTestCase(unittest.TestCase):
         
         self.assertEqual(fakeData.blockIndex, 2)
         self.assertFalse(fakeData.cache)
-        self.assertEqual(fakeData.indexRange, (2, 2))
+        self.assertEqual(fakeData.indexRange, (2, 3))
         self.assertEqual(self.eventList1._blockIndices,[0, 1, 2])
         self.assertEqual(self.eventList1._blockTimes, [2, 2, 2])
         self.assertEqual(self.eventList1._firstTime, 2)
@@ -1378,15 +1378,15 @@ class EventListTestCase(unittest.TestCase):
         self.mockData()
         
         # input permutations for multi sample
-        self.assertEqual(self.eventList1.getRangeIndices(1, 2), (2, 2))
-        self.assertEqual(self.eventList1.getRangeIndices(None, 2), (0, 2))
-        self.assertEqual(self.eventList1.getRangeIndices(None, None), (0, 3))
+        self.assertEqual(self.eventList1.getRangeIndices(1, 2), (2, 3))
+        self.assertEqual(self.eventList1.getRangeIndices(None, 2), (0, 3))
+        self.assertEqual(self.eventList1.getRangeIndices(None, None), (0, 4))
         self.assertEqual(self.eventList1.getRangeIndices(2, -51), (3, 0))
         
         # input permutations for single sample
         self.eventList1.parent.singleSample = True
         self.assertEqual(self.eventList1.getRangeIndices(2, -51), (0, 1))
-        self.assertEqual(self.eventList1.getRangeIndices(2, None), (0, 3))
+        self.assertEqual(self.eventList1.getRangeIndices(2, None), (0, 4))
         
         
     def testGetRange(self):
@@ -1405,8 +1405,9 @@ class EventListTestCase(unittest.TestCase):
         self.eventList1.iterSlice = lambda w, x, y, display: (w+1, x, y, display)
         
         self.assertEqual(
-            self.eventList1.iterRange(1, 3, 1, display=False), 
-            self.eventList1.iterSlice(2, 3, 1, display=False))
+            self.eventList1.iterRange(1, 4, 1, display=False),
+            self.eventList1.iterSlice(2, 4, 1, display=False)
+        )
         
         
     def testIterMinMeanMax(self):

@@ -2401,15 +2401,12 @@ class EventList(Transformable):
         if meanSpan is not None:
             _self.rollingMeanSpan = meanSpan
         
-        totalLines = (stop - start) / (step + 0.0)
-        if totalLines < 0:
-            totalLines = len(_self)
+        start, stop, step = slice(start, stop, step).indices(len(self))
+
+        totalLines = len(xrange(start, stop, step))
         numChannels = len(names)
         totalSamples = totalLines * numChannels
         updateInt = int(totalLines * callbackInterval)
-        
-        start = start + len(self) if start < 0 else start
-        stop = stop + len(self) if stop < 0 else stop
         
         # Catch all or no exceptions
         ex = None if raiseExceptions or noCallback else Exception
