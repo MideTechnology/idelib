@@ -1112,7 +1112,7 @@ class EventListTestCase(unittest.TestCase):
         # mock without xforms
         elif section == 1:
             
-            def mockXform(timeAndVal, session=None, noBivariates=False):
+            def mockXform(time, val, session=None, noBivariates=False):
                 return None
             
             self.eventList1._displayXform = self.eventList1._comboXform = \
@@ -1125,10 +1125,10 @@ class EventListTestCase(unittest.TestCase):
             
             self.eventList1._getBlockRollingMean = lambda x: [1]
             
-            def mockXform(timeAndVal, session=None, noBivariates=False):
-                if type(timeAndVal[1]) == list:
-                    return timeAndVal
-                return (timeAndVal[0], [timeAndVal[1].id])
+            def mockXform(time, val, session=None, noBivariates=False):
+                if type(val) is tuple:
+                    return time, val
+                return time, [val.id]
             
             self.eventList1._displayXform = self.eventList1._comboXform = \
                     self.eventList1._fullXform = mockXform
