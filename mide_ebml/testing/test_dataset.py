@@ -1159,7 +1159,7 @@ class EventListTestCase(unittest.TestCase):
             )
         )
         eventList.parent.configure_mock(
-            parseBlock=(lambda block, start=0, end=-1, step=1:
+            parseBlock=(lambda block, start=None, end=None, step=1:
                         [(range(length)[block.id],)])
         )
 
@@ -1260,7 +1260,7 @@ class EventListTestCase(unittest.TestCase):
             )
         )
         eventList.parent.configure_mock(
-            parseBlock=(lambda block, start=0, end=-1, step=1:
+            parseBlock=(lambda block, start=None, end=None, step=1:
                         [(range(length)[block.id],)])
         )
 
@@ -1302,7 +1302,7 @@ class EventListTestCase(unittest.TestCase):
             )
         )
         eventList.parent.configure_mock(
-            parseBlock=(lambda block, start=0, end=-1, step=1:
+            parseBlock=(lambda block, start=None, end=None, step=1:
                         [(range(length)[block.id],)])
         )
 
@@ -1540,7 +1540,7 @@ class EventListTestCase(unittest.TestCase):
             )
         )
         eventList.parent.configure_mock(
-            parseBlock=(lambda block, start=0, end=-1, step=1:
+            parseBlock=(lambda block, start=None, end=None, step=1:
                         [(range(length)[block.id],)])
         )
         eventList.parent.types.__len__ = lambda self: 1
