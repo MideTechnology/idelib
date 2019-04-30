@@ -2480,10 +2480,6 @@ class EventArray(EventList):
         self._blockIndicesArray = np.array([], dtype=np.float64)
         self._blockTimesArray = np.array([], dtype=np.float64)
 
-        self._getBlockRollingMeanVector = np.vectorize(
-            super(EventArray, self)._getBlockRollingMean
-        )
-
     # --------------------------------------------------------------------------
     # New utility methods
     # --------------------------------------------------------------------------
@@ -2609,10 +2605,10 @@ class EventArray(EventList):
 
         uniqueBlockIndices, blocksPerm = np.unique(blockIdx, return_inverse=True)
 
-        uniqueBlockMeans = np.stack(
-            self._getBlockRollingMeanVector(uniqueBlockIndices, force),
-            axis=0
-        )
+        uniqueBlockMeans = np.stack([
+            super(EventArray, self)._getBlockRollingMean(idx, force)
+            for idx in uniqueBlockIndices
+        ], axis=-1)
         return uniqueBlockMeans[:, blocksPerm]
 
 
