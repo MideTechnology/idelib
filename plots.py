@@ -1073,7 +1073,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetPen(self._pointPen)
             dc.SetBrush(pointBrush)
             for p in self.pointList[source]:
-                dc.DrawCirclePoint(p,self.weight*self.viewScale*self.pointSize)
+                dc.DrawCircle(p,self.weight*self.viewScale*self.pointSize)
         
         return len(lines)
 
