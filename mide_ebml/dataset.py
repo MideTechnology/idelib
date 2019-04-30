@@ -2397,7 +2397,7 @@ class EventList(Transformable):
                 names = [_self.parent.subchannels[x].name for x in subchannels]
             else:
                 fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(_self.parent.types))
-                formatter = lambda x: fstr % ((timeFormatter(x),) + x[1:])
+                formatter = lambda x: fstr % ((timeFormatter(x),) + tuple(x[1:]))
                 names = [x.name for x in _self.parent.subchannels]
         else:
             fstr = "%%s%s%s" % (delimiter, dataFormat)
@@ -2654,7 +2654,7 @@ class EventArray(EventList):
             value = self.parent.parseBlock(block, start=subIdx,
                                            end=subIdx+1)[:, 0]
 
-            _, value = retryUntilReturn(
+            event = retryUntilReturn(
                 lambda: xform(timestamp, value, session=self.session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
@@ -2663,6 +2663,9 @@ class EventArray(EventList):
                     % (self.parent.name, timestamp, value)
                 ),
             )
+            if event is None:
+                return None
+            _, value = event
 
             offset = self._getBlockRollingMean(blockIdx)
             if offset is not None:
@@ -2690,7 +2693,8 @@ class EventArray(EventList):
         raise TypeError("EventArray indices must be integers or slices,"
                         " not %s (%r)" % (type(idx), idx))
 
-    def itervalues(self, start=None, end=None, step=1, subchannels=True, display=False):
+    def itervalues(self, start=None, end=None, step=1, subchannels=True,
+                   display=False):
         """ Iterate all values in the given index range (w/o times).
 
             @keyword start: The first index in the range, or a slice.

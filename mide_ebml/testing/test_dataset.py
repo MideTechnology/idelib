@@ -1106,8 +1106,8 @@ class EventListTestCase(unittest.TestCase):
             
             self.eventList1._data = [GenericObject() for _ in xrange(4)]
             
-            for i, d in enumerate(self.eventList1._data):
-                d.id = i
+            for i, datum in enumerate(self.eventList1._data):
+                datum.id = i
             
         # mock without xforms
         elif section == 1:
@@ -1442,9 +1442,6 @@ class EventListTestCase(unittest.TestCase):
         self.assertListEqual(
             self.eventList1.getMinMeanMax(),
             [((0, 3), (0, 4), (0, 5))])
-        self.assertEqual(
-            self.dataset.channels[32].getSession().getMinMeanMax(),
-            [])
 
 
     def testGetRangeMinMeanMax(self):
@@ -1641,7 +1638,7 @@ class EventArrayTestCase(unittest.TestCase):
         """
         fakeData = GenericObject()
         fakeData.startTime = 0
-        fakeData.indexRange = [0, 3]
+        fakeData.indexRange = [0, 4]
         fakeData.sampleTime = 1
         fakeData.numSamples = 1
         self.eventArray1._data = [fakeData]
@@ -1650,33 +1647,17 @@ class EventArrayTestCase(unittest.TestCase):
         """ Mock up iterslice so it doesn't get called while testing
             other methods.
         """
-        blockDataStub = np.array(
-            [(0, (i,)) for i in [1, 2, 3, 4]],
-            dtype=[
-                ('time', np.float),
-                ('channels', [('ch0'.format(i), np.int)])
-            ]
-        )
-
         self.iterArgs = args
         self.kwArgs = kwargs
-        return iter(blockDataStub)
+        return iter(np.array([(0, 1), (0, 2), (0, 3), (0, 4)], dtype=np.float64))
 
     def mockArraySlice(self,  *args, **kwargs):
         """ Mock up iterslice so it doesn't get called while testing
             other methods.
         """
-        blockDataStub = np.array(
-            [(0, (i,)) for i in [1, 2, 3, 4]],
-            dtype=[
-                ('time', np.float),
-                ('channels', [('ch0'.format(i), np.int)])
-            ]
-        )
-
         self.iterArgs = args
         self.kwArgs = kwargs
-        return blockDataStub
+        return np.array([(0, 1), (0, 2), (0, 3), (0, 4)], dtype=np.float64)
 
     def mockXform(self, times, session=None, noBivariates=None):
         self.xformArgs = (times, session, noBivariates)
@@ -1715,9 +1696,12 @@ class EventArrayTestCase(unittest.TestCase):
         self.assertEqual(self.eventArray1.parent, self.channel1)
         self.assertFalse(self.eventArray1.removeMean)
         self.assertEqual(self.eventArray1.rollingMeanSpan,
-                         EventList.DEFAULT_MEAN_SPAN)
+                         EventArray.DEFAULT_MEAN_SPAN)
         self.assertEqual(self.eventArray1.session, self.dataset.sessions[0])
         self.assertEqual(self.eventArray1.subchannelId, None)
+
+        self.assertEqual(self.eventArray1._blockIndicesArray.size, 0)
+        self.assertEqual(self.eventArray1._blockTimesArray.size, 0)
 
     # TODO add test
     #def test_JoinTimesValues(self):
@@ -1806,7 +1790,7 @@ class EventArrayTestCase(unittest.TestCase):
 
         self.assertEqual(fakeData.blockIndex, 0)
         self.assertFalse(fakeData.cache)
-        self.assertEqual(fakeData.indexRange, (0, 0))
+        self.assertEqual(fakeData.indexRange, (0, 1))
         self.assertEqual(self.eventArray1._blockIndices, [0])
         self.assertEqual(self.eventArray1._blockTimes, [2])
         self.assertEqual(self.eventArray1._firstTime, 2)
@@ -1821,7 +1805,7 @@ class EventArrayTestCase(unittest.TestCase):
 
         self.assertEqual(fakeData.blockIndex, 1)
         self.assertFalse(fakeData.cache)
-        self.assertEqual(fakeData.indexRange, (1, 1))
+        self.assertEqual(fakeData.indexRange, (1, 2))
         self.assertEqual(self.eventArray1._blockIndices, [0, 1])
         self.assertEqual(self.eventArray1._blockTimes, [2, 2])
         self.assertEqual(self.eventArray1._firstTime, 2)
@@ -1838,7 +1822,7 @@ class EventArrayTestCase(unittest.TestCase):
 
         self.assertEqual(fakeData.blockIndex, 2)
         self.assertFalse(fakeData.cache)
-        self.assertEqual(fakeData.indexRange, (2, 2))
+        self.assertEqual(fakeData.indexRange, (2, 3))
         self.assertEqual(self.eventArray1._blockIndices, [0, 1, 2])
         self.assertEqual(self.eventArray1._blockTimes, [2, 2, 2])
         self.assertEqual(self.eventArray1._firstTime, 2)
@@ -1881,13 +1865,13 @@ class EventArrayTestCase(unittest.TestCase):
             def mockGetBlockIndexRange(idx):
                 return mockBlockIndex
 
-            def mockXform(timeAndVal, session=None, noBivariates=False):
-                if type(timeAndVal[1]) == list:
-                    return timeAndVal
-                return (timeAndVal[0], [timeAndVal[1].id])
+            def mockXform(time, val, session=None, noBivariates=False):
+                if type(val) is tuple:
+                    return time, val
+                return time, [val.id]
 
             def mockParseBlock(block, start=None, end=None, step=None):
-                return [block]
+                return [(block,)]
 
             self.eventArray1._getBlockIndexRange = mockGetBlockIndexRange
             self.eventArray1._getBlockIndexWithIndex = mockGetBlockIndexWithIndex
@@ -1897,13 +1881,13 @@ class EventArrayTestCase(unittest.TestCase):
 
             self.eventArray1._data = [GenericObject() for _ in range(4)]
 
-            for x in xrange(len(self.eventArray1._data)):
-                self.eventArray1._data[x].id = x
+            for i, datum in enumerate(self.eventArray1._data):
+                datum.id = i
 
         # mock without xforms
         elif section == 1:
 
-            def mockXform(timeAndVal, session=None, noBivariates=False):
+            def mockXform(time, val, session=None, noBivariates=False):
                 return None
 
             self.eventArray1._displayXform = self.eventArray1._comboXform = \
@@ -1916,10 +1900,10 @@ class EventArrayTestCase(unittest.TestCase):
 
             self.eventArray1._getBlockRollingMean = lambda x: [1]
 
-            def mockXform(timeAndVal, session=None, noBivariates=False):
-                if type(timeAndVal[1]) == list:
-                    return timeAndVal
-                return (timeAndVal[0], [timeAndVal[1].id])
+            def mockXform(time, val, session=None, noBivariates=False):
+                if type(val) is tuple:
+                    return time, val
+                return time, [val.id]
 
             self.eventArray1._displayXform = self.eventArray1._comboXform = \
                 self.eventArray1._fullXform = mockXform
@@ -1935,207 +1919,394 @@ class EventArrayTestCase(unittest.TestCase):
 
     def testGetItem(self):
         """ Test the getitem special method. """
-        self.assertRaises(TypeError, self.eventArray1.__getitem__, 'd')
+        length = 4
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=None,
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=lambda idx: range(length)[idx],
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+        )
+        eventArray._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, startTime=eventArray._getBlockSampleTime(i)
+            )
+        )
+        eventArray.parent.configure_mock(
+            parseBlock=(lambda block, start=None, end=None, step=1:
+                        np.array([[range(length)[block.id]]]))
+        )
 
-        # Mock everything surrounding this method to test it in isolation
-        self.mockForGetItem(0)
-
-        # if parent.parseBlock just bounces back data, then it should just
-        # get a tuple with the timestamp and data
-        self.assertEqual(self.eventArray1[0], (0, [0]))
-        self.assertEqual(self.eventArray1[1], (0, [1]))
-        self.assertEqual(self.eventArray1[2], (0, [2]))
-        self.assertEqual(self.eventArray1[3], (0, [3]))
-
-        self.mockForGetItem(1)
+        self.assertRaises(TypeError, EventArray.__getitem__, eventArray, 'd')
 
         # if the transform returns a none type, it should just skip through
         # and return None
-        self.assertEqual(self.eventArray1[0], None)
-        self.assertEqual(self.eventArray1[1], None)
-        self.assertEqual(self.eventArray1[2], None)
-        self.assertEqual(self.eventArray1[3], None)
+        eventArray.configure_mock(
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        None),
+            _getBlockRollingMean=lambda blockIdx: None,
+            hasSubchannels=True,
+        )
+        self.assertEqual(EventArray.__getitem__(eventArray, 0), None)
+        self.assertEqual(EventArray.__getitem__(eventArray, 1), None)
+        self.assertEqual(EventArray.__getitem__(eventArray, 2), None)
+        self.assertEqual(EventArray.__getitem__(eventArray, 3), None)
 
-        self.mockForGetItem(2)
+        # if parent.parseBlock just bounces back data, then it should just
+        # get a tuple with the timestamp and data
+        eventArray.configure_mock(
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _getBlockRollingMean=lambda blockIdx: None,
+            hasSubchannels=True,
+        )
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 0), (0.00, 0))
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 1), (0.01, 7))
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 2), (0.02, 14))
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 3), (0.03, 21))
 
         # If there is an offset, return a tuple of the timestamp and data,
         # minus the offset
-        self.assertEqual(self.eventArray1[0], (0, (-1,)))
-        self.assertEqual(self.eventArray1[1], (0, (0,)))
-        self.assertEqual(self.eventArray1[2], (0, (1,)))
-        self.assertEqual(self.eventArray1[3], (0, (2,)))
+        eventArray.configure_mock(
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _getBlockRollingMean=lambda blockIdx: (-5,),
+            hasSubchannels=True,
+        )
+
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 0), (0.00, 35))
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 1), (0.01, 42))
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 2), (0.02, 49))
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 3), (0.03, 56))
+
+        # if hasSubchannels is True, return a tuple of the timestamp and
+        # the single channel's data
+        eventArray.configure_mock(
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _getBlockRollingMean=lambda blockIdx: None,
+            hasSubchannels=False, subchannelId=0
+        )
+        eventArray.parent.configure_mock()
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 0), (0.00, 0))
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 1), (0.01, 7))
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 2), (0.02, 14))
+        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 3), (0.03, 21))
 
     def testIter(self):
         """ Test for iter special method. """
         self.eventArray1.iterSlice = self.mockIterSlice
-        self.assertListEqual([x for x in self.eventArray1],
-                             [x for x in self.eventArray1.iterSlice()])
+        np.testing.assert_array_equal(
+            [x for x in self.eventArray1],
+            [x for x in self.eventArray1.iterSlice()]
+        )
 
     # TODO talk to david about how to test these
     def testIterValues(self):
         """ Test for itervalues method. """
-        self.mockData()
-        self.eventArray1.iterSlice = self.mockIterSlice
+        # Stub dependencies
+        length = 4
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
+                                     range(length)[idx]),
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: (0,),
+            allowMeanRemoval=True,
+            removeMean=True,
+            hasMinMeanMax=True,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+            iterSlice=(
+                lambda *a, **kw:
+                EventArray.iterSlice(eventArray, *a, **kw)
+            ),
+            _blockSlice=(
+                lambda *a, **kw:
+                EventArray._blockSlice(eventArray, *a, **kw)
+            ),
+            _makeBlockEventsFactory=(
+                lambda *a, **kw:
+                EventArray._makeBlockEventsFactory(eventArray, *a, **kw)
+            ),
+        )
+        eventArray._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, numSamples=1,
+                startTime=eventArray._getBlockSampleTime(i),
+            )
+        )
+        eventArray.parent.configure_mock(
+            parseBlock=(lambda block, start=None, end=None, step=1:
+                        np.array([[range(length)[block.id]]]))
+        )
 
-        self.assertEqual([tuple(x) for x in self.eventArray1.itervalues()],
-                         [(i,) for i in (1, 2, 3, 4)])
-        self.assertEqual(self.iterArgs, (None, None, None, False))
+        # Run test
+        self.assertListEqual(
+            list(EventArray.itervalues(eventArray)),
+            [(0,), (7,), (14,), (21,)]
+        )
 
     def testArrayValues(self):
         """ Test for arrayValues method. """
-
-        # Stub data/methods
-        eventArray = mock.Mock(spec=EventArray, hasSubchannels=True)
-
-        blockDataStub = np.array(
-            [(0, (i,)) for i in [1, 2, 3, 4]],
-            dtype=[
-                ('time', np.float),
-                ('channels', [('ch0'.format(i), np.int)])
-            ]
-        )
-        eventArray._data = [mock.Mock(startTime=0, indexRange=[0, 3],
-                                      sampleTime=1, numSamples=1)]
-        eventArray.arraySlice = mock.Mock(spec=EventArray.arraySlice,
-                                          return_value=blockDataStub)
-
-        # Run tests
-        np.testing.assert_array_equal(
-            EventArray.arrayValues(
-                eventArray,
-                start=mock.sentinel.start,
-                end=mock.sentinel.end,
-                step=mock.sentinel.step,
-                display=mock.sentinel.display,
-                subchannels=iter([0])
+        # Stub dependencies
+        length = 4
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
+                                     range(length)[idx]),
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: (0,),
+            allowMeanRemoval=True,
+            removeMean=True,
+            hasMinMeanMax=True,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+            arraySlice=(
+                lambda *a, **kw:
+                EventArray.arraySlice(eventArray, *a, **kw)
             ),
-            blockDataStub['channels']
+            _blockSlice=(
+                lambda *a, **kw:
+                EventArray._blockSlice(eventArray, *a, **kw)
+            ),
+            _makeBlockEventsFactory=(
+                lambda *a, **kw:
+                EventArray._makeBlockEventsFactory(eventArray, *a, **kw)
+            ),
         )
-        self.assertEqual(
-            eventArray.arraySlice.call_args[0],
-            (
-                mock.sentinel.start,
-                mock.sentinel.end,
-                mock.sentinel.step,
-                mock.sentinel.display,
+        eventArray._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, numSamples=1,
+                startTime=eventArray._getBlockSampleTime(i),
             )
+        )
+        eventArray.parent.configure_mock(
+            parseBlock=(lambda block, start=None, end=None, step=1:
+                        np.array([[range(length)[block.id]]]))
+        )
+
+        # Run test
+        np.testing.assert_array_equal(
+            EventArray.arrayValues(eventArray),
+            [[0, 7, 14, 21]]
         )
 
     def testIterSlice(self):
         """ Test for the iterSlice method. """
-        self.eventArray1._data = [GenericObject() for _ in xrange(4)]
-        for i, b in enumerate(self.eventArray1._data):
-            b.id = i
-            b.indexRange = (i, i)
-        self.eventArray1._fullXform = lambda x, session, noBivariates: x
-
-        self.eventArray1._getBlockIndexWithIndex = (
-            lambda idx, start=0, stop=None: idx
+        # Stub dependencies
+        length = 4
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
+                                     range(length)[idx]),
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: (0,),
+            allowMeanRemoval=True,
+            removeMean=True,
+            hasMinMeanMax=True,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+            _blockSlice=(
+                lambda *a, **kw:
+                EventArray._blockSlice(eventArray, *a, **kw)
+            ),
+            _makeBlockEventsFactory=(
+                lambda *a, **kw:
+                EventArray._makeBlockEventsFactory(eventArray, *a, **kw)
+            ),
         )
-        self.eventArray1.parent.parseBlock = (
-            lambda block, start, end, step, subchannel=None: [
-                np.array([(b.id+1,)] * ((end-start)//step),
-                         dtype=[('ch0', np.int)])
-                for b in self.eventArray1._data
-            ][block.id]
+        eventArray._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, numSamples=1,
+                startTime=eventArray._getBlockSampleTime(i),
+            )
+        )
+        eventArray.parent.configure_mock(
+            parseBlock=(lambda block, start=None, end=None, step=1:
+                        np.array([[range(length)[block.id]]]))
         )
 
-        self.assertListEqual(
-            [
-                (x['time'], tuple(x['channels']))
-                for x in self.eventArray1.iterSlice()
-            ],
-            [(0, (i,)) for i in [1, 2, 3, 4]],
+        # Run test
+        np.testing.assert_array_equal(
+            list(EventArray.iterSlice(eventArray)),
+            [(0.00, 0), (0.01, 7), (0.02, 14), (0.03, 21)]
         )
 
     def testArraySlice(self):
         """ Test for the arraySlice method. """
-        self.eventArray1._data = [GenericObject() for _ in xrange(4)]
-        for i, b in enumerate(self.eventArray1._data):
-            b.id = i
-            b.indexRange = (i, i)
-        self.eventArray1._fullXform = lambda x, session, noBivariates: x
-
-        self.eventArray1._getBlockIndexWithIndex = (
-            lambda idx, start=0, stop=None: idx
+        length = 4
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
+                                     range(length)[idx]),
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: (0,),
+            allowMeanRemoval=True,
+            removeMean=True,
+            hasMinMeanMax=True,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+            _blockSlice=(
+                lambda *a, **kw:
+                EventArray._blockSlice(eventArray, *a, **kw)
+            ),
+            _makeBlockEventsFactory=(
+                lambda *a, **kw:
+                EventArray._makeBlockEventsFactory(eventArray, *a, **kw)
+            ),
         )
-        self.eventArray1.parent.parseBlock = (
-            lambda block, start, end, step, subchannel=None: [
-                np.array([(b.id+1,)] * ((end-start)//step),
-                         dtype=[('ch0', np.int)])
-                for b in self.eventArray1._data
-            ][block.id]
-        )
-
-        np.testing.assert_array_equal(
-            self.eventArray1.arraySlice(),
-            np.array(
-                [(0, (i,)) for i in [1, 2, 3, 4]],
-                dtype=[
-                    ('time', np.int),
-                    ('channels', [('ch0'.format(i), np.int)])
-                ]
+        eventArray._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, numSamples=1,
+                startTime=eventArray._getBlockSampleTime(i),
             )
+        )
+        eventArray.parent.configure_mock(
+            parseBlock=(lambda block, start=None, end=None, step=1:
+                        np.array([[range(length)[block.id]]]))
+        )
+
+        # Run test
+        np.testing.assert_array_equal(
+            EventArray.arraySlice(eventArray),
+            [(0.00, 0.01, 0.02, 0.03), (0, 7, 14, 21)]
         )
 
     def testIterJitterySlice(self):
         """ Test for the iterJitterySlice method. """
-
-        # Stub data/methods
-        self.eventArray1._data = [GenericObject() for _ in xrange(4)]
-        for i, b in enumerate(self.eventArray1._data):
-            b.id = i
-            b.indexRange = (i, i)
-        self.eventArray1._fullXform = lambda x, session, noBivariates: x
-
-        self.eventArray1._getBlockIndexWithIndex = (
-            lambda idx, start=0, stop=None: idx
+        # Stub dependencies
+        length = 4
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
+                                     range(length)[idx]),
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: (0,),
+            allowMeanRemoval=True,
+            removeMean=True,
+            hasMinMeanMax=True,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+            _blockJitterySlice=(
+                lambda *a, **kw:
+                EventArray._blockJitterySlice(eventArray, *a, **kw)
+            ),
+            _makeBlockEventsFactory=(
+                lambda *a, **kw:
+                EventArray._makeBlockEventsFactory(eventArray, *a, **kw)
+            ),
         )
-        self.eventArray1.parent.parseBlockByIndex = (
-            lambda block, indices: [
-                np.array([(b.id+1,)] * len(indices),
-                         dtype=[('ch0', np.int)])
-                for b in self.eventArray1._data
-            ][block.id]
+        eventArray._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, numSamples=1,
+                startTime=eventArray._getBlockSampleTime(i),
+            )
+        )
+        eventArray.parent.configure_mock(
+            parseBlockByIndex=(lambda block, indices, subchannel=None:
+                               np.array([[range(length)[block.id]]]))
         )
 
-        # Run tests
-        self.assertListEqual(
-            [
-                (x['time'], tuple(x['channels']))
-                for x in self.eventArray1.iterJitterySlice()
-            ],
-            [(0, (i,)) for i in [1, 2, 3, 4]],
+        # Run test
+        np.testing.assert_array_equal(
+            list(EventArray.iterJitterySlice(eventArray)),
+            [(0.00, 0), (0.01, 7), (0.02, 14), (0.03, 21)]
         )
 
     def testArrayJitterySlice(self):
         """ Test for the arrayJitterySlice method. """
-        self.eventArray1._data = [GenericObject() for _ in xrange(4)]
-        for i, b in enumerate(self.eventArray1._data):
-            b.id = i
-            b.indexRange = (i, i)
-        self.eventArray1._fullXform = lambda x, session, noBivariates: x
-
-        self.eventArray1._getBlockIndexWithIndex = (
-            lambda idx, start=0, stop=None: idx
+        # Stub dependencies
+        length = 4
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _data=mock.Mock(),
+            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
+                                     range(length)[idx]),
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: (0,),
+            allowMeanRemoval=True,
+            removeMean=True,
+            hasMinMeanMax=True,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+            _blockJitterySlice=(
+                lambda *a, **kw:
+                EventArray._blockJitterySlice(eventArray, *a, **kw)
+            ),
+            _makeBlockEventsFactory=(
+                lambda *a, **kw:
+                EventArray._makeBlockEventsFactory(eventArray, *a, **kw)
+            ),
         )
-        self.eventArray1.parent.parseBlockByIndex = (
-            lambda block, indices: [
-                np.array([(b.id+1,)] * len(indices),
-                         dtype=[('ch0', np.int)])
-                for b in self.eventArray1._data
-            ][block.id]
-        )
-
-        np.testing.assert_array_equal(
-            self.eventArray1.arrayJitterySlice(),
-            np.array(
-                [(0, (i,)) for i in [1, 2, 3, 4]],
-                dtype=[
-                    ('time', np.int),
-                    ('channels', [('ch0'.format(i), np.int)])
-                ]
+        eventArray._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, numSamples=1,
+                startTime=eventArray._getBlockSampleTime(i),
             )
+        )
+        eventArray.parent.configure_mock(
+            parseBlockByIndex=(lambda block, indices, subchannel=None:
+                               np.array([[range(length)[block.id]]]))
+        )
+
+        # Run test
+        np.testing.assert_array_equal(
+            EventArray.arrayJitterySlice(eventArray),
+            [(0.00, 0.01, 0.02, 0.03), (0, 7, 14, 21)]
         )
 
     def testGetEventIndexBefore(self):
@@ -2150,18 +2321,15 @@ class EventArrayTestCase(unittest.TestCase):
 
         # Stub data/methods
         eventArray = mock.Mock(spec=EventArray)
-        eventArray._data = [mock.Mock(startTime=0, indexRange=[0, 3],
+        eventArray._data = [mock.Mock(startTime=0, indexRange=[0, 4],
                                       sampleTime=1, numSamples=1)]
         eventArray.getEventIndexBefore = lambda t: int(t)
         eventArray.__getitem__ = (
-            lambda self, index: np.array(
-                [
-                    (i, (i+1,))
-                    for i in range(index.start or 0, index.stop,
-                                   index.step or 1)
-                ],
-                dtype=[('time', '<f4'), ('channels', [('ch0', '<i4')])],
-            )
+            lambda self, index: np.array([
+                (i, i+1)
+                for i in range(index.start or 0, index.stop,
+                               index.step or 1)
+            ])
         )
 
         # Tests
@@ -2175,15 +2343,15 @@ class EventArrayTestCase(unittest.TestCase):
         self.mockData()
 
         # input permutations for multi sample
-        self.assertEqual(self.eventArray1.getRangeIndices(1, 2), (2, 2))
-        self.assertEqual(self.eventArray1.getRangeIndices(None, 2), (0, 2))
-        self.assertEqual(self.eventArray1.getRangeIndices(None, None), (0, 3))
+        self.assertEqual(self.eventArray1.getRangeIndices(1, 2), (2, 3))
+        self.assertEqual(self.eventArray1.getRangeIndices(None, 2), (0, 3))
+        self.assertEqual(self.eventArray1.getRangeIndices(None, None), (0, 4))
         self.assertEqual(self.eventArray1.getRangeIndices(2, -51), (3, 0))
 
         # input permutations for single sample
         self.eventArray1.parent.singleSample = True
         self.assertEqual(self.eventArray1.getRangeIndices(2, -51), (0, 1))
-        self.assertEqual(self.eventArray1.getRangeIndices(2, None), (0, 3))
+        self.assertEqual(self.eventArray1.getRangeIndices(2, None), (0, 4))
 
     def testIterRange(self):
         """ Test for iterRange method. """
@@ -2191,8 +2359,8 @@ class EventArrayTestCase(unittest.TestCase):
         self.eventArray1.iterSlice = lambda w, x, y, display: (w+1, x, y, display)
 
         self.assertEqual(
-            self.eventArray1.iterRange(1, 3, 1, display=False),
-            self.eventArray1.iterSlice(2, 3, 1, display=False)
+            self.eventArray1.iterRange(1, 4, 1, display=False),
+            self.eventArray1.iterSlice(2, 4, 1, display=False)
         )
 
     def testArrayRange(self):
@@ -2203,8 +2371,8 @@ class EventArrayTestCase(unittest.TestCase):
         )
 
         np.testing.assert_array_equal(
-            self.eventArray1.arrayRange(1, 3, 1, display=False),
-            self.eventArray1.arraySlice(2, 3, 1, display=False)
+            self.eventArray1.arrayRange(1, 4, 1, display=False),
+            self.eventArray1.arraySlice(2, 4, 1, display=False)
         )
 
     def testGetRange(self):
@@ -2226,7 +2394,7 @@ class EventArrayTestCase(unittest.TestCase):
 
         self.assertListEqual(
             [x for x in self.eventArray1.iterMinMeanMax()],
-            [[(0, (3,)), (0, (4,)), (0, (5,))]]
+            [((0, 3), (0, 4), (0, 5))]
         )
 
     def testArrayMinMeanMax(self):
@@ -2237,19 +2405,13 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray = mock.Mock(spec=EventArray)
         eventArray.iterMinMeanMax = mock.Mock(spec=EventArray.iterMinMeanMax)
 
-        statsStub = [((0., (3,)), (0., (4,)), (0., (5,)),)]
-        statsDtype = np.dtype([('min', [('ch0', 'i')]),
-                               ('mean', [('ch0', 'i')]),
-                               ('max', [('ch0', 'i')])])
+        statsStub = [((0., 3), (0., 4), (0., 5))]
         eventArray.hasSubchannels = True
         eventArray.iterMinMeanMax.return_value = iter(statsStub)
 
         # Run tests
         result = EventArray.arrayMinMeanMax(eventArray)
-        np.testing.assert_array_equal(
-            result,
-            np.array(statsStub, dtype=result.dtype)
-        )
+        np.testing.assert_array_equal(result, np.moveaxis(statsStub, 0, -1))
 
     def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
@@ -2267,84 +2429,73 @@ class EventArrayTestCase(unittest.TestCase):
         self.assertEqual(EventArray.getMinMeanMax(eventArray, *args),
                          mock.sentinel.return_value)
         self.assertEqual(eventArray.arrayMinMeanMax.call_args, (args,))
+        np.testing.assert_array_equal(
+            self.dataset.channels[32].getSession().getMinMeanMax(),
+            np.array([])
+        )
 
     def testGetRangeMinMeanMax(self):
         """ Test for getRangeMinMeanMax method. """
-
+        # TODO fix
         eventArray = mock.Mock(spec=EventArray, hasSubchannels=True)
 
-        chDtypeDesc = [('ch0', '<i4'), ('ch1', '<f4')]
-        statsStub = np.array(
-            [
-                ((3, 4.), (5, 6.), (7, 8.)),
-                ((10, 11.), (12, 13.), (14, 15.)),
-            ],
-            dtype=[(stat, chDtypeDesc) for stat in ('min', 'mean', 'max')]
-        )
+        statsStub = np.array([
+            ((3, 10), (4., 11.)),
+            ((5, 12), (6., 13.)),
+            ((7, 14), (8., 15.)),
+        ])
         eventArray.arrayMinMeanMax = mock.Mock(spec=EventArray.arrayMinMeanMax,
                                                return_value=statsStub)
 
-        self.assertSequenceEqual(EventArray.getRangeMinMeanMax(eventArray),
-                                 (3, 9, 15), seq_type=tuple)
+        np.testing.assert_array_equal(
+            EventArray.getRangeMinMeanMax(eventArray), (3, 9, 15)
+        )
 
     def testGetMax(self):
         """ Test for getMax method. """
-
-        # Stub data/methods
-        eventArray = mock.Mock(spec=EventArray, hasSubchannels=True)
-
-        chDtypeDesc = [('ch0', '<i4'), ('ch1', '<f4')]
-        statsStub = np.array(
-            [
-                ((3, 4.), (5, 6.), (7, 8.)),
-                ((10, 11.), (12, 13.), (14, 15.)),
-            ],
-            dtype=[(stat, chDtypeDesc) for stat in ('min', 'mean', 'max')]
+        # Stub dependencies
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            _data=mock.Mock(__getitem__=lambda self, idx: mock.Mock(
+                indexRange=(mock.sentinel.start, mock.sentinel.end)
+            )),
+            hasMinMeanMax=False,
+            hasSubchannels=False,
+            arrayMinMeanMax=(
+                lambda *a, **kw:
+                np.array([[(0, 3)], [(0, 4)], [(0, 5)]])
+            ),
+            arraySlice=(
+                lambda *a, **kw:
+                np.array([(0, 0, 0, 0), (3, 3.5, 4.5, 5)])
+            ),
         )
-        timesValsStub = np.array(
-            [(0, (10, 15.,)), (0.5, (14, 11.,))],
-            dtype=[('time', '<f4'), ('channels', chDtypeDesc)],
-        )
 
-        eventArray._data = [mock.Mock(startTime=0, indexRange=[0, 2],
-                                      sampleTime=1, numSamples=2)] * 2
-        eventArray.arrayMinMeanMax = mock.Mock(spec=EventArray.arrayMinMeanMax,
-                                               return_value=statsStub)
-        eventArray.arraySlice = mock.Mock(spec=EventArray.arraySlice,
-                                          return_value=timesValsStub)
-
-        # Run tests
-        self.assertEqual(EventArray.getMax(eventArray), timesValsStub[0])
+        # Run test
+        np.testing.assert_array_equal(EventArray.getMax(eventArray), (0, 5))
 
     def testGetMin(self):
         """ test for getMin method. """
-
-        # Stub data/methods
-        eventArray = mock.Mock(spec=EventArray, hasSubchannels=True,
-                               hasMinMeanMax=False)
-
-        chDtypeDesc = [('ch0', '<i4'), ('ch1', '<f4')]
-        statsStub = np.array(
-            [
-                ((3, 4.), (5, 6.), (7, 8.)),
-                ((10, 11.), (12, 13.), (14, 15.)),
-            ],
-            dtype=[(stat, chDtypeDesc) for stat in ('min', 'mean', 'max')]
+        # Stub dependencies
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            _data=mock.Mock(__getitem__=lambda self, idx: mock.Mock(
+                indexRange=(mock.sentinel.start, mock.sentinel.end)
+            )),
+            hasMinMeanMax=False,
+            hasSubchannels=False,
+            arrayMinMeanMax=(
+                lambda *a, **kw:
+                np.array([[(0, 3)], [(0, 4)], [(0, 5)]])
+            ),
+            arraySlice=(
+                lambda *a, **kw:
+                np.array([(0, 0, 0, 0), (3, 3.5, 4.5, 5)])
+            ),
         )
-        timesValsStub = np.array(
-            [(0, (7, 4.,)), (0.5, (3, 8.,))],
-            dtype=[('time', '<f4'), ('channels', chDtypeDesc)],
-        )
 
-        eventArray._data = [mock.Mock(startTime=0, indexRange=[0, 2],
-                                      sampleTime=1, numSamples=2)] * 2
-        eventArray.arrayMinMeanMax = mock.Mock(spec=EventArray.arrayMinMeanMax,
-                                               return_value=statsStub)
-        eventArray.arraySlice = mock.Mock(spec=EventArray.arraySlice,
-                                          return_value=timesValsStub)
-
-        # Run tests
-        self.assertEqual(EventArray.getMin(eventArray), timesValsStub[1])
+        # Run test
+        np.testing.assert_array_equal(EventArray.getMin(eventArray), (0, 3))
         self.assertEqual(eventArray._computeMinMeanMax.call_count, 1)
 
     def testGetSampleTime(self):
@@ -2374,76 +2525,94 @@ class EventArrayTestCase(unittest.TestCase):
 
     def testGetValueAt(self):
         """ Test for getValueAt method. """
-        # mocking
-        self.mockData()
-        fakeData = GenericObject()
-        fakeData.numSamples = 1
-        fakeData.startTime = 0
-        fakeData.endTime = 4
-        fakeData.minMeanMax = (5, 6, 7)
-        fakeData.parseMinMeanMax = lambda x: x
+        # Stub dependencies
+        length = 4
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            useAllTransforms=True,
+            __len__=lambda self: length,
+            _fullXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _data=mock.Mock(),
+            getEventIndexBefore=lambda at: min(max(-1, int(at//0.01)), length-1),
+            _getBlockIndexWithIndex=lambda idx: range(length)[idx],
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: 0.01*idx,
+            _getBlockRollingMean=lambda blockIdx: None,
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+            hasSubchannels=True,
+            __getitem__=lambda self, *a, **kw: EventArray.__getitem__(eventArray, *a, **kw),
+        )
+        eventArray._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, startTime=eventArray._getBlockSampleTime(i)
+            )
+        )
+        eventArray.parent.configure_mock(
+            parseBlock=(lambda block, start=None, end=None, step=1:
+                        np.array([[range(length)[block.id]]]))
+        )
+        eventArray.parent.types.__len__ = lambda self: 1
 
-        self.eventArray1.append(fakeData)
-
-        # bonus mocking.  repeating for every test to ensure that it's sending
-        # the values it needs to
-        self.eventArray1._fullXform = self.mockXform
-        self.mockXformReturn = [[0], [0], 0, [0]]
-        self.assertEqual(self.eventArray1.getValueAt(0, outOfRange=True),
-                         [[0], [0], 1, [0]])
-
-        self.mockXformReturn = [[0], [0], -1, [0]]
-        self.assertEqual(self.eventArray1.getValueAt(0),
-                         [[0], [0], 0, [0]])
-
-        self.mockXformReturn = [[0], [0], -1, [0]]
-        self.eventArray1.getEventIndexBefore = lambda x: 1
-        self.assertEqual(self.eventArray1.getValueAt(0),
-                         [[0], [0], 0, [0]])
-
-        self.mockXformReturn = [[0], [0], -1, [0]]
-        self.eventArray1.getEventIndexBefore = lambda x: 0
-        self.mockXformReturn = [[0], [0], 0, [0]]
-        self.assertEqual(self.eventArray1.getValueAt(0),
-                         (0, (0.0,)))
+        # Run test
+        self.assertRaises(IndexError, EventArray.getValueAt, eventArray, -0.01)
+        np.testing.assert_array_equal(
+            EventArray.getValueAt(eventArray, -0.01, outOfRange=True),
+            (0.00, 0)
+        )
+        np.testing.assert_array_equal(
+            EventArray.getValueAt(eventArray, 0.00), (0.00, 0)
+        )
+        np.testing.assert_array_equal(
+            EventArray.getValueAt(eventArray, 0.01), (0.01, 7)
+        )
+        np.testing.assert_array_equal(
+            EventArray.getValueAt(eventArray, 0.02), (0.02, 14)
+        )
+        np.testing.assert_array_equal(
+            EventArray.getValueAt(eventArray, 0.03), (0.03, 21)
+        )
+        np.testing.assert_array_equal(
+            EventArray.getValueAt(eventArray, 0.04, outOfRange=True),
+            (0.03, 21)
+        )
+        self.assertRaises(IndexError, EventArray.getValueAt, eventArray, 0.04)
 
     def testGetMeanNear(self):
         """ Test for getMeanNear method. """
-        # mock everthing up
-        self.mockData()
+        # Stub dependencies
+        length = 4
+        eventArray = mock.Mock(spec=EventArray)
+        eventArray.configure_mock(
+            __len__=lambda self: length,
+            _comboXform=(lambda time, val, session=None, noBivariates=False:
+                        (time, tuple(7*i for i in val))),
+            _data=mock.Mock(),
+            _getBlockIndexWithTime=lambda at: min(max(-1, int((at+0.005)//0.01)), length-1),
+            _getBlockRollingMean=lambda blockIdx, force=False: (range(length)[blockIdx],),
+            hasSubchannels=True,
+        )
+        eventArray._data.configure_mock(
+            __len__=eventArray.__len__,
+        )
 
-        def mockComboXform(*args, **kwargs):
-            self.comboArgs = args
-            self.comboKwargs = kwargs
-
-            return [[0]]
-
-        self.eventArray1._comboXform = mockComboXform
-        self.eventArray1._data[0].minMeanMax = 0
-        self.eventArray1._data[0]._rollingMean = 0
-        self.eventArray1._data[0]._rollingMeanSpan = 0
-        self.eventArray1._data[0].mean = 0
-
-        self.assertEqual(self.eventArray1.getMeanNear(0), [0])
-        self.assertEqual(self.comboArgs, ((0, 0),))
-        self.assertEqual(self.comboKwargs, {})
-
-        # test for an eventlist with no subchannels
-        self.eventArray1.hasSubchannels = False
-        self.eventArray1.subchannelId = 0
-
-        self.assertEqual(self.eventArray1.getMeanNear(0), 0)
-        self.assertEqual(self.comboArgs, ((0, 0),))
-        self.assertEqual(self.comboKwargs, {})
+        # Run test
+        self.assertEqual(EventArray.getMeanNear(eventArray, 0.00), (0,))
+        self.assertEqual(EventArray.getMeanNear(eventArray, 0.01), (7,))
+        self.assertEqual(EventArray.getMeanNear(eventArray, 0.02), (14,))
+        self.assertEqual(EventArray.getMeanNear(eventArray, 0.03), (21,))
 
     def testIterResampledRange(self):
         """ Test for iterResampledRange method. """
         
         # Stub data/methods
         eventArray = mock.Mock(spec=EventArray)
-        eventArray.__len__ = lambda self: 100
+        eventArray.configure_mock(
+            __len__=lambda self: 100,
+        )
         eventArray.getRangeIndices.return_value = 0, 105
-
         eventArray.iterSlice.return_value = mock.sentinel.a
         eventArray.iterJitterySlice.return_value = mock.sentinel.b
 
@@ -2481,9 +2650,10 @@ class EventArrayTestCase(unittest.TestCase):
         
         # Stub data/methods
         eventArray = mock.Mock(spec=EventArray)
-        eventArray.__len__ = lambda self: 100
+        eventArray.configure_mock(
+            __len__=lambda self: 100,
+        )
         eventArray.getRangeIndices.return_value = 0, 105
-
         eventArray.arraySlice.return_value = mock.sentinel.a
         eventArray.arrayJitterySlice.return_value = mock.sentinel.b
 
@@ -2494,7 +2664,7 @@ class EventArrayTestCase(unittest.TestCase):
         # Run tests
         self.assertEqual(
             EventArray.arrayResampledRange(eventArray, startTime, stopTime,
-                                          maxPoints),
+                                           maxPoints),
             mock.sentinel.a
         )
         startIdx, stopIdx, step = (
@@ -2506,7 +2676,7 @@ class EventArrayTestCase(unittest.TestCase):
 
         self.assertEqual(
             EventArray.arrayResampledRange(eventArray, startTime, stopTime,
-                                          maxPoints, jitter=0.1,),
+                                           maxPoints, jitter=0.1,),
             mock.sentinel.b
         )
         startIdx, stopIdx, step, jitter = (
