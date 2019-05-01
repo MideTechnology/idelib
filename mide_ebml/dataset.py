@@ -7,10 +7,6 @@ Created on Sep 26, 2013
 @author: dstokes
 
 '''
-# TODO: Flatten EventList data (i.e. ``(time, value1, value2)`` instead of
-#    ``(time, (value1, value2))``). Will be more compatible with Numpy and may
-#    simplify some EventList stuff.
-#
 # TODO: Clean out some of the unused features. They make the code less clear,
 #    creating more than one way to do the same thing. More often than not, 
 #    they are the result of over-engineering things.
@@ -55,8 +51,9 @@ Created on Sep 26, 2013
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
-__all__ = ('Channel Dataset EventList EventArray Plot Sensor Session'
-           ' SubChannel WarningRange Cascading Transformable'.split())
+__all__ = ['Channel', 'Dataset', 'EventList', 'EventArray', 'Plot', 'Sensor',
+           'Session', ' SubChannel', 'WarningRange', 'Cascading',
+           'Transformable']
 
 from bisect import bisect_right
 from collections import Iterable, Sequence
@@ -1476,24 +1473,24 @@ class EventList(Transformable):
                 event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
                 if event is None:
                     return None
-            time, vals = event
+            t, vals = event
 
             offset = self._getBlockRollingMean(blockIdx)
             if offset is not None:
-                offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
-                if offsetx is None:
+                mx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
+                if mx is None:
                     logger.info( "%s: bad offset @%s" % (self.parent.name,timestamp))
                     sleep(0.001)
-                    offsetx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
-                offsetx = np.array(offsetx[1])
-                time = timestamp
-                vals = tuple(vals-offsetx)
+                    mx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
+                mx = np.array(mx[1])
+                t = timestamp
+                vals = tuple(vals-mx)
                 
             if self.hasSubchannels:
-                return (time,) + vals
+                return (t,) + vals
             else:
                 # Doesn't quite work; transform dataset attribute not set?
-                return (time, vals[self.subchannelId])
+                return (t, vals[self.subchannelId])
 
         elif isinstance(idx, slice):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
@@ -1593,6 +1590,7 @@ class EventList(Transformable):
             @keyword display: If `True`, the `EventList` transform (i.e. the 
                 'display' transform) will be applied to the data.
         """
+        # TODO optimization: refactor calls of iterSlice() to pass slices?
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
@@ -1642,28 +1640,28 @@ class EventList(Transformable):
                     logger.info( "%s: bad offset (1) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
-                offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                if offsetx is None:
+                mx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
+                if mx is None:
                     logger.info( "%s: bad offset(2) @%s" % (self.parent.name,block.startTime))
                     sleep(0.001)
-                    offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                if offsetx is not None:
-                    offset = np.array(offsetx[1])
+                    mx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
+                if mx is not None:
+                    offset = np.array(mx[1])
                 
-            for time, vals in izip(times, values):
-                eventx = xform(time, vals, session=session, noBivariates=self.noBivariates)
+            for t, vals in izip(times, values):
+                eventx = xform(t, vals, session=session, noBivariates=self.noBivariates)
                 if eventx is None:
                     logger.info( "%s: bad transform @%s" % (self.parent.name,event[0]))
                     sleep(0.001)
-                    eventx = xform(time, vals, session=session, noBivariates=self.noBivariates)
-                time, vals = eventx
+                    eventx = xform(t, vals, session=session, noBivariates=self.noBivariates)
+                t, vals = eventx
                     
                 if offset is not None:
                     vals = tuple(vals-offset)
                 if hasSubchannels:
-                    yield (time,) + vals
+                    yield (t,) + vals
                 else:
-                    yield (time, vals[subchannelId])
+                    yield (t, vals[subchannelId])
             
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1680,6 +1678,7 @@ class EventList(Transformable):
             @keyword display: If `True`, the `EventList` transform (i.e. the 
                 'display' transform) will be applied to the data.
         """
+        # TODO optimization: refactor calls of iterJitterySlice() to pass slices?
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
@@ -1735,30 +1734,30 @@ class EventList(Transformable):
                     sleep(0.001)
                     offset = _getBlockRollingMean(blockIdx)
                 
-                offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                if offsetx is None:
+                mx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
+                if mx is None:
                     # Thread-induced race condition? Try again.
                     logger.warning("iterJitterySlice: offset is None")
                     sleep(0.001)
-                    offsetx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                offset = np.array(offsetx[1])
+                    mx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
+                offset = np.array(mx[1])
                 
-            for time, vals in izip(times, values):
-                eventx = xform(time, vals, session, noBivariates=self.noBivariates)
+            for t, vals in izip(times, values):
+                eventx = xform(t, vals, session, noBivariates=self.noBivariates)
                 if eventx is None:
                     # Thread-induced race condition? Try again.
                     sleep(0.001)
-                    eventx = xform(time, vals, session, noBivariates=self.noBivariates)
-                time, vals = eventx
+                    eventx = xform(t, vals, session, noBivariates=self.noBivariates)
+                t, vals = eventx
                     
                 if offset is not None:
                     vals = tuple(vals-offset)
                 else:
                     logger.info('%r event offset is None' % self.parent.name)
                 if hasSubchannels:
-                    yield (time,) + vals
+                    yield (t,) + vals
                 else:
-                    yield (time, vals[subchannelId])
+                    yield (t, vals[subchannelId])
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
@@ -1904,41 +1903,41 @@ class EventList(Transformable):
 #             if block.minMeanMax is None:
 #                 continue
 
-            time = block.startTime
-            offset = _getBlockRollingMean(block.blockIndex)
+            t = block.startTime
+            m = _getBlockRollingMean(block.blockIndex)
             
             # HACK: Multithreaded loading can (very rarely) fail at start.
             # The problem is almost instantly resolved, though. Find root cause.
             tries = 0
-            if removeMean and offset is None:
+            if removeMean and m is None:
                 sleep(0.01)
-                offset = _getBlockRollingMean(block.blockIndex)
+                m = _getBlockRollingMean(block.blockIndex)
                 tries += 1
                 if tries > 10:
                     break
             
-            if offset is not None:
-                offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
-                if offsetx is None:
+            if m is not None:
+                mx = xform(t, m, session, noBivariates=self.noBivariates)
+                if mx is None:
                     sleep(0.005)
-                    offsetx = xform(time, offset, session, noBivariates=self.noBivariates)
-                    if offsetx is None:
-                        offsetx = time, offset
-                offset = np.array(offsetx[1])
+                    mx = xform(t, m, session, noBivariates=self.noBivariates)
+                    if mx is None:
+                        mx = t, m
+                m = np.array(mx[1])
                 
             result = []
             result_append = result.append
             
             for val in (block.min, block.mean, block.max):
-                event=xform(time, val, session, noBivariates=self.noBivariates)
+                event=xform(t, val, session, noBivariates=self.noBivariates)
                 if event is None:
                     sleep(0.005)
-                    event = xform(time, val, session, noBivariates=self.noBivariates)
+                    event = xform(t, val, session, noBivariates=self.noBivariates)
                     if event is None:
-                        event = time, val
-                timex, valx = event
-                if offset is not None:
-                    valx = valx - offset
+                        event = t, val
+                tx, valx = event
+                if m is not None:
+                    valx = valx - m
                 result_append(valx)
             
             # Transformation has negative coefficient for inverted z-axis data
@@ -1952,7 +1951,7 @@ class EventList(Transformable):
                     result = result[::-1]
 
             if times:
-                yield tuple((timex,)+x for x in result)
+                yield tuple((tx,)+x for x in result)
             else:
                 yield tuple(result)
 
@@ -2447,29 +2446,28 @@ class EventList(Transformable):
 #===============================================================================
 
 def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
-                     on_abort=(lambda: None), default=None):
+                     default=None):
     """ Repeats a function call until a non-None value is returned, and
         returns that value.
     """
-    def separated_iter(iterable, separator):
-        """ Calls a function *strictly between* every yielded item in
-            an iterator. Useful for adding delay between iterations
-            without an unnecessary delay following the final item.
+    def delay_buffered_counter():
+        """ Adds delay *strictly between* every yielded item in a range
+            iterator.
         """
-        it = iter(iterable)
+        it = iter(range(max_tries))
         yield next(it)
         while True:
             next_value = next(it)  # skips separator on last item yield
-            separator()
+            sleep(delay)
             yield next_value
 
-    for _ in separated_iter(range(max_tries), lambda: sleep(delay)):
+    for _ in delay_buffered_counter():
         value = func()
         if value is not None:
             return value
         on_fail()
     else:
-        return on_abort() or default
+        return default
 
 
 class EventArray(EventList):
@@ -2754,6 +2752,7 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
+        # TODO optimization: refactor calls of iterSlice() to pass slices?
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
@@ -2841,6 +2840,7 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
+        # TODO optimization: refactor calls of iterJitterySlice() to pass slices?
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
@@ -3007,7 +3007,7 @@ class EventArray(EventList):
 #             if block.minMeanMax is None:
 #                 continue
 
-            times = block.startTime
+            t = block.startTime
             if removeMean:
                 # HACK: Multithreaded loading can (very rarely) fail at start.
                 # The problem is almost instantly resolved, though. Find root cause.
@@ -3019,18 +3019,18 @@ class EventArray(EventList):
                 offset = _getBlockRollingMean(block.blockIndex)
 
             if offset is not None:
-                _, offsetx = retryUntilReturn(
-                    (lambda: xform(time, offset, session,
+                _, mx = retryUntilReturn(
+                    (lambda: xform(t, offset, session,
                                    noBivariates=self.noBivariates)),
-                    max_tries=2, delay=0.005, default=(time, offset)
+                    max_tries=2, delay=0.005, default=(t, offset)
                 )
-                offset = np.array(offsetx)
+                offset = np.array(mx)
 
             values = np.stack((block.min, block.mean, block.max)).T
-            timex, values = retryUntilReturn(
-                (lambda: xform(time, values, session,
+            tx, values = retryUntilReturn(
+                (lambda: xform(t, values, session,
                                noBivariates=self.noBivariates)),
-                max_tries=2, delay=0.005, default=(time, values)
+                max_tries=2, delay=0.005, default=(t, values)
             )
             values = np.array(values).T
             if offset is not None:
@@ -3045,8 +3045,8 @@ class EventArray(EventList):
                 values = values[:, [parent_id]]
 
             if times:
-                timex = np.broadcast_to(timex, (values.shape[0], 1))
-                yield np.concatenate((timex, values), axis=-1)
+                tx = np.broadcast_to(tx, (values.shape[0], 1))
+                yield np.concatenate((tx, values), axis=-1)
             else:
                 yield values
     '''
