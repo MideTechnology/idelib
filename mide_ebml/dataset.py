@@ -3452,8 +3452,6 @@ class WarningRange(object):
 
         if outOfRange:
             result = [[start,start]]
-
-        # print([(x, y) for x,y in source.iterRange(start, end)])
         
         for event in source.iterRange(start, end):
             if self.valid(event[1:]):
