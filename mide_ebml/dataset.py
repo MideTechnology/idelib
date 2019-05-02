@@ -1463,34 +1463,32 @@ class EventList(Transformable):
             
             block = self._data[blockIdx]
             
-            timestamp = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
-            value = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
+            t = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
+            val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
             
-            event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
-            if event is None:
-                logger.info( "%s: bad transform %r %r" % (self.parent.name,timestamp, value))
+            eventx = xform(t, val, session=self.session, noBivariates=self.noBivariates)
+            if eventx is None:
+                logger.info( "%s: bad transform %r %r" % (self.parent.name,t, val))
                 sleep(0.001)
-                event = xform(timestamp, value, session=self.session, noBivariates=self.noBivariates)
-                if event is None:
+                eventx = xform(t, val, session=self.session, noBivariates=self.noBivariates)
+                if eventx is None:
                     return None
-            t, vals = event
+            tx, valx = eventx
 
-            offset = self._getBlockRollingMean(blockIdx)
-            if offset is not None:
-                mx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
+            m = self._getBlockRollingMean(blockIdx)
+            if m is not None:
+                mx = xform(t, m, session=self.session, noBivariates=self.noBivariates)
                 if mx is None:
-                    logger.info( "%s: bad offset @%s" % (self.parent.name,timestamp))
+                    logger.info( "%s: bad offset @%s" % (self.parent.name,t))
                     sleep(0.001)
-                    mx = xform(timestamp, offset, session=self.session, noBivariates=self.noBivariates)
-                mx = np.array(mx[1])
-                t = timestamp
-                vals = tuple(vals-mx)
+                    mx = xform(t, m, session=self.session, noBivariates=self.noBivariates)
+                valx = tuple(valx - np.array(mx[1]))
                 
             if self.hasSubchannels:
-                return (t,) + vals
+                return (tx,) + valx
             else:
                 # Doesn't quite work; transform dataset attribute not set?
-                return (t, vals[self.subchannelId])
+                return (tx, valx[self.subchannelId])
 
         elif isinstance(idx, slice):
             return list(self.iterSlice(idx.start, idx.stop, idx.step))
@@ -2632,42 +2630,40 @@ class EventArray(EventList):
 
             block = self._data[blockIdx]
 
-            timestamp = (block.startTime
-                         + self._getBlockSampleTime(blockIdx)*subIdx)
-            value = self.parent.parseBlock(block, start=subIdx,
-                                           end=subIdx+1)[:, 0]
+            t = block.startTime + self._getBlockSampleTime(blockIdx)*subIdx
+            val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[:, 0]
 
-            event = retryUntilReturn(
-                lambda: xform(timestamp, value, session=self.session,
+            eventx = retryUntilReturn(
+                lambda: xform(t, val, session=self.session,
                               noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=lambda: logger.info(
                     "%s: bad transform %r %r"
-                    % (self.parent.name, timestamp, value)
+                    % (self.parent.name, t, val)
                 ),
             )
-            if event is None:
+            if eventx is None:
                 return None
-            _, value = event
+            tx, valx = eventx
 
-            offset = self._getBlockRollingMean(blockIdx)
-            if offset is not None:
-                _, offset = retryUntilReturn(
-                    lambda: xform(timestamp, offset, session=self.session,
+            m = self._getBlockRollingMean(blockIdx)
+            if m is not None:
+                _, mx = retryUntilReturn(
+                    lambda: xform(t, m, session=self.session,
                                   noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001,
                     on_fail=lambda: logger.info(
                         "%s: bad offset @%s"
-                        % (self.parent.name, timestamp)
+                        % (self.parent.name, t)
                     ),
                 )
-                value -= np.array(offset)
+                valx -= np.array(mx)
 
             if not self.hasSubchannels:
                 # Doesn't quite work; transform dataset attribute not set?
-                return np.array([timestamp, value[self.subchannelId]])
+                return np.array([tx, valx[self.subchannelId]])
             else:
-                return np.append([timestamp], value)
+                return np.append([tx], valx)
 
         elif isinstance(idx, slice):
             # vvv Main difference from `EventList.__getitem__` vvv
