@@ -454,6 +454,8 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         for r in source.ebmldoc:
             
             r_name = r.name
+            if r_name == "ChannelDataBlock":
+                r_name = "ChannelDataArrayBlock"
             
             doc.loadCancelled = getattr(updater, "cancelled", False)
             if doc.loadCancelled:
@@ -474,7 +476,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
                 continue
             
             # HACK: Not the best implementation. Should be moved somewhere.
-            if onlyChannel is not None and r_name == "ChannelDataBlock":
+            if onlyChannel is not None and (r_name == "ChannelDataArrayBlock"):
                 if r.value[0].value != onlyChannel:
                     continue 
             
