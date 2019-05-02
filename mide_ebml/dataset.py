@@ -2450,24 +2450,13 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
     """ Repeats a function call until a non-None value is returned, and
         returns that value.
     """
-    def delayed_xrange(*args):
-        """ Adds delay *strictly between* every yielded item in an xrange
-            iterator.
-        """
-        it = iter(xrange(*args))
-        yield next(it)
-        while True:
-            next_value = next(it)  # skips separator on last item yield
-            sleep(delay)
-            yield next_value
-
-    for _ in delayed_xrange(max_tries):
+    for _ in xrange(max_tries):
         value = func()
         if value is not None:
             return value
         on_fail()
-    else:
-        return default
+        sleep(delay)
+    return default
 
 
 class EventArray(EventList):
