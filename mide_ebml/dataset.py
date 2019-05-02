@@ -52,7 +52,7 @@ from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
 
 __all__ = ['Channel', 'Dataset', 'EventList', 'EventArray', 'Plot', 'Sensor',
-           'Session', ' SubChannel', 'WarningRange', 'Cascading',
+           'Session', 'SubChannel', 'WarningRange', 'Cascading',
            'Transformable']
 
 from bisect import bisect_right
