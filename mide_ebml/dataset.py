@@ -59,6 +59,7 @@ from bisect import bisect_right
 from collections import Iterable, Sequence
 from datetime import datetime
 from itertools import imap, izip
+from functools import partial
 import os.path
 import random
 import struct
@@ -2496,34 +2497,31 @@ class EventArray(EventList):
                 event times and values. (Used in event iteration methods.)
             """
             times, values = retryUntilReturn(
-                lambda: xform(times, values, session=session,
-                              noBivariates=self.noBivariates),
+                partial(xform, times, values, session=session,
+                        noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
-                on_fail=lambda: logger.info(
-                    "%s: bad transform @%s"
-                    % (parent.name, times)
-                ),
+                on_fail=partial(logger.info,
+                                "%s: bad transform @%s"
+                                % (parent.name, times)),
             )
             values = np.asarray(values)
 
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
                 offset = retryUntilReturn(
-                    lambda: _getBlockRollingMean(blockIdx),
+                    partial(_getBlockRollingMean, blockIdx),
                     max_tries=2, delay=0.001,
-                    on_fail=lambda: logger.info(
-                        "%s: bad offset (1) @%s"
-                        % (parent.name, block.startTime)
-                    ),
+                    on_fail=partial(logger.info,
+                                    "%s: bad offset (1) @%s"
+                                    % (parent.name, block.startTime)),
                 )
                 _, offset = retryUntilReturn(
-                    lambda: xform(block.startTime, offset, session=session,
-                                  noBivariates=self.noBivariates),
+                    partial(xform, block.startTime, offset, session=session,
+                            noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001, default=(None, offset),
-                    on_fail=lambda: logger.info(
-                        "%s: bad offset(2) @%s"
-                        % (parent.name, block.startTime)
-                    ),
+                    on_fail=partial(logger.info,
+                                    "%s: bad offset (2) @%s"
+                                    % (parent.name, block.startTime)),
                 )
 
                 if offset is not None:
@@ -2634,13 +2632,12 @@ class EventArray(EventList):
             val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[:, 0]
 
             eventx = retryUntilReturn(
-                lambda: xform(t, val, session=self.session,
-                              noBivariates=self.noBivariates),
+                partial(xform, t, val, session=self.session,
+                        noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
-                on_fail=lambda: logger.info(
-                    "%s: bad transform %r %r"
-                    % (self.parent.name, t, val)
-                ),
+                on_fail=partial(logger.info,
+                                "%s: bad transform %r %r"
+                                % (self.parent.name, t, val)),
             )
             if eventx is None:
                 return None
@@ -2649,13 +2646,12 @@ class EventArray(EventList):
             m = self._getBlockRollingMean(blockIdx)
             if m is not None:
                 _, mx = retryUntilReturn(
-                    lambda: xform(t, m, session=self.session,
-                                  noBivariates=self.noBivariates),
+                    partial(xform, t, m, session=self.session,
+                            noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001,
-                    on_fail=lambda: logger.info(
-                        "%s: bad offset @%s"
-                        % (self.parent.name, t)
-                    ),
+                    on_fail=partial(logger.info,
+                                    "%s: bad offset @%s"
+                                    % (self.parent.name, t)),
                 )
                 valx -= np.array(mx)
 
@@ -2997,7 +2993,7 @@ class EventArray(EventList):
                 # HACK: Multithreaded loading can (very rarely) fail at start.
                 # The problem is almost instantly resolved, though. Find root cause.
                 offset = retryUntilReturn(
-                    (lambda: _getBlockRollingMean(block.blockIndex)),
+                    partial(_getBlockRollingMean, block.blockIndex),
                     max_tries=10, delay=0.01
                 )
             else:
@@ -3005,16 +3001,16 @@ class EventArray(EventList):
 
             if offset is not None:
                 _, mx = retryUntilReturn(
-                    (lambda: xform(t, offset, session,
-                                   noBivariates=self.noBivariates)),
+                    partial(xform, t, offset, session,
+                            noBivariates=self.noBivariates),
                     max_tries=2, delay=0.005, default=(t, offset)
                 )
                 offset = np.array(mx)
 
             values = np.stack((block.min, block.mean, block.max)).T
             tx, values = retryUntilReturn(
-                (lambda: xform(t, values, session,
-                               noBivariates=self.noBivariates)),
+                partial(xform, t, values, session,
+                        noBivariates=self.noBivariates),
                 max_tries=2, delay=0.005, default=(t, values)
             )
             values = np.array(values).T
