@@ -213,9 +213,8 @@ class FFTView(wx.Frame, MenuMixin):
     ID_VIEW_ANTIALIAS = wx.NewIdRef()
     ID_VIEW_CHANGETITLE = wx.NewIdRef()
     
-    IMAGE_FORMATS = "Windows Bitmap (*.bmp)|*.bmp|" \
-                     "JPEG (*.jpg)|*.jpg|" \
-                     "Portable Network Graphics (*.png)|*.png" 
+    IMAGE_FORMATS = "JPEG (*.jpg)|*.jpg|" \
+                    "Portable Network Graphics (*.png)|*.png"
 
 
     def makeTitle(self):
@@ -734,8 +733,8 @@ class FFTView(wx.Frame, MenuMixin):
         dlg = wx.FileDialog(self, 
             message="Export CSV...", 
 #             defaultDir=defaultDir,  defaultFile=defaultFile, 
-            wildcard = "Comma Separated Values (*.csv)|*.csv",
-            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMP)
+            wildcard="Comma Separated Values (*.csv)|*.csv",
+            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
@@ -759,7 +758,7 @@ class FFTView(wx.Frame, MenuMixin):
         dlg = wx.FileDialog(self, 
             message="Export Image...", 
             wildcard=self.IMAGE_FORMATS, 
-            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMP)
+            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
@@ -769,7 +768,7 @@ class FFTView(wx.Frame, MenuMixin):
             return False
         
         try:
-            return self.canvas.SaveFile(filename)
+            return self.figure.savefig(filename)
         except ex as err:
             what = "exporting %s as an image" % self.NAME
             self.root.handleError(err, what=what)
