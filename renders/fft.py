@@ -422,7 +422,8 @@ class FFTView(wx.Frame, MenuMixin):
             if self.data is not None:
                 # self.makeLineList()
                 for i in range(1, self.data.shape[1]):
-                    self.axes.plot(self.data[:, 0], self.data[:, i], antialiased=True, linewidth=0.5, label=self.subchannels[i-1].name)
+                    self.axes.plot(self.data[:, 0], self.data[:, i], antialiased=True, linewidth=0.5,
+                                   label=self.subchannels[i-1].name, color=[float(x)/255. for x in self.root.getPlotColor(self.subchannels[i-1])])
                 bbox = self.axes.dataLim
                 self.axes.set_xlim(bbox.xmin, bbox.xmax)
                 self.axes.set_ylim(bbox.ymin, bbox.ymax)
@@ -1696,27 +1697,6 @@ class MyNavigationToolbar(NavigationToolbar):
 
         # for simplicity I'm going to reuse a bitmap from wx, you'll
         # probably want to add your own.
-        self.AddTool(self.ON_CUSTOM, 'Click me', _load_bitmap('back.png'),
-                     'Activate custom contol')
-        self.Bind(wx.EVT_TOOL, self._on_custom, id=self.ON_CUSTOM)
-
-    def _on_custom(self, evt):
-        # add some text to the axes in a random location in axes (0,1)
-        # coords) with a random color
-
-        # get the axes
-        ax = self.canvas.figure.axes[0]
-
-        # generate a random location can color
-        x, y = np.random.rand(2)
-        rgb = np.random.rand(3)
-
-        # add the text and draw
-        ax.text(x, y, 'You clicked me',
-                transform=ax.transAxes,
-                color=rgb)
-        self.canvas.draw()
-        evt.Skip()
         
 
 #===============================================================================
