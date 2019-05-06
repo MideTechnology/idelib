@@ -73,10 +73,10 @@ class StreamedEventList(object):
             # TODO: Refactor this ugliness
             # This is some nasty stuff to apply nested transforms
             subevents = [
-                c._transform(f((t, v), self_session), self_session)
+                c._transform(*f(t, v, self_session), session=self_session)
                 for f, c, v in izip(parent_transform, parent_subchannels, vs)
             ]
-            event = (subevents[0][0], *(e[1] for e in subevents))
+            event = (subevents[0][0],) + tuple(e[1] for e in subevents)
             if self_writer is not None:
                 self_writer(event)
                 
