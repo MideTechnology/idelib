@@ -20,6 +20,48 @@ class ScriptEditorCtrl(PythonSTC):
         """
         PythonSTC.__init__(self, *args, **kwargs)
 
+        self.SetTabWidth(4)
+        self.SetUseTabs(False)
+        self.SetViewWhiteSpace(True)
+        self.SetMarginType(1, stc.STC_MARGIN_NUMBER)
+        self.SetMarginWidth(1, 25)
+
+        self.SetIndent(4)               # Proscribed indent size for wx
+        self.SetIndentationGuides(True) # Show indent guides
+        self.SetBackSpaceUnIndents(True)# Backspace unindents rather than delete 1 space
+
+
+    def SetInsertionPoint(self, pos):
+        self.SetCurrentPos(pos)
+        self.SetAnchor(pos)
+
+    def ShowPosition(self, pos):
+        line = self.LineFromPosition(pos)
+        #self.EnsureVisible(line)
+        self.GotoLine(line)
+
+    def GetLastPosition(self):
+        return self.GetLength()
+
+    def GetPositionFromLine(self, line):
+        return self.PositionFromLine(line)
+
+    def GetRange(self, start, end):
+        return self.GetTextRange(start, end)
+
+    def GetSelection(self):
+        return self.GetAnchor(), self.GetCurrentPos()
+
+    def SetSelection(self, start, end):
+        self.SetSelectionStart(start)
+        self.SetSelectionEnd(end)
+
+    def SelectLine(self, line):
+        start = self.PositionFromLine(line)
+        end = self.GetLineEndPosition(line)
+        self.SetSelection(start, end)
+        
+
 
     def OnKeyPressed(self, event):
         if self.CallTipActive():
@@ -36,6 +78,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
     """
     """
     
+    ID_FINDNEXT = wx.NewId()
+    
     def __init__(self, *args, **kwargs):
         """
         """
@@ -45,6 +89,12 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.editor = ScriptEditorCtrl(self, -1)
         sizer.Add(self.editor, 1, wx.EXPAND)
 
+        self.finddlg = None
+        self.finddata = wx.FindReplaceData()
+        self.finddata.SetFlags(wx.FR_DOWN)
+
+        self.buildMenus()
+
 
     def buildMenus(self):
         """
@@ -53,7 +103,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
 
         # "File" menu
         #=======================================================================
-        fileMenu = self.addMenu(self.menubar,  '&File')
+        fileMenu = self.addMenu(menu,  '&File')
         self.addMenuItem(fileMenu, wx.ID_NEW, "&New Script Editor\tCtrl+N", "",
                          self.OnFileNewMenu)
         self.addMenuItem(fileMenu, wx.ID_CLOSE, 
@@ -63,9 +113,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
                          self.OnFileOpenMenu)
         fileMenu.AppendSeparator()
         
-        fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_PRINT, u"", u"", enabled=False)
-        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, u"", u"", enabled=False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT, u"&Print...\tCtrl+P", u"", enabled=False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, u"Print Setup...", u"", enabled=False)
         
 #         fileMenu.AppendSeparator()
 #         self.recentFilesMenu = self.app.recentFilesMenu #wx.Menu()
@@ -76,15 +125,64 @@ class ScriptEditor(wx.Frame, MenuMixin):
         
         # "Edit" menu
         #=======================================================================
-        editMenu = self.addMenu(self.menubar, '&Edit')
+        editMenu = self.addMenu(menu, '&Edit')
         editMenu.Append(wx.ID_CUT)
         editMenu.Append(wx.ID_COPY)
         editMenu.Append(wx.ID_PASTE)
-#         editMenu.AppendSeparator()
+        editMenu.AppendSeparator()
+        
+        self.addMenuItem(editMenu, wx.ID_FIND, '&Find...\tCtrl-F', '', 
+                         self.OnEditFindMenu)
+        # Note: in future, make this "Ctrl-G" if 'wxMax' in wx.PlatformInfo
+        self.addMenuItem(editMenu, self.ID_FINDNEXT, 'Find &Next\tF3', "", 
+                         self.OnEditFindNextMenu)
+        self.addMenuItem(editMenu, wx.ID_REPLACE, 'Find and &Replace...\tShift+Ctrl+F', '',
+                         self.OnEditReplaceMenu)
+        
 #         self.addMenuItem(editMenu, wx.ID_PREFERENCES, "Preferences...", "",
 #                          self.app.editPrefs)
 
+        # "Edit" menu
+        #=======================================================================
+        scriptMenu = self.addMenu(menu, '&Script')
+        
 
+        self.SetMenuBar(menu)
+
+
+    def OnClose(self, evt):
+        evt.Skip()
+        
+
+    def OnFileNewMenu(self, evt):
+        evt.Skip()
+        
+    
+    def OnFileOpenMenu(self, evt):
+        evt.Skip()
+   
+    
+    def OnEditFindMenu(self, evt):
+        """
+        """
+        if self.finddlg is not None:
+            # TODO: Focus on find dialog
+            return
+        
+        self.finddlg = wx.FindReplaceDialog(self, self.findddata, "Find",
+                                            wx.FR_NOMATCHCASE | wx.FR_NOWHOLEWORD)
+        self.finddlg.Show(True)
+
+
+    def OnEditFindNextMenu(self, evt):
+        # XXX: implement
+        evt.Skip()
+    
+    
+    def OnEditReplaceMenu(self, evt):
+        # XXX: implement
+        evt.Skip()
+    
 
 #===============================================================================
 # 
