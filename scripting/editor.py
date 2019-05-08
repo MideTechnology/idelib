@@ -268,6 +268,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
     ID_NEWTAB = wx.NewId()
     ID_FINDNEXT = wx.NewId()
     
+    ID_MENU_OPEN_IN_NEW = wx.NewId()
     ID_MENU_SAVEALL = wx.NewId()
     ID_MENU_CLOSE_WINDOW = wx.NewId()
     ID_MENU_SCRIPT_RUN = wx.NewId()
@@ -276,6 +277,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
     def __init__(self, *args, **kwargs):
         """
         """
+        self.launchArgs = (args, kwargs)
+        files = kwargs.pop('files', None)
+        
         super(ScriptEditor, self).__init__(*args, **kwargs)
         
         sizer = wx.BoxSizer()
@@ -305,8 +309,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         self.Bind(wx.EVT_TIMER, self.OnChangeCheck)
         
-        # XXX: Test
-        self.addTab(filename=__file__)
+        if files:
+            for filename in files:
+                self.addTab(filename=filename)
 
 
 
@@ -364,7 +369,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         fileMenu.AppendSeparator()
         
         self.addMenuItem(fileMenu, wx.ID_CLOSE, 
-                         "&Close Tab\tCtrl+W", "", self.OnCloseTab)
+                         "&Close Tab\tCtrl+W", "", self.OnFileCloseTabMenu)
         self.addMenuItem(fileMenu, self.ID_MENU_CLOSE_WINDOW, 
                          "&Close Window\tCtrl+Shift+W", "", self.OnClose)
         
@@ -589,10 +594,10 @@ class ScriptEditor(wx.Frame, MenuMixin):
                          self.OnFileSaveMenu)
         menu.AppendSeparator()
         
-        self.addMenuItem(menu, wx.ID_CLOSE, 
-                         "&Close Tab", "", 
-                         self.OnCloseTab)
-
+        self.addMenuItem(menu, self.ID_MENU_OPEN_IN_NEW,
+                         u"Open Script in New Window", u"",
+                         self.OnOpenInEditor)
+        
         self.nb.PopupMenu(menu)
     
     
@@ -601,6 +606,12 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """
         self.updateMenus()
         evt.Skip()
+    
+    
+    def OnOpenInEditor(self, evt):
+        """ Open a new editor window containing the selected tab.
+        """
+        print("XXX: Implement OnOpenInEditor()")
     
     
     #===========================================================================
@@ -620,11 +631,13 @@ class ScriptEditor(wx.Frame, MenuMixin):
                 return
             elif q == wx.YES:
                 page.SaveFile()
-        
-        self.editors.remove(page)
-        evt.Skip()
-        
 
+        if page in self.editors:
+            self.editors.remove(page)
+
+        evt.Skip()
+    
+    
     def OnClose(self, evt):
         """ Handle the closing of the entire scripting window. Confirm if any
             editor has unsaved changes.
@@ -648,14 +661,19 @@ class ScriptEditor(wx.Frame, MenuMixin):
         
 
     def OnFileNewMenu(self, evt):
-        """ Handle File-New Window menu events. Create a new scripting window.
+        """ Handle 'File->New Window' menu events. Create a new scripting window.
         """
-        print("XXX: Implement OnFileNewMenu()!")
-        evt.Skip()
+        args, kwargs = self.launchArgs
+        kwargs = kwargs.copy()
+        kwargs['files'] = None
+        
+        # TODO: Any additional prep?
+        dlg = self.__class__(*args, **kwargs)
+        dlg.Show()
         
     
     def OnFileOpenMenu(self, evt):
-        """ Handle File->Open menu events. Create a new tab with a file.
+        """ Handle 'File->Open' menu events. Create a new tab with a file.
         """
         dlg = wx.FileDialog(
             self, message="Open Script",
@@ -693,7 +711,18 @@ class ScriptEditor(wx.Frame, MenuMixin):
                 p.SaveFile()
         self.updateMenus()
                 
+
+    def OnFileCloseTabMenu(self, evt):
+        """ Handle a tab closing from 'File->Close Tab'. Confirm if editor has
+            unsaved changes.
+        """
+        self.OnCloseTab(evt)
         
+        # Actually remove the page (needed if not called by the notebook)
+        self.nb.DeletePage(self.nb.GetSelection())
+        
+
+
 
     #===========================================================================
 
@@ -723,6 +752,6 @@ class ScriptEditor(wx.Frame, MenuMixin):
 
 if __name__ == "__main__":
     app = wx.App()
-    dlg = ScriptEditor(None, size=(800,600))
+    dlg = ScriptEditor(None, size=(800,600), files=[__file__])
     dlg.Show()
     app.MainLoop()
