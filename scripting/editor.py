@@ -1,8 +1,9 @@
 """
 """
-
+from datetime import datetime
 import os.path
 import string
+import tempfile
 
 import  wx
 import wx.aui as aui
@@ -11,6 +12,7 @@ import  wx.stc  as  stc
 from base import MenuMixin
 
 from python_stc import PythonSTC, faces
+from shell import DebugConsole
 
 #===============================================================================
 # 
@@ -76,6 +78,14 @@ class ScriptEditorCtrl(PythonSTC):
 
         self.LoadFile(self.filename)        
 
+    
+    def __repr__(self): 
+        """
+        """
+        filename = self.filename or "not saved"
+        return "<%s %r (%s)>" % (self.__class__.__name__, self.GetName(),
+                                 filename)
+
 
     def updateOptions(self):
         """ Update the editor's display options using values from the root
@@ -132,6 +142,49 @@ class ScriptEditorCtrl(PythonSTC):
             return False
         return os.path.getmtime(self.filename) != self.modTime
     
+    
+    def executeInShell(self, selected=False):
+        """
+        """
+        if not self.filename or selected:
+            filename = tempfile.mkstemp(suffix=".py")[1]
+            code = self.GetSelectedText() if selected else self.GetText()
+            if not code:
+                return
+            with open(filename, 'wb') as f:
+                f.write(code)
+            istemp = True
+        else:
+            filename = self.filename
+            istemp = False
+
+        if selected:
+            numLines = (code.rstrip('\n').count('\n')+1)
+            if numLines == 1:
+                what = "selected text (1 line)"
+            else:
+                what = "selected text (%d lines)" % numLines
+        else:
+            what = "script"
+            
+        name = self.GetName()
+        now = str(datetime.now()).rsplit('.',1)[0]
+        start = "### Running %s from tab '%s' at %s" % (what, name, now)
+        finish = "### Finished running %s from tab '%s'" % (what, name)
+        
+        try:
+            shell = self.root.getShell()
+            shell.shell.push("print(%r);execfile(%r);print(%r)" % (start,filename,finish))
+        except Exception:
+            print("XXX: Handle ScriptEditorCtrl.executeInShell() error!")
+            raise
+        finally:
+            if istemp:
+                try:
+                    os.remove(filename)
+                except (IOError, WindowsError):
+                    pass
+        
     
     def LoadFile(self, filename):
         """ Load a script into the editor. Will also update the parent
@@ -254,7 +307,17 @@ class ScriptEditorCtrl(PythonSTC):
         if evt.GetModificationType() & (stc.STC_MOD_DELETETEXT|stc.STC_MOD_INSERTTEXT):
             self.updateTab()
             self.root.updateMenus()
-        
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+class ScriptEditorStatusBar(wx.StatusBar):
+    """
+    """
+    # TODO: Implement status bar
+
 
 #===============================================================================
 # 
@@ -271,6 +334,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
     ID_MENU_SAVEALL = wx.NewId()
     ID_MENU_CLOSE_WINDOW = wx.NewId()
     ID_MENU_SCRIPT_RUN = wx.NewId()
+    ID_MENU_SCRIPT_RUN_SEL = wx.NewId()
     
     
     def __init__(self, *args, **kwargs):
@@ -280,7 +344,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
             @keyword contents: 
         """
         # Keep the launch arguments for creating new windows
-        self.launchArgs = (args, kwargs)
+        self.launchArgs = (args, kwargs.copy())
         
         files = kwargs.pop('files', None)
         contents = kwargs.pop('contents', None)
@@ -295,6 +359,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
                                    | aui.AUI_NB_WINDOWLIST_BUTTON
                                    | aui.AUI_NB_CLOSE_ON_ACTIVE_TAB)
         sizer.Add(self.nb, 1, wx.EXPAND)
+
+        self.SetStatusBar(ScriptEditorStatusBar(self, -1))
 
         self.tabs = []
         self.findDlg = None
@@ -406,8 +472,16 @@ class ScriptEditor(wx.Frame, MenuMixin):
         #=======================================================================
         scriptMenu = self.addMenu(menu, '&Script')
         self.addMenuItem(scriptMenu, self.ID_MENU_SCRIPT_RUN, 
-                         "Run Script\tCtrl+R", '',
+                         "&Run Script\tCtrl+R", '',
                          self.OnScriptRun)
+        self.addMenuItem(scriptMenu, self.ID_MENU_SCRIPT_RUN_SEL, 
+                         "&Execute Selected Lines\tCtrl+E", '',
+                         self.OnScriptRunSelected)
+
+        # debugging
+        debugMenu = self.addMenu(menu, "&Debug")
+        self.addMenuItem(debugMenu, -1, 'getShell()', '', lambda x:self.getShell())
+        self.addMenuItem(debugMenu, -1, 'getShell(focus=False)', '', lambda x:self.getShell(focus=False))
 
         self.SetMenuBar(menu)
 
@@ -416,16 +490,48 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """ Update the script editor's main menu bar.
         """
         editor = self.nb.GetCurrentPage()
-        saveEnabled = editor is not None and editor.IsModified()
-        self.setMenuItem(self.MenuBar, wx.ID_SAVE, enabled=saveEnabled)
-
-        if not saveEnabled:
-            saveEnabled = any(t.IsModified() for t in self.tabs)
-
-        self.setMenuItem(self.MenuBar, self.ID_MENU_SAVEALL, enabled=saveEnabled)
+        if not editor:
+            saveEnabled = False
+            saveAllEnabled = False
+            runEnabled = False
+#             runSelEnabled = False
+        else:
+            saveEnabled = editor.IsModified()
+            saveAllEnabled = any(t.IsModified() for t in self.tabs)
+            runEnabled = True
+#             runSelEnabled = editor.CanCopy()
+                        
+        mb = self.GetMenuBar()
+        self.setMenuItem(mb, wx.ID_SAVE, enabled=saveEnabled)
+        self.setMenuItem(mb, self.ID_MENU_SAVEALL, enabled=saveAllEnabled)
+        self.setMenuItem(mb, self.ID_MENU_SCRIPT_RUN, enabled=runEnabled)
+#         self.setMenuItem(mb, self.ID_MENU_SCRIPT_RUN_SEL, enabled=runSelEnabled)
         
+    
+    
+    def getShell(self, focus=True):
+        """ Get the Python shell window.
+        """
+        # XXX: TODO: Get the shell from the parent.
+        try:
+            if self.shell.IsIconized(): # will fail if shell closed
+                self.shell.Iconize(False)
+        except (AttributeError, wx.PyDeadObjectError) as err:
+            # Shell window isn't open (not shown yet, or previously closed)
+            localVars = locals() # use provided locals?
+            localVars['editor'] = self # for testing
+            self.shell = DebugConsole.openConsole(locals=localVars, focus=False)
+        
+        if focus:
+            self.shell.Raise()
+        else:
+            self.Raise()
+        
+        return self.shell
+    
 
-    def addTab(self, filename=None, text=None, modified=False, focus=True):
+    def addTab(self, filename=None, name=None, text=None, modified=False,
+               focus=True):
         """ Add a tab, optionally loading a script.
         
             @keyword filename: The name of a script to load, or `None`.
@@ -439,11 +545,13 @@ class ScriptEditor(wx.Frame, MenuMixin):
         editor = ScriptEditorCtrl(self.nb, -1, root=self)
         if not filename:
             names = [self.nb.GetPageText(n) for n in xrange(self.nb.GetPageCount())]
-            name = uniqueName(editor.DEFAULT_NAME, names)
+            tabname = uniqueName(editor.DEFAULT_NAME, names)
         else:
-            name = os.path.basename(filename)
-            
+            tabname = os.path.basename(filename)
+        
+        name = name or tabname
         self.nb.AddPage(editor, name)
+        editor.SetName(name)
         
         if not text:
             editor.LoadFile(filename)
@@ -456,6 +564,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
             self.nb.SetSelection(self.nb.GetPageIndex(editor))
         
         self.tabs.append(editor)
+        self.updateMenus()
         return editor
 
         
@@ -795,8 +904,28 @@ class ScriptEditor(wx.Frame, MenuMixin):
     def OnScriptRun(self, evt):
         """ Handle 'Script->Run Script' menu event.
         """
-        print("XXX: Implement OnScriptRun()!")
+        tab = self.nb.GetCurrentPage()
+        if tab:
+            tab.executeInShell()
 
+
+    def OnScriptRunSelected(self, evt):
+        """ Handle 'Script->Execute Selected' menu event.
+        """
+        tab = self.nb.GetCurrentPage()
+        if tab:
+            if tab.CanCopy():
+                tab.executeInShell(selected=True)
+            else:
+                print("TODO: tell user to select text first")
+
+
+
+            
+
+#===============================================================================
+# 
+#===============================================================================
 
 #===============================================================================
 # 
