@@ -74,8 +74,7 @@ class ScriptEditorCtrl(PythonSTC):
 
         self.Bind(stc.EVT_STC_MODIFIED, self.OnModified)
 
-        self.LoadFile(self.filename)
-
+        self.LoadFile(self.filename)        
 
 
     def updateOptions(self):
@@ -275,10 +274,16 @@ class ScriptEditor(wx.Frame, MenuMixin):
     
     
     def __init__(self, *args, **kwargs):
+        """ Constructor. Standard `wx.Frame` arguments, plus:
+            
+            @keyword files: A list of filenames to load on launch.
+            @keyword contents: 
         """
-        """
+        # Keep the launch arguments for creating new windows
         self.launchArgs = (args, kwargs)
+        
         files = kwargs.pop('files', None)
+        contents = kwargs.pop('contents', None)
         
         super(ScriptEditor, self).__init__(*args, **kwargs)
         
@@ -291,7 +296,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
                                    | aui.AUI_NB_CLOSE_ON_ACTIVE_TAB)
         sizer.Add(self.nb, 1, wx.EXPAND)
 
-        self.editors = []
+        self.tabs = []
         self.findDlg = None
         self.isReplace = False
         self.finddata = wx.FindReplaceData()
@@ -313,10 +318,13 @@ class ScriptEditor(wx.Frame, MenuMixin):
             for filename in files:
                 self.addTab(filename=filename)
 
+        if contents:
+            for filename, src, modified in contents:
+                self.addTab(filename=filename, text=src, modified=modified)
 
 
     def loadPrefs(self):
-        """
+        """ Load/reload editor configuration from the main app.
         """
         self.changeCheckTimer.Stop()
         
@@ -336,7 +344,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
 
 
     def buildMenus(self):
-        """
+        """ Construct the main menu bar.
         """
         menu = wx.MenuBar()
 
@@ -345,7 +353,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         fileMenu = self.addMenu(menu,  '&File')
         self.addMenuItem(fileMenu, self.ID_NEWTAB, 
                          "&New Tab\tCtrl+N", "",
-                         self.addTab)
+                         self.OnFileNewTabMenu)
         self.addMenuItem(fileMenu, wx.ID_NEW, 
                          "New &Window\tCtrl+Shift+N", "",
                          self.OnFileNewMenu)
@@ -412,16 +420,20 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.setMenuItem(self.MenuBar, wx.ID_SAVE, enabled=saveEnabled)
 
         if not saveEnabled:
-            saveEnabled = any(e.IsModified() for e in self.editors)
+            saveEnabled = any(t.IsModified() for t in self.tabs)
 
         self.setMenuItem(self.MenuBar, self.ID_MENU_SAVEALL, enabled=saveEnabled)
         
 
-    def addTab(self, evt=None, filename=None, focus=True):
+    def addTab(self, filename=None, text=None, modified=False, focus=True):
         """ Add a tab, optionally loading a script.
         
-            @keyword evt: A menu event, if called in response to a menu item.
             @keyword filename: The name of a script to load, or `None`.
+            @keyword text: The new tab's raw contents. If `text` is provided,
+                the file specified by `filename` will not be loaded. Primarily
+                for use when moving a tab from one window to another.
+            @keyword modified: Explicitly set the new tab's 'modified' flag.
+                Intended for use with `text`.
             @keyword focus: If `True`, select the new tab.
         """
         editor = ScriptEditorCtrl(self.nb, -1, root=self)
@@ -433,12 +445,17 @@ class ScriptEditor(wx.Frame, MenuMixin):
             
         self.nb.AddPage(editor, name)
         
-        editor.LoadFile(filename)
+        if not text:
+            editor.LoadFile(filename)
+        else:
+            editor.SetText(text)
+            
+        editor.SetModified(modified)
         
         if focus:
             self.nb.SetSelection(self.nb.GetPageIndex(editor))
         
-        self.editors.append(editor)
+        self.tabs.append(editor)
         return editor
 
         
@@ -570,12 +587,23 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """ Timer handler to check if files have been edited externally. 
             Modified files will be reloaded.
         """
-        for editor in self.editors:
-            if editor.wasModifiedExternally():
-                if not editor.IsModified():
-                    editor.LoadFile(editor.filename)
-                else:
-                    print("XXX: prompt to revert changed file")
+        self.changeCheckTimer.Stop()
+        for editor in self.tabs:
+            if not editor.wasModifiedExternally():
+                continue
+            doSave = True
+            if editor.IsModified():
+                q = wx.MessageBox(
+                  "A file was modified outside of the Script Editor\n\n%s\n\n"
+                  "Do you want to reload the file and lose changes?" % editor.filename, 
+                  "Reload File?", wx.YES|wx.NO|wx.YES_DEFAULT|wx.ICON_WARNING, self)
+                
+                doSave = q == wx.YES
+                
+            if doSave:
+                editor.LoadFile(editor.filename)
+                
+        self.changeCheckTimer.Start(self.changeCheckInterval)
 
     
     #===========================================================================
@@ -611,29 +639,45 @@ class ScriptEditor(wx.Frame, MenuMixin):
     def OnOpenInEditor(self, evt):
         """ Open a new editor window containing the selected tab.
         """
-        print("XXX: Implement OnOpenInEditor()")
+        args, kwargs = self.launchArgs
+        kwargs = kwargs.copy()
+        kwargs['files'] = None
+        kwargs.pop('contents', None)
+        
+        tab = self.nb.GetCurrentPage()
+        if tab:
+            kwargs['contents'] = [(tab.filename, tab.GetText(), tab.IsModified())]
+        
+        # TODO: Any additional prep?
+        dlg = self.__class__(*args, **kwargs)
+        dlg.Show()
+        
+        self.OnCloseTab(evt, savePrompt=False)
+        
+        # Actually remove the page (needed if not called by the notebook)
+        self.nb.DeletePage(self.nb.GetSelection())
     
     
     #===========================================================================
     # 
     #===========================================================================
     
-    def OnCloseTab(self, evt):
+    def OnCloseTab(self, evt, savePrompt=True):
         """ Handle a tab closing. Confirm if editor has unsaved changes.
         """
-        page = self.nb.GetCurrentPage()
+        tab = self.nb.GetCurrentPage()
         
-        if page.IsModified():
+        if savePrompt and tab.IsModified():
             q = wx.MessageBox("Save changes before closing?", 
                               "Save Changes?", wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
             if q == wx.CANCEL:
                 evt.Veto()
                 return
             elif q == wx.YES:
-                page.SaveFile()
+                tab.SaveFile()
 
-        if page in self.editors:
-            self.editors.remove(page)
+        if tab in self.tabs:
+            self.tabs.remove(tab)
 
         evt.Skip()
     
@@ -642,9 +686,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """ Handle the closing of the entire scripting window. Confirm if any
             editor has unsaved changes.
         """
-        pages = [p for p in self.editors if p.IsModified()]
+        changed = [t for t in self.tabs if t.IsModified()]
 
-        if not pages:
+        if not changed:
             evt.Skip()
             return
 
@@ -654,18 +698,26 @@ class ScriptEditor(wx.Frame, MenuMixin):
             evt.Veto()
             return
         elif q == wx.YES:
-            for page in pages:
-                page.SaveFile()
+            for tab in changed:
+                tab.SaveFile()
         
         evt.Skip()
         
 
+    def OnFileNewTabMenu(self, evt):
+        """ Handle 'File->New Tab' menu events. Self-explanatory.
+        """
+        self.addTab()
+
+
     def OnFileNewMenu(self, evt):
-        """ Handle 'File->New Window' menu events. Create a new scripting window.
+        """ Handle 'File->New Window' menu events. Create a new scripting 
+            window.
         """
         args, kwargs = self.launchArgs
         kwargs = kwargs.copy()
-        kwargs['files'] = None
+        kwargs.pop('files', None)
+        kwargs.pop('contents', None)
         
         # TODO: Any additional prep?
         dlg = self.__class__(*args, **kwargs)
@@ -706,9 +758,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
     def OnFileSaveAllMenu(self, evt):
         """ Handle 'File->Save All' menu events.
         """
-        for p in self.editors:
-            if p.IsModified():
-                p.SaveFile()
+        for t in self.tabs:
+            if t.IsModified():
+                t.SaveFile()
         self.updateMenus()
                 
 
