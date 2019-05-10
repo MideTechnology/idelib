@@ -1,5 +1,6 @@
+""" A tabbed, fairly fully featured script editing window.
 """
-"""
+
 from datetime import datetime
 import os.path
 import string
@@ -11,18 +12,23 @@ import  wx.stc  as  stc
 
 from base import MenuMixin
 
-from python_stc import PythonSTC, faces
-from shell import DebugConsole
+# TODO: Get rid of `python_stc.py` (copied from demo) and implement it here.
+import python_stc
+# TODO: Refactor/replace `DebugConsole` (a hack) with a good one.
+from shell import DebugConsole 
+
 
 #===============================================================================
 # 
 #===============================================================================
 
-def uniqueName(basename, existingNames):
+def uniqueName(basename, existingNames, sep=""):
     """ Produce a version of a name not already in a set of existing names.
         This is done by appending a number, or if the name ends with a number, 
         incrementing that number. If the name is already unique, it is 
         returned unchanged.
+        
+        @todo: This is generally useful. Move to shared module. 
         
         @param basename: The name to make unique.
         @param existingNames: A collection of existing names to avoid. It can
@@ -38,11 +44,12 @@ def uniqueName(basename, existingNames):
         num = int(num)+1
     except ValueError:
         num = 1
-    newname = "%s %s" % (name, str(num).rjust(numLen, '0'))
-    while newname in existingNames:
-        num += 1
+        
+    while True:
         newname = "%s %s" % (name, str(num).rjust(numLen, '0'))
-    return newname
+        if newname not in existingNames:
+            return newname
+        num += 1
 
 
 #===============================================================================
@@ -50,17 +57,18 @@ def uniqueName(basename, existingNames):
 #===============================================================================
 
 # XXX: hack, get rid of bad demo fonts!
-faces['times'] = faces['mono']
-faces['helv'] = faces['mono']
-faces['other'] = faces['mono']
+python_stc.faces['times'] = python_stc.faces['mono']
+python_stc.faces['helv'] = python_stc.faces['mono']
+python_stc.faces['other'] = python_stc.faces['mono']
 
-class ScriptEditorCtrl(PythonSTC):
+
+class ScriptEditorCtrl(python_stc.PythonSTC):
     """ A syntax-highlighting Python script editing control. Part of
         `ScriptEditor`; it assumes it is a tab in a AUINotebook.
     """
     
     DEFAULT_NAME = "Untitled"
-    
+
     def __init__(self, *args, **kwargs):
         """ Constructor. Standard `stc.StyledTextCtrl()` arguments, plus:
         
@@ -71,16 +79,36 @@ class ScriptEditorCtrl(PythonSTC):
         self.filename = kwargs.pop('filename', None)
         self.root = kwargs.pop('root', None)
         
-        PythonSTC.__init__(self, *args, **kwargs)
+        super(ScriptEditorCtrl, self).__init__(*args, **kwargs)
         self.updateOptions()
 
         self.Bind(stc.EVT_STC_MODIFIED, self.OnModified)
 
         self.LoadFile(self.filename)        
 
+        self.lastSelection = None
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUIUpdate)
+        
+    
+    def OnUIUpdate(self, evt):
+        """ Handle a UI update event: Update parent window's selection-dependent
+            menu items (run selection, copy, etc.).
+        """
+        # Note: this gets called extremely frequently. Do as little as possible.
+        newSel = self.GetSelection()
+        if newSel != self.lastSelection:
+            hasSelection = newSel[0] != newSel[1]
+            self.root.cutMI.Enable(hasSelection)
+            self.root.copyMI.Enable(hasSelection)
+            self.root.runSelectedMI.Enable(hasSelection)
+            self.lastSelection = newSel
+        evt.Skip()
+
     
     def __repr__(self): 
-        """
+        """ x.__repr__() <==> repr(x)
+            
+            More human-readable, since user may access editors from the shell.
         """
         filename = self.filename or "not saved"
         return "<%s %r (%s)>" % (self.__class__.__name__, self.GetName(),
@@ -99,6 +127,10 @@ class ScriptEditorCtrl(PythonSTC):
         
         self.SetIndentationGuides(self.root.showGuides)
         self.SetViewWhiteSpace(self.root.showWhitespace)
+
+        self.SetEdgeColumn(self.root.edgeColumn)
+        self.SetEdgeMode(int(self.root.showEdge))
+        self.showEdge = True
         
         if self.root.showLineNumbers:
             self.SetMarginWidth(1, 25)
@@ -194,7 +226,7 @@ class ScriptEditorCtrl(PythonSTC):
         if not filename:
             return False
         try:
-            result = PythonSTC.LoadFile(self, filename)
+            result = super(ScriptEditorCtrl, self).LoadFile(filename)
             self.filename = filename
             self.SetModified(False)
             self.modTime = os.path.getmtime(filename)
@@ -240,7 +272,7 @@ class ScriptEditorCtrl(PythonSTC):
             return False
         
         try:
-            result = PythonSTC.SaveFile(self, filename)
+            result = super(ScriptEditorCtrl, self).SaveFile(filename)
             self.SetModified(False)
             self.filename = filename
             self.modTime = os.path.getmtime(filename)
@@ -250,51 +282,15 @@ class ScriptEditorCtrl(PythonSTC):
             # XXX: handle error. Other exception types?
             raise
     
-    
-    #===========================================================================
-    # 
-    #===========================================================================
-
-    # XXX: Copied from demo. They were there for TextCtrl compatibility.
-    # Probably not needed.
-    def SetInsertionPoint(self, pos):
-        self.SetCurrentPos(pos)
-        self.SetAnchor(pos)
-
-    def ShowPosition(self, pos):
-        line = self.LineFromPosition(pos)
-        #self.EnsureVisible(line)
-        self.GotoLine(line)
-
-    def GetLastPosition(self):
-        return self.GetLength()
-
-    def GetPositionFromLine(self, line):
-        return self.PositionFromLine(line)
-
-    def GetRange(self, start, end):
-        return self.GetTextRange(start, end)
-
-    def GetSelection(self):
-        return self.GetAnchor(), self.GetCurrentPos()
-
-    def SetSelection(self, start, end):
-        self.SetSelectionStart(start)
-        self.SetSelectionEnd(end)
-
-    def SelectLine(self, line):
-        start = self.PositionFromLine(line)
-        end = self.GetLineEndPosition(line)
-        self.SetSelection(start, end)
-        
 
     #===========================================================================
     # 
     #===========================================================================
     
     def OnKeyPressed(self, event):
+        """ Handle key press event: hide 'call tip' menu.
         """
-        """
+        # Note: 'call tips' not currently implemented
         if self.CallTipActive():
             self.CallTipCancel()
             
@@ -314,7 +310,7 @@ class ScriptEditorCtrl(PythonSTC):
 #===============================================================================
 
 class ScriptEditorStatusBar(wx.StatusBar):
-    """
+    """ 
     """
     # TODO: Implement status bar
 
@@ -326,7 +322,6 @@ class ScriptEditorStatusBar(wx.StatusBar):
 class ScriptEditor(wx.Frame, MenuMixin):
     """
     """
-    
     ID_NEWTAB = wx.NewId()
     ID_FINDNEXT = wx.NewId()
     
@@ -350,6 +345,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
         contents = kwargs.pop('contents', None)
         
         super(ScriptEditor, self).__init__(*args, **kwargs)
+
+        if not self.GetTitle():
+            self.SetTitle("Script Editor")
         
         sizer = wx.BoxSizer()
         self.nb = aui.AuiNotebook(self, -1, style=aui.AUI_NB_TOP  
@@ -389,6 +387,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
                 self.addTab(filename=filename, text=src, modified=modified)
 
 
+    def OnMenuTest(self, evt):
+        print("menu event")
+
     def loadPrefs(self):
         """ Load/reload editor configuration from the main app.
         """
@@ -401,6 +402,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.showWhitespace = True
         self.showGuides = True
         self.showLineNumbers = True
+        self.edgeColumn = 78
+        self.showEdge = True
         
         for n in xrange(self.nb.GetPageCount()):
             self.nb.GetPage(n).updateOptions()
@@ -447,14 +450,12 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, self.ID_MENU_CLOSE_WINDOW, 
                          "&Close Window\tCtrl+Shift+W", "", self.OnClose)
         
-        
-        
         # "Edit" menu
         #=======================================================================
         editMenu = self.addMenu(menu, '&Edit')
-        editMenu.Append(wx.ID_CUT)
-        editMenu.Append(wx.ID_COPY)
-        editMenu.Append(wx.ID_PASTE)
+        self.cutMI = editMenu.Append(wx.ID_CUT)
+        self.copyMI = editMenu.Append(wx.ID_COPY)
+        self.pasteMI = editMenu.Append(wx.ID_PASTE)
         editMenu.AppendSeparator()
         
         self.addMenuItem(editMenu, wx.ID_FIND, 
@@ -471,16 +472,19 @@ class ScriptEditor(wx.Frame, MenuMixin):
         # "Script" menu
         #=======================================================================
         scriptMenu = self.addMenu(menu, '&Script')
-        self.addMenuItem(scriptMenu, self.ID_MENU_SCRIPT_RUN, 
+        self.runScriptMI = self.addMenuItem(scriptMenu, self.ID_MENU_SCRIPT_RUN, 
                          "&Run Script\tCtrl+R", '',
                          self.OnScriptRun)
-        self.addMenuItem(scriptMenu, self.ID_MENU_SCRIPT_RUN_SEL, 
+        self.runSelectedMI = self.addMenuItem(scriptMenu, self.ID_MENU_SCRIPT_RUN_SEL, 
                          "&Execute Selected Lines\tCtrl+E", '',
                          self.OnScriptRunSelected)
 
+        scriptMenu.AppendSeparator()
+        self.addMenuItem(scriptMenu, -1, '&Show Python Interpreter\tCtrl+I', '', 
+                         lambda x:self.getShell())
+
         # debugging
         debugMenu = self.addMenu(menu, "&Debug")
-        self.addMenuItem(debugMenu, -1, 'getShell()', '', lambda x:self.getShell())
         self.addMenuItem(debugMenu, -1, 'getShell(focus=False)', '', lambda x:self.getShell(focus=False))
 
         self.SetMenuBar(menu)
@@ -492,20 +496,36 @@ class ScriptEditor(wx.Frame, MenuMixin):
         editor = self.nb.GetCurrentPage()
         if not editor:
             saveEnabled = False
+            saveAsEnabled = False
             saveAllEnabled = False
+            closeEnabled = False
+            pasteEnabled = False
+            findEnabled = False
             runEnabled = False
-#             runSelEnabled = False
+            runSelEnabled = False
         else:
             saveEnabled = editor.IsModified()
+            saveAsEnabled = True
             saveAllEnabled = any(t.IsModified() for t in self.tabs)
+            closeEnabled = True
+            pasteEnabled = editor.CanPaste()
+            findEnabled = True
             runEnabled = True
-#             runSelEnabled = editor.CanCopy()
+            runSelEnabled = editor.CanCopy()
                         
         mb = self.GetMenuBar()
         self.setMenuItem(mb, wx.ID_SAVE, enabled=saveEnabled)
+        self.setMenuItem(mb, wx.ID_SAVEAS, enabled=saveAsEnabled)
         self.setMenuItem(mb, self.ID_MENU_SAVEALL, enabled=saveAllEnabled)
+        self.setMenuItem(mb, wx.ID_CLOSE, enabled=closeEnabled)
+        self.setMenuItem(mb, wx.ID_CUT, enabled=runSelEnabled)
+        self.setMenuItem(mb, wx.ID_COPY, enabled=runSelEnabled)
+        self.setMenuItem(mb, wx.ID_PASTE, enabled=pasteEnabled)
+        self.setMenuItem(mb, wx.ID_FIND, enabled=findEnabled)
+        self.setMenuItem(mb, self.ID_FINDNEXT, enabled=findEnabled)
+        self.setMenuItem(mb, wx.ID_REPLACE, enabled=findEnabled)
         self.setMenuItem(mb, self.ID_MENU_SCRIPT_RUN, enabled=runEnabled)
-#         self.setMenuItem(mb, self.ID_MENU_SCRIPT_RUN_SEL, enabled=runSelEnabled)
+        self.setMenuItem(mb, self.ID_MENU_SCRIPT_RUN_SEL, enabled=runSelEnabled)
         
     
     
@@ -720,7 +740,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
     #===========================================================================
     
     def OnNotebookRightClick(self, evt):
-        """ Handle a right-click on an editor tab: show a context manu.
+        """ Handle a right-click on an editor tab: show a context menu.
         """
         page = self.nb.GetPage(evt.GetEventObject().GetActivePage())
 
@@ -789,6 +809,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
             self.tabs.remove(tab)
 
         evt.Skip()
+        wx.CallAfter(self.updateMenus)
     
     
     def OnClose(self, evt):
