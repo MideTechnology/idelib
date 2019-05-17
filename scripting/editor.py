@@ -328,6 +328,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
     ID_MENU_OPEN_IN_NEW = wx.NewId()
     ID_MENU_SAVEALL = wx.NewId()
     ID_MENU_CLOSE_WINDOW = wx.NewId()
+    ID_MENU_VIEW_WHITESPACE = wx.NewId()
+    ID_MENU_VIEW_LINENUMBERS = wx.NewId()
+    ID_MENU_VIEW_GUIDES = wx.NewId()
     ID_MENU_SCRIPT_RUN = wx.NewId()
     ID_MENU_SCRIPT_RUN_SEL = wx.NewId()
     
@@ -368,8 +371,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
 
         self.changeCheckTimer = wx.Timer(self)
 
-        self.buildMenus()
         self.loadPrefs()
+        self.buildMenus()
 
         # Should be EVT_AUINOTEBOOK_TAB_RIGHT_DOWN in wxPython 4?
         self.nb.Bind(aui.EVT__AUINOTEBOOK_TAB_RIGHT_DOWN, self.OnNotebookRightClick)
@@ -389,6 +392,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
 
     def OnMenuTest(self, evt):
         print("menu event")
+
 
     def loadPrefs(self):
         """ Load/reload editor configuration from the main app.
@@ -468,6 +472,23 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_REPLACE, 
                          'Find and &Replace...\tCtrl+Shift+F', '',
                          self.OnEditReplaceMenu)
+
+        # "View" menu
+        #=======================================================================
+        viewMenu = self.addMenu(menu, '&View')
+        self.addMenuItem(viewMenu, self.ID_MENU_VIEW_WHITESPACE,
+                         'Show Whitespace', '',
+                         self.OnViewMenuItem, 
+                         kind=wx.ITEM_CHECK, checked=self.showWhitespace)
+        self.addMenuItem(viewMenu, self.ID_MENU_VIEW_LINENUMBERS,
+                         'Show Line Numbers', '',
+                         self.OnViewMenuItem, 
+                         kind=wx.ITEM_CHECK, checked=self.showLineNumbers)
+        self.addMenuItem(viewMenu, self.ID_MENU_VIEW_GUIDES,
+                         'Show Indentation Guides', '',
+                         self.OnViewMenuItem, 
+                         kind=wx.ITEM_CHECK, checked=self.showLineNumbers)
+
 
         # "Script" menu
         #=======================================================================
@@ -902,8 +923,6 @@ class ScriptEditor(wx.Frame, MenuMixin):
         
         # Actually remove the page (needed if not called by the notebook)
         self.nb.DeletePage(self.nb.GetSelection())
-        
-
 
 
     #===========================================================================
@@ -919,6 +938,24 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """
         self._makeFindDialog("Find and Replace", replace=True)
     
+
+    #===========================================================================
+
+    def OnViewMenuItem(self, evt):
+        """ Handle one of the 'View' menu check items. They're individually
+            simple, so this method handles them all.
+        """
+        mid = evt.GetId()
+        if mid == self.ID_MENU_VIEW_WHITESPACE:
+            self.showWhitespace = evt.Checked()
+        elif mid == self.ID_MENU_VIEW_LINENUMBERS:
+            self.showLineNumbers = evt.Checked()
+        elif mid == self.ID_MENU_VIEW_GUIDES:
+            self.showGuides = evt.Checked()
+
+        for n in xrange(self.nb.GetPageCount()):
+            self.nb.GetPage(n).updateOptions()
+
 
     #===========================================================================
 
