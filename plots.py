@@ -25,6 +25,8 @@ from logger import logger
 
 from build_info import DEBUG
 
+import numpy as np
+
 # ANTIALIASING_MULTIPLIER = 3.33
 # RESAMPLING_JITTER = 0.125
 
@@ -781,7 +783,7 @@ class PlotCanvas(wx.ScrolledWindow):
 
         self.InvalidateBestSize()
         dc = wx.PaintDC(self)
-        dc.SetAxisOrientation(True,False)
+        dc.SetAxisOrientation(True, False)
         dc.Clear()
 
         size = dc.GetSize()
@@ -994,7 +996,6 @@ class PlotCanvas(wx.ScrolledWindow):
             try:
                 # Handle the first sample explicitly before iterating over rest
                 event = events.next()
-                eTime = event[0]
                 for chId, eVal in enumerate(event[1:]):
                     s = siblings[chId]
                     if s is None:
@@ -1004,16 +1005,15 @@ class PlotCanvas(wx.ScrolledWindow):
                         if parent.visibleValueRange is None:
                             parent.visibleValueRange = [sys.maxint, -sys.maxint]
                         expandRange(parent.visibleValueRange, eVal)
-                    lastPt[chId] = ((eTime - hRange[0]) * hScale, 
+                    lastPt[chId] = ((event[0] - hRange[0]) * hScale,
                                     constrainInt((eVal - vRange[0]) * vScale))
                     self.pointList[s] = [lastPt[chId]]
                 
                 # And now the rest of the samples:
-                for i, event in enumerate(events,1):
+                for i, event in enumerate(events, 1):
                     if self.abortRendering is True:
                         # Bail if user interrupted drawing (scrolling, etc.)
                         return
-                    eTime = event[0]
                     for chId, eVal in enumerate(event[1:]):
                         s = siblings[chId]
                         if s is None:
@@ -1022,7 +1022,7 @@ class PlotCanvas(wx.ScrolledWindow):
                             continue
                         sLines = self.lineList[s]
                         sPoints = self.pointList[s]
-                        pt = ((eTime - hRange[0]) * hScale, 
+                        pt = ((event[0] - hRange[0]) * hScale,
                               constrainInt((eVal - vRange[0]) * vScale))
                         sPoints.append(pt)
                         
@@ -1042,7 +1042,6 @@ class PlotCanvas(wx.ScrolledWindow):
                             lineSubset = []
                             
                         lastPt[chId] = pt
-                    
             except StopIteration:
                 # This will occur if there are 0-1 events, but that's okay.
                 pass

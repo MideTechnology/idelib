@@ -276,7 +276,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.exportPrecision = kwargs.pop('exportPrecision', 6)
         self.useConvertedUnits = kwargs.pop('display', True)
         self.yUnits = kwargs.pop('yUnits', None)#self.subchannels[0].units[1])
-        self.indexRange = kwargs.pop('start', 0), kwargs.pop('stop', -1)
+        self.indexRange = kwargs.pop('start', 0), kwargs.pop('stop', len(self.source) if self.source else None)
         self.numRows = kwargs.pop('numRows')
         self.noBivariates = kwargs.pop('noBivariates', False)
         self.useWelch = kwargs.pop('useWelch', False)
@@ -1139,7 +1139,7 @@ class SpectrogramView(FFTView):
             return
         
         start = self.source[self.indexRange[0]][0] * self.timeScalar
-        end = self.source[self.indexRange[1]][0] * self.timeScalar
+        end = self.source[self.indexRange[1]-1][0] * self.timeScalar
         self.lines = []
         self.ranges = []
 

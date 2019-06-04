@@ -198,7 +198,7 @@ class MenuMixin(object):
         @ivar contextMenu: The object's context menu, if any.
     """
     
-    def addMenuItem(self, menu, id_, text, helpString, handler=None, 
+    def addMenuItem(self, menu, id_, text=u'', helpString=u'', handler=None, 
                     enabled=True, kind=wx.ITEM_NORMAL, checked=False):
         """ Helper method for doing the grunt work involved in adding a menu
             item to a menu.
