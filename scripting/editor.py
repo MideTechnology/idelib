@@ -261,7 +261,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
                 defaultFile=filename or "",
                 wildcard=("Python source (*.py)|*.py|"
                           "All files (*.*)|*.*"),
-                style=wx.SAVE | wx.CHANGE_DIR | wx.FD_OVERWRITE_PROMPT)
+                style=wx.FD_SAVE | wx.FD_CHANGE_DIR | wx.FD_OVERWRITE_PROMPT)
             if dlg.ShowModal() == wx.ID_OK:
                 filename = dlg.GetPath()
             else:
@@ -344,6 +344,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         # Keep the launch arguments for creating new windows
         self.launchArgs = (args, kwargs.copy())
         
+        self.root = kwargs.pop('root', None)
         files = kwargs.pop('files', None)
         contents = kwargs.pop('contents', None)
         
@@ -375,7 +376,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.buildMenus()
 
         # Should be EVT_AUINOTEBOOK_TAB_RIGHT_DOWN in wxPython 4?
-        self.nb.Bind(aui.EVT__AUINOTEBOOK_TAB_RIGHT_DOWN, self.OnNotebookRightClick)
+        self.nb.Bind(aui.EVT_AUINOTEBOOK_TAB_RIGHT_DOWN, self.OnNotebookRightClick)
         self.nb.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSE, self.OnCloseTab)
         self.nb.Bind(aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnTabChanged)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
@@ -384,6 +385,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
         if files:
             for filename in files:
                 self.addTab(filename=filename)
+        elif not contents:
+            self.addTab()
 
         if contents:
             for filename, src, modified in contents:
@@ -506,7 +509,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
 
         # debugging
         debugMenu = self.addMenu(menu, "&Debug")
-        self.addMenuItem(debugMenu, -1, 'getShell(focus=False)', '', lambda x:self.getShell(focus=False))
+        self.addMenuItem(debugMenu, -1, 'getShell(focus=False)', '', 
+                         lambda x:self.getShell(focus=False))
 
         self.SetMenuBar(menu)
 
@@ -555,9 +559,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """
         # XXX: TODO: Get the shell from the parent.
         try:
-            if self.shell.IsIconized(): # will fail if shell closed
+            if self.shell and self.shell.IsIconized():
                 self.shell.Iconize(False)
-        except (AttributeError, wx.PyDeadObjectError) as err:
+        except (AttributeError, RuntimeError) as err:
             # Shell window isn't open (not shown yet, or previously closed)
             localVars = locals() # use provided locals?
             localVars['editor'] = self # for testing
@@ -819,7 +823,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
         
         if savePrompt and tab.IsModified():
             q = wx.MessageBox("Save changes before closing?", 
-                              "Save Changes?", wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
+                              "Save Changes?", 
+                              wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
             if q == wx.CANCEL:
                 evt.Veto()
                 return
@@ -843,8 +848,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
             evt.Skip()
             return
 
-        q = wx.MessageBox("Some scripts have been modified but not saved. Save changes before closing?", 
-                          "Save Changes?", wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
+        q = wx.MessageBox("Some scripts have been modified but not saved. "
+                          "Save changes before closing?", "Save Changes?",
+                          wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
         if q == wx.CANCEL:
             evt.Veto()
             return
@@ -884,7 +890,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
             defaultFile=self.defaultDir,
             wildcard=("Python source (*.py)|*.py|"
                       "All files (*.*)|*.*"),
-            style=wx.OPEN | wx.CHANGE_DIR | wx.FILE_MUST_EXIST)
+            style=wx.FD_OPEN | wx.FD_CHANGE_DIR | wx.FD_FILE_MUST_EXIST)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()

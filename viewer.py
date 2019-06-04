@@ -53,6 +53,7 @@ from loader import Loader
 from plots import PlotSet
 from preferences import Preferences
 from renders.renderplot import PlotView
+import scripting.editor
 import updater
 from widgets import debugging
 from widgets import export_dialog as xd
@@ -98,7 +99,7 @@ if DEBUG or BETA:
     __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
 if DEBUG:
     import socket
-    if socket.gethostname() in ('DEDHAM',):
+    if socket.gethostname() in ('DEDHAM', 'LEE'):
         try:
             # TODO: Make sure this doesn't make it into PyInstaller build
             import yappi
@@ -176,6 +177,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_DISPLAY_CONFIG = wx.NewIdRef()
     ID_DATA_EDIT_CAL = wx.NewIdRef()
     ID_DATA_DISABLE_BIVARIATES = wx.NewIdRef()
+    ID_SCRIPTING_EDIT = wx.NewIdRef()
     ID_TOOLS = wx.NewIdRef()
     ID_HELP_CHECK_UPDATES = wx.NewIdRef()
     ID_HELP_FEEDBACK = wx.NewIdRef()
@@ -466,6 +468,16 @@ class Viewer(wx.Frame, MenuMixin):
         dataMenu.AppendSeparator()
         self.viewWarningsMenu = self.addSubMenu(dataMenu, self.ID_DATA_WARNINGS,
                           "Display Range Warnings")  
+
+        #=======================================================================
+        # "Scripting" menu
+        
+        # TODO: Remove the `showAdvanced` conditional (once things work!)
+        if showAdvanced:
+            scriptMenu = self.addMenu(self.menubar, '&Scripting')
+            self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
+                             "Open Script Editor\tCtrl+SHIFT+E", '',
+                             self.OnShowScriptEditor)
         
         #=======================================================================
         # "Tools" menu, only appears if there are tools.
@@ -615,6 +627,7 @@ class Viewer(wx.Frame, MenuMixin):
                  self.ID_HELP_CHECK_UPDATES, self.ID_HELP_FEEDBACK,
                  self.ID_HELP_RESOURCES,
                  self.ID_FILE_MULTI, self.ID_TOOLS,
+                 self.ID_SCRIPTING_EDIT,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, 
                  self.ID_DEBUG_CONSOLE, self.ID_DEBUG0, self.ID_DEBUG1, 
                  self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
@@ -1746,6 +1759,16 @@ class Viewer(wx.Frame, MenuMixin):
         if warning == wx.ID_YES:
             devices.efm32_firmware.updateFirmware(self)
             
+    
+    def OnShowScriptEditor(self, evt):
+        """ Handle "Scripting->Show Script Editor" menu events.
+        """
+        # TODO: Get size from prefs, get last set of tabs?
+        logger.warning("XXX: CLOSING THE SCRIPT WINDOW WILL CRASH THE APP!")
+        editor = scripting.editor.ScriptEditor(self, size=(800,600))
+        self.childViews[editor.GetId()] = editor
+        editor.Show()
+    
     
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.
