@@ -131,7 +131,10 @@ class InfoPanel(HtmlWindow):
         if self.root.device is not None:
             self.info['RecorderSerial'] = self.root.device.serial
         for k,v in self.info.iteritems():
+            if str(k).startswith('Unknown'):
+                continue
             self.data[self.field_names.get(k, self._fromCamelCase(k))] = v
+
 
     def buildHeader(self):
         """ Called after the HTML document is started but before the dictionary 
@@ -139,11 +142,13 @@ class InfoPanel(HtmlWindow):
         """
         return
 
+
     def buildFooter(self):
         """ Called after the dictionary items are written but before the HTML 
             document is closed. Override to add custom stuff.
         """
         return
+
 
     def buildUI(self):
         """ Create the UI elements within the page. Every subclass should
