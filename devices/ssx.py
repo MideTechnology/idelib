@@ -3,6 +3,8 @@ Created on Jan 28, 2015
 
 @author: dstokes
 '''
+from __future__ import absolute_import, print_function
+
 import calendar
 from collections import OrderedDict
 from datetime import datetime
@@ -23,8 +25,8 @@ from mide_ebml.parsers import getParserRanges
 
 from mide_ebml.ebmlite import loadSchema
 
-from base import Recorder, os_specific
-from devices.base import ConfigError
+from .base import ConfigError, Recorder, os_specific
+
 
 #===============================================================================
 # 
@@ -46,6 +48,8 @@ class SlamStickX(Recorder):
     FW_UPDATE_FILE = os.path.join(SYSTEM_PATH, 'firmware.bin')
     BOOTLOADER_UPDATE_FILE = os.path.join(SYSTEM_PATH, 'boot.bin')
     USERPAGE_UPDATE_FILE = os.path.join(SYSTEM_PATH, 'userpage.bin')
+    
+    SN_FORMAT = "SSX%07d"
     
     TIME_PARSER = struct.Struct("<L")
 
@@ -116,8 +120,10 @@ class SlamStickX(Recorder):
                     devinfo = loadSchema('mide.xml').load(infoFile).dump()
                     props = devinfo['RecordingProperties']['RecorderInfo']
                     return "Slam Stick X" in props['ProductName']
+                
         except (KeyError, TypeError, AttributeError, IOError):
             pass
+        
         return False
 
 
@@ -246,7 +252,7 @@ class SlamStickX(Recorder):
             if self._snInt == None:
                 self._sn = ""
             else:
-                self._sn = "SSX%07d" % self._snInt
+                self._sn = self.SN_FORMAT % self._snInt
         return self._sn
 
 
@@ -381,26 +387,6 @@ class SlamStickX(Recorder):
             return channels[36 if 36 in channels else 1][1]
         except KeyError:
             return None
-
-    
-    def _packAccel(self, v):
-        """ Convert an acceleration from G to native units.
-        
-            Note: Currently not used to save data, unlike the classic '_pack' 
-            methods.
-        """
-        x = self.getAccelRange()[1]
-        return min(65535, max(0, int(((v + x)/(2.0*x)) * 65535)))
-
-
-    def _unpackAccel(self, v):
-        """ Convert an acceleration from native units to G.
-        
-            Note: Currently not used to save data, unlike the classic '_unpack' 
-            methods.
-        """
-        x = self.getAccelRange()[1]
-        return min(x, max(-x, (v * x * 2.0) / 65535 - x))
 
 
     def getTime(self):

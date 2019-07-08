@@ -2,18 +2,20 @@
 Functions for detecting, identifying, and retrieving information about
 data-logging devices.
 '''
+from __future__ import absolute_import, print_function
 
 __author__ = "David Stokes"
 __date__ = "Nov 14, 2013"
 
 import os
 
-from base import Recorder, ConfigError, ConfigVersionError, os_specific
+from devices.base import Recorder, ConfigError, ConfigVersionError, os_specific
 
-from ssx import SlamStickX
-from ssc import SlamStickC
-from sss import SlamStickS
-from classic import SlamStickClassic
+from .ssx import SlamStickX
+from .ssc import SlamStickC
+from .sss import SlamStickS
+from .endaq import EndaqS
+from .classic import SlamStickClassic
 
 
 #===============================================================================
@@ -21,7 +23,7 @@ from classic import SlamStickClassic
 #===============================================================================
 
 # TODO: Modularize device type registration, so new ones can be added cleanly.
-RECORDER_TYPES = [SlamStickClassic, SlamStickC, SlamStickS, SlamStickX]
+RECORDER_TYPES = [SlamStickClassic, SlamStickC, SlamStickS, EndaqS, SlamStickX]
 
 
 #===============================================================================
@@ -62,7 +64,7 @@ def getDevices(paths=None, types=RECORDER_TYPES):
         for t in types:
             if t.isRecorder(dev):
                 result.append(t(dev))
-                continue
+                break
     return result
 
 
@@ -137,5 +139,4 @@ def fromRecording(doc):
 #===============================================================================
 
 if __name__ == '__main__':
-    print "recorders:"
-    print getDevices()
+    print("recorders:", getDevices())
