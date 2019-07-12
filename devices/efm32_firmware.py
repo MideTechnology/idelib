@@ -38,7 +38,8 @@ from updater import isNewer
 
 
 # TODO: Better way of identifying valid devices, probably part of the class.
-RECORDER_TYPES = [devices.SlamStickC, devices.SlamStickS, devices.SlamStickX]
+RECORDER_TYPES = [devices.EndaqS, devices.SlamStickC, devices.SlamStickS,
+                  devices.SlamStickX]
 
 
 #===============================================================================
