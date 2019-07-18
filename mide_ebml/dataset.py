@@ -1650,7 +1650,7 @@ class EventList(Transformable):
             for t, vals in izip(times, values):
                 eventx = xform(t, vals, session=session, noBivariates=self.noBivariates)
                 if eventx is None:
-                    logger.info( "%s: bad transform @%s" % (self.parent.name,event[0]))
+                    logger.info( "%s: bad transform @%s" % (self.parent.name,t))
                     sleep(0.001)
                     eventx = xform(t, vals, session=session, noBivariates=self.noBivariates)
                 t, vals = eventx
@@ -3435,6 +3435,7 @@ class WarningRange(object):
             result = [[start,start]]
         
         for event in source.iterRange(start, end):
+            t = event[0]
             if self.valid(event[1:]):
                 if outOfRange:
                     result[-1][1] = t
