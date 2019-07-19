@@ -309,13 +309,25 @@ class SlamStickX(Recorder):
     @property
     def canRecord(self):
         """ Can the device record on command? """
-        return self.commandFile and self.firmwareVersion >= 17
+        if not self.commandFile:
+            # 'Fake' devices (e.g. instantiated from recording) can't.
+            return False
+        if self.getInfo('McuType', '').startswith("EFM32GG11"):
+            # 'Real' GG11-based devices can all do this.
+            return True
+        return self.firmwareVersion >= 17
 
 
     @property
     def canCopyFirmware(self):
         """ Can the device get new firmware/bootloader/userpage from a file? """
-        return self.path is not None and self.firmwareVersion >= 20
+        if not self.path:
+            # 'Fake' devices (e.g. instantiated from recording) can't.
+            return False
+        if self.getInfo('McuType', '').startswith("EFM32GG11"):
+            # 'Real' GG11-based devices can all do this.
+            return True
+        return self.firmwareVersion >= 20
 
 
     def getAccelRange(self, channel=8, subchannel=0, rounded=True, refresh=False):
