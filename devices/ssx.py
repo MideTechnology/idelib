@@ -127,28 +127,57 @@ class SlamStickX(Recorder):
         return False
 
 
-    def getInfo(self, default=None, refresh=False):
-        """ Retrieve a recorder's device information.
+    def getInfo(self, name=None, default=None, refresh=False):
+        """ Retrieve a recorder's device information. Returns either a single
+            item or a dictionary of all device information.
         
+            @keyword name: The name of a specific device info item. `None`
+                will return the entire dictionary of device information.
+            @keyword default: A value to return, if the device has no
+                information, or, if `name` is used, the device does not have a
+                specific item.
+            @keyword refresh: If `True`, discard any cached information and
+                re-read from the device.
             @return: A dictionary containing the device data.
         """
-        if self.path is None:
-            # No path: probably a recorder description from a recording.
-            return self._info
+        if self.path is not None:
+            if self._info is None or refresh:
+                try:
+                    devinfo = self.mideSchema.load(self.infoFile).dump()
+                    props = devinfo.get('RecordingProperties', '')
+                    if 'RecorderInfo' in props:
+                        self._info = props['RecorderInfo']
+                except (IOError, KeyError):
+                    pass
         
-        if self._info is not None and not refresh:
+        if not self._info:
+            if name is None:
+                return {}
+            return default
+        
+        if name is None:
             return self._info
-        try:
-            devinfo = self.mideSchema.load(self.infoFile).dump()
-            props = devinfo.get('RecordingProperties', '')
-            if 'RecorderInfo' in props:
-                self._info = props['RecorderInfo']
-                
-                return self._info
-        except IOError:
-            pass
-        return default
+        else:
+            return self._info.get(name, default)
 
+    
+    @property
+    def usesOldConfig(self):
+        """ Can this device use the 'old' configuration format?  
+        """
+        if self.getInfo('McuType', '').startswith("EFM32GG11"):
+            return False
+        return self.firmwareVersion <= 14
+        
+
+    @property
+    def usesNewConfig(self):
+        """ Can this device use the 'new' configuration format?
+        """
+        if self.getInfo('McuType', '').startswith("EFM32GG11"):
+            return True
+        return self.firmwareVersion > 14
+        
 
     def _loadConfig(self, source, hwRev=None, fwRev=None, default=None):
         """ Helper method to read configuration info from a file. Used
@@ -231,24 +260,24 @@ class SlamStickX(Recorder):
     @property
     def productName(self):
         """ The recording device's manufacturer-issued name. """
-        return self._getInfoAttr('ProductName', '')
+        return self.getInfo('ProductName', '')
     
     
     @property
     def productId(self):
-        return self._getInfoAttr('RecorderTypeUID', 0x12) & 0xff
+        return self.getInfo('RecorderTypeUID', 0x12) & 0xff
     
     
     @property
     def partNumber(self):
-        return self._getInfoAttr('PartNumber', '')
+        return self.getInfo('PartNumber', '')
     
     
     @property
     def serial(self):
         """ The recorder's manufacturer-issued serial number. """
         if self._sn is None:
-            self._snInt = self._getInfoAttr('RecorderSerial', None)
+            self._snInt = self.getInfo('RecorderSerial', None)
             if self._snInt == None:
                 self._sn = ""
             else:
@@ -264,17 +293,17 @@ class SlamStickX(Recorder):
 
     @property
     def hardwareVersion(self):
-        return self._getInfoAttr('HwRev', -1)
+        return self.getInfo('HwRev', -1)
 
     
     @property
     def firmwareVersion(self):
-        return self._getInfoAttr('FwRev', -1)
+        return self.getInfo('FwRev', -1)
 
 
     @property
     def birthday(self):
-        return self._getInfoAttr('DateOfManufacture')
+        return self.getInfo('DateOfManufacture')
 
 
     @property
@@ -536,7 +565,8 @@ class SlamStickX(Recorder):
             self._propData = data[propOffset:propOffset+propSize]
         
         try:
-            manDict = self.manifestSchema.load(manData).dump()
+            self._manData = self.manifestSchema.load(manData)
+            manDict = self._manData.dump()
             calDict = self.mideSchema.load(self._calData).dump()
             self._manifest = manDict.get('DeviceManifest')
             self._calibration = calDict.get('CalibrationList')

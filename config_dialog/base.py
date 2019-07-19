@@ -2091,12 +2091,18 @@ class ConfigDialog(SC.SizedDialog):
     def loadConfigData(self):
         """ Load config data from the recorder.
         """
+        # TODO: Configuration handling, including format/version detection,
+        # should be in the Recorder class. 'old' and 'new' are relative.
+        self.devUsesOldConfig = getattr(self.device, 'usesOldConfig', False)
+        self.devUsesNewConfig = getattr(self.device, 'usesNewConfig', True)
+        
         # Mostly for testing. Will probably be removed.
         if self.device is None:
             self.configData = self.origConfigData = {}
             return self.configData
         
         # First, try to get the new config ID/value data.
+        self.useLegacyConfig = not self.devUsesNewConfig
         self.configData = self.device.getConfigItems()
         if not self.configData:
             # Try to get the legacy config data.
@@ -2105,7 +2111,6 @@ class ConfigDialog(SC.SizedDialog):
                 self.useLegacyConfig = True
             else:
                 # No config data. Use version appropriate for FW version.
-                self.useLegacyConfig = self.device.firmwareVersion <= 14
                 self.configData = {}
             
         self.origConfigData = self.configData.copy()
@@ -2143,8 +2148,7 @@ class ConfigDialog(SC.SizedDialog):
         filename = filename or self.device.configFile 
         makeBackup(filename)
 
-        fwRev = getattr(self.device, 'firmwareVersion', 0)
-        if self.useLegacyConfig and fwRev > 14:
+        if self.useLegacyConfig and self.devUsesNewConfig:
             self.useLegacyConfig = legacy.useLegacyFormatPrompt(self)
         
         try:

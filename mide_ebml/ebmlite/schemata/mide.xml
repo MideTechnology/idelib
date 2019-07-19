@@ -89,7 +89,7 @@
             <StringElement name="FwCustomStr" id="0x521B" multiple="0" minver="1">Custom firmware build. Firmware is a custom build if present. Name should match FW branch/tag name as applicable for identification purposes, but is mainly present so FW updater can generate a warning if a custom build will be replaced by a standard one.</StringElement>
             <StringElement name="FwRevStr" id="0x521C" multiple="0" minver="1">Firmware revision string.</StringElement>
             <UIntegerElement name="UniqueChipID" id="0x521D" multiple="0" minver="1">The device CPU's factory-set unique ID.</UIntegerElement>
-            <UIntegerElement name="McuType" id="0x521E" multiple="0" minver="1">Code indicating the type of CPU.</UIntegerElement>
+            <StringElement name="McuType" id="0x521E" multiple="0" minver="1">Code indicating the type of CPU.</StringElement>
             <StringElement name="BootloaderRevStr" id="0x521F" multiple="0" minver="1">Bootloader revision string.</StringElement>
             <UIntegerElement name="BootloaderRev" id="0x5220" multiple="0" minver="1">Incrementing bootloader revision level</UIntegerElement>
         </MasterElement>
