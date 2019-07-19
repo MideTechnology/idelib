@@ -43,6 +43,7 @@ from __future__ import (absolute_import,
                         )
 from collections import OrderedDict, Sequence
 import math
+import re
 import struct
 import sys
 import types
@@ -896,27 +897,43 @@ class ChannelDataArrayBlock(ChannelDataBlock):
             @keyword subchannel: The subchannel to get, if specified.
         """
         parser_format = parser.format
-        if parser_format[0] in ['<', '>']:
-            endian = parser_format[0]
-            parser_format = parser_format[1:]
-        else:
-            endian = '>'
 
-        rawDtype = np.dtype(','.join([endian+typeId
-                                      for typeId in parser_format]))
-        rawData = np.frombuffer(self.payload, dtype=rawDtype)[start:end:step]
+        # Has a string parser format -> data is compatible with numpy arrays
+        #   & can be decoded quickly with numpy
+        isNumpyCompatibleFormat = (
+            isinstance(parser_format, basestring)
+            and re.match('^[<>]?[a-zA-Z]+$', parser_format)
+        )
 
-        if len(parser_format) == 1:
-            return rawData[np.newaxis]
-        elif subchannel is not None:
-            return rawData[rawDtype.names[subchannel]][np.newaxis]
+        if isNumpyCompatibleFormat:
 
-        data = np.empty((len(parser_format),) + rawData.shape,
-                        dtype=np.float64)
-        for i, chName in enumerate(rawDtype.names):
-            data[i] = rawData[chName]
+            if parser_format[0] in ['<', '>']:
+                endian = parser_format[0]
+                parser_format = parser_format[1:]
+            else:
+                endian = '>'
 
-        return data
+            rawDtype = np.dtype(','.join([endian+typeId
+                                          for typeId in parser_format]))
+            rawData = np.frombuffer(self.payload, dtype=rawDtype)[start:end:step]
+
+            if len(parser_format) == 1:
+                return rawData[np.newaxis]
+            elif subchannel is not None:
+                return rawData[rawDtype.names[subchannel]][np.newaxis]
+
+            data = np.empty((len(parser_format),) + rawData.shape,
+                            dtype=np.float64)
+            for i, chName in enumerate(rawDtype.names):
+                data[i] = rawData[chName]
+
+            return data
+
+        # No parser format -> assume that data is from an old .ide file type
+        #   & should be handled safely using the parser object
+        return np.array(list(
+            ChannelDataBlock.parseWith(self, parser, start, end, step, subchannel)
+        ), dtype=np.float64)
 
     def parseByIndexWith(self, parser, indices, subchannel=None):
         """ Parse an element's payload and get a specific set of samples. Used
