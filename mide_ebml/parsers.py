@@ -931,9 +931,10 @@ class ChannelDataArrayBlock(ChannelDataBlock):
 
         # No parser format -> assume that data is from an old .ide file type
         #   & should be handled safely using the parser object
-        return np.array(list(
-            ChannelDataBlock.parseWith(self, parser, start, end, step, subchannel)
-        ), dtype=np.float64)
+        blocks = list(ChannelDataBlock.parseWith(
+            self, parser, start, end, step, subchannel
+        ))
+        return np.array(blocks, dtype=np.float64).T
 
     def parseByIndexWith(self, parser, indices, subchannel=None):
         """ Parse an element's payload and get a specific set of samples. Used
