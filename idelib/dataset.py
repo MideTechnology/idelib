@@ -3170,13 +3170,7 @@ class EventArray(EventList):
 
         if stats.size == 0:
             return None
-        if not self.hasSubchannels:
-            return (
-                stats[0].min(),
-                np.median(stats[1], axis=-1),
-                stats[2].max(),
-            )
-        if subchannel is not None:
+        if self.hasSubchannels and subchannel is not None:
             return (
                 stats[0, subchannel].min(),
                 np.median(stats[1, subchannel]),
@@ -3185,7 +3179,7 @@ class EventArray(EventList):
         else:
             return (
                 stats[0].min(),
-                np.median(stats[1], axis=-1).mean(),
+                np.mean(np.median(stats[1], axis=-1)),
                 stats[2].max(),
             )
 
