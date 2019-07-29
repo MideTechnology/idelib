@@ -123,7 +123,7 @@ class FirmwareUpdater(object):
         'bytesize':     8, 
         'stopbits':     1, 
         'timeout':      5.0,
-        'writeTimeout': 5.0, 
+#         'writeTimeout': 5.0, 
     }
 
     # Double-byte string: "MIDE Technology Corp". Should be found in firmware.
