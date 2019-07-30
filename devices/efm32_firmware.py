@@ -123,7 +123,7 @@ class FirmwareUpdater(object):
         'bytesize':     8, 
         'stopbits':     1, 
         'timeout':      5.0,
-#         'writeTimeout': 5.0, 
+        'writeTimeout': 2.0, 
     }
 
     # Double-byte string: "MIDE Technology Corp". Should be found in firmware.
@@ -197,7 +197,7 @@ class FirmwareUpdater(object):
     def validateBootloader(self, bootBin, **kwargs):
         """ Perform basic bootloader validation (file size, etc.).
         
-            @param fwBin: The bootloader binary's data.
+            @param bootBin: The bootloader binary's data.
             @keyword strict:  If `True`, use more stringent validation tests.
                 Overrides the object's `strict` attribute if supplied.
         """
@@ -214,7 +214,7 @@ class FirmwareUpdater(object):
     def validateUserpage(self, payload, **kwargs):
         """ Perform basic firmware validation (file size, etc.).
         
-            @param fwBin: The userpage EBML data.
+            @param payload: The userpage EBML data.
             @keyword strict:  If `True`, use more stringent validation tests.
                 Overrides the object's `strict` attribute if supplied.
         """
@@ -1081,7 +1081,7 @@ class FirmwareUpdateDialog(wx.Dialog):
                 connected = True
                 logger.info('Connected to bootloader {}'.format(c))
                 break
-            except IOError as err:
+            except (IOError, serial.SerialTimeoutException) as err:
                 logger.error("Connection failure, try %d: %s" % (i+1,err))
                 wx.Sleep(1)
         
