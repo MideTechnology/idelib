@@ -137,9 +137,16 @@
 
         <!-- GPS/Sync inputs -->
         <MasterElement name="DigitalSensorGPS_UART" id="0x4DC0" mandatory="0" multiple="0" minver="1">Indicates the presence of a GPS with full data (location) broken out on UART.</MasterElement>
+        <MasterElement name="DigitalSensorGPS_CAMM8" id="0x4DC1" mandatory="0" multiple="0" minver="1">Indicates the presence of a GPS with full data (location) broken out on UART.</MasterElement>
+
+        <!-- Battery charger ICs -->
+        <MasterElement name="ChargerMCP73837" id="0x4D60" mandatory="0" multiple="0" minver="1">Indicates the presence of a MCP73837 battery charger.</MasterElement>
+        <MasterElement name="ChargerMAX14747" id="0x4D61" mandatory="0" multiple="0" minver="1">Indicates the presence of a MCP73837 battery charger.</MasterElement>
+
+        <!-- Communication -->
+        <MasterElement name="CommunicationWiFi_ESP32" id="0x4D70" mandatory="0" multiple="0" minver="1">Indicates the presence of an ESP32 Wi-Fi module.</MasterElement>
 
         <!-- Misc. -->
-
         <MasterElement name="DigitalSensorBHI160" id="0x4D94" mandatory="0" multiple="0" minver="1">Indicates the presence of a BNO055 IMU on the I2C0 bus.</MasterElement>
         <MasterElement name="DigitalSensorReset" id="0x4DD0" mandatory="0" multiple="0" minver="1">Indicates the presence of a hardware pushbutton reset controller.</MasterElement>
         <MasterElement name="DigitalPowerMAX77801" id="0x4DD1" mandatory="0" multiple="0" minver="1">Indicates the presence of a MAX77801 power management IC on the I2C1 bus.</MasterElement>
