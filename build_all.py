@@ -220,7 +220,7 @@ if __name__ == "__main__":
         repo = None
     
     if repo is not None:
-        if repo.is_dirty:
+        if repo.is_dirty():
             if args.allowDirty:
                 logger.warning("Repository is dirty, but ignoring it.")
             else:
