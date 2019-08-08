@@ -879,6 +879,9 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         super(ChannelDataArrayBlock, self).__init__(element)
         self._payload = None
 
+        self._parser_format = None
+        self._streamDtype = None
+
     @property
     def payload(self):
         if self._payload is None:
@@ -896,35 +899,38 @@ class ChannelDataArrayBlock(ChannelDataBlock):
                 cover more than one sample.
             @keyword subchannel: The subchannel to get, if specified.
         """
-        parser_format = parser.format
 
-        # Has a string parser format -> data is compatible with numpy arrays
-        #   & can be decoded quickly with numpy
-        isNumpyCompatibleFormat = (
-            isinstance(parser_format, basestring)
-            and re.match('^[<>]?[a-zA-Z]+$', parser_format)
-        )
+        # All numpy-compatible data streams use `struct.Struct` parsers
+        isNumpyCompatibleFormat = isinstance(parser, struct.Struct)
 
         if isNumpyCompatibleFormat:
+            parser_format = parser.format
 
-            if parser_format[0] in ['<', '>']:
-                endian = parser_format[0]
-                parser_format = parser_format[1:]
+            if parser_format == self._parser_format:
+                streamDtype = self._streamDtype
             else:
-                endian = '>'
+                if parser_format[0] in ['<', '>']:
+                    endian = parser_format[0]
+                    parser_format = parser_format[1:]
+                else:
+                    endian = '>'
 
-            rawDtype = np.dtype(','.join([endian+typeId
-                                          for typeId in parser_format]))
-            rawData = np.frombuffer(self.payload, dtype=rawDtype)[start:end:step]
+                streamDtype = np.dtype(','.join([endian+typeId
+                                              for typeId in parser_format]))
+
+                self._parser_format = parser_format
+                self._streamDtype = streamDtype
+
+            rawData = np.frombuffer(self.payload, dtype=streamDtype)[start:end:step]
 
             if len(parser_format) == 1:
                 return rawData[np.newaxis]
             elif subchannel is not None:
-                return rawData[rawDtype.names[subchannel]][np.newaxis]
+                return rawData[streamDtype.names[subchannel]][np.newaxis]
 
             data = np.empty((len(parser_format),) + rawData.shape,
                             dtype=np.float64)
-            for i, chName in enumerate(rawDtype.names):
+            for i, chName in enumerate(streamDtype.names):
                 data[i] = rawData[chName]
 
             return data
