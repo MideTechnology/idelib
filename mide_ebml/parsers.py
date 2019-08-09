@@ -886,6 +886,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
     def payload(self):
         if self._payload is None:
             self._payload = np.array(self._payloadEl.value)
+            self._payloadEl.gc()
         return self._payload
 
     def parseWith(self, parser, start=None, end=None, step=1, subchannel=None):
