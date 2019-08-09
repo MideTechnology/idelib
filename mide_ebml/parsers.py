@@ -879,7 +879,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         super(ChannelDataArrayBlock, self).__init__(element)
         self._payload = None
 
-        self._parser_format = None
+        self._parser = None
         self._streamDtype = None
 
     @property
@@ -904,11 +904,11 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         isNumpyCompatibleFormat = isinstance(parser, struct.Struct)
 
         if isNumpyCompatibleFormat:
-            parser_format = parser.format
 
-            if parser_format == self._parser_format:
+            if parser is self._parser:
                 streamDtype = self._streamDtype
             else:
+                parser_format = parser.format
                 if parser_format[0] in ['<', '>']:
                     endian = parser_format[0]
                     parser_format = parser_format[1:]
@@ -918,17 +918,18 @@ class ChannelDataArrayBlock(ChannelDataBlock):
                 streamDtype = np.dtype(','.join([endian+typeId
                                               for typeId in parser_format]))
 
-                self._parser_format = parser_format
+                self._parser = parser
                 self._streamDtype = streamDtype
 
             rawData = np.frombuffer(self.payload, dtype=streamDtype)[start:end:step]
 
-            if len(parser_format) == 1:
+            # Special cases for single-channel outputs
+            if len(streamDtype) == 0:
                 return rawData[np.newaxis]
             elif subchannel is not None:
                 return rawData[streamDtype.names[subchannel]][np.newaxis]
 
-            data = np.empty((len(parser_format),) + rawData.shape,
+            data = np.empty((len(streamDtype),) + rawData.shape,
                             dtype=np.float64)
             for i, chName in enumerate(streamDtype.names):
                 data[i] = rawData[chName]
