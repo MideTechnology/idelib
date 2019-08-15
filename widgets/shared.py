@@ -82,7 +82,8 @@ class StatusBar(wx.StatusBar):
         if self.root is None:
             self.root = self.GetParent().root
         
-        logo = wx.StaticBitmap(self, -1, images.MideLogo.GetBitmap())
+#         logo = wx.StaticBitmap(self, -1, images.MideLogo.GetBitmap())
+        logo = wx.StaticBitmap(self, -1, images.EndaqLogo.GetBitmap())
         logo.SetPosition((0, int(((self.GetSize()[1]-logo.GetSize()[1])*0.5)+0.5)))
         self.progressBar = wx.Gauge(self, -1, 1000)
         self.cancelButton = wx.Button(self, wx.ID_CANCEL, style=wx.BU_EXACTFIT)
