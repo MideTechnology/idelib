@@ -348,7 +348,8 @@ class FirmwareUpdater(object):
     # 
     #===========================================================================
     
-    def findBootloader(self):
+    @classmethod
+    def findBootloader(cls):
         """ Check available serial ports for a Slam Stick in bootloader mode.
             @return: The name of the port, or `None` if no device was found.
         """
