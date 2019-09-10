@@ -39,8 +39,8 @@ def makeWxDateTime(val):
     """
     if isinstance(val, datetime):
         val = datetime2int(val)
-    if isinstance(val, (int, float)):
-        return wx.DateTimeFromTimeT(float(val))
+    if isinstance(val, (int, long, float)):
+        val = time.gmtime(val)
     elif isinstance(val, wx.DateTime):
         return wx.DateTimeFromDateTime(val)
     # Assume a struct_time or other sequence:
