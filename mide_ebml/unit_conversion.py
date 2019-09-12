@@ -10,6 +10,7 @@ Data type conversion. Each class contains two special attributes:
 '''
 
 import math
+import numpy as np
 
 # from calibration import Transform
 from calibration import Univariate
@@ -206,7 +207,7 @@ class Pressure2Meters(UnitConverter):
         self._str = "Pressure2Meters.convert(x)"
         self._source = "lambda x: %s" % self._str
         self._function = eval(self._source, 
-                              {'Pressure2Meters': self, 'math': math})
+                              {'Pressure2Meters': self, 'math': math, 'np': np})
     
         
     @property
@@ -232,13 +233,13 @@ class Pressure2Meters(UnitConverter):
     def function(self, p):
         sp = self._sealevel / p
         if (sp < 4.47704808656731):
-            foo = math.pow((p/self._sealevel), -0.1902632365084836)
+            foo = np.power((p/self._sealevel), -0.1902632365084836)
             return ((self._tempK*((1.0/foo)-1.0))/-0.0065)
         elif (sp < 18.507221149648668):
             T_2 = self._tempK - 71.5
 #             h_2 = (8.31432*T_2*(math.log(p/self._sealevel)))/-0.28404373326
 #             h_1 = ((T_2*12.462865699354536)/-0.28404373326)+11000
-            h_2 = (T_2*math.log(p/self._sealevel))/-0.03416319473631036
+            h_2 = (T_2*np.log(p/self._sealevel))/-0.03416319473631036
             h_1 = (T_2/-0.02279120549896569)+11000.0
             return h_1+h_2
         
@@ -256,14 +257,14 @@ class Pressure2Meters(UnitConverter):
         if h < 11000:
             L_a = -0.0065 #; // [K/m] temperature lapse rate
             h_a = 0.0 #;  // [m] height above sea level (differing altitudes have differing time lapse rates
-            return self._sealevel*math.pow(self._tempK/(self._tempK+(L_a*(h-h_a))),(g*M)/(R*L_a))
+            return self._sealevel*np.power(self._tempK/(self._tempK+(L_a*(h-h_a))),(g*M)/(R*L_a))
         elif h <= 20000:
             L_a = -0.0065
             h_a = 0.0
             h_b = 11000
-            p_b = p_a*math.pow(t/(t+(L_a*(h_b-h_a))),(g*M)/(R*L_a))
+            p_b = p_a*np.power(t/(t+(L_a*(h_b-h_a))),(g*M)/(R*L_a))
             T_1 = t+(11000*(-0.0065))
-            return p_b*math.exp(((-g)*M*(h-h_b))/(R*T_1))
+            return p_b*np.exp(((-g)*M*(h-h_b))/(R*T_1))
         
         return 5474.89
              
@@ -280,7 +281,7 @@ class Pressure2Feet(Pressure2Meters):
         self._str = "Pressure2Feet.convert(x)"
         self._source = "lambda x: %s" % self._str
         self._function = eval(self._source, 
-                              {'Pressure2Feet': self, 'math': math})
+                              {'Pressure2Feet': self, 'math': math, 'np': np})
 
     def function(self, press):
         return 3.2808399*Pressure2Meters.function(self, press)
