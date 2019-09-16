@@ -231,43 +231,58 @@ class Pressure2Meters(UnitConverter):
 
 
     def function(self, p):
+        p = np.asarray(p)
+        result = np.full_like(p, fill_value=20e3)  # filled with default value
+
         sp = self._sealevel / p
-        if (sp < 4.47704808656731):
-            foo = np.power((p/self._sealevel), -0.1902632365084836)
-            return ((self._tempK*((1.0/foo)-1.0))/-0.0065)
-        elif (sp < 18.507221149648668):
+        mask = (sp < 4.47704808656731)
+        if mask.any():
+            foo = np.power((p[mask]/self._sealevel), -0.1902632365084836)
+            result[mask] = (self._tempK*((1.0/foo)-1.0))/-0.0065
+
+        mask = (sp < 18.507221149648668) & ~mask
+        if mask.any():
             T_2 = self._tempK - 71.5
 #             h_2 = (8.31432*T_2*(math.log(p/self._sealevel)))/-0.28404373326
 #             h_1 = ((T_2*12.462865699354536)/-0.28404373326)+11000
-            h_2 = (T_2*np.log(p/self._sealevel))/-0.03416319473631036
+            h_2 = (T_2*np.log(p[mask]/self._sealevel))/-0.03416319473631036
             h_1 = (T_2/-0.02279120549896569)+11000.0
-            return h_1+h_2
-        
-        return 20000.0
+            result[mask] = h_1+h_2
+
+        return result
 
 
     def revert(self, h):
+        h = np.asarray(h)
+        result = np.full_like(h, fill_value=5474.89)  # filled with default value
+
         M = 0.0289644 # [kg/mol] molar mass of Earth's air
         g = 9.80665 # [m/s^2] gravitational acceleration constant
         R = 8.31432 # [(N*m)/(mol*k)] universal gas constant
-        
+
         t = self._tempK
         p_a = self._sealevel
-        
-        if h < 11000:
+
+        mask = (h < 11000)
+        if mask.any():
             L_a = -0.0065 #; // [K/m] temperature lapse rate
             h_a = 0.0 #;  // [m] height above sea level (differing altitudes have differing time lapse rates
-            return self._sealevel*np.power(self._tempK/(self._tempK+(L_a*(h-h_a))),(g*M)/(R*L_a))
-        elif h <= 20000:
+            result[mask] = self._sealevel*np.power(
+                self._tempK / (self._tempK + L_a*(h[mask]-h_a)),
+                (g*M)/(R*L_a)
+            )
+
+        mask = (h <= 20000) & ~mask
+        if mask.any():
             L_a = -0.0065
             h_a = 0.0
             h_b = 11000
             p_b = p_a*np.power(t/(t+(L_a*(h_b-h_a))),(g*M)/(R*L_a))
             T_1 = t+(11000*(-0.0065))
-            return p_b*np.exp(((-g)*M*(h-h_b))/(R*T_1))
-        
-        return 5474.89
-             
+            result[mask] = p_b*np.exp((-g*M*(h[mask]-h_b))/(R*T_1))
+
+        return result
+
 
 @registerConverter
 class Pressure2Feet(Pressure2Meters):
