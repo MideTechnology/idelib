@@ -98,6 +98,14 @@ class Recorder(object):
         s = object.__repr__(self)
         return s.replace(" object ", " (%s) " % path)
     
+    
+    @classmethod
+    def _matchName(cls, name):
+        """ Does a given product name match this device type? """
+        # This is used by `isRecorder()` and the `fromRecording()` function.
+        # Override if name check is more complex than substring matching.
+        return cls.baseName in name
+
 
     @classmethod
     def _isRecorder(cls, dev, strict=True):

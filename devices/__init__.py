@@ -122,11 +122,13 @@ def fromRecording(doc):
         file.
     """
     productName = doc.recorderInfo.get('ProductName')
+    if not productName:
+        productName = doc.recorderInfo.get('PartNumber')
     if productName is None:
         raise TypeError("Could not create virtual recorder from file (no ProductName)")
     recType = None #SlamStickX
     for rec in RECORDER_TYPES:
-        if rec.baseName in productName:
+        if rec._matchName(productName):
             recType = rec
             break
     if recType is None:

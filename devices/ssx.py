@@ -119,7 +119,7 @@ class SlamStickX(Recorder):
                         return True
                     devinfo = loadSchema('mide.xml').load(infoFile).dump()
                     props = devinfo['RecordingProperties']['RecorderInfo']
-                    return "Slam Stick X" in props['ProductName']
+                    return cls._matchName(props['ProductName'])
                 
         except (KeyError, TypeError, AttributeError, IOError):
             pass
@@ -813,19 +813,13 @@ class SlamStickX(Recorder):
         
             @param transforms: A dictionary or list of `mide_ebml.calibration`
                 objects.
-            @keyword date: The date of calibration. If `None`, the current
-                date/time is used. 
-            @keyword expires: The calibration expiration date. If `None`, the
-                calibration date plus default calibration lifespan is used.
+            @keyword date: The date of calibration.
+            @keyword expires: The calibration expiration date.
             @keyword calSerial: The calibration serial number (integer). 0 is
                 assumed to be user-created calibration.
         """
         if isinstance(transforms, dict):
             transforms = transforms.values()
-        if date is None:
-            date = time()
-        if expires is None:
-            expires = date + cls.CAL_LIFESPAN.total_seconds()
             
         data = OrderedDict()
         for xform in transforms:
@@ -891,6 +885,7 @@ class SlamStickX(Recorder):
         ssx._calPolys = dataset.transforms.copy()
         ssx._channels = dataset.channels.copy()
         ssx._warnings = dataset.warningRanges.copy()
+        ssx._sensors = dataset.sensors.copy()
         
         # Datasets merge calibration info info recorderInfo; separate them.
         ssx._calibration = {}
