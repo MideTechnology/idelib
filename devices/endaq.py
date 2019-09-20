@@ -6,6 +6,7 @@ Created on Jun 7, 2019
 
 from __future__ import absolute_import, print_function
 
+import os
 import re
 
 from mide_ebml.ebmlite import loadSchema
@@ -26,6 +27,7 @@ mideSchema = loadSchema('mide.xml')
 class EndaqS(SlamStickX):
     """ An enDAQ S-series recorder from Mide Technology Corporation. 
     """
+    FW_UPDATE_FILE = os.path.join(SlamStickX.SYSTEM_PATH, 'update.pkg')
 
     SN_FORMAT = "S%07d"
         
