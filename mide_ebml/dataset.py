@@ -2322,7 +2322,8 @@ class EventList(Transformable):
         numPoints = (stopIdx - startIdx)
         startIdx = max(startIdx-padding, 0)
         stopIdx = min(stopIdx+padding, len(self))
-        step = max(int(numPoints / maxPoints),1)
+        step = max(-int(-numPoints // maxPoints), 1)
+        
         if jitter != 0:
             return self.iterJitterySlice(startIdx, stopIdx, step, jitter,
                                          display=display)
