@@ -1598,32 +1598,35 @@ class Plot(ViewerPanel, MenuMixin):
         self.yUnits = self.sources[0].units
                 
         self.legend.setUnits(self.yUnits[1])
-        t,b = self.legend.getValueRange()
-        
-        if oldXform is not None:
-            # Convert vertical range to original units
-            nt = oldXform.revert(t)
-            nb = oldXform.revert(b) 
-            t = nt if nt is not None else t
-            b = nb if nb is not None else b
-        
-        if con is not None:
-            try:
-                nt = con.convert(t)
-                nb = con.convert(b)
-                t = nt if nt is not None else t
-                b = nb if nb is not None else b
-            except ValueError:
-                logger.debug("Value error adjusting vertical range %r" % con)
-                pass
-            
-#             if oldUnits != con.units[0]:
-#                 self.setTabText(con.units[0])
-        
         self.plot.legendRect = None
         self.setTabText()
-        self.legend.setValueRange(*sorted((t,b)))
-        self.redraw()
+
+        # Should not apply any conversion until plot values have been loaded
+        if not self.firstPlot:
+            t,b = self.legend.getValueRange()
+            
+            if oldXform is not None:
+                # Convert vertical range to original units
+                nt = oldXform.revert(t)
+                nb = oldXform.revert(b) 
+                t = nt if nt is not None else t
+                b = nb if nb is not None else b
+            
+            if con is not None:
+                try:
+                    nt = con.convert(t)
+                    nb = con.convert(b)
+                    t = nt if nt is not None else t
+                    b = nb if nb is not None else b
+                except ValueError:
+                    logger.debug("Value error adjusting vertical range %r" % con)
+                    pass
+                
+    #             if oldUnits != con.units[0]:
+    #                 self.setTabText(con.units[0])
+            
+            self.legend.setValueRange(*sorted((t,b)))
+            self.redraw()
         
 
     def setValueRange(self, start=None, end=None, instigator=None, 

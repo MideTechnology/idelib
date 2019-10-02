@@ -1,5 +1,7 @@
 # -*- mode: python -*-
 
+block_cipher = None
+
 from datetime import datetime
 import glob
 import os
@@ -8,10 +10,9 @@ import sys
 
 # HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
 HOME_DIR = os.getcwd()
-
 startTime = datetime.now()
 
-logging.logger.setLevel(logging.WARN)
+# logging.logger.setLevel(logging.WARN)
 
 # This is a moderately kludgey auto-incrementing build number.
 try:
@@ -22,7 +23,7 @@ try:
 except Exception:
     BUILD_NUMBER = versionString = VERSION = "Unknown"
     DEBUG = True
-    logging.logger.warning("*** Couldn't read and/or change build number!")
+    print("*** Couldn't read and/or change build number!")
 
 name='Slam Stick Lab %s (%s).exe' % (versionString, platform.architecture()[0][:3])
 
@@ -30,12 +31,12 @@ name='Slam Stick Lab %s (%s).exe' % (versionString, platform.architecture()[0][:
 # Modified version of https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Collect-Data-Files
 def Datafiles(*filenames, **kw):
     import os
-    
+
     allnames = []
     for f in filenames:
         allnames.extend(glob.glob(f))
     filenames = list(set(allnames))
-    
+
     def datafile(path, strip_path=True):
         parts = path.split('/')
         path = name = os.path.join(*parts)
@@ -49,8 +50,8 @@ def Datafiles(*filenames, **kw):
         for filename in filenames
         if os.path.isfile(filename))
 
-schemas = Datafiles('mide_ebml/ebml/schema/mide.xml', 
-                    'mide_ebml/ebml/schema/manifest.xml', 
+schemas = Datafiles('mide_ebml/ebml/schema/mide.xml',
+                    'mide_ebml/ebml/schema/manifest.xml',
                     'mide_ebml/ebml/schema/matroska.xml',
                     'mide_ebml/ebmlite/schemata/*.xml',
                     'LICENSES/*.txt',
@@ -58,20 +59,30 @@ schemas = Datafiles('mide_ebml/ebml/schema/mide.xml',
                     'resources/*',
                     'config_dialog/defaults/*.xml',
                     strip_path=False)
-        
+
+
+
 a = Analysis(['viewer.py'],
              pathex=[HOME_DIR],
              hiddenimports=[],
-             hookspath=None,
-             runtime_hooks=None)
+             hookspath=[],
+             runtime_hooks=[],
+             binaries=[],
+             datas=[],
+             excludes=[],
+             win_no_prefer_redirects=False,
+             win_private_assemblies=False,
+             cipher=block_cipher,
+             noarchive=False)
 
 # Hack to suppress the 'pyconfig.h already exists' warning
 for d in a.datas:
-    if 'pyconfig' in d[0]: 
-        a.datas.remove(d)
-        break
-        
-pyz = PYZ(a.pure)
+   if 'pyconfig' in d[0]:
+       a.datas.remove(d)
+       break
+
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+
 exe = EXE(pyz,
           a.scripts,
           a.binaries,
@@ -84,8 +95,10 @@ exe = EXE(pyz,
           debug=DEBUG,
           strip=None,
           upx=True,
+          bootloader_ignore_signals=False,
+          runtime_tmpdir=None,
           console=DEBUG
           )
 
-logging.logger.info("*** Completed building version %s, Build number %d, DEBUG=%s" % (versionString,BUILD_NUMBER,DEBUG))
-logging.logger.info("*** Elapsed build time: %s" % (datetime.now()-startTime))
+print("*** Completed building version %s, Build number %d, DEBUG=%s" % (versionString,BUILD_NUMBER,DEBUG))
+print("*** Elapsed build time: %s" % (datetime.now()-startTime))

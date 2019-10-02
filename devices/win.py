@@ -5,7 +5,7 @@ Created on Jan 27, 2015
 
 @author: stokes
 '''
-
+from __future__ import absolute_import, print_function
 
 from collections import namedtuple
 import ctypes
@@ -104,7 +104,7 @@ def getDeviceList(types):
                 for t in types:
                     if t.isRecorder(driveLetter):
                         result.append(driveLetter)
-                        continue
+                        break
         drivebits >>= 1
     return result
 

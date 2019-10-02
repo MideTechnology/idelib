@@ -38,7 +38,8 @@ from updater import isNewer
 
 
 # TODO: Better way of identifying valid devices, probably part of the class.
-RECORDER_TYPES = [devices.SlamStickC, devices.SlamStickS, devices.SlamStickX]
+RECORDER_TYPES = [devices.EndaqS, devices.SlamStickC, devices.SlamStickS,
+                  devices.SlamStickX]
 
 
 #===============================================================================
@@ -122,7 +123,7 @@ class FirmwareUpdater(object):
         'bytesize':     8, 
         'stopbits':     1, 
         'timeout':      5.0,
-        'writeTimeout': 5.0, 
+        'writeTimeout': 2.0, 
     }
 
     # Double-byte string: "MIDE Technology Corp". Should be found in firmware.
@@ -196,7 +197,7 @@ class FirmwareUpdater(object):
     def validateBootloader(self, bootBin, **kwargs):
         """ Perform basic bootloader validation (file size, etc.).
         
-            @param fwBin: The bootloader binary's data.
+            @param bootBin: The bootloader binary's data.
             @keyword strict:  If `True`, use more stringent validation tests.
                 Overrides the object's `strict` attribute if supplied.
         """
@@ -213,7 +214,7 @@ class FirmwareUpdater(object):
     def validateUserpage(self, payload, **kwargs):
         """ Perform basic firmware validation (file size, etc.).
         
-            @param fwBin: The userpage EBML data.
+            @param payload: The userpage EBML data.
             @keyword strict:  If `True`, use more stringent validation tests.
                 Overrides the object's `strict` attribute if supplied.
         """
@@ -347,7 +348,8 @@ class FirmwareUpdater(object):
     # 
     #===========================================================================
     
-    def findBootloader(self):
+    @classmethod
+    def findBootloader(cls):
         """ Check available serial ports for a Slam Stick in bootloader mode.
             @return: The name of the port, or `None` if no device was found.
         """
@@ -1080,7 +1082,7 @@ class FirmwareUpdateDialog(wx.Dialog):
                 connected = True
                 logger.info('Connected to bootloader {}'.format(c))
                 break
-            except IOError as err:
+            except (IOError, serial.SerialTimeoutException) as err:
                 logger.error("Connection failure, try %d: %s" % (i+1,err))
                 wx.Sleep(1)
         

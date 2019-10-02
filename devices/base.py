@@ -98,6 +98,14 @@ class Recorder(object):
         s = object.__repr__(self)
         return s.replace(" object ", " (%s) " % path)
     
+    
+    @classmethod
+    def _matchName(cls, name):
+        """ Does a given product name match this device type? """
+        # This is used by `isRecorder()` and the `fromRecording()` function.
+        # Override if name check is more complex than substring matching.
+        return cls.baseName in name
+
 
     @classmethod
     def _isRecorder(cls, dev, strict=True):
@@ -111,14 +119,6 @@ class Recorder(object):
             return False
     
 
-    def _getInfoAttr(self, name, default=None, refresh=False):
-        """ Helper method to make getting an info value tidy. """
-        info = self.getInfo(refresh=refresh)
-        if info is None:
-            return default
-        return info.get(name, default)
-
-    
     @property
     def name(self):
         """ The recording device's (user-assigned) name. """
@@ -167,7 +167,7 @@ class Recorder(object):
         return self.productName, self.firmwareVersion
     
     
-    def getInfo(self, default=None, refresh=False):
+    def getInfo(self, name=None, default=None, refresh=False):
         """ Retrieve a recorder's device information. Subclasses need to
             implement this.
         """

@@ -68,6 +68,14 @@ class SlamStickClassic(Recorder):
             return False
 
 
+    def _getInfoAttr(self, name, default=None, refresh=False):
+        """ Helper method to make getting an info value tidy. """
+        info = self.getInfo(refresh=refresh)
+        if info is None:
+            return default
+        return info.get(name, default)
+
+    
     @classmethod
     def _packTime(cls, t=None):
         """ Helper method to convert a time into the BCD format used in the 
@@ -134,7 +142,7 @@ class SlamStickClassic(Recorder):
         return classic_config.writeConfig(dest, data, verify)
     
 
-    def getInfo(self, default=None, refresh=False):
+    def getInfo(self, name=None, default=None, refresh=False):
         """ Get information on the recorder. For Classic, this is in the
             configuration file, so this method is the same as `getConfig()`.
         """
