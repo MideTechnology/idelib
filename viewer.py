@@ -1,5 +1,5 @@
 '''
-Slam Stick Lab: Full-featured viewer for data recorded by Slam Stick data 
+enDAQ Lab: Full-featured viewer for data recorded by enDAQ and Slam Stick data 
 loggers. Also does Slam Stick recorder configuration.
 
 TODO: Remove vestigial features that haven't been fully implemented (operations)
@@ -90,7 +90,7 @@ from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME
 from build_info import REPO_BRANCH, REPO_COMMIT_ID
 from logger import logger
 
-APPNAME = u"Slam\u2022Stick Lab"
+APPNAME = u"enDAQ Lab"
 __version__= '.'.join(map(str, VERSION))
 __copyright__=(u"Copyright (c) %s Mid\xe9 Technology" % 
                (datetime.fromtimestamp(BUILD_TIME).year))
@@ -524,7 +524,7 @@ class Viewer(wx.Frame, MenuMixin):
             
         if RESOURCES_URL:
             self.addMenuItem(helpMenu, self.ID_HELP_RESOURCES,
-                             "Slam Stick Resources", "", self.OnHelpResources)
+                             "enDAQ Recorder Resources", "", self.OnHelpResources)
         
         if FEEDBACK_URL:
             self.addMenuItem(helpMenu, self.ID_HELP_FEEDBACK,
