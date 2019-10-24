@@ -26,7 +26,6 @@ import time
 if (sys.hexversion & 0xffff0000) != 0x02070000:
     raise RuntimeError("This branch requires Python 2.7!")
 
-
 import wx
 
 if wx.MAJOR_VERSION < 4:
@@ -86,11 +85,10 @@ import tools.ide2csv
 # 
 #===============================================================================
 
-from build_info import VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME
+from build_info import APPNAME, VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME
 from build_info import REPO_BRANCH, REPO_COMMIT_ID
 from logger import logger
 
-APPNAME = u"enDAQ Lab"
 __version__= '.'.join(map(str, VERSION))
 __copyright__=(u"Copyright (c) %s Mid\xe9 Technology" % 
                (datetime.fromtimestamp(BUILD_TIME).year))
@@ -99,7 +97,7 @@ if DEBUG or BETA:
     __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
 if DEBUG:
     import socket
-    if socket.gethostname() in ('DEDHAM', 'LEE'):
+    if socket.gethostname() in ('HADLEY', 'DEDHAM', 'LEE'):
         try:
             # TODO: Make sure this doesn't make it into PyInstaller build
             import yappi
@@ -1764,7 +1762,6 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handle "Scripting->Show Script Editor" menu events.
         """
         # TODO: Get size from prefs, get last set of tabs?
-        logger.warning("XXX: CLOSING THE SCRIPT WINDOW WILL CRASH THE APP!")
         editor = scripting.editor.ScriptEditor(self, size=(800,600))
         self.childViews[editor.GetId()] = editor
         editor.Show()
@@ -2667,7 +2664,7 @@ class ViewerApp(wx.App):
         self.changedFiles = True
         self.colorDb = wx.ColourDatabase()
         stdPaths = wx.StandardPaths.Get()
-        self.docsDir = os.path.join(stdPaths.GetDocumentsDir(), "Slam Stick Lab")
+        self.docsDir = os.path.join(stdPaths.GetDocumentsDir(), APPNAME)
         self.prefs = Preferences(self.prefsFile, clean=(clean or safeMode))
         self.plugins = None
         

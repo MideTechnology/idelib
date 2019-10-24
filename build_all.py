@@ -25,6 +25,9 @@ from docutils.examples import html_body
 
 from assembly import birth_utils as util
 
+import build_info
+APPNAME = getattr(build_info, 'APPNAME', 'enDAQ Lab')
+
 HOME_DIR = os.getcwd()
 VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
 BETA_INFO_FILE = 'updater files/slam_stick_lab_beta.json'
@@ -36,11 +39,13 @@ VERPATCH_PATH = os.path.realpath(r"..\verpatch-bin-1.0.10\verpatch.exe")
 PYINSTALLER_32 = r'venv\python27_32\Scripts\pyinstaller.exe'
 PYINSTALLER_64 = r'venv\python27_64\Scripts\pyinstaller.exe'
 
+ICON = r".\endaq_lab.ico"
+
 builds = (
-#     PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
-    PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer-win-onefile.spec',
-#     PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer.spec',
-#     PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer.spec',
+#     PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i %(icon)s viewer-win-onefile.spec',
+    PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i %(icon)s viewer-win-onefile.spec',
+#     PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i %(icon)s viewer.spec',
+#     PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i %(icon)s viewer.spec',
 )
 
 logger = logging.getLogger('SlamStickLab.BuildAll')
@@ -50,12 +55,13 @@ logger = logging.getLogger('SlamStickLab.BuildAll')
 #===============================================================================
 
 def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine,
-              branch=None, commit=None):
+              branch=None, commit=None, appName=APPNAME):
     """ Write the latest build info (date, build number, etc.) to the
         ``build_info.py`` module.
     """
     with open('build_info.py', 'wb') as f:
         f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
+        f.write('APPNAME = %r' % appName)
         f.write('VERSION = %s\n' % str(version))
         f.write('DEBUG = %s\n' % debug)
         f.write('BETA = %s\n' % beta)
@@ -127,7 +133,7 @@ def compressFiles(args):
         break
 
 
-def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None,
+def setWindowsInfo(filename, appName, version, buildNum, suffix=None, comment=None,
                    year=None):
     """ Set the Windows application information using verpatch.
     """
@@ -147,11 +153,12 @@ def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None,
            '/s company "%(company)s" '
            '/s copyright "(c) %(year)s %(company)s" '
            '/pv "%(productVersion)s" '
-           '/s desc "Utility for configuring and analyzing data from Slam Stick data recorders." '
-           '/s product "Slam Stick Lab"')
+           '/s desc "Utility for configuring and analyzing data from enDAQ and Slam Stick data recorders." '
+           '/s product "%(product)s"')
 
     args = {'verpatch': VERPATCH_PATH,
             'app': filename,
+            'product': appName,
             'fileVersion': fileVersion,
             'productVersion': version,
             'company': "Mide Technology Corporation",
@@ -165,7 +172,7 @@ def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None,
     subprocess.call(cmd % args, stdout=sys.stdout, stdin=sys.stdin, shell=True)
 
 
-def setAllWindowsInfo(args, version, buildNum, suffix=None, comment=None,
+def setAllWindowsInfo(args, appName, version, buildNum, suffix=None, comment=None,
                       year=None):
     """ Set the Windows application information for all binaries using
         verpatch. Calls `setWindowsInfo()`
@@ -177,7 +184,7 @@ def setAllWindowsInfo(args, version, buildNum, suffix=None, comment=None,
         exes.update(glob(os.path.join(v, '*.exe')))
 
     for ex in exes:
-        setWindowsInfo(ex, version, buildNum, suffix, comment, year)
+        setWindowsInfo(ex, appName, version, buildNum, suffix, comment, year)
 
 
 #===============================================================================
@@ -232,7 +239,7 @@ if __name__ == "__main__":
     try:
         sys.path.append(HOME_DIR)
         from build_info import VERSION, BETA, DEBUG, BUILD_NUMBER, BUILD_MACHINE, BUILD_TIME
-        from build_info import REPO_BRANCH, REPO_COMMIT_ID
+        from build_info import REPO_BRANCH, REPO_COMMIT_ID, APPNAME
 
         if args.version is not None:
             thisVersion = map(int, filter(len, args.version.split('.')))
@@ -244,6 +251,7 @@ if __name__ == "__main__":
         thisBeta = args.beta is True
         thisDebug = not (args.release or thisBeta)
         thisTime = time.time()
+        thisMachine = socket.gethostname()
 
         thisBranch = thisCommit = None
         if repo is not None:
@@ -254,7 +262,9 @@ if __name__ == "__main__":
                 pass
 
         if not args.preview:
-            writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname(), thisBranch, thisCommit)
+            writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber,
+                      thisTime, thisMachine, thisBranch, thisCommit,
+                      appName=APPNAME)
         versionString = '.'.join(map(str,thisVersion))
 
     except ImportError:
@@ -264,8 +274,8 @@ if __name__ == "__main__":
         thisDebug = True
 
     print("*"*78)
-    print ("*** Building Version %s, Build number %d," %
-           (versionString,thisBuildNumber), end=' ')
+    print ("*** Building %s Version %s, Build number %d," %
+           (APPNAME, versionString,thisBuildNumber), end=' ')
     if thisDebug:
         print("DEBUG version")
     elif thisBeta:
@@ -280,10 +290,9 @@ if __name__ == "__main__":
         buildType = ' beta'
 
     buildArgs = {
-    #     'dist_32': 'Slam Stick Lab v%s.%04d (32 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
-    #     'dist_64': 'Slam Stick Lab v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
-        'dist_32': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
-        'dist_64': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
+        'dist_32': '%s v%s.%04d%s' % (APPNAME, versionString, thisBuildNumber, buildType),
+        'dist_64': '%s v%s.%04d%s' % (APPNAME, versionString, thisBuildNumber, buildType),
+        'icon': ICON,
         'options': '--clean' if args.clean else ''
     }
 

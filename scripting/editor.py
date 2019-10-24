@@ -1,5 +1,6 @@
 """ A tabbed, fairly fully featured script editing window.
 """
+from __future__ import absolute_import, print_function
 
 from datetime import datetime
 import os.path
@@ -11,11 +12,13 @@ import wx.aui as aui
 import  wx.stc  as  stc
 
 from base import MenuMixin
+from logger import logger
+
 
 # TODO: Get rid of `python_stc.py` (copied from demo) and implement it here.
-import python_stc
+from . import python_stc
 # TODO: Refactor/replace `DebugConsole` (a hack) with a good one.
-from shell import DebugConsole 
+from .shell import DebugConsole 
 
 
 #===============================================================================
@@ -207,8 +210,8 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         try:
             shell = self.root.getShell()
             shell.shell.push("print(%r);execfile(%r);print(%r)" % (start,filename,finish))
-        except Exception:
-            print("XXX: Handle ScriptEditorCtrl.executeInShell() error!")
+        except Exception as err:
+            logger.error("XXX: ScriptEditorCtrl.executeInShell() error: %r" % err)
             raise
         finally:
             if istemp:
@@ -363,6 +366,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
         sizer.Add(self.nb, 1, wx.EXPAND)
 
         self.SetStatusBar(ScriptEditorStatusBar(self, -1))
+        
+        # XXX: This timer seems to be causing crashes when window closes.
+#         self.changeCheckTimer = wx.Timer(self)
 
         self.tabs = []
         self.findDlg = None
@@ -370,17 +376,14 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.finddata = wx.FindReplaceData()
         self.finddata.SetFlags(wx.FR_DOWN)
 
-        self.changeCheckTimer = wx.Timer(self)
-
         self.loadPrefs()
         self.buildMenus()
 
-        # Should be EVT_AUINOTEBOOK_TAB_RIGHT_DOWN in wxPython 4?
         self.nb.Bind(aui.EVT_AUINOTEBOOK_TAB_RIGHT_DOWN, self.OnNotebookRightClick)
         self.nb.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSE, self.OnCloseTab)
         self.nb.Bind(aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnTabChanged)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
-        self.Bind(wx.EVT_TIMER, self.OnChangeCheck)
+#         self.Bind(wx.EVT_TIMER, self.OnChangeCheck)
         
         if files:
             for filename in files:
@@ -393,18 +396,14 @@ class ScriptEditor(wx.Frame, MenuMixin):
                 self.addTab(filename=filename, text=src, modified=modified)
 
 
-    def OnMenuTest(self, evt):
-        print("menu event")
-
-
     def loadPrefs(self):
         """ Load/reload editor configuration from the main app.
         """
-        self.changeCheckTimer.Stop()
+#         self.changeCheckTimer.Stop()
         
         # TODO: Read from viewer preferences
-        self.checkForChanges = True
-        self.changeCheckInterval = 500
+#         self.checkForChanges = True
+#         self.changeCheckInterval = 500
         self.defaultDir = ""
         self.showWhitespace = True
         self.showGuides = True
@@ -415,8 +414,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
         for n in xrange(self.nb.GetPageCount()):
             self.nb.GetPage(n).updateOptions()
 
-        if self.checkForChanges:
-            self.changeCheckTimer.Start(self.changeCheckInterval)
+#         if self.checkForChanges:
+#             self.changeCheckTimer.Start(self.changeCheckInterval)
 
 
     def buildMenus(self):
@@ -452,10 +451,12 @@ class ScriptEditor(wx.Frame, MenuMixin):
                          u"Print Setup...", u"", enabled=False)
         fileMenu.AppendSeparator()
         
-        self.addMenuItem(fileMenu, wx.ID_CLOSE, 
-                         "&Close Tab\tCtrl+W", "", self.OnFileCloseTabMenu)
+        # NOTE: Closing the tab this way crashes the app. Fix!
+#         self.addMenuItem(fileMenu, wx.ID_CLOSE, 
+#                          "&Close Tab\tCtrl+W", "", self.OnFileCloseTabMenu)
+        
         self.addMenuItem(fileMenu, self.ID_MENU_CLOSE_WINDOW, 
-                         "&Close Window\tCtrl+Shift+W", "", self.OnClose)
+                         "&Close Window\tCtrl+Shift+W", "", self.OnFileCloseWindow)
         
         # "Edit" menu
         #=======================================================================
@@ -722,7 +723,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
     def OnFindReplaceAll(self, evt):
         """ Handle find dialog 'replace all' button click. 
         """
-        print("XXX: Implement OnFindReplaceAll()!")
+        logger.error("XXX: Implement OnFindReplaceAll()!")
         evt.Skip()
         
     
@@ -802,7 +803,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         if tab:
             kwargs['contents'] = [(tab.filename, tab.GetText(), tab.IsModified())]
         
-        # TODO: Any additional prep?
+        # ???: Any additional preparation required?
         dlg = self.__class__(*args, **kwargs)
         dlg.Show()
         
@@ -858,6 +859,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
             for tab in changed:
                 tab.SaveFile()
         
+#         self.changeCheckTimer.Stop()
         evt.Skip()
         
 
@@ -876,7 +878,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         kwargs.pop('files', None)
         kwargs.pop('contents', None)
         
-        # TODO: Any additional prep?
+        # ???: Any additional preparation required?
         dlg = self.__class__(*args, **kwargs)
         dlg.Show()
         
@@ -925,11 +927,20 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """ Handle a tab closing from 'File->Close Tab'. Confirm if editor has
             unsaved changes.
         """
+        # XXX: THIS IS HARD-CRASHING THE APP! FIX OR REMOVE!
         self.OnCloseTab(evt)
-        
+         
         # Actually remove the page (needed if not called by the notebook)
-        self.nb.DeletePage(self.nb.GetSelection())
+        page = evt.GetSelection()
+        self.nb.RemovePage(page)
+        self.nb.DeletePage(page)
 
+
+    def OnFileCloseWindow(self, evt):
+        """ Handle the 'File->Close Window' menu event.
+        """
+        self.Close()
+        
 
     #===========================================================================
 
@@ -981,10 +992,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
             if tab.CanCopy():
                 tab.executeInShell(selected=True)
             else:
-                print("TODO: tell user to select text first")
-
-
-
+                wx.Bell()
             
 
 #===============================================================================

@@ -1,12 +1,11 @@
 '''
 Interactive Python interpreter for debugging purposes.
 
-Created on Jul 1, 2015
-
 @author: dstokes
 
 @todo: Refactor. This is a copy of the old debugging console as a stand-in.
 '''
+from __future__ import absolute_import, print_function
 
 import wx.py
 
@@ -23,11 +22,11 @@ class DebugConsole(wx.py.shell.ShellFrame):
     """
     HELP_TEXT = '\n'.join(
         ("* Useful global variables and helper functions:",
-         "app               The currently running app.",
-         "app.lastException The last unexpected exception handled.",
-         "viewer            The active viewer window when the console was opened.",
-         "viewer.dataset    The active imported recording file.",
-         "viewer.getTab()   Retrieve the foreground tab.",
+         "\tapp               The currently running app.",
+         "\tapp.lastException The last unexpected exception handled.",
+         "\tviewer            The active viewer window when the console was opened.",
+         "\tviewer.dataset    The active imported recording file.",
+         "\tviewer.getTab()   Retrieve the foreground tab.",
          ""))
 
     def __init__(self, parent=None, id=-1, title=None, introText=None, 
@@ -37,8 +36,8 @@ class DebugConsole(wx.py.shell.ShellFrame):
 
         if title is None:
             version = '.'.join(map(str, build_info.VERSION))
-            title = "Slam Stick Lab %s (build %d) Scripting/Debugging Console" % \
-                (version, build_info.BUILD_NUMBER)
+            title = "%s %s (build %d) Scripting/Debugging Console" % \
+                (build_info.APPNAME, version, build_info.BUILD_NUMBER)
             
         wx.py.frame.Frame.__init__(self, parent, id, title, pos, size, style)
         wx.py.frame.ShellFrameMixin.__init__(self, config, dataDir)
@@ -77,12 +76,14 @@ class DebugConsole(wx.py.shell.ShellFrame):
             pass
     
     def OnHelp(self, event):
-        """Display a Help window."""
+        """Display a Help window.
+        """
+        # XXX: REWRITE CONSOLE HELP!
         import  wx.lib.dialogs
         title = 'Console Help'
         
         text = ["The Debugging Console provides access to the underlying Python environment.", 
-                "Proceed with caution: misuse of the Console may cause Slam Stick Lab to crash!\n", 
+                "Proceed with caution: misuse of the Console may cause %s to crash!\n" % build_info.APPNAME, 
                 self.HELP_TEXT, 
                 wx.py.shell.HELP_TEXT]
         text = '\n'.join(text)

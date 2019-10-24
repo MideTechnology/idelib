@@ -70,7 +70,7 @@ class StatusBar(wx.StatusBar):
         freeing up field 0, which automatically displays menu item tool tips.
     """
     frameDelay = 30
-    numFields = 7
+    numFields = 6
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes the standard wx.Panel arguments, plus:
@@ -84,8 +84,8 @@ class StatusBar(wx.StatusBar):
             self.root = self.GetParent().root
         
 #         logo = wx.StaticBitmap(self, -1, images.MideLogo.GetBitmap())
-        logo = wx.StaticBitmap(self, -1, images.EndaqLogo.GetBitmap())
-        logo.SetPosition((0, int(((self.GetSize()[1]-logo.GetSize()[1])*0.5)+0.5)))
+#         logo = wx.StaticBitmap(self, -1, images.EndaqLogo.GetBitmap())
+#         logo.SetPosition((0, int(((self.GetSize()[1]-logo.GetSize()[1])*0.5)+0.5)))
         self.progressBar = wx.Gauge(self, -1, 1000)
         self.cancelButton = wx.Button(self, wx.ID_CANCEL, style=wx.BU_EXACTFIT)
         bwidth, bheight = self.cancelButton.GetBestSize()
@@ -96,16 +96,16 @@ class StatusBar(wx.StatusBar):
         buttonFieldNum = self.numFields-1
         progressFieldNum = self.numFields-2
         self.messageFieldNum = self.numFields-3
-        warnFieldNum = self.numFields-4
+#         warnFieldNum = self.numFields-4
         self.utcFieldNum = 3
         self.yFieldNum = 2
         self.xFieldNum = 1
-        logoFieldNum = 0
+        msgField = 0
 
-        fieldWidths[logoFieldNum] = logo.GetSize()[0]-6
-        fieldWidths[self.messageFieldNum] = -4
-        fieldWidths[warnFieldNum] = -4
-        fieldWidths[progressFieldNum] = -2
+        fieldWidths[msgField] = -3
+        fieldWidths[self.messageFieldNum] = -2
+#         fieldWidths[warnFieldNum] = -2
+        fieldWidths[progressFieldNum] = -1
         fieldWidths[buttonFieldNum] = bwidth
 
         self.SetFieldsCount(self.numFields)
