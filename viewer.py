@@ -1545,7 +1545,8 @@ class Viewer(wx.Frame, MenuMixin):
     #===========================================================================
 
     def getPlotColor(self, source):
-        """ Get the plotting color for a data source. The color is retrieved
+        """ Get the plotting color for a data source. If the source does not
+            have a color specified in the recording, the color is retrieved
             from the preferences. Channel/subchannel combinations not known are
             assigned one of the standard default colors.
         
@@ -1554,18 +1555,24 @@ class Viewer(wx.Frame, MenuMixin):
         """
         if isinstance(source, mide_ebml.dataset.EventList):
             source = source.parent
-            
-        try:
-            sourceId = "%02x.%d" % (source.parent.id, 
-                                    source.id)
-            color = self.root.app.getPref('plotColors')[sourceId]
-        except (KeyError, AttributeError):
-            defaults = self.app.getPref('defaultColors')
-            color = defaults[self._nextColor % len(defaults)]
-            self._nextColor += 1
+
+        color = getattr(source, 'color', None)
         
-        if isinstance(color, basestring):
-            color = self.app.colorDb.Find(color)
+        if color is not None:
+            color = wx.Colour(color)
+            
+        else:
+            try:
+                sourceId = "%02x.%d" % (source.parent.id, 
+                                        source.id)
+                color = self.root.app.getPref('plotColors')[sourceId]
+            except (KeyError, AttributeError):
+                defaults = self.app.getPref('defaultColors')
+                color = defaults[self._nextColor % len(defaults)]
+                self._nextColor += 1
+            
+            if isinstance(color, basestring):
+                color = self.app.colorDb.Find(color)
 
         return color
     

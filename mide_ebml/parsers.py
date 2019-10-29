@@ -1181,6 +1181,7 @@ class ChannelParser(ElementHandler):
         "SubChannelRangeMax": "rangeMax",
         "SubChannelSensorRef": "sensorId",
         "SubChannelWarningRef": "warningId",
+        "SubChannelPlotColor": "color",
         
         # Generic attribute elements.
         "Attribute": "attributes"

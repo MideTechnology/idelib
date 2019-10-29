@@ -870,7 +870,7 @@ class SubChannel(Channel):
     
     def __init__(self, parent, subchannelId, name=None, units=('',''), 
                  transform=None, displayRange=None, sensorId=None, 
-                 warningId=None, axisName=None, attributes=None):
+                 warningId=None, axisName=None, attributes=None, color=None):
         """ Constructor. This should generally be done indirectly via
             `Channel.addSubChannel()`.
         
@@ -951,7 +951,14 @@ class SubChannel(Channel):
         self.allowMeanRemoval = parent.allowMeanRemoval
         self.removeMean = False
         self.singleSample = parent.singleSample
-            
+        
+        # Is `color` a set of R/G/B values? Check for `__getitem__` instead of
+        # using `instance`, since various things (bytearray, wx.Colour, etc.)
+        # don't pass `isinstance(color, Sequence)`.
+        if hasattr(color, "__getitem__") and len(color) >= 3:
+            color = tuple(color[:3])
+        self.color = color
+
 
     @property
     def children(self):
@@ -2466,9 +2473,9 @@ class EventArray(EventList):
         self._blockIndicesArray = np.array([], dtype=np.float64)
         self._blockTimesArray = np.array([], dtype=np.float64)
 
-    # --------------------------------------------------------------------------
+    #===========================================================================
     # New utility methods
-    # --------------------------------------------------------------------------
+    #===========================================================================
 
     def _makeBlockEventsFactory(self, display):
         """ Generates a function that makes numpy arrays of event data.
@@ -2536,9 +2543,9 @@ class EventArray(EventList):
 
         return _makeBlockEvents
 
-    # --------------------------------------------------------------------------
+    #===========================================================================
     # Derived utility methods
-    # --------------------------------------------------------------------------
+    #===========================================================================
 
     def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
         """ Get the index of a raw data block that contains the given event
@@ -2595,9 +2602,9 @@ class EventArray(EventList):
         return uniqueBlockMeans[:, blocksPerm]
 
 
-    # --------------------------------------------------------------------------
+    #===========================================================================
     # Main API methods
-    # --------------------------------------------------------------------------
+    #===========================================================================
 
     def __getitem__(self, idx, display=False):
         """ Get a specific data point by index.
