@@ -1371,12 +1371,37 @@ class EventListTestCase(unittest.TestCase):
         
     def testGetEventIndexNear(self):
         """ Test for getEventIndexNear method. """
-        self.mockForGetItem(3)
+        length = 4
+        dt = 0.01
+        eventList = mock.Mock(spec=EventList)
+        eventList.configure_mock(
+            useAllTransforms=True,
+            _fullXform=None,
+            __len__=lambda self: length,
+            __getitem__=(lambda *a, **kw: EventList.__getitem__(*a, **kw)),
+            iterSlice=(lambda start=None, end=None, step=1, display=False:
+                       ((i*dt, i) for i in range(length)[start:end:step])),
+            _data=mock.Mock(),
+            getEventIndexBefore=lambda t: min(max(-1, int(t//dt)), length-1),
+            _getBlockIndexWithIndex=lambda idx: range(length)[idx],
+            _getBlockIndexRange=lambda idx: [idx, idx+1],
+            _getBlockSampleTime=lambda idx: dt*range(length)[idx],
+            parent=mock.Mock(),
+            session=mock.sentinel.session,
+            noBivariates=mock.sentinel.noBivariates,
+        )
+        eventList._data.configure_mock(
+            __getitem__=lambda self, i: mock.Mock(
+                id=i % length, startTime=eventList._getBlockSampleTime(i)
+            )
+        )
 
-        self.assertEqual(self.eventList1.getEventIndexNear(-1), 0)
-        self.assertEqual(self.eventList1.getEventIndexNear(0), 0)
-        self.assertEqual(self.eventList1.getEventIndexNear(1), 4)
-        self.assertEqual(self.eventList1.getEventIndexNear(-1), 0)
+        self.assertEqual(EventList.getEventIndexNear(eventList, -1), 0)
+        self.assertEqual(EventList.getEventIndexNear(eventList, 0), 0)
+        self.assertEqual(EventList.getEventIndexNear(eventList, dt*0.9), 1)
+        self.assertEqual(EventList.getEventIndexNear(eventList, dt*1.1), 1)
+        self.assertEqual(EventList.getEventIndexNear(eventList, dt*(length-1)), length-1)
+        self.assertEqual(EventList.getEventIndexNear(eventList, dt*length), length-1)
     
     
     def testGetRangeIndices(self):

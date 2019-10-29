@@ -1793,9 +1793,7 @@ class EventList(Transformable):
         events = self[idx:idx+2]
         if events[0][0] == t or len(events) == 1:
             return idx
-        if t - events[0][0] < events[1][0] - t:
-            return idx+1
-        return idx
+        return min((t - events[0][0], idx), (events[1][0] - t, idx+1))[1]
 
 
     def getRangeIndices(self, startTime, endTime):
