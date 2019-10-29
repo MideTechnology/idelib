@@ -17,7 +17,7 @@ import mide_ebml
 # 
 #===============================================================================
 
-class DebugConsole(wx.py.shell.ShellFrame):
+class PythonConsole(wx.py.shell.ShellFrame):
     """ An interactive Python console for debugging purposes.
     """
     HELP_TEXT = '\n'.join(
@@ -74,7 +74,8 @@ class DebugConsole(wx.py.shell.ShellFrame):
             self.Parent.OnHelpAboutMenu(evt)
         except AttributeError:
             pass
-    
+
+
     def OnHelp(self, event):
         """Display a Help window.
         """
@@ -95,7 +96,8 @@ class DebugConsole(wx.py.shell.ShellFrame):
         dlg.GetChildren()[0].SetInsertionPoint(0)
         dlg.ShowModal()
         dlg.Destroy()
-        
+
+
     #===========================================================================
     # 
     #===========================================================================
@@ -127,5 +129,5 @@ class DebugConsole(wx.py.shell.ShellFrame):
 if __name__ == "__main__":
     import viewer
     app = viewer.ViewerApp(loadLastFile=True)
-    DebugConsole.openConsole()
+    PythonConsole.openConsole()
     app.MainLoop()

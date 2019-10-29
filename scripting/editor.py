@@ -17,8 +17,8 @@ from logger import logger
 
 # TODO: Get rid of `python_stc.py` (copied from demo) and implement it here.
 from . import python_stc
-# TODO: Refactor/replace `DebugConsole` (a hack) with a good one.
-from .shell import DebugConsole 
+# TODO: Refactor/replace `PythonConsole` (a hack) with a good one.
+from .shell import PythonConsole 
 
 
 #===============================================================================
@@ -566,7 +566,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
             # Shell window isn't open (not shown yet, or previously closed)
             localVars = locals() # use provided locals?
             localVars['editor'] = self # for testing
-            self.shell = DebugConsole.openConsole(locals=localVars, focus=False)
+            self.shell = PythonConsole.openConsole(locals=localVars, focus=False)
         
         if focus:
             self.shell.Raise()

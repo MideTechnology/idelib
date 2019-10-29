@@ -21,9 +21,9 @@ from base import ViewerPanel, MenuMixin
 from common import expandRange, mapRange, inRect, constrain, greater, lesser
 from widgets.timeline import VerticalScaleCtrl
 
-from logger import logger
-
 from build_info import DEBUG
+from logger import logger
+from splash import SplashPage
 
 import numpy as np
 
@@ -2069,6 +2069,7 @@ class PlotSet(aui.AuiNotebook):
         
             @keyword root: The viewer's 'root' window.
         """
+        showSplash = kwargs.pop('splash', True)
         self.root = kwargs.pop('root', None)
         kwargs.setdefault('style',   aui.AUI_NB_TOP  
                                    | aui.AUI_NB_TAB_SPLIT 
@@ -2091,6 +2092,10 @@ class PlotSet(aui.AuiNotebook):
         self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSE, self.OnPageClose)
         self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSED, self.OnPageClosed)
         
+        self.showingSplash = False
+        if showSplash:
+            self.showSplash()
+    
 
     def loadPrefs(self):
         """ (Re-)Load the app preferences.
@@ -2100,16 +2105,51 @@ class PlotSet(aui.AuiNotebook):
 
 
     def __len__(self):
+        """ Get the number of pages (tabs).
+        """
         return self.GetPageCount()
     
     
     def __iter__(self):
+        """ Iterate pages.
+        """
         for i in xrange(len(self)):
             yield(self.GetPage(i))
     
     
     def __getitem__(self, idx):
+        """ Get a page by index.
+        """
         return self.GetPage(idx)
+    
+    
+    def showSplash(self):
+        """ Show the 'splash screen' tab. Only applicable if no plots have
+            been added yet.
+        """
+        if len(self) > 0:
+            return None
+        
+        splash = SplashPage(self, -1, root=self.root)
+        self.AddPage(splash, "Welcome")
+        self.Refresh()
+        splash.Refresh()
+        self.showingSplash = True
+        
+        return splash
+    
+    
+    def hideSplash(self):
+        """ Hide (delete) the 'splash screen' tab.
+        
+            @return: `True` if the splash screen was removed.
+        """
+        if self.showingSplash:
+            self.DeletePage(0)
+            self.showingSplash = False
+            return True
+        else:
+            return False
     
     
     def getActivePage(self):
@@ -2130,6 +2170,8 @@ class PlotSet(aui.AuiNotebook):
             @keyword title: The name displayed on the plot's tab
                 (defaults to 'Plot #')
         """
+        self.hideSplash()
+        
         if source is not None:
             title = source.name or title
             

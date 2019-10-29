@@ -196,6 +196,7 @@ class Viewer(wx.Frame, MenuMixin):
         
             @keyword app: The viewer's parent application.
         """
+        splash  = kwargs.pop('splash', True)
         self.app = kwargs.pop('app', None)
         self.units = kwargs.pop('units',('Time','s'))
         
@@ -203,6 +204,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.suspendDrawing()
         
         filename = kwargs.pop('filename', None)
+        if filename:
+            splash = False
         
         displaySize = wx.DisplaySize()
         windowSize = int(displaySize[0]*.66), int(displaySize[1]*.66)
@@ -220,7 +223,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.loadPrefs()
         
-        self.buildUI()
+        self.buildUI(splash)
         self.Centre()
         self.Show()
         
@@ -399,7 +402,7 @@ class Viewer(wx.Frame, MenuMixin):
                          "Show Major Horizontal Gridlines\tCtrl+'", "",
                          self.OnToggleLinesMajor, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MINOR,
-                         "Show Minor Horizontal Gridlines\tCtrl+SHIFT+'", "",
+                         "Show Minor Horizontal Gridlines\tCtrl+Shift+'", "",
                          self.OnToggleLinesMinor, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
@@ -474,8 +477,12 @@ class Viewer(wx.Frame, MenuMixin):
         if showAdvanced:
             scriptMenu = self.addMenu(self.menubar, '&Scripting')
             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
-                             "Open Script Editor\tCtrl+SHIFT+E", '',
+                             "Open Script Editor\tCtrl+Shift+E", '',
                              self.OnShowScriptEditor)
+            self.addMenuItem(scriptMenu, self.ID_DEBUG_CONSOLE, 
+                         "Open Console\tCtrl+Shift+C", "", 
+                         debugging.DebugConsole.openConsole)
+
         
         #=======================================================================
         # "Tools" menu, only appears if there are tools.
@@ -532,10 +539,10 @@ class Viewer(wx.Frame, MenuMixin):
             helpMenu.AppendSeparator()
             debugMenu = self.addSubMenu(helpMenu, self.ID_DEBUG_SUBMENU, 
                                         "Debugging")
-            self.addMenuItem(debugMenu, self.ID_DEBUG_CONSOLE, 
-                         "Open Scripting Console\tCtrl+Shift+C", "", 
-                         debugging.DebugConsole.openConsole)
-            debugMenu.AppendSeparator()
+#             self.addMenuItem(debugMenu, self.ID_DEBUG_CONSOLE, 
+#                          "Open Scripting Console\tCtrl+Shift+C", "", 
+#                          debugging.DebugConsole.openConsole)
+#             debugMenu.AppendSeparator()
             self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
                              "Save All Preferences", "",
                              lambda(evt): self.app.saveAllPrefs())
@@ -569,7 +576,7 @@ class Viewer(wx.Frame, MenuMixin):
         fft.FOREGROUND=evt.Checked()
 
 
-    def buildUI(self):
+    def buildUI(self, splash=True):
         """ Construct and configure all the viewer window's panels. Called once
             by the constructor. Used internally.
         """
@@ -579,7 +586,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.root = self
         self.navigator = TimeNavigator(self, root=self)
         self.corner = Corner(self, root=self)
-        self.plotarea = PlotSet(self, -1, root=self)
+        self.plotarea = PlotSet(self, -1, root=self, splash=splash)
         self.timeline = Timeline(self, root=self)
         
         # List of components that display time-related data.
@@ -603,6 +610,9 @@ class Viewer(wx.Frame, MenuMixin):
         self.SetStatusBar(self.statusBar)
         
         self.enableChildren(False)
+        
+        if splash:
+            self.plotarea.Enable()
 
         self.buildMenus()
         
@@ -1616,7 +1626,7 @@ class Viewer(wx.Frame, MenuMixin):
     def OnFileNewMenu(self, evt):
         """ Handle File->New Viewer Window menu events.
         """
-        self.app.createNewView()
+        self.app.createNewView(splash=False)
 
 
     def OnFileOpenMenu(self, evt):
@@ -2767,11 +2777,12 @@ class ViewerApp(wx.App):
                       style=wx.ICON_WARNING|wx.OK)
         
 
-    def createNewView(self, filename=None, title=None):
+    def createNewView(self, filename=None, title=None, splash=True):
         """ Create a new viewer window.
         """
         title = self.fullAppName if title is None else title
-        viewer = Viewer(None, title=title, app=self, filename=filename)
+        viewer = Viewer(None, title=title, app=self, filename=filename,
+                        splash=splash)
         self.viewers.append(viewer)
         viewer.Show()
     
