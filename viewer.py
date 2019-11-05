@@ -340,7 +340,8 @@ class Viewer(wx.Frame, MenuMixin):
 #         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", 
 #                             self.recentFilesMenu)
 #         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit\tCtrl+Q', '', 
+        self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit\tCtrl+Q',
+                         'Close all files and quit %s.' % APPNAME, 
                 self.OnFileExitMenu)
         wx.App.SetMacExitMenuItemId(wx.ID_EXIT)
         
@@ -378,37 +379,39 @@ class Viewer(wx.Frame, MenuMixin):
 
         self.addMenuItem(viewMenu, self.ID_EDIT_RANGES, 
                          "Edit Visible Ranges...\tCtrl+E",
-                         "", 
+                         "Change the displayed ranges numerically.", 
                          self.OnEditRanges)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom Out X\tCtrl+-",
-                         "",
+                         "Zoom out on the horizontal axis.",
                          self.OnZoomOutX)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_IN, "Zoom In X\tCtrl+=",
-                         "",
+                         "Zoom in on the horizontal axis",
                          self.OnZoomInX)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_FIT, "Zoom to Fit X\tCtrl+0",
-                         "",
+                         "Zoom horizontally to fit the entire data set.",
                          self.OnZoomFitX)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_OUT_Y, "Zoom Out Y\tAlt+-", 
-                         '',
+                         'Zoom out on the vertical axis.',
                          self.OnZoomOutY)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_IN_Y, "Zoom In Y\tAlt+=",
-                         '',
+                         'Zoom in on the vertical axis',
                          self.OnZoomInY)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y,
                          "Zoom to Fit Y\tAlt+0",
-                         '',
+                         'Zoom vertically to fit all data in the visible interval.',
                          self.OnZoomFitY)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_ALL,
                          "Zoom to Fit All\tAlt+Ctrl+0",
-                         '',
+                         'Zoom to display the entirety of the data set.',
                          self.OnZoomFitAll)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS, 
-                         "Antialiased Drawing", "", 
+                         "Antialiased Drawing",
+                         "Toggle antialiased drawing.", 
                          self.OnToggleAA, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_JITTER,
-                        "Noisy Resampling", "", 
+                        "Noisy Resampling",
+                        "Remove aliasing by slightly randomizing the sampling.", 
                         self.OnToggleNoise, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_MINMAX,
@@ -422,11 +425,11 @@ class Viewer(wx.Frame, MenuMixin):
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MAJOR,
                          "Show Major Horizontal Gridlines\tCtrl+'",
-                         "",
+                         "Toggle the display of horizontal gridlines.",
                          self.OnToggleLinesMajor, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MINOR,
                          "Show Minor Horizontal Gridlines\tCtrl+Shift+'",
-                         "",
+                         "Toggle the display of minor horizontal grid lines.",
                          self.OnToggleLinesMinor, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
@@ -438,12 +441,14 @@ class Viewer(wx.Frame, MenuMixin):
         #=======================================================================
         deviceMenu = self.addMenu(self.menubar, 'De&vice')
         self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG, 
-                        "Configure &Device...\tCtrl+D", "", 
+                         "Configure &Device...\tCtrl+D",
+                         "Select and configure a recording device.", 
                          self.OnDeviceConfigMenu)
         if showAdvanced:
             deviceMenu.AppendSeparator()
             self.addMenuItem(deviceMenu, self.ID_DEVICE_UPDATE, 
-                             "Update Recorder Firmware...", "",
+                             "Update Recorder Firmware...",
+                             "Update the firmware on a recording device.",
                              self.OnDeviceUpdateFW)
         
         # "Data" menu
@@ -452,39 +457,48 @@ class Viewer(wx.Frame, MenuMixin):
         meanMenu = self.addSubMenu(dataMenu, self.ID_DATA_MEAN_SUBMENU, 
                                    "Remove Mean")
         self.addMenuItem(meanMenu, self.ID_DATA_NOMEAN, 
-                         "Do Not Remove Mean", "",
+                         "Do Not Remove Mean",
+                         "",
                          self.OnDontRemoveMeanCheck, kind=wx.ITEM_RADIO)
         self.addMenuItem(meanMenu, self.ID_DATA_MEAN, 
-                         "Remove Rolling Mean from Data", "",
+                         "Remove Rolling Mean from Data", 
+                         "",
                          self.OnRemoveRollingMeanCheck, kind=wx.ITEM_RADIO)
         self.addMenuItem(meanMenu, self.ID_DATA_MEAN_TOTAL, 
-                         "Remove Total Mean from Data", "",
+                         "Remove Total Mean from Data", 
+                         "",
                          self.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
         
         self.displayMenu = self.addSubMenu(dataMenu, self.ID_DATA_DISPLAY, 
                                            "Display Units")
         self.addMenuItem(self.displayMenu, self.ID_DATA_DISPLAY_NATIVE,
-                         "Native Units", "", self.OnConversionPicked, 
-                         kind=wx.ITEM_RADIO)
+                         "Native Units",
+                         "Display data in the file's original units.",
+                         self.OnConversionPicked, kind=wx.ITEM_RADIO)
         
         dataMenu.AppendSeparator()
         renderMenu = self.addSubMenu(dataMenu, self.ID_RENDER, "Render")
         self.addMenuItem(renderMenu, self.ID_RENDER_PLOTS, 
-                         "Render Plots...", '',
+                         "Render Plots...",
+                         '',
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_FFT, 
-                         "Render &FFT...\tCtrl+F", "", 
+                         "Render &FFT...\tCtrl+F",
+                         "", 
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_PSD,
-                         "Render &PSD...\tCtrl+P", "",
+                         "Render &PSD...\tCtrl+P",
+                         "",
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_SPEC, 
-                         "Render Spectro&gram (2D FFT)...\tCtrl+G", "", 
+                         "Render Spectro&gram (2D FFT)...\tCtrl+G",
+                         "", 
                          self.renderPlot)
         dataMenu.AppendSeparator()
         
         self.addMenuItem(dataMenu, self.ID_DATA_EDIT_CAL, 
-                         "Edit Calibration Polynomials...", "", 
+                         "Edit Calibration Polynomials...",
+                         "", 
                          self.OnEditCalibration)
         
         self.addMenuItem(dataMenu, self.ID_DATA_DISABLE_BIVARIATES,
@@ -503,11 +517,11 @@ class Viewer(wx.Frame, MenuMixin):
             scriptMenu = self.addMenu(self.menubar, '&Scripting')
             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
                              "Open Script Editor\tCtrl+Shift+E", 
-                             '',
+                             'Open the Python script editor.',
                              self.OnShowScriptEditor)
             self.addMenuItem(scriptMenu, self.ID_DEBUG_CONSOLE, 
                              "Open Console\tCtrl+Shift+C", 
-                             "", 
+                             "Open the Python interactive interpreter.", 
                              self.OnShowScriptConsole)
 
         
@@ -546,10 +560,14 @@ class Viewer(wx.Frame, MenuMixin):
         
         helpMenu = self.addMenu(self.menubar, '&Help')
         self.addMenuItem(helpMenu, wx.ID_ABOUT, 
-            "About %s..." % self.app.fullAppName, "", self.OnHelpAboutMenu)
+                         "About %s..." % self.app.fullAppName, 
+                         "About %s..." % self.app.fullAppName, 
+                         self.OnHelpAboutMenu)
         helpMenu.AppendSeparator()
         self.addMenuItem(helpMenu, self.ID_HELP_CHECK_UPDATES,
-                         "Check for Updates", "", self.OnHelpCheckUpdates)
+                         "Check for Updates",
+                         "",
+                         self.OnHelpCheckUpdates)
         
         if RESOURCES_URL or FEEDBACK_URL:
             helpMenu.AppendSeparator()

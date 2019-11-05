@@ -219,6 +219,12 @@ class MenuMixin(object):
         """
         if id_ == -1:
             id_ = wx.NewIdRef()
+            
+#         if helpString is None:
+#             helpString = u""
+#         elif not helpString:
+#             helpString = text.split('\t')[0].replace('&', '').rstrip('.') + '.'
+            
         item = menu.Append(id_, text, helpString, kind)
         item.Enable(enabled)
         if kind == wx.ITEM_CHECK:
@@ -226,6 +232,7 @@ class MenuMixin(object):
         if handler is not None:
             self.Bind(wx.EVT_MENU, handler, item)
         return item
+
 
     def addMenu(self, menubar, text):
         """ Create a submenu in a given menu bar.
