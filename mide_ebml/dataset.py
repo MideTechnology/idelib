@@ -917,7 +917,7 @@ class SubChannel(Channel):
         # Generate a 'display name' (e.g. for display in a plot legend)
         # Combines the given name (if any) and the units (if any)
         if self.units[0]:
-            if name is None or units[0] == self.name:
+            if name is None or units[0] in self.name:
                 self.displayName = units[0]
             else:
                 self.displayName = u"%s: %s" % (units[0], self.name)

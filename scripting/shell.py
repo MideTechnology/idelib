@@ -36,7 +36,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
 
         if title is None:
             version = '.'.join(map(str, build_info.VERSION))
-            title = "%s %s (build %d) Scripting/Debugging Console" % \
+            title = "%s %s (build %d) Scripting Console" % \
                 (build_info.APPNAME, version, build_info.BUILD_NUMBER)
             
         wx.py.frame.Frame.__init__(self, parent, id, title, pos, size, style)
@@ -48,7 +48,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
             self.SetSize((750, 525))
 
         if introText is None:
-            introText = "%s - Use at your own risk!\n\n%s" % (title, self.HELP_TEXT) 
+            introText = "%s\n\n%s" % (title, self.HELP_TEXT) 
         self.startupScript="print 'hello'"
         self.SetStatusText(title)
         self.shell = wx.py.shell.Shell(parent=self, id=-1, 
@@ -104,19 +104,23 @@ class PythonConsole(wx.py.shell.ShellFrame):
     
     
     @classmethod
-    def openConsole(cls, *args, **kwargs):
-        """ Show the Debugging Console.
+    def openConsole(cls, parent, *args, **kwargs):
+        """ Show the Scripting Console.
         """
         app = wx.GetApp()
-#         viewer = wx.GetActiveWindow()
         localVars = kwargs.setdefault('locals', {})
         localVars.update({'app': app,
                           'build_info': build_info,
                           'mide_ebml': mide_ebml,
-#                           'viewer': viewer
+                          'viewer': parent
                           })
-        con = cls(None, **kwargs)
-#         viewer.childViews[con.GetId()] = con
+        con = cls(parent, **kwargs)
+        
+        try:
+            parent.childViews[con.GetId()] = con
+        except AttributeError:
+            pass
+
         con.Show(True)
         return con
 

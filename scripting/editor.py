@@ -566,7 +566,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
             # Shell window isn't open (not shown yet, or previously closed)
             localVars = locals() # use provided locals?
             localVars['editor'] = self # for testing
-            self.shell = PythonConsole.openConsole(locals=localVars, focus=False)
+            self.shell = PythonConsole.openConsole(self.root, locals=localVars,
+                                                   focus=False)
         
         if focus:
             self.shell.Raise()

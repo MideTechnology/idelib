@@ -1553,17 +1553,35 @@ class Plot(ViewerPanel, MenuMixin):
         """ Set the name displayed on the plot's tab.
         """
         if len(self.sources) == 0:
+            # No sources. Just use units.
             ttip = s = self.yUnits[0]
         else:
             ttip = '\n'.join([s.parent.displayName for s in reversed(self.sources)])
             if len(self.sources) == 1:
+                # Just one source. Use subchannel name or units.
                 if self.sources[0].parent.units[0] != self.yUnits[0]:
                     # Special case: show converted units
                     s = self.yUnits[0]
                 else:
+                    # Use subchannel display name
                     s = self.sources[0].parent.displayName
             else:
-                s = "%s (%d sources)" % (self.yUnits[0], len(self.sources)) 
+                # More than one source. Use a meaningful name.
+#                 s = "%s (%d sources)" % (self.yUnits[0], len(self.sources)) 
+
+                parent = self.sources[0].parent.parent
+                sensor = self.sources[0].parent.sensor
+                if parent.name != "ADC" and all(s.parent.parent == parent for s in self.sources):
+                    # All from same channel: use channel name. unless the name
+                    # is too generic (i.e. ADC).
+                    s = "%s (%d sources)" % (parent.name, len(self.sources))
+                elif sensor and all(s.parent.sensor == sensor for s in self.sources):
+                    # All from same sensor: use sensor name (if applicable)
+                    s = "%s (%d sources)" % (sensor.name, len(self.sources))
+                else:
+                    # (Probably) a mix of sources. Use units.
+                    s = "%s (%d sources)" % (self.yUnits[0], len(self.sources)) 
+                    
         try:
             i = self.Parent.GetPageIndex(self)
             self.Parent.SetPageText(i, s)
@@ -1582,7 +1600,6 @@ class Plot(ViewerPanel, MenuMixin):
         self.plotTransform = con
         
         if not self.sources:
-#             print "no sources"
             if self.plotTransform is not None:
                 self.yUnits = self.plotTransform.units
             self.setTabText()

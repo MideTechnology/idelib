@@ -181,7 +181,7 @@ class StatusBar(wx.StatusBar):
                 For use in cases where a process can only be cancelled after
                 a certain point.
         """
-        self.SetStatusText(label, 0)
+        self.SetStatusText(label, self.messageFieldNum)
         self.progressBar.Show(True)
         if initialVal < 0 or initialVal > 1.0:
             self.timer.Start(delay)

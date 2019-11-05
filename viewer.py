@@ -54,7 +54,6 @@ from preferences import Preferences
 from renders.renderplot import PlotView
 import scripting.editor
 import updater
-from widgets import debugging
 from widgets import export_dialog as xd
 from widgets import live_calibration
 from widgets.shared import StatusBar
@@ -302,30 +301,38 @@ class Viewer(wx.Frame, MenuMixin):
         # "File" menu
         #=======================================================================
         fileMenu = self.addMenu(self.menubar,  '&File')
-        self.addMenuItem(fileMenu, wx.ID_NEW, "&New Viewer Window\tCtrl+N", "",
+        self.addMenuItem(fileMenu, wx.ID_NEW, "&New Viewer Window\tCtrl+N",
+                         "Create a new viewer, empty viewer window.",
                          self.OnFileNewMenu)
         self.addMenuItem(fileMenu, wx.ID_CLOSE, 
-                         "Close Viewer Window\tCtrl+W", "", self.OnClose)
+                         "Close Viewer Window\tCtrl+W",
+                         "Close the current document.", self.OnClose)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...\tCtrl+O", "", 
+        self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...\tCtrl+O",
+                         "Load and display a recording file.", 
                          self.OnFileOpenMenu)
 #         self.addMenuItem(fileMenu, self.ID_FILE_MULTI, "Open Multiple...", "",
 #                          self.OnFileOpenMulti)
-        self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCtrl-.", "", 
+        self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCtrl-.",
+                         "Cancel the current import.", 
                          self.cancelOperation, enabled=False)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, self.ID_EXPORT, 
-                         "&Export Data...\tCtrl+S", "", self.OnFileExportMenu)
+        self.addMenuItem(fileMenu, self.ID_EXPORT, "&Export Data...\tCtrl+S",
+                         "Export data to another format.",
+                         self.OnFileExportMenu)
         
         fileMenu.AppendSeparator()
         
         self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES, 
-                         "Recording Properties...\tCtrl+I", "", 
+                         "Recording Properties...\tCtrl+I",
+                         "Display information about this recording file.", 
                          self.OnFileProperties)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", 
+        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...",
+                         "", 
                          enabled=False)
-        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
+        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...",
+                         "", 
                          enabled=False)
         fileMenu.AppendSeparator()
         
@@ -344,7 +351,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_PASTE, "Paste", "", enabled=False)
         editMenu.AppendSeparator()
-        self.addMenuItem(editMenu, wx.ID_PREFERENCES, "Preferences...", "",
+        self.addMenuItem(editMenu, wx.ID_PREFERENCES, "Preferences...",
+                         "Configure and customize %s" % APPNAME,
                          self.app.editPrefs)
 
         # "View" menu
@@ -359,30 +367,42 @@ class Viewer(wx.Frame, MenuMixin):
         self.viewSourceMenu = self.addSubMenu(viewMenu, self.ID_VIEW_ADDSOURCE,
                                               "Display Channels")
         self.addMenuItem(viewMenu, self.ID_VIEW_LEGEND, 
-                         "Show Legend\tCtrl+L", "",
+                         "Show Legend\tCtrl+L", 
+                         "Display the overlay listing plot names and colors.",
                          self.OnLegendToggle, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_HOLLOW, 
-                         "'Hollow' Envelope Drawing", "",
+                         "'Hollow' Envelope Drawing",
+                         "Hollow mode: When zoomed out, plot only the minimum and maximum values.",
                          self.OnHollowToggle, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
 
         self.addMenuItem(viewMenu, self.ID_EDIT_RANGES, 
-                         "Edit Visible Ranges...\tCtrl+E", "", 
+                         "Edit Visible Ranges...\tCtrl+E",
+                         "", 
                          self.OnEditRanges)
-        self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom Out X\tCtrl+-", "",
+        self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom Out X\tCtrl+-",
+                         "",
                          self.OnZoomOutX)
-        self.addMenuItem(viewMenu, wx.ID_ZOOM_IN, "Zoom In X\tCtrl+=", "",
+        self.addMenuItem(viewMenu, wx.ID_ZOOM_IN, "Zoom In X\tCtrl+=",
+                         "",
                          self.OnZoomInX)
-        self.addMenuItem(viewMenu, wx.ID_ZOOM_FIT, "Zoom to Fit X\tCtrl+0", "",
+        self.addMenuItem(viewMenu, wx.ID_ZOOM_FIT, "Zoom to Fit X\tCtrl+0",
+                         "",
                          self.OnZoomFitX)
-        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_OUT_Y, 
-                         "Zoom Out Y\tAlt+-", '', self.OnZoomOutY)
-        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_IN_Y, 
-                         "Zoom In Y\tAlt+=", '', self.OnZoomInY)
-        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y, 
-                        "Zoom to Fit Y\tAlt+0", '', self.OnZoomFitY)
-        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_ALL, 
-                        "Zoom to Fit All\tAlt+Ctrl+0", '', self.OnZoomFitAll)
+        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_OUT_Y, "Zoom Out Y\tAlt+-", 
+                         '',
+                         self.OnZoomOutY)
+        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_IN_Y, "Zoom In Y\tAlt+=",
+                         '',
+                         self.OnZoomInY)
+        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_Y,
+                         "Zoom to Fit Y\tAlt+0",
+                         '',
+                         self.OnZoomFitY)
+        self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_FIT_ALL,
+                         "Zoom to Fit All\tAlt+Ctrl+0",
+                         '',
+                         self.OnZoomFitAll)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS, 
                          "Antialiased Drawing", "", 
@@ -392,21 +412,26 @@ class Viewer(wx.Frame, MenuMixin):
                         self.OnToggleNoise, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_MINMAX,
-                         "Show Buffer Minimum/Maximum", "",
+                         "Show Buffer Minimum/Maximum",
+                         "",
                          self.OnToggleMinMax, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_MEAN,
-                         "Show Buffer Mean", "",
+                         "Show Buffer Mean",
+                         "",
                          self.OnToggleViewMean, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MAJOR,
-                         "Show Major Horizontal Gridlines\tCtrl+'", "",
+                         "Show Major Horizontal Gridlines\tCtrl+'",
+                         "",
                          self.OnToggleLinesMajor, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MINOR,
-                         "Show Minor Horizontal Gridlines\tCtrl+Shift+'", "",
+                         "Show Minor Horizontal Gridlines\tCtrl+Shift+'",
+                         "",
                          self.OnToggleLinesMinor, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
-                         "Show Absolute UTC Time", "",
+                         "Show Absolute UTC Time", 
+                         "Display the UTC time corresponding to the mouse's X position.",
                          self.OnToggleUtcTime, kind=wx.ITEM_CHECK)
 
         # "Device" menu
@@ -477,11 +502,13 @@ class Viewer(wx.Frame, MenuMixin):
         if showAdvanced:
             scriptMenu = self.addMenu(self.menubar, '&Scripting')
             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
-                             "Open Script Editor\tCtrl+Shift+E", '',
+                             "Open Script Editor\tCtrl+Shift+E", 
+                             '',
                              self.OnShowScriptEditor)
             self.addMenuItem(scriptMenu, self.ID_DEBUG_CONSOLE, 
-                         "Open Console\tCtrl+Shift+C", "", 
-                         debugging.DebugConsole.openConsole)
+                             "Open Console\tCtrl+Shift+C", 
+                             "", 
+                             self.OnShowScriptConsole)
 
         
         #=======================================================================
@@ -1544,7 +1571,7 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
 
-    def getPlotColor(self, source):
+    def getPlotColor(self, source, opacity=255):
         """ Get the plotting color for a data source. If the source does not
             have a color specified in the recording, the color is retrieved
             from the preferences. Channel/subchannel combinations not known are
@@ -1682,11 +1709,11 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnFileOpenMulti(self, evt):
-        """
+        """ Handle "File->Open Multiple" menu events.
         """
         importTypes =   "MIDE Data File (*.ide)|*.ide"
 
-        defaultDir, _ = self.getDefaultImport()
+        defaultDir, _defaultFile = self.getDefaultImport()
         dlg = wx.FileDialog(self, 
                             message="Choose Multiple Files",
                             defaultDir=defaultDir, 
@@ -1782,7 +1809,13 @@ class Viewer(wx.Frame, MenuMixin):
         editor = scripting.editor.ScriptEditor(self, size=(800,600))
         self.childViews[editor.GetId()] = editor
         editor.Show()
-    
+
+
+    def OnShowScriptConsole(self, evt):
+        """ Handle "Scripting->Open Console" menu events.
+        """
+        scripting.shell.PythonConsole.openConsole(self)
+        
     
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.
