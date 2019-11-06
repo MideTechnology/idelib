@@ -2682,28 +2682,6 @@ class ViewerApp(wx.App):
         dlg.Destroy()
 
 
-    @staticmethod
-    def translateCommandLineSettings(*args, **kwargs):
-        """ Translates settings from the argparse name to the internal name. 
-            Make sure every setting is present
-        """
-        settingDict = {
-            "sStartT" : "startTime",
-            "sEndT" : "stopTime",
-            "sMeanRemoval" : "removeMean",
-            "sNoCal" : "noBivariatesCheck",
-            "sWindow" : "windowSize"
-        }
-        settings = {}
-        for key, value in settingDict.iteritems():
-            settings[value] = kwargs.pop(key, None)
-        if settings["windowSize"] is not None:
-            settings["useWelch"] = True
-        else:
-            settings["useWelch"] = False
-        return settings, kwargs
-
-
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.App` arguments, plus:
             @keyword prefsFile: The full path and name to an alternative
@@ -2718,10 +2696,6 @@ class ViewerApp(wx.App):
         clean = kwargs.pop('clean', False)
         safeMode = kwargs.pop('safe', False)
         loadLast = kwargs.pop('loadLastFile', False)
-        doPsd = kwargs.pop('psd', None)
-        doFft = kwargs.pop('fft', None)
-        doSpec = kwargs.pop('spec', None)
-        settings, kwargs = ViewerApp.translateCommandLineSettings(*args, **kwargs)
 
         super(ViewerApp, self).__init__(*args, **kwargs)
         
@@ -2754,13 +2728,6 @@ class ViewerApp(wx.App):
         localeName = self.getPref('locale', 'LANGUAGE_ENGLISH_US')
         self.locale = wx.Locale(getattr(wx, localeName, wx.LANGUAGE_ENGLISH_US))
         self.createNewView(filename=self.initialFilename)
-
-        if doPsd:
-            self.viewers[-1].renderPlot(plotType=self.viewers[-1].ID_RENDER_PSD, outFile=doPsd, initSettings=settings)
-        if doFft:
-            self.viewers[-1].renderPlot(plotType=self.viewers[-1].ID_RENDER_FFT, outFile=doFft, initSettings=settings)
-        if doSpec:
-            self.viewers[-1].renderPlot(plotType=self.viewers[-1].ID_RENDER_SPEC, outFile=doSpec, initSettings=settings)
 
         if DEBUG or BETA:
             self.showBetaWarning()
@@ -2983,38 +2950,10 @@ def main():
     parser.add_argument('-c', '--clean', action="store_true",
                         help="Reset all preferences to their defaults")
 
-    # parser.add_argument('--psd', metavar='FILENAME.csv',
-    #                     help="Output a PSD of the input file. Must be combined with -f.")
-    #
-    # parser.add_argument('--fft', metavar='FILENAME.csv',
-    #                     help="Output an FFT of the input file. Must be combined with -f.")
-    #
-    # parser.add_argument('--spec', metavar='FILENAME.csv',
-    #                     help="Output a spectrogram of the input file. Must be combined with -f.")
-    #
-    # parser.add_argument('--sStartT', metavar='S', type=float, default=-1,
-    #                     help="Start time for PSD/FFT/Spec")
-    #
-    # parser.add_argument('--sEndT', metavar='E', type=float, default=1e2,
-    #                     help="End time for a PSD/FFT/Spec")
-    #
-    # meanRemovalTypes = ["none", "roll", "total"]
-    # parser.add_argument('--sMeanRemoval', metavar='TYPE', type=str.lower, default="total", choices= meanRemovalTypes,
-    #                     help="Mean removal for PSD/FFT/Spec. None = No mean removal, Roll = Rolling mean removal, Total = Total mean removal")
-    #
-    # parser.add_argument('--sNoCal', action="store_true",
-    #                     help="Set to disregard calibration on for PSD/FFT/Spec")
-    #
-    # parser.add_argument('--sWindow', metavar='N', type=int,
-    #                     help="Window size for PSD/Spec")
-    #
     args = parser.parse_args()
-    args = vars(args)
-    #
-    # args['sMeanRemoval'] = meanRemovalTypes.index(args['sMeanRemoval'])
+    kwargs = vars(args)
 
-
-    app = ViewerApp(**args)
+    app = ViewerApp(**kwargs)
     app.MainLoop()
 
 if __name__ == '__main__':

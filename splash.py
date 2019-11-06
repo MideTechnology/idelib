@@ -10,7 +10,8 @@ Created on Oct 28, 2019
 import os
 
 import wx
-# import wx.html as html
+
+from build_info import DEBUG, BETA
 
 #===============================================================================
 # 
@@ -18,41 +19,54 @@ import wx
 
 class SplashPageContents(wx.Panel):
     """ The actual contents of the splash page, with graphics, quick links,
-        etc.
+        etc. Drawn in the center of the parent viewer window's plot area.
     """
-    BITMAP = os.path.realpath(os.path.join(os.path.dirname(__file__), 'ABOUT', 'splash.png'))
+    
+    BGIMAGE = os.path.realpath(os.path.join(os.path.dirname(__file__),
+                                            'ABOUT', 'splash.png'))
     
     def __init__(self, *args, **kwargs):
+        """ Constructor. Takes standard `wx.Panel` methods, plus:
+        
+            @keyword root: The parent viewer window. 
         """
-        """
-        print (self.BITMAP)
         self.root = kwargs.pop('root', None)
+        self.showWarning = kwargs.pop('warning', True)
         kwargs.setdefault('style', wx.NO_BORDER)
         kwargs.setdefault('size', wx.Size(640,480))
         super(SplashPageContents, self).__init__(*args, **kwargs)
         
         self.SetBackgroundColour(self.Parent.GetBackgroundColour())
         
-        self.bmp = wx.Image(self.BITMAP, wx.BITMAP_TYPE_PNG).ConvertToBitmap()
+        # For background image, drawn in `OnEraseBackground()`: the bitmap,
+        # and the 'brush' for making the background match the window.
+        self.bmp = wx.Image(self.BGIMAGE, wx.BITMAP_TYPE_PNG).ConvertToBitmap()
         self.bgbrush = wx.Brush(self.GetBackgroundColour())
-        
-        self.openBtn = wx.Button(self, -1, "Open a Recording",
-                                   pos=(200,400), size=(240,-1))
-        self.configBtn = wx.Button(self, -1, "Configure a Recording Device",
-                                   pos=(200,432), size=(240,-1))
 
-#         openIcon = wx.ArtProvider.GetBitmap(wx.ART_FILE_OPEN, wx.ART_CMN_DIALOG, (16,16))
-#         self.openBtn.SetBitmap(openIcon)
-#         configIcon = wx.ArtProvider.GetBitmap(wx.ART_EXECUTABLE_FILE, wx.ART_CMN_DIALOG, (16,16))
-#         self.configBtn.SetBitmap(configIcon)
+        # Getting size in `OnEraseBackground()` can have issues when resizing,
+        # so get it now.
+        self.fullsize = self.GetSize()
+
+        # NOTE: The positioning of the buttons is partially hardcoded
+        butSize = wx.Size(240,-1)
+        x = ((self.fullsize - butSize)/2)[0]
+        y = self.fullsize[1]-80
+        
+        self.openBtn = wx.Button(self, -1, "Open a Recording", 
+                                 pos=(x,y), size=butSize)
+        self.configBtn = wx.Button(self, -1, "Configure a Recording Device",
+                                   pos=(x,y+32), size=butSize)
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackground)
         self.openBtn.Bind(wx.EVT_BUTTON, self.root.OnFileOpenMenu)
         self.configBtn.Bind(wx.EVT_BUTTON, self.root.OnDeviceConfigMenu)
 
+        # Remove focus from buttons
+        self.SetFocus()
+
 
     def OnEraseBackground(self, evt):
-        """
+        """ Draw the background image.
         """
         dc = evt.GetDC()
         
@@ -65,7 +79,27 @@ class SplashPageContents(wx.Panel):
         dc.Clear()
         dc.DrawBitmap(self.bmp, 0, 0, useMask=True)
         
-        
+        if self.showWarning and self.root and self.root.app:
+            vers = "Version %s" % self.root.app.versionString
+            dc.SetTextForeground(wx.WHITE)
+            dc.SetFont(self.GetFont())
+            tsize = dc.GetTextExtent(vers)
+            p = self.fullsize - tsize - (8,4)
+            dc.DrawText(vers, *p)
+
+            if DEBUG or BETA:
+                msg = "PRE-RELEASE VERSION: USE WITH CAUTION!"
+                dc.SetFont(self.GetFont().Bold().Scaled(2))
+                pos = wx.Point(*((self.fullsize - dc.GetTextExtent(msg))/2))
+                dc.SetTextForeground(wx.RED)
+                dc.DrawText(msg, pos[0],8)
+                    
+            
+
+
+#===============================================================================
+# 
+#===============================================================================
 
 class SplashPage(wx.Panel):
     """ The Lab 'splash page,' shown in the plot area when the app launches.
@@ -73,29 +107,35 @@ class SplashPage(wx.Panel):
     """
     
     def __init__(self, *args, **kwargs):
-        """
+        """ Constructor. Takes standard `wx.Panel` methods, plus:
+        
+            @keyword root: The parent viewer window. 
         """
         self.root = kwargs.pop('root', None)
+        showWarning = kwargs.pop('warning', True)
+        kwargs.setdefault('style', wx.CLIP_CHILDREN)
         super(SplashPage, self).__init__(*args, **kwargs)
         
         sizer = wx.BoxSizer(wx.VERTICAL)
         
         sizer.Add((0,0), 1) # Top padding, to center contents
-        self.contents = SplashPageContents(self, root=self.root)
-#         self.contents = HtmlSplash(self, root=self.root)
-        sizer.Add(self.contents, 0, wx.ALIGN_CENTER)
+        contents = SplashPageContents(self, root=self.root, warning=showWarning)
+        sizer.Add(contents, 0, wx.ALIGN_CENTER)
         sizer.Add((0,0), 1) # Bottom padding, to center contents
 
         self.SetSizer(sizer)
     
     
     def enableMenus(self, *args, **kwargs):
+        # For compatibility with `Plot`, the usual contents.
         return
     
     
     def setVisibleRange(self, *args, **kwargs):
+        # For compatibility with `Plot`, the usual contents.
         return
     
     
     def setTimeRange(self, *args, **kwargs):
+        # For compatibility with `Plot`, the usual contents.
         return
