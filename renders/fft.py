@@ -27,6 +27,11 @@ from wx import aui
 import wx; wx = wx 
 import wx.lib.delayedresult as delayedresult
 
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
+from matplotlib.backends.backend_wx import _load_bitmap
+from matplotlib.figure import Figure
+
 import spectrum as spec
 
 from base import MenuMixin
@@ -208,9 +213,8 @@ class FFTView(wx.Frame, MenuMixin):
     ID_VIEW_ANTIALIAS = wx.NewIdRef()
     ID_VIEW_CHANGETITLE = wx.NewIdRef()
     
-    IMAGE_FORMATS = "Windows Bitmap (*.bmp)|*.bmp|" \
-                     "JPEG (*.jpg)|*.jpg|" \
-                     "Portable Network Graphics (*.png)|*.png" 
+    IMAGE_FORMATS = "JPEG (*.jpg)|*.jpg|" \
+                    "Portable Network Graphics (*.png)|*.png"
 
 
     def makeTitle(self):
@@ -305,6 +309,7 @@ class FFTView(wx.Frame, MenuMixin):
         self.source.noBivariates = self.noBivariates
 
         kwargs.setdefault('title', self.makeTitle())
+        self.title = kwargs.get('title', '')
         super(FFTView, self).__init__(*args, **kwargs)
         
         self.abortEvent = delayedresult.AbortEvent()
@@ -334,18 +339,24 @@ class FFTView(wx.Frame, MenuMixin):
     def initPlot(self):
         """ Set up the drawing area.
         """
-        self.canvas = FFTPlotCanvas(self)
-        self.canvas.SetEnableAntiAliasing(True)
-        self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
-        self.canvas.SetFontSizeAxis(10)
-        self.canvas.SetFontSizeLegend(7)
-        self.canvas.setLogScale(self.logarithmic)
-        self.canvas.SetXSpec('min')
-        self.canvas.SetYSpec('min')
-        self.canvas.SetEnableLegend(self.showLegend)
-        self.canvas.SetEnableTitle(self.showTitle)
-        self.canvas.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
-        self.canvas.SetEnableGrid(self.showGrid)
+
+        self.figure = Figure(figsize=(5, 4), dpi=100)
+        self.axes = self.figure.add_subplot(111)
+        self.axes.set_autoscale_on(True)
+        self.canvas = FigureCanvas(self, -1, self.figure)
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.canvas, 1, wx.TOP | wx.LEFT | wx.EXPAND)
+
+        self.toolbar = MyNavigationToolbar(self.canvas, True)
+        self.toolbar.Realize()
+
+        self.sizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
+
+        self.toolbar.update()
+        self.SetSizer(self.sizer)
+
+        self.axes.set_title(self.title)
+
         self.Fit()
 
 
@@ -400,7 +411,7 @@ class FFTView(wx.Frame, MenuMixin):
             if self.subchannels is not None:
                 subchannelIds = [c.id for c in self.subchannels]
                 start, stop = self.source.getRangeIndices(*self.range)
-                data = self.source.itervalues(start, stop, subchannels=subchannelIds, display=self.useConvertedUnits)
+                data = self.source.arrayValues(start,stop,subchannels=subchannelIds,display=self.useConvertedUnits)
                 # BUG: Calculation of actual sample rate is wrong. Investigate.
     #             fs = (channel[stop][0]-channel[start][0]) / ((stop-start) + 0.0)
                 fs = self.source.getSampleRate()
@@ -409,7 +420,17 @@ class FFTView(wx.Frame, MenuMixin):
                                               sliceSize=self.sliceSize, useWelch=self.useWelch)
                 
             if self.data is not None:
-                self.makeLineList()
+                # self.makeLineList()
+                for i in range(1, self.data.shape[1]):
+                    self.axes.plot(self.data[:, 0], self.data[:, i], antialiased=True, linewidth=0.5,
+                                   label=self.subchannels[i-1].name, color=[float(x)/255. for x in self.root.getPlotColor(self.subchannels[i-1])])
+                bbox = self.axes.dataLim
+                self.axes.set_xlim(bbox.xmin, bbox.xmax)
+                self.axes.set_ylim(bbox.ymin, bbox.ymax)
+                self.axes.legend()
+                self.axes.grid(True)
+                self.canvas.draw()
+                self.Fit()
             else:
                 logger.info("No data for %s!" % self.FULLNAME)
                 self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
@@ -666,7 +687,7 @@ class FFTView(wx.Frame, MenuMixin):
             @return: A multidimensional array, with the first column the
                 frequency.
         """
-        points = cls.from2diter(data, rows, cols, abortEvent=abortEvent)
+        points = data.T
         rows, cols = points.shape
         NFFT = nextPow2(rows)
 
@@ -694,10 +715,10 @@ class FFTView(wx.Frame, MenuMixin):
 
             # Remove huge DC component from displayed data; so data of interest
             # can be seen after auto axis fitting
-            thisCol = i+1
-            fftData[0,thisCol] = 0.0
-            fftData[1,thisCol] = 0.0
-            fftData[2,thisCol] = 0.0
+            # thisCol = i+1
+            # fftData[0,thisCol] = 0.0
+            # fftData[1,thisCol] = 0.0
+            # fftData[2,thisCol] = 0.0
 
         return fftData
 
@@ -713,8 +734,8 @@ class FFTView(wx.Frame, MenuMixin):
         dlg = wx.FileDialog(self, 
             message="Export CSV...", 
 #             defaultDir=defaultDir,  defaultFile=defaultFile, 
-            wildcard = "Comma Separated Values (*.csv)|*.csv",
-            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMP)
+            wildcard="Comma Separated Values (*.csv)|*.csv",
+            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
@@ -738,7 +759,7 @@ class FFTView(wx.Frame, MenuMixin):
         dlg = wx.FileDialog(self, 
             message="Export Image...", 
             wildcard=self.IMAGE_FORMATS, 
-            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMP)
+            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
@@ -748,17 +769,18 @@ class FFTView(wx.Frame, MenuMixin):
             return False
         
         try:
-            return self.canvas.SaveFile(filename)
+            return self.figure.savefig(filename)
         except ex as err:
             what = "exporting %s as an image" % self.NAME
             self.root.handleError(err, what=what)
             return False
 
     def zoomPlot(self, plot, amount):
-        fullX = plot.GetXMaxRange()
-        fullY = plot.GetYMaxRange()
-        oldX = plot.GetXCurrentRange()
-        oldY = plot.GetYCurrentRange()
+        bbox = self.axes.dataLim
+        fullX = (bbox.xmin, bbox.xmax)
+        fullY = (bbox.ymin, bbox.ymax)
+        oldX = self.axes.get_xbound()
+        oldY = self.axes.get_ybound()
         newX = (greater(fullX[0], (1.0-amount) * oldX[0]), lesser(fullX[1], (1.0+amount) * oldX[1]))
         newY = (greater(fullY[0], (1.0-amount) * oldY[0]), lesser(fullY[1], (1.0+amount) * oldY[1]))
 
@@ -766,44 +788,74 @@ class FFTView(wx.Frame, MenuMixin):
             newX = tuple(oldX)
         if newY[0] > newY[1]:
             newY = tuple(oldY)
-        plot.Draw(plot.last_draw[0], xAxis=newX, yAxis=newY)
+        self.axes.set_xlim(newX[0], newX[1])
+        self.axes.set_ylim(newY[0], newY[1])
 
     def OnZoomOut(self, evt):
         self.zoomPlot(self.canvas, .1)
+        self.canvas.draw()
         
     def OnZoomIn(self, evt):
         self.zoomPlot(self.canvas, -.1)
+        self.canvas.draw()
     
     def OnMenuViewReset(self, evt):
-        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
-        self.canvas.Reset()
-        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+        bbox = self.axes.dataLim
+        self.axes.set_xlim(bbox.xmin, bbox.xmax)
+        self.axes.set_ylim(bbox.ymin, bbox.ymax)
+        self.canvas.draw()
+        # self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
+        # self.canvas.Reset()
+        # self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
     def OnMenuDataLog(self, evt):
         """
         """
-        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
-        self.logarithmic = (self.logFreq.IsChecked(), self.logAmp.IsChecked())
-        self.canvas.setLogScale(self.logarithmic)
-        self.canvas.Redraw()
-        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+        if self.logFreq.IsChecked():
+            self.axes.set_xscale('log')
+        else:
+            self.axes.set_xscale('linear')
+
+        if self.logAmp.IsChecked():
+            self.axes.set_yscale('log')
+        else:
+            self.axes.set_yscale('linear')
+        self.zoomPlot(self.canvas, 0.0)
+        self.canvas.draw()
+        # self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
+        # self.logarithmic = (self.logFreq.IsChecked(), self.logAmp.IsChecked())
+        # self.canvas.setLogScale(self.logarithmic)
+        # self.canvas.Redraw()
+        # self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
     def OnMenuViewLegend(self, evt):
-        self.showLegend = evt.IsChecked()
-        self.canvas.SetEnableLegend(self.showLegend)
-        self.canvas.Redraw()
+        if evt.IsChecked():
+            self.axes.legend()
+        else:
+            self.axes.get_legend().remove()
+        self.canvas.draw()
+        # self.showLegend = evt.IsChecked()
+        # self.canvas.SetEnableLegend(self.showLegend)
+        # self.canvas.draw()
     
     def OnMenuViewTitle(self, evt):
-        self.showTitle = evt.IsChecked()
-        self.canvas.SetEnableTitle(self.showTitle)
-        self.canvas.Redraw()
+        if evt.IsChecked():
+            self.axes.set_title(self.title)
+        else:
+            self.axes.set_title('')
+        self.canvas.draw()
+        # self.showTitle = evt.IsChecked()
+        # self.canvas.SetEnableTitle(self.showTitle)
+        # self.canvas.Redraw()
 
     def OnMenuViewGrid(self, evt):
-        self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
-        self.showGrid = evt.IsChecked()
-        self.canvas.SetEnableGrid(self.showGrid)
-        self.root.app.setPref('fft.showGrid', self.showGrid)
-        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+        self.axes.grid(evt.IsChecked())
+        self.canvas.draw()
+        # self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
+        # self.showGrid = evt.IsChecked()
+        # self.canvas.SetEnableGrid(self.showGrid)
+        # self.root.app.setPref('fft.showGrid', self.showGrid)
+        # self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 #         self.canvas.Redraw()
 
     def OnViewChangeTitle(self, evt):
@@ -1631,6 +1683,20 @@ class PSDView(FFTView):
         fftData[:,1:] = np.square(fftData[:,1:])*2/(fs*rows)
 #        fftData[:,1:] = np.square(fftData[:,1:])/fftData[1,0]
         return fftData
+
+
+
+class MyNavigationToolbar(NavigationToolbar):
+    """
+    Extend the default wx toolbar with your own event handlers
+    """
+    ON_CUSTOM = wx.NewId()
+
+    def __init__(self, canvas, cankill):
+        NavigationToolbar.__init__(self, canvas)
+
+        # for simplicity I'm going to reuse a bitmap from wx, you'll
+        # probably want to add your own.
         
 
 #===============================================================================
