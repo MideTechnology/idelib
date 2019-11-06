@@ -911,14 +911,22 @@ class SubChannel(Channel):
             self.name = name
             if axisName is None:
                 self.axisName = self.name.split()[0]
-                
+        
+        # XXX: HACK HACK HACK REMOVE ME REMOVE ME
+        if self.name == "Control Pad P":
+            self.name = "Control Pad Pressure"
+        elif self.name == "Control Pad T":
+            self.name = "Control Pad Temperature"
+        
         self.units = units
 
         # Generate a 'display name' (e.g. for display in a plot legend)
         # Combines the given name (if any) and the units (if any)
         if self.units[0]:
-            if name is None or units[0] in self.name:
+            if name is None: 
                 self.displayName = units[0]
+            elif units[0] in self.name:
+                self.displayName = self.name
             else:
                 self.displayName = u"%s: %s" % (units[0], self.name)
         else:

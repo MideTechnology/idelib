@@ -253,9 +253,10 @@ class Viewer(wx.Frame, MenuMixin):
                 self.openFile(filename)
             else:
                 self.openMultiple(filename)
-                
-        elif self.app.getPref('openOnStart', True):
-            self.OnFileOpenMenu(None)
+
+        # XXX: TEMPORARY: DON'T OPEN A FILE ON START 
+#         elif self.app.getPref('openOnStart', True):
+#             self.OnFileOpenMenu(None)
 
 
     def loadPrefs(self):
