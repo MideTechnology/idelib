@@ -43,6 +43,8 @@ class SplashPageContents(wx.Panel):
         self.bmp = wx.Image(self.BGIMAGE, wx.BITMAP_TYPE_PNG).ConvertToBitmap()
         self.bgbrush = wx.Brush(self.GetBackgroundColour())
 
+        self.recentFilesMenu = None
+
         # Getting size in `OnEraseBackground()` can have issues when resizing,
         # so get it now.
         self.fullsize = self.GetSize()
@@ -60,6 +62,8 @@ class SplashPageContents(wx.Panel):
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackground)
         self.openBtn.Bind(wx.EVT_BUTTON, self.root.OnFileOpenMenu)
         self.configBtn.Bind(wx.EVT_BUTTON, self.root.OnDeviceConfigMenu)
+
+        self.openBtn.Bind(wx.EVT_RIGHT_DOWN, self.OnFileRightClick)
 
         # Remove focus from buttons
         self.SetFocus()
@@ -94,7 +98,23 @@ class SplashPageContents(wx.Panel):
                 dc.SetTextForeground(wx.RED)
                 dc.DrawText(msg, pos[0],8)
                     
+    
+    def OnFileRightClick(self, evt):
+        """
+        """
+        filenames = self.root.app.prefs.getRecentFiles()
+        if not filenames:
+            return
+        
+        if self.recentFilesMenu is None:
+            self.recentFilesMenu = wx.Menu()
+            mi = self.recentFilesMenu.Append(-1, 'Recent Files:', '')
+            mi.Enable(False)
+        
+            for i, f in enumerate(filenames):
+                self.recentFilesMenu.Append(i+wx.ID_FILE1, f, '')
             
+        self.PopupMenu(self.recentFilesMenu)
 
 
 #===============================================================================

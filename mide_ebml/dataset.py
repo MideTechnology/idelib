@@ -67,7 +67,7 @@ import sys
 from time import sleep
 
 import numpy as np
-from numpy.lib import recfunctions as np_recfuncs
+# from numpy.lib import recfunctions as np_recfuncs
 
 from .calibration import Transform, CombinedPoly, PolyPoly
 from .parsers import getParserTypes, getParserRanges
@@ -97,6 +97,7 @@ else:
     
 # import ebml
 # logger.info("Loaded python-ebml from %s" % os.path.abspath(ebml.__file__))
+
 
 #===============================================================================
 # Mix-In Classes
@@ -695,7 +696,7 @@ class Channel(Transformable):
 
         # HACK! Disallowing mean removal should be sensor-defined.
         # TODO: Add this to the manifest?
-        self.allowMeanRemoval = self.id < 32
+        self.allowMeanRemoval = self.id in (0, 8, 32, 80)
 
 
     @property

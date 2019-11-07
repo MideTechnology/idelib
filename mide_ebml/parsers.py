@@ -43,7 +43,7 @@ from __future__ import (absolute_import,
                         )
 from collections import OrderedDict, Sequence
 import math
-import re
+# import re
 import struct
 import sys
 import types
@@ -1388,6 +1388,43 @@ class TimeBaseUTCParser(ElementHandler):
         self.doc.lastSession.utcStartTime = val
 
 
+class RecorderUserDataParser(ElementHandler):
+    """
+    """
+    elementName = "RecorderUserData"
+    isSubElement = True
+    isHeader = True
+    
+    parameterNames = {"RecorderName": "RecorderName",
+                      "RecorderDesc": "RecorderDescription"} 
+
+    def parse(self, element, **kwargs):
+        if self.doc is not None:
+            raw = element.dump()
+            data = renameKeys(raw, self.parameterNames)
+            self.doc.recorderInfo.update(data)
+
+
+class RecorderConfigurationListParser(ElementHandler):
+    """
+    """
+    elementName = "RecorderConfigurationList"
+    isSubElement = True
+    isHeader = True
+
+    parameterNames = {0x8ff7f: "RecorderName",
+                      0x9ff7f: "RecorderDescription"}
+    
+    def parse(self, element, **kwargs):
+        if self.doc is not None:
+            for el in element:
+                if el[0].name != "ConfigID":
+                    continue
+                if el[0].value in self.parameterNames:
+                    name = self.parameterNames[el[0].value]
+                    self.doc.recorderInfo[name] = el[1].value
+
+
 class RecorderConfigurationParser(ElementHandler):
     """ Handle Recorder configuration data in a recording. This just parses it
         and stores it verbatim.
@@ -1395,12 +1432,15 @@ class RecorderConfigurationParser(ElementHandler):
     elementName = "RecorderConfiguration"
     isHeader = True
     isSubElement = False
+    children = (RecorderConfigurationListParser, )
     
-    def parse(self, element, **kwargs):
-        if self.doc is not None:
-            if self.doc.recorderConfig is None:
-                self.doc.recorderConfig = {}
-            self.doc.recorderConfig.update(element.dump())
+#     def parse(self, element, **kwargs):
+#         print("parsing %r" % element.value)
+#         print("self.doc %r" % self.doc)
+#         if self.doc is not None:
+#             if self.doc.recorderConfig is None:
+#                 self.doc.recorderConfig = {}
+#             self.doc.recorderConfig.update(element.dump())
 
 
 class AttributeParser(ElementHandler):
