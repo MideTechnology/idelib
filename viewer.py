@@ -322,6 +322,16 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnFileOpenMenu)
 #         self.addMenuItem(fileMenu, self.ID_FILE_MULTI, "Open Multiple...", "",
 #                          self.OnFileOpenMulti)
+
+        # "Recent Files" submenu. This does not use `wx.FileHistory`. Consider
+        # using that later.
+        self.recentFilesMenu = wx.Menu()
+        fileMenu.Append(self.ID_RECENTFILES, "Open Recent", 
+                            self.recentFilesMenu)
+#         self.app.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentFiles, id=self.ID_RECENTFILES)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentFiles, id=self.ID_RECENTFILES)
+        self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentFile, id=wx.ID_FILE1, id2=wx.ID_FILE9)
+        
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCtrl-.",
                          "Cancel the current import.", 
                          self.cancelOperation, enabled=False)
@@ -341,19 +351,6 @@ class Viewer(wx.Frame, MenuMixin):
 #         self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", enabled=False)
 #         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
 #                          enabled=False)
-#         fileMenu.AppendSeparator()
-        
-        #=======================================================================
-        # "Recent Files" submenu
-        # TODO: Make this work. There were problems with it being used in
-        # multiple windows.
-#         self.recentFilesMenu = wx.Menu()
-#         fileMenu.Append(self.ID_RECENTFILES, "Open Recent", 
-#                             self.recentFilesMenu)
-# 
-#         self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentFile, id=wx.ID_FILE1, id2=wx.ID_FILE9)
-#         self.app.fileHistory.UseMenu(self.recentFilesMenu)
-#         self.app.fileHistory.AddFilesToMenu()
 #         fileMenu.AppendSeparator()
 
         self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit\tCtrl+Q',
@@ -484,11 +481,11 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnDontRemoveMeanCheck, kind=wx.ITEM_RADIO)
         self.addMenuItem(meanMenu, self.ID_DATA_MEAN, 
                          "Remove Rolling Mean from Data", 
-                         "",
+                         "Plot data with the average of a set interval removed.",
                          self.OnRemoveRollingMeanCheck, kind=wx.ITEM_RADIO)
         self.addMenuItem(meanMenu, self.ID_DATA_MEAN_TOTAL, 
                          "Remove Total Mean from Data", 
-                         "",
+                         "Plot data with the average of the total file removed.",
                          self.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
         
         self.displayMenu = self.addSubMenu(dataMenu, self.ID_DATA_DISPLAY, 
@@ -501,7 +498,7 @@ class Viewer(wx.Frame, MenuMixin):
         dataMenu.AppendSeparator()
         renderMenu = self.addSubMenu(dataMenu, self.ID_RENDER, "Render")
         self.addMenuItem(renderMenu, self.ID_RENDER_PLOTS, 
-                         "Render Plots...",
+                         "Render &Plots...",
                          'Generate a printable plot in a new window.',
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_FFT, 
@@ -513,18 +510,18 @@ class Viewer(wx.Frame, MenuMixin):
                          "Generate a PSD plot in a new window.",
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_SPEC, 
-                         "Render Spectro&gram...\tCtrl+G",
+                         "Render &Spectrogram...\tCtrl+G",
                          "Generate a spectrogram (2D FFT) in a new window.", 
                          self.renderPlot)
         dataMenu.AppendSeparator()
         
         self.addMenuItem(dataMenu, self.ID_DATA_EDIT_CAL, 
-                         "Edit Calibration Polynomials...",
+                         "&Edit Calibration Polynomials...",
                          "", 
                          self.OnEditCalibration)
         
         self.addMenuItem(dataMenu, self.ID_DATA_DISABLE_BIVARIATES,
-                         "Disable Bivariate References", "",
+                         "&Disable Bivariate References", "",
                          self.OnDisableBivariates, kind=wx.ITEM_CHECK)
         
         dataMenu.AppendSeparator()
@@ -1258,6 +1255,11 @@ class Viewer(wx.Frame, MenuMixin):
                 a new file over the old one. If `False`, the old file will
                 get clobbered automatically.
         """
+        if not os.path.isfile(filename):
+            wx.MessageBox("File not found\n\n%s" % filename, 
+                          "Open File", wx.OK|wx.ICON_ERROR, self)
+            return False
+        
         name = os.path.basename(filename)
         ext = os.path.splitext(name)[-1].lower()
         
@@ -1758,10 +1760,10 @@ class Viewer(wx.Frame, MenuMixin):
 
         defaultDir, _defaultFile = self.getDefaultImport()
         dlg = wx.FileDialog(self, 
-                            message="Choose Multiple Files",
-                            defaultDir=defaultDir, 
-                            wildcard=importTypes,
-                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST|wx.FD_MULTIPLE)
+            message="Choose Multiple Files",
+            defaultDir=defaultDir, 
+            wildcard=importTypes,
+            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST|wx.FD_MULTIPLE)
         dlg.SetFilterIndex(0)
         if dlg.ShowModal() == wx.ID_OK:
             filenames = dlg.GetPaths()
@@ -1786,17 +1788,46 @@ class Viewer(wx.Frame, MenuMixin):
             RecorderInfoDialog.showRecorderInfo(self.dataset)
             self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
         
+    
+    def OnShowRecentFiles(self, evt):
+        """ Populate the file history submenu.
+        """
+        for item in self.recentFilesMenu.GetMenuItems():
+            self.recentFilesMenu.DestroyItem(item)
         
+        filenames = self.app.prefs.getRecentFiles()
+        for i, f in enumerate(filenames):
+            self.addMenuItem(self.recentFilesMenu, i+wx.ID_FILE1, f, '')
+
+        self.ID_CLEAR_HISTORY = getattr(self, 'ID_CLEAR_HISTORY', wx.ID_ANY)
+        
+        if filenames:
+            self.recentFilesMenu.AppendSeparator()
+            self.addMenuItem(self.recentFilesMenu, self.ID_CLEAR_HISTORY,
+                             "Clear file history", "",
+                             lambda _evt: self.app.prefs.clearRecentFiles())
+            
+        else:
+            self.addMenuItem(self.recentFilesMenu, self.ID_CLEAR_HISTORY,
+                             "No file history", "", enabled=False)
+        
+    
     def OnPickRecentFile(self, evt):
-        idx = evt.GetId() - wx.ID_FILE1
-        print("Open idx %s" % idx)
-        if idx > 0:
-            files = self.app.prefs.getRecentFiles()
-            if idx <= len(files):
-                filename = files[idx]
-                if self.dataset and filename != self.dataset.filename:
-                    print("Open %s" % files[idx])
-#                 self.openFile(files[idx])
+        """ Handle an item being picked from the file history submenu.
+        """
+        eid = evt.GetId()
+        
+        if eid < wx.ID_FILE1 or eid > wx.ID_FILE9:
+            # Sanity check. Should never happen.
+            return
+        
+        idx = eid - wx.ID_FILE1
+        files = self.app.prefs.getRecentFiles()
+        if idx < len(files):
+            filename = files[idx]
+            if self.dataset and filename == self.dataset.filename:
+                return
+            self.openFile(files[idx])
 
 
     def OnEditRanges(self, evt):

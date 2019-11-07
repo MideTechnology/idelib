@@ -279,12 +279,6 @@ class Preferences(object):
                           "preferences file.\nDefault settings will be used.",
                           "Preferences File Error")
         
-        # Load recent file history
-#         prefs.setdefault('fileHistory', {}).setdefault('import', [])
-#         map(self.fileHistory.AddFileToHistory, hist)
-#         self.fileHistory.UseMenu(self.recentFilesMenu)
-#         self.fileHistory.AddFilesToMenu()
-        
         self.prefs = prefs
         return self.prefs
 
@@ -347,6 +341,14 @@ class Preferences(object):
         
         hist = self.prefs.setdefault('fileHistory', {})
         return hist.setdefault(category, [])
+
+
+    def clearRecentFiles(self, category="import"):
+        """ Clear the list of recent files within a category.
+        """
+        
+        hist = self.prefs.setdefault('fileHistory', {})
+        del hist.setdefault(category, [])[:]
 
 
     def getPref(self, name, default=None, section=None):
