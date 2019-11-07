@@ -58,7 +58,7 @@ import wx.lib.sized_controls as SC
 
 from widgets.shared import DateTimeCtrl
 from common import makeBackup, restoreBackup
-from timeutil import makeWxDateTime, getUtcOffset
+from timeutil import getUtcOffset
 
 import legacy
 from mide_ebml.ebmlite import loadSchema
@@ -1208,6 +1208,14 @@ class DateTimeField(IntField):
     LOCAL_TIME = 0
     UTC_TIME = 1
     
+    
+    def __init__(self, *args, **kwargs):
+        """
+        """
+        self.localTz = getUtcOffset(seconds=True)
+        super(DateTimeField, self).__init__(*args, **kwargs)
+        
+    
     def addField(self):
         """ Class-specific method for adding the appropriate type of widget.
         """
@@ -1242,7 +1250,7 @@ class DateTimeField(IntField):
     def updateToolTips(self):
         """ Update the Choice's tooltip to match the item displayed.
         """
-        offset = getUtcOffset()
+        offset = self.localTz
         if self.isLocalTime():
             msg = "Time shown is the computer's local time (UTC %s hours)"
         else:
@@ -1260,15 +1268,14 @@ class DateTimeField(IntField):
         """ Set the Field's value, in epoch seconds UTC.
         """
         if not val:
-            val = wx.DateTime.FromTimeT(time.time())
+            val = time.time()
         else:
-            val = makeWxDateTime(val)
-
-        if not self.isLocalTime():
-            val = val.ToUTC()
-            
+            if self.isLocalTime():
+                val += self.localTz
+        
+        dt =  wx.DateTime.FromTimeT(val)
+        super(DateTimeField, self).setDisplayValue(dt, check)
         self.updateToolTips()
-        super(DateTimeField, self).setDisplayValue(val, check)
     
     
     def getDisplayValue(self):
@@ -1277,9 +1284,10 @@ class DateTimeField(IntField):
         val = super(DateTimeField, self).getDisplayValue()
         if val is None:
             return None
-        if not self.isLocalTime():
-            val = val.FromUTC()
-        return val.GetTicks()
+        val = val.GetTicks()
+        if self.isLocalTime():
+            val -= self.localTz
+        return val
 
 
     def OnTzChange(self, evt):
@@ -1295,12 +1303,15 @@ class DateTimeField(IntField):
             return
         
         val = self.field.GetValue()
+        t = val.GetTicks()
         if self.isLocalTime():
-            self.field.SetValue(val.FromUTC())
+            dt = wx.DateTime.FromTimeT(t + self.localTz)
+            self.field.SetValue(dt)
             self.lastTz = self.LOCAL_TIME
             self.root.useUtc = False
         else:
-            self.field.SetValue(val.ToUTC())
+            dt = wx.DateTime.FromTimeT(t - self.localTz)
+            self.field.SetValue(dt)
             self.lastTz = self.UTC_TIME
             self.root.useUtc = True
 
