@@ -25,7 +25,7 @@ from build_info import DEBUG
 from logger import logger
 from splash import SplashPage
 
-import numpy as np
+# import numpy as np
 
 # ANTIALIASING_MULTIPLIER = 3.33
 # RESAMPLING_JITTER = 0.125

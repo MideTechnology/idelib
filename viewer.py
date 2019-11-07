@@ -158,6 +158,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_VIEW_ANTIALIAS = wx.NewIdRef()
     ID_VIEW_JITTER = wx.NewIdRef()
     ID_VIEW_UTCTIME = wx.NewIdRef()
+    ID_VIEW_LOCALTIME = wx.NewIdRef()
     ID_VIEW_MINMAX = wx.NewIdRef()
     ID_VIEW_MEAN = wx.NewIdRef()
     ID_VIEW_LINES_MAJOR = wx.NewIdRef()
@@ -220,6 +221,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.cancelQueue = []
         self.plotarea = None
         
+        self.menubar = None
         self.loadPrefs()
         
         self.buildUI(splash)
@@ -272,6 +274,7 @@ class Viewer(wx.Frame, MenuMixin):
                                              ANTIALIASING_MULTIPLIER)
         self.noisyResample = self.app.getPref('resamplingJitter', False)
         self.showUtcTime = self.app.getPref('showUtcTime', True)
+        self.showLocalTime = self.app.getPref('showLocalTime', False)
         self.drawMinMax = self.app.getPref('drawMinMax', False)
         self.drawMean = self.app.getPref('drawMean', False)
         self.drawMajorHLines = self.app.getPref('drawMajorHLines', True)
@@ -289,6 +292,10 @@ class Viewer(wx.Frame, MenuMixin):
             for p in self.plotarea:
                 p.loadPrefs()
             self.plotarea.redraw()
+        
+        if self.menubar is not None:
+            self.OnToggleUtcTime(self.showUtcTime)
+            self.OnToggleLocalTime(self.showLocalTime)
 
 
     def buildMenus(self):
@@ -308,6 +315,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, wx.ID_CLOSE, 
                          "Close Viewer Window\tCtrl+W",
                          "Close the current document.", self.OnClose)
+        
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...\tCtrl+O",
                          "Load and display a recording file.", 
@@ -317,30 +325,37 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCtrl-.",
                          "Cancel the current import.", 
                          self.cancelOperation, enabled=False)
+        
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_EXPORT, "&Export Data...\tCtrl+S",
                          "Export data to another format.",
                          self.OnFileExportMenu)
         
         fileMenu.AppendSeparator()
-        
         self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES, 
                          "Recording Properties...\tCtrl+I",
                          "Display information about this recording file.", 
                          self.OnFileProperties)
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...",
-                         "", 
-                         enabled=False)
-        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...",
-                         "", 
-                         enabled=False)
-        fileMenu.AppendSeparator()
         
-#         self.recentFilesMenu = self.app.recentFilesMenu #wx.Menu()
-#         fileMenu.AppendMenu(self.ID_RECENTFILES, "Recent Files", 
-#                             self.recentFilesMenu)
+#         self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", enabled=False)
+#         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
+#                          enabled=False)
 #         fileMenu.AppendSeparator()
+        
+        #=======================================================================
+        # "Recent Files" submenu
+        # TODO: Make this work. There were problems with it being used in
+        # multiple windows.
+#         self.recentFilesMenu = wx.Menu()
+#         fileMenu.Append(self.ID_RECENTFILES, "Open Recent", 
+#                             self.recentFilesMenu)
+# 
+#         self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentFile, id=wx.ID_FILE1, id2=wx.ID_FILE9)
+#         self.app.fileHistory.UseMenu(self.recentFilesMenu)
+#         self.app.fileHistory.AddFilesToMenu()
+#         fileMenu.AppendSeparator()
+
         self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit\tCtrl+Q',
                          'Close all files and quit %s.' % APPNAME, 
                 self.OnFileExitMenu)
@@ -436,7 +451,13 @@ class Viewer(wx.Frame, MenuMixin):
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
                          "Show Absolute UTC Time", 
                          "Display the UTC time corresponding to the mouse's X position.",
-                         self.OnToggleUtcTime, kind=wx.ITEM_CHECK)
+                         self.OnToggleUtcTime, kind=wx.ITEM_CHECK,
+                         checked=self.showUtcTime)
+        self.addMenuItem(viewMenu, self.ID_VIEW_LOCALTIME, 
+                         "Show Absolute Local Time", 
+                         "Display the local time corresponding to the mouse's X position.",
+                         self.OnToggleLocalTime, kind=wx.ITEM_CHECK,
+                         checked=self.showLocalTime)
 
         # "Device" menu
         #=======================================================================
@@ -481,19 +502,19 @@ class Viewer(wx.Frame, MenuMixin):
         renderMenu = self.addSubMenu(dataMenu, self.ID_RENDER, "Render")
         self.addMenuItem(renderMenu, self.ID_RENDER_PLOTS, 
                          "Render Plots...",
-                         '',
+                         'Generate a printable plot in a new window.',
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_FFT, 
                          "Render &FFT...\tCtrl+F",
-                         "", 
+                         "Generate an FFT plot in a new window.", 
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_PSD,
                          "Render &PSD...\tCtrl+P",
-                         "",
+                         "Generate a PSD plot in a new window.",
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_RENDER_SPEC, 
-                         "Render Spectro&gram (2D FFT)...\tCtrl+G",
-                         "", 
+                         "Render Spectro&gram...\tCtrl+G",
+                         "Generate a spectrogram (2D FFT) in a new window.", 
                          self.renderPlot)
         dataMenu.AppendSeparator()
         
@@ -545,7 +566,7 @@ class Viewer(wx.Frame, MenuMixin):
                 for t in tools:
                     tid = t.info.setdefault('_wxId', wx.NewIdRef())
                     self.toolPlugins[tid] = t
-                    self.addMenuItem(toolMenu, tid, t.name, "", 
+                    self.addMenuItem(toolMenu, tid, t.name, t.desc,
                                      self.OnToolMenuSelection)
                 if extTools:
                     extTools.sort(key=lambda x: x.name)
@@ -553,7 +574,7 @@ class Viewer(wx.Frame, MenuMixin):
                     for t in extTools:
                         tid = t.info.setdefault('_wxId', wx.NewIdRef())
                         self.toolPlugins[tid] = t
-                        self.addMenuItem(toolMenu, tid, t.name, "", 
+                        self.addMenuItem(toolMenu, tid, t.name, t.desc, 
                                          self.OnToolMenuSelection)
                         
         #=======================================================================
@@ -567,7 +588,7 @@ class Viewer(wx.Frame, MenuMixin):
         helpMenu.AppendSeparator()
         self.addMenuItem(helpMenu, self.ID_HELP_CHECK_UPDATES,
                          "Check for Updates",
-                         "",
+                         "Check online for a newer version of %s" % APPNAME,
                          self.OnHelpCheckUpdates)
         
         if RESOURCES_URL or FEEDBACK_URL:
@@ -575,39 +596,32 @@ class Viewer(wx.Frame, MenuMixin):
             
         if RESOURCES_URL:
             self.addMenuItem(helpMenu, self.ID_HELP_RESOURCES,
-                             "enDAQ Recorder Resources", "", self.OnHelpResources)
+                             "enDAQ Recorder Resources",
+                             "Documentation, downloads and other resources.",
+                             self.OnHelpResources)
         
         if FEEDBACK_URL:
             self.addMenuItem(helpMenu, self.ID_HELP_FEEDBACK,
-                             "Send Feedback", "", self.OnHelpFeedback)
+                             "Send Feedback",
+                             "Submit questions, comments, and suggestions for %s" % APPNAME,
+                             self.OnHelpFeedback)
             
         if DEBUG:
             helpMenu.AppendSeparator()
             debugMenu = self.addSubMenu(helpMenu, self.ID_DEBUG_SUBMENU, 
                                         "Debugging")
-#             self.addMenuItem(debugMenu, self.ID_DEBUG_CONSOLE, 
-#                          "Open Scripting Console\tCtrl+Shift+C", "", 
-#                          debugging.DebugConsole.openConsole)
-#             debugMenu.AppendSeparator()
             self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
                              "Save All Preferences", "",
                              lambda(evt): self.app.saveAllPrefs())
             self.addMenuItem(debugMenu, self.ID_DEBUG0, 
-                             "Open Multiple...", "", 
+                             "Open Multiple...",
+                             "EXPERIMENTAL: Merge multiple recordings", 
                              self.OnFileOpenMulti)
             self.addMenuItem(debugMenu, self.ID_DEBUG1, 
-                             "Render Plots/FFTs/etc. in foreground", "",
+                             "Render Plots/FFTs/etc. in foreground", 
+                             "Do stuff in foreground for debugging",
                              self.OnForegroundRender, kind=wx.ITEM_CHECK)
 
-        #=======================================================================
-        # "Recent Files" submenu
-        # TODO: Make this work. There were problems with it being used in
-        # multiple windows.
-
-#         self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentFile, id=wx.ID_FILE1, id2=wx.ID_FILE9)
-#         self.app.fileHistory.UseMenu(self.recentFilesMenu)
-#         self.app.fileHistory.AddFilesToMenu()
-        
         #=======================================================================
         # Finishing touches.
         
@@ -662,8 +676,10 @@ class Viewer(wx.Frame, MenuMixin):
 
         self.buildMenus()
         
-        self.setMenuItem(self.menubar, self.ID_VIEW_LEGEND, checked=self.showLegend)
-        self.setMenuItem(self.menubar, self.ID_VIEW_HOLLOW, checked=self.drawHollowPlot)
+        self.setMenuItem(self.menubar, self.ID_VIEW_LEGEND,
+                         checked=self.showLegend)
+        self.setMenuItem(self.menubar, self.ID_VIEW_HOLLOW,
+                         checked=self.drawHollowPlot)
 
 
     def enableMenus(self, enabled=True):
@@ -676,6 +692,7 @@ class Viewer(wx.Frame, MenuMixin):
         # These are the menus that are enabled even when there's no file open.
         # There are fewer of them than menus that are disabled.
         menus = [wx.ID_NEW, wx.ID_OPEN, wx.ID_CLOSE, wx.ID_EXIT, 
+                self.ID_RECENTFILES,
                  self.ID_DEVICE_CONFIG, self.ID_DEVICE_UPDATE, wx.ID_ABOUT, 
                  wx.ID_PREFERENCES,
                  self.ID_HELP_CHECK_UPDATES, self.ID_HELP_FEEDBACK,
@@ -686,7 +703,8 @@ class Viewer(wx.Frame, MenuMixin):
                  self.ID_DEBUG_CONSOLE, self.ID_DEBUG0, self.ID_DEBUG1, 
                  self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
                  ]
-        menus.extend([t.info['_wxId'] for t in self.app.plugins.find(type='tool') if '_wxId' in t.info])
+        menus.extend([t.info['_wxId'] for t in self.app.plugins.find(type='tool')
+                      if '_wxId' in t.info])
         
         if self.dataset:
             menus.append(self.ID_VIEW_NEWTAB)
@@ -698,14 +716,16 @@ class Viewer(wx.Frame, MenuMixin):
             self.enableMenuItems(self.menubar, enable=True)
             if self.dataset:
                 enableCal = len(self.dataset.transforms) > 0
-                self.setMenuItem(self.menubar, self.ID_DATA_EDIT_CAL, enabled=enableCal)
+                self.setMenuItem(self.menubar, self.ID_DATA_EDIT_CAL,
+                                 enabled=enableCal)
     
         # Some items should always be disabled unless explicitly enabled
         alwaysDisabled = (wx.ID_CUT, wx.ID_COPY, wx.ID_PASTE, 
                           wx.ID_PRINT, wx.ID_PRINT_SETUP)
 
         self.enableMenuItems(self.menubar, alwaysDisabled, False)
-        self.setMenuItem(self.menubar, self.ID_VIEW_LEGEND, checked=self.showLegend)
+        self.setMenuItem(self.menubar, self.ID_VIEW_LEGEND,
+                         checked=self.showLegend)
 
     
     def enableChildren(self, enabled=True):
@@ -749,7 +769,9 @@ class Viewer(wx.Frame, MenuMixin):
             warning ranges from the current dataset.
         """
         self.warningRanges = {}
-        map(self.viewWarningsMenu.DestroyItem, self.viewWarningsMenu.GetMenuItems())
+        for i in self.viewWarningsMenu.GetMenuItems():
+            self.viewWarningsMenu.DestroyItem(i)
+
         if len(self.plotarea.warningRanges) == 0:
             self.addMenuItem(self.viewWarningsMenu, -1, "None", "",
                              None, enabled=False)
@@ -758,7 +780,8 @@ class Viewer(wx.Frame, MenuMixin):
         for w in sorted(self.plotarea.warningRanges.values()):
             wid = wx.NewIdRef()
             self.warningRanges[wid] = w
-            self.addMenuItem(self.viewWarningsMenu, wid, w.source.displayName, "",
+            self.addMenuItem(self.viewWarningsMenu, wid, w.source.displayName,
+                             "",
                              self.OnDataWarningsCheck, kind=wx.ITEM_CHECK)
             
 
@@ -1358,6 +1381,7 @@ class Viewer(wx.Frame, MenuMixin):
         except (TypeError, KeyError, AttributeError):
             pass
         
+#         self.app.fileHistory.AddFileToHistory(filename)
         self.enableMenus(True)
         return True
 
@@ -1763,15 +1787,16 @@ class Viewer(wx.Frame, MenuMixin):
             self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
         
         
-#     def OnPickRecentFile(self, evt):
-#         idx = evt.GetId() - wx.ID_FILE1
-#         if idx > 0:
-#             files = self.app.prefs.getRecentFiles()
-#             if idx <= len(files):
-#                 filename = files[idx]
-#                 if self.dataset and filename != self.dataset.filename:
-#                     print "Open %s" % files[idx]
-# #                 self.openFile(files[idx])
+    def OnPickRecentFile(self, evt):
+        idx = evt.GetId() - wx.ID_FILE1
+        print("Open idx %s" % idx)
+        if idx > 0:
+            files = self.app.prefs.getRecentFiles()
+            if idx <= len(files):
+                filename = files[idx]
+                if self.dataset and filename != self.dataset.filename:
+                    print("Open %s" % files[idx])
+#                 self.openFile(files[idx])
 
 
     def OnEditRanges(self, evt):
@@ -2059,7 +2084,32 @@ class Viewer(wx.Frame, MenuMixin):
             self.menubar.FindItemById(self.ID_VIEW_UTCTIME).Check(evt)
         else:
             checked = evt.IsChecked()
+            
+        if checked:
+            self.menubar.FindItemById(self.ID_VIEW_LOCALTIME).Check(False)
+            self.showLocalTime = self.app.setPref('showLocalTime', False)
+            
         self.showUtcTime = self.app.setPref('showUtcTime', checked)
+
+
+    def OnToggleLocalTime(self, evt):
+        """ Handler for ID_VIEW_LOCALTIME menu item selection. The method can
+            also be used to explicitly set the item checked or unchecked.
+            
+            @param evt: The menu event. Can also be `True` or `False` to force
+                the check to be set (kind of a hack).
+        """ 
+        if isinstance(evt, bool):
+            checked = evt
+            self.menubar.FindItemById(self.ID_VIEW_LOCALTIME).Check(evt)
+        else:
+            checked = evt.IsChecked()
+        
+        if checked:
+            self.menubar.FindItemById(self.ID_VIEW_UTCTIME).Check(False)
+            self.showUtcTime = self.app.setPref('showUtcTime', False)
+            
+        self.showLocalTime = self.app.setPref('showLocalTime', checked)
 
 
     def OnToggleMinMax(self, evt):
@@ -2435,12 +2485,16 @@ class Viewer(wx.Frame, MenuMixin):
         units = self.units[1] if units is None else units
         t = self.timeline.getValueAt(pos) * self.timeScalar
         msgX = self.xFormatter % (t, units)
+        msgT = ""
         
-        if self.showUtcTime and self.session.utcStartTime is not None:
-            utc = str(datetime.utcfromtimestamp(self.session.utcStartTime+t))
-            msgT = "X (UTC): %s" % utc[:-2]
-        else:
-            msgT = ""
+        if self.session.utcStartTime is not None:
+            absT = self.session.utcStartTime+t
+            if self.showUtcTime:
+                utc = str(datetime.utcfromtimestamp(absT))
+                msgT = "X (UTC): %s" % utc[:-2]
+            elif self.showLocalTime:
+                local = str(datetime.fromtimestamp(absT))
+                msgT = "X (Local): %s" % local[:-2]
             
         self.statusBar.setPositionDisplay(x=msgX, time=msgT)
         
@@ -2593,6 +2647,8 @@ class ViewerApp(wx.App):
         Viewer; the app mainly handles global settings like preferences 
         (and the primary functionality inherited from `wx.App`, of course).
     """
+    HISTORY_SIZE = 8
+    
     version = VERSION
     versionString = __version__
     buildVersion = VERSION + (BUILD_NUMBER,)
@@ -2674,9 +2730,10 @@ class ViewerApp(wx.App):
                            "Beta Warning", wx.OK|wx.ICON_INFORMATION, 
                            remember=True)
         dlg.SetExtendedMessage(
-            u"This preview version of %s is an early release, and is expected "
-            "to contain bugs,\nperformance limitations, and an incomplete user "
-            "experience.\n\nDo not use for any mission-critical work!" % APPNAME)
+            "This preview version of %s is an early release, and is expected "
+            "to contain bugs,\nperformance limitations, and an incomplete "
+            "user experience.\n\nDo not use for any mission-critical work!" % 
+            APPNAME)
         dlg.ShowModal()
         self.setPref(pref, dlg.getRememberCheck(), section='ask')
         dlg.Destroy()
@@ -2684,12 +2741,15 @@ class ViewerApp(wx.App):
 
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.App` arguments, plus:
+        
             @keyword prefsFile: The full path and name to an alternative
                 configuration file.
-            @keyword initialFilename: The name of a file to open on load.
+            @keyword filename: The name of a file to open on load.
             @keyword clean: If `True`, the preferences are reset.
             @keyword loadLastFile: If `True` and no `initialFilename' is
                 specified, the viewer will reload the last file opened.
+            @keyword safe: If `True`, start in 'safe mode,' which disables
+                plugins and external EBML schemata.
         """
         self.prefsFile = kwargs.pop('prefsFile', None)
         self.initialFilename = kwargs.pop('filename', None)
@@ -2701,7 +2761,7 @@ class ViewerApp(wx.App):
         
         safeMode = safeMode or wx.GetKeyState(wx.WXK_SHIFT)
         
-#         self.recentFilesMenu = wx.Menu()
+#         self.fileHistory = wx.FileHistory(self.HISTORY_SIZE)
         self.lastException = None
         self.viewers = []
         self.changedFiles = True
@@ -2852,6 +2912,13 @@ class ViewerApp(wx.App):
             title = u"%s (%d)" % (basetitle, i)
         return title 
             
+    
+    def getRecentFiles(self):
+        """
+        """
+        
+    
+    
     #===========================================================================
     # Event handlers
     #===========================================================================

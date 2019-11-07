@@ -34,6 +34,7 @@ __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
 PLUGIN_INFO = {"type": "tool",
                "name": "Split IDE Files",
+               "description": "Divide one or more IDE files into smaller pieces."
                }
 
 

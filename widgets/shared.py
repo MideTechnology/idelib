@@ -5,11 +5,11 @@ Created on Sep 10, 2015
 '''
 from datetime import datetime
 
-import wx
+import wx #@UnusedImport
 import wx.adv
 import wx.lib.masked as wx_mc
 
-import images as images
+# import images as images
 
 #===============================================================================
 # Custom widgets
@@ -78,6 +78,7 @@ class StatusBar(wx.StatusBar):
             @keyword root: The viewer's 'root' window.
         """
         self.root = kwargs.pop('root', None)
+        kwargs.setdefault('style', wx.STB_SIZEGRIP|wx.STB_ELLIPSIZE_MIDDLE|wx.STB_SHOW_TIPS)
         wx.StatusBar.__init__(self, *args, **kwargs)
         
         if self.root is None:

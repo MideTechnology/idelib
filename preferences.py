@@ -179,21 +179,58 @@ class Preferences(object):
 
 
     def __init__(self, filename=None, clean=False):
-#         logger.info("Preferences.__init__(filename=%r, clean=%r)" % (filename, clean))
-        if filename is None:
-            if wx.GetApp() is not None:
-                # wx.StandardPaths fails if called outside of an App.
-                prefPath = wx.StandardPaths.Get().GetUserDataDir()
-            else:
-                prefPath = ''
-            self.prefsFile = os.path.join(prefPath, self.defaultPrefsFile)
-        else:
-            self.prefsFile = filename
-
+        """ Constructor.
+        
+            @keyword filename: The name of the preferences file to load, or
+                `None` to import the default file.
+            @keyword clean: If `True`, do not read preferences.
+        """
+        self.prefsFile = filename
         self.prefs = {}
+        
         if not clean:
-            self.loadPrefs()
+            if os.path.exists(self.prefsFile):
+                self.loadPrefs()
+            else:
+                # To be removed later
+                self.loadLegacy()
 
+
+    @property
+    def prefsFile(self):
+        """ Get the name of the preferences file. Returns the default if not
+            previously set.
+        """
+        if getattr(self, '_prefsFile', None) is not None:
+            return self._prefsFile
+        
+        if wx.GetApp() is not None:
+            # wx.StandardPaths fails if called outside of an App.
+            prefPath = wx.StandardPaths.Get().GetUserDataDir()
+        else:
+            prefPath = ''
+            
+        self._prefsFile = os.path.join(prefPath, self.defaultPrefsFile)
+        return self._prefsFile
+        
+        
+    @prefsFile.setter
+    def prefsFile(self, filename):
+        """ Set the name of the preferences file. `None` will set it to the
+            default.
+        """
+        self._prefsFile = filename
+
+
+    def loadLegacy(self):
+        """ Import legacy Slam Stick Lab preferences.
+        
+            @todo: Remove this after a few versions of enDAQ Lab.
+        """
+        filename = os.path.join(self.prefsFile, '../..', 
+                                u"Slam\u2022Stick Lab", "ss_lab.cfg")
+        return self.loadPrefs(os.path.abspath(filename))
+        
 
     def loadPrefs(self, filename=None):
         """ Load saved preferences from file.
@@ -203,7 +240,6 @@ class Preferences(object):
                 return wx.Colour(*c)
             return c
         
-#         self.fileHistory = wx.FileHistory()
         self.prefs = {}
         filename = filename or self.prefsFile
         logger.info("Loading prefs file %r (exists=%r)" % (filename,os.path.exists(filename)))
@@ -244,7 +280,7 @@ class Preferences(object):
                           "Preferences File Error")
         
         # Load recent file history
-#         hist = prefs.setdefault('fileHistory', {}).setdefault('import', [])
+#         prefs.setdefault('fileHistory', {}).setdefault('import', [])
 #         map(self.fileHistory.AddFileToHistory, hist)
 #         self.fileHistory.UseMenu(self.recentFilesMenu)
 #         self.fileHistory.AddFilesToMenu()
@@ -308,6 +344,7 @@ class Preferences(object):
     def getRecentFiles(self, category="import"):
         """ Retrieve the list of recent files within a category.
         """
+        
         hist = self.prefs.setdefault('fileHistory', {})
         return hist.setdefault(category, [])
 

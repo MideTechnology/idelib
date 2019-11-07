@@ -30,6 +30,7 @@ __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
 PLUGIN_INFO = {"type": "tool",
                "name": "Batch IDE Exporter",
+               "description": "Convert one or more files to another format.",
                "app": u"Slam\u2022Stick Lab",
                "minAppVersion": (1,4,2),
                }
