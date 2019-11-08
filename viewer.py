@@ -237,6 +237,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         # FUTURE: FFT views as separate windows will eventually be refactored.
         self.childViews = {}
+        self.console = None
         
         self.Bind(events.EVT_SET_VISIBLE_RANGE, self.OnSetVisibleRange)
         self.Bind(events.EVT_SET_TIME_RANGE, self.OnSetTimeRange)
@@ -263,6 +264,18 @@ class Viewer(wx.Frame, MenuMixin):
         elif openDialog or self.app.getPref('openOnStart', True):
             self.OnFileOpenMenu(None)
 
+
+    def __repr__(self):
+        """ x.__repr__() <==> repr(x), but more human-readable.
+            To make scripting a little simpler.
+        """
+        try:
+            return '<%s %s: "%s">' % (type(self).__name__, self.number, 
+                                  self.app.getWindowTitle(self, showApp=False,
+                                                          number=False))
+        except:
+            return super(Viewer, self).__repr__()
+        
 
     def loadPrefs(self):
         """ Get all the attributes that are read from the preferences.
@@ -1514,8 +1527,9 @@ class Viewer(wx.Frame, MenuMixin):
     
             exportType = os.path.splitext(filename)[-1].upper().strip('.')
             if exportType not in validTypes:
+                valids = wordJoin(validTypes)
                 wx.MessageBox("Unknown export type: %s\n\n"
-                  "Recognized types are %s." % (exportType, wordJoin(validTypes)),
+                  "Recognized types are %s." % (exportType, valids),
                   "Export Error", wx.OK, self)
         
         settings = xd.CSVExportDialog.getExport(root=self, removeMean=noMean,
@@ -1558,7 +1572,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.resumeDrawing()
 
 
-    def renderPlot(self, evt=None, plotType=ID_RENDER_FFT, outFile=None, initSettings=None):
+    def renderPlot(self, evt=None, plotType=ID_RENDER_FFT, outFile=None,
+                   initSettings=None):
         """ Create a plot showing multiple subchannels, an FFT, a PSD, or
             a Spectrogram after getting input from the user (range,
             window size, etc.). This method can be used as an event handler
@@ -1675,8 +1690,10 @@ class Viewer(wx.Frame, MenuMixin):
         
         for c in self.childViews.values():
             if hasattr(c, 'parentUpdated'):
+                print(c)
                 c.parentUpdated()
-    
+
+
     #===========================================================================
     # 
     #===========================================================================
@@ -1908,7 +1925,12 @@ class Viewer(wx.Frame, MenuMixin):
     def OnShowScriptConsole(self, evt):
         """ Handle "Scripting->Open Console" menu events.
         """
-        scripting.shell.PythonConsole.openConsole(self)
+        if self.console:
+            self.console.Show()
+        else:
+            self.console = scripting.shell.PythonConsole.openConsole(self)
+            
+        self.console.SetFocus()
         
     
     def OnHelpAboutMenu(self, evt):
@@ -2948,7 +2970,8 @@ class ViewerApp(wx.App):
                             os.path.basename(filename))
         
     
-    def getWindowTitle(self, viewer=None, title='', showApp=True):
+    def getWindowTitle(self, viewer=None, title='', showApp=True,
+                       number=True):
         """ Generate a unique viewer window title.
         """
         if not title and viewer and viewer.dataset is not None:
@@ -2969,17 +2992,11 @@ class ViewerApp(wx.App):
         else:
             title = self.fullAppName if showApp else "" 
 
-        if len(self.viewers) > 1 or self.viewerIdx > 1:
+        if number and (len(self.viewers) > 1 or self.viewerIdx > 1):
             title = u"%s (%d)" % (title, viewer.number)
         
-        return title
-            
-    
-    def getRecentFiles(self):
-        """
-        """
-        
-    
+        return title.strip()
+
     
     #===========================================================================
     # Event handlers

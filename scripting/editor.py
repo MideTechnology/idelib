@@ -76,11 +76,12 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
     def __init__(self, *args, **kwargs):
         """ Constructor. Standard `stc.StyledTextCtrl()` arguments, plus:
         
-            @keyword root: The containing `ScriptEditor`.
+            @keyword frame: The containing `ScriptEditor`.
             @keyword filename: The full path and name of a file to load
                 immediately after creation.
         """
         self.filename = kwargs.pop('filename', None)
+        self.frame = kwargs.pop('frame', None)
         self.root = kwargs.pop('root', None)
         
         super(ScriptEditorCtrl, self).__init__(*args, **kwargs)
@@ -102,9 +103,9 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         newSel = self.GetSelection()
         if newSel != self.lastSelection:
             hasSelection = newSel[0] != newSel[1]
-            self.root.cutMI.Enable(hasSelection)
-            self.root.copyMI.Enable(hasSelection)
-            self.root.runSelectedMI.Enable(hasSelection)
+            self.frame.cutMI.Enable(hasSelection)
+            self.frame.copyMI.Enable(hasSelection)
+            self.frame.runSelectedMI.Enable(hasSelection)
             self.lastSelection = newSel
         evt.Skip()
 
@@ -120,7 +121,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
 
 
     def updateOptions(self):
-        """ Update the editor's display options using values from the root
+        """ Update the editor's display options using values from the parent
             scripting window.
         """
         self.SetIndent(4)
@@ -129,14 +130,14 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         self.SetBackSpaceUnIndents(True)
         self.SetMarginType(1, stc.STC_MARGIN_NUMBER)
         
-        self.SetIndentationGuides(self.root.showGuides)
-        self.SetViewWhiteSpace(self.root.showWhitespace)
+        self.SetIndentationGuides(self.frame.showGuides)
+        self.SetViewWhiteSpace(self.frame.showWhitespace)
 
-        self.SetEdgeColumn(self.root.edgeColumn)
-        self.SetEdgeMode(int(self.root.showEdge))
+        self.SetEdgeColumn(self.frame.edgeColumn)
+        self.SetEdgeMode(int(self.frame.showEdge))
         self.showEdge = True
         
-        if self.root.showLineNumbers:
+        if self.frame.showLineNumbers:
             self.SetMarginWidth(1, 25)
         else:
             self.SetMarginWidth(1, 0)
@@ -209,7 +210,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         finish = "### Finished running %s from tab '%s'" % (what, name)
         
         try:
-            shell = self.root.getShell()
+            shell = self.frame.getShell()
             shell.shell.push("print(%r);execfile(%r);print(%r)" % (start,filename,finish))
         except Exception as err:
             logger.error("XXX: ScriptEditorCtrl.executeInShell() error: %r" % err)
@@ -261,7 +262,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         if saveAs or filename is None:
             dlg = wx.FileDialog(
                 self, message="Save Script",
-                defaultDir=self.root.defaultDir, 
+                defaultDir=self.frame.defaultDir, 
                 defaultFile=filename or "",
                 wildcard=("Python source (*.py)|*.py|"
                           "All files (*.*)|*.*"),
@@ -306,7 +307,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         """
         if evt.GetModificationType() & (stc.STC_MOD_DELETETEXT|stc.STC_MOD_INSERTTEXT):
             self.updateTab()
-            self.root.updateMenus()
+            self.frame.updateMenus()
 
 
 #===============================================================================
@@ -326,6 +327,8 @@ class ScriptEditorStatusBar(wx.StatusBar):
 class ScriptEditor(wx.Frame, MenuMixin):
     """
     """
+    TITLE = "Script Editor"
+    
     ID_NEWTAB = wx.NewId()
     ID_FINDNEXT = wx.NewId()
     
@@ -351,11 +354,10 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.root = kwargs.pop('root', args[0] if args else None)
         files = kwargs.pop('files', None)
         contents = kwargs.pop('contents', None)
+        self.baseTitle = kwargs.setdefault('title', self.TITLE)
         
         super(ScriptEditor, self).__init__(*args, **kwargs)
-
-        if not self.GetTitle():
-            self.SetTitle("Script Editor")
+        self.parentUpdated()
         
         sizer = wx.BoxSizer()
         self.nb = aui.AuiNotebook(self, -1, style=aui.AUI_NB_TOP  
@@ -559,29 +561,60 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.setMenuItem(mb, wx.ID_REPLACE, enabled=findEnabled)
         self.setMenuItem(mb, self.ID_MENU_SCRIPT_RUN, enabled=runEnabled)
         self.setMenuItem(mb, self.ID_MENU_SCRIPT_RUN_SEL, enabled=runSelEnabled)
-        
     
+
+    def parentUpdated(self):
+        """ Method called when the parent `Viewer` changes in such a way that
+            the editor needs updating (e.g. a file was imported).
+        """
+        title = self.baseTitle
+        
+        if self.root:
+            name = self.root.app.getWindowTitle(self.root, showApp=False)
+            if name:
+                title = "%s: %s" % (self.baseTitle, name)
+        
+        self.SetTitle(title)
+
     
     def getShell(self, focus=True):
         """ Get the Python shell window.
         """
         # XXX: TODO: Get the shell from the parent.
-        try:
-            if self.shell and self.shell.IsIconized():
-                self.shell.Iconize(False)
-        except (AttributeError, RuntimeError) as err:
-            # Shell window isn't open (not shown yet, or previously closed)
-            localVars = locals() # use provided locals?
-            localVars['editor'] = self # for testing
-            self.shell = PythonConsole.openConsole(self.root, locals=localVars,
-                                                   focus=False)
+        if not self.root:
+            return
+        
+        if self.root.console:
+            if self.root.console.IsHidden():
+                self.root.console.Show()
+            if self.root.console.IsIconized():
+                self.root.console.Iconize(False)
+        else:
+            self.root.console = PythonConsole.openConsole(self.root, focus=False)
         
         if focus:
-            self.shell.Raise()
+            self.root.console.Raise()
         else:
             self.Raise()
         
-        return self.shell
+        return self.root.console
+        
+#         try:
+#             if self.shell and self.shell.IsIconized():
+#                 self.shell.Iconize(False)
+#         except (AttributeError, RuntimeError) as err:
+#             # Shell window isn't open (not shown yet, or previously closed)
+#             localVars = locals() # use provided locals?
+#             localVars['editor'] = self # for testing
+#             self.shell = PythonConsole.openConsole(self.root, locals=localVars,
+#                                                    focus=False)
+#         
+#         if focus:
+#             self.shell.Raise()
+#         else:
+#             self.Raise()
+#         
+#         return self.shell
     
 
     def addTab(self, filename=None, name=None, text=None, modified=False,
@@ -596,7 +629,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
                 Intended for use with `text`.
             @keyword focus: If `True`, select the new tab.
         """
-        editor = ScriptEditorCtrl(self.nb, -1, root=self)
+        editor = ScriptEditorCtrl(self.nb, -1, frame=self, root=self.root)
         if not filename:
             names = [self.nb.GetPageText(n) for n in xrange(self.nb.GetPageCount())]
             tabname = uniqueName(editor.DEFAULT_NAME, names)

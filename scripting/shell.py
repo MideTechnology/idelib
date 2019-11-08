@@ -56,15 +56,11 @@ class PythonConsole(wx.py.shell.ShellFrame):
     
         kwargs.setdefault('size', (750, 525))
 
+        # The 'prefix' for the window title. The rest gets set by its Viewer.
         self.baseTitle = title
         
         # The `Viewer` window is (or should be) in the local variables.
-        try:
-            viewer = self.viewer = localvars['viewer']
-            if len(viewer.app.viewers) > 1 or viewer.number > 1:
-                kwargs['title'] = "%s (Window %d)" % (title, viewer.number)
-        except (AttributeError, KeyError):
-            viewer = None
+        self.viewer = localvars.get('viewer', None)
         
         wx.py.frame.Frame.__init__(self, *args, **kwargs)
         wx.py.frame.ShellFrameMixin.__init__(self, config, dataDir)
@@ -80,6 +76,9 @@ class PythonConsole(wx.py.shell.ShellFrame):
                                        )
 
         self.SetStatusText(statusText or '')
+        
+        self.addMenuItems()
+        self.parentUpdated()
 
         # Override the shell so that status messages go to the status bar.
         self.shell.setStatusText = self.SetStatusText
@@ -87,6 +86,25 @@ class PythonConsole(wx.py.shell.ShellFrame):
         if focus:
             self.shell.SetFocus()
         self.LoadSettings()
+        
+    
+    
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def addMenuItems(self):
+        """ Do some post-initialization modifications to the menus. To work
+            around wx.py.shell.ShellFrame obfuscation.
+        """
+        viewMenu = self.GetMenuBar().GetMenu(2)
+        viewMenu.AppendSeparator()
+        mi = viewMenu.Append(wx.ID_ANY,
+                             "Show console's associated view\tCtrl+Space",
+                             "",
+                             wx.ITEM_NORMAL)
+        self.Bind(wx.EVT_MENU, self.OnShowView, id=mi.GetId())
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
     
     
     #===========================================================================
@@ -110,6 +128,26 @@ class PythonConsole(wx.py.shell.ShellFrame):
     #===========================================================================
     # 
     #===========================================================================
+    
+    def OnShowView(self, evt):
+        """ Handle 'show view' menu event: bring the linked Viewer to the
+            foreground.
+        """
+        if self.viewer:
+            self.viewer.SetFocus()
+        else:
+            wx.Bell()
+
+    
+    def OnClose(self, evt):
+        """ Handle Window Close events. Actually just hides it.
+        """
+        if self.viewer and self.viewer.console == self:
+            self.Hide()
+            evt.Veto()
+        else:
+            evt.Skip()
+    
     
     def OnAbout(self, evt):
         try:
