@@ -32,9 +32,12 @@ class InfoPanel(HtmlWindow):
         @cvar field_types: A dictionary pairing field names with a function to
             prepare the value for display.
     """
-    # Replacement, human-readable field names
+    # Replacement, human-readable field names. Other names will be converted
+    # from camel case.
     field_names = {'HwRev': 'Hardware Revision',
                    'FwRev': 'Firmware Revision',
+                   'McuType': 'MCU Type',
+                   'FwRevStr': 'Firmware Version',
                    }
 
     # Formatters for specific fields. The keys should be the string as
@@ -48,10 +51,16 @@ class InfoPanel(HtmlWindow):
                    'Calibration Expiration Date': datetime.fromtimestamp,
                    'Calibration Serial Number': lambda x: "C%05d" % x
                    }
+    
 
     column_widths = (50,50)
 
     def __init__(self, *args, **kwargs):
+        """ Constructor. Takes standard `wx.html.HtmlWindow` arguments, plus:
+        
+            @keyword info: A dictionary of information to show.
+            @keyword root: The 'root' viewer window.
+        """
         self.tabIcon = None
         self.info = kwargs.pop('info', {})
         self.root = kwargs.pop('root', None)
@@ -63,10 +72,6 @@ class InfoPanel(HtmlWindow):
         self.initUI()
 
 
-    def escape(self, s):
-        return cgi.escape(cleanUnicode(s))
-
-
     def addItem(self, k, v, escape=True):
         """ Append a labeled info item.
         """
@@ -74,12 +79,13 @@ class InfoPanel(HtmlWindow):
         if not self._inTable:
             self.html.append(u"<table width='100%'>")
             self._inTable = True
+            
+        k = cleanUnicode(k)
+        v = cleanUnicode(v)
         if escape:
-            k = self.escape(k).replace(' ','&nbsp;')
-            v = self.escape(v)
-        else:
-            k = cleanUnicode(k)
-            v = cleanUnicode(v)
+            k = cgi.escape(k).replace(' ','&nbsp;')
+            v = cgi.escape(v)
+            
         
         self.html.append(u"<tr><td width='%d%%'>%s</td>" % 
                          (self.column_widths[0],k))
@@ -98,10 +104,10 @@ class InfoPanel(HtmlWindow):
     def addLabel(self, v, warning=False, escape=True):
         """ Append a label.
         """
+        v = cleanUnicode(v)
         if escape:
-            v = self.escape(v)
-        else:
-            v = cleanUnicode(v)
+            v = cgi.escape(v)
+            
         if self._inTable:
             self.html.append(u"</table>")
             self._inTable = False
@@ -121,19 +127,33 @@ class InfoPanel(HtmlWindow):
                 result.append(' ')
             result.append(c)
             lastChar = c
+            
         # Hack to fix certain acronyms. Should really be done by checking text.
         result = ''.join(result).replace("ID", "ID ").replace("EBML", "EBML ")
         return result.replace("UTC", "UTC ").replace(" Of ", " of ")
 
 
     def getDeviceData(self):
-        # XXX: This is ugly!
+        """ Populate the `data` dictionary, using human-readable keys.
+            This will get shown verbatim.
+        """
+        # Hack: This is ugly!
         if self.root.device is not None:
             self.info['RecorderSerial'] = self.root.device.serial
+        
+        # Hack: remove the integer FwRev if the string exists
+        if 'FwRevStr' in self.info:
+            self.info.pop('FwRev', None)
+        
+        items = []
         for k,v in self.info.iteritems():
             if str(k).startswith('Unknown'):
                 continue
-            self.data[self.field_names.get(k, self._fromCamelCase(k))] = v
+
+            items.append((self.field_names.get(k, self._fromCamelCase(k)), v))
+        
+        for k, v in sorted(items, key=lambda x: x[0]):
+            self.data[k] = v
 
 
     def buildHeader(self):

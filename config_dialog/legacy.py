@@ -6,6 +6,7 @@ Created on Aug 21, 2017
 
 @todo: Chunks of this will need to be refactored after `devices` is cleaned up.
 '''
+from __future__ import absolute_import, print_function
 
 __author__ = "dstokes"
 __copyright__ = "Copyright 2017 Mide Technology Corporation"
