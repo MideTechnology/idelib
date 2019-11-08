@@ -156,7 +156,7 @@ class Preferences(object):
 #         'locale': 'English_United States.1252', # Python's locale name string
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
         'loader': dict(numUpdates=100, updateInterval=1.0, minCount=10000000),
-        'openOnStart': True,
+        'openOnStart': False,
         'showDebugChannels': DEBUG,
         'showFullPath': True,#False,
         'showUtcTime': True,
@@ -229,7 +229,10 @@ class Preferences(object):
         """
         filename = os.path.join(self.prefsFile, '../..', 
                                 u"Slam\u2022Stick Lab", "ss_lab.cfg")
-        return self.loadPrefs(os.path.abspath(filename))
+        
+        prefs = self.loadPrefs(os.path.abspath(filename))
+        prefs.pop('openOnStart', None)
+        return prefs
         
 
     def loadPrefs(self, filename=None):
@@ -242,7 +245,8 @@ class Preferences(object):
         
         self.prefs = {}
         filename = filename or self.prefsFile
-        logger.info("Loading prefs file %r (exists=%r)" % (filename,os.path.exists(filename)))
+        logger.info("Loading prefs file %r (exists=%r)" % 
+                    (filename,os.path.exists(filename)))
         if not filename:
             return self.prefs
         
