@@ -6,9 +6,9 @@ Created on Oct 28, 2019
 
 @author: dstokes
 '''
+from __future__ import absolute_import, print_function
 
 import os
-
 import wx
 
 from build_info import DEBUG, BETA
@@ -30,42 +30,47 @@ class SplashPageContents(wx.Panel):
         
             @keyword root: The parent viewer window. 
         """
+        image = wx.Image(self.BGIMAGE, wx.BITMAP_TYPE_PNG)
+
         self.root = kwargs.pop('root', None)
         self.showWarning = kwargs.pop('warning', True)
         kwargs.setdefault('style', wx.NO_BORDER)
-        kwargs.setdefault('size', wx.Size(640,480))
+        kwargs.setdefault('size', image.GetSize())
         super(SplashPageContents, self).__init__(*args, **kwargs)
-        
-        self.SetBackgroundColour(self.Parent.GetBackgroundColour())
         
         # For background image, drawn in `OnEraseBackground()`: the bitmap,
         # and the 'brush' for making the background match the window.
-        self.bmp = wx.Image(self.BGIMAGE, wx.BITMAP_TYPE_PNG).ConvertToBitmap()
-        self.bgbrush = wx.Brush(self.GetBackgroundColour())
-
+        bgcolor = self.Parent.GetBackgroundColour()
+        self.bmp = image.ConvertToBitmap()
+        self.bgbrush = wx.Brush(bgcolor)
+        self.SetBackgroundColour(bgcolor)
+        
+        # The recent files popup menu, generated once.
         self.recentFilesMenu = None
 
-        # Getting size in `OnEraseBackground()` can have issues when resizing,
+        # Getting size in `OnEraseBackground()` has issues when resizing,
         # so get it now.
         self.fullsize = self.GetSize()
 
-        # NOTE: The positioning of the buttons is partially hardcoded
-        butSize = wx.Size(240,-1)
-        x = ((self.fullsize - butSize)/2)[0]
-        y = self.fullsize[1]-80
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        self.SetSizer(sizer)
         
-        self.openBtn = wx.Button(self, -1, "Open a Recording", 
-                                 pos=(x,y), size=butSize)
-        self.configBtn = wx.Button(self, -1, "Configure a Recording Device",
-                                   pos=(x,y+32), size=butSize)
+        openBtn = wx.Button(self, -1, "Open a Recording", size=(240,-1))
+        confBtn = wx.Button(self, -1, "Configure a Recording Device",
+                            size=(240,-1))
+        
+        sizer.Add((0,0), 1)
+        sizer.Add(openBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
+        sizer.AddSpacer(8)
+        sizer.Add(confBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
+        sizer.AddSpacer(16)
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackground)
-        self.openBtn.Bind(wx.EVT_BUTTON, self.root.OnFileOpenMenu)
-        self.configBtn.Bind(wx.EVT_BUTTON, self.root.OnDeviceConfigMenu)
+        openBtn.Bind(wx.EVT_BUTTON, self.root.OnFileOpenMenu)
+        confBtn.Bind(wx.EVT_BUTTON, self.root.OnDeviceConfigMenu)
+        openBtn.Bind(wx.EVT_RIGHT_DOWN, self.OnFileRightClick)
 
-        self.openBtn.Bind(wx.EVT_RIGHT_DOWN, self.OnFileRightClick)
-
-        # Remove focus from buttons
+        # Remove focus from buttons. Primarily cosmetic.
         self.SetFocus()
 
 
@@ -83,6 +88,7 @@ class SplashPageContents(wx.Panel):
         dc.Clear()
         dc.DrawBitmap(self.bmp, 0, 0, useMask=True)
         
+        # NOTE: Some of these numbers may need tweaking if image size changes.
         if self.showWarning and self.root and self.root.app:
             vers = "Version %s" % self.root.app.versionString
             dc.SetTextForeground(wx.WHITE)

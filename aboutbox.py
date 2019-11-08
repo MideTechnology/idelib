@@ -3,17 +3,20 @@ Created on Jul 1, 2014
 
 @author: dstokes
 '''
+from __future__ import absolute_import, print_function
+
 import cgi
 from datetime import datetime
 from glob import glob
 import os.path
-import sys
+import platform
 
 import wx
 import wx.lib.sized_controls as SC
 from wx.lib.wordwrap import wordwrap
 from wx.html import HtmlWindow
 
+from build_info import APPNAME, BUILD_NUMBER, VERSION, BUILD_TIME
 from widgets.htmlwindow import SaferHtmlWindow
 
 #===============================================================================
@@ -41,6 +44,14 @@ class AboutBox(SC.SizedDialog):
     TEMPFILE = os.path.join('ABOUT', 'about_tmp.html')
     RELEASE_NOTES = os.path.join('ABOUT', "slam_stick_lab_changelog.html")
 
+    DEFAULTS = {'appName': APPNAME, #"Slam Stick About Box",
+                'version': '.'.join(map(str,VERSION)), 
+                'buildNumber': BUILD_NUMBER, 
+                'buildTime': datetime.fromtimestamp(BUILD_TIME),
+                'copyright': datetime.fromtimestamp(BUILD_TIME).year,
+                'lastUpdateCheck': 'Never'}
+
+
     def makeAboutFile(self):
         """ Fill out the main About Box page with current info. 
         """
@@ -66,23 +77,28 @@ class AboutBox(SC.SizedDialog):
         result = [None]
         links = ["<ul>"]
         files = glob(os.path.join(self.rootDir, 'LICENSES/*.txt'))
+        files.extend(glob(os.path.join(self.rootDir, 'LICENSES/*.html')))
+        files.sort()
         for filename in files:
             name = os.path.splitext(os.path.basename(filename))[0]
             links.append('<li><a href="#%s">%s</a></li>' % (name, name))
             lic = u"<a name='%s'><h2>%s</h2></a>" % (name, name)
             with open(filename, 'rb') as f:
                 text = f.read()
-                longest = max([len(x) for x in text.split('\n')])
-                if longest > 80:
-                    text = wordwrap(text, 500, wx.ClientDC(self))
-                lic = u"%s<pre>%s</pre>" % (lic, text)
+                if filename.lower().endswith('.txt'):
+                    longest = max([len(x) for x in text.split('\n')])
+                    if longest > 80:
+                        text = wordwrap(text, 500, wx.ClientDC(self))
+                    lic = u"%s<pre>%s</pre>" % (lic, text)
+                else:
+                    lic = u"%s%s" % (lic, text)
             result.append(lic)
-        links.append("</ul>")
+        links.append(u"</ul>")
         result[0] = ''.join(links)
 
         # Restore the old font, just in case:        
         self.SetFont(oldFont)
-        return LICENSES %  '<hr/>'.join(result)
+        return LICENSES %  u'<hr/>'.join(result)
 
 
     def getPlugins(self):
@@ -150,11 +166,11 @@ class AboutBox(SC.SizedDialog):
         
         self.rootDir = os.path.split(__file__)[0]
         self.strings['rootDir'] = os.path.join(self.rootDir, 'ABOUT')
-        self.strings.setdefault('lastUpdateCheck', 'Never')
         
-        # Add note if this is the 64 bit version. Only relevant in Windows. 
-        if sys.platform.startswith("win") and "64 bit" in sys.version:
-            self.strings['version'] += " (64 bit)"
+        # Add note if this is the 64 bit version. Only relevant in Windows.
+        bits, ops = platform.architecture()
+        if ops.lower().startswith("win"):
+            self.strings['version'] += " (%s)" % bits
         
         pane = self.GetContentsPane()
         notebook = wx.Notebook(pane, -1)#, style=wx.NB_BOTTOM)
@@ -170,7 +186,7 @@ class AboutBox(SC.SizedDialog):
             notebook.AddPage(notes, "Release Notes")
             notes.LoadPage(releaseNotes)
         
-        licenses = HtmlWindow(notebook, -1)
+        licenses = SaferHtmlWindow(notebook, -1, allowExternalLinks=True)
         notebook.AddPage(licenses, "Licenses")
         licenses.SetPage(self.getLicenses())
         
@@ -198,9 +214,13 @@ class AboutBox(SC.SizedDialog):
             @keyword tracking: A URL query string to append to Mide links
                 for tracking.
         """
-        appname = kwargs.setdefault('strings', {}).setdefault('appName', u"Slam\u2022Stick Lab")
+        stringsArg = kwargs.get('strings', {})
+        strings = cls.DEFAULTS.copy()
+        strings.update(stringsArg)
+        kwargs['strings'] = strings
+        
         dlg = cls(*args, **kwargs)
-        dlg.SetTitle(u"About %s" % appname)
+        dlg.SetTitle(u"About %s" % strings['appName'])
         dlg.ShowModal()
         dlg.Destroy()
 
@@ -210,13 +230,12 @@ class AboutBox(SC.SizedDialog):
 
 if __name__ == '__main__':
     # Test the About Box
-    from viewer import APPNAME
-    from build_info import VERSION, BUILD_TIME, BUILD_NUMBER
     app = wx.App()
-    AboutBox.showDialog(None, strings={
-           'appName': APPNAME, #"Slam Stick About Box",
-           'version': '.'.join(map(str,VERSION)), 
-           'buildNumber': BUILD_NUMBER, 
-           'buildTime': datetime.fromtimestamp(BUILD_TIME),
-           'copyright': datetime.fromtimestamp(BUILD_TIME).year
+    AboutBox.showDialog(None,
+                         strings={
+#            'appName': APPNAME, #"Slam Stick About Box",
+#            'version': '.'.join(map(str,VERSION)), 
+#            'buildNumber': BUILD_NUMBER, 
+#            'buildTime': datetime.fromtimestamp(BUILD_TIME),
+#            'copyright': datetime.fromtimestamp(BUILD_TIME).year
         })
