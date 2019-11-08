@@ -92,9 +92,10 @@ __version__= '.'.join(map(str, VERSION))
 __copyright__=(u"Copyright (c) %s Mid\xe9 Technology" % 
                (datetime.fromtimestamp(BUILD_TIME).year))
 
-if DEBUG or BETA:
-    __version__ = '%s b%04d' % (__version__, BUILD_NUMBER)
+if BETA:
+    __version__ = '%s BETA b%04d' % (__version__, BUILD_NUMBER)
 if DEBUG:
+    __version__ = '%s DEBUG b%04d' % (__version__, BUILD_NUMBER)
     import socket
     if socket.gethostname() in ('HADLEY', 'DEDHAM', 'LEE'):
         try:
@@ -197,8 +198,10 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword app: The viewer's parent application.
         """
         splash  = kwargs.pop('splash', True)
+        openDialog = kwargs.pop('openDialog', False)
         self.app = kwargs.pop('app', None)
         self.units = kwargs.pop('units',('Time','s'))
+        self.number = kwargs.pop('number', 1)
         
         self.drawingSuspended = Event()
         self.suspendDrawing()
@@ -210,6 +213,7 @@ class Viewer(wx.Frame, MenuMixin):
         displaySize = wx.DisplaySize()
         windowSize = int(displaySize[0]*.66), int(displaySize[1]*.66)
         kwargs.setdefault('size', windowSize)
+        kwargs.setdefault('title', self.app.getWindowTitle(self))
         
         super(Viewer, self).__init__(*args, **kwargs)
         
@@ -256,9 +260,8 @@ class Viewer(wx.Frame, MenuMixin):
             else:
                 self.openMultiple(filename)
 
-        # XXX: TEMPORARY: DON'T OPEN A FILE ON START 
-#         elif self.app.getPref('openOnStart', True):
-#             self.OnFileOpenMenu(None)
+        elif openDialog or self.app.getPref('openOnStart', True):
+            self.OnFileOpenMenu(None)
 
 
     def loadPrefs(self):
@@ -535,11 +538,11 @@ class Viewer(wx.Frame, MenuMixin):
         if showAdvanced:
             scriptMenu = self.addMenu(self.menubar, '&Scripting')
             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
-                             "Open Script Editor\tCtrl+Shift+E", 
+                             "Open Script &Editor\tCtrl+Shift+E", 
                              'Open the Python script editor.',
                              self.OnShowScriptEditor)
             self.addMenuItem(scriptMenu, self.ID_DEBUG_CONSOLE, 
-                             "Open Console\tCtrl+Shift+C", 
+                             "Open Python &Console\tCtrl+Shift+C", 
                              "Open the Python interactive interpreter.", 
                              self.OnShowScriptConsole)
 
@@ -1337,12 +1340,10 @@ class Viewer(wx.Frame, MenuMixin):
             return False
         
         self.dataset = newDoc
-        title = filename #self.dataset.name
         if len(newDoc.sessions) > 1:
             if not self.selectSession():
                 stream.closeAll()
                 return False
-            title = "%s (Session %d)" % (title, self.session.sessionId)
         else:
             self.session = newDoc.lastSession
 
@@ -1365,7 +1366,7 @@ class Viewer(wx.Frame, MenuMixin):
         
         loader = Loader(self, newDoc, reader, **self.app.getPref('loader'))
         self.pushOperation(loader)
-        self.SetTitle(self.app.getWindowTitle(title))
+        self.SetTitle(self.app.getWindowTitle(self))
         loader.start()
 
         self.buildDisplayMenu()
@@ -1430,6 +1431,8 @@ class Viewer(wx.Frame, MenuMixin):
         
             @todo: Implement this, and add all the schema version checking and
                 error handling present in the normal `openFile()`.
+                
+            NOTE: The title-related stuff needs to be reworked.
         """
         title = "%s - %s (%d files)" % (os.path.basename(filenames[0]), 
                                         os.path.basename(filenames[-1]), 
@@ -1467,7 +1470,7 @@ class Viewer(wx.Frame, MenuMixin):
         loader = Loader(self, newDoc, mide_ebml.multi_importer.multiRead, 
                         **self.app.getPref('loader'))
         self.pushOperation(loader)
-        self.SetTitle(self.app.getWindowTitle(title))
+        self.SetTitle(self.app.getWindowTitle(self))
         loader.start()
         self.enableMenus(True)
         return True
@@ -1650,6 +1653,8 @@ class Viewer(wx.Frame, MenuMixin):
     
     
     def setPlotColor(self, source, color):
+        """ Writes a plot's color to the preferences.
+        """
         if isinstance(source, mide_ebml.dataset.EventList):
             source = source.parent
         sourceId = "%02x.%d" % (source.parent.id, source.id)
@@ -1657,6 +1662,20 @@ class Viewer(wx.Frame, MenuMixin):
         colors[sourceId] = color
         self.root.app.setPref('plotColors', colors)
         
+    
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def SetTitle(self, title):
+        """ Set the window title. Also updates possible dependencies in
+            'child' windows.
+        """
+        super(Viewer, self).SetTitle(title)
+        
+        for c in self.childViews.values():
+            if hasattr(c, 'parentUpdated'):
+                c.parentUpdated()
     
     #===========================================================================
     # 
@@ -1705,7 +1724,7 @@ class Viewer(wx.Frame, MenuMixin):
     def OnFileNewMenu(self, evt):
         """ Handle File->New Viewer Window menu events.
         """
-        self.app.createNewView(splash=False)
+        self.app.createNewView(splash=False, openDialog=True)
 
 
     def OnFileOpenMenu(self, evt):
@@ -1746,7 +1765,7 @@ class Viewer(wx.Frame, MenuMixin):
                     # Turn off bivariate refs if shift is held. Can allow some
                     # types of damaged file to load.
                     logger.info("Importing with bivariate references disabled.")
-                    self.setNoBivariates(True)                
+                    self.setNoBivariates(True)
                 self.openFile(filename)
             
         # Note to self: do this last!
@@ -1917,20 +1936,20 @@ class Viewer(wx.Frame, MenuMixin):
     
 
     def OnHelpCheckUpdates(self, evt):
-        """
+        """ Handle "Help->Check for Updates" menu events.
         """
         self.app.setPref('updater.version', self.app.version)
         updater.startCheckUpdatesThread(self.app, force=True, quiet=False)
 
 
     def OnHelpFeedback(self, evt):
-        """
+        """ Handle Help->About menu events.
         """
         wx.LaunchDefaultBrowser(FEEDBACK_URL)
 
 
     def OnHelpResources(self, evt):
-        """
+        """ Handle "Help->enDAQ Recorder Resources" menu events.
         """
         wx.LaunchDefaultBrowser(RESOURCES_URL)
         
@@ -2793,6 +2812,7 @@ class ViewerApp(wx.App):
         safeMode = safeMode or wx.GetKeyState(wx.WXK_SHIFT)
         
 #         self.fileHistory = wx.FileHistory(self.HISTORY_SIZE)
+        self.viewerIdx = 0
         self.lastException = None
         self.viewers = []
         self.changedFiles = True
@@ -2894,12 +2914,17 @@ class ViewerApp(wx.App):
                       style=wx.ICON_WARNING|wx.OK)
         
 
-    def createNewView(self, filename=None, title=None, splash=True):
+    def createNewView(self, filename=None, title=None, splash=True, **kwargs):
         """ Create a new viewer window.
+        
+            @keyword filename: The name of a recording to open in the new
+                view.
+            @keyword title: An alternate title, shown instead of the filename.
+            @keyword splash: If `True`, show the 'splash screen'.
         """
-        title = self.fullAppName if title is None else title
-        viewer = Viewer(None, title=title, app=self, filename=filename,
-                        splash=splash)
+        self.viewerIdx += 1
+        viewer = Viewer(None, app=self, filename=filename, splash=splash,
+                        number=self.viewerIdx, **kwargs)
         self.viewers.append(viewer)
         viewer.Show()
     
@@ -2923,25 +2948,31 @@ class ViewerApp(wx.App):
                             os.path.basename(filename))
         
     
-    def getWindowTitle(self, filename=None):
+    def getWindowTitle(self, viewer=None, title='', showApp=True):
         """ Generate a unique viewer window title.
         """
-        basetitle = self.fullAppName
-        if filename:
-            if self.getPref('showFullPath', False):
-                # Abbreviate path if it's really long (ellipsis in center)
-                filename = self.abbreviateName(filename)
-                basetitle = u'%s - %s' % (basetitle, filename)
-            else:
-                basetitle = u'%s - %s' % (basetitle, os.path.basename(filename))
+        if not title and viewer and viewer.dataset is not None:
+            filename = viewer.dataset.filename
+            if filename:
+                if self.getPref('showFullPath', False):
+                    # Abbreviate path if it's really long (ellipsis in center)
+                    title = self.abbreviateName(filename)
+                else:
+                    title = os.path.basename(filename)
+
+            if len(viewer.dataset.sessions) > 1:
+                title = "%s, Session %d" % (title, viewer.session.sessionId)
             
-        title = basetitle
-        existingTitles = [v.GetTitle() for v in self.viewers]
-        i = 0
-        while title in existingTitles:
-            i += 1
-            title = u"%s (%d)" % (basetitle, i)
-        return title 
+            if showApp:
+                title = "%s - %s" % (self.fullAppName, title)
+            
+        else:
+            title = self.fullAppName if showApp else "" 
+
+        if len(self.viewers) > 1 or self.viewerIdx > 1:
+            title = u"%s (%d)" % (title, viewer.number)
+        
+        return title
             
     
     def getRecentFiles(self):

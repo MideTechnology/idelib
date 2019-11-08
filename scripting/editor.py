@@ -12,6 +12,7 @@ import wx.aui as aui
 import  wx.stc  as  stc
 
 from base import MenuMixin
+from build_info import DEBUG
 from logger import logger
 
 
@@ -347,7 +348,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         # Keep the launch arguments for creating new windows
         self.launchArgs = (args, kwargs.copy())
         
-        self.root = kwargs.pop('root', None)
+        self.root = kwargs.pop('root', args[0] if args else None)
         files = kwargs.pop('files', None)
         contents = kwargs.pop('contents', None)
         
@@ -427,28 +428,28 @@ class ScriptEditor(wx.Frame, MenuMixin):
         #=======================================================================
         fileMenu = self.addMenu(menu,  '&File')
         self.addMenuItem(fileMenu, self.ID_NEWTAB, 
-                         "&New Tab\tCtrl+N", "",
+                         "&New Tab\tCtrl+N",
+                         "Create a new editor tab",
                          self.OnFileNewTabMenu)
         self.addMenuItem(fileMenu, wx.ID_NEW, 
-                         "New &Window\tCtrl+Shift+N", "",
+                         "New &Window\tCtrl+Shift+N",
+                         "Create a new script editor window",
                          self.OnFileNewMenu)
         self.addMenuItem(fileMenu, wx.ID_OPEN, u"", u"", 
-                         self.OnFileOpenMenu)       
+                         self.OnFileOpenMenu)
         fileMenu.AppendSeparator()
         
-        self.addMenuItem(fileMenu, wx.ID_SAVE, u"", u"", 
-                         self.OnFileSaveMenu)
-        self.addMenuItem(fileMenu, wx.ID_SAVEAS, u"Save As...", u"", 
-                         self.OnFileSaveMenu)
+        self.addMenuItem(fileMenu, wx.ID_SAVE, handler=self.OnFileSaveMenu)
+        self.addMenuItem(fileMenu, wx.ID_SAVEAS, handler=self.OnFileSaveMenu)
         self.addMenuItem(fileMenu, self.ID_MENU_SAVEALL,
-                         u"Save All Changes", u"", 
+                         u"Save All Changes",
+                         u"Save all modified documents", 
                          self.OnFileSaveAllMenu)
         fileMenu.AppendSeparator()
         
-        self.addMenuItem(fileMenu, wx.ID_PRINT, 
-                         u"&Print...\tCtrl+P", u"", enabled=False)
-        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, 
-                         u"Print Setup...", u"", enabled=False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT, enabled=False)
+        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, u"Print Setup...", u"", 
+                         enabled=False)
         fileMenu.AppendSeparator()
         
         # NOTE: Closing the tab this way crashes the app. Fix!
@@ -467,21 +468,23 @@ class ScriptEditor(wx.Frame, MenuMixin):
         editMenu.AppendSeparator()
         
         self.addMenuItem(editMenu, wx.ID_FIND, 
-                         '&Find...\tCtrl-F', '', 
-                         self.OnEditFindMenu)
+#                          '&Find...\tCtrl-F', '', 
+                         handler=self.OnEditFindMenu)
         # Note: in future, make this "Ctrl-G" if 'wxMax' in wx.PlatformInfo
         self.addMenuItem(editMenu, self.ID_FINDNEXT, 
-                         'Find &Next\tF3', "", 
-                         self.OnFindNext)
+                        'Find &Next\tF3', 
+                        "Find next occurrence in document", 
+                         handler=self.OnFindNext)
         self.addMenuItem(editMenu, wx.ID_REPLACE, 
-                         'Find and &Replace...\tCtrl+Shift+F', '',
-                         self.OnEditReplaceMenu)
+#                          'Find and &Replace...\tCtrl+Shift+F', '',
+                         handler=self.OnEditReplaceMenu)
 
         # "View" menu
         #=======================================================================
         viewMenu = self.addMenu(menu, '&View')
         self.addMenuItem(viewMenu, self.ID_MENU_VIEW_WHITESPACE,
-                         'Show Whitespace', '',
+                         'Show Whitespace',
+                         "Display 'invisible' characters (space, tab, etc.)",
                          self.OnViewMenuItem, 
                          kind=wx.ITEM_CHECK, checked=self.showWhitespace)
         self.addMenuItem(viewMenu, self.ID_MENU_VIEW_LINENUMBERS,
@@ -505,13 +508,17 @@ class ScriptEditor(wx.Frame, MenuMixin):
                          self.OnScriptRunSelected)
 
         scriptMenu.AppendSeparator()
-        self.addMenuItem(scriptMenu, -1, '&Show Python Interpreter\tCtrl+I', '', 
-                         lambda x:self.getShell())
+        self.addMenuItem(scriptMenu, -1, 
+                         "Open Python &Console\tCtrl+Shift+C", 
+                         '', 
+                         lambda _x:self.getShell())
 
         # debugging
-        debugMenu = self.addMenu(menu, "&Debug")
-        self.addMenuItem(debugMenu, -1, 'getShell(focus=False)', '', 
-                         lambda x:self.getShell(focus=False))
+        #=======================================================================
+        if DEBUG:
+            debugMenu = self.addMenu(menu, "&Debug")
+            self.addMenuItem(debugMenu, -1, 'getShell(focus=False)', '', 
+                             lambda _x:self.getShell(focus=False))
 
         self.SetMenuBar(menu)
 

@@ -20,6 +20,8 @@ import mide_ebml
 class PythonConsole(wx.py.shell.ShellFrame):
     """ An interactive Python console for debugging purposes.
     """
+    TITLE = "Scripting Console"
+    
     HELP_TEXT = '\n'.join(
         ("* Useful global variables and helper functions:",
          "\tapp               The currently running app.",
@@ -29,34 +31,55 @@ class PythonConsole(wx.py.shell.ShellFrame):
          "\tviewer.getTab()   Retrieve the foreground tab.",
          ""))
 
-    def __init__(self, parent=None, id=-1, title=None, introText=None, 
-                 pos=wx.DefaultPosition, size=wx.DefaultSize,
-                 style=wx.DEFAULT_FRAME_STYLE, locals=None, InterpClass=None,
-                 config=None, dataDir=None, focus=True, *args, **kwds):
+    def __init__(self, *args, **kwargs):
+        """ Constructor. Takes standard `wx.py.shell.ShellFrame` arguments,
+            plus:
+        
+            @keyword focus: If `True`, the new window will have focus. 
+            @keyword introText: Introductory text, shown when the shell starts.
+            @keyword statusText: Initial text for the status bar.
+            @keyword locals: A dictionary of local variables (like `exec` uses)
+            @keyword startupScript: A script to run at start (Python in string)
+            @keyword execStartupScript: 
+            @keyword dataDir: 
+        """
+        title = kwargs.setdefault('title', self.TITLE)
+        config = kwargs.pop('config', None)
+        dataDir = kwargs.pop('dataDir', None)
+        introText = kwargs.pop('introText', "%s\n\n%s" % (title, self.HELP_TEXT))
+        statusText = kwargs.pop('statusText', None)
+        self.startupScript = kwargs.pop('startupScript', None)
+        self.execStartupScript = kwargs.pop('execStartupScript', True)
+        localvars = kwargs.pop('locals', None)
+        interpClass = kwargs.pop('InterpClass', None)
+        focus = kwargs.pop('focus', True)
+    
+        kwargs.setdefault('size', (750, 525))
 
-        if title is None:
-            version = '.'.join(map(str, build_info.VERSION))
-            title = "%s %s (build %d) Scripting Console" % \
-                (build_info.APPNAME, version, build_info.BUILD_NUMBER)
-            
-        wx.py.frame.Frame.__init__(self, parent, id, title, pos, size, style)
+        self.baseTitle = title
+        
+        # The `Viewer` window is (or should be) in the local variables.
+        try:
+            viewer = self.viewer = localvars['viewer']
+            if len(viewer.app.viewers) > 1 or viewer.number > 1:
+                kwargs['title'] = "%s (Window %d)" % (title, viewer.number)
+        except (AttributeError, KeyError):
+            viewer = None
+        
+        wx.py.frame.Frame.__init__(self, *args, **kwargs)
         wx.py.frame.ShellFrameMixin.__init__(self, config, dataDir)
 
         self.SetIcon(images.icon.GetIcon())
-        
-        if size == wx.DefaultSize:
-            self.SetSize((750, 525))
-
-        if introText is None:
-            introText = "%s\n\n%s" % (title, self.HELP_TEXT) 
-        self.startupScript="print 'hello'"
-        self.SetStatusText(title)
-        self.shell = wx.py.shell.Shell(parent=self, id=-1, 
+            
+        self.shell = wx.py.shell.Shell(self,
                                        introText=introText,
-                                       locals=locals, InterpClass=InterpClass,
+                                       locals=localvars,
                                        startupScript=self.startupScript,
                                        execStartupScript=self.execStartupScript,
-                                       *args, **kwds)
+                                       InterpClass=interpClass
+                                       )
+
+        self.SetStatusText(statusText or '')
 
         # Override the shell so that status messages go to the status bar.
         self.shell.setStatusText = self.SetStatusText
@@ -64,6 +87,25 @@ class PythonConsole(wx.py.shell.ShellFrame):
         if focus:
             self.shell.SetFocus()
         self.LoadSettings()
+    
+    
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def parentUpdated(self):
+        """ Method called when the parent `Viewer` changes in such a way that
+            the editor needs updating (e.g. a file was imported).
+        """
+        title = self.baseTitle
+        
+        if self.viewer:
+            name = self.viewer.app.getWindowTitle(self.viewer, showApp=False)
+            if name:
+                title = "%s: %s" % (self.baseTitle, name)
+        
+        self.SetTitle(title)
+
     
     #===========================================================================
     # 
@@ -133,5 +175,5 @@ class PythonConsole(wx.py.shell.ShellFrame):
 if __name__ == "__main__":
     import viewer
     app = viewer.ViewerApp(loadLastFile=True)
-    PythonConsole.openConsole()
+    PythonConsole.openConsole(None)
     app.MainLoop()
