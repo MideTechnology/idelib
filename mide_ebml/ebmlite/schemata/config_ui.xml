@@ -30,6 +30,8 @@
     </MasterElement>
 
 <MasterElement name="ConfigUI" level="0" id="0x7777" mandatory="1" multiple="0">
+    <UnicodeElement name="PostConfigMessage" id="0x5035" multiple="0">A message, displayed after device configuration.</UnicodeElement>
+    
     <MasterElement name="Tab" id="0x4028" multiple="1" mandatory="1">
         <UnicodeElement name="Label" id="0x5005" multiple="0"></UnicodeElement>
         <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
@@ -39,6 +41,7 @@
             <UnicodeElement name="ToolTip" id="0x5015" multiple="0"></UnicodeElement>
             <UIntegerElement name="ConfigID" id="0x5001" multiple="0"></UIntegerElement>
             <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
+            <UIntegerElement name="IsAdvancedFeature" id="0x5010" multiple="0"></UIntegerElement>
 
             <!--
             NOTE: Any *Field can have any *Value type! The examples below show *Fields with matching
@@ -52,6 +55,7 @@
                 <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="UIntField" level="-1" id="0x4001" multiple="1">
@@ -69,6 +73,7 @@
                 <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
                 <FloatElement name="FloatGain" id="0x5203" multiple="0"></FloatElement>
                 <FloatElement name="FloatOffset" id="0x5213" multiple="0"></FloatElement>
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="IntField" level="-1" id="0x4002" multiple="1">
@@ -87,6 +92,7 @@
                 <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="FloatField" level="-1" id="0x4003" multiple="1">
@@ -106,6 +112,7 @@
                 <FloatElement name="FloatValue" id="0x5103" multiple="0"></FloatElement>
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="ASCIIField" level="-1" id="0x4004" multiple="1">
@@ -121,6 +128,7 @@
                 <IntegerElement name="IntValue" />
                 <UIntegerElement name="UIntValue" />
                 <FloatElement name="FloatValue" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="TextField" level="-1" id="0x4005" multiple="1">
@@ -137,6 +145,7 @@
                 <IntegerElement name="IntValue" />
                 <UIntegerElement name="UIntValue" />
                 <FloatElement name="FloatValue" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="EnumField" level="-1" id="0x4007" multiple="1">
@@ -166,6 +175,7 @@
                     <FloatElement name="FloatGain" />
                     <FloatElement name="FloatOffset" />
                 </MasterElement>
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="BitField" level="-1" id="0x4027" multiple="1">
@@ -178,6 +188,7 @@
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UIntegerElement name="UIntValue" />
                 <MasterElement name="EnumOption" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="DateTimeField" level="-1" id="0x4022" multiple="1">
@@ -194,6 +205,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="UTCOffsetField" level="-1" id="0x4023" multiple="1">
@@ -210,6 +222,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <!--
@@ -225,6 +238,7 @@
                 <UIntegerElement name="ExcludeID" id="0x5011" multiple="1"/>
                 <StringElement name="ValueFormat" id="0x5024" multiple="0"></StringElement>
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckUIntField" level="-1" id="0x4011" multiple="1">
@@ -243,6 +257,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckIntField" level="-1" id="0x4012" multiple="1">
@@ -264,6 +279,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckFloatField" level="-1" id="0x4013" multiple="1">
@@ -286,6 +302,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckASCIIField" level="-1" id="0x4014" multiple="1">
@@ -303,6 +320,7 @@
                 <IntegerElement name="IntValue" />
                 <UIntegerElement name="UIntValue" />
                 <FloatElement name="FloatValue" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckTextField" level="-1" id="0x4015" multiple="1">
@@ -321,6 +339,7 @@
                 <IntegerElement name="IntValue" />
                 <UIntegerElement name="UIntValue" />
                 <FloatElement name="FloatValue" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckEnumField" level="-1" id="0x4017" multiple="1">
@@ -347,6 +366,7 @@
                     <FloatElement name="FloatValue" />
                     <StringElement name="DisableIf" id="0x5014" multiple="0"></StringElement>
                 </MasterElement>
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckBitField" level="-1" id="0x4037" multiple="1">
@@ -360,6 +380,7 @@
                 <StringElement name="DisplayFormat" id="0x5034" multiple="0"></StringElement>
                 <UIntegerElement name="UIntValue" />
                 <MasterElement name="EnumOption" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckDateTimeField" level="-1" id="0x4032" multiple="1">
@@ -377,6 +398,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckUTCOffsetField" level="-1" id="0x4033" multiple="1">
@@ -394,6 +416,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="IntAccelerationField" level="-1" id="0x4042" multiple="1">
@@ -411,6 +434,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckIntAccelerationField" level="-1" id="0x4052" multiple="1">
@@ -428,6 +452,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="FloatAccelerationField" level="-1" id="0x4043" multiple="1">
@@ -446,6 +471,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckFloatAccelerationField" level="-1" id="0x4053" multiple="1">
@@ -465,6 +491,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="IntTemperatureField" level="-1" id="0x4062" multiple="1">
@@ -481,6 +508,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckIntTemperatureField" level="-1" id="0x4072" multiple="1">
@@ -498,6 +526,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="FloatTemperatureField" level="-1" id="0x4063" multiple="1">
@@ -516,6 +545,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckFloatTemperatureField" level="-1" id="0x4073" multiple="1">
@@ -533,8 +563,8 @@
                 <IntegerElement name="IntValue" />
                 <UIntegerElement name="UIntValue" />
                 <FloatElement name="FloatValue" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
-
 
             <MasterElement name="IntPressureField" level="-1" id="0x4082" multiple="1">
                 <UIntegerElement name="ConfigID" id="0x5001" multiple="0"></UIntegerElement>
@@ -550,6 +580,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckIntPressureField" level="-1" id="0x4092" multiple="1">
@@ -567,6 +598,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="FloatPressureField" level="-1" id="0x4083" multiple="1">
@@ -585,6 +617,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckFloatPressureField" level="-1" id="0x4093" multiple="1">
@@ -604,6 +637,7 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="HiddenField" level="-1" id="0x040FF" multiple="1">
@@ -618,18 +652,22 @@
                 <FloatElement name="FloatValue" />
                 <FloatElement name="FloatGain" />
                 <FloatElement name="FloatOffset" />
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="VerticalPadding" level="-1" id="0x400F" multiple="1">
                 Special-case widget that creates a resizable vertical spacer, placing the fields following it on the bottom of the dialog.
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="CheckDriftButton" level="-1" id="0x402F" multiple="0">
                 Special-case control that compares device time to system time.
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
             <MasterElement name="ResetButton" level="-1" id="404F" multiple="1">
                 Special-case control that resets all the siblings in its group or tab to their factory default values.
+                <UIntegerElement name="IsAdvancedFeature" />
             </MasterElement>
 
         </MasterElement> <!-- Group -->
@@ -672,6 +710,7 @@
             <MasterElement name="CheckDriftButton" />
             <MasterElement name="VerticalPadding" />
             <MasterElement name="ResetButton" />
+            <UIntegerElement name="IsAdvancedFeature" />
         </MasterElement>
 
         <MasterElement name="BooleanField" />
@@ -708,12 +747,21 @@
         <MasterElement name="VerticalPadding" />
         <MasterElement name="ResetButton" />
 
+    <UIntegerElement name="IsAdvancedFeature" />
     </MasterElement> <!-- Tab -->
 
     <!-- Special-case Tabs. These do no require child elements. -->
-    <MasterElement name="FactoryCalibrationTab" level="-1" id="0x4A08" multiple="1"></MasterElement>
-    <MasterElement name="UserCalibrationTab" level="-1" id="0x4A28" multiple="1"></MasterElement>
-    <MasterElement name="DeviceInfoTab" level="-1" id="0x4A48" multiple="1"></MasterElement>
+    <MasterElement name="FactoryCalibrationTab" level="-1" id="0x4A08" multiple="1">
+        <UIntegerElement name="IsAdvancedFeature" />
+    </MasterElement>
+    
+    <MasterElement name="UserCalibrationTab" level="-1" id="0x4A28" multiple="1">
+        <UIntegerElement name="IsAdvancedFeature" />
+    </MasterElement>
+    
+    <MasterElement name="DeviceInfoTab" level="-1" id="0x4A48" multiple="1">
+        <UIntegerElement name="IsAdvancedFeature" />
+    </MasterElement>
 
 </MasterElement> <!-- ConfigUI -->
 
