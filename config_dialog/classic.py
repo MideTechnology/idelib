@@ -1311,6 +1311,8 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
         useUtc = dlg.useUtc
         setTime = dlg.setTime
         data = dlg.getData()
+        msg = getattr(dev, "POST_CONFIG_MSG", None)
+
         if save:
             try:
                 dev.saveConfig(data)
@@ -1324,7 +1326,7 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
                     msg += "\nThe recorder appears to have been removed."
                 wx.MessageBox(msg, "Configuration Error", wx.OK | wx.ICON_ERROR,
                               parent=parent)
-        result = data, dlg.setTime, dlg.useUtc, dev
+        result = data, dlg.setTime, dlg.useUtc, dev, msg
         
     dlg.Destroy()
     return result

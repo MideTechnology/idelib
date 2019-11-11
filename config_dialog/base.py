@@ -47,10 +47,6 @@ import os
 import string
 import time
 
-# XXX: For testing.
-import sys
-# sys.path.insert(0, '..')
-
 import wx
 import wx.lib.filebrowsebutton as FB
 import wx.lib.scrolledpanel as SP
@@ -404,6 +400,7 @@ class ConfigBase(object):
         """
         self.root = root
         self.element = element
+        self.isAdvancedFeature = False
         
         # Convert element children to object attributes.
         # First, set any previously undefined attributes to None.
@@ -416,6 +413,10 @@ class ConfigBase(object):
         self.exclude = []
         
         for el in self.element.value:
+            if el.name == "IsAdvancedFeature":
+                self.isAdvancedFeature = bool(el.value)
+                continue
+                
             if el.name in FIELD_TYPES:
                 # Child field: skip now, handle later (if applicable)
                 continue
@@ -1340,7 +1341,7 @@ class UTCOffsetField(FloatField):
         self.setAttribDefault('valueFormat', "x*3600")
         self.setAttribDefault("label", "Local UTC Offset")
         super(UTCOffsetField, self).__init__(*args, **kwargs)
-        
+
 
     def initUI(self):
         """ Build the user interface, adding the item label and/or checkbox,
@@ -1695,6 +1696,9 @@ class Group(ConfigWidget):
             self.sizer.Add(widget, 1, wx.EXPAND)
         else:
             self.sizer.Add(widget, 0, flags, border=border)
+            
+        if widget.isAdvancedFeature and not self.root.showAdvanced:
+            widget.Hide()
 
             
     def initUI(self):
@@ -1947,13 +1951,11 @@ class UserCalibrationTab(FactoryCalibrationTab):
 class ConfigDialog(SC.SizedDialog):
     """ Root window for recorder configuration.
     """
-    
     # Used by the Info tab. Remove after refactoring the legacy tabs.
     ICON_INFO = 0
     ICON_WARN = 1
     ICON_ERROR = 2
     
-
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `SizedDialog` arguments, plus:
         
@@ -1976,6 +1978,8 @@ class ConfigDialog(SC.SizedDialog):
         self.useUtc = kwargs.pop('useUtc', True)
         self.showAdvanced = kwargs.pop('showAdvanced', False)
         
+        self.postConfigMessage = None
+                
         try:
             devName = self.device.productName
             if self.device.path:
@@ -2059,8 +2063,12 @@ class ConfigDialog(SC.SizedDialog):
             if el.name in TAB_TYPES:
                 tabType = TAB_TYPES[el.name]
                 tab = tabType(self.notebook, -1, element=el, root=self)
-                self.notebook.AddPage(tab, str(tab.label))
-                self.tabs.append(tab)
+                
+                if not tab.isAdvancedFeature or self.showAdvanced:
+                    self.notebook.AddPage(tab, str(tab.label))
+                    self.tabs.append(tab)
+            elif el.name == "PostConfigMessage":
+                self.postConfigMessage = el.value
 
 
     def loadConfigUI(self, defaults=None):
@@ -2419,10 +2427,13 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
         @keyword modal: If `True`, the dialog will display modally. If `False`,
             the dialog will be non-modal, and the function will return the
             dialog itself. For debugging.
-        @return: A tuple containing the data written to the recorder (a nested 
-            dictionary), whether `setTime` was checked before save, and whether
-            `useUTC` was checked before save. `None` is returned if the 
-            configuration was cancelled.
+        @return: `None` if configuration was cancelled, else a tuple 
+            containing:
+                * The data written to the recorder (a nested dictionary)
+                * Whether `setTime` was checked before save
+                * Whether `useUTC` was checked before save
+                * The configured device itself
+                * The post-configuration message (could be `None`)
     """
     if isinstance(path, devices.Recorder):
         dev = path
@@ -2450,6 +2461,7 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
     result = dlg.configData
     setTime = dlg.setClockCheck.GetValue()
     useUtc = dlg.useUtc
+    msg = dlg.postConfigMessage or getattr(dev, "POST_CONFIG_MSG", None)
     
     if not modal:
         return dlg
@@ -2459,7 +2471,7 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
     if result is None:
         return None
     
-    return result, setTime, useUtc, dev
+    return result, setTime, useUtc, dev, msg
 
 
 #===============================================================================
@@ -2470,6 +2482,8 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
 # dlg = None
 
 if __name__ == "__main__":
+    import sys
+    
     print "running %s main" % __file__
     from mide_ebml.ebmlite import util
     SCHEMA = loadSchema('config_ui.xml')

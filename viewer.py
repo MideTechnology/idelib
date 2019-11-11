@@ -1909,15 +1909,17 @@ class Viewer(wx.Frame, MenuMixin):
         setTime = self.app.getPref('configure.setTime', True)
         dev = selectDevice(showAdvanced=showAdvanced)
         if dev is not None:
-            result = config_dialog.configureRecorder(dev, setTime=setTime, 
-                                                     useUtc=useUtc, parent=self,
+            result = config_dialog.configureRecorder(dev,
+                                                     setTime=setTime, 
+                                                     useUtc=useUtc,
+                                                     parent=self,
                                                      showAdvanced=showAdvanced)
             if result is not None:
-                self.app.setPref('configure.setTime', result[1])
-                self.app.setPref('configure.useUtc', result[2])
-                dev = result[3]
+                _result, setTime, useUtc, dev, msg = result
+                self.app.setPref('configure.setTime', setTime)
+                self.app.setPref('configure.useUtc', useUtc)
+                
                 pref = "showConfigMsg_%s" % dev.__class__.__name__
-                msg = getattr(dev, "POST_CONFIG_MSG", None)
                 self.ask("Successfully Configured!", "Device Configuration", 
                            wx.OK, icon=wx.ICON_INFORMATION, pref=pref, 
                            extendedMessage=msg)
