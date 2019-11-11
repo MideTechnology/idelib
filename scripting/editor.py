@@ -18,8 +18,6 @@ from logger import logger
 
 # TODO: Get rid of `python_stc.py` (copied from demo) and implement it here.
 from . import python_stc
-# TODO: Refactor/replace `PythonConsole` (a hack) with a good one.
-from .shell import PythonConsole 
 
 
 #===============================================================================
@@ -211,7 +209,8 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         
         try:
             shell = self.frame.getShell()
-            shell.shell.push("print(%r);execfile(%r);print(%r)" % (start,filename,finish))
+            shell.shell.push("print(%r);execfile(%r);print(%r)" % 
+                             (start,filename,finish))
         except Exception as err:
             logger.error("XXX: ScriptEditorCtrl.executeInShell() error: %r" % err)
             raise
@@ -580,41 +579,14 @@ class ScriptEditor(wx.Frame, MenuMixin):
     def getShell(self, focus=True):
         """ Get the Python shell window.
         """
-        # XXX: TODO: Get the shell from the parent.
-        if not self.root:
-            return
+        if self.root:
+            console = self.root.showConsole(focus=False)
+            if focus:
+                console.Raise()
+            else:
+                self.Raise()
         
-        if self.root.console:
-            if self.root.console.IsHidden():
-                self.root.console.Show()
-            if self.root.console.IsIconized():
-                self.root.console.Iconize(False)
-        else:
-            self.root.console = PythonConsole.openConsole(self.root, focus=False)
-        
-        if focus:
-            self.root.console.Raise()
-        else:
-            self.Raise()
-        
-        return self.root.console
-        
-#         try:
-#             if self.shell and self.shell.IsIconized():
-#                 self.shell.Iconize(False)
-#         except (AttributeError, RuntimeError) as err:
-#             # Shell window isn't open (not shown yet, or previously closed)
-#             localVars = locals() # use provided locals?
-#             localVars['editor'] = self # for testing
-#             self.shell = PythonConsole.openConsole(self.root, locals=localVars,
-#                                                    focus=False)
-#         
-#         if focus:
-#             self.shell.Raise()
-#         else:
-#             self.Raise()
-#         
-#         return self.shell
+            return console
     
 
     def addTab(self, filename=None, name=None, text=None, modified=False,
@@ -886,19 +858,22 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """
         changed = [t for t in self.tabs if t.IsModified()]
 
-        if not changed:
-            evt.Skip()
-            return
-
-        q = wx.MessageBox("Some scripts have been modified but not saved. "
-                          "Save changes before closing?", "Save Changes?",
-                          wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
-        if q == wx.CANCEL:
-            evt.Veto()
-            return
-        elif q == wx.YES:
-            for tab in changed:
-                tab.SaveFile()
+        if changed:
+            q = wx.MessageBox("Some scripts have been modified but not saved. "
+                              "Save changes before closing?", "Save Changes?",
+                              wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
+            if q == wx.CANCEL:
+                evt.Veto()
+                return
+            elif q == wx.YES:
+                for tab in changed:
+                    tab.SaveFile()
+        
+        # Remove from parent Viewer.
+        try:
+            self.viewer.childViews.pop(self.GetId())
+        except (AttributeError, KeyError):
+            pass
         
 #         self.changeCheckTimer.Stop()
         evt.Skip()

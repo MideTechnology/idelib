@@ -1682,6 +1682,30 @@ class Viewer(wx.Frame, MenuMixin):
     # 
     #===========================================================================
     
+    def showConsole(self, **kwargs):
+        """ Show the Python scripting console (i.e. the REPL).
+        """
+        focus = kwargs.pop("focus", True)
+        
+        if self.console:
+            self.console.Show()
+            if self.console.IsIconized():
+                self.console.Iconize(False)
+        else:
+            self.console = scripting.shell.PythonConsole.openConsole(self,
+                                                                     **kwargs)
+            self.childViews[self.console.GetId()] = self.console
+        
+        if focus:
+            self.console.SetFocus()
+
+        return self.console
+    
+    
+    #===========================================================================
+    # 
+    #===========================================================================
+    
     def SetTitle(self, title):
         """ Set the window title. Also updates possible dependencies in
             'child' windows.
@@ -1925,12 +1949,7 @@ class Viewer(wx.Frame, MenuMixin):
     def OnShowScriptConsole(self, evt):
         """ Handle "Scripting->Open Console" menu events.
         """
-        if self.console:
-            self.console.Show()
-        else:
-            self.console = scripting.shell.PythonConsole.openConsole(self)
-            
-        self.console.SetFocus()
+        return self.showConsole(focus=True)
         
     
     def OnHelpAboutMenu(self, evt):

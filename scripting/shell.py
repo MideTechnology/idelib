@@ -25,7 +25,6 @@ class PythonConsole(wx.py.shell.ShellFrame):
     HELP_TEXT = '\n'.join(
         ("* Useful global variables and helper functions:",
          "\tapp               The currently running app.",
-         "\tapp.lastException The last unexpected exception handled.",
          "\tviewer            The active viewer window when the console was opened.",
          "\tviewer.dataset    The active imported recording file.",
          "\tviewer.getTab()   Retrieve the foreground tab.",
@@ -86,7 +85,8 @@ class PythonConsole(wx.py.shell.ShellFrame):
         if focus:
             self.shell.SetFocus()
         self.LoadSettings()
-        
+
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
     
     
     #===========================================================================
@@ -97,14 +97,26 @@ class PythonConsole(wx.py.shell.ShellFrame):
         """ Do some post-initialization modifications to the menus. To work
             around wx.py.shell.ShellFrame obfuscation.
         """
+        fileMenu = self.GetMenuBar().GetMenu(0)
+        numItems = fileMenu.GetMenuItemCount()
+        idx = numItems - 2
+        mi = wx.MenuItem(fileMenu, wx.ID_ANY, 
+                     "Reset Interpreter\tCtrl+Shift+R",
+                     "Restart the interpreter, clearing local variables, etc.",
+                     wx.ITEM_NORMAL)
+        fileMenu.InsertSeparator(idx)
+        fileMenu.Insert(idx+1, mi)
+        
+        self.Bind(wx.EVT_MENU, self.reset, id=mi.GetId())
+        
         viewMenu = self.GetMenuBar().GetMenu(2)
         viewMenu.AppendSeparator()
         mi = viewMenu.Append(wx.ID_ANY,
                              "Show console's associated view\tCtrl+Space",
                              "",
                              wx.ITEM_NORMAL)
+        
         self.Bind(wx.EVT_MENU, self.OnShowView, id=mi.GetId())
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
     
     
     #===========================================================================
@@ -125,9 +137,39 @@ class PythonConsole(wx.py.shell.ShellFrame):
         self.SetTitle(title)
 
     
+    def reset(self, *args):
+        """ Reset the console: clear local variables, etc. Really just
+            destroys the current console and creates another. Accepts but
+            does not use arguments, so it can be used as an event handler.
+        """
+        if self.viewer:
+            args, kwargs = self.launchArgs
+            kwargs['pos'] = self.GetPosition()
+            kwargs['size'] = self.GetSize()
+            kwargs['focus'] = True
+            
+            viewer = self.viewer
+            viewer.childViews.pop(self.GetId(), None)
+            viewer.console = None
+            self.Destroy()
+            viewer.showConsole(*args, **kwargs)
+
+        else:
+            wx.Bell()
+            
+
     #===========================================================================
     # 
     #===========================================================================
+    
+    def SetFocus(self):
+        """ This sets the window to receive keyboard input.
+        """
+        # The console proper is a child of the window; set focus appropriately.
+        focus = super(PythonConsole, self).SetFocus()
+        self.shell.SetFocus()
+        return focus
+    
     
     def OnShowView(self, evt):
         """ Handle 'show view' menu event: bring the linked Viewer to the
@@ -151,7 +193,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
     
     def OnAbout(self, evt):
         try:
-            self.Parent.OnHelpAboutMenu(evt)
+            self.viewer.OnHelpAboutMenu(evt)
         except AttributeError:
             pass
 
@@ -161,10 +203,11 @@ class PythonConsole(wx.py.shell.ShellFrame):
         """
         # XXX: REWRITE CONSOLE HELP!
         import  wx.lib.dialogs
-        title = 'Console Help'
+        title = 'Scripting Console Help'
         
-        text = ["The Debugging Console provides access to the underlying Python environment.", 
-                "Proceed with caution: misuse of the Console may cause %s to crash!\n" % build_info.APPNAME, 
+        text = ["The Scripting Console provides access to the underlying "
+                "Python environment.", "Proceed with caution: misuse of the "
+                "Console may cause %s to crash!\n" % build_info.APPNAME, 
                 self.HELP_TEXT, 
                 wx.py.shell.HELP_TEXT]
         text = '\n'.join(text)
@@ -182,7 +225,6 @@ class PythonConsole(wx.py.shell.ShellFrame):
     # 
     #===========================================================================
     
-    
     @classmethod
     def openConsole(cls, parent, *args, **kwargs):
         """ Show the Scripting Console.
@@ -194,7 +236,13 @@ class PythonConsole(wx.py.shell.ShellFrame):
                           'mide_ebml': mide_ebml,
                           'viewer': parent
                           })
+        
+        # Keep a copy of the initial arguments for 
+        launchArgs = (args[:], kwargs.copy())
+        launchArgs[1]['locals'] = localVars.copy()
+        
         con = cls(parent, **kwargs)
+        con.launchArgs = launchArgs
         
         try:
             parent.childViews[con.GetId()] = con
