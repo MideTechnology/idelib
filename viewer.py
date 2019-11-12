@@ -52,7 +52,7 @@ from loader import Loader
 from plots import PlotSet
 from preferences import Preferences
 from renders.renderplot import PlotView
-import scripting.editor
+import scripting.editor, scripting.shell
 import updater
 from widgets import export_dialog as xd
 from widgets import live_calibration
@@ -1686,7 +1686,6 @@ class Viewer(wx.Frame, MenuMixin):
         """ Show the Python scripting console (i.e. the REPL).
         """
         focus = kwargs.pop("focus", True)
-        
         if self.console:
             self.console.Show()
             if self.console.IsIconized():

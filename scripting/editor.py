@@ -328,17 +328,18 @@ class ScriptEditor(wx.Frame, MenuMixin):
     """
     TITLE = "Script Editor"
     
-    ID_NEWTAB = wx.NewId()
-    ID_FINDNEXT = wx.NewId()
+    ID_NEWTAB = wx.NewIdRef()
+    ID_FINDNEXT = wx.NewIdRef()
     
-    ID_MENU_OPEN_IN_NEW = wx.NewId()
-    ID_MENU_SAVEALL = wx.NewId()
-    ID_MENU_CLOSE_WINDOW = wx.NewId()
-    ID_MENU_VIEW_WHITESPACE = wx.NewId()
-    ID_MENU_VIEW_LINENUMBERS = wx.NewId()
-    ID_MENU_VIEW_GUIDES = wx.NewId()
-    ID_MENU_SCRIPT_RUN = wx.NewId()
-    ID_MENU_SCRIPT_RUN_SEL = wx.NewId()
+    ID_MENU_OPEN_IN_NEW = wx.NewIdRef()
+    ID_MENU_SAVEALL = wx.NewIdRef()
+    ID_MENU_CLOSE_WINDOW = wx.NewIdRef()
+    ID_MENU_DETECT_CHANGES = wx.NewIdRef()
+    ID_MENU_VIEW_WHITESPACE = wx.NewIdRef()
+    ID_MENU_VIEW_LINENUMBERS = wx.NewIdRef()
+    ID_MENU_VIEW_GUIDES = wx.NewIdRef()
+    ID_MENU_SCRIPT_RUN = wx.NewIdRef()
+    ID_MENU_SCRIPT_RUN_SEL = wx.NewIdRef()
     
     
     def __init__(self, *args, **kwargs):
@@ -369,8 +370,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
 
         self.SetStatusBar(ScriptEditorStatusBar(self, -1))
         
-        # XXX: This timer seems to be causing crashes when window closes.
-#         self.changeCheckTimer = wx.Timer(self)
+        # XXX: This timer seemed to be causing crashes when window closes.
+        self.changeCheckTimer = wx.Timer(self)
 
         self.tabs = []
         self.findDlg = None
@@ -385,7 +386,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.nb.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSE, self.OnCloseTab)
         self.nb.Bind(aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnTabChanged)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
-#         self.Bind(wx.EVT_TIMER, self.OnChangeCheck)
+        self.Bind(wx.EVT_TIMER, self.OnChangeCheck)
         
         if files:
             for filename in files:
@@ -401,11 +402,11 @@ class ScriptEditor(wx.Frame, MenuMixin):
     def loadPrefs(self):
         """ Load/reload editor configuration from the main app.
         """
-#         self.changeCheckTimer.Stop()
+        self.changeCheckTimer.Stop()
         
         # TODO: Read from viewer preferences
-#         self.checkForChanges = True
-#         self.changeCheckInterval = 500
+        self.checkForChanges = True
+        self.changeCheckInterval = 500
         self.defaultDir = ""
         self.showWhitespace = True
         self.showGuides = True
@@ -416,8 +417,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
         for n in xrange(self.nb.GetPageCount()):
             self.nb.GetPage(n).updateOptions()
 
-#         if self.checkForChanges:
-#             self.changeCheckTimer.Start(self.changeCheckInterval)
+        if self.checkForChanges:
+            self.changeCheckTimer.Start(self.changeCheckInterval)
 
 
     def buildMenus(self):
@@ -447,11 +448,21 @@ class ScriptEditor(wx.Frame, MenuMixin):
                          u"Save all modified documents", 
                          self.OnFileSaveAllMenu)
         fileMenu.AppendSeparator()
-        
-        self.addMenuItem(fileMenu, wx.ID_PRINT, enabled=False)
-        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, u"Print Setup...", u"", 
-                         enabled=False)
+
+        self.addMenuItem(fileMenu, self.ID_MENU_DETECT_CHANGES,
+                         "Detect External Edits",
+                         "",
+                         self.OnFileDetectEdits,
+                         kind=wx.ITEM_CHECK,
+                         checked=self.checkForChanges)
         fileMenu.AppendSeparator()
+
+        
+        # NOTE: Printing not (yet) implemented.
+#         self.addMenuItem(fileMenu, wx.ID_PRINT, enabled=False)
+#         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, u"Print Setup...", u"", 
+#                          enabled=False)
+#         fileMenu.AppendSeparator()
         
         # NOTE: Closing the tab this way crashes the app. Fix!
 #         self.addMenuItem(fileMenu, wx.ID_CLOSE, 
@@ -856,6 +867,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """ Handle the closing of the entire scripting window. Confirm if any
             editor has unsaved changes.
         """
+        self.changeCheckTimer.Stop()
         changed = [t for t in self.tabs if t.IsModified()]
 
         if changed:
@@ -863,6 +875,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
                               "Save changes before closing?", "Save Changes?",
                               wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
             if q == wx.CANCEL:
+                if self.checkForChanges:
+                    self.changeCheckTimer.Start(self.changeCheckInterval)
                 evt.Veto()
                 return
             elif q == wx.YES:
@@ -875,7 +889,6 @@ class ScriptEditor(wx.Frame, MenuMixin):
         except (AttributeError, KeyError):
             pass
         
-#         self.changeCheckTimer.Stop()
         evt.Skip()
         
 
@@ -958,6 +971,16 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.Close()
         
 
+    def OnFileDetectEdits(self, evt):
+        """
+        """
+        self.checkForChanges = evt.IsChecked()
+        if self.checkForChanges:
+            self.changeCheckTimer.Start(self.changeCheckInterval)
+        else:
+            self.changeCheckTimer.Stop()
+
+
     #===========================================================================
 
     def OnEditFindMenu(self, evt):
@@ -980,11 +1003,11 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """
         mid = evt.GetId()
         if mid == self.ID_MENU_VIEW_WHITESPACE:
-            self.showWhitespace = evt.Checked()
+            self.showWhitespace = evt.IsChecked()
         elif mid == self.ID_MENU_VIEW_LINENUMBERS:
-            self.showLineNumbers = evt.Checked()
+            self.showLineNumbers = evt.IsChecked()
         elif mid == self.ID_MENU_VIEW_GUIDES:
-            self.showGuides = evt.Checked()
+            self.showGuides = evt.IsChecked()
 
         for n in xrange(self.nb.GetPageCount()):
             self.nb.GetPage(n).updateOptions()
