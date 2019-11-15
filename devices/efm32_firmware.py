@@ -22,8 +22,8 @@ import serial #@UnusedImport
 import serial.tools.list_ports
 
 import wx
-from wx.animate import Animation, AnimationCtrl
-from wx.lib.throbber import Throbber
+from wx.adv import Animation, AnimationCtrl
+# from wx.lib.throbber import Throbber
 from wx.lib.wordwrap import wordwrap
 
 import xmodem

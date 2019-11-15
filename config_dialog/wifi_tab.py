@@ -1,4 +1,5 @@
 '''
+Tab for configuring Wi-Fi. May get moved into 
 Created on Nov 13, 2019
 
 @author: dstokes
@@ -12,7 +13,7 @@ import wx.lib.sized_controls as SC
 import wx.lib.mixins.listctrl as listmix
 
 # from base import Tab
-
+from base import logger
 
 #===============================================================================
 # 
@@ -30,36 +31,47 @@ DEFAULT_AUTH = 1
 #===============================================================================
 
 class AddWifiDialog(SC.SizedDialog):
+    """ Simple dialog for entering data to connect to a hidden (or out-of-range
+        network.
     """
-    """
-    
     
     def __init__(self, parent, wxId=-1, title="Add Access Point",
                  style=wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER, 
-                 authType=DEFAULT_AUTH, **kwargs):
+                 booleanAuth=True, authType=DEFAULT_AUTH, **kwargs):
         """ Constructor. Takes standard dialog arguments, plus:
             
+            @keyword booleanAuth: If `True`, the specific type of authorization
+                isn't selectable, just its presence or absence. For future use.
             @keyword authType: The default authorization type number. Will
                 be a preference or the last value used, read from the
         """
+        self.booleanAuth = booleanAuth
         super(AddWifiDialog, self).__init__(parent, wxId, title=title, 
                                             style=style, **kwargs)
 
         pane = self.GetContentsPane()
         pane.SetSizerType("form")
 
-        wx.StaticText(pane, -1, "SSID (Name):")
+        wx.StaticText(pane, -1, "SSID (Name):").SetSizerProps(valign='center')
         self.ssidField = wx.TextCtrl(pane, -1, "")
-        self.ssidField.SetSizerProps(expand=True)
+        self.ssidField.SetSizerProps(expand=True, valign='center')
 
-        wx.StaticText(pane, -1, "Security")
-        self.authField = wx.Choice(pane, -1, choices=AUTH_TYPES)
-        self.authField.SetSizerProps(expand=True)
-        self.authField.SetSelection(authType)
+        wx.StaticText(pane, -1, "Security:").SetSizerProps(valign='center')
+        if booleanAuth:
+            self.authField = wx.CheckBox(pane, -1, "Password Required")
+            self.authField.SetValue(bool(self.authType))
+            self.pwField.Enable(self.authField.GetValue())
+            self.Bind(wx.EVT_CHECKBOX, self.OnAuthCheck)
+        else:
+            self.authField = wx.Choice(pane, -1, choices=AUTH_TYPES)
+            self.authField.SetSelection(authType)
+            self.pwField.Enable(self.authField.GetSelection() != 0)
+            self.Bind(wx.EVT_CHOICE, self.OnAuthChoice)
+        self.authField.SetSizerProps(expand=True, valign='center')
 
-        wx.StaticText(pane, -1, "Password:")
+        wx.StaticText(pane, -1, "Password:").SetSizerProps(valign='center')
         self.pwField = wx.TextCtrl(pane, -1, "", style=wx.TE_PASSWORD)
-        self.pwField.SetSizerProps(expand=True)
+        self.pwField.SetSizerProps(expand=True, valign='center')
 
         # add dialog buttons
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
@@ -70,27 +82,34 @@ class AddWifiDialog(SC.SizedDialog):
         size = self.GetSize() + wx.Size(60,0)
         self.SetSize(size)
         self.SetMinSize(size)
-        
-        self.pwField.Enable(self.authField.GetSelection() != 0)
         self.ssidField.SetFocus()
-
-        self.Bind(wx.EVT_CHOICE, self.OnAuthChoice)
 
 
     def OnAuthChoice(self, evt):
+        """ Handle authorization selection from the drop-down list, if
+            not `booleanAuth`.
         """
-        """
-        print("authchoice")
         self.pwField.Enable(self.authField.GetSelection() != 0)
         evt.Skip()
-        
+
+
+    def OnAuthCheck(self, evt):
+        """ Handle authorization selection checkbox, if `booleanAuth`.
+        """
+        self.pwField.Enable(self.authField.GetValue())
+
 
     def getValue(self):
+        """ Retrieve the dialog's data.
+        
+            @return: A tuple containing a new `WifiInfo` and the password
         """
-        """
-        result = WifiInfo(self.ssidField.GetValue(), -1, 
-                          AUTH_TYPES[self.authField.GetSelection()],
-                          False, True)
+        if self.booleanAuth:
+            auth = self.authField.GetValue()
+        else:
+            auth = AUTH_TYPES[self.authField.GetSelection()]
+            
+        result = WifiInfo(self.ssidField.GetValue(), -1, auth, False, True)
 
         return result, self.pwField.GetValue()
     
@@ -100,12 +119,22 @@ class AddWifiDialog(SC.SizedDialog):
 #===============================================================================
 
 class WifiSelectionTab(SC.SizedPanel):#Tab):
+    """ Tab for selecting the wireless access point for a W-series recorder.
+        This communicates directly with the device to get the visible
+        networks and to save passwords.
     """
-    """
+    COLUMNS = ("Wi-Fi Network", "Security")
+
+    # 'Constant' value for the label, read from CONFIG_UI for 'normal' tabs
     label = "Wi-Fi"
-    COLUMNS = ("AP", "Security")
     
+    # FUTURE: Once multiple saved passwords is a thing, this will be provided
+    # in the CONFIG_UI data.
     storeMultiplePasswords = False
+    
+    # FUTURE: Current HW only specifies authentication's presence or absence.
+    # Future hardware might now. Will eventually be in CONFIG_UI data
+    booleanAuth = True
 
 
     class WifiListCtrl(wx.ListCtrl, listmix.ListCtrlAutoWidthMixin):
@@ -115,15 +144,14 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
             wx.ListCtrl.__init__(self, parent, ID, pos, size, style)
             listmix.ListCtrlAutoWidthMixin.__init__(self)
             
-            self.setResizeColumn(0)
+
 
 
     def __init__(self, *args, **kwargs):
+        """ Constructor. Will probably be completely replaced once this is
+            integrated with the rest of the tabs.
         """
-        """
-        # This will get largely redone once this is a Tab.
         super(WifiSelectionTab, self).__init__(*args, **kwargs)
-        
         self.initUI()
         
     
@@ -131,27 +159,39 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
         """ Get Wi-Fi information from the device.
         """
         # XXX: HACK: Bogus data for testing
-        self.info = [WifiInfo("MIDE-Corp",  .9, u"\u2713",  False,  False),
-                     WifiInfo("MIDE-Guest", .7, u"\u9919", False,  False),
-                     WifiInfo("EarthAP",    .5, None,   False,  False),
-                     WifiInfo("MoonAP",     .3, 'WPA',  False,  False),
-                     WifiInfo("PlutoAP",    -1, None,   True,   True)]
+        self.info = [WifiInfo("MIDE-Corp",  .99, True,  False,  False),
+                     WifiInfo("MIDE-Guest", .77, False, False,  False),
+                     WifiInfo("EarthAP",    .55, False, False,  False),
+                     WifiInfo("MoonAP",     .33, True,  False,  False),
+                     WifiInfo("ThisAP",     .11, False, False,  False),
+                     WifiInfo("ThatAP",     .08, True,  False,  False),
+                     WifiInfo("PlutoAP",    -1,  True,  True,   True)]
         
+    
+    def loadImages(self):
+        """
+        """
+        self.il = wx.ImageList(20,16,mask=True)
+        
+        # Load wifi signal strength icons. Also includes a 'not found' icon.
+        filename = os.path.realpath(os.path.join(
+            os.path.dirname(__file__), '..','resources','wifi-%s.png'))
+        
+        states = (0,25,50,75,100,None)
+        files = [filename % n for n in states]
+        files.extend([filename % ("secure-%s" % n) for n in states])
+        
+        self.icons = [self.il.Add(wx.Bitmap(f)) for f in files]
+    
     
     def initUI(self):
         """ Build the user interface, populating the Tab. 
             Separated from `__init__()` for the sake of subclassing.
         """
         sizer = wx.BoxSizer(wx.VERTICAL)
-        
-        # Load wifi signal strength icons. Also includes a 'not found' icon.
-        filename = os.path.realpath(os.path.join(os.path.dirname(__file__),
-                                                 '../resources/wifi-%s.png'))
-        
-        self.il = wx.ImageList(20,16)
-        self.icons = [self.il.Add(wx.Icon(filename % n))
-                      for n in (0,25,50,75,100, None)]
 
+        self.loadImages()
+        
         # Set up the AP list
         self.list = self.WifiListCtrl(self, -1,
             style=(wx.LC_REPORT | wx.BORDER_SUNKEN | wx.LC_SORT_ASCENDING |
@@ -159,6 +199,7 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
 
         sizer.Add(self.list, 1, wx.EXPAND|wx.ALL, 8)
 
+        self.list.setResizeColumn(0)
         self.list.SetImageList(self.il, wx.IMAGE_LIST_SMALL)
         info = wx.ListItem()
         info.SetMask(wx.LIST_MASK_TEXT|wx.LIST_MASK_IMAGE|wx.LIST_MASK_FORMAT)
@@ -174,7 +215,7 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
         self.boldFont = font.Bold()
         self.italicFont = font.Italic()
         self.struckFont = font.Strikethrough()
-        self.notFoundColor = wx.Colour(127,127,127)
+#         self.notFoundColor = wx.Colour(127,127,127)
         
         # Rescan button (and footnote text)
         scansizer = wx.BoxSizer(wx.HORIZONTAL)
@@ -221,70 +262,109 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
         self.pwField.Bind(wx.EVT_TEXT, self.OnPasswordText)
         
         # FUTURE: For use with multiple AP memory
-        self.forgetCheck.Hide()
-#         self.forgetCheck.Bind(wx.EVT_CHECKBOX, self.OnForgetChecked)
-#         self.list.Bind(wx.EVT_COMMAND_RIGHT_CLICK, self.OnListRightClick) # MSW
-#         self.list.Bind(wx.EVT_RIGHT_UP, self.OnListRightClick) # GTK
+        if self.booleanAuth:
+            self.forgetCheck.Hide()
+        else:
+            self.forgetCheck.Bind(wx.EVT_CHECKBOX, self.OnForgetChecked)
+            self.list.Bind(wx.EVT_COMMAND_RIGHT_CLICK, self.OnListRightClick)
+            self.list.Bind(wx.EVT_RIGHT_UP, self.OnListRightClick) # GTK
 
         self.getInfo()
         self.populate()
-        
+    
+    
+    def makeToolTip(self, ap):
+        """ Generate the tool tip string for an AP. Isolated because it's
+            bulky.
+        """
+        if ap.strength < 0:
+            tooltip = u"%s (not in range)" % (ap.ssid)
+        else:
+            tooltip = u"%s (signal strength: %d%%)" % (ap.ssid, 100*ap.strength)
+            
+        if ap.selected:
+            if ap.security:
+                tooltip += u"\nSaved password, currently selected."
+            else:
+                tooltip += u"\nCurrently selected."
+        # FUTURE: For use with multiple AP memory
+        elif ap.ssid in self.deleted:
+            tooltip += u"\nWill be forgotten."
+        elif ap.security and not ap.known:
+            # AP not previously configured; mark it.
+            tooltip += u"\nRequires password."
+        elif ap.security:
+            tooltip += u"\nPassword saved."
+
+        return tooltip
+
+
+    def makeAuthTypeString(self, ap):
+        """ Turn the AP AuthType into a string.
+        """
+        # Currently, AuthType is boolean (any or none), but might eventually
+        # be an index.
+        if self.booleanAuth:
+            if ap.security:
+                return u"\u2713"
+            else:
+                return "-"
+        else:
+            return AUTH_TYPES[ap.security]
+
 
     def populate(self):
         """ Fill out the AP list.
         """
         self.selected = -1
         self.lastSelected = -2
+        self.listToolTips = []
+        
+        self.forgetCheck.Enable(False)
         
         self.list.DeleteAllItems()
         
-        self.listToolTips = []
-
-        self.forgetCheck.Enable(False)
-
-        knownAPs = []
         selected = False
         
         for n, ap in enumerate(self.info):
-            tooltip = "%s" % ap.ssid
-            icon = max(0, self.icons[int(ap.strength * 5)])
+            # TODO: Use some sort of curve to round up low values.
+            if ap.strength < 0:
+                icon = 5
+            elif ap.strength < .1:
+                icon = 0
+            else:
+                icon = max(1, self.icons[int(ap.strength * 5)])
+            
+            if ap.security:
+                icon += 6
+                
             idx = self.list.InsertItem(self.list.GetItemCount(), ap.ssid, icon)
-            self.list.SetItem(idx, 1, (ap.security or "None"))
+            self.list.SetItem(idx, 1, self.makeAuthTypeString(ap))
             self.list.SetItemData(idx, n)
             item = self.list.GetItem(idx)
             
             if ap.selected:
-                # The previously selected AP
+                # Indicate that this is the previously selected AP
                 if not selected:
-                    # Make sure only one can be selected.
+                    # HACK: Make sure only one will be marked as selected.
                     state = wx.LIST_STATE_SELECTED|wx.LIST_STATE_FOCUSED
                     item.SetState(state)
                     item.SetStateMask(state)
                     selected = True
+                else:
+                    logger.warning("Device reported multiple selected APs!")
+
                 item.SetFont(self.boldFont)
                 item.SetText(item.GetText() + " *")
-                tooltip += " (saved, currently selected)"
-            # FUTURE: For use with multiple AP memory
-#             elif not ap.known:
-#                 # AP not previously configured; mark it.
-#                 item.SetFont(self.italicFont)
-#                 tooltip += " (not saved)"
+                
             elif ap.ssid in self.deleted:
                 item.SetFont(self.struckFont)
-                tooltip += " (saved, will be forgotten)"
-            else:
-                tooltip += " (saved)"
             
-            
-            if ap.strength < 0:
-                item.SetTextColour(self.notFoundColor)
-                item.SetImage(self.icons[-1])
-                tooltip += "\nNot in range"
+#             if ap.strength < 0:
+#                 item.SetTextColour(self.notFoundColor)
                 
             self.list.SetItem(item)
-            knownAPs.append(ap.ssid)
-        
-            self.listToolTips.append(tooltip)
+            self.listToolTips.append(self.makeToolTip(ap))
 
 
     #===========================================================================
@@ -301,7 +381,7 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
     def OnAddButton(self, evt):
         """ Handle 'Add' button press.
         """
-        dlg = AddWifiDialog(self, -1)
+        dlg = AddWifiDialog(self, -1, booleanAuth=self.booleanAuth)
         if dlg.ShowModal() != wx.ID_OK:
             dlg.Destroy()
             return
@@ -380,7 +460,7 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
 
     
     def OnPasswordText(self, evt):
-        """
+        """ Handle typing in the password field.
         """
         ssid = self.info[self.selected].ssid
         text = evt.GetString()
@@ -413,6 +493,7 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
 
     def OnListRightClick(self, evt):
         """ Handle a list item being right-clicked.
+            For future use.
         """
         selected = self.info[self.selected]
         
@@ -429,6 +510,7 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
 
     def OnDelete(self, evt):
         """ Delete (forget) a saved AP.
+            For future use.
         """
         self.deleted.append(self.info[self.selected].ssid)
         self.populate()
@@ -443,6 +525,7 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
         """
         # Any password changes should be written here.
         # Any SSIDs in self.deleted should be deleted here.
+        logger.debug("TODO: WifiSelectionTab.save() not implemented!")
 
 
 #===============================================================================
@@ -483,7 +566,6 @@ class TestConfigDialog(SC.SizedDialog):
         self.Fit()
         self.SetMinSize((500, 480))
         self.SetSize((620, 700))
-
 
 
 #===============================================================================
