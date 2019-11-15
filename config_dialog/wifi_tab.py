@@ -1,5 +1,6 @@
 '''
-Tab for configuring Wi-Fi. May get moved into 
+Tab for configuring Wi-Fi.
+
 Created on Nov 13, 2019
 
 @author: dstokes
@@ -13,7 +14,7 @@ import wx.lib.sized_controls as SC
 import wx.lib.mixins.listctrl as listmix
 
 # from base import Tab
-from base import logger
+from base import logger, registerTab, ConfigBase, Group
 
 #===============================================================================
 # 
@@ -118,7 +119,8 @@ class AddWifiDialog(SC.SizedDialog):
 # 
 #===============================================================================
 
-class WifiSelectionTab(SC.SizedPanel):#Tab):
+@registerTab
+class WifiSelectionTab(SC.SizedPanel, Group):#Tab):
     """ Tab for selecting the wireless access point for a W-series recorder.
         This communicates directly with the device to get the visible
         networks and to save passwords.
@@ -143,15 +145,19 @@ class WifiSelectionTab(SC.SizedPanel):#Tab):
                      size=wx.DefaultSize, style=0):
             wx.ListCtrl.__init__(self, parent, ID, pos, size, style)
             listmix.ListCtrlAutoWidthMixin.__init__(self)
-            
-
 
 
     def __init__(self, *args, **kwargs):
         """ Constructor. Will probably be completely replaced once this is
             integrated with the rest of the tabs.
         """
-        super(WifiSelectionTab, self).__init__(*args, **kwargs)
+#         element = kwargs.pop('element', None)
+#         root = kwargs.pop('root', self)
+#         self.group = None
+        
+        # Explicitly call __init__ of base classes to avoid ConfigWidget stuff
+#         ConfigBase.__init__(self, element, root)
+        SC.SizedPanel.__init__(self, *args, **kwargs)
         self.initUI()
         
     

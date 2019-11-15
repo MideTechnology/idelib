@@ -6,6 +6,7 @@ configuration system.
 @todo: This still has cruft from the old configuration system. It needs a good
     cleaning.
 '''
+from __future__ import absolute_import, print_function
 
 import cgi
 from collections import OrderedDict
@@ -20,7 +21,8 @@ import  wx.lib.wxpTag #@UnusedImport - simply importing it does the work.
 from common import cleanUnicode
 from widgets.calibration_editor import PolyEditDialog
 
-    
+from config_dialog.base import Tab, registerTab
+
 #===============================================================================
 # 
 #===============================================================================
@@ -227,7 +229,7 @@ class InfoPanel(HtmlWindow):
             href = href.replace('viewer', '')
             base, t = href.split("@")
             chid, subchid = base.split('.')
-            print "Viewer link: %r %s %s" % (chid, subchid, t)
+            print("Viewer link: %r %s %s" % (chid, subchid, t))
         elif href.startswith("http"):
             # Launch external web browser
             wx.LaunchDefaultBrowser(href)
@@ -592,4 +594,113 @@ class EditableCalibrationPanel(wx.Panel):
         return {}
     
     
+#===============================================================================
+#--- Special-case tabs 
+#===============================================================================
+
+@registerTab
+class DeviceInfoTab(Tab):
+    """ Special-case Tab for showing device info. The tab's default behavior
+        shows the appropriate info for Slam Stick recorders, no child fields
+        required.
+        
+        TODO: Refactor and clean up DeviceInfoTab, removing dependency on old 
+            system.
+    """
+    
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault("label", "Recorder Info")
+        super(DeviceInfoTab, self).__init__(*args, **kwargs)
+
+
+    def initUI(self):
+        dev = self.root.device
+        
+        if dev is None:
+            # Should only happen during debugging
+            return
+        
+        info = dev.getInfo()
+
+        info['CalibrationSerialNumber'] = dev.getCalSerial()
+        info['CalibrationDate'] = dev.getCalDate()
+        info['CalibrationExpirationDate'] = dev.getCalExpiration()
+    
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.field = SSXInfoPanel(self, -1, 
+                                  root=self.root,
+                                  info=dev.getInfo())
+        self.sizer.Add(self.field, 1, wx.EXPAND)
+        self.SetSizer(self.sizer)
+
+
+@registerTab
+class FactoryCalibrationTab(DeviceInfoTab):
+    """ Special-case Tab for showing recorder's factory-set calibration 
+        polynomials. The tab's default behavior shows the appropriate info for 
+        Slam Stick recorders, no child fields required.
+        
+        TODO: Refactor and clean up FactoryCalibrationTab, removing dependency 
+            on old system.
+    """
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault('label', 'Factory Calibration')
+        super(FactoryCalibrationTab, self).__init__(*args, **kwargs)
+
+
+    def initUI(self):
+        dev = self.root.device
+        
+        if dev is None:
+            # Should only happen during debugging
+            return
+        
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.field = CalibrationPanel(self, -1, 
+                                      root=self.root,
+                                      info=dev.getFactoryCalPolynomials(),
+                                      calSerial=dev.getCalSerial(), 
+                                      calDate=dev.getCalDate(), 
+                                      calExpiry=dev.getCalExpiration())
+        self.sizer.Add(self.field, 1, wx.EXPAND)
+        self.SetSizer(self.sizer)
+
+
+@registerTab
+class UserCalibrationTab(FactoryCalibrationTab):
+    """ Special-case Tab for showing recorder's user-defined calibration 
+        polynomials. The tab's default behavior shows the appropriate info for 
+        Slam Stick recorders, no child fields required.
+        
+        TODO: Refactor and clean up UserCalibrationTab, removing dependency on
+            old system.
+    """
+    def __init__(self, *args, **kwargs):
+        self.setAttribDefault('label', 'User Calibration')
+        super(UserCalibrationTab, self).__init__(*args, **kwargs)
+
+
+    def initUI(self):
+        dev = self.root.device
+        
+        if dev is None:
+            # Should only happen during debugging
+            return
+        
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.field = EditableCalibrationPanel(self, -1, 
+                                      root=self.root,
+                                      info=dev.getUserCalPolynomials(),
+                                      factoryCal=dev.getFactoryCalPolynomials(),
+                                      editable=True)
+        self.sizer.Add(self.field, 1, wx.EXPAND)
+        self.SetSizer(self.sizer)
+    
+
+    def save(self):
+        """ Save the user calibration, if any. Called when main dialog saves
+            prior to closing.
+        """
+        if self.field.info and self.root.device is not None:
+            self.root.device.writeUserCal(self.field.info)
 
