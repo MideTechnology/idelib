@@ -14,7 +14,7 @@ import wx.lib.sized_controls as SC
 import wx.lib.mixins.listctrl as listmix
 
 # from base import Tab
-from base import logger, registerTab, ConfigBase, Group
+from base import logger, registerTab, Group #,ConfigBase
 
 #===============================================================================
 # 

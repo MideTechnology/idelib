@@ -380,8 +380,16 @@ class CalibrationPanel(InfoPanel):
         """ Helper method to embed wxPython Buttons in the HTML display (the
             widget does not support forms, so it can't be done in HTML).
         """
-        wxid = self.calWxIds.setdefault(cal.id, wx.NewIdRef())
-        wxrevid = self.revertWxIds.setdefault(cal.id, wx.NewIdRef())
+        if cal.id in self.calWxIds:
+            wxid = self.calWxIds[cal.id]
+        else:
+            wxid = self.calWxIds.setdefault(cal.id, wx.NewIdRef())
+        
+        if cal.id in self.revertWxIds:
+            wxrevid = self.revertWxIds[cal.id]
+        else:
+            wxrevid = self.revertWxIds.setdefault(cal.id, wx.NewIdRef())
+            
         self.calIds[wxid] = cal
         self.revertIds[wxrevid] = cal
         return ('<wxp module="wx" class="Button" width="60" height="20">'
