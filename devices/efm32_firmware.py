@@ -22,6 +22,7 @@ import serial #@UnusedImport
 import serial.tools.list_ports
 
 import wx
+from wx.animate import Animation, AnimationCtrl
 from wx.lib.throbber import Throbber
 from wx.lib.wordwrap import wordwrap
 
@@ -981,11 +982,17 @@ class FirmwareUpdateDialog(wx.Dialog):
         
         wx.Dialog.__init__(self, *args, **kwargs)#, parent, -1)
         self.SetBackgroundColour("WHITE")
+
         
-        frameFiles = glob(os.path.join(os.path.dirname(__file__), '..',
-                                       'resources','ssx_throbber*.png'))
-        frames = [wx.Image(f, wx.BITMAP_TYPE_PNG).ConvertToBitmap() for f in frameFiles]
-        self.throbber = Throbber(self, -1, frames, rest=0, frameDelay=1.0/len(frames))
+        ani = Animation(os.path.join(os.path.dirname(__file__), '..', 
+                                     'resources', 'ssx_throbber_animated.gif'))
+        self.throbber = AnimationCtrl(self, -1, ani)
+        self.throbber.SetInactiveBitmap(ani.GetFrame(0).ConvertToBitmap())
+        
+#         frameFiles = glob(os.path.join(os.path.dirname(__file__), '..',
+#                                        'resources','ssx_throbber*.png'))
+#         frames = [wx.Image(f, wx.BITMAP_TYPE_PNG).ConvertToBitmap() for f in frameFiles]
+#         self.throbber = Throbber(self, -1, frames, rest=0, frameDelay=1.0/len(frames))
         
         headerText = "Please Stand By..."
         messageText = "\n"*4
@@ -1053,7 +1060,7 @@ class FirmwareUpdateDialog(wx.Dialog):
                         "Press and hold the recorder's %s button "
                         "for 3 seconds." % self.but)
         
-        self.throbber.Start()
+        self.throbber.Play()
         self.scanTimer.Start(self.SERIAL_SCAN_MS)
         self.timeoutTimer.Start(self.TIMEOUT_MS)
 
@@ -1073,7 +1080,7 @@ class FirmwareUpdateDialog(wx.Dialog):
         
         self.timeoutTimer.Stop()
         self.scanTimer.Stop()
-        self.throbber.Rest()        
+        self.throbber.Stop()        
         
         connected = False
         for i in range(3):
@@ -1144,7 +1151,7 @@ class FirmwareUpdateDialog(wx.Dialog):
         if self.device.serial in serials:
             self.timeoutTimer.Stop()
             self.rebootTimer.Stop()
-            self.throbber.Rest()
+            self.throbber.Stop()
             
             wx.MessageBox("Firmware Update Complete!\n\n"
                           "You may now disconnect your recorder.", 
@@ -1156,7 +1163,7 @@ class FirmwareUpdateDialog(wx.Dialog):
     def OnTimeout(self, evt):
         """ Handle serial scan timeout.
         """
-        self.throbber.Rest()
+        self.throbber.Stop()
         self.scanTimer.Stop()
         self.timeoutTimer.Stop()
         wx.MessageBox("No recording device was found.\n\n"
@@ -1168,7 +1175,7 @@ class FirmwareUpdateDialog(wx.Dialog):
     def OnRebootTimeout(self, evt):
         """ Handle timeout waiting for device to reappear as USB disk.
         """
-        self.throbber.Rest()
+        self.throbber.Stop()
         self.rebootTimer.Stop()
         self.timeoutTimer.Stop()
         wx.MessageBox("Could no reboot recording device.\n\n"
@@ -1185,7 +1192,7 @@ class FirmwareUpdateDialog(wx.Dialog):
         self.setLabels('Starting firmware update...')
         
         # Start all the stuff that the serial bootloader mode does.
-        self.throbber.Start()
+        self.throbber.Play()
         self.firmware.clean()
         wx.CallAfter(self.updateFirmware)
         
