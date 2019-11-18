@@ -8,6 +8,7 @@ Created on Sep 2, 2015
 '''
 
 from collections import Sequence
+import errno
 from fnmatch import fnmatch
 from glob import glob
 import io
@@ -23,7 +24,6 @@ import serial.tools.list_ports
 
 import wx
 from wx.adv import Animation, AnimationCtrl
-# from wx.lib.throbber import Throbber
 from wx.lib.wordwrap import wordwrap
 
 import xmodem
@@ -153,6 +153,7 @@ class FirmwareUpdater(object):
         self.releaseNotesHtml = None
         self.fwBin = None
         self.bootBin = None
+        self.signature = None
         self.lastResponse = None
         
         self.schema_mide = loadSchema('mide.xml')
@@ -251,6 +252,7 @@ class FirmwareUpdater(object):
         strict = kwargs.get('strict', self.strict)
         
         bootBin = None
+        sigBin = None
         
         with zipfile.ZipFile(filename, 'r') as fwzip:
             try:
@@ -267,11 +269,20 @@ class FirmwareUpdater(object):
             
             packageFormat = info.get('package_format_version', 0)
             if packageFormat > self.PACKAGE_FORMAT_VERSION:
-                raise ValueError("Can't read package format version %d" % packageFormat)
+                raise ValueError("Can't read package format version %d" % 
+                                 packageFormat)
             
             appName = info.get('app_name', 'app.bin')
             fwBin = fwzip.read(appName, password)
             self.validateFirmware(fwBin, strict=strict)
+
+            sigName = self.info.get('sig_name', filename+'.sig')
+            if sigName in self.contents:
+                with zipfile.ZipFile(self.filename, 'r') as fwzip:
+                    sigBin = fwzip.read(sigName, password)
+            else:
+                logger.info("Could not find signature file %s, continuing." %
+                            sigName)
             
             bootName = info.get('boot_name', 'boot.bin')
             if bootName in self.contents:
@@ -283,14 +294,10 @@ class FirmwareUpdater(object):
             if 'release_notes.html' in self.contents:
                 self.releaseNotesHtml = fwzip.read('release_notes.html', password)
             
-#             for n in ('release_notes.html', 'release_notes.txt'):
-#                 if n in self.contents:
-#                     self.releaseNotes = (n,fwzip.read(n, password))
-#                     break
-        
         self.info = info
         self.fwBin = fwBin
         self.bootBin = bootBin
+        self.signature = sigBin
         self.filename = filename
 
 
@@ -315,33 +322,54 @@ class FirmwareUpdater(object):
                 when the `FirmwareUpdater` was instantiated.
         """
         device = device if device is not None else self.device
+
+        if "mcu_type" in self.info:
+            mcu = device.getInfo().get('McuType', '').upper()
+            if not fnmatch(mcu, self.info['mcu_type']):
+                raise ValidationError('Device MCU type %s not supported' % 
+                                      mcu)
         
         if not any((device.partNumber in d for d in self.contents)):
-            raise ValidationError('Device type %s not supported' % device.partNumber)
+            raise ValidationError('Device type %s not supported' % 
+                                  device.partNumber)
         
         template = 'templates/%s/%d/*' % (self.device.partNumber, 
                                           self.device.hardwareVersion)
 
         if not any((fnmatch(x, template) for x in self.contents)):
-            raise ValidationError("Device hardware revision %d not supported" % \
+            raise ValidationError("Device hardware revision %d not supported" %
                                   self.device.hardwareVersion)
     
 
-    def openRawFirmware(self, filename, boot=None):
+    def openRawFirmware(self, filename, boot=None, signature=None):
         """ Explicitly load a .bin file, skipping all the checks. For Mide use.
         """
         with open(filename, 'rb') as f:
             fwBin = f.read()
+            
         if len(fwBin) < self.MIN_FILE_SIZE:
-            raise ValueError("Firmware binary too small (%d bytes)" % len(fwBin))
+            raise ValueError("Firmware binary too small (%d bytes)" %
+                             len(fwBin))
+            
         if boot is not None:
             with open(boot, 'rb') as f:
                 bootBin = f.read()
                 if len(bootBin) < self.MIN_FILE_SIZE:
-                    raise ValueError("Bootloader binary too small (%d bytes)" % len(bootBin))
+                    raise ValueError("Bootloader binary too small (%d bytes)" %
+                                     len(bootBin))
         
+        sigfile = signature or filename + ".sig"
+        try:
+            with open(sigfile, 'rb') as f:
+                sigBin = f.read()
+        except IOError as err:
+            if err.errno != errno.ENOENT or signature is not None:
+                raise
+            sigBin = None
+            
         self.fwBin = fwBin
         self.bootBin = bootBin
+        self.signature = sigBin
         self.filename = filename
 
 
@@ -529,8 +557,8 @@ class FirmwareUpdater(object):
 
     @classmethod
     def makeUserpage(self, manifest, caldata, recprops=''):
-        """ Combine a binary Manifest, Calibration, and Recorder Properties EBML
-            into a unified, correctly formatted userpage block.
+        """ Combine a binary Manifest, Calibration, and (optionally) Recorder
+            Properties EBML into a unified, correctly formatted userpage block.
     
             USERPAGE memory map:
                 0x0000 (2): Offset of manifest, LE
@@ -578,7 +606,8 @@ class FirmwareUpdater(object):
             @return: A tuple containing the bootloader version and chip ID.
         """
         self.myPort.write("i")
-        # Hack: FW echoes this character (with \n), then another \n, THEN the string.
+        # Hack: FW echoes this character (with \n), then another \n, THEN the
+        # string.
         for _i in range(3):
             instring = self.myPort.readline()
             if "BOOTLOADER" in instring:
@@ -620,15 +649,19 @@ class FirmwareUpdater(object):
         """ Generate a new, updated set of USERPAGE data (manifest, calibration,
             and (optionally) userpage).
         """
-        templateBase = 'templates/%s/%d' % (self.device.partNumber, self.device.hardwareVersion)
+        templateBase = 'templates/%s/%d' % (self.device.partNumber,
+                                            self.device.hardwareVersion)
         manTempName = "%s/manifest.template.ebml" % templateBase
         calTempName = "%s/cal.template.ebml" % templateBase
         propTempName = "%s/recprop.template.ebml" % templateBase
         
         with zipfile.ZipFile(self.filename, 'r') as fwzip:
-            manTemplate = self.readTemplate(fwzip, manTempName, self.schema_manifest, self.password)
-            calTemplate = self.readTemplate(fwzip, calTempName, self.schema_mide, self.password)
-            propTemplate = self.readTemplate(fwzip, propTempName, self.schema_mide, self.password)
+            manTemplate = self.readTemplate(fwzip, manTempName,
+                                            self.schema_manifest, self.password)
+            calTemplate = self.readTemplate(fwzip, calTempName,
+                                            self.schema_mide, self.password)
+            propTemplate = self.readTemplate(fwzip, propTempName,
+                                             self.schema_mide, self.password)
 
         if not all((manTemplate, calTemplate)):
             raise ValueError("Could not find template")
@@ -740,6 +773,7 @@ class FirmwareUpdater(object):
             @param calTemplate: The calibration template, as nested
                 lists/dicts. Note: the template will get modified in place!
         """
+        # XXX: REVISE THIS! MERGE POLYNOMIALS FROM FILE!
         # Update transform channel IDs and references
         cal = self.device.getFactoryCalPolynomials()
         calEx = self.device.getFactoryCalExpiration()
@@ -819,11 +853,44 @@ class FirmwareFileUpdater(FirmwareUpdater):
         # entering the bootloader.
         return True
     
+
+    @classmethod
+    def findBootloader(self, first=False):
+        """ Check attached recorders for a device capable of file-based update.
+            EFMGG11 devices are excluded.
+        
+            @keyword first: If `True` and multiple recorders are found,
+                return the first one. If `False` and multiple recorders are
+                found, return None. To help prevent the wrong recorder being
+                updated.
+            @return: The recorder found (a `devices.Recorder` subclass
+                instance), or `None` if no device was found. Also returns
+                `None` if more than one device was discovered and `first` is
+                `False`.
+        """
+        devs = [d for d in devices.getDevices() if (d.canCopyFirmware and
+                            "EFM32GG11" not in d.getInfo().get('McuType', ''))]
+        if devs and (len(devs) == 1 or first):
+            return devs[0]
+
     
-    def connect(self, *args, **kwargs):
+    def connect(self, dev=None, **kwargs):
         """ Do preparation for the firmware update. 
         """
+        
+        if dev is not None:
+            self.device = dev
+
+        info = self.device.getInfo()
+        bootRev = info.get('BootRev', None) # Not currently in info!
+        chipId = info.get('UniqueChipID', None)
+        
+        if chipId is not None:
+            chipId = "%16X" % chipId
+        
         self.clean()
+        
+        return bootRev, chipId
     
 
     def clean(self):
@@ -933,6 +1000,99 @@ class FirmwareFileUpdater(FirmwareUpdater):
         self.clean()
 
 
+#===============================================================================
+# 
+#===============================================================================
+
+class FirmwareFileUpdaterGG11(FirmwareFileUpdater):
+    """ Subclass of `FirmwareFileUpdater` with special provisions for the new,
+        GG11-based devices (e.g. S1/S2/S3/S4 series).
+    """
+    def validateFirmware(self, fwBin, **kwargs):
+        return True
+
+    
+    def __init__(self, *args, **kwargs):
+        super(FirmwareFileUpdaterGG11, self).__init__(*args, **kwargs)
+        self._uploadedUserpage = False
+        self._uploadedApp = False
+
+
+    @classmethod
+    def findBootloader(self, first=False):
+        """ Check attached recorders for a GG11-based device capable of
+            file-based update.
+        
+            @keyword first: If `True` and multiple recorders are found,
+                return the first one. If `False` and multiple recorders are
+                found, return None. To help prevent the wrong recorder being
+                updated.
+            @return: The recorder found (a `devices.Recorder` subclass
+                instance), or `None` if no device was found. Also returns
+                `None` if more than one device was discovered and `first` is
+                `False`.
+        """
+        devs = [d for d in devices.getDevices() if (d.canCopyFirmware and
+                            "EFM32GG11" in d.getInfo().get('McuType', ''))]
+        if devs and (len(devs) == 1 or first):
+            return devs[0]
+    
+
+    def uploadBootloader(self, payload=None):
+        """ Install a new bootloader binary via an update file. Not applicable
+            to GG11 devices.
+        """
+        logger.warning("%s does not support uploadBootloader(), ignoring." %
+                       type(self).__name__)
+        return False
+
+
+    def uploadApp(self, payload=None, signature=None):
+        """ Install new firmware via an update file (specified in the device's
+            `FW_UPDATE_FILE`).
+        
+            @keyword payload: An alternative payload, to be used instead of the
+                object's `fwBin` attribute.
+        """
+        signature = signature or self.signature
+
+        # Set a flag if the firmware was updated; changes what finalize() does
+        sigfile = self.device.FW_UPDATE_FILE + ".sig"
+        uploaded = (super(FirmwareFileUpdaterGG11, self).uploadApp(payload)
+                    and self._writeFile(sigfile, signature))
+        
+        return uploaded
+
+
+#     def uploadAppFile(self, filename, signature=None):
+#         """ Install new firmware via an update file (specified in the device's
+#             `FW_UPDATE_FILE`). Overrides data in the object's `fwBin`
+#             attribute. Also uploads the "signature" file, which is expected to
+#             be the same name plus ".sig". 
+#         
+#             @param filename: The name of the binary file to upload.
+#             @keyword signature: The name of the 'signature' file. Defaults to
+#                 the same as `filename`, plus `".sig"`.
+#         """
+#         signature = signature or (filename + ".sig")
+#         
+#         payload = readFile(filename)
+#         sig = readFile(signature)
+# 
+#         uploaded = (self.uploadApp(payload) and 
+#                     self._writeFile(self.device.FW_UPDATE_FILE+".sig", sig))
+#         return uploaded
+
+
+    def finalize(self):
+        """ Apply the finishing touches to the firmware/userpage
+            update.
+        """
+        logger.info("Sending 'secure update all' command ('sa')...")
+        with open(self.device.commandFile, 'wb') as f:
+            f.write('sa')
+            
+            
 #===============================================================================
 # 
 #===============================================================================
