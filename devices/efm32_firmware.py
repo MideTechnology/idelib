@@ -1,8 +1,7 @@
 '''
-Tool for updating the firmware on a SSX-based data recorder. Requires the
-EFM32 CDC USB Serial driver for Windows.
-
-Created on Sep 2, 2015
+Tool for updating the firmware on a EFM32-based data recorder (GG0 or GG11).
+The (old) serial bootloader version requires the EFM32 CDC USB Serial driver
+for Windows.
 
 @author: dstokes
 '''
@@ -137,7 +136,7 @@ class FirmwareUpdater(object):
     # 
     #===========================================================================
     
-    def __init__(self, device=None, filename=None, strict=True):
+    def __init__(self, device=None, filename=None, strict=True, **kwargs):
         """ Constructor.
         
             @keyword device: The `devices.base.Recorder` object to update.
@@ -147,7 +146,8 @@ class FirmwareUpdater(object):
         self.strict = strict
         self.device = device
         self.filename = filename
-        self.password = self.ZIPPW
+        self.password = kwargs.pop('password', self.ZIPPW) # allows None and ''
+        
         self.info = None
         self.releaseNotes = None
         self.releaseNotesHtml = None
@@ -628,7 +628,7 @@ class FirmwareUpdater(object):
     # 
     #===========================================================================
     
-    def readTemplate(self, z, name, schema, password=None):
+    def readTemplate(self, z, name, schema, **kwargs):
         """ Read an EBML template from a compressed file.
         
             @param z: The archive (zip) file to read.
@@ -636,8 +636,11 @@ class FirmwareUpdater(object):
             @param schema: The EBML file's schema.
             @keyword password: The archive password (if any).
         """
+        password = kwargs.pop('password', self.password)
+        
         if name not in self.contents:
             return None
+        
         try:
             return schema.loads(z.read(name, password)).dump()
         except (IOError, TypeError):
@@ -645,9 +648,10 @@ class FirmwareUpdater(object):
             return {}
     
     
-    def updateManifest(self):
-        """ Generate a new, updated set of USERPAGE data (manifest, calibration,
-            and (optionally) userpage).
+    def updateUserpage(self):
+        """ Generate a new, updated set of USERPAGE data (manifest, 
+            calibration, and (optionally) userpage) by inserting this device's
+            information into the templates.
         """
         templateBase = 'templates/%s/%d' % (self.device.partNumber,
                                             self.device.hardwareVersion)
@@ -656,12 +660,12 @@ class FirmwareUpdater(object):
         propTempName = "%s/recprop.template.ebml" % templateBase
         
         with zipfile.ZipFile(self.filename, 'r') as fwzip:
-            manTemplate = self.readTemplate(fwzip, manTempName,
-                                            self.schema_manifest, self.password)
-            calTemplate = self.readTemplate(fwzip, calTempName,
-                                            self.schema_mide, self.password)
+            manTemplate = self.readTemplate(fwzip, manTempName, 
+                                            self.schema_manifest)
+            calTemplate = self.readTemplate(fwzip, calTempName, 
+                                            self.schema_mide)
             propTemplate = self.readTemplate(fwzip, propTempName,
-                                             self.schema_mide, self.password)
+                                             self.schema_mide)
 
         if not all((manTemplate, calTemplate)):
             raise ValueError("Could not find template")
@@ -707,49 +711,7 @@ class FirmwareUpdater(object):
                     pass
         
         # Update transform channel IDs and references
-        cal = self.device.getFactoryCalPolynomials()
-        calEx = self.device.getFactoryCalExpiration()
-        calDate = self.device.getFactoryCalDate()
-        calSer = self.device.getFactoryCalSerial()
-         
-        try:
-            polys = findItem(calTemplate, 'CalibrationList/BivariatePolynomial')
-        except (KeyError, IndexError):
-            polys = None
-         
-        if polys is not None:
-            for p in polys:
-                calId = p['CalID']
-                if calId in cal:
-                    p['PolynomialCoef'] = cal[calId].coefficients
-                    p['CalReferenceValue'] = cal[calId].references[0]
-                    p['BivariateCalReferenceValue'] = cal[calId].references[1]
-        else:
-            logger.info("No Bivariate polynomials; expected for SSC.")
-         
-        try:
-            polys = findItem(calTemplate, 'CalibrationList/UnivariatePolynomial')
-        except (KeyError, IndexError):
-            polys = None
- 
-        if polys is not None:
-            for p in polys:
-                calId = p['CalID']
-                if calId in cal:
-                    p['PolynomialCoef'] = cal[calId].coefficients
-                    p['CalReferenceValue'] = cal[calId].references[0]
-        else:
-            logger.warn("No Univariate polynomials: this should not happen!")
-         
-        if calEx:
-            calTemplate['CalibrationList']['CalibrationSerialNumber'] = calSer
-        if calDate:
-            calTemplate['CalibrationList']['CalibrationDate'] = int(calDate)
-        if calEx:
-            calTemplate['CalibrationList']['CalibrationExpiry'] = int(calEx)
-        
-        # TODO: Remove the calibration updating above, use updateCalibration()
-#         calTemplate = self.updateCalibration(calTemplate)
+        calTemplate = self.updateCalibration(calTemplate)
         
         # Build it.
         manData = {'DeviceManifest': manTemplate['DeviceManifest']}
@@ -1008,14 +970,12 @@ class FirmwareFileUpdaterGG11(FirmwareFileUpdater):
     """ Subclass of `FirmwareFileUpdater` with special provisions for the new,
         GG11-based devices (e.g. S1/S2/S3/S4 series).
     """
-    def validateFirmware(self, fwBin, **kwargs):
-        return True
-
     
-    def __init__(self, *args, **kwargs):
-        super(FirmwareFileUpdaterGG11, self).__init__(*args, **kwargs)
-        self._uploadedUserpage = False
-        self._uploadedApp = False
+    def validateFirmware(self, fwBin, **kwargs):
+        val = super(FirmwareFileUpdaterGG11, self).validateFirmware(fwBin,
+                                                                strict=False)
+        # Additional validation could/should happen here.
+        return val
 
 
     @classmethod
@@ -1554,7 +1514,7 @@ def updateFirmware(parent=None, device=None, filename=None, useFiles=True):
             return
 
     logger.info("Creating updated manifest data")
-    update.updateManifest()
+    update.updateUserpage()
     
     dlg = FirmwareUpdateDialog(parent, device=device, firmware=update)
     dlg.ShowModal()
