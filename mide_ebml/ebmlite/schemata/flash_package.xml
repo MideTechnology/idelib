@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Schema type="mide.ss.fwpkg" version="2" readversion="2">
+    <SchemaInfo>
+        <Author>Derek Witt</Author>
+        <Description>Metadata and packing format for encrypted update packages</Description>
+    </SchemaInfo>
+	
+	    <!-- Base EBML elements. Required. (but not included in produced update package)-->
+    <MasterElement name="EBML" id="0x1A45DFA3" mandatory="1" multiple="0" minver="1">Set the EBML characteristics of the data to follow. Each EBML document has to start with this.
+        <UIntegerElement name="EBMLVersion" id="0x4286" multiple="0" mandatory="1" default="1" minver="1">The version of EBML parser used to create the file.</UIntegerElement>
+        <UIntegerElement name="EBMLReadVersion" id="0x42F7" multiple="0" mandatory="1" default="1" minver="1">The minimum EBML version a parser has to support to read this file.</UIntegerElement>
+        <UIntegerElement name="EBMLMaxIDLength" id="0x42F2" multiple="0" mandatory="1" default="4" minver="1">The maximum length of the IDs you'll find in this file (4 or less in Matroska).</UIntegerElement>
+        <UIntegerElement name="EBMLMaxSizeLength" id="0x42F3" multiple="0" mandatory="1" default="8" minver="1">The maximum length of the sizes you'll find in this file (8 or less in Matroska). This does not override the element size indicated at the beginning of an element. Elements that have an indicated size which is larger than what is allowed by EBMLMaxSizeLength shall be considered invalid.</UIntegerElement>
+        <StringElement name="DocType" id="0x4282" multiple="0" mandatory="1" default="mide.ss.fwpkg" minver="1">A string that describes the type of document that follows this EBML header. This describes a firmware package</StringElement>
+        <UIntegerElement name="DocTypeVersion" id="0x4287" multiple="0" mandatory="1" default="1" minver="1">The version of DocType interpreter used to create the file.</UIntegerElement>
+        <UIntegerElement name="DocTypeReadVersion" id="0x4285" multiple="0" mandatory="1" default="1" minver="1">The minimum DocType version an interpreter has to support to read this file.</UIntegerElement>
+        <BinaryElement name="Void" global="1" id="0xEC" multiple="1" minver="1">Used to void damaged data, to avoid unexpected behaviors when using damaged data. The content is discarded. Also used to reserve space in a sub-element for later use.</BinaryElement>
+        <BinaryElement name="CRC-32" global="1" id="0xBF" multiple="0" minver="1" webm="0">The CRC is computed on all the data of the Master element it's in. The CRC element should be the first in it's parent master for easier reading. All level 1 elements should include a CRC-32. The CRC in use is the IEEE CRC32 Little Endian</BinaryElement>
+        <MasterElement name="SignatureSlot" global="1" id="0x1B538667" multiple="1" webm="0">Contain signature of some (coming) elements in the stream.
+            <UIntegerElement name="SignatureAlgo" id="0x7E8A" multiple="0" webm="0">Signature algorithm used (1=RSA, 2=elliptic).</UIntegerElement>
+            <UIntegerElement name="SignatureHash" id="0x7E9A" multiple="0" webm="0">Hash algorithm used (1=SHA1-160, 2=MD5).</UIntegerElement>
+            <BinaryElement name="SignaturePublicKey" id="0x7EA5" multiple="0" webm="0">The public key to use with the algorithm (in the case of a PKI-based signature).</BinaryElement>
+            <BinaryElement name="Signature" id="0x7EB5" multiple="0" webm="0">The signature of the data (until a new.</BinaryElement>
+            <MasterElement name="SignatureElements" id="0x7E5B" multiple="0" webm="0">Contains elements that will be used to compute the signature.
+                <MasterElement name="SignatureElementList" id="0x7E7B" multiple="1" webm="0">A list consists of a number of consecutive elements that represent one case where data is used in signature. Ex: <i>Cluster|Block|BlockAdditional</i> means that the BlockAdditional of all Blocks in all Clusters is used for encryption.
+                    <BinaryElement name="SignedElement" id="0x6532" multiple="1" webm="0">An element ID whose data will be used to compute the signature.</BinaryElement>
+                </MasterElement>
+            </MasterElement>
+        </MasterElement>
+</MasterElement>
+	
+	<!-- Only the following elements must exist in the update package -->
+<MasterElement name="UpdatePkg" id="0xF0" mandatory="1" multiple="0">
+    <UIntegerElement name="MinHWRev" id="0xF1" multiple="0" mandatory="1"> Minimum Hardware Rev this update can be applied to</UIntegerElement>
+    <UIntegerElement name="FWRev" id="0xF2" multiple="0" mandatory="1"> FW Revision contained in this package (may be 0 for non firmware updates)</UIntegerElement>
+    <UIntegerElement name="MinFWRev" id="0xF3" multiple="0" mandatory="0"> Minimum firmware version that can receive this update (in case of interface changes)</UIntegerElement>
+	<IntegerElement name="KeySlot" id="0xF4" multiple="0" mandatory="1"> AES Key slot used to encrypt payload (-1 for unencrypted payload)</IntegerElement>
+	<IntegerElement name="PayloadLen" id="0xF5" multiple="0" mandatory="1"> Length of following encrypted payload  of the following format: 1 or more of (uint16 byte offset || uint16 length || [length] bytes of binary data to flash)</IntegerElement>
+</MasterElement> <!-- UpdatePkg -->
+
+<!-- Not part of the schema officially, but there is a binary blob appended to the end of this "header" that carries the payload described by the tags above -->
+
+</Schema>
