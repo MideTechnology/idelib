@@ -279,6 +279,10 @@ class ConfigDialog(SC.SizedDialog):
             
             values = []
             for k,v in self.configData.items():
+                if k not in self.configItems:
+                    # TODO: Keep value types of unknown config file items, so
+                    # they can be written back. For now, just skip.
+                    continue
                 elType = self.configItems[k]
                 if elType.valueType is not None:
                     values.append({'ConfigID': k,

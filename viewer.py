@@ -137,19 +137,12 @@ class Viewer(wx.Frame, MenuMixin):
     # Custom menu IDs
     # TODO: Consider using literal IDs, so they are sure to be consistent
     #     between runs of the application.
-    ID_RECENTFILES = wx.NewIdRef()
-    ID_EXPORT = wx.NewIdRef()
-    ID_RENDER = wx.NewIdRef()
-    ID_RENDER_FFT = wx.NewIdRef()
-    ID_RENDER_PSD = wx.NewIdRef()
-    ID_RENDER_SPEC = wx.NewIdRef()
-    ID_RENDER_PLOTS = wx.NewIdRef()
+    ID_FILE_RECENT = wx.NewIdRef()
+    ID_FILE_EXPORT = wx.NewIdRef()
     ID_FILE_PROPERTIES = wx.NewIdRef()
     ID_FILE_MULTI = wx.NewIdRef()
     ID_EDIT_CLEARPREFS = wx.NewIdRef()
     ID_EDIT_RANGES = wx.NewIdRef()
-    ID_DEVICE_CONFIG = wx.NewIdRef()
-    ID_DEVICE_UPDATE = wx.NewIdRef()
     ID_VIEW_ADDSOURCE = wx.NewIdRef()
     ID_VIEW_NEWTAB = wx.NewIdRef()
     ID_VIEW_ZOOM_OUT_Y = wx.NewIdRef()
@@ -166,6 +159,8 @@ class Viewer(wx.Frame, MenuMixin):
     ID_VIEW_LINES_MINOR = wx.NewIdRef()
     ID_VIEW_LEGEND = wx.NewIdRef()
     ID_VIEW_HOLLOW = wx.NewIdRef()
+    ID_DEVICE_CONFIG = wx.NewIdRef()
+    ID_DEVICE_UPDATE = wx.NewIdRef()
     ID_DATA_MEAN_SUBMENU = wx.NewIdRef()
     ID_DATA_NOMEAN = wx.NewIdRef()
     ID_DATA_MEAN = wx.NewIdRef()
@@ -176,7 +171,13 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_DISPLAY_CONFIG = wx.NewIdRef()
     ID_DATA_EDIT_CAL = wx.NewIdRef()
     ID_DATA_DISABLE_BIVARIATES = wx.NewIdRef()
+    ID_DATA_RENDER = wx.NewIdRef()
+    ID_DATA_RENDER_FFT = wx.NewIdRef()
+    ID_DATA_RENDER_PSD = wx.NewIdRef()
+    ID_DATA_RENDER_SPEC = wx.NewIdRef()
+    ID_DATA_RENDER_PLOTS = wx.NewIdRef()
     ID_SCRIPTING_EDIT = wx.NewIdRef()
+    ID_SCRIPTING_CONSOLE = wx.NewIdRef()
     ID_TOOLS = wx.NewIdRef()
     ID_HELP_CHECK_UPDATES = wx.NewIdRef()
     ID_HELP_FEEDBACK = wx.NewIdRef()
@@ -342,10 +343,10 @@ class Viewer(wx.Frame, MenuMixin):
         # "Recent Files" submenu. This does not use `wx.FileHistory`. Consider
         # using that later.
         self.recentFilesMenu = wx.Menu()
-        fileMenu.Append(self.ID_RECENTFILES, "Open Recent", 
+        fileMenu.Append(self.ID_FILE_RECENT, "Open Recent", 
                             self.recentFilesMenu)
-#         self.app.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentFiles, id=self.ID_RECENTFILES)
-        self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentFiles, id=self.ID_RECENTFILES)
+#         self.app.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentFiles, id=self.ID_FILE_RECENT)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentFiles, id=self.ID_FILE_RECENT)
         self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentFile, id=wx.ID_FILE1, id2=wx.ID_FILE9)
         
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCtrl-.",
@@ -353,7 +354,7 @@ class Viewer(wx.Frame, MenuMixin):
                          self.cancelOperation, enabled=False)
         
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, self.ID_EXPORT, "&Export Data...\tCtrl+S",
+        self.addMenuItem(fileMenu, self.ID_FILE_EXPORT, "&Export Data...\tCtrl+S",
                          "Export data to another format.",
                          self.OnFileExportMenu)
         
@@ -512,20 +513,20 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnConversionPicked, kind=wx.ITEM_RADIO)
         
         dataMenu.AppendSeparator()
-        renderMenu = self.addSubMenu(dataMenu, self.ID_RENDER, "Render")
-        self.addMenuItem(renderMenu, self.ID_RENDER_PLOTS, 
+        renderMenu = self.addSubMenu(dataMenu, self.ID_DATA_RENDER, "Render")
+        self.addMenuItem(renderMenu, self.ID_DATA_RENDER_PLOTS, 
                          "Render &Plots...",
                          'Generate a printable plot in a new window.',
                          self.renderPlot)
-        self.addMenuItem(renderMenu, self.ID_RENDER_FFT, 
+        self.addMenuItem(renderMenu, self.ID_DATA_RENDER_FFT, 
                          "Render &FFT...\tCtrl+F",
                          "Generate an FFT plot in a new window.", 
                          self.renderPlot)
-        self.addMenuItem(renderMenu, self.ID_RENDER_PSD,
+        self.addMenuItem(renderMenu, self.ID_DATA_RENDER_PSD,
                          "Render &PSD...\tCtrl+P",
                          "Generate a PSD plot in a new window.",
                          self.renderPlot)
-        self.addMenuItem(renderMenu, self.ID_RENDER_SPEC, 
+        self.addMenuItem(renderMenu, self.ID_DATA_RENDER_SPEC, 
                          "Render &Spectrogram...\tCtrl+G",
                          "Generate a spectrogram (2D FFT) in a new window.", 
                          self.renderPlot)
@@ -554,7 +555,7 @@ class Viewer(wx.Frame, MenuMixin):
                              "Open Script &Editor\tCtrl+Shift+E", 
                              'Open the Python script editor.',
                              self.OnShowScriptEditor)
-            self.addMenuItem(scriptMenu, self.ID_DEBUG_CONSOLE, 
+            self.addMenuItem(scriptMenu, self.ID_SCRIPTING_CONSOLE, 
                              "Open Python &Console\tCtrl+Shift+C", 
                              "Open the Python interactive interpreter.", 
                              self.OnShowScriptConsole)
@@ -705,13 +706,13 @@ class Viewer(wx.Frame, MenuMixin):
         # These are the menus that are enabled even when there's no file open.
         # There are fewer of them than menus that are disabled.
         menus = [wx.ID_NEW, wx.ID_OPEN, wx.ID_CLOSE, wx.ID_EXIT, 
-                self.ID_RECENTFILES,
+                self.ID_FILE_RECENT,
                  self.ID_DEVICE_CONFIG, self.ID_DEVICE_UPDATE, wx.ID_ABOUT, 
                  wx.ID_PREFERENCES,
                  self.ID_HELP_CHECK_UPDATES, self.ID_HELP_FEEDBACK,
                  self.ID_HELP_RESOURCES,
                  self.ID_FILE_MULTI, self.ID_TOOLS,
-                 self.ID_SCRIPTING_EDIT,
+                 self.ID_SCRIPTING_EDIT, self.ID_SCRIPTING_CONSOLE,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS, 
                  self.ID_DEBUG_CONSOLE, self.ID_DEBUG0, self.ID_DEBUG1, 
                  self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
@@ -1572,7 +1573,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.resumeDrawing()
 
 
-    def renderPlot(self, evt=None, plotType=ID_RENDER_FFT, outFile=None,
+    def renderPlot(self, evt=None, plotType=ID_DATA_RENDER_FFT, outFile=None,
                    initSettings=None):
         """ Create a plot showing multiple subchannels, an FFT, a PSD, or
             a Spectrogram after getting input from the user (range,
@@ -1586,13 +1587,13 @@ class Viewer(wx.Frame, MenuMixin):
         # rather than a chain of 'if' statements.
         kwargs = {'root': self, 'initSettings': initSettings}
         evtId = plotType if evt is None else evt.GetId()
-        if evtId == self.ID_RENDER_PSD:
+        if evtId == self.ID_DATA_RENDER_PSD:
             viewClass = PSDView
             settings = xd.PSDExportDialog.getExport(**kwargs)
-        elif evtId == self.ID_RENDER_SPEC:
+        elif evtId == self.ID_DATA_RENDER_SPEC:
             viewClass = SpectrogramView
             settings = xd.SpectrogramExportDialog.getExport(**kwargs)
-        elif evtId == self.ID_RENDER_PLOTS:
+        elif evtId == self.ID_DATA_RENDER_PLOTS:
             viewClass = PlotView
             settings = xd.ExportDialog.getExport(title="Render Plot", 
                                                  byType=True, **kwargs)
