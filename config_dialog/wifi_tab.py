@@ -8,8 +8,11 @@ Created on Nov 13, 2019
 
 from collections import namedtuple
 import os.path
+import threading
+from time import time, sleep
 
 import wx
+from wx.lib.newevent import NewEvent
 import wx.lib.sized_controls as SC
 import wx.lib.mixins.listctrl as listmix
 
@@ -26,6 +29,85 @@ WifiInfo = namedtuple("WifiInfo",
 
 AUTH_TYPES = ("None", "WPA", "WPA2", "Whatever")
 DEFAULT_AUTH = 1
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+# Response to the WiFi list being read from the device. It might take a little
+# time, so it will be done asynchronously. Event attributes:
+# * data: List of `WiFiInfo` objects.
+# * timeout: `True` if the scan timed out. If timed out, there will be no data.
+# * error: Not `False` if an error occurred. No data if there was an error.
+EvtConfigWiFiScan, EVT_CONFIG_WIFI_SCAN = NewEvent()
+
+
+class WiFiScanThread(threading.Thread):
+    """ Thread for asynchronously retrieving a list of WiFi APs from the
+        wireless-enabled device. Posts an `EVT_CONFIG_WIFI_SCAN` event when
+        complete. Can be cancelled by calling `cancel.set()`. 
+    """
+    def __init__(self, parent, interval=.25, timeout=10):
+        """ Constructor.
+        
+            @param parent: The parent `WifiSelectionTab`
+            @keyword interval: Time (in seconds) between reads of the device's
+                RESPONSE file.
+            @keyword timeout: Time (in seconds) to wait for the device to
+                complete a WiFi scan.
+        """
+        super(WiFiScanThread, self).__init__(name=type(self).__name__)
+        self.daemon = True
+
+        self.parent = parent
+        self.interval = interval
+        self.timeout = timeout
+        self.cancel = threading.Event()
+        self.cancel.clear()
+
+
+    def run(self):
+        """
+        """
+        err = False
+        deadline = time() + self.timeout
+
+        # Theory of actual operation:
+        # * Before loop, write 'scan WiFi' command to COMMAND file and read
+        #   the response ID from the RESPONSE file.
+        # * In loop, open/read/close RESPONSE file.
+        # * If response ID has changed and data contains WiFiInfo element,
+        #   break from loop and post event.
+        # * Wait for `self.interval` time. Do this in a tight loop, checking
+        #   if `self.cancel()` is set, rather than just sleeping.
+                
+        # XXX: Send command to device to scan WiFi here.
+        
+        while time() < deadline:
+            if self.cancel.isSet():
+                return
+            
+            # XXX: FAKE DATA WITH FAKE DELAY. REPLACE WITH REAL STUFF.
+            sleep(2)
+            data = [WifiInfo("MIDE-Corp",  .99, True,  False,  False),
+                    WifiInfo("MIDE-Guest", .77, False, False,  False),
+                    WifiInfo("EarthAP",    .55, False, False,  False),
+                    WifiInfo("MoonAP",     .33, True,  False,  False),
+                    WifiInfo("ThisAP",     .11, False, False,  False),
+                    WifiInfo("ThatAP",     .08, True,  False,  False),                    
+                    WifiInfo("PlutoAP",    -1,  True,  True,   True)]
+            break
+        
+        timedOut = deadline < time()
+        evt = EvtConfigWiFiScan(data=data, timeout=timedOut, error=err)
+        
+        try:
+            wx.PostEvent(self.parent, evt)
+        except RuntimeError:
+            # Dialog probably closed.
+            pass
+
 
 #===============================================================================
 # 
@@ -151,31 +233,14 @@ class WifiSelectionTab(SC.SizedPanel, Group):#Tab):
         """ Constructor. Will probably be completely replaced once this is
             integrated with the rest of the tabs.
         """
-#         element = kwargs.pop('element', None)
-#         root = kwargs.pop('root', self)
-#         self.group = None
-        
         # Explicitly call __init__ of base classes to avoid ConfigWidget stuff
 #         ConfigBase.__init__(self, element, root)
         SC.SizedPanel.__init__(self, *args, **kwargs)
         self.initUI()
         
     
-    def getInfo(self):
-        """ Get Wi-Fi information from the device.
-        """
-        # XXX: HACK: Bogus data for testing
-        self.info = [WifiInfo("MIDE-Corp",  .99, True,  False,  False),
-                     WifiInfo("MIDE-Guest", .77, False, False,  False),
-                     WifiInfo("EarthAP",    .55, False, False,  False),
-                     WifiInfo("MoonAP",     .33, True,  False,  False),
-                     WifiInfo("ThisAP",     .11, False, False,  False),
-                     WifiInfo("ThatAP",     .08, True,  False,  False),
-                     WifiInfo("PlutoAP",    -1,  True,  True,   True)]
-        
-    
     def loadImages(self):
-        """
+        """ Load the Wi-Fi signal strength/security icons.
         """
         self.il = wx.ImageList(20,16,mask=True)
         
@@ -194,6 +259,8 @@ class WifiSelectionTab(SC.SizedPanel, Group):#Tab):
         """ Build the user interface, populating the Tab. 
             Separated from `__init__()` for the sake of subclassing.
         """
+        self.scanThread = None
+        
         sizer = wx.BoxSizer(wx.VERTICAL)
 
         self.loadImages()
@@ -226,12 +293,12 @@ class WifiSelectionTab(SC.SizedPanel, Group):#Tab):
         # Rescan button (and footnote text)
         scansizer = wx.BoxSizer(wx.HORIZONTAL)
         rescanLabel = wx.StaticText(self, -1, "* Currently configured AP")
-        addButton = wx.Button(self, -1, "Add...")
-        rescan = wx.Button(self, -1, "Rescan")
+        self.addButton = wx.Button(self, -1, "Add...")
+        self.rescan = wx.Button(self, -1, "Rescan")
         rescanLabel.Enable(False)
         scansizer.AddMany(((rescanLabel, 1, wx.EXPAND|wx.ALIGN_LEFT|wx.ALL, 8),
-                           (addButton, 0, wx.ALIGN_RIGHT|wx.EAST|wx.SHAPED, 8),
-                           (rescan, 0, wx.ALIGN_RIGHT|wx.EAST|wx.SHAPED, 8)))
+                           (self.addButton, 0, wx.ALIGN_RIGHT|wx.EAST|wx.SHAPED, 8),
+                           (self.rescan, 0, wx.ALIGN_RIGHT|wx.EAST|wx.SHAPED, 8)))
         sizer.Add(scansizer, 0, wx.EXPAND)
 
         # Password field components
@@ -260,8 +327,8 @@ class WifiSelectionTab(SC.SizedPanel, Group):#Tab):
         self.passwords = {}
         
         self.list.Bind(wx.EVT_MOTION, self.OnListMouseMotion)
-        rescan.Bind(wx.EVT_BUTTON, self.OnRescan)
-        addButton.Bind(wx.EVT_BUTTON, self.OnAddButton)
+        self.rescan.Bind(wx.EVT_BUTTON, self.OnRescan)
+        self.addButton.Bind(wx.EVT_BUTTON, self.OnAddButton)
         self.Bind(wx.EVT_LIST_ITEM_SELECTED, self.OnItemSelected, self.list)
         self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.OnItemDeselected, self.list)
         self.pwField.Bind(wx.EVT_SET_FOCUS, self.OnPasswordFocus)
@@ -275,8 +342,10 @@ class WifiSelectionTab(SC.SizedPanel, Group):#Tab):
             self.list.Bind(wx.EVT_COMMAND_RIGHT_CLICK, self.OnListRightClick)
             self.list.Bind(wx.EVT_RIGHT_UP, self.OnListRightClick) # GTK
 
+        self.Bind(EVT_CONFIG_WIFI_SCAN, self.OnWiFiScan)
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+        
         self.getInfo()
-        self.populate()
     
     
     def makeToolTip(self, ap):
@@ -319,8 +388,26 @@ class WifiSelectionTab(SC.SizedPanel, Group):#Tab):
             return AUTH_TYPES[ap.security]
 
 
+    def getInfo(self):
+        """ Get Wi-Fi information from the device. Starts the asynchronous
+            device-reading thread.
+        """
+        if self.scanThread and self.scanThread.isAlive():
+            return
+        
+        self.list.Enable(False)
+        self.addButton.Enable(False)
+        self.pwCheck.Enable(False)
+        self.pwField.Enable(False)
+        self.forgetCheck.Enable(False)
+        self.rescan.SetLabelText("Scanning...")
+        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
+        self.scanThread = WiFiScanThread(self)
+        self.scanThread.start()
+        
+    
     def populate(self):
-        """ Fill out the AP list.
+        """ Fill out the AP list. Called when the Wi-Fi scan thread finishes.
         """
         self.selected = -1
         self.lastSelected = -2
@@ -381,6 +468,28 @@ class WifiSelectionTab(SC.SizedPanel, Group):#Tab):
         """ Handle "Rescan" button press.
         """
         self.getInfo()
+
+
+    def OnWiFiScan(self, evt):
+        """ Handle the asynchronous WiFi scan finishing.
+        """
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+        self.info = evt.data
+        
+        if evt.timeout:
+            # Scan timed out; show warning.
+            # TODO: Alert user of scan timeout
+            pass
+        elif evt.error: 
+            # Scan encountered error; show warning.
+            # TODO: Show scan error message
+            pass
+        
+        self.list.Enable()
+        self.addButton.Enable()
+        self.pwCheck.Enable()
+        self.pwField.Enable()
+        self.rescan.SetLabelText("Rescan")
         self.populate()
 
 
@@ -521,6 +630,17 @@ class WifiSelectionTab(SC.SizedPanel, Group):#Tab):
         self.deleted.append(self.info[self.selected].ssid)
         self.populate()
         
+    
+    def OnClose(self, evt):
+        """
+        """
+        try:
+            self.scanThread.cancel.set()
+        except AttributeError:
+            pass
+        
+        evt.Skip()
+
 
     #===========================================================================
     # 
