@@ -56,7 +56,7 @@
             <UIntegerElement name="ScanVersion" id="0x4005" multiple="0" mandatory="1">Will default to 1 if not present</UIntegerElement>
             <MasterElement name="AP" id="0x4006" multiple="1" mandatory="1">Access point definition
                 <StringElement name="SSID" id="0x4007" multiple="0" mandatory="1">Network SSID</StringElement>
-                <UIntegerElement name="RSSI" id="0x4008" multiple="0" mandatory="1">Signal Strength</UIntegerElement>
+                <UIntegerElement name="RSSI" id="0x4008" multiple="0" mandatory="0">Signal Strength, absent field means SSID is in the list for another reason but was not seen in the scan</UIntegerElement>
                 <UIntegerElement name="AuthType" id="0x4009" multiple="0" mandatory="1">0 means open, 1 is any kind of secured</UintegerElement>
                 <UIntegerElement name="Known" id="0x400A" multiple="0" mandatory="1">0 is unknown, 1 means device has auth info for this network</UIntegerElement>
                 <UIntegerElement name="Selected" id="0x400B" multiple="0" mandatory="1">1 is selected, only one network should have this non-zero</UIntegerElement>
