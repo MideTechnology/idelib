@@ -239,6 +239,7 @@ class SlamStickX(Recorder):
     @property
     def name(self):
         """ The recording device's (user-assigned) name. """
+        # Note: this also gets and caches the recorder description.
         if self._name is not None:
             return self._name
         
@@ -250,11 +251,26 @@ class SlamStickX(Recorder):
             # Old config format
             userdata = self.getConfig().get('RecorderUserData', {})
             self._name = userdata.get('RecorderName', '')
+            self._notes = userdata.get('RecorderDesc', '')
         else:
             # New config format
             self._name = conf.get(0x8ff7f, '')
+            self._notes = conf.get(0x9ff7f, '')
             
         return self._name
+
+
+    @property
+    def notes(self):
+        """ The recording device's (user-assigned) description. """
+        if self._notes is not None:
+            return self._notes
+        
+        # The `name` property also reads and caches the description. Call it
+        # first.
+        _ = self.name
+        
+        return self._notes
 
 
     @property

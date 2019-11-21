@@ -751,15 +751,19 @@
     </MasterElement> <!-- Tab -->
 
     <!-- Special-case Tabs. These do no require child elements. -->
-    <MasterElement name="FactoryCalibrationTab" level="-1" id="0x4A08" multiple="1">
+    <MasterElement name="FactoryCalibrationTab" level="-1" id="0x4A08" multiple="0">
         <UIntegerElement name="IsAdvancedFeature" />
     </MasterElement>
     
-    <MasterElement name="UserCalibrationTab" level="-1" id="0x4A28" multiple="1">
+    <MasterElement name="UserCalibrationTab" level="-1" id="0x4A28" multiple="0">
         <UIntegerElement name="IsAdvancedFeature" />
     </MasterElement>
     
-    <MasterElement name="DeviceInfoTab" level="-1" id="0x4A48" multiple="1">
+    <MasterElement name="DeviceInfoTab" level="-1" id="0x4A48" multiple="0">
+        <UIntegerElement name="IsAdvancedFeature" />
+    </MasterElement>
+
+    <MasterElement name="WiFiSelectionTab" level="-1" id="0x4A88" multiple="0">
         <UIntegerElement name="IsAdvancedFeature" />
     </MasterElement>
 

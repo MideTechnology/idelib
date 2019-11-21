@@ -9,7 +9,8 @@ __date__ = "Nov 14, 2013"
 
 import os
 
-from devices.base import Recorder, ConfigError, ConfigVersionError, os_specific
+from devices.base import Recorder, os_specific
+from devices.base import ConfigError, ConfigVersionError, DeviceTimeout
 
 from .ssx import SlamStickX
 from .ssc import SlamStickC
