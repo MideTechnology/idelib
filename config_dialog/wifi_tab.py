@@ -18,6 +18,7 @@ import wx.lib.mixins.listctrl as listmix
 
 # from base import Tab
 from base import logger, registerTab, Group #,ConfigBase
+from devices.base import DeviceTimeout
 
 #===============================================================================
 # 
@@ -67,23 +68,37 @@ class WiFiScanThread(threading.Thread):
         self.cancel.clear()
 
 
-    def run(self):
+    def _run(self):
+        """ The main loop.
         """
+        err = False
+        timedOut = False
+        data = None
+
+        try:
+            data = self.parent.device.scanWifi(timeout=self.timeout,
+                                               interval=self.interval,
+                                               callback=self.cancel.isSet)
+        except DeviceTimeout:
+            timedOut = True
+        except Exception:
+            err = True
+        
+        evt = EvtConfigWiFiScan(data=data, timeout=timedOut, error=err)
+        
+        try:
+            wx.PostEvent(self.parent, evt)
+        except RuntimeError:
+            # Dialog probably closed during scan.
+            pass
+
+
+    def run(self):
+        """ Fake main loop. 
         """
         err = False
         deadline = time() + self.timeout
 
-        # Theory of actual operation:
-        # * Before loop, write 'scan WiFi' command to COMMAND file and read
-        #   the response ID from the RESPONSE file.
-        # * In loop, open/read/close RESPONSE file.
-        # * If response ID has changed and data contains WiFiInfo element,
-        #   break from loop and post event.
-        # * Wait for `self.interval` time. Do this in a tight loop, checking
-        #   if `self.cancel()` is set, rather than just sleeping.
-                
-        # XXX: Send command to device to scan WiFi here.
-        
         while time() < deadline:
             if self.cancel.isSet():
                 return
