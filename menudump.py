@@ -1,9 +1,15 @@
+"""
+Developer utility to dump out menus and their help text. Meant to be imported
+in the Scripting Console.
+"""
+
 import csv
 
 def dumpMenuItem(path, mi, results=None):
     results = [] if results is None else results
     p = mi.GetItemLabelText()
     if not p:
+        # Probably a separator
         return results
     if path:
         p = "%s -> %s" % (path, p)
@@ -17,11 +23,10 @@ def dumpMenuItem(path, mi, results=None):
 
     return results
 
-def getMenus(viewer, filename="menus.csv"):
+def getMenus(menubar, filename="menus.csv"):
     results = []
-    mb = viewer.GetMenuBar()
-    for i in range(mb.GetMenuCount()):
-        menu = mb.GetMenu(i)
+    for i in range(menubar.GetMenuCount()):
+        menu = menubar.GetMenu(i)
         title = menu.GetTitle().replace('&','')
         results.append([title,'', ''])
         for mi in menu.GetMenuItems():
