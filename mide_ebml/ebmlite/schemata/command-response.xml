@@ -46,20 +46,21 @@
             <UIntegerElement name="RebootAfter" id="0x4001" mandatory="0" multiple="0">non-zero to reboot after applying, default to 1 if not present</UIntegerElement>
         </MasterElement>
         <MasterElement name="ESPFW" id="0x83" mandatory="0" multiple="0">Apply a file as ESP32 firmware
-            <StringElement name="PackagePath" id="0x4002" multiple="0" mandatory="1">Path to ESP32 package</StringElement>
+            <StringElement name="PackagePath" id="0x4000" multiple="0" mandatory="1">Path to ESP32 package</StringElement>
         </MasterElement>
     </MasterElement>
 
     <MasterElement name="EBMLResponse" id="0x84" multiple="0" mandatory="0">Response payload to above EBML command payload. Not all commands generate a response
         <UIntegerElement name="ResponseIdx" id="0x4003" multiple="0" mandatory="1">Incrementing index, will bump by one for each command repsonse that is registered, starting at 0 after device reset</UIntegerElement>
-        <MasterElement name="WiFiScanResult" id="0x4004" multiple="0" mandatory="0">
-            <UIntegerElement name="ScanVersion" id="0x4005" multiple="0" mandatory="1">Will default to 1 if not present</UIntegerElement>
-            <MasterElement name="AP" id="0x4006" multiple="1" mandatory="1">Access point definition
-                <StringElement name="SSID" id="0x4007" multiple="0" mandatory="1">Network SSID</StringElement>
-                <UIntegerElement name="RSSI" id="0x4008" multiple="0" mandatory="0">Signal Strength, absent field means SSID is in the list for another reason but was not seen in the scan</UIntegerElement>
-                <UIntegerElement name="AuthType" id="0x4009" multiple="0" mandatory="1">0 means open, 1 is any kind of secured</UintegerElement>
-                <UIntegerElement name="Known" id="0x400A" multiple="0" mandatory="1">0 is unknown, 1 means device has auth info for this network</UIntegerElement>
-                <UIntegerElement name="Selected" id="0x400B" multiple="0" mandatory="1">1 is selected, only one network should have this non-zero</UIntegerElement>
+        <UIntegerElement name="CMDQueueDepth" id="0x4004" multiple="0" mandatory="1">Available space in command queue on device, a value of 0 means any new commands issued will be dropped</UIntegerElement>
+        <MasterElement name="WiFiScanResult" id="0x4005" multiple="0" mandatory="0">
+            <UIntegerElement name="ScanVersion" id="0x4006" multiple="0" mandatory="1">Will default to 1 if not present</UIntegerElement>
+            <MasterElement name="AP" id="0x4007" multiple="1" mandatory="1">Access point definition
+                <StringElement name="SSID" id="0x4008" multiple="0" mandatory="1">Network SSID</StringElement>
+                <UIntegerElement name="RSSI" id="0x4009" multiple="0" mandatory="0">Signal Strength, absent field means SSID is in the list for another reason but was not seen in the scan</UIntegerElement>
+                <UIntegerElement name="AuthType" id="0x400A" multiple="0" mandatory="1">0 means open, 1 is any kind of secured</UIntegerElement>
+                <UIntegerElement name="Known" id="0x400B" multiple="0" mandatory="1">0 is unknown, 1 means device has auth info for this network</UIntegerElement>
+                <UIntegerElement name="Selected" id="0x400C" multiple="0" mandatory="1">1 is selected, only one network should have this non-zero</UIntegerElement>
             </MasterElement>
         </MasterElement>
     </MasterElement>
