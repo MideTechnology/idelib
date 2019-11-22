@@ -1432,7 +1432,7 @@ class RecorderConfigurationParser(ElementHandler):
     elementName = "RecorderConfiguration"
     isHeader = True
     isSubElement = False
-    children = (RecorderConfigurationListParser, )
+    children = (RecorderConfigurationListParser, RecorderUserDataParser)
     
 #     def parse(self, element, **kwargs):
 #         print("parsing %r" % element.value)
