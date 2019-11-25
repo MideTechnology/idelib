@@ -49,8 +49,8 @@
             <StringElement name="PackagePath" id="0x4000" multiple="0" mandatory="1">Path to ESP32 package</StringElement>
         </MasterElement>
         <MasterElement name="SetWiFi" id="0x84">
-            <MasterElement name="AP" id="0x400D" multiple="1" mandatory="1" />
-                <StringElement name="SSID" id="0x400E" multiple="0" mandatory="1" />
+            <MasterElement name="AP" id="0x400D" multiple="1" mandatory="1">
+                <StringElement name="SSID" id="0x4008" multiple="0" mandatory="1" />
                 <StringElement name="Password" id="0x400F" multiple="0" mandatory="0" />
                 <UIntegerElement name="Selected" id="0x4010" multiple="0" mandatory="0" />
             </MasterElement>
