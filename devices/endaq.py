@@ -21,7 +21,7 @@ from devices.ssx import SlamStickX
 #===============================================================================
 
 class EndaqS(SlamStickX):
-    """ An enDAQ S-series recorder from Mide Technology Corporation. 
+    """ An enDAQ S-series data recorder from Mide Technology Corporation. 
     """
     FW_UPDATE_FILE = os.path.join(SlamStickX.SYSTEM_PATH, 'update.pkg')
     RESPONSE_FILE = os.path.join(SlamStickX.SYSTEM_PATH, 'RESPONSE')
@@ -78,7 +78,7 @@ class EndaqS(SlamStickX):
         
     
     def sendCommand(self, cmd, response=True, timeout=10, interval=.25, 
-                    callback=None):
+                    wait=True, callback=None):
         """ Send a raw command to the device and (optionally) retrieve the
             response.
             
@@ -88,19 +88,38 @@ class EndaqS(SlamStickX):
                 raising a `DeviceTimeout` exception.
             @keyword interval: Time (in seconds) between checks for a
                 response.
+            @keyword wait: If `True`, wait until the device has no additional
+                commands queued before sending the new command.
             @keyword callback: A function to call each response-checking
                 cycle. If the callback returns `True`, the wait for a response
                 will be cancelled. The callback function should take no
                 arguments.
+            
+            @raise DeviceTimeout
         """
         now = time()
         deadline = now + timeout
         idx = None
+        queueDepth = None
         
-        if response:
+        # Wait until the command queue is empty
+        while True:
+            now = time()
             data = self._readResponseFile()
             if data is not None:
                 idx = data[0].value
+                if not wait or data[1].name != "CMDQueueDepth":
+                    break
+                else:
+                    queueDepth = data[1].value
+                    if queueDepth > 0:
+                        break
+            if now > deadline:
+                raise DeviceTimeout("Timed out waiting for device to complete "
+                                    "queued commands (%s remaining)" % 
+                                    queueDepth)
+            else:
+                sleep(interval)
 
         # Write to command file
         with open(self.commandFile, 'wb') as f:
@@ -120,7 +139,8 @@ class EndaqS(SlamStickX):
             if data and data[0].value != idx:
                 return data
 
-        raise DeviceTimeout("Timed out waiting for command response")
+        raise DeviceTimeout("Timed out waiting for command response "
+                            "(%s seconds)" % timeout)
 
 
 #===============================================================================
@@ -128,7 +148,7 @@ class EndaqS(SlamStickX):
 #===============================================================================
 
 class EndaqW(EndaqS):
-    """ An enDAQ W-series wireless-enabled recorder from Mide Technology
+    """ An enDAQ W-series wireless-enabled data recorder from Mide Technology
         Corporation. 
     """
     
@@ -144,26 +164,40 @@ class EndaqW(EndaqS):
         return bool(re.match(r'^W(\d|\d\d)-*', name))
 
 
-    def scanWifi(self, timeout=10, interval=.25, callback=None):
-        """
+    def scanWifi(self, timeout=10, interval=.25, wait=True, callback=None):
+        """ Initiate a scan for Wi-Fi access points.
+        
+            @keyword timeout: Time (in seconds) to wait for a response before
+                raising a `DeviceTimeout` exception.
+            @keyword interval: Time (in seconds) between checks for a
+                response.
+            @keyword wait: If `True`, wait until the device has no additional
+                commands queued before sending the new command.
+            @keyword callback: A function to call each response-checking
+                cycle. If the callback returns `True`, the wait for a response
+                will be cancelled. The callback function should take no
+                arguments.
+                
+            @raise DeviceTimeout: 
         """
         cmd = self.commandSchema.encodes({'EBMLCommand': {'WiFiScan': None}})
-        try:
-            response = self.sendCommand(cmd, True, timeout, interval, callback)
-            if response is None:
-                return None
-            data = response.dump()
-            if 'WiFiScanResult' not in data:
-                # TODO: Raise exception?
-                return None
+        
+        response = self.sendCommand(cmd, True, timeout, interval, wait,
+                                    callback)
+        if response is None:
+            return None
+        data = response.dump()
+        if 'WiFiScanResult' not in data:
+            # TODO: Raise exception?
+            return None
 
-            aps = []
-            for ap in data['WiFiScanResult'].get('AP', []):
-                defaults = {'SSID': '', 'RSSI': -1, 'AuthType': 0, 'Known': 0,
-                            'Selected': 0}
-                defaults.update(ap)
-                aps.append(defaults)
-                    
-        except DeviceTimeout:
-            raise DeviceTimeout("WiFi scan timed out")
+        aps = []
+        for ap in data['WiFiScanResult'].get('AP', []):
+            defaults = {'SSID': '', 'RSSI': -1, 'AuthType': 0, 'Known': 0,
+                        'Selected': 0}
+            defaults.update(ap)
+            aps.append(defaults)
+        
+        return aps
+        
             

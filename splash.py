@@ -165,3 +165,9 @@ class SplashPage(wx.Panel):
     def setTimeRange(self, *args, **kwargs):
         # For compatibility with `Plot`, the usual contents.
         return
+
+
+    def loadPrefs(self, *args, **kwargs):
+        # For compatibility with `Plot`, the usual contents.
+        return
+    

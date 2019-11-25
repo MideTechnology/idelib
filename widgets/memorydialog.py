@@ -1,5 +1,9 @@
+"""
+"""
+from __future__ import absolute_import, print_function
+
 import wx.lib.agw.genericmessagedialog as GMD
-import wx; wx = wx
+import wx
 
 class MemoryDialog(GMD.GenericMessageDialog):
     """ A variant of the `GenericMessageDialog` that optionally includes a
@@ -15,15 +19,21 @@ class MemoryDialog(GMD.GenericMessageDialog):
             @keyword rememberMsg: A custom label for the checkbox.
             @keyword rememberDefault: The default value of the checkbox.
         """
-        style = args[3]
+        if len(args) > 3:
+            style = args[3]
+        else:
+            style = kwargs.get('style', 0)
         if style & (wx.YES_NO):
             defaultMsg = "Don't Ask Again"
         else:
             defaultMsg = "Don't show this message again"
         self.remember = kwargs.pop('remember', False)
-        self.rememberMsg = kwargs.pop('rememberMsg', defaultMsg)
+        self.rememberMsg = kwargs.pop('rememberMsg', None) or defaultMsg
         self.rememberDefault = kwargs.pop('rememberDefault', False)
         super(MemoryDialog, self).__init__(*args, **kwargs)
+        
+        if 'size' in kwargs:
+            self.SetMinSize(kwargs.get('size'))
 
 
     def SetRememberCheck(self, message=None, default=False):
@@ -39,12 +49,14 @@ class MemoryDialog(GMD.GenericMessageDialog):
 
     def CreateSeparatedButtonSizer(self, flags):
         """
-        Creates a sizer with standard buttons using :meth:`~GenericMessageDialog.CreateButtonSizer` separated
-        from the rest of the dialog contents by a horizontal :class:`StaticLine`.
+        Creates a sizer with standard buttons using 
+        :meth:`~GenericMessageDialog.CreateButtonSizer` separated from the rest
+        of the dialog contents by a horizontal :class:`StaticLine`.
 
         :param `flags`: the button sizer flags.
 
-        :see: :meth:`~GenericMessageDialog.CreateButtonSizer` for a list of valid flags.
+        :see: :meth:`~GenericMessageDialog.CreateButtonSizer` for a list of
+            valid flags.
         """
         sizer = self.CreateButtonSizer(flags)
         topsizer = wx.BoxSizer(wx.VERTICAL)
@@ -53,7 +65,8 @@ class MemoryDialog(GMD.GenericMessageDialog):
             margin = self.Children[0].GetSize()
             checkSizer = wx.BoxSizer(wx.HORIZONTAL)
             checkSizer.Add((margin[0]+10, margin[1]), 0, wx.EXPAND, 10)
-            self.rememberCheck = wx.CheckBox(self, -1, self.rememberMsg, pos=(100,-1))
+            self.rememberCheck = wx.CheckBox(self, -1, self.rememberMsg, 
+                                             pos=(100,-1))
             checkSizer.Add(self.rememberCheck, wx.SizerFlags().Expand())
             topsizer.Add(checkSizer, wx.SizerFlags().Expand())
             self.rememberCheck.SetValue(self.rememberDefault)
@@ -61,7 +74,8 @@ class MemoryDialog(GMD.GenericMessageDialog):
         # Mac Human Interface Guidelines recommend not to use static lines as
         # grouping elements
         if wx.Platform != "__WXMAC__":
-            topsizer.Add(wx.StaticLine(self), wx.SizerFlags().Expand().DoubleBorder(wx.BOTTOM))
+            topsizer.Add(wx.StaticLine(self), 
+                         wx.SizerFlags().Expand().DoubleBorder(wx.BOTTOM))
             
         topsizer.Add(sizer, wx.SizerFlags().Expand())
             
@@ -80,10 +94,15 @@ class MemoryDialog(GMD.GenericMessageDialog):
 # XXX: FOR DEVELOPMENT TESTING. REMOVE ME!
 if __name__ == '__main__':# or True:
     app = wx.App()
-    dlg = MemoryDialog(None, "Are you sure you want to overwrite the existing file?", "Testing", wx.YES|wx.CANCEL|wx.HELP|wx.ICON_QUESTION, remember=True)
+    dlg = MemoryDialog(None,
+                       "Are you sure you want to overwrite\n"
+                       "the existing file?",
+                       "Testing", wx.YES|wx.CANCEL|wx.HELP|wx.ICON_QUESTION,
+                       size=(800,-1), remember=True)
     dlg.SetExtendedMessage("This is the extended message.")
     v = dlg.ShowModal()
+    print("size: {}".format(dlg.GetSize()))
     r = dlg.getRememberCheck()
-    print "Dialog returned: %r" % v
-    print "Remember check: %r" % r
+    print("Dialog returned: %r" % v)
+    print("Remember check: %r" % r)
 #     app.MainLoop()

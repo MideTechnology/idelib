@@ -326,7 +326,8 @@ class Viewer(wx.Frame, MenuMixin):
         # "File" menu
         #=======================================================================
         fileMenu = self.addMenu(self.menubar,  '&File')
-        self.addMenuItem(fileMenu, wx.ID_NEW, "&New Viewer Window\tCtrl+N",
+        self.addMenuItem(fileMenu, wx.ID_NEW, 
+                         "&New Viewer Window\tCtrl+N",
                          "Create a new viewer, empty viewer window.",
                          self.OnFileNewMenu)
         self.addMenuItem(fileMenu, wx.ID_CLOSE, 
@@ -334,10 +335,12 @@ class Viewer(wx.Frame, MenuMixin):
                          "Close the current document.", self.OnClose)
         
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_OPEN, "&Open...\tCtrl+O",
+        self.addMenuItem(fileMenu, wx.ID_OPEN, 
+                         "&Open...\tCtrl+O",
                          "Load and display a recording file.", 
                          self.OnFileOpenMenu)
-#         self.addMenuItem(fileMenu, self.ID_FILE_MULTI, "Open Multiple...", "",
+#         self.addMenuItem(fileMenu, self.ID_FILE_MULTI,
+#                          "Open Multiple...", "",
 #                          self.OnFileOpenMulti)
 
         # "Recent Files" submenu. This does not use `wx.FileHistory`. Consider
@@ -345,7 +348,6 @@ class Viewer(wx.Frame, MenuMixin):
         self.recentFilesMenu = wx.Menu()
         fileMenu.Append(self.ID_FILE_RECENT, "Open Recent", 
                             self.recentFilesMenu)
-#         self.app.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentFiles, id=self.ID_FILE_RECENT)
         self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentFiles, id=self.ID_FILE_RECENT)
         self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentFile, id=wx.ID_FILE1, id2=wx.ID_FILE9)
         
@@ -354,7 +356,8 @@ class Viewer(wx.Frame, MenuMixin):
                          self.cancelOperation, enabled=False)
         
         fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, self.ID_FILE_EXPORT, "&Export Data...\tCtrl+S",
+        self.addMenuItem(fileMenu, self.ID_FILE_EXPORT,
+                         "&Export Data...\tCtrl+S",
                          "Export data to another format.",
                          self.OnFileExportMenu)
         
@@ -363,14 +366,15 @@ class Viewer(wx.Frame, MenuMixin):
                          "Recording Properties...\tCtrl+I",
                          "Display information about this recording file.", 
                          self.OnFileProperties)
-        fileMenu.AppendSeparator()
-        
+
+#         fileMenu.AppendSeparator()
 #         self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...", "", enabled=False)
 #         self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
 #                          enabled=False)
-#         fileMenu.AppendSeparator()
 
-        self.addMenuItem(fileMenu, wx.ID_EXIT, 'E&xit\tCtrl+Q',
+        fileMenu.AppendSeparator()
+        self.addMenuItem(fileMenu, wx.ID_EXIT, 
+                         'E&xit\tCtrl+Q',
                          'Close all files and quit %s.' % APPNAME, 
                 self.OnFileExitMenu)
         wx.App.SetMacExitMenuItemId(wx.ID_EXIT)
@@ -605,20 +609,15 @@ class Viewer(wx.Frame, MenuMixin):
                          "Check online for a newer version of %s" % APPNAME,
                          self.OnHelpCheckUpdates)
         
-        if RESOURCES_URL or FEEDBACK_URL:
-            helpMenu.AppendSeparator()
-            
-        if RESOURCES_URL:
-            self.addMenuItem(helpMenu, self.ID_HELP_RESOURCES,
-                             "enDAQ Recorder Resources",
-                             "Documentation, downloads and other resources.",
-                             self.OnHelpResources)
-        
-        if FEEDBACK_URL:
-            self.addMenuItem(helpMenu, self.ID_HELP_FEEDBACK,
-                             "Send Feedback",
-                             "Submit questions, comments, and suggestions for %s" % APPNAME,
-                             self.OnHelpFeedback)
+        helpMenu.AppendSeparator()
+        self.addMenuItem(helpMenu, self.ID_HELP_RESOURCES,
+                         "enDAQ Recorder Resources",
+                         "Documentation, downloads and other resources.",
+                         self.OnHelpResources)
+        self.addMenuItem(helpMenu, self.ID_HELP_FEEDBACK,
+                         "Send Feedback",
+                         "Submit questions, comments, and suggestions for %s" % APPNAME,
+                         self.OnHelpFeedback)
             
         if DEBUG:
             helpMenu.AppendSeparator()
@@ -626,7 +625,7 @@ class Viewer(wx.Frame, MenuMixin):
                                         "Debugging")
             self.addMenuItem(debugMenu, self.ID_DEBUG_SAVEPREFS, 
                              "Save All Preferences", "",
-                             lambda(evt): self.app.saveAllPrefs())
+                             lambda(_evt): self.app.saveAllPrefs())
             self.addMenuItem(debugMenu, self.ID_DEBUG0, 
                              "Open Multiple...",
                              "EXPERIMENTAL: Merge multiple recordings", 
@@ -869,7 +868,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Generate a message box to notify or prompt the user, allowing for
             a simple means of turning off such warnings and prompts. If a
             preference name is supplied and that preference exists, the user
-            will not be prompted and the remembered value will be returned.If 
+            will not be prompted and the remembered value will be returned. If 
             the preference doesn't exist, the dialog will contain a 'remember' 
             checkbox that, if checked, will save the user's response as the 
             preference. "Cancel" (if the dialog has the button) will never be 
@@ -902,7 +901,8 @@ class Viewer(wx.Frame, MenuMixin):
             else:
                 extendedMessage = ext
         
-        dlg = MemoryDialog(parent, message, title, style, remember=remember)
+        dlg = MemoryDialog(parent, message, title, style, remember=remember,
+                           rememberMsg=rememberMsg)
         if extendedMessage:
             if textwrap:
                 extendedMessage = wordwrap(extendedMessage, textwrap, 
@@ -919,7 +919,8 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def getSaveFile(self, message, defaults=None, types=None, 
-                    style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT, deviceWarning=True):
+                    style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT, 
+                    deviceWarning=True):
         """ Wrapper for getting the name of an output file.
         
             @param message: The message to be shown in the file dialog.
@@ -1216,8 +1217,8 @@ class Viewer(wx.Frame, MenuMixin):
         """ Returns `True` if the app is in a state to immediately quit.
         """
         # TODO: Prompt to veto quitting only if an export is underway.
-        q = self.ask("Really quit?", "Quit", wx.OK|wx.CANCEL,
-                     pref="promptBeforeQuit")
+        q = self.ask("Really quit?\n\nAll currently open recordings will be closed.",
+                     "Quit %s" % APPNAME, wx.OK|wx.CANCEL, pref="promptBeforeQuit")
         return q == wx.ID_OK
 
 
