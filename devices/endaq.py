@@ -165,7 +165,7 @@ class EndaqW(EndaqS):
 
 
     def scanWifi(self, timeout=10, interval=.25, wait=True, callback=None):
-        """ Initiate a scan for Wi-Fi access points.
+        """ Initiate a scan for Wi-Fi access points (APs).
         
             @keyword timeout: Time (in seconds) to wait for a response before
                 raising a `DeviceTimeout` exception.
@@ -177,6 +177,16 @@ class EndaqW(EndaqS):
                 cycle. If the callback returns `True`, the wait for a response
                 will be cancelled. The callback function should take no
                 arguments.
+            @return: A list of dictionaries, one for each access point, with
+                keys:
+                * ``SSID`` (string): The access point name.
+                * ``RSSI`` (integer): The AP's signal strength.
+                * ``AuthType`` (integer): The authentication (security) type.
+                    Currently, this is either 0 (no authentication) or 1 (any
+                    authentication).
+                * ``Known`` (Boolean): Is this access point known (i.e. has a
+                    stored password on the device)?
+                * ``Selected`` (Boolean): Is this the currently selected AP?
                 
             @raise DeviceTimeout: 
         """
@@ -196,8 +206,12 @@ class EndaqW(EndaqS):
             defaults = {'SSID': '', 'RSSI': -1, 'AuthType': 0, 'Known': 0,
                         'Selected': 0}
             defaults.update(ap)
+            defaults['Known'] = bool(defaults['Known'])
+            defaults['Selected'] = bool(defaults['Selected'])
             aps.append(defaults)
         
         return aps
-        
+    
+    
+    
             
