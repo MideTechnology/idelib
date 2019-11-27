@@ -70,5 +70,12 @@
                 <UIntegerElement name="Known" id="0x5207" multiple="0" mandatory="1">0 is unknown, 1 means device has auth info for this network</UIntegerElement>
             </MasterElement>
         </MasterElement>
+        <MasterElement name="WifiQeuryResponse" id="0x5300" multiple="0" mandatory="1">Response to WifiQeury above, represents the current state of wifi config and connection. To parse this, read read SSID, if SSID is zero length then nothing is configured, break. Read WifiConnectionStatus, if CONNECTED then read RSSI to report that information to the user. Else if NONE, check presence and value of both WifiError flags and report that to the user. It is a valid scenario where both flags are set, the most recent attempt was out of range but the password was also wrong on a previous attempt. It is left up to Lab to decide whether to display both or if a password failure will supercede NotFound. Else if PENDING then read nothing else in this data structure besides SSID as they are not guaranteed to be valid. 
+        	<UnicodeElement name="SSID" id="5204" multiple="0" mandatory="1">Configured SSID, will be a null string (zero length) if no network is configured</UnicodeElement>
+			<UIntegerElement name="WifiConnectionStatus" id="5301" multiple-="0" mandatory="1">Integer enum. ==0 means IDLE, no connection is in process, error fields are valid. ==1 means PENDING, connection is in process, ==2 means CONNECTED, error fields will all be 0, RSSI tag is present in this data structure and represents the strength of the connected net</UIntegerElement>
+        	<UIntegerElement name="WifiErrorNotFound" id="5302" multiple="0" mandatory="1">Sticky Boolean flag, ==1 means that a connection attempt failed due to the network being out of range. Cleared when a new connection attempt is made</UIntegerElement>
+			<UIntegerElement name="WifiErrorBadAuth" id="5303" multiple="0" mandatory="1">Sticky Boolean flag, ==1 means that a connection attempt failed due to bad authentication information, else if ==0 password was good or network connection attempt was out of range Cleared when "SetWifi" is called</UIntegerElement>
+			<UIntegerElement name="RSSI" id="0x5205" multiple="0" mandatory="0">Signal Strength, 0-100, where 100 is perfect. Only present if CONNECTED</UIntegerElement>
+		</MasterElement>
     </MasterElement>
 </Schema>
