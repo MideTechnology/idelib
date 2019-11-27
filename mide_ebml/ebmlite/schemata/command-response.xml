@@ -59,7 +59,7 @@
     </MasterElement>
 
     <MasterElement name="EBMLResponse" id="0x84" multiple="0" mandatory="0">Response payload to above EBML command payload. Not all commands generate a response
-        <UIntegerElement name="ResponseIdx" id="0x5000" multiple="0" mandatory="1">Incrementing index, will bump by one for each command repsonse that is registered, starting at 0 after device reset</UIntegerElement>
+        <UIntegerElement name="ResponseIdx" id="0x5000" multiple="0" mandatory="1">Incrementing index, will bump by one for each update to this data structure, starting at 0 after device reset</UIntegerElement>
         <UIntegerElement name="CMDQueueDepth" id="0x5100" multiple="0" mandatory="1">Available space in command queue on device, a value of 0 means any new commands issued will be dropped</UIntegerElement>
         <MasterElement name="WiFiScanResult" id="0x5200" multiple="0" mandatory="0">
             <UIntegerElement name="ScanVersion" id="0x5201" multiple="0" mandatory="1">Will default to 1 if not present</UIntegerElement>
