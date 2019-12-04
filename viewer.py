@@ -407,7 +407,8 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnLegendToggle, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_HOLLOW, 
                          "'Hollow' Envelope Drawing",
-                         "Hollow mode: When zoomed out, plot only the minimum and maximum values.",
+                         "Hollow mode: When zoomed out, plot only the minimum "
+                         "and maximum values.",
                          self.OnHollowToggle, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
 
@@ -450,30 +451,34 @@ class Viewer(wx.Frame, MenuMixin):
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_MINMAX,
                          "Show Buffer Minimum/Maximum",
-                         "",
+                         "Draw the envelop around the raw data to simplify" \
+                         " the view for large data sets",
                          self.OnToggleMinMax, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_MEAN,
                          "Show Buffer Mean",
-                         "",
+                         "Draw the mean of the raw data across every block of"
+                         " data points",
                          self.OnToggleViewMean, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MAJOR,
-                         "Show Major Horizontal Gridlines\tCtrl+'",
-                         "Toggle the display of horizontal gridlines.",
+                         "Show Major Horizontal Grid Lines\tCtrl+'",
+                         "Toggle the display of horizontal grid lines.",
                          self.OnToggleLinesMajor, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MINOR,
-                         "Show Minor Horizontal Gridlines\tCtrl+Shift+'",
+                         "Show Minor Horizontal Grid Lines\tCtrl+Shift+'",
                          "Toggle the display of minor horizontal grid lines.",
                          self.OnToggleLinesMinor, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME, 
                          "Show Absolute UTC Time", 
-                         "Display the UTC time corresponding to the mouse's X position.",
+                         "Display the UTC time corresponding to the mouse's" \
+                         " X position.",
                          self.OnToggleUtcTime, kind=wx.ITEM_CHECK,
                          checked=self.showUtcTime)
         self.addMenuItem(viewMenu, self.ID_VIEW_LOCALTIME, 
                          "Show Absolute Local Time", 
-                         "Display the local time corresponding to the mouse's X position.",
+                         "Display the local time corresponding to the mouse's" \
+                         " X position.",
                          self.OnToggleLocalTime, kind=wx.ITEM_CHECK,
                          checked=self.showLocalTime)
 
@@ -538,11 +543,14 @@ class Viewer(wx.Frame, MenuMixin):
         
         self.addMenuItem(dataMenu, self.ID_DATA_EDIT_CAL, 
                          "&Edit Calibration Polynomials...",
-                         "", 
+                         "Edit the functions that convert raw data into"
+                         " engineering units and calibrated", 
                          self.OnEditCalibration)
         
         self.addMenuItem(dataMenu, self.ID_DATA_DISABLE_BIVARIATES,
-                         "&Disable Bivariate References", "",
+                         "&Disable Bivariate References",
+                         "Improve plotting speed at the expense of disabling"
+                         " temperature dependent calibration",
                          self.OnDisableBivariates, kind=wx.ITEM_CHECK)
         
         dataMenu.AppendSeparator()
@@ -616,7 +624,8 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnHelpResources)
         self.addMenuItem(helpMenu, self.ID_HELP_FEEDBACK,
                          "Send Feedback",
-                         "Submit questions, comments, and suggestions for %s" % APPNAME,
+                         "Submit questions, comments, and suggestions for %s" \
+                         % APPNAME,
                          self.OnHelpFeedback)
             
         if DEBUG:
