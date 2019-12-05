@@ -108,9 +108,9 @@ if DEBUG:
             pass
 
 # The feedback form URL. Will show up as an item in the Help menu if provided.
-FEEDBACK_URL = "https://www.surveymonkey.com/s/slam-stick-x"
+FEEDBACK_URL = "https://endaq.com/pages/contact"
 
-RESOURCES_URL = "http://info.mide.com/data-loggers/slam-stick-data-logger-resources?utm_source=Slam-Stick-X-Data-Logger&utm_medium=Device&utm_content=Link-to-Slam-Stick-Resources-web-page-from-Device&utm_campaign=Slam-Stick-X"
+RESOURCES_URL = "https://support.endaq.com/?utm_source=Slam-Stick-X-Data-Logger&utm_medium=Device&utm_content=Link-to-Slam-Stick-Resources-web-page-from-Device&utm_campaign=Slam-Stick-X"
 
 
 #===============================================================================
@@ -328,16 +328,16 @@ class Viewer(wx.Frame, MenuMixin):
         fileMenu = self.addMenu(self.menubar,  '&File')
         self.addMenuItem(fileMenu, wx.ID_NEW,
                          "&New Viewer Window\tCtrl+N",
-                         "Create a new viewer, empty viewer window.",
+                         "Create a new viewer, empty viewer window",
                          self.OnFileNewMenu)
         self.addMenuItem(fileMenu, wx.ID_CLOSE,
                          "Close Viewer Window\tCtrl+W",
-                         "Close the current document.", self.OnClose)
+                         "Close the current document", self.OnClose)
 
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_OPEN,
                          "&Open...\tCtrl+O",
-                         "Load and display a recording file.",
+                         "Load and display a recording file",
                          self.OnFileOpenMenu)
 #         self.addMenuItem(fileMenu, self.ID_FILE_MULTI,
 #                          "Open Multiple...", "",
@@ -352,19 +352,19 @@ class Viewer(wx.Frame, MenuMixin):
         self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentFile, id=wx.ID_FILE1, id2=wx.ID_FILE9)
 
         self.addMenuItem(fileMenu, wx.ID_CANCEL, "Stop Importing\tCtrl-.",
-                         "Cancel the current import.",
+                         "Cancel the current import",
                          self.cancelOperation, enabled=False)
 
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_FILE_EXPORT,
                          "&Export Data...\tCtrl+S",
-                         "Export data to another format.",
+                         "Export data to another format",
                          self.OnFileExportMenu)
 
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, self.ID_FILE_PROPERTIES,
                          "Recording Properties...\tCtrl+I",
-                         "Display information about this recording file.",
+                         "Display information about this recording file",
                          self.OnFileProperties)
 
 #         fileMenu.AppendSeparator()
@@ -403,27 +403,27 @@ class Viewer(wx.Frame, MenuMixin):
                                               "Display Channels")
         self.addMenuItem(viewMenu, self.ID_VIEW_LEGEND,
                          "Show Legend\tCtrl+L",
-                         "Display the overlay listing plot names and colors.",
+                         "Display the overlay listing plot names and colors",
                          self.OnLegendToggle, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_HOLLOW,
                          "'Hollow' Envelope Drawing",
                          "Hollow mode: When zoomed out, plot only the minimum "
-                         "and maximum values.",
+                         "and maximum values",
                          self.OnHollowToggle, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
 
         self.addMenuItem(viewMenu, self.ID_EDIT_RANGES,
                          "Edit Visible Ranges...\tCtrl+E",
-                         "Change the displayed ranges numerically.",
+                         "Change the displayed ranges numerically",
                          self.OnEditRanges)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_OUT, "Zoom Out X\tCtrl+-",
-                         "Zoom out on the horizontal axis.",
+                         "Zoom out on the horizontal axis",
                          self.OnZoomOutX)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_IN, "Zoom In X\tCtrl+=",
                          "Zoom in on the horizontal axis",
                          self.OnZoomInX)
         self.addMenuItem(viewMenu, wx.ID_ZOOM_FIT, "Zoom to Fit X\tCtrl+0",
-                         "Zoom horizontally to fit the entire data set.",
+                         "Zoom horizontally to fit the entire data set",
                          self.OnZoomFitX)
         self.addMenuItem(viewMenu, self.ID_VIEW_ZOOM_OUT_Y, "Zoom Out Y\tAlt+-",
                          'Zoom out on the vertical axis.',
@@ -442,11 +442,11 @@ class Viewer(wx.Frame, MenuMixin):
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_ANTIALIAS,
                          "Antialiased Drawing",
-                         "Toggle antialiased drawing.",
+                         "Toggle antialiased drawing",
                          self.OnToggleAA, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_JITTER,
                         "Noisy Resampling",
-                        "Remove aliasing by slightly randomizing the sampling.",
+                        "Remove aliasing by slightly randomizing the sampling",
                         self.OnToggleNoise, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_MINMAX,
@@ -462,23 +462,23 @@ class Viewer(wx.Frame, MenuMixin):
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MAJOR,
                          "Show Major Horizontal Grid Lines\tCtrl+'",
-                         "Toggle the display of horizontal grid lines.",
+                         "Toggle the display of horizontal grid lines",
                          self.OnToggleLinesMajor, kind=wx.ITEM_CHECK)
         self.addMenuItem(viewMenu, self.ID_VIEW_LINES_MINOR,
                          "Show Minor Horizontal Grid Lines\tCtrl+Shift+'",
-                         "Toggle the display of minor horizontal grid lines.",
+                         "Toggle the display of minor horizontal grid lines",
                          self.OnToggleLinesMinor, kind=wx.ITEM_CHECK)
         viewMenu.AppendSeparator()
         self.addMenuItem(viewMenu, self.ID_VIEW_UTCTIME,
                          "Show Absolute UTC Time",
                          "Display the UTC time corresponding to the mouse's" \
-                         " X position.",
+                         " X position",
                          self.OnToggleUtcTime, kind=wx.ITEM_CHECK,
                          checked=self.showUtcTime)
         self.addMenuItem(viewMenu, self.ID_VIEW_LOCALTIME,
                          "Show Absolute Local Time",
                          "Display the local time corresponding to the mouse's" \
-                         " X position.",
+                         " X position",
                          self.OnToggleLocalTime, kind=wx.ITEM_CHECK,
                          checked=self.showLocalTime)
 
@@ -487,13 +487,13 @@ class Viewer(wx.Frame, MenuMixin):
         deviceMenu = self.addMenu(self.menubar, 'De&vice')
         self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG,
                          "Configure &Device...\tCtrl+D",
-                         "Select and configure a recording device.",
+                         "Select and configure a recording device",
                          self.OnDeviceConfigMenu)
         if showAdvanced:
             deviceMenu.AppendSeparator()
             self.addMenuItem(deviceMenu, self.ID_DEVICE_UPDATE,
                              "Update Recorder Firmware...",
-                             "Update the firmware on a recording device.",
+                             "Update the firmware on a recording device",
                              self.OnDeviceUpdateFW)
 
         # "Data" menu
@@ -503,22 +503,22 @@ class Viewer(wx.Frame, MenuMixin):
                                    "Remove Mean")
         self.addMenuItem(meanMenu, self.ID_DATA_NOMEAN,
                          "Do Not Remove Mean",
-                         "",
+                         "Plot data without modifying vertical axis",
                          self.OnDontRemoveMeanCheck, kind=wx.ITEM_RADIO)
         self.addMenuItem(meanMenu, self.ID_DATA_MEAN,
                          "Remove Rolling Mean from Data",
-                         "Plot data with the average of a set interval removed.",
+                         "Plot data with the average of a set interval removed",
                          self.OnRemoveRollingMeanCheck, kind=wx.ITEM_RADIO)
         self.addMenuItem(meanMenu, self.ID_DATA_MEAN_TOTAL,
                          "Remove Total Mean from Data",
-                         "Plot data with the average of the total file removed.",
+                         "Plot data with the average of the total file removed",
                          self.OnRemoveTotalMeanCheck, kind=wx.ITEM_RADIO)
 
         self.displayMenu = self.addSubMenu(dataMenu, self.ID_DATA_DISPLAY,
                                            "Display Units")
         self.addMenuItem(self.displayMenu, self.ID_DATA_DISPLAY_NATIVE,
                          "Native Units",
-                         "Display data in the file's original units.",
+                         "Display data in the file's original units",
                          self.OnConversionPicked, kind=wx.ITEM_RADIO)
 
         dataMenu.AppendSeparator()
@@ -529,15 +529,15 @@ class Viewer(wx.Frame, MenuMixin):
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_DATA_RENDER_FFT,
                          "Render &FFT...\tCtrl+F",
-                         "Generate an FFT plot in a new window.",
+                         "Generate an FFT plot in a new window",
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_DATA_RENDER_PSD,
                          "Render &PSD...\tCtrl+P",
-                         "Generate a PSD plot in a new window.",
+                         "Generate a PSD plot in a new window",
                          self.renderPlot)
         self.addMenuItem(renderMenu, self.ID_DATA_RENDER_SPEC,
                          "Render &Spectrogram...\tCtrl+G",
-                         "Generate a spectrogram (2D FFT) in a new window.",
+                         "Generate a spectrogram (2D FFT) in a new window",
                          self.renderPlot)
         dataMenu.AppendSeparator()
 
@@ -569,7 +569,7 @@ class Viewer(wx.Frame, MenuMixin):
                              self.OnShowScriptEditor)
             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_CONSOLE,
                              "Open Python &Console\tCtrl+Shift+C",
-                             "Open the Python interactive interpreter.",
+                             "Open the Python interactive interpreter",
                              self.OnShowScriptConsole)
 
 
@@ -620,7 +620,7 @@ class Viewer(wx.Frame, MenuMixin):
         helpMenu.AppendSeparator()
         self.addMenuItem(helpMenu, self.ID_HELP_RESOURCES,
                          "enDAQ Recorder Resources",
-                         "Documentation, downloads and other resources.",
+                         "Documentation, downloads and other resources",
                          self.OnHelpResources)
         self.addMenuItem(helpMenu, self.ID_HELP_FEEDBACK,
                          "Send Feedback",
