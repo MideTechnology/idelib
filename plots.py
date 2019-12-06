@@ -2008,29 +2008,90 @@ class WarningRangeIndicator(object):
                 wx.HORIZONTAL_HATCH, wx.VERTICAL_HATCH)
 
     
-    def __init__(self, parent, warning, color=None, style=None):
+    def __init__(self, parent, warning, color=None, brush=None, penColor=None,
+                 pen=None):
         """ Constructor.
+        
             @param parent: The parent plot.
             @type warning: `mide_ebml.dataset.WarningRange`
-            @keyword color: The warning area drawing color.
-            @keyword style: The warning area fill style.
+            @keyword color: The warning area drawing color. Defaults to
+                the `warningColor` in the preferences or pink.
+            @keyword brush: The warning area fill `wx.Brush`. Defaults to
+                a normal brush using one of the patterns in `PATTERNS`.
+            @keyword penColor: The color for the pen. Defaults to the brush
+                color.
+            @keyword pen: The warning area outline `wx.Pen`.  Defaults to
+                transparent unless a `penColor` is specified.
         """
-        if style is None:
-            style = self.PATTERNS[warning.id % len(self.PATTERNS)]
         if color is None:
             color = parent.root.app.getPref("warningColor", "PINK")
+        if brush is None:
+            style = self.PATTERNS[warning.id % len(self.PATTERNS)]
+            brush = wx.Brush(color, style)
+        if pen is None:
+            if penColor is None:
+                pen = wx.Pen(color, style=wx.TRANSPARENT)
+            else:
+                pen = wx.Pen(penColor)
+        
+        self.brush = brush
+        self.pen = pen
+        
         self.source = warning
         self.sessionId = parent.root.session.sessionId
-        self.brush = wx.Brush(color, style=style)
-        self.pen = wx.Pen(color, style=wx.TRANSPARENT)
+        
         self.oldDraw = None
         self.rects = None
+        self.oldNavDraw = None
+        self.navRects = None
+        
         try:
             self.sourceList = warning.getSessionSource(self.sessionId)
         except AttributeError:
             # Happens if the source is bad (wrong IDs in the `WarningRange`)
             self.sourceList = None
+
+
+    def _draw(self, dc, hRange, hScale, oldDraw, rects, scale=1.0, size=None):
+        """ Draw a series of out-of-bounds rectangles in the given drawing
+            context.
+            
+            @todo: Apply transforms to the DC itself before passing it, 
+                eliminating all the scale and offset stuff.
+            @todo: Condensed mode?
+            
+            @param dc: The drawing context (a `wx.DC` subclass). 
+        """
+        oldPen = dc.GetPen()
+        oldBrush = dc.GetBrush()
+        size = dc.GetSize() if size is None else size
+        dc.SetPen(self.pen)
+        dc.SetBrush(self.brush)
+
+        thisDraw = (hRange, hScale, scale, size)
+        if thisDraw != oldDraw or not rects:
+            rects = []
+            for r in self.source.getRange(*hRange, sessionId=self.sessionId):
+                # TODO: Apply transforms to DC in window's OnPaint() before
+                # calling WarningRangeIndicator.draw(), eliminating these
+                # offsets and scalars. May break rubber-band zooming, though.
+                x = (r[0]-hRange[0])*hScale
+                y = 0
+                w = ((r[1]-hRange[0])*hScale)-x if r[1] != -1 else size[0]*scale
+                h = size[1] * scale
+                rect = [int(x),int(y),int(w) or 1,int(h)]
+
+                if len(rects) > 0 and x - (rects[-1][2]+rects[-1][0]) < 2:
+                    rects[-1][2] = int(x+w) - rects[-1][0]
+                else:
+                    rects.append(rect)
+
+        dc.DrawRectangleList(rects)
         
+        dc.SetPen(oldPen)
+        dc.SetBrush(oldBrush)
+        return thisDraw, rects
+    
     
     def draw(self, dc, hRange, hScale, scale=1.0, size=None):
         """ Draw a series of out-of-bounds rectangles in the given drawing
@@ -2039,38 +2100,39 @@ class WarningRangeIndicator(object):
             @todo: Apply transforms to the DC itself before passing it, 
                 eliminating all the scale and offset stuff.
             
-            @param dc: TThe drawing context (a `wx.DC` subclass). 
+            @param dc: The drawing context (a `wx.DC` subclass). 
         """
         if self.sourceList is None or len(self.sourceList) < 2:
             return
-        
-        oldPen = dc.GetPen()
-        oldBrush = dc.GetBrush()
-        size = dc.GetSize() if size is None else size
-        dc.SetPen(self.pen)
-        dc.SetBrush(self.brush)
 
-        thisDraw = (hRange, hScale, scale, size)
-        if thisDraw != self.oldDraw or not self.rects:
-            self.oldDraw = thisDraw
-            self.rects = []
-            for r in self.source.getRange(*hRange, sessionId=self.sessionId):
-                # TODO: Apply transforms to DC in PlotCanvas.OnPaint() before
-                # calling WarningRangeIndicator.draw(), eliminating these
-                # offsets and scalars. May break rubber-band zooming, though.
-                x = (r[0]-hRange[0])*hScale
-                y = 0
-                w = ((r[1]-hRange[0])*hScale)-x if r[1] != -1 else size[0]*scale
-                h = size[1] * scale
-                rect = int(x),int(y),int(w),int(h)
-                self.rects.append(rect)
-        
-        dc.DrawRectangleList(self.rects)
-        
-        dc.SetPen(oldPen)
-        dc.SetBrush(oldBrush)
+        self.oldDraw, self.rects = self._draw(dc, hRange, hScale, self.oldDraw,
+                                              self.rects, scale=scale,
+                                              size=size)
 
 
+    def navigatorDraw(self, nav, dc):
+        """ Draw a series of out-of-bounds rectangles in the time navigator's
+            drawing context.
+            
+            @todo: Apply transforms to the DC itself before passing it, 
+                eliminating all the scale and offset stuff.
+            
+            @param nav: The window's `TimeNavigator`
+            @param dc: The drawing context (a `wx.DC` subclass). 
+        """
+        if self.sourceList is None or len(self.sourceList) < 2:
+            return
+
+        size = dc.GetSize()
+        hRange = nav.timerange
+        if hRange[0] >= hRange[1]:
+            return
+        hScale = size[0] / (hRange[1] - hRange[0] + 0.0)
+
+        self.oldNavDraw, self.navRects = self._draw(dc, hRange, hScale,
+                                                    self.oldNavDraw,
+                                                    self.navRects, size=size)
+        
         
 #===============================================================================
 # 
