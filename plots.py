@@ -805,8 +805,8 @@ class PlotCanvas(wx.ScrolledWindow):
         # BUG: This does not work for vertically split plots; they all start
         # at the start of the visible range instead of relative position on
         # the timeline. Investigate.
-#         hRange = map(int,self.root.getVisibleRange())
-        hRange = self.getRelRange()
+        hRange = map(int,self.root.getVisibleRange())
+#         hRange = self.getRelRange()
         vRange = legend.scale.GetRange()
                 
         # TODO: Implement regional redrawing.
@@ -2068,6 +2068,7 @@ class WarningRangeIndicator(object):
         dc.SetPen(self.pen)
         dc.SetBrush(self.brush)
 
+        prev = [-1, 0, 0, 0]
         thisDraw = (hRange, hScale, scale, size)
         if thisDraw != oldDraw or not rects:
             rects = []
@@ -2075,16 +2076,28 @@ class WarningRangeIndicator(object):
                 # TODO: Apply transforms to DC in window's OnPaint() before
                 # calling WarningRangeIndicator.draw(), eliminating these
                 # offsets and scalars. May break rubber-band zooming, though.
-                x = (r[0]-hRange[0])*hScale
-                y = 0
-                w = ((r[1]-hRange[0])*hScale)-x if r[1] != -1 else size[0]*scale
-                h = size[1] * scale
-                rect = [int(x),int(y),int(w) or 1,int(h)]
+                x = int((r[0]-hRange[0])*hScale)
+                w = int(((r[1]-hRange[0])*hScale)-x if r[1] != -1 else size[0]*scale)
+                h = int(size[1] * scale)
+                rect = [x, 0, w or 1, h]
 
-                if len(rects) > 0 and x - (rects[-1][2]+rects[-1][0]) < 2:
-                    rects[-1][2] = int(x+w) - rects[-1][0]
+                # Optimization: Discard identical rectangles (can happen when
+                # zoomed out)
+                if rect == prev:
+                    continue
+
+                # Optimization: Replace previous rectangle if it has same start
+                elif x == prev[0]:
+                    rects[-1] = rect
+                    
+                # Optimization: merge close rectangles.
+                elif len(rects) > 0 and x - (rects[-1][2]+rects[-1][0]) <= 3:
+                        rects[-1][2] = (x+w) - rects[-1][0]
+                        
                 else:
                     rects.append(rect)
+                    
+                prev = rect
 
         dc.DrawRectangleList(rects)
         
