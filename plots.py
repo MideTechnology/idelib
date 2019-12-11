@@ -2054,11 +2054,12 @@ class WarningRangeIndicator(object):
 
     def _draw(self, dc, hRange, hScale, oldDraw, rects, scale=1.0, size=None):
         """ Draw a series of out-of-bounds rectangles in the given drawing
-            context.
+            context. Used for drawing in both the main view (`draw()`) and the
+            time navigator (`navigatorDraw()`).
             
             @todo: Apply transforms to the DC itself before passing it, 
                 eliminating all the scale and offset stuff.
-            @todo: Condensed mode?
+            @todo: Condensed mode, using block min/max?
             
             @param dc: The drawing context (a `wx.DC` subclass). 
         """
@@ -2068,7 +2069,9 @@ class WarningRangeIndicator(object):
         dc.SetPen(self.pen)
         dc.SetBrush(self.brush)
 
-        prev = [-1, 0, 0, 0]
+        h = int(size[1] * scale)
+        prev = [None, 0, 0, 0]
+        
         thisDraw = (hRange, hScale, scale, size)
         if thisDraw != oldDraw or not rects:
             rects = []
@@ -2078,7 +2081,6 @@ class WarningRangeIndicator(object):
                 # offsets and scalars. May break rubber-band zooming, though.
                 x = int((r[0]-hRange[0])*hScale)
                 w = int(((r[1]-hRange[0])*hScale)-x if r[1] != -1 else size[0]*scale)
-                h = int(size[1] * scale)
                 rect = [x, 0, w or 1, h]
 
                 # Optimization: Discard identical rectangles (can happen when
@@ -2091,13 +2093,13 @@ class WarningRangeIndicator(object):
                     rects[-1] = rect
                     
                 # Optimization: merge close rectangles.
-                elif len(rects) > 0 and x - (rects[-1][2]+rects[-1][0]) <= 3:
-                        rects[-1][2] = (x+w) - rects[-1][0]
+                elif len(rects) > 0 and x - (prev[2]+prev[0]) <= 3:
+                        rects[-1][2] = (x+w) - prev[0]
                         
                 else:
                     rects.append(rect)
                     
-                prev = rect
+                prev = rects[-1]
 
         dc.DrawRectangleList(rects)
         
