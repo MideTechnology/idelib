@@ -20,8 +20,8 @@ import time
 import zipfile
 
 from docutils.examples import html_body
-# from git import InvalidGitRepositoryError
-# from git.repo import Repo
+from git import InvalidGitRepositoryError
+from git.repo import Repo
 
 from assembly import birth_utils as util
 
@@ -218,19 +218,18 @@ if __name__ == "__main__":
 
     t0 = datetime.now()
 
-#     try:
-#         repo = Repo('.')
-#     except InvalidGitRepositoryError:
-#         repo = None
-#
-#     if repo is not None:
-#         if repo.is_dirty:
-#             if args.allowDirty:
-#                 logger.warning("Repository is dirty, but ignoring it.")
-#             else:
-#                 print("*** Repository is dirty! Commit all changes before building!")
-#                 exit(1)
-    repo = None
+    try:
+        repo = Repo('.')
+    except InvalidGitRepositoryError:
+        repo = None
+
+    if repo is not None:
+        if repo.is_dirty():
+            if args.allowDirty:
+                logger.warning("Repository is dirty, but ignoring it.")
+            else:
+                print("*** Repository is dirty! Commit all changes before building!")
+                exit(1)
 
     if not os.path.exists(VERPATCH_PATH):
         logger.error("Could not find VERPATCH.EXE utility!")
