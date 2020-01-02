@@ -8,7 +8,7 @@ Created on Jan 5, 2016
 '''
 
 __author__ = "dstokes"
-__copyright__ = "Copyright 2016 Mide Technology Corporation"
+__copyright__ = "Copyright 2020 Mide Technology Corporation"
 
 import os.path
 

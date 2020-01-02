@@ -8,7 +8,7 @@ The dialog itself was split off to allow a more modular approach.
 from __future__ import absolute_import, print_function
 
 __author__ = "dstokes"
-__copyright__ = "Copyright 2017 Mide Technology Corporation"
+__copyright__ = "Copyright 2020 Mide Technology Corporation"
 
 #===============================================================================
 # 

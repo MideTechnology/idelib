@@ -5,7 +5,7 @@ Created on Feb 14, 2018
 '''
 
 __author__ = "dstokes"
-__copyright__ = "Copyright 2018 Mide Technology Corporation"
+__copyright__ = "Copyright 2020 Mide Technology Corporation"
 
 import os
 
