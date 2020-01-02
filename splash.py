@@ -58,17 +58,25 @@ class SplashPageContents(wx.Panel):
         openBtn = wx.Button(self, -1, "Open a Recording", size=(240,-1))
         confBtn = wx.Button(self, -1, "Configure a Recording Device",
                             size=(240,-1))
+        resBtn = wx.Button(self, -1, "enDAQ Recorder Resources", size=(240,-1))
+        
+        openBtn.SetToolTip("Import a recording file (IDE, DAT)")
+        confBtn.SetToolTip("Configure an enDAQ or Slam Stick data recorder")
+        resBtn.SetToolTip("Visit enDAQ support (opens in browser)")
         
         sizer.Add((0,0), 1)
         sizer.Add(openBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
         sizer.AddSpacer(8)
         sizer.Add(confBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
-        sizer.AddSpacer(16)
+        sizer.AddSpacer(24)
+        sizer.Add(resBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
+        sizer.AddSpacer(40)
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackground)
         openBtn.Bind(wx.EVT_BUTTON, self.root.OnFileOpenMenu)
         confBtn.Bind(wx.EVT_BUTTON, self.root.OnDeviceConfigMenu)
         openBtn.Bind(wx.EVT_RIGHT_DOWN, self.OnFileRightClick)
+        resBtn.Bind(wx.EVT_BUTTON, self.root.OnHelpResources)
 
         # Remove focus from buttons. Primarily cosmetic.
         self.SetFocus()

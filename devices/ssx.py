@@ -470,7 +470,9 @@ class SlamStickX(Recorder):
                 if `None` (default).
             @keyword pause: If `True` (default), the system waits until a
                 whole-numbered second before setting the clock. This may
-                improve accuracy across multiple recorders.
+                improve accuracy across multiple recorders, but may take up
+                to a second to run. Not applicable if a specific time is
+                provided (i.e. `t` is not `None`).
             @keyword retries: The number of attempts to make, should the first
                 fail. Random filesystem things can potentially cause hiccups.
             @return: The time that was set, as integer seconds since the epoch.
@@ -480,12 +482,14 @@ class SlamStickX(Recorder):
         
         if t is None:
             t = int(time())
-        elif isinstance(t, datetime):
-            t = calendar.timegm(t.timetuple())
-        elif isinstance(t, (struct_time, tuple)):
-            t = calendar.timegm(t)
         else:
-            t = int(t)
+            pause = False
+            if isinstance(t, datetime):
+                t = calendar.timegm(t.timetuple())
+            elif isinstance(t, (struct_time, tuple)):
+                t = calendar.timegm(t)
+            else:
+                t = int(t)
         
         try:
             with open(self.clockFile, 'wb') as f:
