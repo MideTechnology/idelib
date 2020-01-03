@@ -43,8 +43,9 @@ class EndaqS(SlamStickX):
         """
         """
         super(EndaqS, self).__init__(*args, **kwargs)
-        self.commandSchema = loadSchema('command-response.xml')
-        self.responseFile = os.path.join(self.root, self.RESPOPNSE_FILE)
+        # XXX: Schema currently broken! Being updated.
+#         self.commandSchema = loadSchema('command-response.xml')
+        self.responseFile = os.path.join(self.path, self.RESPONSE_FILE)
 
 
     @classmethod
