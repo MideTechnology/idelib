@@ -17,7 +17,7 @@ from logger import logger
 
 
 # TODO: Get rid of `python_stc.py` (copied from demo) and implement it here.
-from . import python_stc
+from scripting import python_stc
 
 
 #===============================================================================
@@ -477,6 +477,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.cutMI = editMenu.Append(wx.ID_CUT)
         self.copyMI = editMenu.Append(wx.ID_COPY)
         self.pasteMI = editMenu.Append(wx.ID_PASTE)
+        self.Bind(wx.EVT_MENU, self.OnCut, id=wx.ID_CUT)
+        self.Bind(wx.EVT_MENU, self.OnCopy, id=wx.ID_COPY)
+        self.Bind(wx.EVT_MENU, self.OnPaste, id=wx.ID_PASTE)
         editMenu.AppendSeparator()
         
         self.addMenuItem(editMenu, wx.ID_FIND, 
@@ -671,6 +674,36 @@ class ScriptEditor(wx.Frame, MenuMixin):
     # 
     #===========================================================================
 
+    def OnCut(self, evt):
+        """ Handle Edit->Cut menu event.
+        """
+        editor = self.nb.GetCurrentPage()
+        if not editor:
+            return
+        editor.Cut()
+        
+
+    def OnCopy(self, evt):
+        """ Handle Edit->Copy menu event.
+        """
+        editor = self.nb.GetCurrentPage()
+        if not editor:
+            return
+        editor.Copy()
+        
+
+    def OnPaste(self, evt):
+        """ Handle Edit->Paste menu event.
+        """
+        editor = self.nb.GetCurrentPage()
+        if not editor:
+            return
+        editor.Paste()
+    
+    
+    #===========================================================================
+    # 
+    #===========================================================================
 
     def OnFind(self, event):
         """ Handle find dialog 'find' button click. 
