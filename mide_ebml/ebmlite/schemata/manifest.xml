@@ -125,6 +125,8 @@
         <MasterElement name="DigitalSensorADXL357" id="0x4DD5" mandatory="0" multiple="0" minver="1">Indicates the presence of an ADXL357 accelerometer on the SPI bus.</MasterElement>
         <MasterElement name="DigitalSensorADXL375" id="0x4D92" mandatory="0" multiple="0" minver="1">Indicates the presence of an ADXL375 accelerometer on the SPI bus.</MasterElement>
         <MasterElement name="DigitalSensorBNO055" id="0x4D93" mandatory="0" multiple="0" minver="1">Indicates the presence of a BNO055 IMU on the I2C0 bus.</MasterElement>
+        <MasterElement name="DigitalSensorBHI160" id="0x4D94" mandatory="0" multiple="0" minver="1">Indicates the presence of a Bosch BHI160 IMU on the I2C0 bus.</MasterElement>
+        <MasterElement name="DigitalSensorBMG250" id="0x4D95" mandatory="0" multiple="0" minver="1">Indicates the presence of a BMG250 Gyroscope</MasterElement>
 
         <!-- Digital pressure/other sensors -->
         <MasterElement name="DigitalSensorMPL3115A2" id="0x4DA0" mandatory="0" multiple="0" minver="1">Indicates the presence of an MPL3115A2 P/T sensor on the I2C0 bus.</MasterElement>
@@ -147,7 +149,6 @@
         <MasterElement name="CommunicationWiFi_ESP32" id="0x4D70" mandatory="0" multiple="0" minver="1">Indicates the presence of an ESP32 Wi-Fi module.</MasterElement>
 
         <!-- Misc. -->
-        <MasterElement name="DigitalSensorBHI160" id="0x4D94" mandatory="0" multiple="0" minver="1">Indicates the presence of a Bosch BHI160 IMU on the I2C0 bus.</MasterElement>
         <MasterElement name="DigitalSensorReset" id="0x4DD0" mandatory="0" multiple="0" minver="1">Indicates the presence of a hardware pushbutton reset controller.</MasterElement>
         <MasterElement name="DigitalPowerMAX77801" id="0x4DD1" mandatory="0" multiple="0" minver="1">Indicates the presence of a MAX77801 power management IC on the I2C1 bus.</MasterElement>
         <MasterElement name="DigitalLedThree" id="0x4DD2" mandatory="0" multiple="0" minver="1">Indicates that the membrane has a 3rd LED driven by the MCU.</MasterElement>

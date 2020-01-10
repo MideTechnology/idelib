@@ -42,33 +42,40 @@
     <MasterElement name="EBMLCommand" id="0x80" mandatory="0" multiple="0">An EBML formatted command directive
         <MasterElement name="WiFiScan" id="0x81" mandatory="0" multiple="0">Initiate a Wifi Scan </MasterElement>
         <MasterElement name="ApplyPackage" id="0x82" mandatory="0" multiple="0">Apply a firmware meta-package
-            <StringElement name="PackagePath" id="0x4000" mandatory="1" multiple="0">Path to package to apply</StringElement>
+            <UnicodeElement name="PackagePath" id="0x4000" mandatory="1" multiple="0">Path to package to apply</UnicodeElement>
             <UIntegerElement name="RebootAfter" id="0x4001" mandatory="0" multiple="0">non-zero to reboot after applying, default to 1 if not present</UIntegerElement>
         </MasterElement>
         <MasterElement name="ESPFW" id="0x83" mandatory="0" multiple="0">Apply a file as ESP32 firmware
-            <StringElement name="PackagePath" id="0x4000" multiple="0" mandatory="1">Path to ESP32 package</StringElement>
+            <UnicodeElement name="PackagePath" id="0x4000" multiple="0" mandatory="1">Path to ESP32 package</UnicodeElement>
         </MasterElement>
         <MasterElement name="SetWiFi" id="0x84">
-            <MasterElement name="AP" id="0x400D" multiple="1" mandatory="1" />
-                <StringElement name="SSID" id="0x400E" multiple="0" mandatory="1" />
-                <StringElement name="Password" id="0x400F" multiple="0" mandatory="0" />
-                <UIntegerElement name="Selected" id="0x4010" multiple="0" mandatory="0" />
-            </MasterElement>
-    </MasterElement>
-    </MasterElement>
-
-    <MasterElement name="EBMLResponse" id="0x84" multiple="0" mandatory="0">Response payload to above EBML command payload. Not all commands generate a response
-        <UIntegerElement name="ResponseIdx" id="0x4003" multiple="0" mandatory="1">Incrementing index, will bump by one for each command repsonse that is registered, starting at 0 after device reset</UIntegerElement>
-        <UIntegerElement name="CMDQueueDepth" id="0x4004" multiple="0" mandatory="1">Available space in command queue on device, a value of 0 means any new commands issued will be dropped</UIntegerElement>
-        <MasterElement name="WiFiScanResult" id="0x4005" multiple="0" mandatory="0">
-            <UIntegerElement name="ScanVersion" id="0x4006" multiple="0" mandatory="1">Will default to 1 if not present</UIntegerElement>
-            <MasterElement name="AP" id="0x4007" multiple="1" mandatory="1">Access point definition
-                <StringElement name="SSID" id="0x4008" multiple="0" mandatory="1">Network SSID</StringElement>
-                <UIntegerElement name="RSSI" id="0x4009" multiple="0" mandatory="0">Signal Strength, absent field means SSID is in the list for another reason but was not seen in the scan</UIntegerElement>
-                <UIntegerElement name="AuthType" id="0x400A" multiple="0" mandatory="1">0 means open, 1 is any kind of secured</UIntegerElement>
-                <UIntegerElement name="Known" id="0x400B" multiple="0" mandatory="1">0 is unknown, 1 means device has auth info for this network</UIntegerElement>
-                <UIntegerElement name="Selected" id="0x400C" multiple="0" mandatory="1">1 is selected, only one network should have this non-zero</UIntegerElement>
+            <MasterElement name="AP" id="0x4200" multiple="1" mandatory="1">
+                <UnicodeElement name="SSID" id="0x4201" multiple="0" mandatory="1">Network SSID</UnicodeElement>
+                <UnicodeElement name="Password" id="0x4202" multiple="0" mandatory="0" />
+                <UIntegerElement name="Selected" id="0x4203" multiple="0" mandatory="0" />
             </MasterElement>
         </MasterElement>
+        <MasterElement name="QueryWiFi" id="0x85">Get a response for current WiFi State</MasterElement>
+    </MasterElement>
+
+    <MasterElement name="EBMLResponse" id="0x86" multiple="0" mandatory="0">Response payload to above EBML command payload. Not all commands generate a response
+        <UIntegerElement name="ResponseIdx" id="0x5000" multiple="0" mandatory="1">Incrementing index, will bump by one for each update to this data structure, starting at 0 after device reset</UIntegerElement>
+        <UIntegerElement name="CMDQueueDepth" id="0x5100" multiple="0" mandatory="1">Available space in command queue on device, a value of 0 means any new commands issued will be dropped</UIntegerElement>
+        <MasterElement name="WiFiScanResult" id="0x5200" multiple="0" mandatory="0">
+            <UIntegerElement name="ScanVersion" id="0x5201" multiple="0" mandatory="1">Will default to 1 if not present</UIntegerElement>
+            <MasterElement name="AP" id="0x4200" multiple="1" mandatory="1">Access point definition
+                <UnicodeElement name="SSID" id="0x4201" multiple="0" mandatory="1">Network SSID</UnicodeElement>
+                <UIntegerElement name="RSSI" id="0x5205" multiple="0" mandatory="0">Signal Strength, 0-100, where 100 is perfect, absent field means SSID is in the list for another reason but was not seen in the scan</UIntegerElement>
+                <UIntegerElement name="AuthType" id="0x5206" multiple="0" mandatory="1">0 means open, 1 is any kind of secured</UIntegerElement>
+                <UIntegerElement name="Known" id="0x5207" multiple="0" mandatory="1">0 is unknown, 1 means device has auth info for this network</UIntegerElement>
+            </MasterElement>
+        </MasterElement>
+        <MasterElement name="WifiQeuryResponse" id="0x5300" multiple="0" mandatory="1">Response to WifiQeury above, represents the current state of wifi config and connection. To parse this, read read SSID, if SSID is zero length then nothing is configured, break. Read WifiConnectionStatus, if CONNECTED then read RSSI to report that information to the user. Else if NONE, check presence and value of both WifiError flags and report that to the user. It is a valid scenario where both flags are set, the most recent attempt was out of range but the password was also wrong on a previous attempt. It is left up to Lab to decide whether to display both or if a password failure will supercede NotFound. Else if PENDING then read nothing else in this data structure besides SSID as they are not guaranteed to be valid. 
+        	<UnicodeElement name="SSID" id="0x4201" multiple="0" mandatory="1">Network SSID</UnicodeElement>
+			<UIntegerElement name="WifiConnectionStatus" id="5301" multiple="0" mandatory="1">Integer enum. ==0 means IDLE, no connection is in process, error fields are valid. ==1 means PENDING, connection is in process, ==2 means CONNECTED, error fields will all be 0, RSSI tag is present in this data structure and represents the strength of the connected net</UIntegerElement>
+        	<UIntegerElement name="WifiErrorNotFound" id="5302" multiple="0" mandatory="1">Sticky Boolean flag, ==1 means that a connection attempt failed due to the network being out of range. Cleared when a new connection attempt is made</UIntegerElement>
+			<UIntegerElement name="WifiErrorBadAuth" id="5303" multiple="0" mandatory="1">Sticky Boolean flag, ==1 means that a connection attempt failed due to bad authentication information, else if ==0 password was good or network connection attempt was out of range Cleared when "SetWifi" is called</UIntegerElement>
+			<UIntegerElement name="RSSI" id="0x5205" multiple="0" mandatory="0">Signal Strength, 0-100, where 100 is perfect. Only present if CONNECTED</UIntegerElement>
+		</MasterElement>
     </MasterElement>
 </Schema>
