@@ -234,12 +234,15 @@ class Recorder(object):
         """ Read device configuration data from a file. The file must contain
             the device's product name, a newline, and then the data in the
             device's native format. If the product name doesn't match the
-            device's product name a `ConfigVersionError` is raised.
+            device's product name a `ConfigVersionError` is raised instead of
+            updating the device's configuration.
             
             @param filename: The name of the exported config file to import.
             @keyword update: If `True`, the config data is applied to the
                 device. If `False`, it is just imported.
-            @return: A dictionary of configuration attributes.
+            @return: A tuple containing the imported file's device info
+                (device name, firmware version, hardware version) and a
+                dictionary of configuration attributes.
         """
         # XXX: importConfig NEEDS TO BE REFACTORED!
         if allowOlder is None:
@@ -271,20 +274,18 @@ class Recorder(object):
                     good = good and allowNewerHw
 
             versions = (cname, cfwvers, self.productName, self.firmwareVersion)
-            if not good:
+            if update and not good:
                 raise ConfigVersionError(
                     "Device mismatch: this is %r v.%r, file is %r v.%r" % \
-                    versions, versions)
+                    versions, vers)
         
             config = self._loadConfig(StringIO(f.read()), hwRev=chwvers,
                                       fwRev=cfwvers)
             
         if update:
             self.getConfig().update(config)
-        else:
-            self._config = config
         
-        return self._config
+        return vers, config
 
 
     def getConfig(self, default=None, refresh=False):
