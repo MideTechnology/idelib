@@ -87,8 +87,7 @@ logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 # __DEBUG__ = False
 
-import socket
-__DEBUG__ = socket.gethostname() in ('DEDHAM',)
+__DEBUG__ = str(os.environ.get('MIDE_DEV', 0)) == '1'
     
 if __DEBUG__:
     logger.setLevel(logging.INFO)
@@ -1130,14 +1129,19 @@ class EventList(Transformable):
         self.displayRange = self.parent.displayRange
 
         self.removeMean = False
-        self.hasMinMeanMax = True # False
+        self.hasMinMeanMax = True
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
 
         self.transform = None
         self.useAllTransforms = True
         self.updateTransforms(recurse=False)
         self.allowMeanRemoval = parentChannel.allowMeanRemoval    
-    
+
+        if self.hasSubchannels:
+            self.parseBlock = self.parent.parseBlock
+        else:
+            self.parseBlock = self.parent.parent.parseBlock
+        
         
 #     def setTransform(self, xform, update=True):
 #         """
@@ -1281,15 +1285,23 @@ class EventList(Transformable):
 
         if block.minMeanMax is not None:
             block.parseMinMeanMax(self.parent.parser)
-            self.hasMinMeanMax = True
+            self.hasMinMeanMax = True #self.hasMinMeanMax and True
         else:
+            # XXX: Attempt to calculate min/mean/max here instead of 
+            # in _computeMinMeanMax(). Causes issues with pressure for some
+            # reason - it starts removing mean and won't plot.
+#             vals = self.parseBlock(block)
+#             block.min = vals.min(axis=-1)
+#             block.mean = vals.mean(axis=-1)
+#             block.max = vals.max(axis=-1)
+#             self.hasMinMeanMax = True
             self.hasMinMeanMax = False
-            self.allowMeanRemoval = False
+#             self.allowMeanRemoval = False
         
         # HACK (somewhat): Single-sample-per-block channels get min/mean/max
         # which is just the same as the value of the sample. Set the values,
         # but don't set hasMinMeanMax.
-        if self._singleSample is True and not self.hasMinMeanMax:
+        if self._singleSample is True:# and not self.hasMinMeanMax:
             block.minMeanMax = np.tile(block.payload, 3)
             block.parseMinMeanMax(self.parent.parser)
             
@@ -1401,14 +1413,14 @@ class EventList(Transformable):
             @return: An array containing the mean values of each subchannel. 
         """
         # XXX: I don't remember why I do this.
-        if force is False:
-            if self.removeMean is False or self.allowMeanRemoval is False:
-                return None
+#         if force is False:
+#             if self.removeMean is False or self.allowMeanRemoval is False:
+#                 return None
         
         block = self._data[blockIdx]
         
-        if block.minMeanMax is None:
-            return None
+#         if block.mean is None:
+#             self._computeMinMeanMax()
         
         span = self.rollingMeanSpan
         
@@ -1416,6 +1428,8 @@ class EventList(Transformable):
             and block._rollingMeanSpan == span 
             and block._rollingMeanLen == len(self._data)):
             return block._rollingMean
+
+        self._computeMinMeanMax()
         
         if span != -1:
             firstBlock = self._getBlockIndexWithTime(block.startTime - (span/2), 
@@ -1629,7 +1643,7 @@ class EventList(Transformable):
         _data = self._data
         _getBlockSampleTime = self._getBlockSampleTime
         _getBlockRollingMean = self._getBlockRollingMean
-        removeMean = self.allowMeanRemoval and self.removeMean and self.hasMinMeanMax
+        removeMean = self.allowMeanRemoval and self.removeMean #and self.hasMinMeanMax
         offset = None
 
         if self.useAllTransforms:
@@ -2139,6 +2153,7 @@ class EventList(Transformable):
         """ Calculate the minimum, mean, and max for files without that data
             recorded. Not recommended for large data sets.
         """
+        print("XXX: _computeMinMeanMax() %s" % self)
         if self.hasMinMeanMax:
             return
         
@@ -2147,15 +2162,13 @@ class EventList(Transformable):
         else:
             parseBlock = self.parent.parent.parseBlock
         
-        Ex = None if __DEBUG__ else struct.error
         try:
             for block in self._data:
-                if not any(m is None for m in (block.min, block.mean, block.max)):
-                    continue
-                vals = np.array(parseBlock(block))
-                block.min = tuple(vals.min(axis=0))
-                block.mean = tuple(vals.mean(axis=0))
-                block.max = tuple(vals.max(axis=0))
+                if None in (block.min, block.mean, block.max):
+                    vals = np.array(parseBlock(block))
+                    block.min = tuple(vals.min(axis=0))
+                    block.mean = tuple(vals.mean(axis=0))
+                    block.max = tuple(vals.max(axis=0))
             
                 self.hasMinMeanMax = True
                 
@@ -2168,9 +2181,11 @@ class EventList(Transformable):
 #                             c.getSession(sessionId).hasMinMeanMax=True
 #                     else:
 #                         self.parent.parent.getSession(sessionId).hasMinMeanMax=True
-        except Ex:
+        except struct.error:
             logger.warning("_computeMinMeanMax struct error: %r" % (block.indexRange,))
-            
+            if __DEBUG__:
+                raise
+
 
     def _getBlockSampleTime(self, blockIdx=0):
         """ Get the time between samples within a given data block.
@@ -2499,7 +2514,8 @@ class EventArray(EventList):
             subchannelId = parent.id
         _getBlockRollingMean = self._getBlockRollingMean
         removeMean = (self.allowMeanRemoval and self.removeMean
-                      and self.hasMinMeanMax)
+#                       and self.hasMinMeanMax
+                      )
 
         if not self.useAllTransforms:
             xform = self._comboXform
@@ -2897,6 +2913,8 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
+        self._computeMinMeanMax()
+        
         for times, values in self._blockJitterySlice(start, end, step, jitter,
                                                      display):
             blockEvents = np.append(times[np.newaxis], values, axis=0)
@@ -2917,6 +2935,8 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: a structured array of events in the specified index range.
         """
+        self._computeMinMeanMax()
+        
         raw_slice = [
             [times[np.newaxis].T, values.T]
             for times, values in self._blockJitterySlice(
@@ -2942,6 +2962,7 @@ class EventArray(EventList):
             @return: a structured array of events in the specified time
                 interval.
         """
+        self._computeMinMeanMax()
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
         return self.arraySlice(startIdx, endIdx, step, display=display)
 
@@ -3196,28 +3217,30 @@ class EventArray(EventList):
         """ Calculate the minimum, mean, and max for files without that data
             recorded. Not recommended for large data sets.
         """
+        print("XXX: _computeMinMeanMax() %s" % self)
         if self.hasMinMeanMax:
             return
+        print("XXX: actually doing _computeMinMeanMax() %s" % self)
         
         if self.hasSubchannels:
             parseBlock = self.parent.parseBlock
         else:
             parseBlock = self.parent.parent.parseBlock
         
-        Ex = None if __DEBUG__ else struct.error
-        try:
-            for block in self._data:
-                if not any(m is None for m in (block.min, block.mean, block.max)):
-                    continue
-                vals = parseBlock(block)
-                block.min = vals.min(axis=-1)
-                block.mean = vals.mean(axis=-1)
-                block.max = vals.max(axis=-1)
+        for block in self._data:
+            try:
+                if (block.min is None or block.mean is None or block.max is None):
+                    vals = parseBlock(block)
+                    block.min = vals.min(axis=-1)
+                    block.mean = vals.mean(axis=-1)
+                    block.max = vals.max(axis=-1)
             
                 self.hasMinMeanMax = True
                 
-        except Ex:
-            logger.warning("_computeMinMeanMax struct error: %r" % (block.indexRange,))
+            except struct.error:
+                logger.warning("_computeMinMeanMax struct error: %r" % (block.indexRange,))
+                if __DEBUG__:
+                    raise
             
 
     # EventList implementation suffices -> no overload required

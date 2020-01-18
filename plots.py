@@ -1777,7 +1777,7 @@ class Plot(ViewerPanel, MenuMixin):
         
         changed = False
         for source in self.sources:
-            val = val and source.hasMinMeanMax and source.allowMeanRemoval
+            val = val and source.allowMeanRemoval
             if source.removeMean != val or source.rollingMeanSpan != span:
                 source.rollingMeanSpan = span
                 source.removeMean = val
@@ -1808,7 +1808,7 @@ class Plot(ViewerPanel, MenuMixin):
         if self != activePage and activePage is not None:
             return
 
-        meanEnabled = any(s.allowMeanRemoval and s.hasMinMeanMax for s in self.sources)
+        meanEnabled = any(s.allowMeanRemoval for s in self.sources)
         minmaxEnabled = any(s.hasMinMeanMax for s in self.sources)
         rt = self.root
         mb = rt.menubar
