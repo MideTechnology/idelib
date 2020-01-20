@@ -1283,27 +1283,28 @@ class EventList(Transformable):
         
         self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
 
-        if block.minMeanMax is not None:
-            block.parseMinMeanMax(self.parent.parser)
-            self.hasMinMeanMax = True #self.hasMinMeanMax and True
-        else:
-            # XXX: Attempt to calculate min/mean/max here instead of 
-            # in _computeMinMeanMax(). Causes issues with pressure for some
-            # reason - it starts removing mean and won't plot.
-#             vals = self.parseBlock(block)
-#             block.min = vals.min(axis=-1)
-#             block.mean = vals.mean(axis=-1)
-#             block.max = vals.max(axis=-1)
-#             self.hasMinMeanMax = True
-            self.hasMinMeanMax = False
-#             self.allowMeanRemoval = False
-        
         # HACK (somewhat): Single-sample-per-block channels get min/mean/max
         # which is just the same as the value of the sample. Set the values,
         # but don't set hasMinMeanMax.
         if self._singleSample is True:# and not self.hasMinMeanMax:
             block.minMeanMax = np.tile(block.payload, 3)
             block.parseMinMeanMax(self.parent.parser)
+            self.hasMinMeanMax = False
+        elif block.minMeanMax is not None:
+            block.parseMinMeanMax(self.parent.parser)
+            self.hasMinMeanMax = True #self.hasMinMeanMax and True
+        else:
+            # XXX: Attempt to calculate min/mean/max here instead of 
+            # in _computeMinMeanMax(). Causes issues with pressure for some
+            # reason - it starts removing mean and won't plot.
+            vals = self.parseBlock(block)
+            block.min = vals.min(axis=-1)
+            block.mean = vals.mean(axis=-1)
+            block.max = vals.max(axis=-1)
+            self.hasMinMeanMax = True
+#             self.hasMinMeanMax = False
+#             self.allowMeanRemoval = False
+        
             
     
     def getInterval(self):
@@ -1927,11 +1928,6 @@ class EventList(Transformable):
             xform = self._comboXform
 
         for block in self._data[startBlockIdx:endBlockIdx]:
-            # NOTE: Without this, a file in which some blocks don't have
-            # min/mean/max will fail. Should not happen, though.
-#             if block.minMeanMax is None:
-#                 continue
-
             t = block.startTime
             m = _getBlockRollingMean(block.blockIndex)
             
@@ -1942,7 +1938,7 @@ class EventList(Transformable):
                 sleep(0.01)
                 m = _getBlockRollingMean(block.blockIndex)
                 tries += 1
-                if tries > 10:
+                if tries > 10 or not self.dataset.loading:
                     break
             
             if m is not None:
@@ -1960,12 +1956,14 @@ class EventList(Transformable):
             for val in (block.min, block.mean, block.max):
                 event=xform(t, val, session, noBivariates=self.noBivariates)
                 if event is None:
+                    # HACK: No bivariate data (yet), possibly still loading.
+                    # Retry once.
                     sleep(0.005)
                     event = xform(t, val, session, noBivariates=self.noBivariates)
                     if event is None:
                         event = t, val
                 tx, valx = event
-                if m is not None:
+                if removeMean and m is not None:
                     valx = valx - m
                 result_append(valx)
             
@@ -2153,8 +2151,7 @@ class EventList(Transformable):
         """ Calculate the minimum, mean, and max for files without that data
             recorded. Not recommended for large data sets.
         """
-        print("XXX: _computeMinMeanMax() %s" % self)
-        if self.hasMinMeanMax:
+        if self.hasMinMeanMax or self._singleSample:
             return
         
         if self.hasSubchannels:
@@ -2490,8 +2487,14 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
 
 
 class EventArray(EventList):
+    """ A list-like object containing discrete time/value pairs. Data is 
+        dynamically read from the underlying EBML file. 
+    """
 
     def __init__(self, parentChannel, session=None, parentList=None):
+        """ Constructor. This should almost always be done indirectly via
+            the `getSession()` method of `Channel` and `SubChannel` objects.
+        """
         super(EventArray, self).__init__(parentChannel, session, parentList)
 
         self._blockIndicesArray = np.array([], dtype=np.float64)
@@ -2589,6 +2592,7 @@ class EventArray(EventList):
             self._blockIndicesArray[idxOffset:stop], idx, side='right'
         )
 
+
     def _getBlockIndexWithTime(self, t, start=0, stop=None):
         """ Get the index of a raw data block in which the given time occurs.
 
@@ -2604,6 +2608,7 @@ class EventArray(EventList):
         return idxOffset-1 + np.searchsorted(
             self._blockTimesArray[idxOffset:stop], t, side='right'
         )
+
 
     def _getBlockRollingMean(self, blockIdx, force=False):
         """ Get the mean of a block and its neighbors within a given time span.
@@ -2700,6 +2705,7 @@ class EventArray(EventList):
         raise TypeError("EventArray indices must be integers or slices,"
                         " not %s (%r)" % (type(idx), idx))
 
+
     def itervalues(self, start=None, end=None, step=1, subchannels=True,
                    display=False):
         """ Iterate all values in the given index range (w/o times).
@@ -2730,6 +2736,7 @@ class EventArray(EventList):
                     for blockVals in iterBlockValues
                     for vals in blockVals.T)
 
+
     def arrayValues(self, start=None, end=None, step=1, subchannels=True,
                     display=False):
         """ Get all values in the given index range (w/o times).
@@ -2752,6 +2759,7 @@ class EventArray(EventList):
             return arrayEvents[np.asarray(subchannels)+1]
         else:
             return arrayEvents[1:]
+
 
     def _blockSlice(self, start=None, end=None, step=1, display=False):
         """ Create an iterator producing events packed into numpy arrays for a
@@ -2802,6 +2810,7 @@ class EventArray(EventList):
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
+
     def iterSlice(self, start=None, end=None, step=1, display=False):
         """ Create an iterator producing events for a range of indices.
 
@@ -2817,6 +2826,7 @@ class EventArray(EventList):
             blockEvents = np.append(times[np.newaxis], values, axis=0)
             for event in blockEvents.T:
                 yield event
+
 
     def arraySlice(self, start=None, end=None, step=1, display=False):
         """ Create an array of events within a range of indices.
@@ -2838,6 +2848,7 @@ class EventArray(EventList):
             return np.empty((no_of_chs+1, 0), dtype=np.float)
 
         return np.block(raw_slice).T
+
 
     def _blockJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
                            display=False):
@@ -2899,6 +2910,7 @@ class EventArray(EventList):
 
             subIdx = (lastSubIdx-1+step) % block.numSamples
 
+
     def iterJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
                          display=False):
         """ Create an iterator producing events for a range of indices.
@@ -2920,6 +2932,7 @@ class EventArray(EventList):
             blockEvents = np.append(times[np.newaxis], values, axis=0)
             for event in blockEvents.T:
                 yield event
+
 
     def arrayJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
                           display=False):
@@ -2949,6 +2962,7 @@ class EventArray(EventList):
 
         return np.block(raw_slice).T
 
+
     # EventList implementation suffices -> no overload required
     # def iterRange(self, startTime=None, endTime=None, step=1, display=False):
 
@@ -2965,6 +2979,7 @@ class EventArray(EventList):
         self._computeMinMeanMax()
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
         return self.arraySlice(startIdx, endIdx, step, display=display)
+
 
     def getRange(self, startTime=None, endTime=None, display=False):
         """ Get a set of data occurring in a given time interval. (Currently
@@ -3116,6 +3131,7 @@ class EventArray(EventList):
         return self.arrayMinMeanMax(startTime, endTime, padding, times,
                                     display)
 
+
     def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
                            display=False):
         """ Get the single minimum, mean, and maximum value for blocks within a
@@ -3158,6 +3174,7 @@ class EventArray(EventList):
                 stats[2].max(),
             )
 
+
     def getMax(self, startTime=None, endTime=None, display=False):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, returns the maximum among all
@@ -3178,6 +3195,7 @@ class EventArray(EventList):
         subIdx = blockData[1:].max(axis=0).argmax()
 
         return blockData[:, subIdx]
+
 
     def getMin(self, startTime=None, endTime=None, display=False):
         """ Get the event with the minimum value, optionally within a specified
@@ -3203,6 +3221,7 @@ class EventArray(EventList):
 
         return blockData[:, subIdx]
 
+
     def getMeanNear(self, t, outOfRange=False):
         """ Retrieve the mean value near a given time.
         """
@@ -3217,10 +3236,8 @@ class EventArray(EventList):
         """ Calculate the minimum, mean, and max for files without that data
             recorded. Not recommended for large data sets.
         """
-        print("XXX: _computeMinMeanMax() %s" % self)
         if self.hasMinMeanMax:
             return
-        print("XXX: actually doing _computeMinMeanMax() %s" % self)
         
         if self.hasSubchannels:
             parseBlock = self.parent.parseBlock
@@ -3241,11 +3258,12 @@ class EventArray(EventList):
                 logger.warning("_computeMinMeanMax struct error: %r" % (block.indexRange,))
                 if __DEBUG__:
                     raise
-            
+
 
     # EventList implementation suffices -> no overload required
     # def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
     #                        jitter=0, display=False):
+
 
     def arrayResampledRange(self, startTime, stopTime, maxPoints, padding=0,
                             jitter=0, display=False):
