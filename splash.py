@@ -23,14 +23,14 @@ class SplashPageContents(wx.Panel):
     """
     
     BGIMAGE = os.path.realpath(os.path.join(os.path.dirname(__file__),
-                                            'ABOUT', 'splash.png'))
+                                            'ABOUT', 'splash.jpg'))
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Takes standard `wx.Panel` methods, plus:
         
             @keyword root: The parent viewer window. 
         """
-        image = wx.Image(self.BGIMAGE, wx.BITMAP_TYPE_PNG)
+        image = wx.Image(self.BGIMAGE, wx.BITMAP_TYPE_ANY)
 
         self.root = kwargs.pop('root', None)
         self.showWarning = kwargs.pop('warning', True)
@@ -64,13 +64,19 @@ class SplashPageContents(wx.Panel):
         confBtn.SetToolTip("Configure an enDAQ or Slam Stick data recorder")
         resBtn.SetToolTip("Visit enDAQ support (opens in browser)")
         
+#         bcolor = wx.Colour(230,112,37)
+#         for b in (openBtn, confBtn, resBtn):
+#             b.SetBackgroundColour(bcolor)
+#             b.SetForegroundColour(wx.WHITE)
+#             b.Set(bcolor)
+        
         sizer.Add((0,0), 1)
         sizer.Add(openBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
         sizer.AddSpacer(8)
         sizer.Add(confBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
         sizer.AddSpacer(24)
         sizer.Add(resBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
-        sizer.AddSpacer(40)
+        sizer.AddSpacer(80)
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackground)
         openBtn.Bind(wx.EVT_BUTTON, self.root.OnFileOpenMenu)
