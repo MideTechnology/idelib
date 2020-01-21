@@ -127,6 +127,7 @@
         <MasterElement name="DigitalSensorBNO055" id="0x4D93" mandatory="0" multiple="0" minver="1">Indicates the presence of a BNO055 IMU on the I2C0 bus.</MasterElement>
         <MasterElement name="DigitalSensorBHI160" id="0x4D94" mandatory="0" multiple="0" minver="1">Indicates the presence of a Bosch BHI160 IMU on the I2C0 bus.</MasterElement>
         <MasterElement name="DigitalSensorBMG250" id="0x4D95" mandatory="0" multiple="0" minver="1">Indicates the presence of a BMG250 Gyroscope</MasterElement>
+        <MasterElement name="DigitalSensorBMG250Int" id="0x4D96" mandatory="0" multiple="0" minver="1">Indicates the presence of a BMG250 Gyroscope, with an interrupt line</MasterElement>
 
         <!-- Digital pressure/other sensors -->
         <MasterElement name="DigitalSensorMPL3115A2" id="0x4DA0" mandatory="0" multiple="0" minver="1">Indicates the presence of an MPL3115A2 P/T sensor on the I2C0 bus.</MasterElement>
