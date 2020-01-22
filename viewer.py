@@ -176,8 +176,11 @@ class Viewer(wx.Frame, MenuMixin):
     ID_DATA_RENDER_PSD = wx.NewIdRef()
     ID_DATA_RENDER_SPEC = wx.NewIdRef()
     ID_DATA_RENDER_PLOTS = wx.NewIdRef()
+    ID_SCRIPTING_RUN = wx.NewIdRef()
+    ID_SCRIPTING_RECENT = wx.NewIdRef()
     ID_SCRIPTING_EDIT = wx.NewIdRef()
     ID_SCRIPTING_CONSOLE = wx.NewIdRef()
+    ID_SCRIPT1 = 2000 # Recent script menu ID; other recent scripts increment.
     ID_TOOLS = wx.NewIdRef()
     ID_HELP_CHECK_UPDATES = wx.NewIdRef()
     ID_HELP_FEEDBACK = wx.NewIdRef()
@@ -563,6 +566,18 @@ class Viewer(wx.Frame, MenuMixin):
         # TODO: Remove the `showAdvanced` conditional (once things work!)
         if showAdvanced:
             scriptMenu = self.addMenu(self.menubar, '&Scripting')
+            self.addMenuItem(scriptMenu, self.ID_SCRIPTING_RUN,
+                             "&Run Script...\tCtrl+Shift+R",
+                             'Open the Python script editor.',
+                             self.OnScriptRun)
+            
+            self.recentScriptsMenu = wx.Menu()
+            scriptMenu.Append(self.ID_SCRIPTING_RECENT, "Run Recent Script",
+                                self.recentScriptsMenu)
+            self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentScripts, id=self.ID_SCRIPTING_RECENT)
+            self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentScript, id=self.ID_SCRIPT1, id2=self.ID_SCRIPT1+7)
+
+            scriptMenu.AppendSeparator()
             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
                              "Open Script &Editor\tCtrl+Shift+E",
                              'Open the Python script editor.',
@@ -721,6 +736,7 @@ class Viewer(wx.Frame, MenuMixin):
                  self.ID_HELP_RESOURCES,
                  self.ID_FILE_MULTI, self.ID_TOOLS,
                  self.ID_SCRIPTING_EDIT, self.ID_SCRIPTING_CONSOLE,
+                 self.ID_SCRIPTING_RUN, self.ID_SCRIPTING_RECENT,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS,
                  self.ID_DEBUG_CONSOLE, self.ID_DEBUG0, self.ID_DEBUG1,
                  self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
@@ -1712,6 +1728,43 @@ class Viewer(wx.Frame, MenuMixin):
         return self.console
 
 
+    def runScript(self, filename, focus=False):
+        """ Execute a Python script.
+            
+            @param filename: The script's full path and filename.
+            @keyword focus: If `True`, the console will be shown and take
+                focus before the script runs.
+        """
+        if not self.console:
+            self.console = scripting.shell.PythonConsole.openConsole(self)
+            self.childViews[self.console.GetId()] = self.console
+            if not focus:
+                self.console.Hide()
+
+        if focus:
+            self.console.Show()
+            self.console.SetFocus()
+
+        now = str(datetime.now()).rsplit('.',1)[0]
+        start = "### Running %s at %s" % (filename, now)
+        finish = "### Finished running %s" % (filename)
+        
+        try:
+            self.console.shell.push("print(%r);execfile(%r);print(%r)" % 
+                                    (start,filename,finish))
+            # TODO: Find better way to identify when an error happens.
+            # This doesn't seem to work at all.
+            if getattr(self.console.shell, 'hasSyntaxError', False):
+                self.console.Show()
+                self.console.SetFocus()
+            self.app.prefs.addRecentFile(filename, 'scripts')
+        except Exception as err:
+            # This *doesn't* run if the script executed had an error.
+            # The console catches it all.
+            logger.error("Viewer.runScript() error: %r" % err)
+            raise
+
+
     #===========================================================================
     #
     #===========================================================================
@@ -1911,6 +1964,10 @@ class Viewer(wx.Frame, MenuMixin):
                 p.setValueRange(*newRanges[1])
 
 
+    #===========================================================================
+    # 
+    #===========================================================================
+
     def OnDeviceConfigMenu(self, evt):
         """ Handle Device->Configure Device menu events.
         """
@@ -1948,6 +2005,65 @@ class Viewer(wx.Frame, MenuMixin):
         if warning == wx.ID_YES:
             devices.efm32_firmware.updateFirmware(self)
 
+    #===========================================================================
+    # 
+    #===========================================================================
+
+    def OnScriptRun(self, evt):
+        """ Handle "Scripting->Run Script" menu events.
+        """
+        types = "Python Script (*.py)|*.py"
+
+        dlg = wx.FileDialog(self, message="Run Python Script",
+                            wildcard=types, style=wx.FD_OPEN)
+        try:
+            if dlg.ShowModal() == wx.ID_OK:
+                self.runScript(dlg.GetPath())
+        finally:
+            dlg.Destroy()
+
+
+    def OnShowRecentScripts(self, evt):
+        """ Handle the appearance of the Recent Script submenu, updating its
+            contents.
+        """
+        for item in self.recentScriptsMenu.GetMenuItems():
+            self.recentScriptsMenu.DestroyItem(item)
+
+        filenames = self.app.prefs.getRecentFiles("scripts")
+        for i, f in enumerate(filenames):
+            self.addMenuItem(self.recentScriptsMenu, i+self.ID_SCRIPT1, f, '')
+
+        self.ID_CLEAR_SCRIPT_HISTORY = getattr(self, 'ID_CLEAR_SCRIPT_HISTORY',
+                                               wx.ID_ANY)
+
+        if filenames:
+            self.recentScriptsMenu.AppendSeparator()
+            self.addMenuItem(self.recentScriptsMenu, self.ID_CLEAR_SCRIPT_HISTORY,
+                             "Clear script history",
+                             'Clear the "Recent Scripts" menu.',
+                             lambda _evt: self.app.prefs.clearRecentFiles("scripts"))
+
+        else:
+            self.addMenuItem(self.recentScriptsMenu, self.ID_CLEAR_SCRIPT_HISTORY,
+                             "No script history", "", enabled=False)
+
+
+    def OnPickRecentScript(self, evt):
+        """ Handle an item being picked from the script history submenu.
+        """
+        eid = evt.GetId()
+
+        if eid < self.ID_SCRIPT1 or eid > self.ID_SCRIPT1+7:
+            # Sanity check. Should never happen.
+            return
+
+        idx = eid - self.ID_SCRIPT1
+        files = self.app.prefs.getRecentFiles("scripts")
+        if idx < len(files):
+            filename = files[idx]
+            self.runScript(filename)
+
 
     def OnShowScriptEditor(self, evt):
         """ Handle "Scripting->Show Script Editor" menu events.
@@ -1963,6 +2079,9 @@ class Viewer(wx.Frame, MenuMixin):
         """
         return self.showConsole(focus=True)
 
+    #===========================================================================
+    # 
+    #===========================================================================
 
     def OnHelpAboutMenu(self, evt):
         """ Handle Help->About menu events.

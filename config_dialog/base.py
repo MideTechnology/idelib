@@ -656,6 +656,11 @@ class ConfigWidget(wx.Panel, ConfigBase):
             logger.error('Config file had wrong type for %s (ConfigID 0x%X): '
                          '%r (%s)' % (self.__class__.__name__, self.configId,
                                       val, val.__class__.__name__))
+        except wx.wxAssertionError as err:
+            # Also shouldn't happen, but might if the file is damaged.
+            # Happened once, can't repeat.
+            logger.error('%s (ConfigID 0x%X, value:%r)' % (err.message, 
+                                                           self.configId, val))
         
 
     def setToDefault(self, check=False):
