@@ -7,6 +7,11 @@ Created on Sep 26, 2013
 @author: dstokes
 
 '''
+# TODO: Sensor subchannels. Requires schema/firmware updates.
+#
+# TODO: Transforms on Sensors. It's stubbed out, but not used in combo
+#    transforms.
+# 
 # TODO: Clean out some of the unused features. They make the code less clear,
 #    creating more than one way to do the same thing. More often than not, 
 #    they are the result of over-engineering things.
@@ -24,11 +29,6 @@ Created on Sep 26, 2013
 #    of conditionals evaluated, and/or see about making parent Channels' 
 #    EventLists flat.
 #   
-# TODO: See where NumPy can be leveraged. The original plan was to make this
-#     module free of all dependencies (save python_ebml), but NumPy greatly 
-#     improved the new min/mean/max stuff. Might as well take advantage of it
-#     elsewhere!
-#       
 # TODO: Nice discontinuity handing. This will probably be conveyed as events 
 #     with null values. An attribute/keyword may be needed to suppress this when 
 #     getting data for processing (FFT, etc.). Low priority.
@@ -39,14 +39,8 @@ Created on Sep 26, 2013
 # TODO: Consider thread safety. Use a `threading.RLock` around adding/ending
 #    a Session, updating/using Transforms, appending/accessing EventList data,
 #    etc. Not (yet?) a serious problem, but it could be in the future; current
-#    handling of race conditions is a hack.
-#
-# TODO: Sensor subchannels. Requires schema/firmware updates.
-#
-# TODO: Transforms on Sensors. It's stubbed out, but not used in combo
-#    transforms.
-# 
-# TODO: Clean up the min/mean/max stuff.
+#    handling of race conditions is a hack. Also make some flags (like
+#    `Dataset.loading`) properties that get/set a `threading.Event`?
 
 from __future__ import (absolute_import, division, print_function,
                         unicode_literals)
@@ -67,7 +61,6 @@ import sys
 from time import sleep
 
 import numpy as np
-# from numpy.lib import recfunctions as np_recfuncs
 
 from .calibration import Transform, CombinedPoly, PolyPoly
 from .parsers import getParserTypes, getParserRanges
@@ -175,7 +168,7 @@ class Transformable(Cascading):
 
 
     def updateTransforms(self):
-        """
+        """ Recompute cached transform functions.
         """
         # Convert ID references (as will be in a fresh import) to the
         # actual Transform objects
@@ -215,8 +208,8 @@ class Dataset(Cascading):
         Dictionary attributes are all keyed by the relevant ID (sensor ID,
         channel ID, etc.).
         
-        @ivar loading: Boolean; `True` if a file is loading (or has not yet been
-            loaded).
+        @ivar loading: Boolean; `True` if a file is still loading (or has not
+            yet been loaded).
         @ivar fileDamaged: Boolean; `True` if the file ended prematurely.
         @ivar loadCancelled: Boolean; `True` if the file loading was aborted 
             part way through.
@@ -232,7 +225,9 @@ class Dataset(Cascading):
     """
 
     def __init__(self, stream, name=None, exitCondition=None, quiet=True):
-        """ Constructor. 
+        """ Constructor. Typically, these objects will be instantiated by
+            functions in the `importer` module.
+        
             @param stream: A file-like stream object containing EBML data.
             @keyword name: An optional name for the Dataset. Defaults to the
                 base name of the file (if applicable).
@@ -289,6 +284,7 @@ class Dataset(Cascading):
 
     @property
     def channels(self):
+        """ A dictionary of individual Sensor channels. """
         # Only return channels with subchannels. If all analog subchannels are
         # disabled, the recording properties will still show the parent channel.
         return {k:v for k,v in self._channels.items() if v.subchannels}
@@ -315,11 +311,13 @@ class Dataset(Cascading):
     
     @property
     def closed(self):
+        """ Has the recording file been closed? """
         return getattr(self.ebmldoc.stream, "closed", True)
 
 
     def addSession(self, startTime=None, endTime=None, utcStartTime=None):
         """ Create a new session, add it to the Dataset, and return it.
+            Part of the import process.
         """
         self.endSession()
         utcStartTime = self.lastUtcTime if utcStartTime is None else utcStartTime
@@ -333,7 +331,8 @@ class Dataset(Cascading):
 
 
     def endSession(self):
-        """ Set the current session's start/end times.
+        """ Set the current session's start/end times. Part of the import
+            process.
         """
         cs = self.currentSession
         if cs is not None:
@@ -359,7 +358,7 @@ class Dataset(Cascading):
             @keyword name: The new sensor's name
             @keyword sensorClass: An alternate (sub)class of sensor. Defaults
                 to `None`, which creates a `Sensor`.
-            @return: The new sensor
+            @return: The new sensor.
         """
         # `sensorId` is mandatory; it's a keyword argument to streamline import.
         if sensorId is None:
@@ -380,10 +379,12 @@ class Dataset(Cascading):
     def addChannel(self, channelId=None, parser=None, channelClass=None,
                    **kwargs):
         """ Add a Channel to a Sensor. Note that the `channelId` and `parser`
-            arguments are *not* optional.
+            keyword arguments are *not* optional.
         
-            @param channelId: An unique ID number for the channel.
-            @param parser: The Channel's data parser
+            @keyword channelId: An unique ID number for the channel.
+            @keyword parser: The Channel's data parser
+            @keyword channelClass: An alternate (sub)class of channel.
+                Defaults to `None`, which creates a standard `Channel`.
         """
         if channelId is None or parser is None:
             raise TypeError("addChannel() requires a channel ID")
@@ -412,7 +413,15 @@ class Dataset(Cascading):
     
     def addWarning(self, warningId=None, channelId=None, subchannelId=None, 
                    low=None, high=None, **kwargs):
-        """ Add a ``WarningRange`` to the dataset.
+        """ Add a `WarningRange` to the dataset, which indicates when a sensor
+            is reporting values outside of a given range.
+        
+            @keyword warningId: A unique numeric ID for the `WarningRange`.
+            @keyword channelId: The channel ID of the source being monitored.
+            @keyword subchannelId: The monitored source's subchannel ID.
+            @keyword low: The minimum value of the acceptable range.
+            @keyword high: The maximum value of the acceptable range.
+            @return: The new `WarningRange` instance.
         """
         w = WarningRange(self, warningId=warningId, channelId=channelId, 
                          subchannelId=subchannelId, low=low, high=high, 
@@ -489,6 +498,19 @@ class Session(object):
     
     def __init__(self, dataset, sessionId=0, startTime=None, endTime=None,
                  utcStartTime=None):
+        """ Constructor. This should generally be done indirectly via
+            `Dataset.addSession()`.
+            
+            @param dataset: The parent `Dataset`
+            @keyword sessionId: The Session's numeric ID. Typically
+                sequential, starting at 0.
+            @keyword startTime: The session's start time, in microseconds,
+                relative to the start of the recording.
+            @keyword endTime: The session's end time, in microseconds,
+                relative to the end of the recording.
+            @keyword utcStartTime: The session's start time, as an absolute
+                POSIX/epoch timestamp.
+        """
         self.dataset = dataset
         self.startTime = startTime
         self.endTime = endTime
@@ -507,6 +529,7 @@ class Session(object):
     
     
     def __eq__(self, other):
+        """ x.__eq__(y) <==> x==y """
         if other is self:
             return True
         elif not isinstance(other, self.__class__):
@@ -825,7 +848,7 @@ class Channel(Transformable):
 
 
     def updateTransforms(self):
-        """
+        """ Recompute cached transform functions.
         """
         super(Channel, self).updateTransforms()
         if self.sessions is not None:
@@ -834,6 +857,7 @@ class Channel(Transformable):
                 
                 
     def __eq__(self, other):
+        """ x.__eq__(y) <==> x==y """
         if other is self:
             return True
         elif not isinstance(other, self.__class__):
@@ -1009,8 +1033,7 @@ class SubChannel(Channel):
             @keyword end: The last block index to retrieve.
             @keyword step: The number of steps between samples.
         """
-        return self.parent.parseBlock(block, start, end, step=step,) 
-#                                       subchannel=self.id)
+        return self.parent.parseBlock(block, start, end, step=step) 
 
 
     def parseBlockByIndex(self, block, indices):
@@ -1019,7 +1042,7 @@ class SubChannel(Channel):
             @param block: The data block from which to parse subsamples.
             @param indices: A list of individual index numbers to get.
         """
-        return self.parent.parseBlockByIndex(block, indices)#, subchannel=self.id)
+        return self.parent.parseBlockByIndex(block, indices)
 
         
     def getSession(self, sessionId=None):
@@ -1048,6 +1071,7 @@ class SubChannel(Channel):
 
 
     def __eq__(self, other):
+        """ x.__eq__(y) <==> x==y """
         if other is self:
             return True
         if not isinstance(other, self.__class__):
@@ -1142,15 +1166,6 @@ class EventList(Transformable):
         else:
             self.parseBlock = self.parent.parent.parseBlock
         
-        
-#     def setTransform(self, xform, update=True):
-#         """
-#         """
-#         self.transform = xform
-#         self._transform = Transform.null if xform is None else xform
-#         if update:
-#             self.updateTransforms()
-
         
     def updateTransforms(self, recurse=True):
         """ (Re-)Build and (re-)apply the transformation functions.
@@ -1305,7 +1320,6 @@ class EventList(Transformable):
 #             self.hasMinMeanMax = False
 #             self.allowMeanRemoval = False
         
-            
     
     def getInterval(self):
         """ Get the first and last event times in the set.
@@ -1419,10 +1433,6 @@ class EventList(Transformable):
 #                 return None
         
         block = self._data[blockIdx]
-        
-#         if block.mean is None:
-#             self._computeMinMeanMax()
-        
         span = self.rollingMeanSpan
         
         if (block._rollingMean is not None 
@@ -1620,7 +1630,7 @@ class EventList(Transformable):
             @keyword display: If `True`, the `EventList` transform (i.e. the 
                 'display' transform) will be applied to the data.
         """
-        # TODO optimization: refactor calls of iterSlice() to pass slices?
+        # TODO: optimization: refactor calls of iterSlice() to pass slices?
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
@@ -1708,7 +1718,7 @@ class EventList(Transformable):
             @keyword display: If `True`, the `EventList` transform (i.e. the 
                 'display' transform) will be applied to the data.
         """
-        # TODO optimization: refactor calls of iterJitterySlice() to pass slices?
+        # TODO: optimization: refactor calls of iterJitterySlice() to pass slices?
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
@@ -2582,7 +2592,7 @@ class EventArray(EventList):
             @keyword start: The first block index to search
             @keyword stop: The last block index to search
         """
-        # TODO profile & determine if this change is beneficial
+        # TODO: profile & determine if this change is beneficial
         if len(self._blockIndicesArray) != len(self._blockIndices):
             self._blockIndicesArray = np.array(self._blockIndices)
 
@@ -2599,7 +2609,7 @@ class EventArray(EventList):
             @keyword start: The first block index to search
             @keyword stop: The last block index to search
         """
-        # TODO profile & determine if this change is beneficial
+        # TODO: profile & determine if this change is beneficial
         if len(self._blockTimesArray) != len(self._blockTimes):
             self._blockTimesArray = np.array(self._blockTimes)
 
@@ -2772,7 +2782,7 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
-        # TODO optimization: refactor calls of iterSlice() to pass slices?
+        # TODO: optimization: refactor calls of iterSlice() to pass slices?
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
@@ -2863,7 +2873,7 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             @return: an iterable of events in the specified index range.
         """
-        # TODO optimization: refactor calls of iterJitterySlice() to pass slices?
+        # TODO: optimization: refactor calls of iterJitterySlice() to pass slices?
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
@@ -3188,7 +3198,7 @@ class EventArray(EventList):
         maxs = self.arrayMinMeanMax(startTime, endTime, times=False,
                                     display=display)[2].max(axis=0)
 
-        blockIdx = maxs.argmax()  # TODO is this bug-free? double-check
+        blockIdx = maxs.argmax()  # TODO: is this bug-free? double-check
         sampleIdxRange = self._data[blockIdx].indexRange
         blockData = self.arraySlice(*sampleIdxRange, display=display)
         subIdx = blockData[1:].max(axis=0).argmax()
@@ -3213,7 +3223,7 @@ class EventArray(EventList):
         mins = self.arrayMinMeanMax(startTime, endTime, times=False,
                                     display=display)[0].min(axis=0)
 
-        blockIdx = mins.argmin()  # TODO is this bug-free? double-check
+        blockIdx = mins.argmin()  # TODO: is this bug-free? double-check
         sampleIdxRange = self._data[blockIdx].indexRange
         blockData = self.arraySlice(*sampleIdxRange, display=display)
         subIdx = blockData[1:].min(axis=0).argmin()
