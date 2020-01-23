@@ -9,6 +9,7 @@ Created on May 8, 2014
 import fnmatch
 import json
 import os.path
+from threading import RLock
 import time
 
 import wx; wx=wx
@@ -84,6 +85,7 @@ class Preferences(object):
                        "00.2": "RED",        # Acceleration X
                        "01.0": "DARK GREEN", # Pressure
                        "01.1": "VIOLET",     # Temperature
+                       
                        # SSX v2
                        "08.0": "RED",                  # Acceleration X
                        "08.1": "GREEN",                # Acceleration Y
@@ -93,11 +95,6 @@ class Preferences(object):
                        "20.2": wx.Colour(100,100,255), # Acceleration Z (DC)
                        "24.0": "DARK GREEN",           # Pressure
                        "24.1": "VIOLET",               # Temperature
-    
-                       # SSX v2
-                       "50.0": "RED",                  # Acceleration X
-                       "50.1": "GREEN",                # Acceleration Y
-                       "50.2": "BLUE",                 # Acceleration Z
     
                        # IMU Accelerometer (channel 0x2b, 43 decimal)
                        "2b.0": wx.Colour(225,100,100), # Acceleration X (IMU)
@@ -116,6 +113,10 @@ class Preferences(object):
                        "33.1": "GREEN", # IMU Magnetometer Y
                        "33.2": "BLUE",  # IMU Magnetometer Z
                        
+                       # Control Pad/Fast pressure/temperature (channel 59)
+                       "3b.0": wx.Colour(91,181,148),
+                       "3b.1": wx.Colour(92,95,180),
+                       
                        # IMU Quaternion data (channel 0x41, 65 decimal)
                        # X/Y/Z components same as accelerometer axes
                        "41.0": "RED",
@@ -125,14 +126,20 @@ class Preferences(object):
                        "41.4": "BLUE VIOLET",
                        
                        # IMU Quaternion data (channel 0x46, 70 decimal)
-                       "46.0": "RED",
-                       "46.1": "GREEN",
-                       "46.2": "BLUE",
-                       "46.3": "GOLD",
+                       "46.0": "RED",   # Quaternion X
+                       "46.1": "GREEN", # Quaternion Y
+                       "46.2": "BLUE",  # Quaternion Z
+                       "46.3": "GOLD",  # Quaternion W
                        
-                       # Control Pad/Fast pressure/temperature (channel 59)
-                       "3b.0": wx.Colour(91,181,148),
-                       "3b.1": wx.Colour(92,95,180),
+                       # 40/200g digital accelerometer
+                       "50.0": "RED",   # Acceleration X
+                       "50.1": "GREEN", # Acceleration Y
+                       "50.2": "BLUE",  # Acceleration Z
+    
+                       # BMG250 gyroscope (channel 0x54, 84 decimal)
+                       "54.0": "RED",   # gyroscope X
+                       "54.1": "GREEN", # gyroscope Y
+                       "54.2": "BLUE",  # gyroscope Z
         },
         # default colors: used for subchannel plots not in plotColors
         'defaultColors': ["DARK GREEN",
@@ -185,6 +192,7 @@ class Preferences(object):
                 `None` to import the default file.
             @keyword clean: If `True`, do not read preferences.
         """
+        self.busy = RLock()
         self.prefsFile = filename
         self.prefs = {}
         
@@ -227,12 +235,13 @@ class Preferences(object):
         
             @todo: Remove this after a few versions of enDAQ Lab.
         """
-        filename = os.path.join(self.prefsFile, '../..', 
-                                u"Slam\u2022Stick Lab", "ss_lab.cfg")
-        
-        prefs = self.loadPrefs(os.path.abspath(filename))
-        prefs.pop('openOnStart', None)
-        return prefs
+        with self.busy:
+            filename = os.path.join(self.prefsFile, '../..', 
+                                    u"Slam\u2022Stick Lab", "ss_lab.cfg")
+            
+            prefs = self.loadPrefs(os.path.abspath(filename))
+            prefs.pop('openOnStart', None)
+            return prefs
         
 
     def loadPrefs(self, filename=None):
@@ -243,29 +252,32 @@ class Preferences(object):
                 return wx.Colour(*c)
             return c
         
-        self.prefs = {}
-        filename = filename or self.prefsFile
-        logger.info("Loading prefs file %r (exists=%r)" % 
-                    (filename,os.path.exists(filename)))
-        if not filename:
-            return self.prefs
-        
-        filename = os.path.realpath(os.path.expanduser(filename))
-
-        prefs = {}
-        if not os.path.exists(filename):
-            # No preferences file; probably the first run for this machine/user
-            return self.prefs
-        try:
-            with open(filename) as f:
-                prefs = json.load(f)
-                if isinstance(prefs, dict):
+        with self.busy:
+            self.prefs = {}
+            filename = filename or self.prefsFile
+            logger.info("Loading prefs file %r (exists=%r)" % 
+                        (filename,os.path.exists(filename)))
+            if not filename:
+                return self.prefs
+            
+            filename = os.path.realpath(os.path.expanduser(filename))
+    
+            prefs = {}
+            if not os.path.exists(filename):
+                # No preferences file; probably the first run for this machine/user
+                return self.prefs
+            try:
+                with open(filename) as f:
+                    prefs = json.load(f)
+                    if not isinstance(prefs, dict):
+                        raise ValueError
+                    
                     vers = prefs.get('prefsVersion', self.PREFS_VERSION)
                     if vers != self.PREFS_VERSION:
                         # Mismatched preferences version!
                         # FUTURE: Possibly translate old prefs to new format
-                        n = "n older" if vers < self.PREFS_VERSION else " newer"
-                        wx.MessageBox("The preferences file appears to use a%s "
+                        n = "an older" if vers < self.PREFS_VERSION else "a newer"
+                        wx.MessageBox("The preferences file appears to use %s "
                             "format than expected;\ndefaults will be used." % n,
                             "Preferences Version Mismatch")
                         return self.prefs
@@ -277,14 +289,14 @@ class Preferences(object):
                         if isinstance(prefs[k], list):
                             for i in xrange(len(prefs[k])):
                                 prefs[k][i] = tuple2color(prefs[k][i])
-        except (ValueError, IOError):# as err:
-            # Import problem. Bad file will raise IOError; bad JSON, ValueError.
-            wx.MessageBox("An error occurred while trying to read the "
-                          "preferences file.\nDefault settings will be used.",
-                          "Preferences File Error")
-        
-        self.prefs = prefs
-        return self.prefs
+            except (ValueError, IOError):# as err:
+                # Import problem. Bad file will raise IOError; bad JSON, ValueError.
+                wx.MessageBox("An error occurred while trying to read the "
+                              "preferences file.\nDefault settings will be used.",
+                              "Preferences File Error")
+            
+            self.prefs = prefs
+            return self.prefs
 
 
     def savePrefs(self, filename=None):
@@ -300,59 +312,62 @@ class Preferences(object):
                 d = tuple(d)
             return d
         
-        prefs = self.prefs.copy()
-        prefs['prefsVersion'] = self.PREFS_VERSION
-        filename = filename or self.prefsFile
-        
-        try:
-            path = os.path.split(filename)[0]
-            if not os.path.exists(path):
-                os.makedirs(path)
-            with open(filename, 'w') as f:
-                json.dump(_fix(prefs), f, indent=2, sort_keys=True)
-        except IOError:# as err:
-            # TODO: Report a problem, or just ignore?
-            pass
+        with self.busy:
+            prefs = self.prefs.copy()
+            prefs['prefsVersion'] = self.PREFS_VERSION
+            filename = filename or self.prefsFile
+            
+            try:
+                path = os.path.split(filename)[0]
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                with open(filename, 'w') as f:
+                    json.dump(_fix(prefs), f, indent=2, sort_keys=True)
+            except IOError:# as err:
+                # TODO: Report a problem, or just ignore?
+                pass
         
     
     def saveAllPrefs(self, filename=None, hideFile=None):
         """ Save all preferences, including defaults, to the config file.
             Primarily for debugging.
         """
-        prefs = self.defaultPrefs.copy()
-        prefs.update(self.prefs)
-        self.prefs = prefs
-        self.savePrefs(filename, hideFile)
+        with self.busy:
+            prefs = self.defaultPrefs.copy()
+            prefs.update(self.prefs)
+            self.prefs = prefs
+            self.savePrefs(filename, hideFile)
 
     
     def addRecentFile(self, filename, category="import"):
         """ Add a file to a history list. If the list is at capacity, the
             oldest file is removed.
         """
-        self.changedFiles = True
-        allFiles = self.prefs.setdefault('fileHistory', {})
-        files = allFiles.setdefault(category, [])
-        if filename:
-            if filename in files:
-                files.remove(filename)
-            files.insert(0,filename)
-        allFiles[category] = files[:(self.getPref('fileHistorySize'))]
+        with self.busy:
+            self.changedFiles = True
+            allFiles = self.prefs.setdefault('fileHistory', {})
+            files = allFiles.setdefault(category, [])
+            if filename:
+                if filename in files:
+                    files.remove(filename)
+                files.insert(0,filename)
+            allFiles[category] = files[:(self.getPref('fileHistorySize'))]
 
 
     def getRecentFiles(self, category="import"):
         """ Retrieve the list of recent files within a category.
         """
-        
-        hist = self.prefs.setdefault('fileHistory', {})
-        return hist.setdefault(category, [])
+        with self.busy:
+            hist = self.prefs.setdefault('fileHistory', {})
+            return hist.setdefault(category, [])
 
 
     def clearRecentFiles(self, category="import"):
         """ Clear the list of recent files within a category.
         """
-        
-        hist = self.prefs.setdefault('fileHistory', {})
-        del hist.setdefault(category, [])[:]
+        with self.busy:
+            hist = self.prefs.setdefault('fileHistory', {})
+            del hist.setdefault(category, [])[:]
 
 
     def getPref(self, name, default=None, section=None):
@@ -363,31 +378,34 @@ class Preferences(object):
             @keyword section: An optional "section" name from which to
                 delete. Currently a prefix in this implementation.
         """
-        if section is not None:
-            name = "%s.%s" % (section, name)
-        return self.prefs.get(name, self.defaultPrefs.get(name, default))
+        with self.busy:
+            if section is not None:
+                name = "%s.%s" % (section, name)
+            return self.prefs.get(name, self.defaultPrefs.get(name, default))
 
 
     def setPref(self, name, val, section=None, persistent=True):
         """ Set the value of a preference. Returns the value set as a
             convenience.
         """
-        if section is not None:
-            name = "%s.%s" % (section, name)
-        prefs = self.prefs if persistent else self.defaultPrefs
-        prefs[name] = val
-        return val
+        with self.busy:
+            if section is not None:
+                name = "%s.%s" % (section, name)
+            prefs = self.prefs if persistent else self.defaultPrefs
+            prefs[name] = val
+            return val
 
 
     def hasPref(self, name, section=None, defaults=False):
         """ Check to see if a preference exists, in either the user-defined
             preferences or the defaults.
         """
-        if section is not None:
-            name = "%s.%s" % (section, name)
-        if defaults:
-            return (name in self.prefs) or (name in self.defaultPrefs)
-        return name in self.prefs
+        with self.busy:
+            if section is not None:
+                name = "%s.%s" % (section, name)
+            if defaults:
+                return (name in self.prefs) or (name in self.defaultPrefs)
+            return name in self.prefs
     
     
     def deletePref(self, name=None, section=None):
@@ -398,15 +416,16 @@ class Preferences(object):
             @keyword section: An optional section name, limiting the scope.
             @return: The number of deleted preferences.
         """
-        if section is not None:
-            name = name if name is not None else "*"
-            name = "%s.%s" % (section, name)
-        if name is None:
-            return
-        keys = fnmatch.filter(self.prefs.keys(), name)
-        for k in keys:
-            self.prefs.pop(k, None)
-        return len(keys)
+        with self.busy:
+            if section is not None:
+                name = name if name is not None else "*"
+                name = "%s.%s" % (section, name)
+            if name is None:
+                return
+            keys = fnmatch.filter(self.prefs.keys(), name)
+            for k in keys:
+                self.prefs.pop(k, None)
+            return len(keys)
 
     
     def editPrefs(self, parent=None):

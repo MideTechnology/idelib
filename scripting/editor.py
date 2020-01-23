@@ -7,9 +7,9 @@ import os.path
 import string
 import tempfile
 
-import  wx
-import wx.aui as aui
-import  wx.stc  as  stc
+import wx
+import wx.aui as AUI
+import wx.stc as STC
 
 from base import MenuMixin
 from build_info import DEBUG
@@ -85,7 +85,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         super(ScriptEditorCtrl, self).__init__(*args, **kwargs)
         self.updateOptions()
 
-        self.Bind(stc.EVT_STC_MODIFIED, self.OnModified)
+        self.Bind(STC.EVT_STC_MODIFIED, self.OnModified)
 
         self.LoadFile(self.filename)        
 
@@ -126,7 +126,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         self.SetTabWidth(4)
         self.SetUseTabs(False)
         self.SetBackSpaceUnIndents(True)
-        self.SetMarginType(1, stc.STC_MARGIN_NUMBER)
+        self.SetMarginType(1, STC.STC_MARGIN_NUMBER)
         
         self.SetIndentationGuides(self.frame.showGuides)
         self.SetViewWhiteSpace(self.frame.showWhitespace)
@@ -304,7 +304,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
     def OnModified(self, evt):
         """
         """
-        if evt.GetModificationType() & (stc.STC_MOD_DELETETEXT|stc.STC_MOD_INSERTTEXT):
+        if evt.GetModificationType() & (STC.STC_MOD_DELETETEXT|STC.STC_MOD_INSERTTEXT):
             self.updateTab()
             self.frame.updateMenus()
 
@@ -360,12 +360,12 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.parentUpdated()
         
         sizer = wx.BoxSizer()
-        self.nb = aui.AuiNotebook(self, -1, style=aui.AUI_NB_TOP  
-                                   | aui.AUI_NB_TAB_SPLIT 
-                                   | aui.AUI_NB_TAB_MOVE  
-                                   | aui.AUI_NB_SCROLL_BUTTONS 
-                                   | aui.AUI_NB_WINDOWLIST_BUTTON
-                                   | aui.AUI_NB_CLOSE_ON_ACTIVE_TAB)
+        self.nb = AUI.AuiNotebook(self, -1, style=AUI.AUI_NB_TOP  
+                                   | AUI.AUI_NB_TAB_SPLIT 
+                                   | AUI.AUI_NB_TAB_MOVE  
+                                   | AUI.AUI_NB_SCROLL_BUTTONS 
+                                   | AUI.AUI_NB_WINDOWLIST_BUTTON
+                                   | AUI.AUI_NB_CLOSE_ON_ACTIVE_TAB)
         sizer.Add(self.nb, 1, wx.EXPAND)
 
         self.SetStatusBar(ScriptEditorStatusBar(self, -1))
@@ -382,9 +382,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.loadPrefs()
         self.buildMenus()
 
-        self.nb.Bind(aui.EVT_AUINOTEBOOK_TAB_RIGHT_DOWN, self.OnNotebookRightClick)
-        self.nb.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSE, self.OnCloseTab)
-        self.nb.Bind(aui.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnTabChanged)
+        self.nb.Bind(AUI.EVT_AUINOTEBOOK_TAB_RIGHT_DOWN, self.OnNotebookRightClick)
+        self.nb.Bind(AUI.EVT_AUINOTEBOOK_PAGE_CLOSE, self.OnCloseTab)
+        self.nb.Bind(AUI.EVT_AUINOTEBOOK_PAGE_CHANGED, self.OnTabChanged)
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         self.Bind(wx.EVT_TIMER, self.OnChangeCheck)
         
@@ -1066,10 +1066,6 @@ class ScriptEditor(wx.Frame, MenuMixin):
             else:
                 wx.Bell()
             
-
-#===============================================================================
-# 
-#===============================================================================
 
 #===============================================================================
 # 
