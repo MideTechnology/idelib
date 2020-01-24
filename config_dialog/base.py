@@ -699,7 +699,8 @@ class ConfigWidget(wx.Panel, ConfigBase):
     def OnCheck(self, evt):
         """ Handle checkbox changing.
         """
-        if evt.Checked():
+        if evt.IsChecked():
+#         if self.checkbox and self.checkbox.IsChecked():
             for cid in self.exclude:
                 if cid in self.root.configItems:
                     self.root.configItems[cid].setCheck(False)
