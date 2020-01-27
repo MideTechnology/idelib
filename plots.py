@@ -2009,7 +2009,7 @@ class WarningRangeIndicator(object):
 
     
     def __init__(self, parent, warning, color=None, brush=None, penColor=None,
-                 pen=None):
+                 pen=None, menuId=None):
         """ Constructor.
         
             @param parent: The parent plot.
@@ -2033,12 +2033,16 @@ class WarningRangeIndicator(object):
                 pen = wx.Pen(color, style=wx.TRANSPARENT)
             else:
                 pen = wx.Pen(penColor)
+        if menuId is None:
+            menuId = wx.NewIdRef()
         
         self.brush = brush
         self.pen = pen
         
         self.source = warning
         self.sessionId = parent.root.session.sessionId
+        
+        self.menuId = menuId
         
         self.oldDraw = None
         self.rects = None

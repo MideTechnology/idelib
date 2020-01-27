@@ -92,8 +92,6 @@ __version__= '.'.join(map(str, VERSION))
 __copyright__=(u"Copyright (c) %s Mid\xe9 Technology" %
                (datetime.fromtimestamp(BUILD_TIME).year))
 
-if BETA:
-    __version__ = '%s BETA b%04d' % (__version__, BUILD_NUMBER)
 if DEBUG:
     __version__ = '%s DEBUG b%04d' % (__version__, BUILD_NUMBER)
     import socket
@@ -106,6 +104,9 @@ if DEBUG:
         except ImportError:
             logger.info('Could not import profiler (yappi), continuing...')
             pass
+elif BETA:
+    __version__ = '%s BETA b%04d' % (__version__, BUILD_NUMBER)
+
 
 # The feedback form URL. Will show up as an item in the Help menu if provided.
 FEEDBACK_URL = "https://endaq.com/pages/contact"
@@ -188,12 +189,8 @@ class Viewer(wx.Frame, MenuMixin):
 
     ID_DEBUG_SUBMENU = wx.NewIdRef()
     ID_DEBUG_SAVEPREFS = wx.NewIdRef()
-    ID_DEBUG_CONSOLE = wx.NewIdRef()
     ID_DEBUG0 = wx.NewIdRef()
     ID_DEBUG1 = wx.NewIdRef()
-    ID_DEBUG2 = wx.NewIdRef()
-    ID_DEBUG3 = wx.NewIdRef()
-    ID_DEBUG4 = wx.NewIdRef()
 
 
     def __init__(self, *args, **kwargs):
@@ -228,6 +225,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.tabTypes = {} # Each tab shows one type of unit
         self.cancelQueue = []
         self.plotarea = None
+        self.warningRanges = {}
 
         self.menubar = None
         self.loadPrefs()
@@ -738,8 +736,7 @@ class Viewer(wx.Frame, MenuMixin):
                  self.ID_SCRIPTING_EDIT, self.ID_SCRIPTING_CONSOLE,
                  self.ID_SCRIPTING_RUN, self.ID_SCRIPTING_RECENT,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS,
-                 self.ID_DEBUG_CONSOLE, self.ID_DEBUG0, self.ID_DEBUG1,
-                 self.ID_DEBUG2, self.ID_DEBUG3, self.ID_DEBUG4
+                 self.ID_DEBUG0, self.ID_DEBUG1,
                  ]
         menus.extend([t.info['_wxId'] for t in self.app.plugins.find(type='tool')
                       if '_wxId' in t.info])
@@ -806,17 +803,17 @@ class Viewer(wx.Frame, MenuMixin):
         """ Populate the Data->Display Range Warnings menu with 'idiot light'
             warning ranges from the current dataset.
         """
-        self.warningRanges = {}
+        self.warningRanges.clear()
         for i in self.viewWarningsMenu.GetMenuItems():
             self.viewWarningsMenu.DestroyItem(i)
 
         if len(self.plotarea.warningRanges) == 0:
-            self.addMenuItem(self.viewWarningsMenu, -1, "None", "",
-                             None, enabled=False)
+            self.addMenuItem(self.viewWarningsMenu, -1, "None", "", None,
+                             enabled=False)
             return
 
         for w in sorted(self.plotarea.warningRanges.values()):
-            wid = wx.NewIdRef()
+            wid = w.menuId
             self.warningRanges[wid] = w
             self.addMenuItem(self.viewWarningsMenu, wid, w.source.displayName,
                              "",
@@ -2211,25 +2208,38 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnZoomInY(self, evt):
+        """ Handle "View->Zoom In Y" menu events.
+        """
         p = self.plotarea.getActivePage()
         if p is not None:
             p.zoomIn()
 
 
     def OnZoomOutY(self, evt):
+        """ Handle "View->Zoom Out Y" menu events.
+        """
         p = self.plotarea.getActivePage()
         if p is not None:
             p.zoomOut()
 
 
     def OnZoomFitY(self, evt):
+        """ Handle "View->Zoom to Fit Y" menu events.
+        """
         p = self.plotarea.getActivePage()
         if p is not None:
             p.zoomToFit()
 
 
     def OnZoomFitAll(self, evt):
+        """ Handle "View->Zoom to Fit All" menu events.
+        """
+        # TODO: Make 'zoom to fit all' work better.
+        # There's appears to be an event processing race condition which makes
+        # the Y fit finish before the X fit. Forcing a yield makes it work,
+        # but the plot refreshes after the X fit.
         self.OnZoomFitX(evt)
+        wx.Yield()
         self.OnZoomFitY(evt)
 
 
@@ -2242,14 +2252,23 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def OnZoomInX(self, evt):
+        """ Handle "View->Zoom In X" menu events.
+        """
+        # Make navigator (top timeline) think its 'zoom in' button was pressed
         self._postCommandEvent(self.navigator, wx.EVT_BUTTON, wx.ID_ZOOM_IN)
 
 
     def OnZoomOutX(self, evt):
+        """ Handle "View->Zoom Out X" menu events.
+        """
+        # Make navigator think its 'zoom out' button was pressed
         self._postCommandEvent(self.navigator, wx.EVT_BUTTON, wx.ID_ZOOM_OUT)
 
 
     def OnZoomFitX(self, evt):
+        """ Handle "View->Zoom to Fit X" menu events.
+        """
+        # Make navigator think its 'zoom to fit' button was pressed
         self._postCommandEvent(self.navigator, wx.EVT_BUTTON, wx.ID_ZOOM_FIT)
 
 
@@ -2757,6 +2776,7 @@ class Viewer(wx.Frame, MenuMixin):
                 lightweight sort of traceback.
             @keyword fatal: If `True`, the app Viewer will shut down.
         """
+        # TODO: Consider replacing with something using `sys.excepthook` 
         if DEBUG:
             raise
 
@@ -2802,6 +2822,7 @@ class Viewer(wx.Frame, MenuMixin):
 
         if ctrlPressed and shiftPressed and err is not None:
             raise
+
 
     #===========================================================================
     #
