@@ -444,7 +444,7 @@ class FFTView(wx.Frame, MenuMixin):
             else:
                 logger.info("No lines to draw!. Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart))
     
-            self.canvas.SetEnableZoom(True)
+            self.canvas.enableZoom = True
 #             self.canvas.SetShowScrollbars(True)
 
             self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
@@ -1166,18 +1166,18 @@ class SpectrogramView(FFTView):
         """
         p = SpectrogramPlot(self)
         p.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
-        p.SetFontSizeAxis(10)
-        p.SetFontSizeLegend(7)
-        p.setLogScale((False,False))
-        p.SetXSpec('min')
-        p.SetYSpec('min')
+        p.fontSizeAxis = 10
+        p.fontSizeLegend = 7
+        p.logScale = (False,False)
+        p.xSpec = 'min'
+        p.ySpec = 'min'
         self.canvas.AddPage(p, self.subchannels[channelIdx].displayName)
-        p.SetEnableTitle(self.showTitle)
+        p.enableTitle = self.showTitle
 
         p.image = self.images[channelIdx]
         p.outOfRangeColor = self.outOfRangeColor
-        p.SetEnableZoom(True)
-        p.SetShowScrollbars(True)
+        p.enableZoom = True
+        p.showScrollbars = True
         p.Draw(self.lines[channelIdx])
 
 
@@ -1255,7 +1255,7 @@ class SpectrogramView(FFTView):
             buf = bytearray()
             for p in norm(amps).reshape((1,-1))[0,:]:
                 buf.extend(colorizer(p))
-            img = wx.EmptyImage(*imgsize)
+            img = wx.Image(*imgsize)
             img.SetData(buf)
             images.append(img.Mirror(horizontally=False))
             
@@ -1427,7 +1427,7 @@ class SpectrogramView(FFTView):
         self.addMenuItem(colorMenu, self.ID_COLOR_SPECTRUM, "Spectrum", "", 
                          self.OnMenuColorize, kind=wx.ITEM_RADIO)
         self.setMenuItem(colorMenu, self.colorizerId, checked=True)
-        self.dataMenu.AppendMenu(-1, "Colorization", colorMenu)
+        self.dataMenu.Append(-1, "Colorization", colorMenu)
 
     #===========================================================================
     # 
@@ -1441,7 +1441,7 @@ class SpectrogramView(FFTView):
             p = self.canvas.GetPage(i)
             p.image = self.images[i]
             p.zoomedImage = None
-            p.SetEnableTitle(self.showTitle)
+            p.enableTitle = self.showTitle
             p.outOfRangeColor = self.outOfRangeColor
             p.Redraw()
         self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
