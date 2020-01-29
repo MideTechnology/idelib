@@ -4,15 +4,19 @@ Created on Oct 14, 2014
 @author: dstokes
 '''
 
+import time
+
 import numpy as np; np=np
 
 import wx
-# from renders.wx_lib_plot import PolyLine, PlotGraphics
-
-from wx.lib.plot import PolyLine, PlotGraphics, PlotCanvas
+from wx.lib.plot import PolyLine, PlotGraphics
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 
 from common import lesser
+from logger import logger
 from renders.fft import FFTPlotCanvas, FFTView
+
 
 class PlotView(FFTView):
     """
@@ -29,8 +33,19 @@ class PlotView(FFTView):
     def initPlot(self):
         """
         """
-#         self.canvas = FFTPlotCanvas(self)
-        self.canvas = PlotCanvas(self)
+        self.figure = Figure(figsize=(5, 4), dpi=100)
+        self.axes = self.figure.add_subplot(111)
+        self.axes.set_autoscale_on(True)
+        self.canvas = FigureCanvas(self, -1, self.figure)
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+
+        self.axes.set_title(self.title)
+
+        self.Fit()
+
+        return
+
+        self.canvas = FFTPlotCanvas(self)
         self.canvas.enableAntiAliasing = True
         self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
         self.canvas.fontSizeAxis = 10
@@ -53,49 +68,70 @@ class PlotView(FFTView):
         self.setMenuItem(self.fileMenu, self.ID_EXPORT_CSV, enabled=False)
 
 
-    def _draw(self, abortEvent=None):
+    def _draw(self):
         """
         """
+
+        logger.info( "Starting %s._draw() in new thread." % self.__class__.__name__ )
+        drawStart = time.time()
+
         self.lines = None
         if self.subchannels is not None:
-            timeScalar = self.root.timeScalar
-            if self.removeMean:
-                oldMean = self.source.removeMean
-                oldSpan = self.source.rollingMeanSpan
-                self.source.removeMean = self.removeMean
-                self.source.rollingMeanSpan = self.meanSpan
+            subchannelIds = [c.id for c in self.subchannels]
             start, stop = self.source.getRangeIndices(*self.range)
-            rows = lesser(len(self.source), stop-start)
-            
-            points = [np.zeros(shape=(rows,2), dtype=float) for _ in self.subchannels]
-            for row, evt in enumerate(self.source.iterSlice(start, stop, display=self.useConvertedUnits)):
-                for col, ch in enumerate(self.subchannels):
-                    if abortEvent is not None and abortEvent():
-                        return
-                    pts = points[col]
-                    pts[row,0] = evt[0]*timeScalar
-                    pts[row,1] = evt[1+ch.id]
-            
-            lines = [None]*len(self.subchannels)
-            for col, ch in enumerate(self.subchannels):
-                lines[col] = PolyLine(points[col], legend=ch.displayName, colour=self.root.getPlotColor(ch))
-            yUnits = "%s%s" % (self.yLabel, self.yUnits)
-            self.lines = PlotGraphics(lines, title=self.GetTitle(), 
-                                    xLabel="Time (s)", yLabel=yUnits)
-                            
-            if self.removeMean:
-                self.source.removeMean = oldMean
-                self.source.rollingMeanSpan = oldSpan
-            
-#         if self.data is not None:
-#             self.makeLineList()
+            data = self.source.arrayValues(start,stop,subchannels=subchannelIds,display=self.useConvertedUnits)
+            fs = self.source.getSampleRate()
+            self.data = self.generateData(data, rows=stop-start,
+                                          cols=len(self.subchannels), fs=fs,
+                                          sliceSize=self.sliceSize)
+
+        if self.data is not None:
+            for i in range(data.shape[0]):
+                self.axes.plot(self.data[:, 0], self.data[:, i+1], antialiased=True, linewidth=0.5,
+                               label=self.subchannels[i-1].name, color=[float(x)/255. for x in self.root.getPlotColor(self.subchannels[i-1])])
+            bbox = self.axes.dataLim
+            self.axes.set_xlim(bbox.xmin, bbox.xmax)
+            self.axes.set_ylim(bbox.ymin, bbox.ymax)
+            self.axes.legend()
+            self.axes.grid(True)
+            self.canvas.draw()
+            self.Fit()
+        else:
+            logger.info("No data for %s!" % self.FULLNAME)
+            self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+            return
+
+        logger.info("%d samples x%d columns calculated. Elapsed time (%s): %0.6f s." % (stop-start, len(self.subchannels), self.FULLNAME, time.time() - drawStart))
 
         if self.lines is not None:
             self.canvas.Draw(self.lines)
-            self.canvas.enableZoom = True
-            self.canvas.showScrollbars = True
+            logger.info("Completed drawing %d lines. Elapsed time (%s): %0.6f s." % (self.data.shape[0]*self.data.shape[1], self.FULLNAME, time.time() - drawStart))
+        else:
+            logger.info("No lines to draw!. Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart))
+
+        self.canvas.enableZoom = True
+        # self.canvas.SetShowScrollbars(True)
 
         self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+
+
+    @classmethod
+    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2 ** 16,
+                     abortEvent=None, forPsd=False, useWelch=False):
+        """ Format channel data for one or more channels.
+
+            @param data: An iterable collection of event values (no times!). The
+                data can have one or more channels (e.g. accelerometer X or XYZ
+                together). This can be an iterator, generator, or array.
+            @keyword rows: The number of rows (samples) in the set, if known.
+            @keyword cols: The number of columns (channels) in the set; a
+                default if the dataset does not contain multiple columns.
+            @return: A multidimensional array, with the first column the
+                frequency.
+        """
+        cols, rows = data.shape
+        t = np.arange(0, rows/fs, 1/fs)
+        return np.vstack((t, data)).T
 
 
     #===========================================================================
