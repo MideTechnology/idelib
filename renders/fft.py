@@ -955,7 +955,7 @@ class SpectrogramPlot(FFTPlotCanvas):
         dc.SetTextForeground(self.GetForegroundColour())
         dc.SetTextBackground(self.GetBackgroundColour())
 
-        dc.BeginDrawing()
+        # dc.BeginDrawing()
         # dc.Clear()
         
         # set font size for every thing but title and legend
@@ -1110,7 +1110,7 @@ class SpectrogramPlot(FFTPlotCanvas):
         # print "entire graphics drawing took: %f second"%(_time.clock() - start)
         # remove the clipping region
         dc.DestroyClippingRegion()
-        dc.EndDrawing()
+        # dc.EndDrawing()
 
         self._adjustScrollbars()
         
