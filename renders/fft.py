@@ -352,14 +352,6 @@ class FFTView(wx.Frame, MenuMixin):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 1, wx.TOP | wx.LEFT | wx.EXPAND)
 
-        self.toolbar = MyNavigationToolbar(self.canvas, True)
-        self.toolbar.Realize()
-
-        self.sizer.Add(self.toolbar, 0, wx.LEFT | wx.EXPAND)
-
-        self.toolbar.update()
-        self.SetSizer(self.sizer)
-
         self.axes.set_title(self.title)
 
         self.Fit()
