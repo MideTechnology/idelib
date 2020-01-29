@@ -1014,7 +1014,7 @@ class SpectrogramPlot(FFTPlotCanvas):
             xTextExtent= (0,0) # No text for ticks
         if self._ySpec is not 'none':
             yticks = self._yticks(yAxis[0], yAxis[1])
-            if self.getLogScale()[1]:
+            if self.logScale[1]:
                 yTextExtent = dc.GetTextExtent('-2e-2')
             else:
                 yTextExtentBottom = dc.GetTextExtent(yticks[0][1])
@@ -1044,17 +1044,17 @@ class SpectrogramPlot(FFTPlotCanvas):
             dc.SetFont(self._getFont(self._fontSizeTitle))
             titlePos= (self.plotbox_origin[0]+ lhsW + (self.plotbox_size[0]-lhsW-rhsW)/2.- titleWH[0]/2.,
                        self.plotbox_origin[1]- self.plotbox_size[1])
-            dc.DrawText(graphics.getTitle(),titlePos[0],titlePos[1])
+            dc.DrawText(graphics.title,titlePos[0],titlePos[1])
 
         # draw label text
         dc.SetFont(self._getFont(self._fontSizeAxis))
         xLabelPos= (self.plotbox_origin[0]+ lhsW + (self.plotbox_size[0]-lhsW-rhsW)/2.- xLabelWH[0]/2.,
                  self.plotbox_origin[1]- xLabelWH[1])
-        dc.DrawText(graphics.getXLabel(),xLabelPos[0],xLabelPos[1])
+        dc.DrawText(graphics.xLabel,xLabelPos[0],xLabelPos[1])
         yLabelPos= (self.plotbox_origin[0] - 3*self._pointSize[0],
                  self.plotbox_origin[1]- bottomH- (self.plotbox_size[1]-bottomH-topH)/2.+ yLabelWH[0]/2.)
-        if graphics.getYLabel():  # bug fix for Linux
-            dc.DrawRotatedText(graphics.getYLabel(),yLabelPos[0],yLabelPos[1],90)
+        if graphics.yLabel:  # bug fix for Linux
+            dc.DrawRotatedText(graphics.yLabel,yLabelPos[0],yLabelPos[1],90)
 
         # drawing legend makers and text
         if self._legendEnabled:
@@ -1076,9 +1076,9 @@ class SpectrogramPlot(FFTPlotCanvas):
                 else:
                     self.lastZoom = thisZoom
                     if x_range is None:
-                        x_range = self.GetXMaxRange()
+                        x_range = self.xMaxRange
                     if y_range is None:
-                        y_range = self.GetYMaxRange()
+                        y_range = self.yMaxRange
                     img_w, img_h = self.image.GetSize()
                     
                     x1 = mapRange(p1[0], x_range[0], x_range[1], 0, img_w)
@@ -1104,7 +1104,7 @@ class SpectrogramPlot(FFTPlotCanvas):
         self._drawAxes(dc, p1, p2, scale, shift, xticks, yticks)
         
         graphics.scaleAndShift(scale, shift)
-        graphics.setPrinterScale(self.printerScale)  # thicken up lines and markers if printing
+        graphics.printerScale = self.printerScale  # thicken up lines and markers if printing
         
         # set clipping area so drawing does not occur outside axis box
         # allow graph to overlap axis lines by adding units to width and height
