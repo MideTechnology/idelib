@@ -82,6 +82,11 @@ if DEBUG:
 
 class FFTPlotCanvas(PlotCanvas):
 
+    def __init__(self, *args, **kwargs):
+        self._gridColour = wx.Colour('black')
+        super(FFTPlotCanvas, self).__init__(*args, **kwargs)
+
+
     def SetGridColour(self, color):
         """
         """
@@ -119,8 +124,8 @@ class FFTPlotCanvas(PlotCanvas):
         # increases thickness for printing only
         penWidth = self.printerScale * self._pointSize[0]
         
-        gridPen = wx.Pen(self._gridColour, penWidth)
-        blackPen = wx.Pen(wx.NamedColour("BLACK"), penWidth)
+        gridPen = wx.Pen(self._gridColour, width=penWidth, style=wx.TRANSPARENT)
+        blackPen = wx.Pen(wx.Colour("BLACK"), width=penWidth)
         
         lines = []
         # set length of tick marks--long ones make grid
