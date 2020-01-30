@@ -12,10 +12,13 @@ import wx
 from wx.lib.plot import PolyLine, PlotGraphics
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
+from matplotlib.patches import Rectangle
 
 from common import lesser
 from logger import logger
 from renders.fft import FFTPlotCanvas, FFTView
+
+from ctypes import windll
 
 
 class PlotView(FFTView):
@@ -25,10 +28,25 @@ class PlotView(FFTView):
     NAME = "Plot"
     FULLNAME = "Rendered Plot"
     TITLE_NAME = None
-    
-    def __init__(self, *args, **kwargs):
-        super(PlotView, self).__init__(*args, **kwargs)
-    
+
+
+    def makeTitle(self):
+        """ Helper method to generate a nice-looking title.
+        """
+
+        # Smart plot naming: use parent channel name if all children plotted.
+        events = [c.getSession(self.root.session.sessionId) for c in self.subchannels]
+        units = [el.units[0] for el in events if el.units[0] != events[0].units[0]]
+        if len(units) == 0:
+            title = "%s %s" % (events[0].units[0], ', '.join([c.name for c in self.subchannels]))
+        else:
+            title = ", ".join([c.displayName for c in self.subchannels])
+
+        if self.TITLE_NAME:
+            return "%s: %s" % (self.NAME, title)
+        else:
+            return title
+
 
     def initPlot(self):
         """
@@ -37,28 +55,39 @@ class PlotView(FFTView):
         self.axes = self.figure.add_subplot(111)
         self.axes.set_autoscale_on(True)
         self.canvas = FigureCanvas(self, -1, self.figure)
-        self.sizer = wx.BoxSizer(wx.VERTICAL)
 
         self.axes.set_title(self.title)
+        self.timer = None
+        self._delay = windll.user32.GetDoubleClickTime()
+
+        # Initialise the rectangle
+        self.rect = Rectangle((0,0), 1, 1, facecolor='None', edgecolor='black', linewidth=0.5)
+        self.xData0 = None
+        self.yData0 = None
+        self.xData1 = None
+        self.yData1 = None
+        self.x0 = None
+        self.y0 = None
+        self.x1 = None
+        self.y1 = None
+        self.axes.add_patch(self.rect)
+
+        # Sizer to contain the canvas
+        self.sizer = wx.BoxSizer(wx.VERTICAL)
+        self.sizer.Add(self.canvas, 3, wx.EXPAND | wx.ALL)
+        self.SetSizer(self.sizer)
+        self.Fit()
+
+        # Connect the mouse events to their relevant callbacks
+        self.canvas.mpl_connect('button_press_event', self._onPress)
+        self.canvas.mpl_connect('button_release_event', self._onRelease)
+        self.canvas.mpl_connect('motion_notify_event', self._onMotion)
+
+        # Lock to stop the motion event from behaving badly when the mouse isn't pressed
+        self.pressed = False
 
         self.Fit()
 
-        return
-
-        self.canvas = FFTPlotCanvas(self)
-        self.canvas.enableAntiAliasing = True
-        self.canvas.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
-        self.canvas.fontSizeAxis = 10
-        self.canvas.fontSizeLegend = 7
-        self.canvas.logScale = self.logarithmic
-        self.canvas.xSpec = 'min'
-        self.canvas.ySpec = 'auto'
-        self.canvas.enableLegend = self.showLegend
-        self.canvas.enableTitle = self.showTitle
-        self.SetGridColour(self.root.app.getPref('majorHLineColor', 'GRAY'))
-        self.canvas.enableGrid = self.showGrid
-        self.Fit()
-        
 
     def initMenus(self):
         super(PlotView, self).initMenus()
@@ -72,7 +101,7 @@ class PlotView(FFTView):
         """
         """
 
-        logger.info( "Starting %s._draw() in new thread." % self.__class__.__name__ )
+        logger.info("Starting %s._draw() in new thread." % self.__class__.__name__ )
         drawStart = time.time()
 
         self.lines = None
@@ -133,6 +162,166 @@ class PlotView(FFTView):
         t = np.arange(0, rows/fs, 1/fs)
         return np.vstack((t, data)).T
 
+
+    def _getXY(self, event):
+        """Takes a mouse event and returns the XY user axis values."""
+        x, y = self.PositionScreenToUser(event.GetPosition())
+        return x, y
+
+    def PositionScreenToUser(self, pntXY):
+        """Converts Screen position to User Coordinates"""
+        screenPos = np.array(pntXY)
+        x, y = (screenPos - self._pointShift) / self._pointScale
+        return x, y
+
+
+    #===========================================================================
+    #
+    #===========================================================================
+
+
+    def _onPress(self, event):
+        ''' Callback to handle the mouse being clicked and held over the canvas'''
+
+        # Check the mouse press was actually on the canvas
+        if event.xdata is not None and event.ydata is not None:
+
+            # Upon initial press of the mouse record the origin and record the mouse as pressed
+            self.pressed = True
+            self.rect.set_alpha(1)
+            self.rect.set_linestyle('solid')
+            self.xData0 = event.xdata
+            self.yData0 = event.ydata
+            self.x0 = event.x
+            self.y0 = event.y
+
+
+    def _onRelease(self, event):
+        ''' Callback to handle the mouse being released over the canvas '''
+
+        print(event, event.dblclick)
+        return
+
+        # Check that the mouse was actually pressed on the canvas to begin with and this isn't a rouge mouse
+        # release event that started somewhere else
+        if self.pressed:
+
+            # mark unpressed and set rectangle to transparent
+            self.pressed = False
+            self.rect.set_alpha(0)
+
+            # update event data if available
+            if event.xdata is not None and event.ydata is not None:
+                self.xData1 = event.xdata
+                self.yData1 = event.ydata
+                self.x1 = event.x
+                self.y1 = event.y
+
+            hasXMoved = abs(self.x1 - self.x0) > 3
+            hasYMoved = abs(self.y1 - self.y0) > 3
+
+            # release left click
+            if event.button == wx.MOUSE_BTN_LEFT:
+                # mouse did not move
+                if not hasXMoved and not hasYMoved:
+                    # zoom 20% onto where the mouse is at (x1, y1)
+                    xl = self.axes.get_xlim()
+                    leftMargin = self.xData1 - xl[0]
+                    rightMargin = xl[1] - self.xData1
+                    self.axes.set_xlim(self.xData1 - 0.8*leftMargin, self.xData1 + 0.8*rightMargin)
+
+                    yl = self.axes.get_ylim()
+                    bottomMargin = self.yData1 - yl[0]
+                    topMargin = yl[1] - self.yData1
+                    self.axes.set_ylim(self.yData1 - 0.8*bottomMargin, self.yData1 + 0.8*topMargin)
+
+                # mouse moved only horizontally
+                elif hasXMoved and not hasYMoved:
+                    # keep vertical position, move horizontal
+                    self.axes.set_xlim(self.xData0, self.xData1)
+
+                # mouse moved only vertically
+                elif not hasXMoved and hasYMoved:
+                    # keep horizontal position, move vertical
+                    self.axes.set_ylim(self.yData0, self.yData1)
+
+                # mouse moved vertically and horizontally
+                else:
+                    # zoom both vertical and horizontal
+                    self.axes.set_xlim(self.xData0, self.xData1)
+                    self.axes.set_ylim(self.yData0, self.yData1)
+            elif event.button == wx.MOUSE_BTN_RIGHT:
+
+                # mouse did not move
+                if not hasXMoved and not hasYMoved:
+                    # zoom 20% away from where the mouse is at (x1, y1)
+                    xl = self.axes.get_xlim()
+                    leftMargin = self.xData1 - xl[0]
+                    rightMargin = xl[1] - self.xData1
+
+                    yl = self.axes.get_ylim()
+                    bottomMargin = self.yData1 - yl[0]
+                    topMargin = yl[1] - self.yData1
+
+                    self.axes.set_xlim(self.xData1 - 1.2*leftMargin, self.xData1 + 1.2*rightMargin)
+                    self.axes.set_ylim(self.yData1 - 1.2*bottomMargin, self.yData1 + 1.2*topMargin)
+
+                # mouse moved only horizontally
+                elif hasXMoved and not hasYMoved:
+                    # keep vertical position, move horizontal
+                    xl = self.axes.get_xlim()
+                    leftMargin = min(self.xData0, self.xData1) - xl[0]
+                    rightMargin = xl[1] - max(self.xData0, self.xData1)
+
+                    self.axes.set_xlim(xl[0] - 1.2*leftMargin, xl[1] + 1.2*rightMargin)
+
+                # mouse moved only vertically
+                elif not hasXMoved and hasYMoved:
+                    # keep horizontal position, move vertical
+                    yl = self.axes.get_ylim()
+                    bottomMargin = min(self.yData0, self.yData1) - yl[0]
+                    topMargin = yl[1] - max(self.yData0, self.yData1)
+
+                    self.axes.set_ylim(yl[0] - 1.2*bottomMargin, yl[1] + 1.2*topMargin)
+
+                # mouse moved vertically and horizontally
+                else:
+                    # zoom both vertical and horizontal
+                    xl = self.axes.get_xlim()
+                    leftMargin = min(self.xData0, self.xData1) - xl[0]
+                    rightMargin = xl[1] - max(self.xData0, self.xData1)
+
+                    yl = self.axes.get_ylim()
+                    bottomMargin = min(self.yData0, self.yData1) - yl[0]
+                    topMargin = yl[1] - max(self.yData0, self.yData1)
+
+                    self.axes.set_xlim(xl[0] - 1.2*leftMargin, xl[1] + 1.2*rightMargin)
+                    self.axes.set_ylim(yl[0] - 1.2*bottomMargin, yl[1] + 1.2*topMargin)
+
+            elif event.button == wx.MOUSE_BTN_MIDDLE:
+                pass
+
+            self.canvas.draw()
+
+
+    def _onMotion(self, event):
+        '''Callback to handle the motion event created by the mouse moving over the canvas'''
+
+        # If the mouse has been pressed draw an updated rectangle when the mouse is moved so
+        # the user can see what the current selection is
+        if self.pressed:
+
+            # Check the mouse was released on the canvas, and if it wasn't then just leave the width and
+            # height as the last values set by the motion event
+            if event.xdata is not None and event.ydata is not None:
+                self.xData1 = event.xdata
+                self.yData1 = event.ydata
+
+            # Set the width and height and draw the rectangle
+            self.rect.set_width(self.xData1 - self.xData0)
+            self.rect.set_height(self.yData1 - self.yData0)
+            self.rect.set_xy((self.xData0, self.yData0))
+            self.canvas.draw()
 
     #===========================================================================
     # 
