@@ -402,52 +402,48 @@ class FFTView(wx.Frame, MenuMixin):
         else:
             logger.info( "Starting %s._draw() in new thread." % self.__class__.__name__ )
         drawStart = time.time()
-            
-        try:
-            self.lines = None
-            if self.subchannels is not None:
-                subchannelIds = [c.id for c in self.subchannels]
-                start, stop = self.source.getRangeIndices(*self.range)
-                data = self.source.arrayValues(start,stop,subchannels=subchannelIds,display=self.useConvertedUnits)
-                # BUG: Calculation of actual sample rate is wrong. Investigate.
-    #             fs = (channel[stop][0]-channel[start][0]) / ((stop-start) + 0.0)
-                fs = self.source.getSampleRate()
-                self.data = self.generateData(data, rows=stop-start,
-                                              cols=len(self.subchannels), fs=fs, 
-                                              sliceSize=self.sliceSize, useWelch=self.useWelch)
-                
-            if self.data is not None:
-                # self.makeLineList()
-                for i in range(1, self.data.shape[1]):
-                    self.axes.plot(self.data[:, 0], self.data[:, i], antialiased=True, linewidth=0.5,
-                                   label=self.subchannels[i-1].name, color=[float(x)/255. for x in self.root.getPlotColor(self.subchannels[i-1])])
-                bbox = self.axes.dataLim
-                self.axes.set_xlim(bbox.xmin, bbox.xmax)
-                self.axes.set_ylim(bbox.ymin, bbox.ymax)
-                self.axes.legend()
-                self.axes.grid(True)
-                self.canvas.draw()
-                self.Fit()
-            else:
-                logger.info("No data for %s!" % self.FULLNAME)
-                self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
-                return
 
-            logger.info("%d samples x%d columns calculated. Elapsed time (%s): %0.6f s." % (stop-start, len(self.subchannels), self.FULLNAME, time.time() - drawStart))
-    
-            if self.lines is not None:
-                self.canvas.Draw(self.lines)
-                logger.info("Completed drawing %d lines. Elapsed time (%s): %0.6f s." % (self.data.shape[0]*self.data.shape[1], self.FULLNAME, time.time() - drawStart))
-            else:
-                logger.info("No lines to draw!. Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart))
-    
-            self.canvas.enableZoom = True
-#             self.canvas.SetShowScrollbars(True)
+        self.lines = None
+        if self.subchannels is not None:
+            subchannelIds = [c.id for c in self.subchannels]
+            start, stop = self.source.getRangeIndices(*self.range)
+            data = self.source.arrayValues(start,stop,subchannels=subchannelIds,display=self.useConvertedUnits)
+            # BUG: Calculation of actual sample rate is wrong. Investigate.
+#             fs = (channel[stop][0]-channel[start][0]) / ((stop-start) + 0.0)
+            fs = self.source.getSampleRate()
+            self.data = self.generateData(data, rows=stop-start,
+                                          cols=len(self.subchannels), fs=fs,
+                                          sliceSize=self.sliceSize, useWelch=self.useWelch)
 
+        if self.data is not None:
+            # self.makeLineList()
+            for i in range(1, self.data.shape[1]):
+                self.axes.plot(self.data[:, 0], self.data[:, i], antialiased=True, linewidth=0.5,
+                               label=self.subchannels[i-1].name, color=[float(x)/255. for x in self.root.getPlotColor(self.subchannels[i-1])])
+            bbox = self.axes.dataLim
+            self.axes.set_xlim(bbox.xmin, bbox.xmax)
+            self.axes.set_ylim(bbox.ymin, bbox.ymax)
+            self.axes.legend()
+            self.axes.grid(True)
+            self.canvas.draw()
+            self.Fit()
+        else:
+            logger.info("No data for %s!" % self.FULLNAME)
             self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
-            
-        except RuntimeError:
-            pass
+            return
+
+        logger.info("%d samples x%d columns calculated. Elapsed time (%s): %0.6f s." % (stop-start, len(self.subchannels), self.FULLNAME, time.time() - drawStart))
+
+        if self.lines is not None:
+            self.canvas.Draw(self.lines)
+            logger.info("Completed drawing %d lines. Elapsed time (%s): %0.6f s." % (self.data.shape[0]*self.data.shape[1], self.FULLNAME, time.time() - drawStart))
+        else:
+            logger.info("No lines to draw!. Elapsed time (%s): %0.6f s." % (self.FULLNAME, time.time() - drawStart))
+
+        self.canvas.enableZoom = True
+        # self.canvas.SetShowScrollbars(True)
+
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
         
     
@@ -899,7 +895,7 @@ class SpectrogramPlot(FFTPlotCanvas):
         """
         """
         self.image = kwargs.pop('image', None)
-        self.outOfRangeColor = kwargs.pop('outOfRangeColor', (200,200,200))
+        self.outOfRangeColor = kwargs.pop('outOfRangeColor', (200, 200, 200))
         self.zoomedImage = None
         self.lastZoom = None
         super(SpectrogramPlot, self).__init__(*args, **kwargs)
