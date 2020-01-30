@@ -43,6 +43,7 @@ from . import base
 # Widgets. Even though these modules aren't used directly, they need to be
 # imported so that their contents can get into the `base.TAB_TYPES` dictionary.
 from . import classic
+from . import import_export
 from . import legacy
 from . import wifi_tab
 
@@ -121,22 +122,22 @@ class ConfigDialog(SC.SizedDialog):
         self.loadConfigData()
 
         # Restore the following if/when import and export are fixed.
-#         self.setClockCheck = wx.CheckBox(pane, -1, "Set device clock on exit")
-#         self.setClockCheck.SetSizerProps(expand=True, border=(['top', 'bottom'], 8))
+        self.setClockCheck = wx.CheckBox(pane, -1, "Set device clock on exit")
+        self.setClockCheck.SetSizerProps(expand=True, border=(['top', 'bottom'], 8))
         
         buttonpane = SC.SizedPanel(pane,-1)
         buttonpane.SetSizerType("horizontal")
         buttonpane.SetSizerProps(expand=True)#, border=(['top'], 8))
 
         # Restore the following if/when import and export are fixed.
-#         self.importBtn = wx.Button(buttonpane, -1, "Import...")
-#         self.exportBtn = wx.Button(buttonpane, -1, "Export...")
+        self.importBtn = wx.Button(buttonpane, -1, "Import...")
+        self.exportBtn = wx.Button(buttonpane, -1, "Export...")
 
         # Remove the following if/when import and export are fixed.
         # This puts the 'set clock' checkbox in line with the OK/Cancel
         # buttons, where Import/Export used to be.
-        self.setClockCheck = wx.CheckBox(buttonpane, -1, "Set device clock on exit")
-        self.setClockCheck.SetSizerProps(expand=True, border=(['top', 'bottom'], 8))
+#         self.setClockCheck = wx.CheckBox(buttonpane, -1, "Set device clock on exit")
+#         self.setClockCheck.SetSizerProps(expand=True, border=(['top', 'bottom'], 8))
 
         SC.SizedPanel(buttonpane, -1).SetSizerProps(proportion=1) # Spacer
         wx.Button(buttonpane, wx.ID_OK)
@@ -151,8 +152,8 @@ class ConfigDialog(SC.SizedDialog):
         self.Bind(wx.EVT_BUTTON, self.OnCancel, id=wx.ID_CANCEL)
         
         # Restore the following if/when import and export are fixed.
-#         self.importBtn.Bind(wx.EVT_BUTTON, self.OnImportButton)
-#         self.exportBtn.Bind(wx.EVT_BUTTON, self.OnExportButton)
+        self.importBtn.Bind(wx.EVT_BUTTON, self.OnImportButton)
+        self.exportBtn.Bind(wx.EVT_BUTTON, self.OnExportButton)
         
         self.Fit()
         self.SetMinSize((500, 480))
@@ -254,7 +255,26 @@ class ConfigDialog(SC.SizedDialog):
                     self.configData[k] = v
        
         self.configData.update(self.configValues.toDict())
-         
+    
+    
+    def encodeConfigData(self):
+        """ Build an EBML-encodable set of nested dictionaries containing the
+            dialog's configuration values.
+        """
+        values = []
+        for k,v in self.configData.items():
+            if k not in self.configItems:
+                # TODO: Keep value types of unknown config file items, so
+                # they can be written back. For now, just skip.
+                continue
+            elType = self.configItems[k]
+            if elType.valueType is not None:
+                values.append({'ConfigID': k,
+                               elType.valueType: v})
+        
+        return {'RecorderConfigurationList': 
+                    {'RecorderConfigurationItem': values}}
+
     
     def saveConfigData(self, filename=None):
         """ Save edited config data to the recorder (or another file).
@@ -275,22 +295,10 @@ class ConfigDialog(SC.SizedDialog):
         
         try:
             if self.useLegacyConfig:
-                return legacy.saveConfigData(self.configData, self.device)
-            
-            values = []
-            for k,v in self.configData.items():
-                if k not in self.configItems:
-                    # TODO: Keep value types of unknown config file items, so
-                    # they can be written back. For now, just skip.
-                    continue
-                elType = self.configItems[k]
-                if elType.valueType is not None:
-                    values.append({'ConfigID': k,
-                                   elType.valueType: v})
-            
-            data = {'RecorderConfigurationList': 
-                        {'RecorderConfigurationItem': values}}
-            
+                data = legacy.encodeConfigData(self.configData, self.device)
+            else:
+                data = self.encodeConfigData()
+                
             schema = loadSchema('mide.xml')
             encoded = schema.encodes(data)
             
@@ -336,6 +344,12 @@ class ConfigDialog(SC.SizedDialog):
             @todo: Refactor to support new config format (means modifying 
                 things in the `devices` module).
         """ 
+
+        self.showError("Not yet implemented!\n\nCome back later.",
+                       "Import Configuration",  
+                       style=wx.OK|wx.ICON_EXCLAMATION)
+        return
+    
         dlg = wx.FileDialog(self, 
                             message="Choose an exported configuration file",
                             style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST,
@@ -385,10 +399,7 @@ class ConfigDialog(SC.SizedDialog):
 
     
     def OnExportButton(self, evt):
-        """ Handle the "Import..." button.
-         
-            @todo: Refactor to support new config format (means modifying 
-                things in the `devices` module).
+        """ Handle the "Export..." button.
         """ 
         dlg = wx.FileDialog(self, message="Export Device Configuration", 
                             style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT, 
@@ -396,7 +407,10 @@ class ConfigDialog(SC.SizedDialog):
                                       "All files (*.*)|*.*"))
         if dlg.ShowModal() == wx.ID_OK:
             try:
-                self.device.exportConfig(dlg.GetPath(), data=self.getData())
+                self.updateConfigData()
+                data = self.encodeConfigData()
+
+                import_export.exportConfig(self.device, dlg.GetPath(), data)
                     
             except Exception as err:
                 # TODO: More specific error message

@@ -287,18 +287,17 @@ def loadConfigData(device, data=None):
     return newData
 
 
-def saveConfigData(configData, device, filename=None):
-    """ Save new configuration data in the old format. Note: the `configData`
-        should not contain any `None` values; these will be ignored.
+def encodeConfigData(configData, device):
+    """ Build an EBML-encodable set of nested dictionaries containing the
+        dialog's configuration values in the legacy format. Note: the
+        `configData` should not contain any `None` values; these will be
+        ignored.
         
         @param configData: A dictionary of configuration data, in the new
             style (flat, keyed by ConfigID).
         @param device: The device to which to write.
-        @keyword filename: The name of the file to write, instead of the
-            device's config file. For exporting config data.
     """
-    filename = device.configFile if filename is None else filename
-    logger.info("Saving %s in legacy configuration format" % filename)
+    logger.info("Translating to legacy configuration format")
     
     # Copy the data, just in case.
     configData = configData.copy()
@@ -389,14 +388,7 @@ def saveConfigData(configData, device, filename=None):
     if channelConfig:
         legacyConfigData['SSXChannelConfiguration'] = channelConfig
 
-    schema = loadSchema('mide.xml')
-    ebml = schema.encodes({'RecorderConfiguration':legacyConfigData})
-
-    # This will raise an exception if it fails.
-    schema.verify(ebml)
-    
-    with open(filename, 'wb') as f:
-        f.write(ebml)
+    return {'RecorderConfiguration':legacyConfigData}
 
 
 def useLegacyFormatPrompt(parent):
