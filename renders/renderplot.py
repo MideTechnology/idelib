@@ -5,6 +5,7 @@ Created on Oct 14, 2014
 '''
 
 import time
+import threading
 
 import numpy as np; np=np
 
@@ -13,6 +14,10 @@ from wx.lib.plot import PolyLine, PlotGraphics
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.patches import Rectangle
+
+################### THE FOLLOWING CODE SHOULD BE LOOKED AT TO SEE IF WE WANT TO USE IT OR MAKE IT AN OPTION ####################
+# import matplotlib.style as mplstyle
+# mplstyle.use('fast')
 
 from common import lesser
 from logger import logger
@@ -28,6 +33,7 @@ class PlotView(FFTView):
     NAME = "Plot"
     FULLNAME = "Rendered Plot"
     TITLE_NAME = None
+    DEBOUNCE_WAIT_TIME = windll.user32.GetDoubleClickTime() * 1e-3
 
 
     def makeTitle(self):
@@ -61,7 +67,7 @@ class PlotView(FFTView):
         self._delay = windll.user32.GetDoubleClickTime()
 
         # Initialise the rectangle
-        self.rect = Rectangle((0,0), 1, 1, facecolor='None', edgecolor='black', linewidth=0.5)
+        self.rect = Rectangle((0,0), 1, 1, facecolor='None', edgecolor='black', linewidth=0.5, zorder=3)
         self.xData0 = None
         self.yData0 = None
         self.xData1 = None
@@ -82,6 +88,9 @@ class PlotView(FFTView):
         self.canvas.mpl_connect('button_press_event', self._onPress)
         self.canvas.mpl_connect('button_release_event', self._onRelease)
         self.canvas.mpl_connect('motion_notify_event', self._onMotion)
+
+        self.click_thread_helper = None
+        self.double_clicked = False
 
         # Lock to stop the motion event from behaving badly when the mouse isn't pressed
         self.pressed = False
@@ -179,9 +188,20 @@ class PlotView(FFTView):
     #
     #===========================================================================
 
+    def _single_click_thread_fn_helper(self, event):
+        self.click_thread_helper = None
 
     def _onPress(self, event):
         ''' Callback to handle the mouse being clicked and held over the canvas'''
+
+        if self.click_thread_helper is None:
+            self.click_thread_helper = threading.Timer(self.DEBOUNCE_WAIT_TIME, self._single_click_thread_fn_helper, [event])
+            self.click_thread_helper.start()
+
+        if event.dblclick:
+            self.click_thread_helper.cancel()
+            self.double_clicked = True
+            self.click_thread_helper = None
 
         # Check the mouse press was actually on the canvas
         if event.xdata is not None and event.ydata is not None:
@@ -198,9 +218,6 @@ class PlotView(FFTView):
 
     def _onRelease(self, event):
         ''' Callback to handle the mouse being released over the canvas '''
-
-        print(event, event.dblclick)
-        return
 
         # Check that the mouse was actually pressed on the canvas to begin with and this isn't a rouge mouse
         # release event that started somewhere else
@@ -224,16 +241,18 @@ class PlotView(FFTView):
             if event.button == wx.MOUSE_BTN_LEFT:
                 # mouse did not move
                 if not hasXMoved and not hasYMoved:
-                    # zoom 20% onto where the mouse is at (x1, y1)
-                    xl = self.axes.get_xlim()
-                    leftMargin = self.xData1 - xl[0]
-                    rightMargin = xl[1] - self.xData1
-                    self.axes.set_xlim(self.xData1 - 0.8*leftMargin, self.xData1 + 0.8*rightMargin)
+                    if not self.double_clicked: # zoom 20% onto where the mouse is at (x1, y1)
+                        xl = self.axes.get_xlim()
+                        leftMargin = self.xData1 - xl[0]
+                        rightMargin = xl[1] - self.xData1
+                        self.axes.set_xlim(self.xData1 - 0.8*leftMargin, self.xData1 + 0.8*rightMargin)
 
-                    yl = self.axes.get_ylim()
-                    bottomMargin = self.yData1 - yl[0]
-                    topMargin = yl[1] - self.yData1
-                    self.axes.set_ylim(self.yData1 - 0.8*bottomMargin, self.yData1 + 0.8*topMargin)
+                        yl = self.axes.get_ylim()
+                        bottomMargin = self.yData1 - yl[0]
+                        topMargin = yl[1] - self.yData1
+                        self.axes.set_ylim(self.yData1 - 0.8*bottomMargin, self.yData1 + 0.8*topMargin)
+                    else: # Zoom fit
+                        self.OnMenuViewReset(event)
 
                 # mouse moved only horizontally
                 elif hasXMoved and not hasYMoved:
@@ -302,6 +321,7 @@ class PlotView(FFTView):
                 pass
 
             self.canvas.draw()
+            self.double_clicked = False
 
 
     def _onMotion(self, event):
