@@ -426,8 +426,16 @@ def convertConfig(device):
     
     try:
         shutil.copy(device.configFile, backupName)
-        saveConfigData(loadConfigData(device), device)
+        data = encodeConfigData(loadConfigData(device), device)
+        
+        schema = loadSchema('mide.xml')
+        encoded = schema.encodes(data)
+        
+        with open(device.configFile, 'wb') as f:
+            f.write(encoded)
+            
         return True
+    
     except:
         shutil.copy(backupName, device.configFile)
         raise
