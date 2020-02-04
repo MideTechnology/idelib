@@ -28,6 +28,7 @@ from wx import aui
 import wx; wx = wx 
 import wx.lib.delayedresult as delayedresult
 
+import matplotlib as mpl
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
 from matplotlib.backends.backend_wx import _load_bitmap
@@ -161,6 +162,16 @@ class ZoomingPlot:
                 self.yData1 = event.ydata
                 self.x1 = event.x
                 self.y1 = event.y
+            else:
+                return # If something is going wrong, this might be something to look at
+
+            if self.x0 > self.x1:
+                self.x0, self.x1 = self.x1, self.x0
+                self.xData0, self.xData1 = self.xData1, self.xData0
+            
+            if self.y0 > self.y1:
+                self.y0, self.y1 = self.y1, self.y0
+                self.yData0, self.yData1 = self.yData1, self.yData0
 
             hasXMoved = abs(self.x1 - self.x0) > 3
             hasYMoved = abs(self.y1 - self.y0) > 3
@@ -270,6 +281,13 @@ class ZoomingPlot:
             self.rect.set_height(self.yData1 - self.yData0)
             self.rect.set_xy((self.xData0, self.yData0))
             self.canvas.draw()
+
+    def OnMenuViewReset(self, evt):
+        bbox = self.axes.dataLim
+        self.axes.set_xlim(bbox.xmin, bbox.xmax)
+        self.axes.set_ylim(bbox.ymin, bbox.ymax)
+        self.canvas.draw()
+
 
 class FFTPlotCanvas(PlotCanvas):
 
@@ -591,9 +609,9 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
         """
         """
         if FOREGROUND:
-            logger.info( "Starting %s._draw() in foreground process." % self.__class__.__name__ )
+            logger.info("Starting %s._draw() in foreground process." % self.__class__.__name__)
         else:
-            logger.info( "Starting %s._draw() in new thread." % self.__class__.__name__ )
+            logger.info("Starting %s._draw() in new thread." % self.__class__.__name__)
         drawStart = time.time()
 
         self.lines = None
@@ -1305,6 +1323,35 @@ class SpectrogramPlot(FFTPlotCanvas):
 # 
 #===============================================================================
 
+class NewSpectrogramPlot(wx.Panel, ZoomingPlot):
+    def __init__(self, parent, name="", dpi=None, id=-1, **kwargs):
+        wx.Panel.__init__(self, parent, id=id, **kwargs)
+
+        self.parent = parent
+
+        self.figure = mpl.figure.Figure(dpi=dpi, figsize=(2, 2))
+
+        self.axes = self.figure.add_subplot(111)
+
+        self.axes.set_title("%s Spectrogram"%name)
+        self.axes.set_xlabel("Time (s)")
+        self.axes.set_ylabel("Frequency (Hz)")
+
+        self.figure.add_axes(self.axes)
+
+        self.canvas = FigureCanvas(self, -1, self.figure)
+
+        self.image = kwargs.pop('image', None)
+        # self.outOfRangeColor = kwargs.pop('outOfRangeColor', (200, 200, 200))
+        # self.zoomedImage = None
+        # self.lastZoom = None
+
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(self.canvas, 1, wx.EXPAND)
+
+        self.SetSizer(sizer)
+
+
 class SpectrogramView(FFTView):
     """
     """
@@ -1350,21 +1397,36 @@ class SpectrogramView(FFTView):
     def addPlot(self, channelIdx):
         """
         """
-        p = SpectrogramPlot(self)
+        name = self.subchannels[channelIdx].displayName
+
+        p = NewSpectrogramPlot(self, name)
+
         p.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
         p.fontSizeAxis = 10
         p.fontSizeLegend = 7
         p.logScale = (False,False)
         p.xSpec = 'min'
         p.ySpec = 'min'
-        self.canvas.AddPage(p, self.subchannels[channelIdx].displayName)
+        self.canvas.AddPage(p, name)
         p.enableTitle = self.showTitle
 
-        p.image = self.images[channelIdx]
+        start, stop = self.indexRange
+        fs = self.source.getSampleRate()
+        subchIds = [c.id for j, c in enumerate(self.subchannels) if j == channelIdx][0] ########HAVE CONNOR DOUBLE CHECK THIS############
+
+        data = self.source.itervalues(start, stop, subchannels=subchIds, display=self.useConvertedUnits)
+
+        axes_image = p.axes.specgram(list(data), NFFT=1024, Fs=fs)[-1]
+
+        p.canvas.draw()
+        p.initialize_stuff()
+
+        p.image = axes_image
         p.outOfRangeColor = self.outOfRangeColor
         p.enableZoom = True
         p.showScrollbars = True
-        p.Draw(self.lines[channelIdx])
+        print("LINES TO DRAW", self.lines[channelIdx])
+        # p.Draw(self.lines[channelIdx])
 
 
     def makeLineList(self):
