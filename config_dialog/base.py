@@ -362,6 +362,20 @@ class ConfigBase(object):
         return getattr(self, att)
 
     
+    def getPath(self):
+        """ Get a string containing the configuration item's label and the
+            labels of its parents (if applicable).
+        """
+        try:
+            root = self.Parent.getPath()
+            if self.label:
+                return "%s : %s" % (root, self.label)
+            else:
+                return root
+        except AttributeError:
+            return self.label
+        
+    
     def __init__(self, element, root):
         """ Constructor. Instantiates a `ConfigBase` and parses parameters out
             of the supplied EBML element.
@@ -425,7 +439,7 @@ class ConfigBase(object):
         if self.configId is not None and self.root is not None:
             self.root.configItems[self.configId] = self
         
-        self.expressionVariables = self.root.expresionVariables.copy()
+        self.expressionVariables = self.root.expressionVariables.copy()
 
 
     def __repr__(self):
@@ -533,6 +547,7 @@ class ConfigWidget(wx.Panel, ConfigBase):
         element = kwargs.pop('element', None)
         root = kwargs.pop('root', None)
         self.group = kwargs.pop('group', None)
+        self.field = None
         
         ConfigBase.__init__(self, element, root)
         wx.Panel.__init__(self, *args, **kwargs)

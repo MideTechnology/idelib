@@ -112,7 +112,7 @@ class ConfigDialog(SC.SizedDialog):
         
         # Variables to be accessible by field expressions. Includes mapping
         # None to ``null``, making the expressions less specific to Python. 
-        self.expresionVariables = {'Config': self.displayValues,
+        self.expressionVariables = {'Config': self.displayValues,
                                    'null': None}
         
         self.tabs = []
@@ -336,7 +336,10 @@ class ConfigDialog(SC.SizedDialog):
         """
         for item in self.configItems.itervalues():
             item.updateDisabled()
-            
+    
+    #===========================================================================
+    # 
+    #===========================================================================
     
     def OnImportButton(self, evt):
         """ Handle the "Import..." button.
@@ -344,67 +347,23 @@ class ConfigDialog(SC.SizedDialog):
             @todo: Refactor to support new config format (means modifying 
                 things in the `devices` module).
         """ 
-
-        self.showError("Not yet implemented!\n\nCome back later.",
-                       "Import Configuration",  
-                       style=wx.OK|wx.ICON_EXCLAMATION)
-        return
+        import_export.importConfig(self)
+        
+#         self.showError("Not yet implemented!\n\nCome back later.",
+#                        "Import Configuration",  
+#                        style=wx.OK|wx.ICON_EXCLAMATION)
+#         return
     
-        dlg = wx.FileDialog(self, 
-                            message="Choose an exported configuration file",
-                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST,
-                            wildcard=("Exported config file (*.cfx)|*.cfx|"
-                                      "All files (*.*)|*.*"))
-        try:
-            d = dlg.ShowModal()
-            if d == wx.ID_OK:
-                try:
-                    filename = dlg.GetPath()
-                    self.device.importConfig(filename)
-                    for i in range(self.notebook.GetPageCount()):
-                        self.notebook.GetPage(i).initUI()
-                except devices.ConfigVersionError as err:
-                    # TODO: More specific error message (wrong device type
-                    # vs. not a config file
-                    cname, cvers, dname, dvers = err.args[1]
-                    if cname != dname:
-                        md = self.showError( 
-                            "The selected file does not appear to be a  "
-                            "valid configuration file for this device.", 
-                            "Invalid Configuration", 
-                            style=wx.OK | wx.CANCEL | wx.ICON_EXCLAMATION) 
-                    else:
-                        s = "an older" if cvers < dvers else "a newer"
-                        md = self.showError(
-                             "The selected file was exported from %s "
-                             "version of %s.\nImporting it may cause "
-                             "problems.\n\nImport anyway?" % (s, cname), 
-                             "Configuration Version Mismatch",  
-                             style=wx.YES_NO|wx.NO_DEFAULT|wx.ICON_EXCLAMATION)
-                        if md == wx.YES:
-                            self.device.importConfig(filename, 
-                                                     allowOlder=True, 
-                                                     allowNewer=True)
-
-        except ValueError:
-            # TODO: More specific error message (wrong device type
-            # vs. not a config file
-            md = self.showError( 
-                "The selected file does not appear to be a valid "
-                "configuration file for this device.", 
-                "Invalid Configuration", 
-                style=wx.OK | wx.ICON_EXCLAMATION) 
-            
-        dlg.Destroy()
 
     
     def OnExportButton(self, evt):
         """ Handle the "Export..." button.
-        """ 
+        """
+        wildcard = "Exported configuration data (*.xcg)|*.xcg"
+        
         dlg = wx.FileDialog(self, message="Export Device Configuration", 
                             style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT, 
-                            wildcard=("Exported config file (*.cfx)|*.cfx|"
-                                      "All files (*.*)|*.*"))
+                            wildcard=wildcard)
         if dlg.ShowModal() == wx.ID_OK:
             try:
                 self.updateConfigData()
@@ -423,6 +382,10 @@ class ConfigDialog(SC.SizedDialog):
                 
         dlg.Destroy()    
 
+
+    #===========================================================================
+    # 
+    #===========================================================================
 
     def OnOK(self, evt):
         """ Handle dialog OK, saving changes.
@@ -568,12 +531,14 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
     if isinstance(dev, devices.SlamStickClassic):
         return classic.configureRecorder(path, saveOnOk, setTime, useUtc, parent)
 
-    # remove
-#     global dlg
     dlg = ConfigDialog(parent, hints=hints, device=dev, setTime=setTime,
                        useUtc=useUtc, keepUnknownItems=keepUnknownItems,
                        saveOnOk=saveOnOk, showAdvanced=showAdvanced)
-    
+
+    # XXX: REMOVE THESE 2 LINES
+    parent.CD = dlg
+    modal = False
+        
     if modal:
         dlg.ShowModal()
     else:
