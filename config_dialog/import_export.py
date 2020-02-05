@@ -191,12 +191,27 @@ def loadExport(filename):
 # 
 #===============================================================================
 
-def applyImportedConfig(dlg, config, configUi, props, exclude=[]):
-    """
+def applyImportedConfig(dlg, config, configUi, props=None,
+                        exclude=[0x8ff7f, 0x9ff7f], reset=True):
+    """ Populate the dialog with imported configuration data.
+    
+        @param dlg: The parent `ConfigDialog`.
+        @param config: The imported EBML configuration data.
+        @param configUi: The imported CONFIG.UI data.
+        @keyword props: The imported recorder properties.
+        @keyword exclude: A list of configIDs to exclude from import. Defaults
+            to the recorder name (0x8ff7f) and recorder description (0x9ff7f).
+        @keyword reset: If `True`, dialog configuration values will be reset
+            to defaults before the imported configuration is applied.
     """
     exclude = list(exclude[:])
     exclude.append(None)
-    
+
+    if reset:
+        for cid, c in dlg.configItems.iteritems():
+            if cid not in exclude:
+                c.setToDefault()
+
     expressionVariables = dlg.expressionVariables.copy()
     converters = getConverters(configUi)
     
@@ -209,11 +224,11 @@ def applyImportedConfig(dlg, config, configUi, props, exclude=[]):
                 cid = c.value
             elif c.name.endswith("Value"):
                 value = c.value
-        rawval = value
-        if cid in converters:
-            expressionVariables['x'] = value
-            value = eval(converters[cid], expressionVariables)
+
         if cid not in exclude and cid in dlg.configItems:
+            if cid in converters:
+                expressionVariables['x'] = value
+                value = eval(converters[cid], expressionVariables)
             dlg.configItems[cid].setDisplayValue(value)
             
 

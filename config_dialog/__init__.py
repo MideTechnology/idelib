@@ -536,8 +536,8 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
                        saveOnOk=saveOnOk, showAdvanced=showAdvanced)
 
     # XXX: REMOVE THESE 2 LINES
-    parent.CD = dlg
-    modal = False
+#     parent.CD = dlg
+#     modal = False
         
     if modal:
         dlg.ShowModal()

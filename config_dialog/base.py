@@ -636,12 +636,17 @@ class ConfigWidget(wx.Panel, ConfigBase):
             self.unitLabel.Enable(enabled)
 
 
-    def setCheck(self, checked=True):
+    def setCheck(self, checked=True, recurse=True):
         """ Set the Field's checkbox, if applicable.
         """
         if self.checkbox is not None:
             self.checkbox.SetValue(checked)
             self.enableChildren(checked)
+        
+        # Percolate the check upstream, so parent checks will get set.
+        # Only setting the check gets propagated, not clearing it. 
+        if checked and recurse and hasattr(self.Parent, 'setCheck'):
+            self.Parent.setCheck()
             
 
     def setConfigValue(self, val, check=True):
