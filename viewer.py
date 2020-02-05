@@ -3,7 +3,6 @@ enDAQ Lab: Full-featured viewer for data recorded by enDAQ and Slam Stick data
 loggers. Also does Slam Stick recorder configuration.
 
 TODO: Remove vestigial features that haven't been fully implemented (operations)
-TODO: Add help text to menu items (after moving the logo in the status bar)
 TODO: Clean up `Viewer.ask()`, maybe make it a stand-alone function. It could
     be useful elsewhere.
 TODO: Refactor and clean everything. This has grown organically since 2013.
@@ -962,12 +961,11 @@ class Viewer(wx.Frame, MenuMixin):
         types = exportTypes if types is None else types
 
         defaultDir, defaultFile = defaults
-        done = False
 
         dlg = wx.FileDialog(self, message=message, defaultFile=defaultFile,
                             defaultDir=defaultDir, wildcard=types, style=style)
 
-        while not done:
+        while True:
             filename = None
             if dlg.ShowModal() == wx.ID_OK:
                 filename = dlg.GetPath()
@@ -978,11 +976,10 @@ class Viewer(wx.Frame, MenuMixin):
                         "local hard drive.\n\nContinue anyway?",
                         "Performance Warning", icon=wx.ICON_INFORMATION,
                         pref="saveOnRecorderWarning", saveNo=False)
-                    done = a == wx.YES
-                else:
-                    done = True
-            else:
-                done = True
+                    if a != wx.YES:
+                        continue
+            break
+
         dlg.Destroy()
 
         return filename
