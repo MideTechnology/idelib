@@ -258,7 +258,7 @@ class ConfigDialog(SC.SizedDialog):
     
     
     def encodeConfigData(self):
-        """ Build an EBML-encodable set of nested dictionaries containing the
+        """ Build an EBML-encodeable set of nested dictionaries containing the
             dialog's configuration values.
         """
         values = []
@@ -459,7 +459,8 @@ class ConfigDialog(SC.SizedDialog):
         if self.configChanged():
             q = self.showError("Save configuration changes before exiting?",
                               "Configure Device", 
-                              style=wx.YES_NO|wx.CANCEL|wx.CANCEL_DEFAULT)
+                              style=(wx.YES_NO|wx.CANCEL|wx.CANCEL_DEFAULT \
+                                     |wx.ICON_QUESTION))
             if q == wx.CANCEL:
                 return
             elif q == wx.YES:
@@ -483,6 +484,7 @@ class ConfigDialog(SC.SizedDialog):
         if err is not None:
             logger.debug("%s: %r" % (msg, err))
         return q
+
 
 #===============================================================================
 # 

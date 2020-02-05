@@ -60,7 +60,14 @@ def getDevices(paths=None, types=RECORDER_TYPES):
         @return: A list of instances of `Recorder` subclasses.
     """
     result = []
-    paths = os_specific.getDeviceList(types) if paths is None else paths
+    
+    if paths is None:
+        paths = os_specific.getDeviceList(types)
+    else:
+        if isinstance(paths, basestring):
+            paths = [paths]
+        paths = [os.path.splitdrive(os.path.realpath(p))[0] for p in paths]
+
     for dev in paths:
         for t in types:
             if t.isRecorder(dev):

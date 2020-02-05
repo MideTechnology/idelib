@@ -15,6 +15,7 @@ import wx
 from mide_ebml.ebmlite import loadSchema, Element
 from .base import logger, ConfigBase
 from . import legacy
+from devices import getDevices
 
 #===============================================================================
 # 
@@ -187,6 +188,59 @@ def loadExport(filename):
     return (config, configUi, props)
     
 
+# def loadRecording(filename):
+#     """ Import configuration data from an IDE file.
+#     
+#         @param filename: The name of the IDE file from which to import.
+#         @return: A 3-item tuple containing EBML elements (or `None`):
+#             * ``'ConfigUI'``
+#             * ``'RecorderConfigurationList'``
+#             * ``'RecordingProperties'``
+#     """
+#     raise NotImplementedError("Importing from IDE not yet implemented!")
+# 
+# 
+# def loadRecorder(path):
+#     """ Import configuration data directly from another recorder.
+#     
+#         @param dev: The path to a `Recorder` or a file on it (e.g. its config
+#             file).
+#         @return: A 3-item tuple containing EBML elements (or `None`):
+#             * ``'ConfigUI'``
+#             * ``'RecorderConfigurationList'``
+#             * ``'RecordingProperties'``
+#     """
+#     raise NotImplementedError("Importing directly from another recorder TBD!")
+
+#     mideSchema = loadSchema('mide.xml')
+#     uiSchema = loadSchema('config_ui.xml')
+#  
+#     try:
+#         dev = getDevices(path)[0]
+#     except IndexError:
+#         # TODO: Report that the device wasn't found
+#         return
+#      
+#     if dev.configFile and os.path.exists(dev.configFile):
+#         con = dev.getConfigItems()
+#         if con:
+#             config = mideSchema.load(dev.configFile)
+#         else:
+#             config = legacy.loadConfigData(dev)
+#     else:
+#         # TODO: Report no config data
+#         return
+#      
+#     if dev.configUIFile and os.path.exists(dev.configUIFile):
+#         configUi = uiSchema.load(dev.configUIFile)
+#     else:
+#         configUi = legacy.loadConfigUI(dev)
+#          
+#     props = dev.getProperties() 
+#  
+#     return (config, configUi, props)
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -310,6 +364,7 @@ def importConfig(dlg):
     
         @param dlg: The config dialog from which import was called.
     """
+    # FUTURE: Implement other types of import.
     types = "Exported configuration data (*.xcg)|*.xcg"  #+ \
 #             "|Device configuration file (*.cfg)|*.cfg" + \
 #             "|enDAQ recording file (*.ide)|*.ide"
@@ -328,11 +383,11 @@ def importConfig(dlg):
             if ext == ".xcg":
                 config, configUi, props = loadExport(filename)
                 break
-#             elif ext == ".cfg":
-#                 # FUTURE: Do import from device
-#                 break
 #             elif ext == ".ide":
-#                 # FUTURE: Do import from recording
+#                 config, configUi, props = loadRecording(filename)
+#                 break
+#             elif ext == ".cfg":
+#                 config, configUi, props = loadRecorder(filename)
 #                 break
             else:
                 wx.MessageBox(("Configuration data could not be read.\n\n"
@@ -340,8 +395,7 @@ def importConfig(dlg):
                                "Import Configuration Data",
                                wx.OK|wx.ICON_ERROR, dlg)
                 continue
-        else:
-            break
+        break
     
     fd.Destroy()
     if config is None:
@@ -353,7 +407,7 @@ def importConfig(dlg):
         wx.MessageBox("This device is not compatible with the imported "
                       "configuration data.\n\nThe imported data was generated "
                       "by an incompatible device, or is missing required "
-                      "components.", "Import Configuration Data", 
+                      "information.", "Import Configuration Data", 
                       wx.OK|wx.ICON_ERROR, dlg)
         return None
     elif compat < 3:
