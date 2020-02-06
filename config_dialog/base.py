@@ -1271,7 +1271,7 @@ class DateTimeField(IntField):
             if self.isLocalTime():
                 val += self.localTz
         
-        dt =  wx.DateTime.FromTimeT(val)
+        dt =  wx.DateTime.FromTimeT(long(val))
         super(DateTimeField, self).setDisplayValue(dt, check)
         self.updateToolTips()
     
@@ -1303,12 +1303,12 @@ class DateTimeField(IntField):
         val = self.field.GetValue()
         t = val.GetTicks()
         if self.isLocalTime():
-            dt = wx.DateTime.FromTimeT(t + self.localTz)
+            dt = wx.DateTime.FromTimeT(long(t + self.localTz))
             self.field.SetValue(dt)
             self.lastTz = self.LOCAL_TIME
             self.root.useUtc = False
         else:
-            dt = wx.DateTime.FromTimeT(t - self.localTz)
+            dt = wx.DateTime.FromTimeT(long(t - self.localTz))
             self.field.SetValue(dt)
             self.lastTz = self.UTC_TIME
             self.root.useUtc = True
