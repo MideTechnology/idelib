@@ -2,8 +2,10 @@
 """
 from __future__ import absolute_import, print_function
 
-import wx.lib.agw.genericmessagedialog as GMD
 import wx
+import wx.lib.agw.genericmessagedialog as GMD
+from wx.lib.wordwrap import wordwrap
+
 
 class MemoryDialog(GMD.GenericMessageDialog):
     """ A variant of the `GenericMessageDialog` that optionally includes a
@@ -91,18 +93,90 @@ class MemoryDialog(GMD.GenericMessageDialog):
         return self.rememberCheck.GetValue()
     
 
-# XXX: FOR DEVELOPMENT TESTING. REMOVE ME!
-if __name__ == '__main__':# or True:
-    app = wx.App()
-    dlg = MemoryDialog(None,
-                       "Are you sure you want to overwrite\n"
-                       "the existing file?",
-                       "Testing", wx.YES|wx.CANCEL|wx.HELP|wx.ICON_QUESTION,
-                       size=(800,-1), remember=True)
-    dlg.SetExtendedMessage("This is the extended message.")
-    v = dlg.ShowModal()
-    print("size: {}".format(dlg.GetSize()))
-    r = dlg.getRememberCheck()
-    print("Dialog returned: %r" % v)
-    print("Remember check: %r" % r)
-#     app.MainLoop()
+#===============================================================================
+# 
+#===============================================================================
+
+def ask(parent, message, title="Confirm", style=wx.YES_NO | wx.NO_DEFAULT,
+        icon=wx.ICON_QUESTION, prefs=None, pref=None, saveNo=True,
+        extendedMessage=None, rememberMsg=None, persistent=True,
+        textwrap=400):
+    """ Generate a message box to notify or prompt the user, allowing for
+        a simple means of turning off such warnings and prompts. If a
+        preference name is supplied and that preference exists, the user
+        will not be prompted and the remembered value will be returned. If
+        the preference doesn't exist, the dialog will contain a 'remember'
+        checkbox that, if checked, will save the user's response as the
+        preference. "Cancel" (if the dialog has the button) will never be
+        saved.
+
+        @param parent: The dialog's parent.
+        @param message: The main message/prompt to display
+        @keyword title: The dialog's title
+        @keyword style: Standard wxWindows style flags
+        @keyword icon: The wxWindows style flag for the icon to display.
+            Separated from `style` because `MemoryDialog` always needs an
+            icon, making it behave differently than normal dialogs.
+        @keyword prefs: The `Preferences` object containing the preferences.
+        @keyword pref: The name of the preference to load and/or save
+        @keyword extendedMessage: A longer, more detailed message.
+        @keyword rememberMessage: The prompt next to the 'remember'
+            checkbox (if shown).
+        @keyword persistent: If `False` and 'remember' is checked, the
+            result is saved in memory but not written to disk.
+    """
+    style = (style | icon) if icon else style
+    if prefs is None:
+        prefs = getattr(parent, 'prefs', None)
+
+    if prefs is not None:
+        if pref is not None and prefs.hasPref(pref, section="ask"):
+            return prefs.getPref(pref, section="ask")
+    else:
+        pref = None
+        
+    remember = pref is not None
+
+    if "\n\n" in message:
+        message, ext = message.split('\n\n', 1)
+        if extendedMessage:
+            extendedMessage = '\n'.join((ext,extendedMessage))
+        else:
+            extendedMessage = ext
+
+    dlg = MemoryDialog(parent, message, title, style, remember=remember,
+                       rememberMsg=rememberMsg)
+    if extendedMessage:
+        if textwrap:
+            extendedMessage = wordwrap(extendedMessage, textwrap,
+                                       wx.ClientDC(dlg))
+        dlg.SetExtendedMessage(extendedMessage)
+
+    result = dlg.ShowModal()
+    savePref = result != wx.ID_CANCEL or (result == wx.ID_NO and saveNo)
+    if pref is not None and savePref:
+        if dlg.getRememberCheck():
+            prefs.setPref(pref, result, "ask", persistent)
+    dlg.Destroy()
+    return result
+
+
+#===============================================================================
+# 
+#===============================================================================
+
+# # XXX: FOR DEVELOPMENT TESTING. REMOVE ME!
+# if __name__ == '__main__':# or True:
+#     app = wx.App()
+#     dlg = MemoryDialog(None,
+#                        "Are you sure you want to overwrite\n"
+#                        "the existing file?",
+#                        "Testing", wx.YES|wx.CANCEL|wx.HELP|wx.ICON_QUESTION,
+#                        size=(800,-1), remember=True)
+#     dlg.SetExtendedMessage("This is the extended message.")
+#     v = dlg.ShowModal()
+#     print("size: {}".format(dlg.GetSize()))
+#     r = dlg.getRememberCheck()
+#     print("Dialog returned: %r" % v)
+#     print("Remember check: %r" % r)
+# #     app.MainLoop()

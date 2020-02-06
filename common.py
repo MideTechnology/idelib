@@ -10,7 +10,7 @@ from datetime import datetime
 import os.path
 import shutil
 import sys
-from threading import Thread as Thread
+from threading import Event, Thread
 
 
 #===============================================================================
@@ -160,13 +160,17 @@ def wordJoin(words, conj="and", oxford=True):
     """
     words = map(cleanUnicode, words)
     numWords = len(words)
-    if numWords > 2:
+    if numWords == 0:
+        return u""
+    elif numWords == 1:
+        return words[0]
+    elif numWords == 2:
+        return (u" %s " % conj).join(words)
+    else:
         if oxford:
             return u"%s, %s %s" % (', '.join(words[:-1]), conj, words[-1])
         else:
             return u"%s %s %s" % (', '.join(words[:-1]), conj, words[-1])
-    else:
-        return (u" %s " % conj).join(words)
 
 
 def parseTime(val):
@@ -310,13 +314,40 @@ class Job(Thread):
         self.dataset = dataset
         self.numUpdates = numUpdates
         self.updateInterval = updateInterval
-        self.cancelled = False
-        self.paused = False
+        self._cancelled = Event()
+        self._paused = Event()
         self.startTime = self.lastTime = self.pauseTime = None
         self.totalPauseTime = None
         self.pausable = True
+        
+        self._cancelled.clear()
+        self._paused.clear()
 
         super(Job, self).__init__()
+    
+    
+    @property
+    def paused(self):
+        return self._paused.isSet()
+
+
+    @paused.setter
+    def paused(self, p):
+        self.pause(p)
+
+
+    @property
+    def cancelled(self):
+        return self._cancelled.isSet()
+
+
+    @cancelled.setter
+    def cancelled(self, c):
+        if c:
+            self._cancelled.set()
+        else:
+            self._cancelled.clear()
+
 
 
     def cancel(self, blocking=True):
@@ -335,8 +366,15 @@ class Job(Thread):
 
 
     def pause(self, pause=True):
-        self.paused = pause and self.pausable
-        if pause:
+        """ Attempt to pause (or resume) the job.
+        """
+        
+        if pause and self.pausable:
+            self._paused.set()
+        else:
+            self._paused.clear()
+            
+        if self._paused.isSet():
             self.pauseTime = datetime.now()
         elif self.pauseTime is not None:
             pt = datetime.now() - self.pauseTime
