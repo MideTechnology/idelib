@@ -150,7 +150,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.cancelButton.SetSizerProps(halign="right")
 
         # Call deviceChanged() to set the initial state. Result ignored.
-        deviceChanged(recordersOnly=True)
+        deviceChanged(recordersOnly=False, clear=True)
         self.populateList()
         listmix.ColumnSorterMixin.__init__(self, len(self.ColumnInfo._fields))
 
@@ -194,7 +194,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     def TimerHandler(self, evt=None):
         """ Handle timer 'tick' by refreshing device list.
         """
-        if deviceChanged(recordersOnly=True):
+        if deviceChanged(recordersOnly=False):
             self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
             newPaths = tuple(getDeviceList(types=self.deviceTypes))
             if newPaths == self.recorderPaths:

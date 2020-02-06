@@ -32,7 +32,7 @@ RECORDER_TYPES = [SlamStickClassic, SlamStickC, SlamStickS, EndaqS, SlamStickX]
 # TODO: Clean this up, use OS-specific functions directly. 
 #===============================================================================
 
-def deviceChanged(recordersOnly=True, types=RECORDER_TYPES):
+def deviceChanged(recordersOnly=True, types=RECORDER_TYPES, clear=False):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
         
@@ -40,8 +40,11 @@ def deviceChanged(recordersOnly=True, types=RECORDER_TYPES):
             is reported as a change. If `True`, the mounted drives are checked
             and `True` is only returned if the change occurred to a recorder.
             Checking for recorders only takes marginally more time.
+        @keyword types: A list of `Recorder` subclasses to find.
+        @keyword clear: If `True`, clear the cache of previously-detected
+            drives and devices.
     """
-    return os_specific.deviceChanged(recordersOnly, types)
+    return os_specific.deviceChanged(recordersOnly, types, clear=clear)
 
 
 def getDeviceList(types=RECORDER_TYPES):

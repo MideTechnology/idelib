@@ -151,16 +151,24 @@ last_devices = 0
 last_recorders = None
 
 
-def deviceChanged(recordersOnly, types):
+def deviceChanged(recordersOnly, types, clear=False):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
         
-        @keyword recordersOnly: If `False`, any change to the mounted drives
+        @param recordersOnly: If `False`, any change to the mounted drives
             is reported as a change. If `True`, the mounted drives are checked
             and `True` is only returned if the change occurred to a recorder.
             Checking for recorders only takes marginally more time.
+        @param types: A list of known `Recorder` classes to detect.
+        @keyword clear: If `True`, clear the cache of previously-detected
+            drives and devices.
     """
     global last_devices, last_recorders
+    
+    if clear:
+        last_devices = 0
+        last_recorders = None
+    
     newDevices = kernel32.GetLogicalDrives()
     changed = newDevices != last_devices
     last_devices = newDevices
