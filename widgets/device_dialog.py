@@ -2,6 +2,8 @@
 Dialog for selecting recording devices.
 
 """
+from __future__ import absolute_import, print_function
+
 from collections import namedtuple
 from datetime import datetime
 import sys
@@ -166,6 +168,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.OnItemDeselected, self.list)
         self.list.Bind(wx.EVT_LEFT_DCLICK, self.OnItemDoubleClick)
         self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.list)
+        self.Bind(wx.EVT_SHOW, self.OnShow)
         
         if self.hideClock:
             self.setClockButton.Hide()
@@ -187,9 +190,6 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.TimerHandler)
         
-        if self.autoUpdate:
-            self.timer.Start(self.autoUpdate)
-
 
     def TimerHandler(self, evt=None):
         """ Handle timer 'tick' by refreshing device list.
@@ -279,8 +279,13 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.listToolTips = [None] * len(self.recorderPaths)
 
         self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
-        
-        for dev in getDevices(self.recorderPaths):
+
+        # For some reason, this wouldn't find devices if one of their files
+        # is open (and only if it were opened via the Open File dialog).
+        # See https://github.com/MideTechnology/SlamStickLab/issues/182
+        # For now, don't restrict to the recorderPaths, find & fix real cause!
+#         for dev in getDevices(self.recorderPaths):
+        for dev in getDevices():
             try:
                 index = self.list.InsertItem(sys.maxint, dev.path)
                 self.recorders[index] = dev
@@ -385,6 +390,19 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
                 self.list.UnsetToolTip()
             self.lastToolTipItem = index
         evt.Skip()
+    
+    
+    def OnShow(self, evt):
+        """ Handle dialog being shown/hidden.
+        """
+        if evt.IsShown():
+            if self.autoUpdate:
+                self.timer.Start(self.autoUpdate)
+#                 print("XXX: timer started")
+        else:
+            self.timer.Stop()
+#             print("XXX: timer stopped")
+        evt.Skip()
         
 
     def setClocks(self, evt=None):
@@ -456,5 +474,5 @@ if __name__ == '__main__':
     app = wx.App()
     
     result = selectDevice(showAdvanced=True)#hideClock=True, hideRecord=True)
-    print result
+    print("Result:", result)
     
