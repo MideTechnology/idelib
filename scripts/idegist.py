@@ -29,6 +29,25 @@ def ide_files_in(dirpath):
     )
 
 
+def psd(array, dt=1.):
+    # Direct numpy function calls
+    freqs = np.fft.fftfreq(len(array), d=dt)
+    dft_norm = np.fft.fft(array, norm='ortho')
+
+    # Calculate psd values
+    psd = np.abs(dft_norm)**2
+
+    # Combine negative aliased frequencies w/ non-negative counterparts
+    n = len(psd)//2 + 1
+    freqs_pos = np.abs(freqs[:n])
+
+    psd_posfreq = psd[:n]
+    psd_negfreq = psd[n:]
+    psd_posfreq[1:1+len(psd)-n] += psd_negfreq[::-1]
+
+    return freqs_pos, psd_posfreq
+
+
 def bulk_summarize(dirpath):
     output_path = os.path.split(dirpath)[0] + '-summary.csv'
     with open(output_path, 'wb') as csvfile:
@@ -71,8 +90,7 @@ def bulk_summarize(dirpath):
 
                     norm_values = values - values.mean()
 
-                    freqs = np.fft.rfftfreq(len(values), d=ts)
-                    psd_values = np.abs(np.fft.rfft(norm_values, norm='ortho'))**2
+                    psd_freqs, psd_values = psd(values, dt=ts)
                     f_argmax = np.argmax(psd_values)
 
                     csv_writer.writerow(CsvRowTuple(
