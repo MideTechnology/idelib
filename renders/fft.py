@@ -282,6 +282,38 @@ class ZoomingPlot:
             self.rect.set_xy((self.xData0, self.yData0))
             self.canvas.draw()
 
+    def zoomPlot(self, plot, amount):
+        if plot is None:
+            plot = self
+
+        if amount == 0:
+            bbox = self.axes.dataLim
+            plot.axes.set_xlim(bbox.xmin, bbox.xmax)
+            plot.axes.set_ylim(bbox.ymin, bbox.ymax)
+            return
+
+        old_x = plot.axes.get_xbound()
+        old_y = plot.axes.get_ybound()
+        cur_xview_dist = old_x[1] - old_x[0]
+        cur_yview_dist = old_y[1] - old_y[0]
+
+        if amount > 0:
+            dist_x_zoom = cur_xview_dist * (1 / (1 - amount) - 1)
+            dist_y_zoom = cur_yview_dist * (1 / (1 - amount) - 1)
+        else:
+            dist_x_zoom = cur_xview_dist * amount
+            dist_y_zoom = cur_yview_dist * amount
+
+        new_x_lims = (old_x[0] - dist_x_zoom / 2, old_x[1] + dist_x_zoom / 2)
+        new_y_lims = (old_y[0] - dist_y_zoom / 2, old_y[1] + dist_y_zoom / 2)
+        plot.axes.set_xlim(*new_x_lims)
+        plot.axes.set_ylim(*new_y_lims)
+
+
+
+
+
+
     def OnMenuViewReset(self, evt):
         bbox = self.axes.dataLim
         self.axes.set_xlim(bbox.xmin, bbox.xmax)
@@ -979,28 +1011,28 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
             self.root.handleError(err, what=what)
             return False
 
-    def zoomPlot(self, plot, amount):
-        bbox = self.axes.dataLim
-        fullX = (bbox.xmin, bbox.xmax)
-        fullY = (bbox.ymin, bbox.ymax)
-        oldX = self.axes.get_xbound()
-        oldY = self.axes.get_ybound()
-        newX = (greater(fullX[0], (1.0-amount) * oldX[0]), lesser(fullX[1], (1.0+amount) * oldX[1]))
-        newY = (greater(fullY[0], (1.0-amount) * oldY[0]), lesser(fullY[1], (1.0+amount) * oldY[1]))
-
-        if newX[0] > newX[1]:
-            newX = tuple(oldX)
-        if newY[0] > newY[1]:
-            newY = tuple(oldY)
-        self.axes.set_xlim(newX[0], newX[1])
-        self.axes.set_ylim(newY[0], newY[1])
+    # def zoomPlot(self, plot, amount):
+    #     bbox = self.axes.dataLim
+    #     fullX = (bbox.xmin, bbox.xmax)
+    #     fullY = (bbox.ymin, bbox.ymax)
+    #     oldX = self.axes.get_xbound()
+    #     oldY = self.axes.get_ybound()
+    #     newX = (greater(fullX[0], (1.0-amount) * oldX[0]), lesser(fullX[1], (1.0+amount) * oldX[1]))
+    #     newY = (greater(fullY[0], (1.0-amount) * oldY[0]), lesser(fullY[1], (1.0+amount) * oldY[1]))
+    #
+    #     if newX[0] > newX[1]:
+    #         newX = tuple(oldX)
+    #     if newY[0] > newY[1]:
+    #         newY = tuple(oldY)
+    #     self.axes.set_xlim(newX[0], newX[1])
+    #     self.axes.set_ylim(newY[0], newY[1])
 
     def OnZoomOut(self, evt):
-        self.zoomPlot(self.canvas, .1)
+        self.zoomPlot(None, .1)
         self.canvas.draw()
         
     def OnZoomIn(self, evt):
-        self.zoomPlot(self.canvas, -.1)
+        self.zoomPlot(None, -.1)
         self.canvas.draw()
     
     def OnMenuViewReset(self, evt):
@@ -1024,7 +1056,9 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
             self.axes.set_yscale('log')
         else:
             self.axes.set_yscale('linear')
-        self.zoomPlot(self.canvas, 0.0)
+        # self.zoomPlot(self.canvas, 0.0)
+        # self.canvas.draw()
+        self.zoomPlot(None, 0.0)
         self.canvas.draw()
         # self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
         # self.logarithmic = (self.logFreq.IsChecked(), self.logAmp.IsChecked())
@@ -1063,12 +1097,11 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
 #         self.canvas.Redraw()
 
     def OnViewChangeTitle(self, evt):
-        dlg = wx.TextEntryDialog(self, 'New Plot Title:', 'Change Title', 
-                                 self.lines.getTitle())
+        dlg = wx.TextEntryDialog(self, 'New Plot Title:', 'Change Title', self.axes.get_title())
 
         if dlg.ShowModal() == wx.ID_OK:
-            self.lines.setTitle(dlg.GetValue())
-            self.canvas.Redraw()
+            self.axes.set_title(dlg.GetValue())
+            self.canvas.draw()
 
         dlg.Destroy()
 
@@ -1333,7 +1366,9 @@ class NewSpectrogramPlot(wx.Panel, ZoomingPlot):
 
         self.axes = self.figure.add_subplot(111)
 
-        self.axes.set_title("%s Spectrogram"%name)
+        self.title = "%s Spectrogram"%name
+
+        self.axes.set_title(self.title)
         self.axes.set_xlabel("Time (s)")
         self.axes.set_ylabel("Frequency (Hz)")
 
@@ -1346,10 +1381,19 @@ class NewSpectrogramPlot(wx.Panel, ZoomingPlot):
         # self.zoomedImage = None
         # self.lastZoom = None
 
+        self.enableTitle = True
+
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.canvas, 1, wx.EXPAND)
 
         self.SetSizer(sizer)
+
+    def Redraw(self):
+        title_to_set = self.title if self.enableTitle else ""
+
+        self.axes.set_title(title_to_set)
+
+        self.canvas.draw()
 
 
 class SpectrogramView(FFTView):
@@ -1772,14 +1816,36 @@ class SpectrogramView(FFTView):
 
         return True
 
+    # def zoomPlot(self, plot, amount):
+    #     old_x = plot.axes.get_xbound()
+    #     old_y = plot.axes.get_ybound()
+    #     cur_xview_dist = old_x[1] - old_x[0]
+    #     cur_yview_dist = old_y[1] - old_y[0]
+    #
+    #     if amount > 0:
+    #         dist_x_zoom = cur_xview_dist * (1 / (1 - amount) - 1)
+    #         dist_y_zoom = cur_yview_dist * (1 / (1 - amount) - 1)
+    #     else:
+    #         dist_x_zoom = cur_xview_dist * amount
+    #         dist_y_zoom = cur_yview_dist * amount
+    #
+    #     new_x_lims = (old_x[0] - dist_x_zoom / 2, old_x[1] + dist_x_zoom / 2)
+    #     new_y_lims = (old_y[0] - dist_y_zoom / 2, old_y[1] + dist_y_zoom / 2)
+    #     plot.axes.set_xlim(*new_x_lims)
+    #     plot.axes.set_ylim(*new_y_lims)
+
     def OnZoomOut(self, evt):
-        self.zoomPlot(self.canvas.GetCurrentPage(), .1)
+        cur_page = self.canvas.GetCurrentPage()
+        self.zoomPlot(cur_page, .1)
+        cur_page.Redraw()
 
     def OnZoomIn(self, evt):
-        self.zoomPlot(self.canvas.GetCurrentPage(), -.1)
+        cur_page = self.canvas.GetCurrentPage()
+        self.zoomPlot(cur_page, -.1)
+        cur_page.Redraw()
 
     def OnMenuViewReset(self, evt):
-        self.canvas.GetCurrentPage().Reset()
+        self.canvas.GetCurrentPage().OnMenuViewReset(evt)
 
     def OnMenuDataLog(self, evt):
         """
@@ -1813,11 +1879,10 @@ class SpectrogramView(FFTView):
         p = self.canvas.GetCurrentPage()
         idx = self.canvas.GetPageIndex(p)
         
-        dlg = wx.TextEntryDialog(self, 'New Plot Title:', 'Change Title', 
-                                 self.lines[idx].getTitle())
-        
+        dlg = wx.TextEntryDialog(self, 'New Plot Title:', 'Change Title', p.axes.get_title())
+
         if dlg.ShowModal() == wx.ID_OK:
-            self.lines[idx].setTitle(dlg.GetValue())
+            p.title = dlg.GetValue()
             p.Redraw()
 
         dlg.Destroy()
