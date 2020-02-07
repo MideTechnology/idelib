@@ -58,6 +58,8 @@ def bulk_summarize(dirpath):
             'device_serial',
             'device_part',
             'channel_name',
+            'unit_type',
+            'units',
             'utcStartTime',
             'utcEndTime',
             'sampling_frequency',
@@ -90,7 +92,7 @@ def bulk_summarize(dirpath):
 
                     norm_values = values - values.mean()
 
-                    psd_freqs, psd_values = psd(values, dt=ts)
+                    psd_freqs, psd_values = psd(norm_values, dt=ts)
                     f_argmax = np.argmax(psd_values)
 
                     csv_writer.writerow(CsvRowTuple(
@@ -98,6 +100,8 @@ def bulk_summarize(dirpath):
                         device_serial=ds.recorderInfo['RecorderSerial'],
                         device_part=ds.recorderInfo['PartNumber'],
                         channel_name=subchannel.name,
+                        unit_type=eventlist.units[0],
+                        units=eventlist.units[1].replace(u'\xb0', u'degrees '),
                         utcStartTime=np.datetime64(session.utcStartTime, 's'),
                         utcEndTime=np.datetime64(session.utcStartTime, 's') + np.array(session.lastTime-session.firstTime, dtype='timedelta64[us]'),
                         sampling_frequency=fs,
@@ -105,7 +109,7 @@ def bulk_summarize(dirpath):
                         maximum_value=values.max(),
                         mean_value=values.mean(),
                         rms=values.std(),
-                        peak_frequency=freqs[f_argmax],
+                        peak_frequency=psd_freqs[f_argmax],
                         peak_frequency_power=psd_values[f_argmax],
                     ))
 
