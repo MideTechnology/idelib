@@ -62,7 +62,7 @@
         <MasterElement name="SystemInfo" id="0x4D00" mandatory="0" multiple="0" minver="1">Class B (2 byte + 2 length) Master element for the basic system info (serial#, etc).
             <UIntegerElement name="SerialNumber" id="0x4D01" mandatory="1" multiple="0" minver="1" length="4">4-byte Vendor-defined (MIDE) product serial number.</UIntegerElement>
             <UIntegerElement name="DeviceTypeUID" id="0x4D02" mandatory="1" multiple="0" minver="1" length="4">4-byte Unique hardware configuration ID used to distinguish recorder types/variants.</UIntegerElement>
-            <StringElement name="ProductName" id="0x4D03" mandatory="1" multiple="0" minver="1" length="40">20-byte Displayable text name for this product/variant.</StringElement>
+            <StringElement name="ProductName" id="0x4D03" mandatory="1" multiple="0" minver="1">20-byte Displayable text name for this product/variant.</StringElement>
             <UIntegerElement name="HwRev" id="0x4D04" mandatory="1" multiple="0" minver="1" length="2">Hardware revision code for this DeviceTypeUID.</UIntegerElement>
             <!-- FwRev and FwRevString, if applicable, are hardcoded in the FW itself and don't need a Manifest schema entry, They do, however, have a MIDE schema entry under RecorderInfo. -->
             <UIntegerElement name="MinFwRev" id="0x4D05" mandatory="1" multiple="0" minver="1" length="2">Minimum FW revision code required to support this hardware.</UIntegerElement>

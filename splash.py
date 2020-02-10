@@ -155,7 +155,8 @@ class SplashPage(wx.Panel):
         showWarning = kwargs.pop('warning', True)
         kwargs.setdefault('style', wx.CLIP_CHILDREN)
         super(SplashPage, self).__init__(*args, **kwargs)
-        
+
+#         self.SetBackgroundColour(wx.Colour(2,24,38))
         sizer = wx.BoxSizer(wx.VERTICAL)
         
         sizer.Add((0,0), 1) # Top padding, to center contents

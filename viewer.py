@@ -561,7 +561,7 @@ class Viewer(wx.Frame, MenuMixin):
         # "Scripting" menu
 
         # TODO: Remove the `showAdvanced` conditional (once things work!)
-        if showAdvanced:
+        if self.app.getPref('scriptingEnabled', False):
             scriptMenu = self.addMenu(self.menubar, '&Scripting')
             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_RUN,
                              "&Run Script...\tCtrl+Shift+R",
@@ -1999,6 +1999,7 @@ class Viewer(wx.Frame, MenuMixin):
         if warning == wx.ID_YES:
             devices.efm32_firmware.updateFirmware(self)
 
+
     #===========================================================================
     # 
     #===========================================================================
@@ -2006,6 +2007,16 @@ class Viewer(wx.Frame, MenuMixin):
     def OnScriptRun(self, evt):
         """ Handle "Scripting->Run Script" menu events.
         """
+        warning = self.ask("Caution!\n\n"
+                           "Scripts from unknown sources pose a risk to your "
+                           "computer's security. They should be treated with "
+                           "the same caution as any downloaded software.\n\n"
+                           "Do you wish to continue?",
+                           "Run Script", icon=wx.ICON_WARNING,
+                           pref="scriptWarning", saveNo=False)
+        if warning != wx.ID_YES:
+            return
+            
         types = "Python Script (*.py)|*.py"
 
         dlg = wx.FileDialog(self, message="Run Python Script",

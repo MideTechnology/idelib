@@ -668,6 +668,12 @@ class PrefsDialog(SC.SizedDialog):
                              ("Close previous file","Open in new window", "Ask")),
              "The application's behavior when opening a file while another "
              "is already open.")
+
+        _add(PG.PropertyCategory("Scripting"))
+        _add(PG.BoolProperty("Enable Scripting", "scriptingEnabled"),
+             "Enable Python scripting functionality. Warning: Downloaded "
+             "scripts may pose a security risk to your computer. "
+             "Use with caution!", UseCheckbox=True)
         
         _add(PG.PropertyCategory("Miscellaneous"))
         _add(PG.BoolProperty("Show Full Path in Title Bar", "showFullPath"),
