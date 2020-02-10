@@ -48,73 +48,79 @@ def psd(array, dt=1.):
     return freqs_pos, psd_posfreq
 
 
-def bulk_summarize(dirpath):
-    output_path = os.path.split(dirpath)[0] + '-summary.csv'
-    with open(output_path, 'wb') as csvfile:
-        csv_writer = csv.writer(csvfile)
+CsvRowTuple = namedtuple('CsvRowTuple', [
+    'filename',
+    'device_serial',
+    'device_part',
+    'channel_name',
+    'unit_type',
+    'units',
+    'utcStartTime',
+    'utcEndTime',
+    'sampling_frequency',
+    'minimum_value',
+    'maximum_value',
+    'mean_value',
+    'rms',
+    'peak_frequency',
+    'peak_frequency_power',
+])
 
-        CsvRowTuple = namedtuple('CsvRowTuple', [
-            'filename',
-            'device_serial',
-            'device_part',
-            'channel_name',
-            'unit_type',
-            'units',
-            'utcStartTime',
-            'utcEndTime',
-            'sampling_frequency',
-            'minimum_value',
-            'maximum_value',
-            'mean_value',
-            'rms',
-            'peak_frequency',
-            'peak_frequency_power',
-        ])
+
+def summaries(filepaths):
+    for filename in filepaths:  # use your own pathname here
+        ds = idelib.importer.importFile(filename)
+
+        for channel in ds.channels.values():
+            for subchannel in channel.subchannels:
+                eventlist = subchannel.getSession()
+                session = eventlist.session
+                array = eventlist[:]
+
+                times = array[0]
+                values = array[1]
+                utc_times = np.datetime64(session.utcStartTime, 's') + times.astype('timedelta64[us]')
+
+                ts = np.diff(times*1e-6).mean()
+                fs = 1/ts
+
+                norm_values = values - values.mean()
+
+                psd_freqs, psd_values = psd(norm_values, dt=ts)
+                f_argmax = np.argmax(psd_values)
+
+                yield CsvRowTuple(
+                    filename=ds.filename,
+                    device_serial=ds.recorderInfo['RecorderSerial'],
+                    device_part=ds.recorderInfo['PartNumber'],
+                    channel_name=subchannel.name,
+                    unit_type=eventlist.units[0],
+                    units=eventlist.units[1].replace(u'\xb0', u'degrees '),
+                    utcStartTime=np.datetime64(session.utcStartTime, 's'),
+                    utcEndTime=np.datetime64(session.utcStartTime, 's') + np.array(session.lastTime-session.firstTime, dtype='timedelta64[us]'),
+                    sampling_frequency=fs,
+                    minimum_value=values.min(),
+                    maximum_value=values.max(),
+                    mean_value=values.mean(),
+                    rms=values.std(),
+                    peak_frequency=psd_freqs[f_argmax],
+                    peak_frequency_power=psd_values[f_argmax],
+                )
+
+        ds.close()  # Remember to close your file after you're finished with it!
+        del ds, channel, subchannel, eventlist, session  # These all depend on the internal file object
+
+
+def summarize_to_csv(csvpath, filepaths):
+    with open(csvpath, 'wb') as csvfile:
+        csv_writer = csv.writer(csvfile)
 
         # Writing column headers
         csv_writer.writerow(CsvRowTuple._fields)
 
-        for filename in ide_files_in(dirpath):  # use your own pathname here
-            ds = idelib.importer.importFile(filename)
-
-            for channel in ds.channels.values():
-                for subchannel in channel.subchannels:
-                    eventlist = subchannel.getSession()
-                    session = eventlist.session
-                    array = eventlist[:]
-
-                    times = array[0]
-                    values = array[1]
-                    utc_times = np.datetime64(session.utcStartTime, 's') + times.astype('timedelta64[us]')
-
-                    ts = np.diff(times*1e-6).mean()
-                    fs = 1/ts
-
-                    norm_values = values - values.mean()
-
-                    psd_freqs, psd_values = psd(norm_values, dt=ts)
-                    f_argmax = np.argmax(psd_values)
-
-                    csv_writer.writerow(CsvRowTuple(
-                        filename=ds.filename,
-                        device_serial=ds.recorderInfo['RecorderSerial'],
-                        device_part=ds.recorderInfo['PartNumber'],
-                        channel_name=subchannel.name,
-                        unit_type=eventlist.units[0],
-                        units=eventlist.units[1].replace(u'\xb0', u'degrees '),
-                        utcStartTime=np.datetime64(session.utcStartTime, 's'),
-                        utcEndTime=np.datetime64(session.utcStartTime, 's') + np.array(session.lastTime-session.firstTime, dtype='timedelta64[us]'),
-                        sampling_frequency=fs,
-                        minimum_value=values.min(),
-                        maximum_value=values.max(),
-                        mean_value=values.mean(),
-                        rms=values.std(),
-                        peak_frequency=psd_freqs[f_argmax],
-                        peak_frequency_power=psd_values[f_argmax],
-                    ))
-
-            ds.close()  # Remember to close your file after you're finished with it!
-            del ds, channel, subchannel, eventlist, session  # These all depend on the internal file object
+        for file_summary in summaries(filepaths):
+            csv_writer.writerow(file_summary)
 
 
-bulk_summarize(".\\ide_files\\")
+if __name__ == "__main__":
+    summarize_to_csv("ide_files-summary.csv", ide_files_in(".\\ide_files\\"))
