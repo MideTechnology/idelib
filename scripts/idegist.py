@@ -122,5 +122,38 @@ def summarize_to_csv(csvpath, filepaths):
             csv_writer.writerow(file_summary)
 
 
+def main():
+    import argparse
+    import glob
+
+    parser = argparse.ArgumentParser(description='Summarize ide files.')
+    parser.add_argument(
+        'file_patterns',
+        help='a set of filepaths / glob patterns of .IDE files to summarize',
+        nargs='+',
+    )
+    parser.add_argument(
+        '-o', '--outfile',
+        help='the path for the output csv file',
+        required=True,
+    )
+
+    args = parser.parse_args()
+
+    ide_files = [
+        filepath
+        for file_pattern in args.file_patterns
+        for filepath in glob.iglob(file_pattern)
+        if os.path.isfile(filepath)
+        and os.path.splitext(filepath)[1].lower() == '.ide'
+    ]
+
+    if len(ide_files) == 0:
+        print('no .IDE files matching the input paths/patterns')
+        return
+
+    summarize_to_csv(args.outfile, ide_files)
+
+
 if __name__ == "__main__":
-    summarize_to_csv("ide_files-summary.csv", ide_files_in(".\\ide_files\\"))
+    main()
