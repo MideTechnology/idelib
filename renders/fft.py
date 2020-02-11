@@ -93,7 +93,7 @@ class ZoomingPlot:
 
     def initialize_stuff(self):
         # Initialise the rectangle
-        self.rect = Rectangle((0, 0), 1, 1, facecolor='None', edgecolor='black', linewidth=0.5, zorder=3)
+        self.rect = Rectangle((0, 0), 0, 0, facecolor='None', edgecolor='black', linewidth=0.5, zorder=3)
         self.xData0 = None
         self.yData0 = None
         self.xData1 = None
@@ -309,15 +309,16 @@ class ZoomingPlot:
         plot.axes.set_xlim(*new_x_lims)
         plot.axes.set_ylim(*new_y_lims)
 
-
-
-
-
-
-    def OnMenuViewReset(self, evt):
+    def OnMenuViewReset(self, evt, add_border=True):
         bbox = self.axes.dataLim
-        self.axes.set_xlim(bbox.xmin, bbox.xmax)
-        self.axes.set_ylim(bbox.ymin, bbox.ymax)
+        if add_border:
+            x_shift = (bbox.xmax - bbox.xmin) / 100
+            y_shift = (bbox.ymax - bbox.ymin) / 100
+        else:
+            x_shift, y_shift = 0, 0
+
+        self.axes.set_xlim(bbox.xmin - x_shift, bbox.xmax + x_shift)
+        self.axes.set_ylim(bbox.ymin - y_shift, bbox.ymax + y_shift)
         self.canvas.draw()
 
 
@@ -663,9 +664,18 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
             for i in range(1, self.data.shape[1]):
                 self.axes.plot(self.data[:, 0], self.data[:, i], antialiased=True, linewidth=0.5,
                                label=self.subchannels[i-1].name, color=[float(x)/255. for x in self.root.getPlotColor(self.subchannels[i-1])])
+
+            if self.logarithmic[0]:
+                self.axes.set_xscale('log')
+            if self.logarithmic[1]:
+                self.axes.set_yscale('log')
+
             bbox = self.axes.dataLim
-            self.axes.set_xlim(bbox.xmin, bbox.xmax)
-            self.axes.set_ylim(bbox.ymin, bbox.ymax)
+            x_shift = (bbox.xmax - bbox.xmin) / 100
+            y_shift = (bbox.ymax - bbox.ymin) / 100
+            self.axes.set_xlim(bbox.xmin - x_shift, bbox.xmax + x_shift)
+            self.axes.set_ylim(bbox.ymin - y_shift, bbox.ymax + y_shift)
+
             self.axes.legend()
             self.axes.grid(True)
             self.canvas.draw()
@@ -687,8 +697,6 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
         # self.canvas.SetShowScrollbars(True)
 
         self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
-
-        
     
     def initMenus(self):
         """ Install and set up the main menu.
@@ -1034,15 +1042,6 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
     def OnZoomIn(self, evt):
         self.zoomPlot(None, -.1)
         self.canvas.draw()
-    
-    def OnMenuViewReset(self, evt):
-        bbox = self.axes.dataLim
-        self.axes.set_xlim(bbox.xmin, bbox.xmax)
-        self.axes.set_ylim(bbox.ymin, bbox.ymax)
-        self.canvas.draw()
-        # self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
-        # self.canvas.Reset()
-        # self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
     def OnMenuDataLog(self, evt):
         """
@@ -1388,6 +1387,9 @@ class NewSpectrogramPlot(wx.Panel, ZoomingPlot):
 
         self.SetSizer(sizer)
 
+    def OnMenuViewReset(self, evt):
+        super(NewSpectrogramPlot, self).OnMenuViewReset(evt, add_border=False)
+
     def Redraw(self):
         title_to_set = self.title if self.enableTitle else ""
 
@@ -1437,18 +1439,15 @@ class SpectrogramView(FFTView):
                                    aui.AUI_NB_TAB_MOVE | 
                                    aui.AUI_NB_SCROLL_BUTTONS)
 
-
     def addPlot(self, channelIdx):
-        """
-        """
         name = self.subchannels[channelIdx].displayName
 
         p = NewSpectrogramPlot(self, name)
 
-        p.SetFont(wx.Font(10,wx.SWISS,wx.NORMAL,wx.NORMAL))
+        p.SetFont(wx.Font(10, wx.SWISS, wx.NORMAL, wx.NORMAL))
         p.fontSizeAxis = 10
         p.fontSizeLegend = 7
-        p.logScale = (False,False)
+        p.logScale = (False, False)
         p.xSpec = 'min'
         p.ySpec = 'min'
         self.canvas.AddPage(p, name)
@@ -1460,7 +1459,32 @@ class SpectrogramView(FFTView):
 
         data = self.source.itervalues(start, stop, subchannels=subchIds, display=self.useConvertedUnits)
 
-        axes_image = p.axes.specgram(list(data), NFFT=1024, Fs=fs)[-1]
+        #######################THE CODE BETWEEN THESE HASHES WAS TAKEN FROM OTHER IMPLEMENTATIONS AND IS NOT ENTIRELY UNDERSTOOD######################
+
+        slicesPerSec = 4.0 ##DOUBLE CHECK THIS IS OKAY
+
+        recordingTime = self.source[-1][0] - self.source[0][0]
+        recordingTime *= self.timeScalar
+
+        rows = stop - start
+
+        points = self.from2diter(data, rows, 1, abortEvent=None)
+
+        rows, cols = points.shape
+
+        specgram_nfft = int(rows / (recordingTime * slicesPerSec))
+
+        #######################THE CODE BETWEEN THESE HASHES WAS TAKEN FROM OTHER IMPLEMENTATIONS AND IS NOT ENTIRELY UNDERSTOOD######################
+
+        axes_image = p.axes.specgram(
+            points[:, 0],
+            Fs=fs,
+            sides="onesided",
+            pad_to=None,
+            NFFT=specgram_nfft,
+            noverlap=specgram_nfft / 2,
+            scale_by_freq=None,
+        )[-1]
 
         p.canvas.draw()
         p.initialize_stuff()

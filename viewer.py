@@ -668,7 +668,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ For debugging: handle 'render in foreground' menu item change.
         """
         from renders import fft
-        fft.FOREGROUND=evt.Checked()
+        fft.FOREGROUND=evt.IsChecked()
 
 
     def buildUI(self, splash=True):
