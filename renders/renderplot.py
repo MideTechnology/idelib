@@ -10,7 +10,6 @@ import threading
 import numpy as np; np=np
 
 import wx
-from wx.lib.plot import PolyLine, PlotGraphics
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 
@@ -20,7 +19,7 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 
 from common import lesser
 from logger import logger
-from renders.fft import FFTPlotCanvas, FFTView, ZoomingPlot
+from renders.fft import FFTView, ZoomingPlot
 
 from ctypes import windll
 
@@ -61,17 +60,17 @@ class PlotView(FFTView, ZoomingPlot):
 
         self.axes.set_title(self.title)
         self.timer = None
-        self._delay = windll.user32.GetDoubleClickTime()
+        self._delay = windll.user32.GetDoubleClickTime() #################PRETTY SURE THIS IS ALL BEING HANDELED IN ZoomingPlot CLASS#########################
 
         # Sizer to contain the canvas
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.sizer.Add(self.canvas, 3, wx.EXPAND | wx.ALL)
         self.SetSizer(self.sizer)
-        self.Fit()
+        self.Fit() #########WHY IS THIS DONE TWICE#####
 
         self.initialize_stuff()
 
-        self.Fit()
+        self.Fit() #########WHY IS THIS DONE TWICE#####
 
 
     def initMenus(self):
@@ -85,7 +84,6 @@ class PlotView(FFTView, ZoomingPlot):
     def _draw(self):
         """
         """
-
         logger.info("Starting %s._draw() in new thread." % self.__class__.__name__ )
         drawStart = time.time()
 

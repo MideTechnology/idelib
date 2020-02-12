@@ -21,8 +21,6 @@ import numpy as np
 from numpy.core import hstack, vstack
 #from pyfftw.builders import rfft
 
-from wx.lib.plot import PolyLine, PlotGraphics, PlotCanvas
-# from wx_lib_plot import PolyLine, PlotGraphics, PlotCanvas
 
 from wx import aui
 import wx; wx = wx 
@@ -321,123 +319,6 @@ class ZoomingPlot:
         self.axes.set_ylim(bbox.ymin - y_shift, bbox.ymax + y_shift)
         self.canvas.draw()
 
-
-class FFTPlotCanvas(PlotCanvas):
-
-    def __init__(self, *args, **kwargs):
-        self._gridColour = wx.Colour('black')
-        super(FFTPlotCanvas, self).__init__(*args, **kwargs)
-
-
-    def SetGridColour(self, color):
-        """
-        """
-        self._gridPen.SetColour(color)
-
-
-    def _Draw(self, graphics, xAxis = None, yAxis = None, dc = None):
-        """ Zoom on the plot
-            Centers on the X,Y coords given in Center
-            Zooms by the Ratio = (Xratio, Yratio) given
-        """
-        if xAxis is not None:
-            x_range = self.GetXMaxRange()
-            xAxis = (greater(x_range[0], xAxis[0]), lesser(x_range[1], xAxis[1]))
-            if xAxis[1]-xAxis[0] < 0.00001:
-                xAxis= self.last_draw[1]
-        if yAxis is not None:
-            y_range = self.GetYMaxRange()
-            yAxis = (greater(y_range[0], yAxis[0]), lesser(y_range[1], yAxis[1]))
-            if yAxis[1]-yAxis[0] < 0.00001:
-                yAxis= self.last_draw[2]
-        
-        try:
-            super(FFTPlotCanvas, self)._Draw(graphics, xAxis, yAxis, dc)
-        except OverflowError:
-            # XXX: THIS IS A HACK TO GET AROUND SPORADIC 'FLOAT INFINITY' ISSUE
-            pass
-
-    def _drawAxes(self, dc, p1, p2, scale, shift, xticks, yticks):
-        # Standard PlotCanvas uses same color for grid, ticks and border.
-        # This will now always draw the border in black, with black ticks
-        # if the grid is disabled. This also uses DrawLineList, which
-        # should be slightly more efficient.
-
-        # increases thickness for printing only
-        penWidth = self.printerScale * self._pointSize[0]
-        
-        gridPen = wx.Pen(self._gridColour, width=penWidth, style=wx.TRANSPARENT)
-        blackPen = wx.Pen(wx.Colour("BLACK"), width=penWidth)
-        
-        lines = []
-        # set length of tick marks--long ones make grid
-        if self._gridEnabled is not False:
-            x, y, width, height = self._point2ClientCoord(p1, p2)
-            if self._gridEnabled == 'Horizontal':
-                yTickLength = (width / 2.0 + 1) * self._pointSize[1]
-                xTickLength = 3 * self.printerScale * self._pointSize[0]
-            elif self._gridEnabled == 'Vertical':
-                yTickLength = 3 * self.printerScale * self._pointSize[1]
-                xTickLength = (height / 2.0 + 1) * self._pointSize[0]
-            else:
-                yTickLength = (width / 2.0 + 1) * self._pointSize[1]
-                xTickLength = (height / 2.0 + 1) * self._pointSize[0]
-            dc.SetPen(gridPen)
-        else:
-            # lengthens lines for printing
-            yTickLength = 3 * self.printerScale * self._pointSize[1]
-            xTickLength = 3 * self.printerScale * self._pointSize[0]
-            dc.SetPen(blackPen)
-
-        if self._xSpec is not 'none':
-            lower, upper = p1[0], p2[0]
-            text = 1
-            # miny, maxy and tick lengths
-            for y, d in [(p1[1], -xTickLength), (p2[1], xTickLength)]:
-                for x, label in xticks:
-                    pt = scale * np.array([x, y]) + shift
-                    # draws tick mark d units
-                    lines.append((pt[0], pt[1], pt[0], pt[1] + d))
-                    if text:
-                        dc.DrawText(label, pt[0], 
-                                    pt[1] + 2 * self._pointSize[1])
-                a1 = scale * np.array([lower, y]) + shift
-                a2 = scale * np.array([upper, y]) + shift
-                # draws upper and lower axis line
-                lines.append((a1[0], a1[1], a2[0], a2[1]))
-                text = 0  # axis values not drawn on top side
-
-        if self._ySpec is not 'none':
-            lower, upper = p1[1], p2[1]
-            text = 1
-            h = dc.GetCharHeight()
-            for x, d in ((p1[0], -yTickLength), (p2[0], yTickLength)):
-                for y, label in yticks:
-                    pt = scale * np.array([x, y]) + shift
-                    lines.append((pt[0], pt[1], pt[0] - d, pt[1]))
-                    if text:
-                        dc.DrawText(label, 
-                                    pt[0] - dc.GetTextExtent(label)[0] - 3 * self._pointSize[0],
-                                    pt[1] - 0.75 * h)
-                a1 = scale * np.array([x, lower]) + shift
-                a2 = scale * np.array([x, upper]) + shift
-                lines.append((a1[0], a1[1], a2[0], a2[1]))
-                text = 0    # axis values not drawn on right side
-
-        dc.DrawLineList(lines)
-        
-        # Always draw border in black
-        if self._gridEnabled is not False:
-            y1 = scale[1] * p1[1] + shift[1]
-            y2 = scale[1] * p2[1] + shift[1]
-            x1 = scale[0] * p1[0] + shift[0]
-            x2 = scale[0] * p2[0] + shift[0]
-    
-            dc.DrawLineList([(x1, y1, x2, y1),(x1, y2, x2, y2),
-                             (x1, y1, x1, y2),(x2, y1, x2, y2)],
-                             blackPen)        
-
-        
 #===============================================================================
 # 
 #===============================================================================
@@ -708,13 +589,13 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
                          self.OnExportCsv)
         self.addMenuItem(fileMenu, self.ID_EXPORT_IMG, "&Save Image...\tCtrl+S", "", 
                          self.OnExportImage, True)
-        fileMenu.AppendSeparator()
-        self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...\tCtrl+P", "", 
-                         self.OnFilePrint)
-        self.addMenuItem(fileMenu, wx.ID_PREVIEW, "Print Preview...", "", 
-                         self.OnFilePrintPreview)
-        self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "", 
-                         self.OnFilePageSetup)
+        # fileMenu.AppendSeparator()
+        # self.addMenuItem(fileMenu, wx.ID_PRINT, "&Print...\tCtrl+P", "",
+        #                  self.OnFilePrint)
+        # self.addMenuItem(fileMenu, wx.ID_PREVIEW, "Print Preview...", "",
+        #                  self.OnFilePrintPreview)
+        # self.addMenuItem(fileMenu, wx.ID_PRINT_SETUP, "Print Setup...", "",
+        #                  self.OnFilePageSetup)
         fileMenu.AppendSeparator()
         self.addMenuItem(fileMenu, wx.ID_CLOSE, "Close &Window\tCtrl+W", "", 
                          self.OnMenuFileClose)
@@ -773,29 +654,6 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
     #===========================================================================
     # 
     #===========================================================================
-    
-    def makeLineList(self):
-        """ Turn each column of data into its own line plot.
-        """
-        if self.data is None:
-            return
-        
-        lines = []
-        cols = self.data.shape[-1]-1
-        
-        freqs = self.data[:,0].reshape(-1,1)
-
-        for i in range(cols):
-            points = (hstack((freqs, self.data[:,i+1].reshape(-1,1))))
-            name = self.subchannels[i].name
-
-            lines.append(PolyLine(points, legend=name, 
-                        colour=self.root.getPlotColor(self.subchannels[i])))
-            
-        self.lines = PlotGraphics(lines, title=self.GetTitle(), 
-                                  xLabel="Frequency (Hz)", 
-                                  yLabel="%s%s" % (self.yLabel, self.yUnits))
-
     
     @classmethod
     def from2diter(cls, data, rows=None, cols=1, abortEvent=None):
@@ -1111,251 +969,21 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
         self.abortEvent.set()
         evt.Skip()
 
-    def OnFilePageSetup(self, event):
-        self.canvas.PageSetup()
-        
-    def OnFilePrint(self, evt):
-        self.canvas.Printout()
-        
-    def OnFilePrintPreview(self, evt):
-        self.canvas.PrintPreview()
+    # def OnFilePageSetup(self, event):
+    #     self.canvas.PageSetup()
+    #
+    # def OnFilePrint(self, evt):
+    #     self.canvas.Printout()
+    #
+    # def OnFilePrintPreview(self, evt):
+    #     self.canvas.PrintPreview()
 
 
 #===============================================================================
 # 
 #===============================================================================
 
-class SpectrogramPlot(FFTPlotCanvas):
-    """ A subclass of the standard `wx.lib.plot.PlotCanvas` that draws a bitmap
-        instead of a vector graph. 
-        
-        @todo: Refactor this. Subclassing PlotCanvas was kind of a hack in
-            order to get a quick graph similar to the standard FFT plot, and
-            is much heavier than necessary.
-    """
-    
-    def __init__(self, *args, **kwargs):
-        """
-        """
-        self.image = kwargs.pop('image', None)
-        self.outOfRangeColor = kwargs.pop('outOfRangeColor', (200, 200, 200))
-        self.zoomedImage = None
-        self.lastZoom = None
-        super(SpectrogramPlot, self).__init__(*args, **kwargs)
-
-
-    def _Draw(self, graphics, xAxis = None, yAxis = None, dc = None):
-        """\
-        Draw objects in graphics with specified x and y axis.
-        graphics- instance of PlotGraphics with list of PolyXXX objects
-        xAxis - tuple with (min, max) axis range to view
-        yAxis - same as xAxis
-        dc - drawing context - doesn't have to be specified.    
-        If it's not, the offscreen buffer is used
-        """
-
-        # Modification: remember if xAxis or yAxis set (the variables change)
-        zoomed = not (xAxis is None and yAxis is None)
-        thisZoom = str((xAxis, yAxis))
-        
-        if dc is None:
-            # sets new dc and clears it 
-            dc = wx.BufferedDC(wx.ClientDC(self.canvas), self._Buffer)
-            bbr = wx.Brush(self.GetBackgroundColour(), wx.SOLID)
-            dc.SetBackground(bbr)
-            dc.SetBackgroundMode(wx.SOLID)
-            dc.Clear()
-        if self._antiAliasingEnabled:
-            if not isinstance(dc, wx.GCDC):
-                try:
-                    dc = wx.GCDC(dc)
-                except Exception:
-                    pass
-                else:
-                    if self._hiResEnabled:
-                        dc.SetMapMode(wx.MM_TWIPS) # high precision - each logical unit is 1/20 of a point
-                    self._pointSize = tuple(1.0 / lscale for lscale in dc.GetLogicalScale())
-                    self._setSize()
-        elif self._pointSize != (1.0, 1.0):
-            self._pointSize = (1.0, 1.0)
-            self._setSize()
-        if sys.platform in ("darwin", "win32") or not isinstance(dc, wx.GCDC):
-            self._fontScale = sum(self._pointSize) / 2.0
-        else:
-            # on Linux, we need to correct the font size by a certain factor if wx.GCDC is used,
-            # to make text the same size as if wx.GCDC weren't used
-            ppi = dc.GetPPI()
-            self._fontScale = (96.0 / ppi[0] * self._pointSize[0] + 96.0 / ppi[1] * self._pointSize[1]) / 2.0
-        graphics._pointSize = self._pointSize
-            
-        dc.SetTextForeground(self.GetForegroundColour())
-        dc.SetTextBackground(self.GetBackgroundColour())
-
-        # dc.BeginDrawing()
-        # dc.Clear()
-        
-        # set font size for every thing but title and legend
-        dc.SetFont(self._getFont(self._fontSizeAxis))
-
-        # MODIFICATION: Get ranges
-        x_range = None
-        y_range = None
-
-        # BUG: Zoom limitations don't work!
-#         print "==============================\nbefore:"
-#         print xAxis, x_range
-#         print yAxis, y_range
-
-        # sizes axis to axis type, create lower left and upper right corners of plot
-        if xAxis is None or yAxis is None:
-            # One or both axis not specified in Draw
-            p1, p2 = graphics.boundingBox()     # min, max points of graphics
-            if xAxis is None:
-                xAxis = self._axisInterval(self._xSpec, p1[0], p2[0]) # in user units
-            else:
-                # MODIFICATION: (this 'else' branch) limit zoom to data extents
-                x_range = self.GetXMaxRange()
-                xAxis = (greater(x_range[0], xAxis[0]), lesser(x_range[1], xAxis[1]))
-            if yAxis is None:
-                yAxis = self._axisInterval(self._ySpec, p1[1], p2[1])
-            else:
-                # MODIFICATION: (this 'else' branch) limit zoom to data extents
-                y_range = self.GetYMaxRange()
-                yAxis = (greater(y_range[0], yAxis[0]), lesser(y_range[1], yAxis[1]))
-            # Adjust bounding box for axis spec
-            p1[0],p1[1] = xAxis[0], yAxis[0]     # lower left corner user scale (xmin,ymin)
-            p2[0],p2[1] = xAxis[1], yAxis[1]     # upper right corner user scale (xmax,ymax)
-        else:
-            # Both axis specified in Draw
-            p1= np.array([xAxis[0], yAxis[0]])    # lower left corner user scale (xmin,ymin)
-            p2= np.array([xAxis[1], yAxis[1]])     # upper right corner user scale (xmax,ymax)
-
-        self.last_draw = (graphics, np.array(xAxis), np.array(yAxis))       # saves most recient values
-
-#         print "==============================\nafter:"
-#         print xAxis, x_range
-#         print yAxis, y_range
-#         
-        # Get ticks and textExtents for axis if required
-        if self._xSpec is not 'none':        
-            xticks = self._xticks(xAxis[0], xAxis[1])
-            xTextExtent = dc.GetTextExtent(xticks[-1][1])# w h of x axis text last number on axis
-        else:
-            xticks = None
-            xTextExtent= (0,0) # No text for ticks
-        if self._ySpec is not 'none':
-            yticks = self._yticks(yAxis[0], yAxis[1])
-            if self.logScale[1]:
-                yTextExtent = dc.GetTextExtent('-2e-2')
-            else:
-                yTextExtentBottom = dc.GetTextExtent(yticks[0][1])
-                yTextExtentTop = dc.GetTextExtent(yticks[-1][1])
-                yTextExtent= (max(yTextExtentBottom[0],yTextExtentTop[0]),
-                              max(yTextExtentBottom[1],yTextExtentTop[1]))
-        else:
-            yticks = None
-            yTextExtent= (0,0) # No text for ticks
-
-        # TextExtents for Title and Axis Labels
-        titleWH, xLabelWH, yLabelWH= self._titleLablesWH(dc, graphics)
-
-        # TextExtents for Legend
-        legendBoxWH, legendSymExt, legendTextExt = self._legendWH(dc, graphics)
-
-        # room around graph area
-        rhsW= max(xTextExtent[0], legendBoxWH[0])+5*self._pointSize[0] # use larger of number width or legend width
-        lhsW= yTextExtent[0]+ yLabelWH[1] + 3*self._pointSize[0]
-        bottomH= max(xTextExtent[1], yTextExtent[1]/2.)+ xLabelWH[1] + 2*self._pointSize[1]
-        topH= yTextExtent[1]/2. + titleWH[1]
-        textSize_scale= np.array([rhsW+lhsW,bottomH+topH]) # make plot area smaller by text size
-        textSize_shift= np.array([lhsW, bottomH])          # shift plot area by this amount
-
-        # draw title if requested
-        if self._titleEnabled:
-            dc.SetFont(self._getFont(self._fontSizeTitle))
-            titlePos= (self.plotbox_origin[0]+ lhsW + (self.plotbox_size[0]-lhsW-rhsW)/2.- titleWH[0]/2.,
-                       self.plotbox_origin[1]- self.plotbox_size[1])
-            dc.DrawText(graphics.title,titlePos[0],titlePos[1])
-
-        # draw label text
-        dc.SetFont(self._getFont(self._fontSizeAxis))
-        xLabelPos= (self.plotbox_origin[0]+ lhsW + (self.plotbox_size[0]-lhsW-rhsW)/2.- xLabelWH[0]/2.,
-                 self.plotbox_origin[1]- xLabelWH[1])
-        dc.DrawText(graphics.xLabel,xLabelPos[0],xLabelPos[1])
-        yLabelPos= (self.plotbox_origin[0] - 3*self._pointSize[0],
-                 self.plotbox_origin[1]- bottomH- (self.plotbox_size[1]-bottomH-topH)/2.+ yLabelWH[0]/2.)
-        if graphics.yLabel:  # bug fix for Linux
-            dc.DrawRotatedText(graphics.yLabel,yLabelPos[0],yLabelPos[1],90)
-
-        # drawing legend makers and text
-        if self._legendEnabled:
-            self._drawLegend(dc,graphics,rhsW,topH,legendBoxWH, legendSymExt, legendTextExt)
-
-        # allow for scaling and shifting plotted points
-        scale = (self.plotbox_size-textSize_scale) / (p2-p1)* np.array((1,-1))
-        shift = -p1*scale + self.plotbox_origin + textSize_shift * np.array((1,-1))
-        self._pointScale= scale / self._pointSize  # make available for mouse events
-        self._pointShift= shift / self._pointSize
-        
-        ptx,pty,rectWidth,rectHeight= self._point2ClientCoord(p1, p2)
-        
-        # MODIFICATION: Draw the spectrogram bitmap
-        if self.image is not None:
-            if zoomed:
-                if thisZoom == self.lastZoom and self.zoomedImage is not None:
-                    img = self.zoomedImage
-                else:
-                    self.lastZoom = thisZoom
-                    if x_range is None:
-                        x_range = self.xMaxRange
-                    if y_range is None:
-                        y_range = self.yMaxRange
-                    img_w, img_h = self.image.GetSize()
-                    
-                    x1 = mapRange(p1[0], x_range[0], x_range[1], 0, img_w)
-                    x2 = mapRange(p2[0], x_range[0], x_range[1], 0, img_w)
-                    y1 = mapRange(p1[1], y_range[0], y_range[1], 0, img_h)
-                    y2 = mapRange(p2[1], y_range[0], y_range[1], 0, img_h)
-                    
-                    zoomSize = wx.Size(max(1, abs(x2-x1)), max(1, abs(y2-y1)))
-                    zoomPos = wx.Point(-x1, -(img_h-y2))
-                    self.zoomedImage = self.image.Size(zoomSize, zoomPos, 
-                                                       *self.outOfRangeColor)
-                img = self.zoomedImage
-            else:
-                img = self.image
-                
-            try:
-                # Bad dimensions raise an exception; ignore it.
-                img = img.Scale(rectWidth, rectHeight).ConvertToBitmap()
-                dc.DrawBitmap(img, ptx, pty)
-            except:
-                pass
-        
-        self._drawAxes(dc, p1, p2, scale, shift, xticks, yticks)
-        
-        graphics.scaleAndShift(scale, shift)
-        graphics.printerScale = self.printerScale  # thicken up lines and markers if printing
-        
-        # set clipping area so drawing does not occur outside axis box
-        # allow graph to overlap axis lines by adding units to width and height
-        dc.SetClippingRegion(ptx*self._pointSize[0],pty*self._pointSize[1],rectWidth*self._pointSize[0]+2,rectHeight*self._pointSize[1]+1)
-        # Draw the lines and markers
-        #start = _time.clock()
-#         graphics.draw(dc)
-        # print "entire graphics drawing took: %f second"%(_time.clock() - start)
-        # remove the clipping region
-        dc.DestroyClippingRegion()
-        # dc.EndDrawing()
-
-        self._adjustScrollbars()
-        
-
-#===============================================================================
-# 
-#===============================================================================
-
-class NewSpectrogramPlot(wx.Panel, ZoomingPlot):
+class SpectrogramPlot(wx.Panel, ZoomingPlot):
     def __init__(self, parent, name="", dpi=None, id=-1, **kwargs):
         wx.Panel.__init__(self, parent, id=id, **kwargs)
 
@@ -1382,18 +1010,23 @@ class NewSpectrogramPlot(wx.Panel, ZoomingPlot):
 
         self.enableTitle = True
 
+        self.cmap = None
+
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.canvas, 1, wx.EXPAND)
 
         self.SetSizer(sizer)
 
     def OnMenuViewReset(self, evt):
-        super(NewSpectrogramPlot, self).OnMenuViewReset(evt, add_border=False)
+        super(SpectrogramPlot, self).OnMenuViewReset(evt, add_border=False)
 
     def Redraw(self):
         title_to_set = self.title if self.enableTitle else ""
 
         self.axes.set_title(title_to_set)
+
+        if self.cmap is not None:
+            self.image.set_cmap(self.cmap)
 
         self.canvas.draw()
 
@@ -1413,19 +1046,23 @@ class SpectrogramView(FFTView):
         """
         """
         # Colorizers: The functions that render the spectrogram image.
-        self.colorizers = {self.ID_COLOR_GRAY: self.plotGrayscale,
-                           self.ID_COLOR_SPECTRUM: self.plotColorSpectrum}
+        # self.colorizers = {self.ID_COLOR_GRAY: self.plotGrayscale,  ########PRETTY SURE I CAN REMOVE THIS ENTIRELY##############
+        #                    self.ID_COLOR_SPECTRUM: self.plotColorSpectrum}
+
+        self.cmaps = {self.ID_COLOR_GRAY: 'gray',
+                      self.ID_COLOR_SPECTRUM: 'viridis'}
+
         # 'Out of range' colors: The background color if the plot is scrolled
         # or zoomed out beyond the bounds of the image. The color is one that
         # is identifiable as not part of the spectrogram rendering.
-        self.outOfRangeColors = {self.ID_COLOR_GRAY: (200,200,255),
-                                 self.ID_COLOR_SPECTRUM: (200,200,200)}
+        # self.outOfRangeColors = {self.ID_COLOR_GRAY: (200, 200, 255),
+        #                          self.ID_COLOR_SPECTRUM: (200, 200, 200)}
         
         self.slicesPerSec = float(kwargs.pop('slicesPerSec', 4.0))
-        self.images = None
         self.colorizerId = kwargs.pop('colorizer', self.ID_COLOR_SPECTRUM)
-        self.colorizer = self.colorizers.get(self.colorizerId, self.plotColorSpectrum)
-        self.outOfRangeColor = self.outOfRangeColors.get(self.colorizerId, (200,200,200))
+        # self.colorizer = self.colorizers.get(self.colorizerId, self.plotColorSpectrum) ########PRETTY SURE I CAN REMOVE THIS ENTIRELY##############
+        self.cmap = self.cmaps.get(self.colorizerId, 'viridis') ########PRETTY SURE I CAN REMOVE THIS ENTIRELY##############
+        # self.outOfRangeColor = self.outOfRangeColors.get(self.colorizerId, (200, 200, 200))
         
         # The spectrogram is basically a 3D graph, time/frequency/amplitude
         kwargs.setdefault('logarithmic', (False, False, True))
@@ -1442,7 +1079,7 @@ class SpectrogramView(FFTView):
     def addPlot(self, channelIdx):
         name = self.subchannels[channelIdx].displayName
 
-        p = NewSpectrogramPlot(self, name)
+        p = SpectrogramPlot(self, name)
 
         p.SetFont(wx.Font(10, wx.SWISS, wx.NORMAL, wx.NORMAL))
         p.fontSizeAxis = 10
@@ -1484,98 +1121,73 @@ class SpectrogramView(FFTView):
             NFFT=specgram_nfft,
             noverlap=specgram_nfft / 2,
             scale_by_freq=None,
+            cmap=self.cmap,
         )[-1]
+
+        p.cmap = self.cmap
 
         p.canvas.draw()
         p.initialize_stuff()
 
         p.image = axes_image
-        p.outOfRangeColor = self.outOfRangeColor
+        # p.outOfRangeColor = self.outOfRangeColor
         p.enableZoom = True
         p.showScrollbars = True
-        print("LINES TO DRAW", self.lines[channelIdx])
-        # p.Draw(self.lines[channelIdx])
-
-
-    def makeLineList(self):
-        """ Turn each column of data into its own line plot.
-        """
-        # The "line list" is really sort of a hack, just containing a single
-        # line from min/min to max/max in order to make the plot's scale
-        # draw correctly.
-        if self.data is None:
-            return
-        
-        start = self.source[self.indexRange[0]][0] * self.timeScalar
-        end = self.source[self.indexRange[1]-1][0] * self.timeScalar
-        self.lines = []
-        self.ranges = []
-
-        self_lines_append = self.lines.append
-        for i in range(len(self.data)):
-            d = self.data[i]
-            points = ((start, d[1][0]), 
-                      (end, d[1][-1]))
-            name = self.subchannels[i-1].displayName
- 
-            self_lines_append(PlotGraphics([PolyLine(points, legend=name)],
-                              title=self.subchannels[i].displayName, #title=self.GetTitle(),
-                              xLabel="Time (s)", yLabel="Frequency (Hz)"))
-
     
-    @classmethod
-    def plotColorSpectrum(cls, n):
-        """ Generate a 24-bit RGB color from a positive normalized float value 
-            (0.0 to 1.0). 
-        """
-        # Because H=0 and H=1.0 have the same RGB value, reduce `n`.
-        r,g,b = colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)
-        return int(r*255), int(g*255), int(b*255) 
-#         return tuple(map(lambda x: int(x*255), 
-#                          colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)))
-
-                     
-    @classmethod
-    def plotGrayscale(cls, n):
-        """ Generate a grayscale level (as 24-bit RGB color where R==G==B) from
-            a positive normalized float value (0.0 to 1.0). 
-        """
-        v = int(n*255)
-        return v,v,v
+#     @classmethod
+#     def plotColorSpectrum(cls, n):
+#         """ Generate a 24-bit RGB color from a positive normalized float value
+#             (0.0 to 1.0).
+#         """
+#         # Because H=0 and H=1.0 have the same RGB value, reduce `n`.
+#         print("ALALKJFLSKDJFJSDLKFJLSDKFLSDJLKSJDLKFJSLDKFJLKSDJF")
+#         r,g,b = colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)
+#         return int(r*255), int(g*255), int(b*255)
+# #         return tuple(map(lambda x: int(x*255),
+# #                          colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)))
+#
+#     @classmethod
+#     def plotGrayscale(cls, n):
+#         """ Generate a grayscale level (as 24-bit RGB color where R==G==B) from
+#             a positive normalized float value (0.0 to 1.0).
+#         """
+#         v = int(n*255)
+#         print("ALALKJFLSKDJFJSDLKFJLSDKFLSDJLKSJDLKFJSLDKFJLKSDJF")
+#         return v,v,v
  
 
-    @classmethod
-    def makePlots(cls, data, logarithmic=(False, False, True), 
-                  colorizer=plotColorSpectrum):
-        """ Create a set of spectrogram images from a set of computed data.
-        
-            @param data: A list of (spectrogram data, frequency, bins) for each
-                channel.
-            @return: A list of `wx.Image` images.
-        """
-        
-        if logarithmic[2]:
-            temp = [np.log(d[0]) if d != 0 else 0 for d in data]
-        else:
-            temp = [d[0] for d in data]
-#         minAmp = np.amin(temp)
-        minAmp = np.median(temp)
-        maxAmp = np.amax(temp)
-
-        # Create a mapped function to normalize a numpy.ndarray
-        norm = np.vectorize(lambda x: max(0,((x-minAmp)/(maxAmp-minAmp))))
-        imgsize = data[0][0].shape[1], data[0][0].shape[0]
-        images = []
-        for amps in temp:
-            # TODO: This could use the progress bar (if there is one)
-            buf = bytearray()
-            for p in norm(amps).reshape((1,-1))[0,:]:
-                buf.extend(colorizer(p))
-            img = wx.Image(*imgsize)
-            img.SetData(buf)
-            images.append(img.Mirror(horizontally=False))
-            
-        return images
+#     @classmethod
+#     def makePlots(cls, data, logarithmic=(False, False, True),
+#                   colorizer=plotColorSpectrum):
+#         """ Create a set of spectrogram images from a set of computed data.
+#
+#             @param data: A list of (spectrogram data, frequency, bins) for each
+#                 channel.
+#             @return: A list of `wx.Image` images.
+#         """
+#
+#         if logarithmic[2]:
+#             temp = [np.log(d[0]) if d != 0 else 0 for d in data]
+#         else:
+#             temp = [d[0] for d in data]
+# #         minAmp = np.amin(temp)
+#         minAmp = np.median(temp)
+#         maxAmp = np.amax(temp)
+#
+#         # Create a mapped function to normalize a numpy.ndarray
+#         norm = np.vectorize(lambda x: max(0,((x-minAmp)/(maxAmp-minAmp))))
+#         imgsize = data[0][0].shape[1], data[0][0].shape[0]
+#         images = []
+#         for amps in temp:
+#             # TODO: This could use the progress bar (if there is one)
+#             buf = bytearray()
+#             for p in norm(amps).reshape((1,-1))[0,:]:
+#                 buf.extend(colorizer(p))
+#             img = wx.Image(*imgsize)
+#             img.SetData(buf)
+#             images.append(img.Mirror(horizontally=False))
+#
+#         return images
 
 
     def finishDraw(self, *args):
@@ -1608,10 +1220,6 @@ class SpectrogramView(FFTView):
                                               slicesPerSec=self.slicesPerSec, 
                                               recordingTime=recordingTime,
                                               abortEvent=abortEvent)
-
-                self.images = self.makePlots(self.data, self.logarithmic, 
-                                             self.colorizer)
-                self.makeLineList()
             
         except RuntimeError:
             pass
@@ -1751,14 +1359,12 @@ class SpectrogramView(FFTView):
 
     def redrawPlots(self):
         self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
-        self.images = self.makePlots(self.data, self.logarithmic, self.colorizer)
-        self.makeLineList()
         for i in range(self.canvas.GetPageCount()):
             p = self.canvas.GetPage(i)
-            p.image = self.images[i]
-            p.zoomedImage = None
+            p.cmap = self.cmap
+            p.zoomedImage = None  # Not sure if this is being used anymore
             p.enableTitle = self.showTitle
-            p.outOfRangeColor = self.outOfRangeColor
+            # p.outOfRangeColor = self.outOfRangeColor # Not sure if this is being used anymore
             p.Redraw()
         self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
         
@@ -1769,7 +1375,7 @@ class SpectrogramView(FFTView):
 
     def OnExportCsv(self, evt):
         ex = None if DEBUG else Exception
-        exportChannels = []
+
         if len(self.subchannels) > 1:
             channelNames = [c.name for c in self.subchannels]
             dlg = wx.MultiChoiceDialog( self, 
@@ -1874,14 +1480,18 @@ class SpectrogramView(FFTView):
     def OnMenuDataLog(self, evt):
         """
         """
-        self.logarithmic=(False, False, evt.IsChecked())
+        self.logarithmic = (False, False, evt.IsChecked())
         self.redrawPlots()
 
     
     def OnMenuColorize(self, evt):
         evt_id = evt.GetId()
-        self.colorizer = self.colorizers.get(evt_id, self.plotColorSpectrum)
-        self.outOfRangeColor = self.outOfRangeColors.get(evt_id, (200,200,200))
+
+        # self.colorizer = self.colorizers.get(evt_id, self.plotColorSpectrum)  # Pretty sure this can be removed
+        # self.outOfRangeColor = self.outOfRangeColors.get(evt_id, (200, 200, 200))  # Pretty sure this can be removed
+
+        self.cmap = self.cmaps.get(evt_id, 'viridis')
+
         self.redrawPlots()
 
 
@@ -1889,14 +1499,14 @@ class SpectrogramView(FFTView):
         self.showTitle = evt.IsChecked()
         self.redrawPlots()
 
-    def OnFilePageSetup(self, event):
-        self.canvas.GetCurrentPage().PageSetup()
-        
-    def OnFilePrint(self, evt):
-        self.canvas.GetCurrentPage().Printout()
-        
-    def OnFilePrintPreview(self, evt):
-        self.canvas.GetCurrentPage().PrintPreview()
+    # def OnFilePageSetup(self, event):
+    #     self.canvas.GetCurrentPage().PageSetup()
+    #
+    # def OnFilePrint(self, evt):
+    #     self.canvas.GetCurrentPage().Printout()
+    #
+    # def OnFilePrintPreview(self, evt):
+    #     self.canvas.GetCurrentPage().PrintPreview()
 
 
     def OnViewChangeTitle(self, evt):
@@ -1917,7 +1527,7 @@ class SpectrogramView(FFTView):
         dlg = wx.FileDialog(self, 
             message="Export Image...", 
             wildcard=self.IMAGE_FORMATS, 
-            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMP)
+            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
         
         if dlg.ShowModal() == wx.ID_OK:
             filename = dlg.GetPath()
