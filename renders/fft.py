@@ -1104,7 +1104,7 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
 
         dlg.Destroy()
 
-    def OnMenuFileClose(self):
+    def OnMenuFileClose(self, evt=None):
         self.Close()
 
     def OnClose(self, evt):
