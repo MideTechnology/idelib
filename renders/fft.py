@@ -1041,23 +1041,33 @@ class SpectrogramView(FFTView):
     xLabel = "Time"
     yLabel = "Amplitude"
     
-    ID_COLOR_SPECTRUM = wx.NewIdRef()
+    ID_COLOR_VIRIDIS = wx.NewIdRef()
+    ID_COLOR_PLASMA = wx.NewIdRef()
+    ID_COLOR_INFERNO = wx.NewIdRef()
+    ID_COLOR_MAGMA = wx.NewIdRef()
+    ID_COLOR_CIVIDIS = wx.NewIdRef()
     ID_COLOR_GRAY = wx.NewIdRef()
     
     def __init__(self, *args, **kwargs):
         """
         """
-        self.cmaps = {self.ID_COLOR_GRAY: 'gray',
-                      self.ID_COLOR_SPECTRUM: 'viridis'}
+        self.cmaps = {
+            self.ID_COLOR_VIRIDIS: 'viridis',
+            self.ID_COLOR_PLASMA: 'plasma',
+            self.ID_COLOR_INFERNO: 'inferno',
+            self.ID_COLOR_MAGMA: 'magma',
+            self.ID_COLOR_CIVIDIS: 'cividis',
+            self.ID_COLOR_GRAY: 'gray',
+        }
 
         # 'Out of range' colors: The background color if the plot is scrolled
         # or zoomed out beyond the bounds of the image. The color is one that
         # is identifiable as not part of the spectrogram rendering.
         # self.outOfRangeColors = {self.ID_COLOR_GRAY: (200, 200, 255),
-        #                          self.ID_COLOR_SPECTRUM: (200, 200, 200)}
+        #                          self.ID_COLOR_VIRIDIS: (200, 200, 200)}
         
         self.slicesPerSec = float(kwargs.pop('slicesPerSec', 4.0))
-        self.colorizerId = kwargs.pop('colorizer', self.ID_COLOR_SPECTRUM)
+        self.colorizerId = kwargs.pop('colorizer', self.ID_COLOR_VIRIDIS)
         self.cmap = self.cmaps.get(self.colorizerId, 'viridis') ########PRETTY SURE I CAN REMOVE THIS ENTIRELY##############
         # self.outOfRangeColor = self.outOfRangeColors.get(self.colorizerId, (200, 200, 200))
         
@@ -1223,7 +1233,7 @@ class SpectrogramView(FFTView):
 
 
     @classmethod
-    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16, 
+    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16,  ######################CAN THIS BE REMOVED??????????????????????????????
                      slicesPerSec=4.0, recordingTime=None, abortEvent=None):
         """ Compute 2D FFT from one or more channels of data.
          
@@ -1336,17 +1346,17 @@ class SpectrogramView(FFTView):
 #         self.MenuBar.FindItemById(self.ID_EXPORT_IMG).Enable(False)
 
         self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_FREQ, checked=False, enabled=False)
-        self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[2])
+        self.setMenuItem(self.dataMenu, self.ID_DATA_LOG_AMP, checked=self.logarithmic[2], enabled=False)
         self.setMenuItem(self.viewMenu, self.ID_VIEW_SHOWLEGEND, checked=False, enabled=False)
         self.setMenuItem(self.viewMenu, self.ID_VIEW_SHOWGRID, checked=False, enabled=False)
         
         self.dataMenu.AppendSeparator()
         
         colorMenu = wx.Menu()
-        self.addMenuItem(colorMenu, self.ID_COLOR_GRAY, "Grayscale", "", 
-                         self.OnMenuColorize, kind=wx.ITEM_RADIO)
-        self.addMenuItem(colorMenu, self.ID_COLOR_SPECTRUM, "Spectrum", "", 
-                         self.OnMenuColorize, kind=wx.ITEM_RADIO)
+        for key, value in self.cmaps.items():
+            self.addMenuItem(colorMenu, key, value.capitalize(), "",
+                             self.OnMenuColorize, kind=wx.ITEM_RADIO)
+
         self.setMenuItem(colorMenu, self.colorizerId, checked=True)
         self.dataMenu.Append(-1, "Colorization", colorMenu)
 
