@@ -1631,7 +1631,7 @@ class Viewer(wx.Frame, MenuMixin):
             subchannelIds = [c.id for c in settings["subchannels"]]
             sliceSize = settings.pop("sliceSize", 2**14)
             start = settings["start"]
-            stop  = settings["stop"]
+            stop = settings["stop"]
             source = settings["source"]
             inputData = settings["source"].itervalues(start, stop, subchannels=subchannelIds, display=True)
             renderData = viewClass.generateData(inputData, rows=stop-start, cols=len(subchannelIds),

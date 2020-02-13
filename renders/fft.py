@@ -1140,28 +1140,6 @@ class SpectrogramView(FFTView):
         # p.outOfRangeColor = self.outOfRangeColor
         p.enableZoom = True
         p.showScrollbars = True
-    
-#     @classmethod
-#     def plotColorSpectrum(cls, n):
-#         """ Generate a 24-bit RGB color from a positive normalized float value
-#             (0.0 to 1.0).
-#         """
-#         # Because H=0 and H=1.0 have the same RGB value, reduce `n`.
-#         print("ALALKJFLSKDJFJSDLKFJLSDKFLSDJLKSJDLKFJSLDKFJLKSDJF")
-#         r,g,b = colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)
-#         return int(r*255), int(g*255), int(b*255)
-# #         return tuple(map(lambda x: int(x*255),
-# #                          colorsys.hsv_to_rgb((1.0-n)*.6667,1.0,1.0)))
-#
-#     @classmethod
-#     def plotGrayscale(cls, n):
-#         """ Generate a grayscale level (as 24-bit RGB color where R==G==B) from
-#             a positive normalized float value (0.0 to 1.0).
-#         """
-#         v = int(n*255)
-#         print("ALALKJFLSKDJFJSDLKFJLSDKFLSDJLKSJDLKFJSLDKFJLKSDJF")
-#         return v,v,v
- 
 
 #     @classmethod
 #     def makePlots(cls, data, logarithmic=(False, False, True),
@@ -1222,18 +1200,18 @@ class SpectrogramView(FFTView):
                 subchIds = [c.id for c in self.subchannels]
                 data = self.source.itervalues(start, stop, subchannels=subchIds, display=self.useConvertedUnits)
                 self.data = self.generateData(data, rows=stop-start,
-                                              cols=len(self.subchannels), fs=fs, 
+                                              cols=len(self.subchannels), fs=fs,
                                               sliceSize=self.sliceSize,
-                                              slicesPerSec=self.slicesPerSec, 
+                                              slicesPerSec=self.slicesPerSec,
                                               recordingTime=recordingTime,
                                               abortEvent=abortEvent)
-            
+
         except RuntimeError:
             pass
 
 
     @classmethod
-    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16,  ######################CAN THIS BE REMOVED??????????????????????????????
+    def generateData(cls, data, rows=None, cols=1, fs=5000, sliceSize=2**16,
                      slicesPerSec=4.0, recordingTime=None, abortEvent=None):
         """ Compute 2D FFT from one or more channels of data.
          
@@ -1251,6 +1229,9 @@ class SpectrogramView(FFTView):
             @keyword slicesPerSec: 
             @return: A multidimensional array, with the first column the 
                 frequency.
+
+            TODO:
+             - Remove this function entirely!!!!!
         """
         points = cls.from2diter(data, rows, cols, abortEvent=abortEvent)
         rows, cols = points.shape
