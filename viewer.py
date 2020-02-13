@@ -228,6 +228,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.warningRanges = {}
 
         self.menubar = None
+        self.scriptingShown = False
         self.loadPrefs()
 
         self.buildUI(splash)
@@ -314,6 +315,8 @@ class Viewer(wx.Frame, MenuMixin):
         if self.menubar is not None:
             self.OnToggleUtcTime(self.showUtcTime)
             self.OnToggleLocalTime(self.showLocalTime)
+            if self.app.getPref('scriptingEnabled', False):
+                self.insertScriptingMenu()
 
 
     def buildMenus(self):
@@ -561,29 +564,32 @@ class Viewer(wx.Frame, MenuMixin):
         #=======================================================================
         # "Scripting" menu
 
-        # TODO: Remove the `showAdvanced` conditional (once things work!)
         if self.app.getPref('scriptingEnabled', False):
-            scriptMenu = self.addMenu(self.menubar, '&Scripting')
-            self.addMenuItem(scriptMenu, self.ID_SCRIPTING_RUN,
-                             "&Run Script...\tCtrl+Shift+R",
-                             'Open the Python script editor.',
-                             self.OnScriptRun)
-            
-            self.recentScriptsMenu = wx.Menu()
-            scriptMenu.Append(self.ID_SCRIPTING_RECENT, "Run Recent Script",
-                                self.recentScriptsMenu)
-            self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentScripts, id=self.ID_SCRIPTING_RECENT)
-            self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentScript, id=self.ID_SCRIPT1, id2=self.ID_SCRIPT1+7)
-
-            scriptMenu.AppendSeparator()
-            self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
-                             "Open Script &Editor\tCtrl+Shift+E",
-                             'Open the Python script editor.',
-                             self.OnShowScriptEditor)
-            self.addMenuItem(scriptMenu, self.ID_SCRIPTING_CONSOLE,
-                             "Open Python &Console\tCtrl+Shift+C",
-                             "Open the Python interactive interpreter",
-                             self.OnShowScriptConsole)
+            self.insertScriptingMenu()
+#             self.scriptingShown = True
+#             scriptMenu = self.addMenu(self.menubar, '&Scripting')
+#             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_RUN,
+#                              "&Run Script...\tCtrl+Shift+R",
+#                              'Open the Python script editor.',
+#                              self.OnScriptRun)
+#             
+#             self.recentScriptsMenu = wx.Menu()
+#             scriptMenu.Append(self.ID_SCRIPTING_RECENT, "Run Recent Script",
+#                                 self.recentScriptsMenu)
+#             self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentScripts, id=self.ID_SCRIPTING_RECENT)
+#             self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentScript, id=self.ID_SCRIPT1, id2=self.ID_SCRIPT1+7)
+# 
+#             scriptMenu.AppendSeparator()
+#             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
+#                              "Open Script &Editor\tCtrl+Shift+E",
+#                              'Open the Python script editor.',
+#                              self.OnShowScriptEditor)
+#             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_CONSOLE,
+#                              "Open Python &Console\tCtrl+Shift+C",
+#                              "Open the Python interactive interpreter",
+#                              self.OnShowScriptConsole)
+#         else:
+#             self.scriptingShown = False
 
 
         #=======================================================================
@@ -664,9 +670,42 @@ class Viewer(wx.Frame, MenuMixin):
 
         #=======================================================================
         # Finishing touches.
-
+        
         self.SetMenuBar(self.menubar)
         self.enableMenus(False)
+
+
+    def insertScriptingMenu(self):
+        """ Insert the 'Scripting' menu, if it isn't already present. Called
+            in `buildMenus()` and after the preferences have been edited (so
+            the menu will appear after 'enable scripting' is checked').
+        """
+        if self.scriptingShown:
+            return
+        
+        self.scriptingShown = True
+        scriptMenu = wx.Menu() #self.addMenu(self.menubar, '&Scripting')
+        self.addMenuItem(scriptMenu, self.ID_SCRIPTING_RUN,
+                         "&Run Script...\tCtrl+Shift+R",
+                         'Open the Python script editor.',
+                         self.OnScriptRun)
+        
+        self.recentScriptsMenu = wx.Menu()
+        scriptMenu.Append(self.ID_SCRIPTING_RECENT, "Run Recent Script",
+                            self.recentScriptsMenu)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentScripts, id=self.ID_SCRIPTING_RECENT)
+        self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentScript, id=self.ID_SCRIPT1, id2=self.ID_SCRIPT1+7)
+
+        scriptMenu.AppendSeparator()
+        self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
+                         "Open Script &Editor\tCtrl+Shift+E",
+                         'Open the Python script editor.',
+                         self.OnShowScriptEditor)
+        self.addMenuItem(scriptMenu, self.ID_SCRIPTING_CONSOLE,
+                         "Open Python &Console\tCtrl+Shift+C",
+                         "Open the Python interactive interpreter",
+                         self.OnShowScriptConsole)
+        self.menubar.Insert(5, scriptMenu, '&Scripting')
 
 
     def OnForegroundRender(self, evt):
@@ -2534,7 +2573,8 @@ class Viewer(wx.Frame, MenuMixin):
         self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
         try:
             # FUTURE: OS-specific functionality
-            os.system("explorer %s" % self.app.pluginsDir)
+            if os.path.isdir(self.app.pluginsDir):
+                os.system("explorer %s" % self.app.pluginsDir)
             
         except Exception as err:
             # FUTURE: Specific error messages for different exceptions?
@@ -3013,6 +3053,7 @@ class ViewerApp(wx.App):
         if self.prefs.editPrefs():
             for v in self.viewers:
                 v.loadPrefs()
+                
 
 
     #===========================================================================

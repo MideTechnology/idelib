@@ -163,7 +163,12 @@ class ConfigDialog(SC.SizedDialog):
     def buildUI(self):
         """ Construct and populate the UI based on the ConfigUI element.
         """
-        for el in self.hints[0]:
+        try:
+            rootEl = self.hints[0]
+        except IndexError:
+            # Bad CONFIG.UI
+            pass
+        for el in rootEl:
             if el.name in base.TAB_TYPES:
                 tabType = base.TAB_TYPES[el.name]
                 tab = tabType(self.notebook, -1, element=el, root=self)
@@ -533,6 +538,9 @@ def configureRecorder(path, setTime=True, useUtc=True, parent=None,
     if isinstance(dev, devices.SlamStickClassic):
         return classic.configureRecorder(path, saveOnOk, setTime, useUtc, parent)
 
+    if os.path.isfile(dev.configUIFile) and os.path.getsize(dev.configUIFile) < 2:
+        raise ValueError("The device appears to have corrupted configuration UI data.")
+        
     dlg = ConfigDialog(parent, hints=hints, device=dev, setTime=setTime,
                        useUtc=useUtc, keepUnknownItems=keepUnknownItems,
                        saveOnOk=saveOnOk, showAdvanced=showAdvanced)
