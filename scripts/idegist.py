@@ -29,25 +29,6 @@ def ide_files_in(dirpath):
     )
 
 
-def psd(array, dt=1.):
-    # Direct numpy function calls
-    freqs = np.fft.fftfreq(len(array), d=dt)
-    dft_norm = np.fft.fft(array, norm='ortho')
-
-    # Calculate psd values
-    psd = np.abs(dft_norm)**2
-
-    # Combine negative aliased frequencies w/ non-negative counterparts
-    n = len(psd)//2 + 1
-    freqs_pos = np.abs(freqs[:n])
-
-    psd_posfreq = psd[:n]
-    psd_negfreq = psd[n:]
-    psd_posfreq[1:1+len(psd)-n] += psd_negfreq[::-1]
-
-    return freqs_pos, psd_posfreq
-
-
 CsvRowTuple = namedtuple('CsvRowTuple', [
     'filename',
     'device_serial',
@@ -62,8 +43,6 @@ CsvRowTuple = namedtuple('CsvRowTuple', [
     'maximum_value',
     'mean_value',
     'rms',
-    'peak_frequency',
-    'peak_frequency_power',
 ])
 
 
@@ -86,9 +65,6 @@ def summaries(filepaths):
 
                 norm_values = values - values.mean()
 
-                psd_freqs, psd_values = psd(norm_values, dt=ts)
-                f_argmax = np.argmax(psd_values)
-
                 yield CsvRowTuple(
                     filename=ds.filename,
                     device_serial=ds.recorderInfo['RecorderSerial'],
@@ -103,8 +79,6 @@ def summaries(filepaths):
                     maximum_value=values.max(),
                     mean_value=values.mean(),
                     rms=values.std(),
-                    peak_frequency=psd_freqs[f_argmax],
-                    peak_frequency_power=psd_values[f_argmax],
                 )
 
         ds.close()  # Remember to close your file after you're finished with it!
