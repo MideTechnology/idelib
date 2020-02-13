@@ -314,6 +314,12 @@ class Dataset(Cascading):
         """ Has the recording file been closed? """
         return getattr(self.ebmldoc.stream, "closed", True)
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
+
 
     def addSession(self, startTime=None, endTime=None, utcStartTime=None):
         """ Create a new session, add it to the Dataset, and return it.

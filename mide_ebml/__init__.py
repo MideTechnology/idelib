@@ -16,3 +16,5 @@ __status__ = "Production"
 # import dataset
 # import importer
 # import parser
+
+from importer import importFile
