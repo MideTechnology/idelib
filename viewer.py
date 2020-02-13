@@ -182,6 +182,7 @@ class Viewer(wx.Frame, MenuMixin):
     ID_SCRIPTING_CONSOLE = wx.NewIdRef()
     ID_SCRIPT1 = 2000 # Recent script menu ID; other recent scripts increment.
     ID_TOOLS = wx.NewIdRef()
+    ID_TOOLS_SHOW_PLUGINS = wx.NewIdRef()
     ID_HELP_CHECK_UPDATES = wx.NewIdRef()
     ID_HELP_FEEDBACK = wx.NewIdRef()
     ID_HELP_RESOURCES = wx.NewIdRef()
@@ -614,6 +615,11 @@ class Viewer(wx.Frame, MenuMixin):
                         self.toolPlugins[tid] = t
                         self.addMenuItem(toolMenu, tid, t.name, t.desc,
                                          self.OnToolMenuSelection)
+                toolMenu.AppendSeparator()
+            self.addMenuItem(toolMenu, self.ID_TOOLS_SHOW_PLUGINS,
+                             "Show Plug-Ins Directory",
+                             "Open the plugins folder (%s)" % self.app.pluginsDir,
+                             self.OnToolMenuShowPlugins)
 
         #=======================================================================
         # "Help" menu
@@ -731,7 +737,7 @@ class Viewer(wx.Frame, MenuMixin):
                  wx.ID_PREFERENCES,
                  self.ID_HELP_CHECK_UPDATES, self.ID_HELP_FEEDBACK,
                  self.ID_HELP_RESOURCES,
-                 self.ID_FILE_MULTI, self.ID_TOOLS,
+                 self.ID_FILE_MULTI, self.ID_TOOLS, self.ID_TOOLS_SHOW_PLUGINS,
                  self.ID_SCRIPTING_EDIT, self.ID_SCRIPTING_CONSOLE,
                  self.ID_SCRIPTING_RUN, self.ID_SCRIPTING_RECENT,
                  self.ID_DEBUG_SUBMENU, self.ID_DEBUG_SAVEPREFS,
@@ -2500,6 +2506,46 @@ class Viewer(wx.Frame, MenuMixin):
         if tool:
             tool[0](self)
 
+    
+    def OnToolMenuShowPlugins(self, evt):
+        """ Handle Tools->Show Plugins Folder menu item selection.
+        """
+        if not os.path.exists(self.app.pluginsDir):
+            q = wx.MessageBox("The plug-ins directory (%s) does not exist.\n"
+                              "Create it?" % self.app.pluginsDir,
+                              "Show Plugins Directory", parent=self,
+                              style=wx.ICON_INFORMATION | wx.YES_NO)
+
+            if q == wx.NO:
+                return
+            
+            try:
+                os.makedirs(self.app.pluginsDir)
+                # FUTURE: Create/copy a README into the new folder?
+                
+            except Exception as err:
+                # FUTURE: Specific error messages for different exceptions?
+                logger.error("Failed to create plugins directory: %s" % err)
+                wx.MessageBox("The plug-ins directory could not be created.",
+                              "Show Plugins Directory", parent=self,
+                              style=wx.ICON_ERROR | wx.OK)
+                return
+
+        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
+        try:
+            # FUTURE: OS-specific functionality
+            os.system("explorer %s" % self.app.pluginsDir)
+            
+        except Exception as err:
+            # FUTURE: Specific error messages for different exceptions?
+            logger.error("Could not open plugins directory: %s" % err)
+            wx.MessageBox("The plug-ins directory could not be created.",
+                          "Show Plugins Directory", parent=self,
+                          style=wx.ICON_ERROR | wx.OK)
+        finally:
+            self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
+        
+
     #===========================================================================
     # Custom Events
     #===========================================================================
@@ -3026,6 +3072,9 @@ class ViewerApp(wx.App):
         self.prefs = Preferences(self.prefsFile, clean=(clean or safeMode))
         self.plugins = None
 
+        self.pluginsDir = os.path.join(self.docsDir, 'Plugins')
+        self.scriptsDir = os.path.join(self.docsDir, 'Scripts')
+
         self.loadPlugins(safeMode)
 
         # Insert user override EBML schema path
@@ -3075,7 +3124,7 @@ class ViewerApp(wx.App):
                 logger.info(u" * %s: %s" % p)
 
         if self.getPref('plugins.loadUserPlugins', False):
-            dirs = [os.path.join(self.docsDir, 'plugins', '*')]
+            dirs = [os.path.join(self.pluginsDir, '*')]
             dirs.extend(self.getPref('plugins.searchPaths', []))
             self.plugins.add(dirs, app=APPNAME, appVersion=VERSION, quiet=True,
                              builtin=False)
