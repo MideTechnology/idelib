@@ -340,9 +340,16 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
     ID_VIEW_SHOWGRID = wx.NewIdRef()
     ID_VIEW_ANTIALIAS = wx.NewIdRef()
     ID_VIEW_CHANGETITLE = wx.NewIdRef()
-    
-    IMAGE_FORMATS = "JPEG (*.jpg)|*.jpg|" \
-                    "Portable Network Graphics (*.png)|*.png"
+
+    IMAGE_FORMATS = "Joint Photographic Experts Group (*.jpeg;*.jpg)|*.jpg;*.jpeg|" \
+                    "Portable Network Graphics (*.png)|(*.png)|" \
+                    "Encapsulated Postscript (*.eps)|*.eps|" \
+                    "PGF code for LaTeX (*.pgf)|*.pgf|" \
+                    "Portable Document Format (*.pdf)|*.pdf|" \
+                    "Postscript (*.ps)|*.ps|" \
+                    "Raw RGBA bitmap (*.raw;*.rgba)|*.raw;*.rgba|" \
+                    "Scalable Vector Graphics (*.svg;*.svgz)|*.svg;*.svgz|" \
+                    "Tagged Image File Format (*.tif;*.tiff)|*.tif;*.tiff"
 
 
     def makeTitle(self):
@@ -855,7 +862,10 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
             return False
         
     
-    def OnExportImage(self, event):
+    def OnExportImage(self, event, figure=None):
+        if figure is None:
+            figure = self.figure
+
         ex = None if DEBUG else Exception
         filename = None
         dlg = wx.FileDialog(self, 
@@ -871,7 +881,9 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
             return False
         
         try:
-            return self.figure.savefig(filename)
+            file_extension = filename.split('.')[-1]
+
+            return figure.savefig(filename, format=file_extension)
         except ex as err:
             what = "exporting %s as an image" % self.NAME
             self.root.handleError(err, what=what)
@@ -969,16 +981,6 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
         self.abortEvent.set()
         evt.Skip()
 
-    # def OnFilePageSetup(self, event):
-    #     self.canvas.PageSetup()
-    #
-    # def OnFilePrint(self, evt):
-    #     self.canvas.Printout()
-    #
-    # def OnFilePrintPreview(self, evt):
-    #     self.canvas.PrintPreview()
-
-
 #===============================================================================
 # 
 #===============================================================================
@@ -1045,10 +1047,6 @@ class SpectrogramView(FFTView):
     def __init__(self, *args, **kwargs):
         """
         """
-        # Colorizers: The functions that render the spectrogram image.
-        # self.colorizers = {self.ID_COLOR_GRAY: self.plotGrayscale,  ########PRETTY SURE I CAN REMOVE THIS ENTIRELY##############
-        #                    self.ID_COLOR_SPECTRUM: self.plotColorSpectrum}
-
         self.cmaps = {self.ID_COLOR_GRAY: 'gray',
                       self.ID_COLOR_SPECTRUM: 'viridis'}
 
@@ -1060,7 +1058,6 @@ class SpectrogramView(FFTView):
         
         self.slicesPerSec = float(kwargs.pop('slicesPerSec', 4.0))
         self.colorizerId = kwargs.pop('colorizer', self.ID_COLOR_SPECTRUM)
-        # self.colorizer = self.colorizers.get(self.colorizerId, self.plotColorSpectrum) ########PRETTY SURE I CAN REMOVE THIS ENTIRELY##############
         self.cmap = self.cmaps.get(self.colorizerId, 'viridis') ########PRETTY SURE I CAN REMOVE THIS ENTIRELY##############
         # self.outOfRangeColor = self.outOfRangeColors.get(self.colorizerId, (200, 200, 200))
         
@@ -1487,7 +1484,6 @@ class SpectrogramView(FFTView):
     def OnMenuColorize(self, evt):
         evt_id = evt.GetId()
 
-        # self.colorizer = self.colorizers.get(evt_id, self.plotColorSpectrum)  # Pretty sure this can be removed
         # self.outOfRangeColor = self.outOfRangeColors.get(evt_id, (200, 200, 200))  # Pretty sure this can be removed
 
         self.cmap = self.cmaps.get(evt_id, 'viridis')
@@ -1498,16 +1494,6 @@ class SpectrogramView(FFTView):
     def OnMenuViewTitle(self, evt):
         self.showTitle = evt.IsChecked()
         self.redrawPlots()
-
-    # def OnFilePageSetup(self, event):
-    #     self.canvas.GetCurrentPage().PageSetup()
-    #
-    # def OnFilePrint(self, evt):
-    #     self.canvas.GetCurrentPage().Printout()
-    #
-    # def OnFilePrintPreview(self, evt):
-    #     self.canvas.GetCurrentPage().PrintPreview()
-
 
     def OnViewChangeTitle(self, evt):
         p = self.canvas.GetCurrentPage()
@@ -1521,28 +1507,8 @@ class SpectrogramView(FFTView):
 
         dlg.Destroy()
 
-
     def OnExportImage(self, event):
-        filename = None
-        dlg = wx.FileDialog(self, 
-            message="Export Image...", 
-            wildcard=self.IMAGE_FORMATS, 
-            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
-        
-        if dlg.ShowModal() == wx.ID_OK:
-            filename = dlg.GetPath()
-        dlg.Destroy()
-        
-        if filename is None:
-            return False
-        
-        try:
-            return self.canvas.GetCurrentPage().SaveFile(filename)
-        except Exception as err:
-            what = "exporting %s as an image" % self.NAME
-            self.root.handleError(err, what=what)
-            return False
-
+        super(SpectrogramView, self).OnExportImage(event, figure=self.canvas.GetCurrentPage().figure)
 
 #===============================================================================
 # 
