@@ -6,6 +6,7 @@ Created on Dec 18, 2013
 
 @todo: Run in another thread in order to keep the GUI from appearing to have
     hung. Possibly `wx.lib.delayedresult`?
+        - A very helpful page related to this:  https://wiki.wxpython.org/LongRunningTasks
 
 @author: dstokes
 '''
@@ -36,13 +37,11 @@ from matplotlib.patches import Rectangle
 import spectrum as spec
 
 from base import MenuMixin
-from common import mapRange, nextPow2, sanitizeFilename, greater, lesser
+from common import mapRange, nextPow2, sanitizeFilename, greater, lesser, DOUBLE_CLICK_DEBOUNCE_TIME
 from widgets.shared import StatusBar
 
 from build_info import DEBUG
 from logger import logger
-
-from ctypes import windll
 
 FOREGROUND = False
 
@@ -86,10 +85,20 @@ if DEBUG:
 
 
 class ZoomingPlot:
+    """
+    A class containing methods to perform various types of zooming on a matplotlib based
+    wx.Panel subclass.  Most notably this class contains the zooming bounding rectangle functionality.
 
-    DEBOUNCE_WAIT_TIME = windll.user32.GetDoubleClickTime() * 1e-3
+    TODO:
+     - This should probably inherit some base class which inherits
+     wx.Panel and implements the matplotlib canvas functionality
+    """
 
-    def initialize_stuff(self):
+    def initialize_zoom_rectangle(self):
+        """
+        Initialize the variables, mouse event listeners, and callback functions needed to provide bounding
+        zoom rectangle functionality.
+        """
         # Initialise the rectangle
         self.rect = Rectangle((0, 0), 0, 0, facecolor='None', edgecolor='black', linewidth=0.5, zorder=3)
         self.xData0 = None
@@ -101,7 +110,6 @@ class ZoomingPlot:
         self.x1 = None
         self.y1 = None
         self.axes.add_patch(self.rect)
-
 
         # Connect the mouse events to their relevant callbacks
         self.canvas.mpl_connect('button_press_event', self._onPress)
@@ -122,7 +130,7 @@ class ZoomingPlot:
         ''' Callback to handle the mouse being clicked and held over the canvas'''
 
         if self.click_thread_helper is None:
-            self.click_thread_helper = threading.Timer(self.DEBOUNCE_WAIT_TIME, self._single_click_thread_fn_helper, [event])
+            self.click_thread_helper = threading.Timer(DOUBLE_CLICK_DEBOUNCE_TIME, self._single_click_thread_fn_helper, [event])
             self.click_thread_helper.start()
 
         if event.dblclick:
@@ -281,6 +289,16 @@ class ZoomingPlot:
             self.canvas.draw()
 
     def zoomPlot(self, plot, amount):
+        """
+        Zoom a plot a specified amount relative to the span of the plot's axes.
+
+        :param plot: The object containing the MatPlotLib axes attribute to zoom on,
+         or None which will default to using self
+        :param amount: The amount to zoom by.  If negative (zooming in), the value is the ratio of the plot's axes span
+        to be 'zoomed away' to the total plot axes span.  If positive (zooming out) the value is such that it reverses
+        the effects of a 'zoom in' with the same value.
+
+        """
         if plot is None:
             plot = self
 
@@ -308,6 +326,9 @@ class ZoomingPlot:
         plot.axes.set_ylim(*new_y_lims)
 
     def OnMenuViewReset(self, evt, add_border=True):
+        """
+        Perform a zoom fit on the data currently on the canvas.
+        """
         bbox = self.axes.dataLim
         if add_border:
             x_shift = (bbox.xmax - bbox.xmin) / 100
@@ -325,6 +346,7 @@ class ZoomingPlot:
 
 class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
     """
+    A class to view an FFT plot rendered through a MatPlotLib canvas in a WxPython pop-up window.
     """
     NAME = TITLE_NAME = "FFT"
     FULLNAME = "FFT View"
@@ -484,7 +506,7 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
 
         self.axes.set_title(self.title)
 
-        self.initialize_stuff()
+        self.initialize_zoom_rectangle()
 
         self.Fit()
 
@@ -986,6 +1008,9 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
 #===============================================================================
 
 class SpectrogramPlot(wx.Panel, ZoomingPlot):
+    """
+    A class to represent a single spectrogram plot rendered through a MatPlotLib canvas as a wx.Panel subclass.
+    """
     def __init__(self, parent, name="", dpi=None, id=-1, **kwargs):
         wx.Panel.__init__(self, parent, id=id, **kwargs)
 
@@ -1035,6 +1060,8 @@ class SpectrogramPlot(wx.Panel, ZoomingPlot):
 
 class SpectrogramView(FFTView):
     """
+    A class to contain one or more rendered spectrograms (SpectrogramPlot instances) through MatPlotLib canvas in a
+    WxPython pop-up window.
     """
     NAME = TITLE_NAME = "Spectrogram"
     FULLNAME = "Spectrogram View"
@@ -1134,7 +1161,7 @@ class SpectrogramView(FFTView):
         p.cmap = self.cmap
 
         p.canvas.draw()
-        p.initialize_stuff()
+        p.initialize_zoom_rectangle()
 
         p.image = axes_image
         # p.outOfRangeColor = self.outOfRangeColor
@@ -1507,6 +1534,7 @@ class SpectrogramView(FFTView):
 
 class PSDView(FFTView):
     """
+    A class to view a PSD plot rendered through a MatPlotLib canvas in a WxPython pop-up window.
     """
     NAME = TITLE_NAME = "PSD"
     FULLNAME = "PSD View"

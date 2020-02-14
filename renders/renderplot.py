@@ -68,7 +68,7 @@ class PlotView(FFTView, ZoomingPlot):
         self.SetSizer(self.sizer)
         self.Fit() #########WHY IS THIS DONE TWICE#####
 
-        self.initialize_stuff()
+        self.initialize_zoom_rectangle()
 
         self.Fit() #########WHY IS THIS DONE TWICE#####
 
