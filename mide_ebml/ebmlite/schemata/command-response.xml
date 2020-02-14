@@ -40,6 +40,7 @@
     <!-- "FlashKeys" is not present here due to an issue with encoding, but it was only used in development so it's OK to drop it-->
 
     <MasterElement name="EBMLCommand" id="0x80" mandatory="0" multiple="0">An EBML formatted command directive
+        <MasterElement name="RecStart"/>
         <MasterElement name="WiFiScan" id="0x81" mandatory="0" multiple="0">Initiate a Wifi Scan </MasterElement>
         <MasterElement name="ApplyPackage" id="0x82" mandatory="0" multiple="0">Apply a firmware meta-package
             <UnicodeElement name="PackagePath" id="0x4000" mandatory="1" multiple="0">Path to package to apply</UnicodeElement>
