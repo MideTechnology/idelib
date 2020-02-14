@@ -7,6 +7,7 @@ Interactive Python interpreter for debugging purposes.
 '''
 from __future__ import absolute_import, print_function
 
+from datetime import datetime
 import os
 import sys
 
@@ -45,9 +46,6 @@ class PythonConsole(wx.py.shell.ShellFrame):
             @keyword introText: Introductory text, shown when the shell starts.
             @keyword statusText: Initial text for the status bar.
             @keyword locals: A dictionary of local variables (like `exec` uses)
-            @keyword startupScript: A script to run at start (Python in string)
-            @keyword execStartupScript: 
-            @keyword dataDir: 
         """
         title = kwargs.setdefault('title', self.TITLE)
         config = kwargs.pop('config', None)
@@ -59,6 +57,11 @@ class PythonConsole(wx.py.shell.ShellFrame):
         localvars = kwargs.pop('locals', None)
         interpClass = kwargs.pop('InterpClass', None)
         focus = kwargs.pop('focus', True)
+    
+        self.paths = kwargs.pop('path', [])
+        
+        if not self.paths:
+            self.loadPrefs()
     
         kwargs.setdefault('size', (750, 525))
 
@@ -83,6 +86,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
 
         self.SetStatusText(statusText or '')
         
+        self.setPath(self.paths)
         self.addMenuItems()
         self.parentUpdated()
 
@@ -140,6 +144,16 @@ class PythonConsole(wx.py.shell.ShellFrame):
     # 
     #===========================================================================
     
+    def loadPrefs(self):
+        """ Load Python paths from the parent application's preferences.
+        """
+        app = wx.GetApp()
+        if hasattr(app, 'getPref'):
+            self.paths = app.getPref('scripting.pythonpath', self.ORIG_PATHS)
+        else:
+            self.paths = self.ORIG_PATHS
+    
+    
     def parentUpdated(self):
         """ Method called when the parent `Viewer` changes in such a way that
             the editor needs updating (e.g. a file was imported).
@@ -152,6 +166,29 @@ class PythonConsole(wx.py.shell.ShellFrame):
                 title = "%s: %s" % (self.baseTitle, name)
         
         self.SetTitle(title)
+
+    
+    def setPath(self, paths, replace=False, quiet=True):
+        """ Set the shell's `sys.path`.
+        
+            @param paths: A list of Python library paths.
+            @keyword replace: If `True`, the existing `sys.path` will be
+                replaced. If `False` (default), the new paths will be added to
+                the end of the existing `sys.path`.
+            @keyword quiet: If `False`, the console will display a message
+                indicating `sys.path` was changed.
+            @return: The console's new `sys.path`
+        """
+        if not replace:
+            paths = self.ORIG_PATHS + [p for p in paths if p not in self.ORIG_PATHS]
+            
+        cmd = "import sys; sys.path=%r" % paths
+        if not quiet:
+            now = str(datetime.now()).rsplit('.',1)[0]
+            cmd += ";print('### sys.path updated at %s')" % now
+        self.shell.push(cmd, silent=quiet)
+        
+        return paths
 
     
     def reset(self, *args):
@@ -246,7 +283,14 @@ class PythonConsole(wx.py.shell.ShellFrame):
         if paths is None:
             return
 
-        sys.path = paths
+        app = wx.GetApp()
+        if hasattr(app, 'setPref'):
+            print("has setpref")
+            app.setPref('scripting.pythonpath', paths)
+        
+        self.paths = paths
+        self.setPath(self.paths, quiet=False)
+
 
     #===========================================================================
     # 
@@ -297,7 +341,13 @@ class PythonPathEditor(wx.Dialog):
         """
         self.app = wx.GetApp()
         self.root = kwargs.pop('root', None)
-        self.paths = kwargs.pop('paths', sys.path)
+        self.paths = kwargs.pop('paths', None)
+        
+        if not self.paths:
+            if hasattr(self.app, 'getPref'):
+                self.paths = self.app.getPref('scripting.pythonpath', self.ORIG_PATHS)
+            else:
+                self.paths = self.ORIG_PATHS
         
         kwargs.setdefault('title', "Edit Import Paths")
         kwargs.setdefault('style', wx.DEFAULT_DIALOG_STYLE | wx.RESIZE_BORDER)
@@ -351,7 +401,7 @@ class PythonPathEditor(wx.Dialog):
     #===========================================================================
 
     def OnEndEdit(self, evt):
-        """
+        """ Handle text exit completion.
         """
         path = os.path.normpath(evt.GetLabel())
         # XXX: Trying to set the changed string doesn't seem to work.
@@ -359,7 +409,7 @@ class PythonPathEditor(wx.Dialog):
         evt.Skip()
 
 
-    def OnBrowse(self, evt):
+    def OnBrowse(self, _evt):
         """ Handle the "Select Directory" button.
         """
         dlg = wx.DirDialog(self, "Choose a Python module directory:")
@@ -372,7 +422,7 @@ class PythonPathEditor(wx.Dialog):
         dlg.Destroy()
         
 
-    def OnImport(self, evt):
+    def OnImport(self, _evt):
         """ Handle the "Import PYTHONPATH" button.
         """
         paths = self.pathList.GetStrings()
@@ -383,15 +433,10 @@ class PythonPathEditor(wx.Dialog):
                 paths.append(p)
         self.pathList.SetStrings(paths)
 
+
     #===========================================================================
     # 
     #===========================================================================
-    
-    def getEditedPaths(self):
-        """
-        """
-        return [p for p in sys.path if p not in self.ORIG_PATHS]
-
     
     @classmethod
     def editPaths(cls, parent, **kwargs):
@@ -402,18 +447,15 @@ class PythonPathEditor(wx.Dialog):
             @keyword paths: A list of module paths. Defaults to `sys.path`.
             @return: A list of paths or `None` if the dialog is cancelled.
         """
-        kwargs.setdefault('paths', sys.path[:])
-        
         dlg = cls(parent, **kwargs)
         q = dlg.ShowModal()
-        result = dlg.pathList.GetStrings()
+        paths = dlg.pathList.GetStrings()
         dlg.Destroy()
         
-        if q == wx.ID_OK:
-            return result
+        if q != wx.ID_OK:
+            return None
         
-        return None
-        
+        return paths
 
 
 #===============================================================================
@@ -427,5 +469,27 @@ if __name__ == "__main__":
 #     PythonConsole.openConsole(None)
 #     app.MainLoop()
 
-    app = wx.App()
+    class DummyApp(wx.App):
+        prefs = {'scripting.pythonpath': ['fakey', 'blah']}
+        
+        def setPref(self, name, val, section=None):
+            """ Set the value of a preference. Returns the value set as a
+                convenience.
+            """
+            if section is not None:
+                name = "%s.%s" % (section, name)
+            self.prefs[name] = val
+            return val
+
+    
+        def getPref(self, name, default=None, section=None):
+            """ Retrieve a value from the preferences.
+            """
+            print("getpref %r" % name)
+            if section is not None:
+                name = "%s.%s" % (section, name)
+            return self.prefs.get(name, default)
+
+        
+    app = DummyApp()
     print(PythonPathEditor.editPaths(None))
