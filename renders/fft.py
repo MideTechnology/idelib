@@ -116,27 +116,21 @@ class ZoomingPlot:
         self.canvas.mpl_connect('button_release_event', self._onRelease)
         self.canvas.mpl_connect('motion_notify_event', self._onMotion)
 
-        self.click_thread_helper = None
+        self.double_click_timer = wx.Timer(self, True)
         self.double_clicked = False
 
         # Lock to stop the motion event from behaving badly when the mouse isn't pressed
         self.pressed = False
 
-
-    def _single_click_thread_fn_helper(self, event):
-        self.click_thread_helper = None
-
     def _onPress(self, event):
         ''' Callback to handle the mouse being clicked and held over the canvas'''
 
-        if self.click_thread_helper is None:
-            self.click_thread_helper = threading.Timer(DOUBLE_CLICK_DEBOUNCE_TIME, self._single_click_thread_fn_helper, [event])
-            self.click_thread_helper.start()
+        if not self.double_click_timer.IsRunning():
+            self.double_click_timer.Start(DOUBLE_CLICK_DEBOUNCE_TIME)
 
         if event.dblclick:
-            self.click_thread_helper.cancel()
+            self.double_click_timer.Stop()
             self.double_clicked = True
-            self.click_thread_helper = None
 
         # Check the mouse press was actually on the canvas
         if event.xdata is not None and event.ydata is not None:

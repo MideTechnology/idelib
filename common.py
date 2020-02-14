@@ -15,7 +15,7 @@ from threading import Thread as Thread
 from ctypes import windll
 
 
-DOUBLE_CLICK_DEBOUNCE_TIME = windll.user32.GetDoubleClickTime() * 1e-3
+DOUBLE_CLICK_DEBOUNCE_TIME = windll.user32.GetDoubleClickTime()
 
 #===============================================================================
 # Numeric and math-related helper functions
