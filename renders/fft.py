@@ -12,11 +12,8 @@ Created on Dec 18, 2013
 '''
 
 from collections import Iterable
-import colorsys
 import os.path
-import sys
 import time
-import threading
 
 import numpy as np
 from numpy.core import hstack, vstack
@@ -30,7 +27,6 @@ import wx.lib.delayedresult as delayedresult
 import matplotlib as mpl
 from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 from matplotlib.backends.backend_wxagg import NavigationToolbar2WxAgg as NavigationToolbar
-from matplotlib.backends.backend_wx import _load_bitmap
 from matplotlib.figure import Figure
 from matplotlib.patches import Rectangle
 
