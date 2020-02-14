@@ -228,7 +228,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.warningRanges = {}
 
         self.menubar = None
-        self.scriptingShown = False
+        self.showAdvanced = False
         self.loadPrefs()
 
         self.buildUI(splash)
@@ -306,6 +306,8 @@ class Viewer(wx.Frame, MenuMixin):
 
         self.showDebugChannels = self.app.getPref('showDebugChannels', True)
 
+        adv = self.app.getPref('showAdvancedOptions', False)
+
         if self.plotarea is not None:
             # reload, probably
             for p in self.plotarea:
@@ -317,18 +319,22 @@ class Viewer(wx.Frame, MenuMixin):
             self.OnToggleLocalTime(self.showLocalTime)
             if self.app.getPref('scriptingEnabled', False):
                 self.insertScriptingMenu()
+            if adv and adv!= self.showAdvanced:
+                self.insertAdvancedMenus()
+                self.buildToolsMenu()
+        
+        self.showAdvanced = adv
 
 
     def buildMenus(self):
         """ Construct and configure the view's menu bar. Called once by
             `buildUI()`. Used internally.
         """
-        showAdvanced = self.app.getPref('showAdvancedOptions', False)
-
         self.menubar = wx.MenuBar()
 
-        # "File" menu
         #=======================================================================
+        # "File" menu
+        
         fileMenu = self.addMenu(self.menubar,  '&File')
         self.addMenuItem(fileMenu, wx.ID_NEW,
                          "&New Viewer Window\tCtrl+N",
@@ -383,8 +389,9 @@ class Viewer(wx.Frame, MenuMixin):
                 self.OnFileExitMenu)
         wx.App.SetMacExitMenuItemId(wx.ID_EXIT)
 
-        # "Edit" menu
         #=======================================================================
+        # "Edit" menu
+
         editMenu = self.addMenu(self.menubar, '&Edit')
         self.addMenuItem(editMenu, wx.ID_CUT, "Cut", "", enabled=False)
         self.addMenuItem(editMenu, wx.ID_COPY, "Copy", "", enabled=False)
@@ -394,8 +401,9 @@ class Viewer(wx.Frame, MenuMixin):
                          "Configure and customize %s" % APPNAME,
                          self.app.editPrefs)
 
-        # "View" menu
         #=======================================================================
+        # "View" menu
+        
         viewMenu = self.addMenu(self.menubar, 'V&iew')
         self.addMenuItem(viewMenu, wx.ID_REFRESH, "&Redraw Plots\tCtrl+R", "",
                          self.plotarea.redraw)
@@ -486,22 +494,19 @@ class Viewer(wx.Frame, MenuMixin):
                          self.OnToggleLocalTime, kind=wx.ITEM_CHECK,
                          checked=self.showLocalTime)
 
-        # "Device" menu
         #=======================================================================
-        deviceMenu = self.addMenu(self.menubar, 'De&vice')
-        self.addMenuItem(deviceMenu, self.ID_DEVICE_CONFIG,
+        # "Device" menu
+        
+        self.deviceMenu = self.addMenu(self.menubar, 'De&vice')
+        self.addMenuItem(self.deviceMenu, self.ID_DEVICE_CONFIG,
                          "Configure &Device...\tCtrl+D",
                          "Select and configure a recording device",
                          self.OnDeviceConfigMenu)
-        if showAdvanced:
-            deviceMenu.AppendSeparator()
-            self.addMenuItem(deviceMenu, self.ID_DEVICE_UPDATE,
-                             "Update Recorder Firmware...",
-                             "Update the firmware on a recording device",
-                             self.OnDeviceUpdateFW)
+        # "Update Recorder Firmware" item added by `insertAdvancedMenus()`
 
-        # "Data" menu
         #=======================================================================
+        # "Data" menu
+        
         dataMenu = self.addMenu(self.menubar, "&Data")
         meanMenu = self.addSubMenu(dataMenu, self.ID_DATA_MEAN_SUBMENU,
                                    "Remove Mean")
@@ -562,70 +567,19 @@ class Viewer(wx.Frame, MenuMixin):
                           "Display Range Warnings")
 
         #=======================================================================
-        # "Scripting" menu
+        # "Scripting" menu: only shows if enabled in preferences. Inserted
+        # by another method, so updating the preferences makes it appear.
 
         if self.app.getPref('scriptingEnabled', False):
             self.insertScriptingMenu()
-#             self.scriptingShown = True
-#             scriptMenu = self.addMenu(self.menubar, '&Scripting')
-#             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_RUN,
-#                              "&Run Script...\tCtrl+Shift+R",
-#                              'Open the Python script editor.',
-#                              self.OnScriptRun)
-#             
-#             self.recentScriptsMenu = wx.Menu()
-#             scriptMenu.Append(self.ID_SCRIPTING_RECENT, "Run Recent Script",
-#                                 self.recentScriptsMenu)
-#             self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentScripts, id=self.ID_SCRIPTING_RECENT)
-#             self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentScript, id=self.ID_SCRIPT1, id2=self.ID_SCRIPT1+7)
-# 
-#             scriptMenu.AppendSeparator()
-#             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
-#                              "Open Script &Editor\tCtrl+Shift+E",
-#                              'Open the Python script editor.',
-#                              self.OnShowScriptEditor)
-#             self.addMenuItem(scriptMenu, self.ID_SCRIPTING_CONSOLE,
-#                              "Open Python &Console\tCtrl+Shift+C",
-#                              "Open the Python interactive interpreter",
-#                              self.OnShowScriptConsole)
-#         else:
-#             self.scriptingShown = False
-
 
         #=======================================================================
-        # "Tools" menu, only appears if there are tools.
+        # "Tools" menu: some items only appear if 'show advanced options'
+        # preference is enabled. Built by another method, so updating the
+        # preferences makes it appear.
 
-        self.toolPlugins = {}
-        if self.app.plugins is not None:
-            tools = self.app.plugins.find(type='tool', isModule=True)
-            extTools = self.app.plugins.find(type='tool', isModule=False)
-
-            if not showAdvanced:
-                # Remove tools marked as 'advanced'
-                tools = [t for t in tools if not t.info.get('advanced', False)]
-                extTools = [t for t in extTools if not t.info.get('advanced', False)]
-
-            if tools or extTools:
-                toolMenu = self.addMenu(self.menubar, "Tools")
-                tools.sort(key=lambda x: x.name)
-                for t in tools:
-                    tid = t.info.setdefault('_wxId', wx.NewIdRef())
-                    self.toolPlugins[tid] = t
-                    self.addMenuItem(toolMenu, tid, t.name, t.desc,
-                                     self.OnToolMenuSelection)
-                if extTools:
-                    extTools.sort(key=lambda x: x.name)
-                    toolMenu.AppendSeparator()
-                    for t in extTools:
-                        tid = t.info.setdefault('_wxId', wx.NewIdRef())
-                        self.toolPlugins[tid] = t
-                        self.addMenuItem(toolMenu, tid, t.name, t.desc,
-                                         self.OnToolMenuSelection)
-                toolMenu.AppendSeparator()
-            self.addMenuItem(toolMenu, self.ID_TOOLS_SHOW_PLUGINS,
-                             "Show Plug-Ins Directory",
-                             "Open the plugins folder (%s)" % self.app.pluginsDir,
-                             self.OnToolMenuShowPlugins)
+        self.toolMenu = self.addMenu(self.menubar, "Tools")
+        self.buildToolsMenu()
 
         #=======================================================================
         # "Help" menu
@@ -672,41 +626,106 @@ class Viewer(wx.Frame, MenuMixin):
         # Finishing touches.
         
         self.SetMenuBar(self.menubar)
+        self.insertAdvancedMenus()
         self.enableMenus(False)
 
+
+    def buildToolsMenu(self):
+        """ Construct (or empty and reconstruct) the "Tools" menu contents.
+            Called in `buildMenus()` and after the preferences have been
+            edited (so the menu will appear after 'show advanced options' is
+            checked).
+        """
+        map(self.toolMenu.DestroyItem, self.toolMenu.GetMenuItems())
+
+        self.toolPlugins = {}
+        tools = self.app.plugins.find(type='tool', isModule=True)
+        extTools = self.app.plugins.find(type='tool', isModule=False)
+
+        if not self.app.getPref('showAdvancedOptions', False):
+            # Remove tools marked as 'advanced'
+            tools = [t for t in tools if not t.info.get('advanced', False)]
+            extTools = [t for t in extTools if not t.info.get('advanced', False)]
+
+        if tools or extTools:
+            tools.sort(key=lambda x: x.name)
+            for t in tools:
+                # Get the tool's menu ID or generate one (one time only)
+                tid = t.info.get('_wxId', None)
+                if tid is None:
+                    tid = t.info.setdefault('_wxId', wx.NewIdRef())
+                self.toolPlugins[tid] = t
+                self.addMenuItem(self.toolMenu, tid, t.name, t.desc,
+                                 self.OnToolMenuSelection)
+            if extTools:
+                extTools.sort(key=lambda x: x.name)
+                self.toolMenu.AppendSeparator()
+                for t in extTools:
+                    tid = t.info.get('_wxId', None)
+                    if tid is None:
+                        tid = t.info.setdefault('_wxId', wx.NewIdRef())
+                    self.toolPlugins[tid] = t
+                    self.addMenuItem(self.toolMenu, tid, t.name, t.desc,
+                                     self.OnToolMenuSelection)
+            self.toolMenu.AppendSeparator()
+            
+        self.addMenuItem(self.toolMenu, self.ID_TOOLS_SHOW_PLUGINS,
+                         "Show Plug-Ins Directory",
+                         "Open the plug-ins folder (%s)" % self.app.pluginsDir,
+                         self.OnToolMenuShowPlugins)
+        
 
     def insertScriptingMenu(self):
         """ Insert the 'Scripting' menu, if it isn't already present. Called
             in `buildMenus()` and after the preferences have been edited (so
             the menu will appear after 'enable scripting' is checked').
         """
-        if self.scriptingShown:
+        if not self.app.getPref('scriptingEnabled', False):
             return
         
-        self.scriptingShown = True
-        scriptMenu = wx.Menu() #self.addMenu(self.menubar, '&Scripting')
-        self.addMenuItem(scriptMenu, self.ID_SCRIPTING_RUN,
-                         "&Run Script...\tCtrl+Shift+R",
-                         'Open the Python script editor.',
-                         self.OnScriptRun)
+        if self.menubar.FindItemById(self.ID_SCRIPTING_RUN) is None:
+            scriptMenu = wx.Menu()
+            self.addMenuItem(scriptMenu, self.ID_SCRIPTING_RUN,
+                             "&Run Script...\tCtrl+Shift+R",
+                             'Open the Python script editor.',
+                             self.OnScriptRun)
+            
+            self.recentScriptsMenu = wx.Menu()
+            scriptMenu.Append(self.ID_SCRIPTING_RECENT, "Run Recent Script",
+                              self.recentScriptsMenu)
+            self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentScripts, 
+                      id=self.ID_SCRIPTING_RECENT)
+            self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentScript,
+                      id=self.ID_SCRIPT1, id2=self.ID_SCRIPT1+7)
+    
+            scriptMenu.AppendSeparator()
+            self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
+                             "Open Script &Editor\tCtrl+Shift+E",
+                             'Open the Python script editor.',
+                             self.OnShowScriptEditor)
+            self.addMenuItem(scriptMenu, self.ID_SCRIPTING_CONSOLE,
+                             "Open Python &Console\tCtrl+Shift+C",
+                             "Open the Python interactive interpreter",
+                             self.OnShowScriptConsole)
+            self.menubar.Insert(5, scriptMenu, '&Scripting')
+    
+    
+    def insertAdvancedMenus(self):
+        """ Insert 'advanced' menu items into the menubar. Called in 
+            `buildMenus()` and after the preferences have been edited (so the
+            menus will appear after 'enable scripting' is checked').
+        """
+        if not self.app.getPref('showAdvancedOptions', False):
+            return
         
-        self.recentScriptsMenu = wx.Menu()
-        scriptMenu.Append(self.ID_SCRIPTING_RECENT, "Run Recent Script",
-                            self.recentScriptsMenu)
-        self.Bind(wx.EVT_UPDATE_UI, self.OnShowRecentScripts, id=self.ID_SCRIPTING_RECENT)
-        self.Bind(wx.EVT_MENU_RANGE, self.OnPickRecentScript, id=self.ID_SCRIPT1, id2=self.ID_SCRIPT1+7)
-
-        scriptMenu.AppendSeparator()
-        self.addMenuItem(scriptMenu, self.ID_SCRIPTING_EDIT,
-                         "Open Script &Editor\tCtrl+Shift+E",
-                         'Open the Python script editor.',
-                         self.OnShowScriptEditor)
-        self.addMenuItem(scriptMenu, self.ID_SCRIPTING_CONSOLE,
-                         "Open Python &Console\tCtrl+Shift+C",
-                         "Open the Python interactive interpreter",
-                         self.OnShowScriptConsole)
-        self.menubar.Insert(5, scriptMenu, '&Scripting')
-
+        if self.menubar.FindItemById(self.ID_DEVICE_UPDATE) is None:
+            self.deviceMenu.AppendSeparator()
+            self.addMenuItem(self.deviceMenu, self.ID_DEVICE_UPDATE,
+                             "Update Recorder Firmware...",
+                             "Update the firmware on a recording device",
+                             self.OnDeviceUpdateFW)
+        # Other advanced options can be enabled here.
+        
 
     def OnForegroundRender(self, evt):
         """ For debugging: handle 'render in foreground' menu item change.
