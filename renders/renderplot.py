@@ -5,7 +5,6 @@ Created on Oct 14, 2014
 '''
 
 import time
-import threading
 
 import numpy as np; np=np
 
@@ -17,11 +16,8 @@ from matplotlib.backends.backend_wxagg import FigureCanvasWxAgg as FigureCanvas
 # import matplotlib.style as mplstyle
 # mplstyle.use('fast')
 
-from common import lesser
 from logger import logger
 from renders.fft import FFTView, ZoomingPlot
-
-from ctypes import windll
 
 
 class PlotView(FFTView, ZoomingPlot):
@@ -59,8 +55,6 @@ class PlotView(FFTView, ZoomingPlot):
         self.canvas = FigureCanvas(self, -1, self.figure)
 
         self.axes.set_title(self.title)
-        self.timer = None
-        self._delay = windll.user32.GetDoubleClickTime() #################PRETTY SURE THIS IS ALL BEING HANDELED IN ZoomingPlot CLASS#########################
 
         # Sizer to contain the canvas
         self.sizer = wx.BoxSizer(wx.VERTICAL)
