@@ -12,10 +12,12 @@ import shutil
 import sys
 from threading import Event, Thread
 
-from ctypes import windll
+try:
+    from ctypes import windll
+    DOUBLE_CLICK_DEBOUNCE_TIME = windll.user32.GetDoubleClickTime()
+except (ImportError, AttributeError):
+    DOUBLE_CLICK_DEBOUNCE_TIME = 300
 
-
-DOUBLE_CLICK_DEBOUNCE_TIME = windll.user32.GetDoubleClickTime()
 
 #===============================================================================
 # Numeric and math-related helper functions
@@ -133,27 +135,6 @@ def cleanUnicode(obj, encoding='utf8', errors='replace'):
         return repr(obj)
 
 
-# def hex32(val):
-#     """ Format an integer as an 8 digit hex number. """
-#     return "0x%08x" % val
-
-# def hex16(val):
-#     """ Format an integer as an 4 digit hex number. """
-#     return "0x%04x" % val
-
-# def hex8(val):
-#     """ Format an integer as a 2 digit hex number. """
-#     return "0x%02x" % val
-
-# def str2int(val):
-#     """ Semi-smart conversion of string to integer; works for decimal and hex.
-#     """
-#     try:
-#         return int(val)
-#     except ValueError:
-#         return int(val, 16)
-
-
 def wordJoin(words, conj="and", oxford=True):
     """ Function to do an English joining of list items.
         @param words: A list (or other iterable) of items. Items will be cast
@@ -250,7 +231,7 @@ def getAppPath():
     """ Get the application's home directory.
     """
     if getattr(sys, 'frozen', False):
-        # 'Compiled' executable
+        # PyInstaller 'compiled' executable
         return os.path.dirname(sys.executable)
     
     return os.path.dirname(os.path.abspath(__file__))
