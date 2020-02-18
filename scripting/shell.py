@@ -125,7 +125,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
         viewMenu.AppendSeparator()
         mi = viewMenu.Append(wx.ID_ANY,
                              "Show console's associated view\tCtrl+Space",
-                             "",
+                             "Bring the associated viewer window to the front.",
                              wx.ITEM_NORMAL)
         
         self.Bind(wx.EVT_MENU, self.OnShowView, id=mi.GetId())
@@ -134,8 +134,8 @@ class PythonConsole(wx.py.shell.ShellFrame):
         for _i in range(3):
             optMenu.Remove(optMenu.GetMenuItems()[-1])
         mi = optMenu.Append(wx.ID_ANY,
-                            "Edit Module Import Paths (PYTHONPATH)",
-                            "",
+                            "Edit Module Import Paths...",
+                            "Set the paths used to find modules to import (sys.path/PYTHONPATH).",
                             wx.ITEM_NORMAL)
         self.Bind(wx.EVT_MENU, self.OnEditPaths, id=mi.GetId())
     
