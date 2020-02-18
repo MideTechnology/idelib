@@ -45,7 +45,10 @@ class EndaqS(SlamStickX):
         super(EndaqS, self).__init__(*args, **kwargs)
         # XXX: Schema currently broken! Being updated.
         self.commandSchema = loadSchema('command-response.xml')
-        self.responseFile = os.path.join(self.path, self.RESPONSE_FILE)
+        if self.path:
+            self.responseFile = os.path.join(self.path, self.RESPONSE_FILE)
+        else:
+            self.responseFile = None
 
 
     @classmethod
@@ -65,6 +68,9 @@ class EndaqS(SlamStickX):
             file. Checks that the data is EBML and that the first child
             element is a `ResponseIdx` (which all responses should contain).
         """
+        if self.path is None:
+            return
+        
         raw = os_specific.readUncachedFile(self.responseFile)
         
         try:
@@ -98,6 +104,9 @@ class EndaqS(SlamStickX):
             
             @raise DeviceTimeout
         """
+        if self.path is None:
+            return 
+        
         now = time()
         deadline = now + timeout
         idx = None
@@ -191,6 +200,9 @@ class EndaqW(EndaqS):
                 
             @raise DeviceTimeout: 
         """
+        if self.path is None:
+            return
+        
         cmd = self.commandSchema.encodes({'EBMLCommand': {'WiFiScan': None}})
         
         response = self.sendCommand(cmd, True, timeout, interval, wait,
