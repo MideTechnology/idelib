@@ -12,6 +12,10 @@ import shutil
 import sys
 from threading import Event, Thread
 
+from ctypes import windll
+
+
+DOUBLE_CLICK_DEBOUNCE_TIME = windll.user32.GetDoubleClickTime()
 
 #===============================================================================
 # Numeric and math-related helper functions
