@@ -37,8 +37,12 @@
     <MasterElement name="FlashPackage" id="0x706B" mandatory="0" multiple="0">"pk" Flash meta-package (arbitrary flash segments)</MasterElement>
     <MasterElement name="LegacyUP" id="0x7570" mandatory="0" multiple="0">"up" Update User Page (legacy)</MasterElement>
     <MasterElement name="LegacyESP" id="0x7577" mandatory="0" multiple="0">"uw" Flash an image to ESP32</MasterElement>
-    <!-- "FlashKeys" is not present here due to an issue with encoding, but it was only used in development so it's OK to drop it-->
-
+	<MasterElement name="SecureAll" id="0x7361" mandatory="0" multiple="0">"sa" Securely update FW, userpage, and bootloader </MasterElement>
+	<MasterElement name="Reset" id="0x7274" mandatory="0" multiple="0">"rt" Reset device </MasterElement>
+	<MasterElement name="SetKeys" id="0x6B657973" mandatory="0" multiple="0">"keys" Key bundle update 
+		<BinaryElement name="KeyVals" id="0x6B76" mandatory="0" multiple="0">Process a key stream and apply it if it is valid</BinaryElement>
+	</MasterElement>
+    
     <MasterElement name="EBMLCommand" id="0x80" mandatory="0" multiple="0">An EBML formatted command directive
         <MasterElement name="WiFiScan" id="0x81" mandatory="0" multiple="0">Initiate a Wifi Scan </MasterElement>
         <MasterElement name="ApplyPackage" id="0x82" mandatory="0" multiple="0">Apply a firmware meta-package
