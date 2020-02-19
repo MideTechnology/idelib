@@ -39,7 +39,7 @@
     <MasterElement name="LegacyESP" id="0x7577" mandatory="0" multiple="0">"uw" Flash an image to ESP32</MasterElement>
 	<MasterElement name="SecureAll" id="0x7361" mandatory="0" multiple="0">"sa" Securely update FW, userpage, and bootloader </MasterElement>
 	<MasterElement name="Reset" id="0x7274" mandatory="0" multiple="0">"rt" Reset device </MasterElement>
-	<MasterElement name="SetKeys" id="0x6B657973" mandatory="0" multiple="0">"keys" Key bundle update 
+	<MasterElement name="SetKeys" id="0X736B" mandatory="0" multiple="0">"sk" Key bundle update 
 		<BinaryElement name="KeyVals" id="0x6B76" mandatory="0" multiple="0">Process a key stream and apply it if it is valid</BinaryElement>
 	</MasterElement>
     
