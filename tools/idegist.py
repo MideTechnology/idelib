@@ -301,7 +301,7 @@ class Ide2Csv(ToolDialog):
 
         for n, f in enumerate(sourceFiles, 1):
             b = os.path.basename(f)
-            updater.message = "Exporting %s (file %d of %d)" % (b, n, numFiles)
+            updater.message = "Exporting {} (file {} of {})".format(b, n, numFiles)
             updater.precision = max(0, min(2, (len(str(os.path.getsize(f)))/2)-1))
             updater(starting=True)
             try:
@@ -316,7 +316,7 @@ class Ide2Csv(ToolDialog):
                 msg = err.message
                 if n < numFiles:
                     # Not the last file; ask to abort.
-                    msg = "%s\n\nContinue exporting next file?" % msg
+                    msg += "\n\nContinue exporting next file?"
                     x = wx.MessageBox(
                         msg, "Error", wx.YES_NO | wx.ICON_ERROR, parent=updater
                     )
@@ -335,7 +335,7 @@ class Ide2Csv(ToolDialog):
                         )
                 else:
                     # Last (or only) file being processed; just alert.
-                    msg = "%s\n\nExport cancelled." % msg
+                    msg += "\n\nExport cancelled."
                     wx.MessageBox(
                         msg, "Error", wx.OK | wx.ICON_ERROR, parent=updater
                     )
@@ -349,8 +349,13 @@ class Ide2Csv(ToolDialog):
         bulleted = lambda x: " * {}".format(x)
         processed = '\n'.join(map(bulleted, sorted(processed))) or "None"
         exported = '\n'.join(map(bulleted, sorted(exported))) or "None"
-        msg = "Files processed:\n%s\n\nFiles generated:\n%s\n\nTotal samples exported: %d" % (processed, exported, totalSamples)
-        dlg = ScrolledMessageDialog(self, msg, "%s: Complete" % self.GetTitle())
+        msg = (
+            "Files processed:\n{}\n\n"
+            "Files generated:\n{}\n\n"
+            "Total samples exported: {}"
+            .format(processed, exported, totalSamples)
+        )
+        dlg = ScrolledMessageDialog(self, msg, "{}: Complete".format(self.GetTitle()))
         dlg.ShowModal()
 
         self.savePrefs()
