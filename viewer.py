@@ -1835,7 +1835,6 @@ class Viewer(wx.Frame, MenuMixin):
 
         for c in self.childViews.values():
             if hasattr(c, 'parentUpdated'):
-                print(c)
                 c.parentUpdated()
 
 
@@ -1851,7 +1850,14 @@ class Viewer(wx.Frame, MenuMixin):
         if hasattr(evt, 'CanVeto'):
             canVeto = evt.CanVeto()
 
-        if canVeto and not self.okayToExit():
+        # User may be prompted to before close if it's the last window and
+        # the application isn't in the process of quitting (they also get
+        # prompted when the exit menu event is handled).
+        canVeto = (canVeto 
+                   and len(self.app.viewers) < 2
+                   and not self.app.quitting)
+
+        if canVeto  and not self.okayToExit():
             if hasattr(evt, 'Veto'):
                 evt.Veto()
             return False
@@ -1873,6 +1879,7 @@ class Viewer(wx.Frame, MenuMixin):
         try:
             self.app.viewers.remove(self)
         except ValueError:
+            raise
             pass
 
         self.Destroy()
@@ -1958,7 +1965,7 @@ class Viewer(wx.Frame, MenuMixin):
         """ Handle File->Exit menu events.
         """
         if self.okayToExit():
-            self.Close()
+            self.app.quit()
 
 
     def OnFileProperties(self, evt):
@@ -3111,6 +3118,8 @@ class ViewerApp(wx.App):
             @keyword safe: If `True`, start in 'safe mode,' which disables
                 plugins and external EBML schemata.
         """
+        self.quitting = False
+        
         self.prefsFile = kwargs.pop('prefsFile', None)
         self.initialFilename = kwargs.pop('filename', None)
         clean = kwargs.pop('clean', False)
@@ -3288,6 +3297,16 @@ class ViewerApp(wx.App):
 
         return title.strip()
 
+
+    def quit(self):
+        """ Quit the application by closing all windows.
+        """
+        # Not sure this is the best way to implement this
+        self.quitting = True
+        
+        while self.viewers:
+            self.viewers[0].Close()
+        
 
     #===========================================================================
     # Event handlers
