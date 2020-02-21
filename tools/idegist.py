@@ -347,8 +347,8 @@ class Ide2Csv(ToolDialog):
 
         # TODO: More reporting?
         bulleted = lambda x: " * {}".format(x)
-        processed = '\n'.join(map(bulleted, sorted(processed))) or "None"
-        exported = '\n'.join(map(bulleted, sorted(exported))) or "None"
+        processed = '\n'.join(bulleted(i) for i in sorted(processed)) or "None"
+        exported = '\n'.join(bulleted(i) for i in sorted(exported)) or "None"
         msg = (
             "Files processed:\n{}\n\n"
             "Files generated:\n{}\n\n"
