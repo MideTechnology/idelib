@@ -23,7 +23,7 @@ PLUGIN_INFO = {
 # Tool Dialog
 ###############################################################################
 
-class Ide2Csv(ToolDialog):
+class IdeSummarizer(ToolDialog):
     """ The main dialog. The plan is for all tools to implement a ToolDialog,
         so the tools can be found and started in a generic manner.
     """
@@ -50,7 +50,7 @@ class Ide2Csv(ToolDialog):
     timeScalar = 1e-6
 
     def __init__(self, *args, **kwargs):
-        super(Ide2Csv, self).__init__(*args, **kwargs)
+        super(IdeSummarizer, self).__init__(*args, **kwargs)
 
         pane = self.GetContentsPane()
 
@@ -199,7 +199,7 @@ class Ide2Csv(ToolDialog):
     def OnCheck(self, evt):
         """ Handle all checkbox events. Bound in base class.
         """
-        super(Ide2Csv, self).OnCheck(evt)
+        super(IdeSummarizer, self).OnCheck(evt)
         obj = evt.EventObject
         if obj.IsChecked():
             # end time and duration are mutually exclusive
@@ -366,7 +366,7 @@ class Ide2Csv(ToolDialog):
 #===============================================================================
 
 def launch(parent=None):
-    dlg = Ide2Csv(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+    dlg = IdeSummarizer(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
     dlg.ShowModal()
 
 
