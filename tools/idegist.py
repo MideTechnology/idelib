@@ -302,7 +302,7 @@ class Ide2Csv(ToolDialog):
         for n, f in enumerate(sourceFiles, 1):
             b = os.path.basename(f)
             updater.message = "Exporting {} (file {} of {})".format(b, n, numFiles)
-            updater.precision = max(0, min(2, (len(str(os.path.getsize(f)))/2)-1))
+            updater.precision = max(0, min((len(str(os.path.getsize(f)))/2)-1, 2))
             updater(starting=True)
             try:
                 num = ideExport(
