@@ -47,7 +47,7 @@ class Ide2Csv(ToolDialog):
         "Rolling Mean"
     )
 
-    timeScalar = 1.0/(10**6)
+    timeScalar = 1e-6
 
     def __init__(self, *args, **kwargs):
         super(Ide2Csv, self).__init__(*args, **kwargs)
