@@ -27,7 +27,7 @@ class IdeSummarizer(ToolDialog):
     """ The main dialog. The plan is for all tools to implement a ToolDialog,
         so the tools can be found and started in a generic manner.
     """
-    TITLE = "Batch IDE Exporter"
+    TITLE = "Batch IDE Summarizer"
 
     OUTPUT_TYPES = (
         "Comma-Separated Values (.CSV)",
