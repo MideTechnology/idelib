@@ -245,7 +245,6 @@ class IdeSummarizer(ToolDialog):
         """
         """
         sourceFiles = self.inputFiles.GetPaths()
-        numFiles = len(sourceFiles)
         output = self.outputBtn.GetValue() or None
         startTime = self.getValue(self.startTime, 0)
         endTime = self.getValue(self.endTime, None)
@@ -311,7 +310,7 @@ class IdeSummarizer(ToolDialog):
 
             for i, filename in enumerate(sourceFiles, 1):
                 basename = os.path.basename(filename)
-                updater.message = "Exporting {} (file {} of {})".format(basename, i, numFiles)
+                updater.message = "Exporting {} (file {} of {})".format(basename, i, len(sourceFiles))
                 updater.precision = max(0, min((len(str(os.path.getsize(filename)))/2)-1, 2))
                 updater(starting=True)
 
