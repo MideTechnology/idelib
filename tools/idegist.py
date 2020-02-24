@@ -283,7 +283,6 @@ class IdeSummarizer(ToolDialog):
         updater = ModalExportProgress(self.GetTitle(), "Exporting...\n\n", 
                                       parent=self)
 
-        exported = set()
         processed = set()
         totalSamples = 0
 
@@ -319,18 +318,17 @@ class IdeSummarizer(ToolDialog):
                     csv_writer.writerow(row)
                 ds.close()  # Remember to close your file after you're finished with it!
 
-            exported.update(updater.outputFiles)
+                processed.add(basename)
+
             updater.Destroy()
 
         # TODO: More reporting?
         bulleted = lambda x: " * {}".format(x)
         processed = '\n'.join(bulleted(i) for i in sorted(processed)) or "None"
-        exported = '\n'.join(bulleted(i) for i in sorted(exported)) or "None"
         msg = (
             "Files processed:\n{}\n\n"
-            "Files generated:\n{}\n\n"
             "Total samples exported: {}"
-            .format(processed, exported, totalSamples)
+            .format(processed, totalSamples)
         )
         dlg = wx.lib.dialogs.ScrolledMessageDialog(self, msg, "{}: Complete".format(self.GetTitle()))
         dlg.ShowModal()
