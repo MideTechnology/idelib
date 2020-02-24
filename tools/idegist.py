@@ -1,4 +1,13 @@
+import os
+import sys
+
+import wx
+
+import idelib.importer
 import scripts.idegist
+from widgets.multifile import MultiFileSelect
+from tools.base import ToolDialog
+from tools.raw2mat import ModalExportProgress
 
 
 ###############################################################################
@@ -75,7 +84,7 @@ class IdeSummarizer(ToolDialog):
 
         wx.StaticLine(pane, -1).SetSizerProps(expand=True)
 
-        subpane = SC.SizedPanel(pane, -1)
+        subpane = wx.lib.sized_controls.SizedPanel(pane, -1)
         subpane.SetSizerType('form')
         subpane.SetSizerProps(expand=True)
 
@@ -164,7 +173,7 @@ class IdeSummarizer(ToolDialog):
 #             minmax=(16, MatStream.MAX_LENGTH/1024/1024),
 #             tooltip="The maximum size of each MAT file. Must be below 2GB.")
 
-        subpane = SC.SizedPanel(pane, -1)
+        subpane = wx.lib.sized_controls.SizedPanel(pane, -1)
         subpane.SetSizerType('form')
         subpane.SetSizerProps(expand=True)
 
@@ -355,7 +364,7 @@ class IdeSummarizer(ToolDialog):
             "Total samples exported: {}"
             .format(processed, exported, totalSamples)
         )
-        dlg = ScrolledMessageDialog(self, msg, "{}: Complete".format(self.GetTitle()))
+        dlg = wx.lib.dialogs.ScrolledMessageDialog(self, msg, "{}: Complete".format(self.GetTitle()))
         dlg.ShowModal()
 
         self.savePrefs()
