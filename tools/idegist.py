@@ -1,5 +1,6 @@
 import os
 import sys
+import csv
 
 import wx
 
@@ -302,51 +303,25 @@ class IdeSummarizer(ToolDialog):
                       useNames=useNames
                       )
 
-        for n, f in enumerate(sourceFiles, 1):
-            b = os.path.basename(f)
-            updater.message = "Exporting {} (file {} of {})".format(b, n, numFiles)
-            updater.precision = max(0, min((len(str(os.path.getsize(f)))/2)-1, 2))
-            updater(starting=True)
-            try:
-                num = ideExport(
-                    f, output, startTime=startTime, endTime=endTime, **params
-                )
-                totalSamples += num
-                processed.add(f)
-            except Exception as err:
-                # TODO: Handle this exception for real! Currently, various
-                # problems will show the 'export cancelled' message.
-                msg = err.message
-                if n < numFiles:
-                    # Not the last file; ask to abort.
-                    msg += "\n\nContinue exporting next file?"
-                    x = wx.MessageBox(
-                        msg, "Error", wx.YES_NO | wx.ICON_ERROR, parent=updater
-                    )
-                    if wx.GetKeyState(wx.WXK_CONTROL) and wx.GetKeyState(wx.WXK_SHIFT):
-                        raise
-                    if x == wx.NO:
-                        # Cancel the remaining exports.
-                        break
-                    else:
-                        # Continue on to next file.
-                        # Make sure progress dialog is in the foreground
-                        exported.update(updater.outputFiles)
-                        updater.Destroy()
-                        updater = ModalExportProgress(
-                            self.GetTitle(), updater.message, parent=self
-                        )
-                else:
-                    # Last (or only) file being processed; just alert.
-                    msg += "\n\nExport cancelled."
-                    wx.MessageBox(
-                        msg, "Error", wx.OK | wx.ICON_ERROR, parent=updater
-                    )
-                    if wx.GetKeyState(wx.WXK_CONTROL) and wx.GetKeyState(wx.WXK_SHIFT):
-                        raise
+        with open(output, 'wb') as csvfile:
+            csv_writer = csv.writer(csvfile)
 
-        exported.update(updater.outputFiles)
-        updater.Destroy()
+            # Writing column headers
+            csv_writer.writerow(scripts.idegist.CsvRowTuple._fields)
+
+            for i, filename in enumerate(sourceFiles, 1):
+                basename = os.path.basename(filename)
+                updater.message = "Exporting {} (file {} of {})".format(basename, i, numFiles)
+                updater.precision = max(0, min((len(str(os.path.getsize(filename)))/2)-1, 2))
+                updater(starting=True)
+
+                ds = idelib.importer.importFile(filename)
+                for row in scripts.idegist.summarize(ds):
+                    csv_writer.writerow(row)
+                ds.close()  # Remember to close your file after you're finished with it!
+
+            exported.update(updater.outputFiles)
+            updater.Destroy()
 
         # TODO: More reporting?
         bulleted = lambda x: " * {}".format(x)
