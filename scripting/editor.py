@@ -303,7 +303,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
 
 
     def OnModified(self, evt):
-        """
+        """ Handle editor contents change.
         """
         if evt.GetModificationType() & (STC.STC_MOD_DELETETEXT|STC.STC_MOD_INSERTTEXT):
             self.updateTab()
@@ -314,10 +314,10 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
 # 
 #===============================================================================
 
-class ScriptEditorStatusBar(wx.StatusBar):
-    """ 
-    """
-    # TODO: Implement status bar
+# class ScriptEditorStatusBar(wx.StatusBar):
+#     """ The script editor window's status bar.
+#     """
+#     # FUTURE: Implement status bar, if needed. With cursor position, etc.
 
 
 #===============================================================================
@@ -369,7 +369,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
                                    | AUI.AUI_NB_CLOSE_ON_ACTIVE_TAB)
         sizer.Add(self.nb, 1, wx.EXPAND)
 
-        self.SetStatusBar(ScriptEditorStatusBar(self, -1))
+#         self.SetStatusBar(ScriptEditorStatusBar(self, -1))
+        self.SetStatusBar(wx.StatusBar(self, -1))
         
         # XXX: This timer seemed to be causing crashes when window closes.
         self.changeCheckTimer = wx.Timer(self)
@@ -625,7 +626,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """
         editor = ScriptEditorCtrl(self.nb, -1, frame=self, root=self.root)
         if not filename:
-            names = [self.nb.GetPageText(n) for n in xrange(self.nb.GetPageCount())]
+            names = [self.nb.GetPageText(n).lstrip('*') \
+                     for n in xrange(self.nb.GetPageCount())]
             tabname = uniqueName(editor.DEFAULT_NAME, names)
         else:
             tabname = os.path.basename(filename)
@@ -638,8 +640,14 @@ class ScriptEditor(wx.Frame, MenuMixin):
             editor.LoadFile(filename)
         else:
             editor.SetText(text)
-            
-        editor.SetModified(modified)
+        
+        try:
+            editor.SetModified(modified)
+        except wx.wxAssertionError:
+            # A C++ assertion failure ("wxStyledTextCtrl::MarkDirty(): not
+            # implemented") happens when opening a tab in a new window (done
+            # via tab context menu). Not sure why there at not elsewhere.
+            pass
         
         if focus:
             self.nb.SetSelection(self.nb.GetPageIndex(editor))
@@ -785,7 +793,6 @@ class ScriptEditor(wx.Frame, MenuMixin):
             self.OnFind(evt)
         
         
-        
     def OnFindReplaceAll(self, evt):
         """ Handle find dialog 'replace all' button click. 
         """
@@ -801,7 +808,6 @@ class ScriptEditor(wx.Frame, MenuMixin):
             editor.SetText(text)
         
         
-     
     def OnFindClose(self, evt):
         """ Handle Find/Replace dialog close (cancel, escape, etc.).
         """
@@ -821,12 +827,15 @@ class ScriptEditor(wx.Frame, MenuMixin):
         for editor in self.tabs:
             if not editor.wasModifiedExternally():
                 continue
+            
             doSave = True
             if editor.IsModified():
                 q = wx.MessageBox(
-                  "A file was modified outside of the Script Editor\n\n%s\n\n"
-                  "Do you want to reload the file and lose changes?" % editor.filename, 
-                  "Reload File?", wx.YES|wx.NO|wx.YES_DEFAULT|wx.ICON_WARNING, self)
+                  "The file '%s' was modified outside of the Script Editor\n\n"
+                  "Do you want to reload the file '%s'\nand lose changes?" % \
+                  (editor.GetName(),editor.filename), 
+                  "Reload File?", wx.YES|wx.NO|wx.YES_DEFAULT|wx.ICON_WARNING,
+                  self)
                 
                 doSave = q == wx.YES
                 
@@ -855,7 +864,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
         menu.AppendSeparator()
         
         self.addMenuItem(menu, self.ID_MENU_OPEN_IN_NEW,
-                         u"Open Script in New Window", u"",
+                         u"Open Script in New Window",
+                         u"Create a new editor window containing this tab",
                          self.OnOpenInEditor)
         
         self.nb.PopupMenu(menu)
@@ -878,7 +888,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
         
         tab = self.nb.GetCurrentPage()
         if tab:
-            kwargs['contents'] = [(tab.filename, tab.GetText(), tab.IsModified())]
+            kwargs['contents'] = [(tab.filename,
+                                   tab.GetText(),
+                                   tab.IsModified())]
         
         # ???: Any additional preparation required?
         dlg = self.__class__(*args, **kwargs)
