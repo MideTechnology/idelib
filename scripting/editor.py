@@ -6,6 +6,7 @@ from datetime import datetime
 import os.path
 import string
 import tempfile
+import time
 
 import wx
 import wx.aui as AUI
@@ -177,9 +178,9 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
             return False
         return os.path.getmtime(self.filename) != self.modTime
     
-    
+
     def executeInShell(self, selected=False):
-        """
+        """ Run the tab's contents in the Python console.
         """
         if not self.filename or selected:
             filename = tempfile.mkstemp(suffix=".py")[1]
@@ -437,7 +438,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
                          "New &Window\tCtrl+Shift+N",
                          "Create a new script editor window",
                          self.OnFileNewMenu)
-        self.addMenuItem(fileMenu, wx.ID_OPEN, u"", u"", 
+        self.addMenuItem(fileMenu, wx.ID_OPEN, u"", 
+                         u"Open a Python script", 
                          self.OnFileOpenMenu)
         fileMenu.AppendSeparator()
         
@@ -451,7 +453,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
 
         self.addMenuItem(fileMenu, self.ID_MENU_DETECT_CHANGES,
                          "Detect External Edits",
-                         "",
+                         "Automatically update editor contents when another "
+                         "program changes the file",
                          self.OnFileDetectEdits,
                          kind=wx.ITEM_CHECK,
                          checked=self.checkForChanges)
@@ -469,7 +472,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
 #                          "&Close Tab\tCtrl+W", "", self.OnFileCloseTabMenu)
         
         self.addMenuItem(fileMenu, self.ID_MENU_CLOSE_WINDOW, 
-                         "&Close Window\tCtrl+Shift+W", "", self.OnFileCloseWindow)
+                         "&Close Window\tCtrl+Shift+W", 
+                         "Close the Script Editor window",
+                         self.OnFileCloseWindow)
         
         # "Edit" menu
         #=======================================================================
@@ -507,7 +512,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
                          self.OnViewMenuItem, 
                          kind=wx.ITEM_CHECK, checked=self.showLineNumbers)
         self.addMenuItem(viewMenu, self.ID_MENU_VIEW_GUIDES,
-                         'Show Indentation Guides', '',
+                         'Show Indentation Guides',
+                         'Show vertical tab alignment guides',
                          self.OnViewMenuItem, 
                          kind=wx.ITEM_CHECK, checked=self.showLineNumbers)
 
@@ -516,16 +522,18 @@ class ScriptEditor(wx.Frame, MenuMixin):
         #=======================================================================
         scriptMenu = self.addMenu(menu, '&Script')
         self.runScriptMI = self.addMenuItem(scriptMenu, self.ID_MENU_SCRIPT_RUN, 
-                         "&Run Script\tCtrl+R", '',
+                         "&Run Script\tCtrl+R",
+                         'Run the script in the current tab',
                          self.OnScriptRun)
         self.runSelectedMI = self.addMenuItem(scriptMenu, self.ID_MENU_SCRIPT_RUN_SEL, 
-                         "&Execute Selected Lines\tCtrl+E", '',
+                         "&Execute Selected Lines\tCtrl+E",
+                         'Run the selected line(s) in the current tab',
                          self.OnScriptRunSelected)
 
         scriptMenu.AppendSeparator()
         self.addMenuItem(scriptMenu, -1, 
                          "Open Python &Console\tCtrl+Shift+C", 
-                         '', 
+                         'Show the interactive Python console for this editor',
                          lambda _x:self.getShell())
 
         # debugging
@@ -732,9 +740,10 @@ class ScriptEditor(wx.Frame, MenuMixin):
                 start = 0
                 loc = textstring.find(findstring, start)
         if loc == -1:
-            dlg = wx.MessageDialog(self, 'Find String Not Found',
-                          'Find String Not Found in Demo File',
-                          wx.OK | wx.ICON_INFORMATION)
+            dlg = wx.MessageDialog(self, 
+                                   'The string "%s" could not be found.' % findstring,
+                                   'Not Found',
+                                   wx.OK | wx.ICON_INFORMATION)
             dlg.ShowModal()
             dlg.Destroy()
         if self.findDlg:
@@ -780,10 +789,19 @@ class ScriptEditor(wx.Frame, MenuMixin):
     def OnFindReplaceAll(self, evt):
         """ Handle find dialog 'replace all' button click. 
         """
-        logger.error("XXX: Implement OnFindReplaceAll()!")
-        evt.Skip()
+        editor = self.nb.GetCurrentPage()
+        if not editor:
+            return
+
+        text = editor.GetText()
+        if self.finddata.GetFindString():
+            findstring = self.finddata.GetFindString()
+            replacestring = self.finddata.GetReplaceString()
+            text = text.replace(findstring, replacestring)
+            editor.SetText(text)
         
-    
+        
+     
     def OnFindClose(self, evt):
         """ Handle Find/Replace dialog close (cancel, escape, etc.).
         """
@@ -814,6 +832,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
                 
             if doSave:
                 editor.LoadFile(editor.filename)
+            else:
+                editor.modTime = os.path.getmtime(editor.filename)#time.time()
                 
         self.changeCheckTimer.Start(self.changeCheckInterval)
 
@@ -880,9 +900,15 @@ class ScriptEditor(wx.Frame, MenuMixin):
         tab = self.nb.GetCurrentPage()
         
         if savePrompt and tab.IsModified():
-            q = wx.MessageBox("Save changes before closing?", 
-                              "Save Changes?", 
-                              wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
+            if tab.filename:
+                msg = "The script '%s' has been modified." % tab.filename
+            else:
+                msg = "The script has not been saved."
+            q = wx.MessageBox("Save Changes to '%s'?\n\n%s\nSave changes "
+                              "before closing?" % (tab.GetName(), msg), 
+                              "Script Editor", 
+                              wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT|wx.ICON_QUESTION,
+                              self)
             if q == wx.CANCEL:
                 evt.Veto()
                 return
@@ -904,8 +930,9 @@ class ScriptEditor(wx.Frame, MenuMixin):
         changed = [t for t in self.tabs if t.IsModified()]
 
         if changed:
-            q = wx.MessageBox("Some scripts have been modified but not saved. "
-                              "Save changes before closing?", "Save Changes?",
+            q = wx.MessageBox("Save Changes?\n\nSome scripts have been "
+                              "modified but not saved. Save changes before "
+                              "closing?", "Script Editor",
                               wx.YES|wx.NO|wx.CANCEL|wx.YES_DEFAULT, self)
             if q == wx.CANCEL:
                 if self.checkForChanges:
