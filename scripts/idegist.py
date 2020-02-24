@@ -46,54 +46,56 @@ CsvRowTuple = namedtuple('CsvRowTuple', [
 ])
 
 
-def summaries(filepaths):
-    for filename in filepaths:  # use your own pathname here
-        ds = idelib.importer.importFile(filename)
+def summarize_sch(subchannel):
+    dataset = subchannel.parent.dataset
+    eventlist = subchannel.getSession()
+    session = eventlist.session
+    array = eventlist[:]
 
-        for channel in ds.channels.values():
-            for subchannel in channel.subchannels:
-                eventlist = subchannel.getSession()
-                session = eventlist.session
-                array = eventlist[:]
+    times = array[0]
+    values = array[1]
+    utc_times = np.datetime64(session.utcStartTime, 's') + times.astype('timedelta64[us]')
 
-                times = array[0]
-                values = array[1]
-                utc_times = np.datetime64(session.utcStartTime, 's') + times.astype('timedelta64[us]')
+    ts = np.diff(times*1e-6).mean()
+    fs = 1/ts
 
-                ts = np.diff(times*1e-6).mean()
-                fs = 1/ts
+    norm_values = values - values.mean()
 
-                norm_values = values - values.mean()
-
-                yield CsvRowTuple(
-                    filename=ds.filename,
-                    device_serial=ds.recorderInfo['RecorderSerial'],
-                    device_part=ds.recorderInfo['PartNumber'],
-                    channel_name=subchannel.name,
-                    unit_type=eventlist.units[0],
-                    units=eventlist.units[1].replace(u'\xb0', u'degrees '),
-                    utcStartTime=np.datetime64(session.utcStartTime, 's'),
-                    utcEndTime=np.datetime64(session.utcStartTime, 's') + np.array(session.lastTime-session.firstTime, dtype='timedelta64[us]'),
-                    sampling_frequency=fs,
-                    minimum_value=values.min(),
-                    maximum_value=values.max(),
-                    mean_value=values.mean(),
-                    rms=values.std(),
-                )
-
-        ds.close()  # Remember to close your file after you're finished with it!
-        del ds, channel, subchannel, eventlist, session  # These all depend on the internal file object
+    return CsvRowTuple(
+        filename=dataset.filename,
+        device_serial=dataset.recorderInfo['RecorderSerial'],
+        device_part=dataset.recorderInfo['PartNumber'],
+        channel_name=subchannel.name,
+        unit_type=eventlist.units[0],
+        units=eventlist.units[1].replace(u'\xb0', u'degrees '),
+        utcStartTime=np.datetime64(session.utcStartTime, 's'),
+        utcEndTime=np.datetime64(session.utcStartTime, 's') + np.array(session.lastTime-session.firstTime, dtype='timedelta64[us]'),
+        sampling_frequency=fs,
+        minimum_value=values.min(),
+        maximum_value=values.max(),
+        mean_value=values.mean(),
+        rms=values.std(),
+    )
 
 
-def summarize_to_csv(csvpath, filepaths):
+def summarize(dataset):
+    for channel in dataset.channels.values():
+        for subchannel in channel.subchannels:
+            yield summarize_sch(subchannel)
+
+
+def summarize_files_to_csv(csvpath, filepaths):
     with open(csvpath, 'wb') as csvfile:
         csv_writer = csv.writer(csvfile)
 
         # Writing column headers
         csv_writer.writerow(CsvRowTuple._fields)
 
-        for file_summary in summaries(filepaths):
-            csv_writer.writerow(file_summary)
+        for filename in filepaths:  # use your own pathname here
+            ds = idelib.importer.importFile(filename)
+            for row in summarize(ds):
+                csv_writer.writerow(row)
+            ds.close()  # Remember to close your file after you're finished with it!
 
 
 def main():
@@ -126,7 +128,7 @@ def main():
         print('no .IDE files matching the input paths/patterns')
         return
 
-    summarize_to_csv(args.outfile, ide_files)
+    summarize_files_to_csv(args.outfile, ide_files)
 
 
 if __name__ == "__main__":
