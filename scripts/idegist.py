@@ -81,7 +81,9 @@ def summarize_sch(subchannel):
 def summarize(dataset):
     for channel in dataset.channels.values():
         for subchannel in channel.subchannels:
+            print('  Processing subchannel {}...'.format(subchannel.name))
             yield summarize_sch(subchannel)
+            print('  Subchannel {} complete!'.format(subchannel.name))
 
 
 def summarize_files_to_csv(csvpath, filepaths):
@@ -92,10 +94,12 @@ def summarize_files_to_csv(csvpath, filepaths):
         csv_writer.writerow(CsvRowTuple._fields)
 
         for filename in filepaths:  # use your own pathname here
+            print('Processing {}...'.format(filename))
             ds = idelib.importer.importFile(filename)
             for row in summarize(ds):
                 csv_writer.writerow(row)
             ds.close()  # Remember to close your file after you're finished with it!
+            print('{} complete!'.format(filename))
 
 
 def main():
