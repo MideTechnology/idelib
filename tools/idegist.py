@@ -40,14 +40,14 @@ class IdeSummarizer(ToolDialog):
 
     OUTPUT_TYPES = (
         "Comma-Separated Values (.CSV)",
-        "Tab-Separated Values (.TXT)",
-        "Pipe (|) Separated Values (.TXT)",
+        #"Tab-Separated Values (.TXT)",
+        #"Pipe (|) Separated Values (.TXT)",
     )
 
     DELIMITERS = (
         ('.csv', ', '),
-        ('.txt', '\t'),
-        ('.txt', '|'),
+        #('.txt', '\t'),
+        #('.txt', '|'),
     )
 
     MEAN_REMOVAL = (
@@ -72,13 +72,13 @@ class IdeSummarizer(ToolDialog):
             defaultDir=inPath,
         )
         self.inputFiles.SetSizerProps(expand=True, proportion=1)
-        self.outputBtn = FB.DirBrowseButton(
+        self.outputBtn = wx.lib.filebrowsebutton.FileBrowseButton(
             pane, -1,
             size=(450, -1), 
-            labelText="Output Directory:",
+            labelText="Output File:",
             dialogTitle="Export Path",
-            newDirectory=True,
             startDirectory=outPath,
+            fileMode=wx.FD_SAVE,
         )
         self.outputBtn.SetSizerProps(expand=True, proportion=0)
 
@@ -258,15 +258,9 @@ class IdeSummarizer(ToolDialog):
         removeMean = self.getValue(self.removeMean, 2)
 #         maxSize = (self.getValue(self.maxSize) * 1024) or MatStream.MAX_SIZE
 
-        if output is not None:
-            output = os.path.realpath(output)
-            if not os.path.exists(output):
-                try:
-                    os.makedirs(output)
-                except (WindowsError):
-                    msg = "The directory %s could not be created." % output
-                    wx.MessageBox(msg, "Error", wx.ICON_ERROR, parent=self)
-                    return
+        if not output:
+            return
+        output = os.path.realpath(output)
 
         if removeMean == 1:
             meanSpan = -1
