@@ -314,8 +314,10 @@ class IdeSummarizer(ToolDialog):
                 updater(starting=True)
 
                 ds = idelib.importer.importFile(filename)
+                wx.Yield()
                 for row in scripts.idegist.summarize(ds):
                     csv_writer.writerow(row)
+                    wx.Yield()
                 ds.close()  # Remember to close your file after you're finished with it!
 
                 processed.add(basename)
