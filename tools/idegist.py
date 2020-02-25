@@ -1,4 +1,14 @@
+import os
+import sys
+import csv
+
+import wx
+
+import idelib.importer
 import scripts.idegist
+from widgets.multifile import MultiFileSelect
+from tools.base import ToolDialog
+from tools.raw2mat import ModalExportProgress
 
 
 ###############################################################################
@@ -23,22 +33,22 @@ PLUGIN_INFO = {
 # Tool Dialog
 ###############################################################################
 
-class Ide2Csv(ToolDialog):
+class IdeSummarizer(ToolDialog):
     """ The main dialog. The plan is for all tools to implement a ToolDialog,
         so the tools can be found and started in a generic manner.
     """
-    TITLE = "Batch IDE Exporter"
+    TITLE = "Batch IDE Summarizer"
 
     OUTPUT_TYPES = (
         "Comma-Separated Values (.CSV)",
-        "Tab-Separated Values (.TXT)",
-        "Pipe (|) Separated Values (.TXT)",
+        #"Tab-Separated Values (.TXT)",
+        #"Pipe (|) Separated Values (.TXT)",
     )
 
     DELIMITERS = (
         ('.csv', ', '),
-        ('.txt', '\t'),
-        ('.txt', '|'),
+        #('.txt', '\t'),
+        #('.txt', '|'),
     )
 
     MEAN_REMOVAL = (
@@ -50,7 +60,7 @@ class Ide2Csv(ToolDialog):
     timeScalar = 1e-6
 
     def __init__(self, *args, **kwargs):
-        super(Ide2Csv, self).__init__(*args, **kwargs)
+        super(IdeSummarizer, self).__init__(*args, **kwargs)
 
         pane = self.GetContentsPane()
 
@@ -63,19 +73,19 @@ class Ide2Csv(ToolDialog):
             defaultDir=inPath,
         )
         self.inputFiles.SetSizerProps(expand=True, proportion=1)
-        self.outputBtn = FB.DirBrowseButton(
+        self.outputBtn = wx.lib.filebrowsebutton.FileBrowseButton(
             pane, -1,
             size=(450, -1), 
-            labelText="Output Directory:",
+            labelText="Output File:",
             dialogTitle="Export Path",
-            newDirectory=True,
             startDirectory=outPath,
+            fileMode=wx.FD_SAVE,
         )
         self.outputBtn.SetSizerProps(expand=True, proportion=0)
 
         wx.StaticLine(pane, -1).SetSizerProps(expand=True)
 
-        subpane = SC.SizedPanel(pane, -1)
+        subpane = wx.lib.sized_controls.SizedPanel(pane, -1)
         subpane.SetSizerType('form')
         subpane.SetSizerProps(expand=True)
 
@@ -164,7 +174,7 @@ class Ide2Csv(ToolDialog):
 #             minmax=(16, MatStream.MAX_LENGTH/1024/1024),
 #             tooltip="The maximum size of each MAT file. Must be below 2GB.")
 
-        subpane = SC.SizedPanel(pane, -1)
+        subpane = wx.lib.sized_controls.SizedPanel(pane, -1)
         subpane.SetSizerType('form')
         subpane.SetSizerProps(expand=True)
 
@@ -199,7 +209,7 @@ class Ide2Csv(ToolDialog):
     def OnCheck(self, evt):
         """ Handle all checkbox events. Bound in base class.
         """
-        super(Ide2Csv, self).OnCheck(evt)
+        super(IdeSummarizer, self).OnCheck(evt)
         obj = evt.EventObject
         if obj.IsChecked():
             # end time and duration are mutually exclusive
@@ -235,7 +245,6 @@ class Ide2Csv(ToolDialog):
         """
         """
         sourceFiles = self.inputFiles.GetPaths()
-        numFiles = len(sourceFiles)
         output = self.outputBtn.GetValue() or None
         startTime = self.getValue(self.startTime, 0)
         endTime = self.getValue(self.endTime, None)
@@ -249,15 +258,9 @@ class Ide2Csv(ToolDialog):
         removeMean = self.getValue(self.removeMean, 2)
 #         maxSize = (self.getValue(self.maxSize) * 1024) or MatStream.MAX_SIZE
 
-        if output is not None:
-            output = os.path.realpath(output)
-            if not os.path.exists(output):
-                try:
-                    os.makedirs(output)
-                except (WindowsError):
-                    msg = "The directory %s could not be created." % output
-                    wx.MessageBox(msg, "Error", wx.ICON_ERROR, parent=self)
-                    return
+        if not output:
+            return
+        output = os.path.realpath(output)
 
         if removeMean == 1:
             meanSpan = -1
@@ -280,7 +283,6 @@ class Ide2Csv(ToolDialog):
         updater = ModalExportProgress(self.GetTitle(), "Exporting...\n\n", 
                                       parent=self)
 
-        exported = set()
         processed = set()
         totalSamples = 0
 
@@ -299,63 +301,36 @@ class Ide2Csv(ToolDialog):
                       useNames=useNames
                       )
 
-        for n, f in enumerate(sourceFiles, 1):
-            b = os.path.basename(f)
-            updater.message = "Exporting {} (file {} of {})".format(b, n, numFiles)
-            updater.precision = max(0, min((len(str(os.path.getsize(f)))/2)-1, 2))
-            updater(starting=True)
-            try:
-                num = ideExport(
-                    f, output, startTime=startTime, endTime=endTime, **params
-                )
-                totalSamples += num
-                processed.add(f)
-            except Exception as err:
-                # TODO: Handle this exception for real! Currently, various
-                # problems will show the 'export cancelled' message.
-                msg = err.message
-                if n < numFiles:
-                    # Not the last file; ask to abort.
-                    msg += "\n\nContinue exporting next file?"
-                    x = wx.MessageBox(
-                        msg, "Error", wx.YES_NO | wx.ICON_ERROR, parent=updater
-                    )
-                    if wx.GetKeyState(wx.WXK_CONTROL) and wx.GetKeyState(wx.WXK_SHIFT):
-                        raise
-                    if x == wx.NO:
-                        # Cancel the remaining exports.
-                        break
-                    else:
-                        # Continue on to next file.
-                        # Make sure progress dialog is in the foreground
-                        exported.update(updater.outputFiles)
-                        updater.Destroy()
-                        updater = ModalExportProgress(
-                            self.GetTitle(), updater.message, parent=self
-                        )
-                else:
-                    # Last (or only) file being processed; just alert.
-                    msg += "\n\nExport cancelled."
-                    wx.MessageBox(
-                        msg, "Error", wx.OK | wx.ICON_ERROR, parent=updater
-                    )
-                    if wx.GetKeyState(wx.WXK_CONTROL) and wx.GetKeyState(wx.WXK_SHIFT):
-                        raise
+        with open(output, 'wb') as csvfile:
+            csv_writer = csv.writer(csvfile)
 
-        exported.update(updater.outputFiles)
-        updater.Destroy()
+            # Writing column headers
+            csv_writer.writerow(scripts.idegist.CsvRowTuple._fields)
+
+            for i, filename in enumerate(sourceFiles, 1):
+                basename = os.path.basename(filename)
+                updater.message = "Exporting {} (file {} of {})".format(basename, i, len(sourceFiles))
+                updater.precision = max(0, min((len(str(os.path.getsize(filename)))/2)-1, 2))
+                updater(starting=True)
+
+                ds = idelib.importer.importFile(filename)
+                for row in scripts.idegist.summarize(ds):
+                    csv_writer.writerow(row)
+                ds.close()  # Remember to close your file after you're finished with it!
+
+                processed.add(basename)
+
+            updater.Destroy()
 
         # TODO: More reporting?
         bulleted = lambda x: " * {}".format(x)
         processed = '\n'.join(bulleted(i) for i in sorted(processed)) or "None"
-        exported = '\n'.join(bulleted(i) for i in sorted(exported)) or "None"
         msg = (
             "Files processed:\n{}\n\n"
-            "Files generated:\n{}\n\n"
             "Total samples exported: {}"
-            .format(processed, exported, totalSamples)
+            .format(processed, totalSamples)
         )
-        dlg = ScrolledMessageDialog(self, msg, "{}: Complete".format(self.GetTitle()))
+        dlg = wx.lib.dialogs.ScrolledMessageDialog(self, msg, "{}: Complete".format(self.GetTitle()))
         dlg.ShowModal()
 
         self.savePrefs()
@@ -366,7 +341,7 @@ class Ide2Csv(ToolDialog):
 #===============================================================================
 
 def launch(parent=None):
-    dlg = Ide2Csv(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
+    dlg = IdeSummarizer(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
     dlg.ShowModal()
 
 
