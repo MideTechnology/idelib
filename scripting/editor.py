@@ -6,7 +6,6 @@ from datetime import datetime
 import os.path
 import string
 import tempfile
-import time
 
 import wx
 import wx.aui as AUI
@@ -182,6 +181,8 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
     def executeInShell(self, selected=False):
         """ Run the tab's contents in the Python console.
         """
+        evGlobals = {}
+        
         if not self.filename or selected:
             filename = tempfile.mkstemp(suffix=".py")[1]
             code = self.GetSelectedText() if selected else self.GetText()
@@ -201,6 +202,7 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
             else:
                 what = "selected text (%d lines)" % numLines
         else:
+            evGlobals['__name__'] = "__main__"
             what = "script"
             
         name = self.GetName()
@@ -210,8 +212,8 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         
         try:
             shell = self.frame.getShell()
-            shell.shell.push("print(%r);execfile(%r);print(%r)" % 
-                             (start,filename,finish))
+            shell.shell.push("print(%r);execfile(%r,%r);print(%r)" % 
+                             (start,filename,evGlobals,finish))
         except Exception as err:
             logger.error("XXX: ScriptEditorCtrl.executeInShell() error: %r" % err)
             raise

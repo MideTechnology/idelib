@@ -156,7 +156,8 @@ class SlamStickX(Recorder):
             return default
         
         if name is None:
-            return self._info
+            # Whole dict requested: return a copy (prevents accidental edits)
+            return self._info.copy()
         else:
             return self._info.get(name, default)
 
@@ -281,17 +282,19 @@ class SlamStickX(Recorder):
     
     @property
     def productId(self):
+        """ The recording device's type ID. """
         return self.getInfo('RecorderTypeUID', 0x12) & 0xff
     
     
     @property
     def partNumber(self):
+        """ The recording device's manufacturer-issued part number. """
         return self.getInfo('PartNumber', '')
     
     
     @property
     def serial(self):
-        """ The recorder's manufacturer-issued serial number. """
+        """ The recorder's manufacturer-issued serial number (as string). """
         if self._sn is None:
             self._snInt = self.getInfo('RecorderSerial', None)
             if self._snInt == None:
@@ -303,22 +306,37 @@ class SlamStickX(Recorder):
 
     @property
     def serialInt(self):
+        """ The recorder's manufacturer-issued serial number (as integer). """
         _ = self.serial # Calls property, which sets _snInt attribute
         return self._snInt
 
 
     @property
     def hardwareVersion(self):
+        """ The recorder's manufacturer-issued hardware version number. """
         return self.getInfo('HwRev', -1)
 
     
     @property
     def firmwareVersion(self):
+        """ The recorder's manufacturer-issued firmware version number.
+        """
         return self.getInfo('FwRev', -1)
 
 
     @property
+    def firmware(self):
+        """ The recorder's manufacturer-issued firmware version string or name.
+        """
+        fw = self.getInfo('FwRevStr', None)
+        if not fw:
+            fw = "1.%s" % self.firmwareVersion
+        return fw
+
+
+    @property
     def birthday(self):
+        """ The recorder's date of manufacture. """
         return self.getInfo('DateOfManufacture')
 
 

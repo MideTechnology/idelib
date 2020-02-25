@@ -1793,6 +1793,8 @@ class Viewer(wx.Frame, MenuMixin):
             @keyword focus: If `True`, the console will be shown and take
                 focus before the script runs.
         """
+        evGlobals = {'__name__': '__main__'}
+        
         if not self.console:
             self.console = scripting.shell.PythonConsole.openConsole(self)
             self.childViews[self.console.GetId()] = self.console
@@ -1808,8 +1810,8 @@ class Viewer(wx.Frame, MenuMixin):
         finish = "### Finished running %s" % (filename)
         
         try:
-            self.console.shell.push("print(%r);execfile(%r);print(%r)" % 
-                                    (start,filename,finish))
+            self.console.shell.push("print(%r);execfile(%r,%r);print(%r)" % 
+                                    (start,filename,evGlobals,finish))
             # TODO: Find better way to identify when an error happens.
             # This doesn't seem to work at all.
             if getattr(self.console.shell, 'hasSyntaxError', False):

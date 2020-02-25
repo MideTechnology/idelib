@@ -637,7 +637,7 @@ class DeviceInfoTab(Tab):
         self.sizer = wx.BoxSizer(wx.VERTICAL)
         self.field = SSXInfoPanel(self, -1, 
                                   root=self.root,
-                                  info=dev.getInfo())
+                                  info=info)
         self.sizer.Add(self.field, 1, wx.EXPAND)
         self.SetSizer(self.sizer)
 

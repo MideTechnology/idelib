@@ -160,6 +160,13 @@ class Recorder(object):
 
 
     @property
+    def firmware(self):
+        """ The recorder's manufacturer-issued firmware version string or name.
+        """
+        return str(self.firmwareVersion)
+    
+
+    @property
     def birthday(self):
         """ The recorder's date of manufacture. """
         return None

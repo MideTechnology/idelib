@@ -45,7 +45,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
     ADVANCED_COLUMNS = (COLUMNS + 
                         (ColumnInfo("HW Rev.", "hardwareVersion", cleanUnicode, ''),
-                         ColumnInfo("FW Rev.", "firmwareVersion", cleanUnicode, '')))
+                         ColumnInfo("FW Rev.", "firmware", cleanUnicode, '')))
 
     # Tool tips for the 'record' button
     RECORD_UNSELECTED = "No recorder selected"
