@@ -280,11 +280,25 @@ class IdeSummarizer(ToolDialog):
             endTime /= self.timeScalar
         endTime = endTime or None
 
-        updater = ModalExportProgress(self.GetTitle(), "Exporting...\n\n", 
-                                      parent=self)
+        totalSamples = 0
+        for filename in sourceFiles:
+            ds = idelib.importer.importFile(filename)
+            totalSamples += sum(
+                len(sch.getSession())
+                for ch in ds.channels.values()
+                for sch in ch.subchannels
+            )
+            ds.close()
+
+        updater = wx.ProgressDialog(
+            title=self.GetTitle(),
+            message="Exporting...\n\n",
+            maximum=totalSamples,
+            parent=self,
+        )
 
         processed = set()
-        totalSamples = 0
+        sampleCount = 0
 
         # Keyword arguments shared by all exports
         params = dict(outputType=outputType, 
@@ -309,20 +323,27 @@ class IdeSummarizer(ToolDialog):
 
             for i, filename in enumerate(sourceFiles, 1):
                 basename = os.path.basename(filename)
-                updater.message = "Exporting {} (file {} of {})".format(basename, i, len(sourceFiles))
-                updater.precision = max(0, min((len(str(os.path.getsize(filename)))/2)-1, 2))
-                updater(starting=True)
+                updater.Update(
+                    sampleCount,
+                    newmsg="Exporting {} (file {} of {})"
+                           .format(basename, i, len(sourceFiles)),
+                )
 
                 ds = idelib.importer.importFile(filename)
                 wx.Yield()
-                for row in scripts.idegist.summarize(ds):
-                    csv_writer.writerow(row)
-                    wx.Yield()
+                for channel in ds.channels.values():
+                    for subchannel in channel.subchannels:
+                        csv_writer.writerow(scripts.idegist.summarize_sch(subchannel))
+
+                        sampleCount += len(subchannel.getSession())
+                        updater.Update(sampleCount)
+                        wx.Yield()
+
                 ds.close()  # Remember to close your file after you're finished with it!
 
                 processed.add(basename)
 
-            updater.Destroy()
+        updater.Destroy()
 
         # TODO: More reporting?
         bulleted = lambda x: " * {}".format(x)
@@ -330,7 +351,7 @@ class IdeSummarizer(ToolDialog):
         msg = (
             "Files processed:\n{}\n\n"
             "Total samples exported: {}"
-            .format(processed, totalSamples)
+            .format(processed, sampleCount)
         )
         dlg = wx.lib.dialogs.ScrolledMessageDialog(self, msg, "{}: Complete".format(self.GetTitle()))
         dlg.ShowModal()
