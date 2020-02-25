@@ -12,7 +12,6 @@ from collections import namedtuple
 
 import numpy as np
 
-sys.path.append('C:\\Users\\bawqatty\\GitRepos\\SlamStickLab')
 import idelib.importer
 
 
