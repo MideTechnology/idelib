@@ -3,7 +3,9 @@ Interactive Python interpreter for debugging purposes.
 
 @author: dstokes
 
-@todo: Refactor. This is a copy of the old debugging console as a stand-in.
+@todo: Make errors apply focus to the console (for main view's "Run Script").
+    Tried an excepthook and a replacement for stderr which called `Focus()`,
+    but neither worked.
 '''
 from __future__ import absolute_import, print_function
 
@@ -12,12 +14,56 @@ import os
 import sys
 
 import wx.adv
-import  wx.lib.dialogs
 import wx.py
 
 import build_info
 import images
 import mide_ebml
+from widgets import htmlwindow
+
+#===============================================================================
+# 
+#===============================================================================
+
+HELP_HTML = """<html>
+<h1>Scripting Console Help</h1>
+<p>The Scripting Console provides access to the underlying Python environment.
+Proceed with caution: misuse of the Console may cause enDAQ Lab to crash!</p>
+
+<h2>Useful global variables and helper functions</h2>
+<table>
+<tr><td><tt>app</tt></td><td>The currently running app.</td></tr>
+<tr><td><tt>viewer</tt></td><td>The active viewer window when the console was opened.</td></tr>
+<tr><td><tt>viewer.dataset</tt></td><td>The active imported recording file.</td></tr>
+<tr><td><tt>viewer.getTab()</tt></td><td>Retrieve the foreground tab.</td></tr>
+</table>
+<H2>Key bindings</H2>
+<table>
+<tr><td>Home</td><td>Go to the beginning of the command or line.</td></tr>
+<tr><td>Shift+Home</td><td>Select to the beginning of the command or line.</td></tr>
+<tr><td>Shift+End</td><td>Select to the end of the line.</td></tr>
+<tr><td>End</td><td>Go to the end of the line.</td></tr>
+<tr><td>Ctrl+C</td><td>Copy selected text, removing prompts.</td></tr>
+<tr><td>Ctrl+Shift+C</td><td>Copy selected text, retaining prompts.</td></tr>
+<tr><td>Alt+C</td><td>Copy to the clipboard, including prefixed prompts.</td></tr>
+<tr><td>Ctrl+X</td><td>Cut selected text.</td></tr>
+<tr><td>Ctrl+V</td><td>Paste from clipboard.</td></tr>
+<tr><td>Ctrl+Shift+V</td><td>Paste and run multiple commands from clipboard.</td></tr>
+<tr><td>Ctrl+Up Arrow</td><td>Retrieve Previous History item.</td></tr>
+<tr><td>Alt+P</td><td>Retrieve Previous History item.</td></tr>
+<tr><td>Ctrl+Down Arrow</td><td>Retrieve Next History item.</td></tr>
+<tr><td>Alt+N</td><td>Retrieve Next History item.</td></tr>
+<tr><td>Ctrl+]</td><td>Increase font size.</td></tr>
+<tr><td>Ctrl+[</td><td>Decrease font size.</td></tr>
+<tr><td>Ctrl+=</td><td>Default font size.</td></tr>
+<tr><td>Ctrl+F</td><td>Find (search).</td></tr>
+<tr><td>Ctrl+G</td><td>Find next.</td></tr>
+<tr><td>Ctrl+Shift+G</td><td>Find previous.</td></tr>
+<tr><td>F12</td><td>Toggle "free-edit" mode.</td></tr>
+<tr><td>Ctrl+Tab</td><td>Change to console's associated viewer window.</td></tr>
+</table>
+</html>"""
+
 
 #===============================================================================
 # 
@@ -26,11 +72,14 @@ import mide_ebml
 class PythonConsole(wx.py.shell.ShellFrame):
     """ An interactive Python console for scripting and debugging purposes.
     """
-    TITLE = "Scripting Console"
+    ID_RESET = wx.NewIdRef()
+    ID_SHOW_VIEW = wx.NewIdRef()
+    ID_EDIT_PATHS = wx.NewIdRef()
+    
     
     ORIG_PATHS = sys.path[:]
     
-    HELP_TEXT = '\n'.join(
+    INTRO_TEXT = '\n'.join(
         ("* Useful global variables and helper functions:",
          "\tapp               The currently running app.",
          "\tviewer            The active viewer window when the console was opened.",
@@ -47,14 +96,14 @@ class PythonConsole(wx.py.shell.ShellFrame):
             @keyword statusText: Initial text for the status bar.
             @keyword locals: A dictionary of local variables (like `exec` uses)
         """
-        title = kwargs.setdefault('title', self.TITLE)
+        title = kwargs.setdefault('title', "Scripting Console")
         config = kwargs.pop('config', None)
         dataDir = kwargs.pop('dataDir', None)
-        introText = kwargs.pop('introText', "%s\n\n%s" % (title, self.HELP_TEXT))
+        introText = kwargs.pop('introText', "%s\n\n%s" % (title, self.INTRO_TEXT))
         statusText = kwargs.pop('statusText', None)
         self.startupScript = kwargs.pop('startupScript', None)
         self.execStartupScript = kwargs.pop('execStartupScript', True)
-        localvars = kwargs.pop('locals', None)
+        localvars = kwargs.pop('locals', {})
         interpClass = kwargs.pop('InterpClass', None)
         focus = kwargs.pop('focus', True)
     
@@ -112,28 +161,34 @@ class PythonConsole(wx.py.shell.ShellFrame):
         fileMenu = menubar.GetMenu(0)
         numItems = fileMenu.GetMenuItemCount()
         idx = numItems - 2
-        mi = wx.MenuItem(fileMenu, wx.ID_ANY, 
+        mi = wx.MenuItem(fileMenu, self.ID_RESET, 
                      "Reset Interpreter\tCtrl+Shift+R",
                      "Restart the interpreter, clearing local variables, etc.",
                      wx.ITEM_NORMAL)
         fileMenu.InsertSeparator(idx)
         fileMenu.Insert(idx+1, mi)
-        
         self.Bind(wx.EVT_MENU, self.reset, id=mi.GetId())
+
+        # Add F3/Shift+F3 accelerators to Find/Find Next
+        editMenu = menubar.GetMenu(1)
+        accel = wx.AcceleratorTable([
+            (wx.ACCEL_NORMAL, wx.WXK_F3, editMenu.GetMenuItems()[-2].GetId()),
+            (wx.ACCEL_SHIFT, wx.WXK_F3, editMenu.GetMenuItems()[-1].GetId())])
+        self.SetAcceleratorTable(accel)
         
         viewMenu = menubar.GetMenu(2)
         viewMenu.AppendSeparator()
-        mi = viewMenu.Append(wx.ID_ANY,
-                             "Show console's associated view\tCtrl+Space",
+        mi = viewMenu.Append(self.ID_SHOW_VIEW,
+                             "Show console's associated view\tCtrl+Tab",
                              "Bring the associated viewer window to the front.",
                              wx.ITEM_NORMAL)
-        
         self.Bind(wx.EVT_MENU, self.OnShowView, id=mi.GetId())
     
         optMenu = menubar.GetMenu(3)
         for _i in range(3):
+            # Remove unused default menu item
             optMenu.Remove(optMenu.GetMenuItems()[-1])
-        mi = optMenu.Append(wx.ID_ANY,
+        mi = optMenu.Append(self.ID_EDIT_PATHS,
                             "Edit Module Import Paths...",
                             "Set the paths used to find modules to import (sys.path/PYTHONPATH).",
                             wx.ITEM_NORMAL)
@@ -189,7 +244,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
         self.shell.push(cmd, silent=quiet)
         
         return paths
-
+   
     
     def reset(self, *args):
         """ Reset the console: clear local variables, etc. Really just
@@ -257,21 +312,15 @@ class PythonConsole(wx.py.shell.ShellFrame):
     def OnHelp(self, evt):
         """ Display a Help window.
         """
-        # XXX: REWRITE CONSOLE HELP!
-        title = 'Scripting Console Help'
-        
-        text = ["The Scripting Console provides access to the underlying "
-                "Python environment.", "Proceed with caution: misuse of the "
-                "Console may cause %s to crash!\n" % build_info.APPNAME, 
-                self.HELP_TEXT, 
-                wx.py.shell.HELP_TEXT]
-        text = '\n'.join(text)
+        text = HELP_HTML
+        if wx.Platform != "__WXMAC__" or True:
+            # For future use, here now lest we forget.
+            text = (text.replace("Ctrl+", "Command-")
+                        .replace("Alt+", "Option-")
+                        .replace("Shift+", "Shift-"))
 
-        dlg = wx.lib.dialogs.ScrolledMessageDialog(self, text, title,
-                                                   size=(700, 600))
-        fnt = wx.Font(10, wx.TELETYPE, wx.NORMAL, wx.NORMAL)
-        dlg.GetChildren()[0].SetFont(fnt)
-        dlg.GetChildren()[0].SetInsertionPoint(0)
+        dlg = htmlwindow.HtmlDialog(self, text, 'Scripting Console Help',
+                                    setBgColor=False)
         dlg.ShowModal()
         dlg.Destroy()
 

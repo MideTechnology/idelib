@@ -1786,13 +1786,24 @@ class Viewer(wx.Frame, MenuMixin):
         return self.console
 
 
-    def runScript(self, filename, focus=False):
+    def runScript(self, filename, focus=False, warn=True):
         """ Execute a Python script.
             
             @param filename: The script's full path and filename.
             @keyword focus: If `True`, the console will be shown and take
                 focus before the script runs.
         """
+        if warn:
+            warning = self.ask("Caution!\n\n"
+                           "Scripts from unknown sources pose a risk to your "
+                           "computer's security. They should be treated with "
+                           "the same caution as any downloaded software.\n\n"
+                           "Do you wish to continue?",
+                           "Run Script", icon=wx.ICON_WARNING,
+                           pref="scriptWarning", saveNo=False)
+            if warning != wx.ID_YES:
+                return
+            
         evGlobals = {'__name__': '__main__'}
         
         if not self.console:
@@ -2080,16 +2091,6 @@ class Viewer(wx.Frame, MenuMixin):
     def OnScriptRun(self, evt):
         """ Handle "Scripting->Run Script" menu events.
         """
-        warning = self.ask("Caution!\n\n"
-                           "Scripts from unknown sources pose a risk to your "
-                           "computer's security. They should be treated with "
-                           "the same caution as any downloaded software.\n\n"
-                           "Do you wish to continue?",
-                           "Run Script", icon=wx.ICON_WARNING,
-                           pref="scriptWarning", saveNo=False)
-        if warning != wx.ID_YES:
-            return
-            
         types = "Python Script (*.py)|*.py"
 
         dlg = wx.FileDialog(self, message="Run Python Script",
