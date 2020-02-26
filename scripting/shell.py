@@ -32,35 +32,57 @@ Proceed with caution: misuse of the Console may cause enDAQ Lab to crash!</p>
 
 <h2>Useful global variables and helper functions</h2>
 <table>
-<tr><td><tt>app</tt></td><td>The currently running app.</td></tr>
-<tr><td><tt>viewer</tt></td><td>The active viewer window when the console was opened.</td></tr>
-<tr><td><tt>viewer.dataset</tt></td><td>The active imported recording file.</td></tr>
-<tr><td><tt>viewer.getTab()</tt></td><td>Retrieve the foreground tab.</td></tr>
+<tr><td><tt>app</tt></td>
+    <td>The currently running app.</td></tr>
+<tr><td><tt>viewer</tt></td>
+    <td>The active viewer window when the console was opened.</td></tr>
+<tr><td><tt>viewer.dataset</tt></td>
+    <td>The active imported recording file.</td></tr>
+<tr><td><tt>viewer.getTab()</tt></td>
+    <td>Retrieve the foreground tab.</td></tr>
 </table>
 <H2>Key bindings</H2>
 <table>
-<tr><td>Home</td><td>Go to the beginning of the command or line.</td></tr>
-<tr><td>Shift+Home</td><td>Select to the beginning of the command or line.</td></tr>
-<tr><td>Shift+End</td><td>Select to the end of the line.</td></tr>
-<tr><td>End</td><td>Go to the end of the line.</td></tr>
-<tr><td>Ctrl+C</td><td>Copy selected text, removing prompts.</td></tr>
-<tr><td>Ctrl+Shift+C</td><td>Copy selected text, retaining prompts.</td></tr>
-<tr><td>Alt+C</td><td>Copy to the clipboard, including prefixed prompts.</td></tr>
-<tr><td>Ctrl+X</td><td>Cut selected text.</td></tr>
-<tr><td>Ctrl+V</td><td>Paste from clipboard.</td></tr>
-<tr><td>Ctrl+Shift+V</td><td>Paste and run multiple commands from clipboard.</td></tr>
-<tr><td>Ctrl+Up Arrow</td><td>Retrieve Previous History item.</td></tr>
-<tr><td>Alt+P</td><td>Retrieve Previous History item.</td></tr>
-<tr><td>Ctrl+Down Arrow</td><td>Retrieve Next History item.</td></tr>
-<tr><td>Alt+N</td><td>Retrieve Next History item.</td></tr>
-<tr><td>Ctrl+]</td><td>Increase font size.</td></tr>
-<tr><td>Ctrl+[</td><td>Decrease font size.</td></tr>
-<tr><td>Ctrl+=</td><td>Default font size.</td></tr>
-<tr><td>Ctrl+F</td><td>Find (search).</td></tr>
-<tr><td>Ctrl+G</td><td>Find next.</td></tr>
-<tr><td>Ctrl+Shift+G</td><td>Find previous.</td></tr>
-<tr><td>F12</td><td>Toggle "free-edit" mode.</td></tr>
-<tr><td>Ctrl+Tab</td><td>Change to console's associated viewer window.</td></tr>
+<tr><td>Home</td>
+    <td>Go to the beginning of the command or line.</td></tr>
+<tr><td>Shift+Home</td>
+    <td>Select to the beginning of the command or line.</td></tr>
+<tr><td>Shift+End</td>
+    <td>Select to the end of the line.</td></tr>
+<tr><td>End</td>
+    <td>Go to the end of the line.</td></tr>
+<tr><td>Ctrl+C</td>
+    <td>Copy selected text, removing prompts.</td></tr>
+<tr><td>Ctrl+Shift+C</td>
+    <td>Copy selected text, retaining prompts.</td></tr>
+<tr><td>Alt+C</td>
+    <td>Copy to the clipboard, including prefixed prompts.</td></tr>
+<tr><td>Ctrl+X</td>
+    <td>Cut selected text.</td></tr>
+<tr><td>Ctrl+V</td>
+    <td>Paste from clipboard.</td></tr>
+<tr><td>Ctrl+Shift+V</td>
+    <td>Paste and run multiple commands from clipboard.</td></tr>
+<tr><td>Ctrl+Up Arrow<br/><i>or</i> Alt+P</td>
+    <td>Retrieve Previous History item.</td></tr>
+<tr><td>Ctrl+Down Arrow<br/><i>or</i> Alt+N</td>
+    <td>Retrieve Next History item.</td></tr>
+<tr><td>Ctrl+]</td>
+    <td>Increase font size.</td></tr>
+<tr><td>Ctrl+[</td>
+    <td>Decrease font size.</td></tr>
+<tr><td>Ctrl+=</td>
+    <td>Default font size.</td></tr>
+<tr><td>Ctrl+F</td>
+    <td>Find (search).</td></tr>
+<tr><td>Ctrl+G<br/><i>or</i> F3</td>
+    <td>Find next.</td></tr>
+<tr><td>Ctrl+Shift+G<br/><i>or</i> Shift+F3</td>
+    <td>Find previous.</td></tr>
+<tr><td>F12</td>
+    <td>Toggle "free-edit" mode.</td></tr>
+<tr><td>Ctrl+Tab</td>
+    <td>Change to console's associated viewer window.</td></tr>
 </table>
 </html>"""
 
