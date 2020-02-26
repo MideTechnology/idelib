@@ -12,7 +12,8 @@ import wx.aui as AUI
 import wx.stc as STC
 
 from base import MenuMixin
-from build_info import DEBUG
+# from build_info import DEBUG
+import images
 from logger import logger
 
 
@@ -178,53 +179,47 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         return os.path.getmtime(self.filename) != self.modTime
     
 
-    def executeInShell(self, selected=False):
-        """ Run the tab's contents in the Python console.
+    def executeInShell(self, selected=False, globalScope=True):
+        """ Run the tab's contents in the Python console. Running selected
+            text is done in the editor's current scope.
         """
         evGlobals = {}
         
         if not self.filename or selected:
-            filename = tempfile.mkstemp(suffix=".py")[1]
+            filename = None#tempfile.mkstemp(suffix=".py")[1]
             code = self.GetSelectedText() if selected else self.GetText()
             if not code:
                 return
-            with open(filename, 'wb') as f:
-                f.write(code)
-            istemp = True
         else:
             filename = self.filename
-            istemp = False
+            code=None
 
         if selected:
+            whatEnd = "selected text"
             numLines = (code.rstrip('\n').count('\n')+1)
             if numLines == 1:
-                what = "selected text (1 line)"
+                what = whatEnd + " (1 line)"
             else:
-                what = "selected text (%d lines)" % numLines
+                what = whatEnd + " (%d lines)" % numLines
         else:
+            what = whatEnd = "script"
             evGlobals['__name__'] = "__main__"
-            what = "script"
-            
+
         name = self.GetName()
         now = str(datetime.now()).rsplit('.',1)[0]
         start = "### Running %s from tab '%s' at %s" % (what, name, now)
-        finish = "### Finished running %s from tab '%s'" % (what, name)
-        
+        finish = "### Finished running %s from tab '%s'" % (whatEnd, name)
+
         try:
-            shell = self.frame.getShell()
-            shell.shell.push("print(%r);execfile(%r,%r);print(%r)" % 
-                             (start,filename,evGlobals,finish))
+            self.frame.getShell().execute(filename=filename, code=code,
+                                          globalScope=globalScope,
+                                          start=start, finish=finish)
         except Exception as err:
-            logger.error("XXX: ScriptEditorCtrl.executeInShell() error: %r" % err)
+            # Error trying to execute the script (not the script itself)
+            logger.error("ScriptEditorCtrl.executeInShell() error: %r" % err)
             raise
-        finally:
-            if istemp:
-                try:
-                    os.remove(filename)
-                except (IOError, WindowsError):
-                    pass
-        
-    
+
+
     def LoadFile(self, filename):
         """ Load a script into the editor. Will also update the parent
             notebook's tab.
@@ -374,7 +369,8 @@ class ScriptEditor(wx.Frame, MenuMixin):
 #         self.SetStatusBar(ScriptEditorStatusBar(self, -1))
         self.SetStatusBar(wx.StatusBar(self, -1))
         
-        # XXX: This timer seemed to be causing crashes when window closes.
+        self.SetIcon(images.icon.GetIcon())
+        
         self.changeCheckTimer = wx.Timer(self)
 
         self.tabs = []
@@ -539,12 +535,19 @@ class ScriptEditor(wx.Frame, MenuMixin):
                          'Show the interactive Python console for this editor',
                          lambda _x:self.getShell())
 
+        helpMenu = self.addMenu(menu, "&Help")
+        name = getattr(wx.GetApp(), 'fullAppName', '')
+        self.addMenuItem(helpMenu, wx.ID_ABOUT,
+                         "About %s..." % name,
+                         "About %s..." % name,
+                         self.OnHelpAboutMenu)
+
         # debugging
         #=======================================================================
-        if DEBUG:
-            debugMenu = self.addMenu(menu, "&Debug")
-            self.addMenuItem(debugMenu, -1, 'getShell(focus=False)', '', 
-                             lambda _x:self.getShell(focus=False))
+#         if DEBUG:
+#             debugMenu = self.addMenu(menu, "&Debug")
+#             self.addMenuItem(debugMenu, -1, 'getShell(focus=False)', '', 
+#                              lambda _x:self.getShell(focus=False))
 
         self.SetMenuBar(menu)
 
@@ -598,7 +601,10 @@ class ScriptEditor(wx.Frame, MenuMixin):
             if name:
                 title = "%s: %s" % (self.baseTitle, name)
         
-        self.SetTitle(title)
+        try:
+            self.SetTitle(title)
+        except RuntimeError:
+            pass
 
     
     def getShell(self, focus=True):
@@ -718,7 +724,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
             return
         editor.Paste()
     
-    
+
     #===========================================================================
     # 
     #===========================================================================
@@ -1106,7 +1112,19 @@ class ScriptEditor(wx.Frame, MenuMixin):
                 tab.executeInShell(selected=True)
             else:
                 wx.Bell()
-            
+
+
+    #===========================================================================
+
+    def OnHelpAboutMenu(self, evt):
+        """ Handle 'Help->About' menu event.
+        """
+        try:
+            self.root.OnHelpAboutMenu(evt)
+        except AttributeError:
+            # Probably not started through a viewer
+            pass
+
 
 #===============================================================================
 # 

@@ -12,11 +12,12 @@ from __future__ import absolute_import, print_function
 from datetime import datetime
 import os
 import sys
+import tempfile
+from threading import RLock
 
 import wx.adv
 import wx.py
 
-import build_info
 import images
 import mide_ebml
 from widgets import htmlwindow
@@ -142,6 +143,8 @@ class PythonConsole(wx.py.shell.ShellFrame):
         # The `Viewer` window is (or should be) in the local variables.
         self.viewer = localvars.get('viewer', None)
         
+        self.busy = RLock()
+        
         wx.py.frame.Frame.__init__(self, *args, **kwargs)
         wx.py.frame.ShellFrameMixin.__init__(self, config, dataDir)
 
@@ -157,7 +160,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
 
         self.SetStatusText(statusText or '')
         
-        self.setPath(self.paths)
+        self.setPythonPath(self.paths)
         self.addMenuItems()
         self.parentUpdated()
 
@@ -245,7 +248,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
         self.SetTitle(title)
 
     
-    def setPath(self, paths, replace=False, quiet=True):
+    def setPythonPath(self, paths, replace=False, quiet=True):
         """ Set the shell's `sys.path`.
         
             @param paths: A list of Python library paths.
@@ -256,16 +259,18 @@ class PythonConsole(wx.py.shell.ShellFrame):
                 indicating `sys.path` was changed.
             @return: The console's new `sys.path`
         """
-        if not replace:
-            paths = self.ORIG_PATHS + [p for p in paths if p not in self.ORIG_PATHS]
+        with self.busy:
+            if not replace:
+                paths = self.ORIG_PATHS + [p for p in paths if p not in self.ORIG_PATHS]
+                
+            cmd = "import sys; sys.path=%r" % paths
+            if not quiet:
+                now = str(datetime.now()).rsplit('.',1)[0]
+                cmd += ";print('### sys.path updated at %s')" % now
+            self.shell.push(cmd, silent=quiet)
+            del self.shell.history[0]
             
-        cmd = "import sys; sys.path=%r" % paths
-        if not quiet:
-            now = str(datetime.now()).rsplit('.',1)[0]
-            cmd += ";print('### sys.path updated at %s')" % now
-        self.shell.push(cmd, silent=quiet)
-        
-        return paths
+            return paths
    
     
     def reset(self, *args):
@@ -273,22 +278,68 @@ class PythonConsole(wx.py.shell.ShellFrame):
             destroys the current console and creates another. Accepts but
             does not use arguments, so it can be used as an event handler.
         """
-        if self.viewer:
-            args, kwargs = self.launchArgs
-            kwargs['pos'] = self.GetPosition()
-            kwargs['size'] = self.GetSize()
-            kwargs['focus'] = True
+        with self.busy:
+            if self.viewer:
+                args, kwargs = self.launchArgs
+                kwargs['pos'] = self.GetPosition()
+                kwargs['size'] = self.GetSize()
+                kwargs['focus'] = True
+                
+                viewer = self.viewer
+                viewer.childViews.pop(self.GetId(), None)
+                viewer.console = None
+                self.Destroy()
+                viewer.showConsole(*args, **kwargs)
+    
+            else:
+                wx.Bell()
             
-            viewer = self.viewer
-            viewer.childViews.pop(self.GetId(), None)
-            viewer.console = None
-            self.Destroy()
-            viewer.showConsole(*args, **kwargs)
 
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def execute(self, filename=None, code=None, globalScope=True, start=None,
+                finish=None, focus=True):
+        """ Run a file or a string of code.
+        """
+        # Used when executing in local scope, so script containing the 
+        # `if __name__=` pattern will run as expected.
+        evLocals = {'__name__': '__main__'}
+        
+        if not filename and not code:
+            return
+        
+        if focus:
+            self.Show()
+            self.SetFocus()
+        
+        if code:
+            filename = tempfile.mkstemp(suffix=".py")[1]
+            with open(filename, 'wb') as f:
+                f.write(code)
+        
+        if globalScope:
+            cmd = ("execfile(%r,globals())" % (filename))
         else:
-            wx.Bell()
-            
-
+            cmd = ("execfile(%r,globals().copy(),%r)" % (filename,evLocals))
+        
+        if start:
+            cmd = ("print(%r);" % start) + cmd
+        if finish:
+            cmd += (";print(%r)" % finish)
+        
+        try:
+            with self.busy:
+                self.shell.push(cmd)
+                del self.shell.history[0]
+        finally:
+            if code:
+                try:
+                    os.remove(filename)
+                except (IOError, WindowsError):
+                    pass
+    
     #===========================================================================
     # 
     #===========================================================================
@@ -335,7 +386,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
         """ Display a Help window.
         """
         text = HELP_HTML
-        if wx.Platform != "__WXMAC__" or True:
+        if wx.Platform == "__WXMAC__":
             # For future use, here now lest we forget.
             text = (text.replace("Ctrl+", "Command-")
                         .replace("Alt+", "Option-")
@@ -356,11 +407,10 @@ class PythonConsole(wx.py.shell.ShellFrame):
 
         app = wx.GetApp()
         if hasattr(app, 'setPref'):
-            print("has setpref")
             app.setPref('scripting.pythonpath', paths)
         
         self.paths = paths
-        self.setPath(self.paths, quiet=False)
+        self.setPythonPath(self.paths, quiet=False)
 
 
     #===========================================================================
@@ -374,7 +424,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
         app = wx.GetApp()
         localVars = kwargs.setdefault('locals', {})
         localVars.update({'app': app,
-                          'build_info': build_info,
+#                           'build_info': build_info,
                           'mide_ebml': mide_ebml,
                           'viewer': parent
                           })

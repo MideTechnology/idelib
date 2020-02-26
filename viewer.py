@@ -1803,8 +1803,6 @@ class Viewer(wx.Frame, MenuMixin):
                            pref="scriptWarning", saveNo=False)
             if warning != wx.ID_YES:
                 return
-            
-        evGlobals = {'__name__': '__main__'}
         
         if not self.console:
             self.console = scripting.shell.PythonConsole.openConsole(self)
@@ -1812,22 +1810,20 @@ class Viewer(wx.Frame, MenuMixin):
             if not focus:
                 self.console.Hide()
 
-        if focus:
-            self.console.Show()
-            self.console.SetFocus()
-
         now = str(datetime.now()).rsplit('.',1)[0]
         start = "### Running %s at %s" % (filename, now)
         finish = "### Finished running %s" % (filename)
         
         try:
-            self.console.shell.push("print(%r);execfile(%r,%r);print(%r)" % 
-                                    (start,filename,evGlobals,finish))
-            # TODO: Find better way to identify when an error happens.
+            self.console.execute(filename=filename, globalScope=False,
+                                 start=start, finish=finish, focus=focus)
+            
+            # TODO: Find a way to identify when an error happens.
             # This doesn't seem to work at all.
             if getattr(self.console.shell, 'hasSyntaxError', False):
                 self.console.Show()
                 self.console.SetFocus()
+                
             self.app.prefs.addRecentFile(filename, 'scripts')
         except Exception as err:
             # This *doesn't* run if the script executed had an error.
