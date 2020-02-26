@@ -89,39 +89,6 @@ class IdeSummarizer(ToolDialog):
         subpane.SetSizerType('form')
         subpane.SetSizerProps(expand=True)
 
-        self.removeMean = self.addChoiceField(
-            subpane, "Mean Removal:",
-            name="meanRemoval",
-            choices=self.MEAN_REMOVAL,
-            default=2,
-            tooltip=(
-                "The method by which to subtract the mean value from the data."
-                " Only applicable to channels with recorded minimum/mean"
-                "/maximum values (e.g. analog acceleration)."
-            ),
-        )
-        self.startTime = self.addFloatField(
-            subpane, "Start Time:", "seconds",
-            name="startTime",
-            minmax=(0, sys.maxint), 
-            tooltip="The start time of the export."
-        )
-        self.endTime = self.addFloatField(
-            subpane, "End Time:", "seconds",
-            name="endTime",
-            minmax=(0, sys.maxint),
-            tooltip="The end time of the export. Cannot be used with Duration.",
-        )
-        self.duration = self.addFloatField(
-            subpane, "Duration:", "seconds",
-            name="duration",
-            minmax=(0, sys.maxint),
-            tooltip=(
-                "The length of time from the start to export. Cannot be used"
-                " with End Time."
-            ),
-        )
-
         self.noBivariates = self.addCheck(
             subpane, "Disable Bivariate References",
             name="noBivariates",
@@ -135,37 +102,12 @@ class IdeSummarizer(ToolDialog):
             default=0
         )
 
-        self.nameCheck = self.addCheck(
-            subpane, "Use channel names in exported filenames",
-            checked=True,
-            name="useNames",
-            tooltip=(
-                "Include the name of the source channel in each exported"
-                " filename, in addition to the numeric channel ID."
-            ),
-        )
         self.headerCheck = self.addCheck(
             subpane, "Include Column Headers",
             name="useHeaders",
             tooltip=(
                 "Write column descriptions in first row. Applies only to"
                 " text-based formats."
-            ),
-        )
-        self.utcCheck = self.addCheck(
-            subpane, "Use Absolute UTC Timestamps",
-            name="useUtcTimes",
-            tooltip=(
-                "Write absolute UTC timestamps. Applies only to text-based"
-                " formats."
-            ),
-        )
-        self.isoCheck = self.addCheck(
-            subpane, "Use ISO Time Format",
-            name="useIsoFormat",
-            tooltip=(
-                "Write timestamps in ISO format. Applies only to text-based"
-                " formats."
             ),
         )
 
@@ -182,7 +124,7 @@ class IdeSummarizer(ToolDialog):
 
         self.Bind(wx.EVT_CHOICE, self.OnChoice)
 
-        self.SetMinSize((550, 500))
+        self.SetMinSize((550, 350))
         self.Layout()
         self.Centre()
         self.updateFields()
@@ -196,10 +138,6 @@ class IdeSummarizer(ToolDialog):
         _ext, delimiter = self.DELIMITERS[self.getValue(self.formatField)]
         isText = delimiter is not None
 
-        self.enableField(self.headerCheck, isText)
-        self.enableField(self.utcCheck, isText)
-        self.enableField(self.isoCheck, isText and self.getValue(self.utcCheck))
-
 
     def OnChoice(self, evt):
         self.updateFields()
@@ -212,17 +150,11 @@ class IdeSummarizer(ToolDialog):
         super(IdeSummarizer, self).OnCheck(evt)
         obj = evt.EventObject
         if obj.IsChecked():
-            # end time and duration are mutually exclusive
-            if obj == self.endTime:
-                self.setCheck(self.duration, False)
-            elif obj == self.duration:
-                self.setCheck(self.endTime, False)
+            pass
 
 
     def savePrefs(self):
-        for c in (self.startTime, self.endTime, self.duration, self.removeMean,
-                  self.formatField, self.headerCheck, self.utcCheck, 
-                  self.isoCheck, self.noBivariates, self.nameCheck):
+        for c in (self.formatField, self.headerCheck, self.noBivariates):
             name = c.GetName()
             v = self.getValue(c)
             if v is not False:
@@ -246,39 +178,18 @@ class IdeSummarizer(ToolDialog):
         """
         sourceFiles = self.inputFiles.GetPaths()
         output = self.outputBtn.GetValue() or None
-        startTime = self.getValue(self.startTime, 0)
-        endTime = self.getValue(self.endTime, None)
-        duration = self.getValue(self.duration, None)
         outputSelection = self.getValue(self.formatField) 
         headers = self.getValue(self.headerCheck, False)
-        useNames = self.getValue(self.nameCheck, False)
-        useUtcTime = self.getValue(self.utcCheck, False)
-        useIsoFormat = not useUtcTime and self.getValue(self.isoCheck, False)
         noBivariates = self.getValue(self.noBivariates, False)
-        removeMean = self.getValue(self.removeMean, 2)
-#         maxSize = (self.getValue(self.maxSize) * 1024) or MatStream.MAX_SIZE
 
         if not output:
             return
         output = os.path.realpath(output)
 
-        if removeMean == 1:
-            meanSpan = -1
-        else:
-            meanSpan = 5.0
-
         try:
             outputType, delimiter = self.DELIMITERS[outputSelection]
         except IndexError:
             outputType, delimiter = self.DELIMITERS[0]
-
-        if duration:
-            endTime = startTime + duration
-        if isinstance(startTime, (int, float)):
-            startTime /= self.timeScalar
-        if isinstance(endTime, (int, float)):
-            endTime /= self.timeScalar
-        endTime = endTime or None
 
         totalSamples = 0
         for filename in sourceFiles:
@@ -302,19 +213,15 @@ class IdeSummarizer(ToolDialog):
             style=wx.PD_APP_MODAL|wx.PD_AUTO_HIDE|wx.PD_CAN_ABORT,
         ) as updater:
             # Keyword arguments shared by all exports
-            params = dict(outputType=outputType, 
-                          delimiter=delimiter, 
-                          headers=headers, 
-                          useUtcTime=useUtcTime, 
-                          useIsoFormat=useIsoFormat, 
-                          noBivariates=noBivariates, 
-                          removeMean=bool(removeMean), 
-                          meanSpan=meanSpan, 
-                          updateInterval=1.5, 
-                          out=None, 
-                          updater=updater, 
-                          useNames=useNames
-                          )
+            params = dict(
+                outputType=outputType,
+                delimiter=delimiter,
+                headers=headers,
+                noBivariates=noBivariates,
+                updateInterval=1.5,
+                out=None,
+                updater=updater,
+            )
 
             csv_writer = csv.writer(csvfile)
 
