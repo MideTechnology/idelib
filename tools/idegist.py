@@ -299,6 +299,7 @@ class IdeSummarizer(ToolDialog):
             message="Exporting...\n\n",
             maximum=totalSamples,
             parent=self,
+            style=wx.PD_APP_MODAL|wx.PD_AUTO_HIDE|wx.PD_CAN_ABORT,
         ) as updater:
             # Keyword arguments shared by all exports
             params = dict(outputType=outputType, 
@@ -320,25 +321,37 @@ class IdeSummarizer(ToolDialog):
             # Writing column headers
             csv_writer.writerow(scripts.idegist.CsvRowTuple._fields)
 
-            for i, filename in enumerate(sourceFiles, 1):
-                basename = os.path.basename(filename)
-                updater.Update(
-                    sampleCount,
-                    newmsg="Exporting {} (file {} of {})"
-                           .format(basename, i, len(sourceFiles)),
-                )
+            class StopExecution(Exception):
+                pass
 
-                with idelib.importer.importFile(filename) as ds:
-                    wx.Yield()
-                    for channel in ds.channels.values():
-                        for subchannel in channel.subchannels:
-                            csv_writer.writerow(scripts.idegist.summarize_sch(subchannel))
+            def update_or_raise(*args, **kwargs):
+                alive, skipped = updater.Update(*args, **kwargs)
+                if not alive:
+                    raise StopExecution
+                return skipped
 
-                            sampleCount += len(subchannel.getSession())
-                            updater.Update(sampleCount)
-                            wx.Yield()
+            try:
+                for i, filename in enumerate(sourceFiles, 1):
+                    basename = os.path.basename(filename)
+                    update_or_raise(
+                        sampleCount,
+                        newmsg="Exporting {} (file {} of {})"
+                               .format(basename, i, len(sourceFiles)),
+                    )
 
-                processed.add(basename)
+                    with idelib.importer.importFile(filename) as ds:
+                        wx.Yield()
+                        for channel in ds.channels.values():
+                            for subchannel in channel.subchannels:
+                                csv_writer.writerow(scripts.idegist.summarize_sch(subchannel))
+
+                                sampleCount += len(subchannel.getSession())
+                                update_or_raise(sampleCount)
+                                wx.Yield()
+
+                    processed.add(basename)
+            except StopExecution:
+                pass
 
         # TODO: More reporting?
         bulleted = lambda x: " * {}".format(x)
