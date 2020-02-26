@@ -41,14 +41,14 @@ class IdeSummarizer(ToolDialog):
 
     OUTPUT_TYPES = (
         "Comma-Separated Values (.CSV)",
-        #"Tab-Separated Values (.TXT)",
-        #"Pipe (|) Separated Values (.TXT)",
+        "Tab-Separated Values (.TXT)",
+        "Pipe (|) Separated Values (.TXT)",
     )
 
     DELIMITERS = (
-        ('.csv', ', '),
-        #('.txt', '\t'),
-        #('.txt', '|'),
+        ('.csv', ','),
+        ('.txt', '\t'),
+        ('.txt', '|'),
     )
 
     MEAN_REMOVAL = (
@@ -135,8 +135,12 @@ class IdeSummarizer(ToolDialog):
     #===========================================================================
 
     def updateFields(self):
-        _ext, delimiter = self.DELIMITERS[self.getValue(self.formatField)]
-        isText = delimiter is not None
+        typeExt, typeDelimiter = self.DELIMITERS[self.getValue(self.formatField)]
+        outputPath = self.outputBtn.GetValue()
+        if outputPath:
+            path, ext = os.path.splitext(outputPath)
+            if ext and ext != typeExt:
+                self.outputBtn.SetValue(path + typeExt)
 
 
     def OnChoice(self, evt):
@@ -223,7 +227,7 @@ class IdeSummarizer(ToolDialog):
                 updater=updater,
             )
 
-            csv_writer = csv.writer(csvfile)
+            csv_writer = csv.writer(csvfile, delimiter=delimiter)
 
             # Writing column headers
             csv_writer.writerow(scripts.idegist.CsvRowTuple._fields)
