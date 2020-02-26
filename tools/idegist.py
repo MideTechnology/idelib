@@ -290,32 +290,31 @@ class IdeSummarizer(ToolDialog):
             )
             ds.close()
 
-        updater = wx.ProgressDialog(
+        processed = set()
+        sampleCount = 0
+
+        with open(output, 'wb') as csvfile, \
+        wx.ProgressDialog(
             title=self.GetTitle(),
             message="Exporting...\n\n",
             maximum=totalSamples,
             parent=self,
-        )
+        ) as updater:
+            # Keyword arguments shared by all exports
+            params = dict(outputType=outputType, 
+                          delimiter=delimiter, 
+                          headers=headers, 
+                          useUtcTime=useUtcTime, 
+                          useIsoFormat=useIsoFormat, 
+                          noBivariates=noBivariates, 
+                          removeMean=bool(removeMean), 
+                          meanSpan=meanSpan, 
+                          updateInterval=1.5, 
+                          out=None, 
+                          updater=updater, 
+                          useNames=useNames
+                          )
 
-        processed = set()
-        sampleCount = 0
-
-        # Keyword arguments shared by all exports
-        params = dict(outputType=outputType, 
-                      delimiter=delimiter, 
-                      headers=headers, 
-                      useUtcTime=useUtcTime, 
-                      useIsoFormat=useIsoFormat, 
-                      noBivariates=noBivariates, 
-                      removeMean=bool(removeMean), 
-                      meanSpan=meanSpan, 
-                      updateInterval=1.5, 
-                      out=None, 
-                      updater=updater, 
-                      useNames=useNames
-                      )
-
-        with open(output, 'wb') as csvfile:
             csv_writer = csv.writer(csvfile)
 
             # Writing column headers
@@ -342,8 +341,6 @@ class IdeSummarizer(ToolDialog):
                 ds.close()  # Remember to close your file after you're finished with it!
 
                 processed.add(basename)
-
-        updater.Destroy()
 
         # TODO: More reporting?
         bulleted = lambda x: " * {}".format(x)
