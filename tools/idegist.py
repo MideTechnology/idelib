@@ -328,17 +328,15 @@ class IdeSummarizer(ToolDialog):
                            .format(basename, i, len(sourceFiles)),
                 )
 
-                ds = idelib.importer.importFile(filename)
-                wx.Yield()
-                for channel in ds.channels.values():
-                    for subchannel in channel.subchannels:
-                        csv_writer.writerow(scripts.idegist.summarize_sch(subchannel))
+                with idelib.importer.importFile(filename) as ds:
+                    wx.Yield()
+                    for channel in ds.channels.values():
+                        for subchannel in channel.subchannels:
+                            csv_writer.writerow(scripts.idegist.summarize_sch(subchannel))
 
-                        sampleCount += len(subchannel.getSession())
-                        updater.Update(sampleCount)
-                        wx.Yield()
-
-                ds.close()  # Remember to close your file after you're finished with it!
+                            sampleCount += len(subchannel.getSession())
+                            updater.Update(sampleCount)
+                            wx.Yield()
 
                 processed.add(basename)
 
