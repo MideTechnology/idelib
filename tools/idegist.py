@@ -80,6 +80,7 @@ class IdeSummarizer(ToolDialog):
             dialogTitle="Export Path",
             startDirectory=outPath,
             fileMode=wx.FD_SAVE,
+            changeCallback=self.OnChangeOutputFile,
         )
         self.outputBtn.SetSizerProps(expand=True, proportion=0)
 
@@ -157,6 +158,13 @@ class IdeSummarizer(ToolDialog):
             pass
 
 
+    def OnChangeOutputFile(self, evt):
+        self.outputBtn.SetBackgroundColour(
+            self.GetBackgroundColour()
+        )
+        self.Refresh()
+
+
     def savePrefs(self):
         for c in (self.formatField, self.headerCheck, self.noBivariates):
             name = c.GetName()
@@ -187,6 +195,8 @@ class IdeSummarizer(ToolDialog):
         noBivariates = self.getValue(self.noBivariates, False)
 
         if not output:
+            self.outputBtn.SetBackgroundColour("pink")
+            self.Refresh()
             return
         output = os.path.realpath(output)
 
