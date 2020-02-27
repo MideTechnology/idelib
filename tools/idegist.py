@@ -267,7 +267,7 @@ class IdeSummarizer(ToolDialog):
                             wx.Yield()
                             for channel in ds.channels.values():
                                 for subchannel in channel.subchannels:
-                                    csv_writer.writerow(scripts.idegist.summarize_sch(subchannel))
+                                    csv_writer.writerow(scripts.idegist.summarize_sch(subchannel, bivariates=not noBivariates))
 
                                     sampleCount += len(subchannel.getSession())
                                     update_or_raise(sampleCount)

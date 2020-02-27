@@ -44,9 +44,10 @@ CsvRowTuple = namedtuple('CsvRowTuple', [
 ])
 
 
-def summarize_sch(subchannel):
+def summarize_sch(subchannel, bivariates=True):
     dataset = subchannel.parent.dataset
     eventlist = subchannel.getSession()
+    eventlist.noBivariates = not bivariates
     session = eventlist.session
     array = eventlist[:]
 
