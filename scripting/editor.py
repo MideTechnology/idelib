@@ -186,9 +186,10 @@ class ScriptEditorCtrl(python_stc.PythonSTC):
         evGlobals = {}
         
         if not self.filename or selected:
-            filename = None#tempfile.mkstemp(suffix=".py")[1]
+            filename = None
             code = self.GetSelectedText() if selected else self.GetText()
             if not code:
+                logger.debug("ScriptEditorCtrl.executeInShell(): No code!")
                 return
         else:
             filename = self.filename

@@ -1823,13 +1823,20 @@ class Viewer(wx.Frame, MenuMixin):
             if getattr(self.console.shell, 'hasSyntaxError', False):
                 self.console.Show()
                 self.console.SetFocus()
-                
-            self.app.prefs.addRecentFile(filename, 'scripts')
+        
+        except RuntimeError:
+            # Console window (probably) destroyed. Not likely, but could happen
+            # in certain edge cases.
+            logger.debug("Viewer.runScript(): console window destroyed?")
+            return
+        
         except Exception as err:
             # This *doesn't* run if the script executed had an error.
             # The console catches it all.
             logger.error("Viewer.runScript() error: %r" % err)
             raise
+
+        self.app.prefs.addRecentFile(filename, 'scripts')
 
 
     #===========================================================================

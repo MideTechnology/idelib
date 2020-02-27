@@ -99,11 +99,13 @@ class PythonConsole(wx.py.shell.ShellFrame):
     ID_SHOW_VIEW = wx.NewIdRef()
     ID_EDIT_PATHS = wx.NewIdRef()
     
-    
     ORIG_PATHS = sys.path[:]
     
+    BASE_TITLE = "Scripting Console"
     INTRO_TEXT = '\n'.join(
-        ("* Useful global variables and helper functions:",
+        ("Welcome to the %s Python Scripting Console!",
+         "",
+         "* Useful global variables and helper functions:",
          "\tapp               The currently running app.",
          "\tviewer            The active viewer window when the console was opened.",
          "\tviewer.dataset    The active imported recording file.",
@@ -114,42 +116,63 @@ class PythonConsole(wx.py.shell.ShellFrame):
         """ Constructor. Takes standard `wx.py.shell.ShellFrame` arguments,
             plus:
         
+            @keyword title: The 'prefix' for the window title. The rest gets
+                set by the parent Viewer (IDE filename, etc.).
             @keyword focus: If `True`, the new window will have focus. 
             @keyword introText: Introductory text, shown when the shell starts.
             @keyword statusText: Initial text for the status bar.
             @keyword locals: A dictionary of local variables (like `exec` uses)
         """
-        title = kwargs.setdefault('title', "Scripting Console")
-        config = kwargs.pop('config', None)
-        dataDir = kwargs.pop('dataDir', None)
-        introText = kwargs.pop('introText', "%s\n\n%s" % (title, self.INTRO_TEXT))
+        name = getattr(wx.GetApp(), 'fullAppName', '')
+        
+        self.baseTitle = kwargs.setdefault('title', self.BASE_TITLE)
+        self.config = kwargs.pop('config', None)
+        self.dataDir = kwargs.pop('dataDir', None)
+        introText = kwargs.pop('introText', self.INTRO_TEXT % name)
         statusText = kwargs.pop('statusText', None)
-        self.startupScript = kwargs.pop('startupScript', None)
-        self.execStartupScript = kwargs.pop('execStartupScript', True)
         localvars = kwargs.pop('locals', {})
         interpClass = kwargs.pop('InterpClass', None)
         focus = kwargs.pop('focus', True)
-    
-        self.paths = kwargs.pop('path', [])
-        
-        if not self.paths:
-            self.loadPrefs()
-    
+        self.startupScript = kwargs.pop('startupScript', None)
+        self.paths = kwargs.pop('path', None)
         kwargs.setdefault('size', (750, 525))
+                
+        self.busy = RLock()
+        self.loadPrefs()
 
-        # The 'prefix' for the window title. The rest gets set by its Viewer.
-        self.baseTitle = title
-        
+        self.execStartupScript = kwargs.pop('execStartupScript', 
+                                            (bool(self.startupScript)
+                                             and self.execStartupScript))
+
         # The `Viewer` window is (or should be) in the local variables.
         self.viewer = localvars.get('viewer', None)
         
-        self.busy = RLock()
+        # Do only the relevant stuff in `Frame.__init__()`.
+        # Note: May need to be refactored if `wx.py.frame.Frame` changes! 
+#         wx.py.frame.Frame.__init__(self, *args, **kwargs)
+        wx.Frame.__init__(self, *args, **kwargs)
+        self.CreateStatusBar()
+        self.shellName=self.BASE_TITLE
+        self.__createMenus()
+ 
+        self.iconized = False
+        self.findDlg = None
+        self.findData = wx.FindReplaceData()
+        self.findData.SetFlags(wx.FR_DOWN)
+ 
+        self.Bind(wx.EVT_CLOSE, self.OnClose)
+        self.Bind(wx.EVT_ICONIZE, self.OnIconize)
         
-        wx.py.frame.Frame.__init__(self, *args, **kwargs)
-        wx.py.frame.ShellFrameMixin.__init__(self, config, dataDir)
+        # Do only the relevant stuff in `ShellFrameMixin.__init__()`.
+        # Note: May need to be refactored if the mixin class changes! 
+#         wx.py.frame.ShellFrameMixin.__init__(self, config, dataDir)
+        self.autoSaveSettings = False
+        self.autoSaveHistory = False
+        self.showPySlicesTutorial = False
+        self.enableShellMode = False
+        self.enableAutoSympy = True
+        self.hideFoldingMargin = False
 
-        self.SetIcon(images.icon.GetIcon())
-            
         self.shell = wx.py.shell.Shell(self,
                                        introText=introText,
                                        locals=localvars,
@@ -158,68 +181,225 @@ class PythonConsole(wx.py.shell.ShellFrame):
                                        InterpClass=interpClass
                                        )
 
+        self.SetIcon(images.icon.GetIcon())
         self.SetStatusText(statusText or '')
         
-        self.setPythonPath(self.paths)
-        self.addMenuItems()
-        self.parentUpdated()
-
         # Override the shell so that status messages go to the status bar.
         self.shell.setStatusText = self.SetStatusText
 
+        self.setPythonPath(self.paths)
+        self.parentUpdated()
+
         if focus:
             self.shell.SetFocus()
-        self.LoadSettings()
-
-        self.Bind(wx.EVT_CLOSE, self.OnClose)
+            
+#         self.LoadSettings()
     
     
     #===========================================================================
     # 
     #===========================================================================
-    
-    def addMenuItems(self):
-        """ Do some post-initialization modifications to the menus. To work
-            around wx.py.shell.ShellFrame obfuscation.
-        """
-        menubar = self.GetMenuBar()
-        fileMenu = menubar.GetMenu(0)
-        numItems = fileMenu.GetMenuItemCount()
-        idx = numItems - 2
-        mi = wx.MenuItem(fileMenu, self.ID_RESET, 
-                     "Reset Interpreter\tCtrl+Shift+R",
-                     "Restart the interpreter, clearing local variables, etc.",
-                     wx.ITEM_NORMAL)
-        fileMenu.InsertSeparator(idx)
-        fileMenu.Insert(idx+1, mi)
-        self.Bind(wx.EVT_MENU, self.reset, id=mi.GetId())
 
-        # Add F3/Shift+F3 accelerators to Find/Find Next
-        editMenu = menubar.GetMenu(1)
-        accel = wx.AcceleratorTable([
-            (wx.ACCEL_NORMAL, wx.WXK_F3, editMenu.GetMenuItems()[-2].GetId()),
-            (wx.ACCEL_SHIFT, wx.WXK_F3, editMenu.GetMenuItems()[-1].GetId())])
-        self.SetAcceleratorTable(accel)
+    def __createMenus(self):
+        """ Build the menubar. Override of `Frame.__createMenus()`.
+        """
+        #======================================================================
+        # File Menu
+        m = self.fileMenu = wx.Menu()
+        m.Append(wx.ID_CLOSE, '&Close Console\tCtrl+W',
+                 'Close the console window')
+        m.AppendSeparator()
+#         m.Append(wx.ID_SAVE, '&Save... \tCtrl+S',
+#                  'Save file')
+#         m.Append(wx.ID_SAVEAS, 'Save &As \tCtrl+Shift+S',
+#                  'Save file with new name')
+#         m.AppendSeparator()
+#         m.Append(wx.ID_PRINT, '&Print... \tCtrl+P',
+#                  'Print file')
+#         m.AppendSeparator()
+#         m.Append(wx.py.frame.ID_NAMESPACE, '&Update Namespace \tCtrl+Shift+N',
+#                  'Update namespace for autocompletion and calltips')
+#         m.AppendSeparator()
+        m.Append(self.ID_RESET, 
+                 "Reset Interpreter\tCtrl+Shift+R",
+                 "Restart the interpreter, clearing local variables, etc.")
+
+        #======================================================================
+        # Edit
+        m = self.editMenu = wx.Menu()
+        m.Append(wx.ID_UNDO)
+        m.Append(wx.ID_REDO)
+        m.AppendSeparator()
+        m.Append(wx.ID_CUT)
+        m.Append(wx.ID_COPY)
+        m.Append(wx.py.frame.ID_COPY_PLUS, 'Cop&y Plus \tCtrl+Shift+C',
+                 'Copy the selection - retaining prompts')
+        m.Append(wx.ID_PASTE)
+        m.Append(wx.py.frame.ID_PASTE_PLUS, 'Past&e Plus \tCtrl+Shift+V',
+                 'Paste and run commands')
+        m.AppendSeparator()
+        m.Append(wx.ID_CLEAR, 'Cle&ar',
+                 'Delete the selection')
+        m.Append(wx.ID_SELECTALL, 'Select A&ll \tCtrl+A',
+                 'Select all text')
+        m.AppendSeparator()
+        m.Append(wx.ID_FIND, '&Find Text... \tCtrl+F',
+                 'Search for text in the edit buffer')
+        findNext = m.Append(wx.py.frame.ID_FINDNEXT,
+                            'Find &Next \tCtrl+G',
+                            'Find next instance of the search text')
+        findPrev = m.Append(wx.py.frame.ID_FINDPREVIOUS,
+                            'Find Pre&vious \tCtrl+Shift+G',
+                            'Find previous instance of the search text')
         
-        viewMenu = menubar.GetMenu(2)
-        viewMenu.AppendSeparator()
-        mi = viewMenu.Append(self.ID_SHOW_VIEW,
-                             "Show console's associated view\tCtrl+Tab",
-                             "Bring the associated viewer window to the front.",
-                             wx.ITEM_NORMAL)
-        self.Bind(wx.EVT_MENU, self.OnShowView, id=mi.GetId())
-    
-        optMenu = menubar.GetMenu(3)
-        for _i in range(3):
-            # Remove unused default menu item
-            optMenu.Remove(optMenu.GetMenuItems()[-1])
-        mi = optMenu.Append(self.ID_EDIT_PATHS,
-                            "Edit Module Import Paths...",
-                            "Set the paths used to find modules to import (sys.path/PYTHONPATH).",
-                            wx.ITEM_NORMAL)
-        self.Bind(wx.EVT_MENU, self.OnEditPaths, id=mi.GetId())
-    
-    
+        #======================================================================
+        # View
+        m = self.viewMenu = wx.Menu()
+        m.Append(wx.py.frame.ID_WRAP, '&Wrap Lines\tCtrl+Shift+W',
+                 'Wrap lines at right edge', wx.ITEM_CHECK)
+        m.Append(wx.py.frame.ID_SHOW_LINENUMBERS,
+                 '&Show Line Numbers\tCtrl+Shift+L',
+                 'Show Line Numbers', wx.ITEM_CHECK)
+        m.Append(wx.py.frame.ID_TOGGLE_MAXIMIZE, '&Toggle Maximize\tF11',
+                 'Maximize/Restore Application')
+        m.AppendSeparator()
+        # Lab changes:
+        m.Append(self.ID_SHOW_VIEW,
+                 "Show console's associated view\tCtrl+Tab",
+                 "Bring the associated viewer window to the front.",
+                 wx.ITEM_NORMAL)
+
+        #======================================================================
+        # Options
+        m = self.autocompMenu = wx.Menu()
+        m.Append(wx.py.frame.ID_AUTOCOMP_SHOW,
+                 'Show &Auto Completion\tCtrl+Shift+A',
+                 'Show auto completion list', wx.ITEM_CHECK)
+        m.Append(wx.py.frame.ID_AUTOCOMP_MAGIC, 
+                 'Include &Magic Attributes\tCtrl+Shift+M',
+                 'Include attributes visible to __getattr__ and __setattr__',
+                 wx.ITEM_CHECK)
+        m.Append(wx.py.frame.ID_AUTOCOMP_SINGLE, 
+                 'Include Single &Underscores\tCtrl+Shift+U',
+                 'Include attributes prefixed by a single underscore', 
+                 wx.ITEM_CHECK)
+        m.Append(wx.py.frame.ID_AUTOCOMP_DOUBLE, 
+                 'Include &Double Underscores\tCtrl+Shift+D',
+                 'Include attributes prefixed by a double underscore',
+                 wx.ITEM_CHECK)
+        m = self.calltipsMenu = wx.Menu()
+        m.Append(wx.py.frame.ID_CALLTIPS_SHOW, 
+                 'Show Call &Tips\tCtrl+Shift+T',
+                 'Show call tips with argument signature and docstring', 
+                 wx.ITEM_CHECK)
+        m.Append(wx.py.frame.ID_CALLTIPS_INSERT, 
+                 '&Insert Call Tips\tCtrl+Shift+I',
+                 '&Insert Call Tips', wx.ITEM_CHECK)
+
+        m = self.optionsMenu = wx.Menu()
+        m.AppendSubMenu(self.autocompMenu, '&Auto Completion',
+                        'Auto Completion Options')
+        m.AppendSubMenu(self.calltipsMenu, '&Call Tips', 'Call Tip Options')
+        m.AppendSeparator()
+        # Lab changes:
+        m.Append(self.ID_EDIT_PATHS,
+                 "Edit Module Import Paths...",
+                 "Set the paths used to find modules to import "
+                 "(sys.path/PYTHONPATH).")
+
+        m = self.helpMenu = wx.Menu()
+        name = getattr(wx.GetApp(), 'fullAppName', '')
+        m.Append(wx.ID_HELP, '&Help\tF1', 'Help!')
+        m.AppendSeparator()
+        m.Append(wx.ID_ABOUT, '&About %s...' % name, '&About %s...' % name)
+
+        b = self.menuBar = wx.MenuBar()
+        b.Append(self.fileMenu, '&File')
+        b.Append(self.editMenu, '&Edit')
+        b.Append(self.viewMenu, '&View')
+        b.Append(self.optionsMenu, '&Options')
+        b.Append(self.helpMenu, '&Help')
+        self.SetMenuBar(b)
+
+        self.Bind(wx.EVT_MENU, self.OnFileClose, id=wx.ID_CLOSE)
+#         self.Bind(wx.EVT_MENU, self.OnFileSave, id=wx.ID_SAVE)
+#         self.Bind(wx.EVT_MENU, self.OnFileSaveAs, id=wx.ID_SAVEAS)
+#         self.Bind(wx.EVT_MENU, self.OnFileSaveACopy, id=wx.py.frame.ID_SAVEACOPY)
+#         self.Bind(wx.EVT_MENU, self.OnFileUpdateNamespace, id=wx.py.frame.ID_NAMESPACE)
+#         self.Bind(wx.EVT_MENU, self.OnFilePrint, id=wx.ID_PRINT)
+        self.Bind(wx.EVT_MENU, self.OnUndo, id=wx.ID_UNDO)
+        self.Bind(wx.EVT_MENU, self.OnRedo, id=wx.ID_REDO)
+        self.Bind(wx.EVT_MENU, self.OnCut, id=wx.ID_CUT)
+        self.Bind(wx.EVT_MENU, self.OnCopy, id=wx.ID_COPY)
+        self.Bind(wx.EVT_MENU, self.OnCopyPlus, id=wx.py.frame.ID_COPY_PLUS)
+        self.Bind(wx.EVT_MENU, self.OnPaste, id=wx.ID_PASTE)
+        self.Bind(wx.EVT_MENU, self.OnPastePlus, id=wx.py.frame.ID_PASTE_PLUS)
+        self.Bind(wx.EVT_MENU, self.OnClear, id=wx.ID_CLEAR)
+        self.Bind(wx.EVT_MENU, self.OnSelectAll, id=wx.ID_SELECTALL)
+        self.Bind(wx.EVT_MENU, self.OnAbout, id=wx.ID_ABOUT)
+        self.Bind(wx.EVT_MENU, self.OnHelp, id=wx.ID_HELP)
+        self.Bind(wx.EVT_MENU, self.OnAutoCompleteShow, id=wx.py.frame.ID_AUTOCOMP_SHOW)
+        self.Bind(wx.EVT_MENU, self.OnAutoCompleteMagic, id=wx.py.frame.ID_AUTOCOMP_MAGIC)
+        self.Bind(wx.EVT_MENU, self.OnAutoCompleteSingle, id=wx.py.frame.ID_AUTOCOMP_SINGLE)
+        self.Bind(wx.EVT_MENU, self.OnAutoCompleteDouble, id=wx.py.frame.ID_AUTOCOMP_DOUBLE)
+        self.Bind(wx.EVT_MENU, self.OnCallTipsShow, id=wx.py.frame.ID_CALLTIPS_SHOW)
+        self.Bind(wx.EVT_MENU, self.OnCallTipsInsert, id=wx.py.frame.ID_CALLTIPS_INSERT)
+        self.Bind(wx.EVT_MENU, self.OnWrap, id=wx.py.frame.ID_WRAP)
+        self.Bind(wx.EVT_MENU, self.OnToggleMaximize, id=wx.py.frame.ID_TOGGLE_MAXIMIZE)
+        self.Bind(wx.EVT_MENU, self.OnShowLineNumbers, id=wx.py.frame.ID_SHOW_LINENUMBERS)
+        self.Bind(wx.EVT_MENU, self.OnFindText, id=wx.ID_FIND)
+        self.Bind(wx.EVT_MENU, self.OnFindNext, id=wx.py.frame.ID_FINDNEXT)
+        self.Bind(wx.EVT_MENU, self.OnFindPrevious, id=wx.py.frame.ID_FINDPREVIOUS)
+        self.Bind(wx.EVT_MENU, self.OnToggleTools, id=wx.py.frame.ID_SHOWTOOLS)
+        self.Bind(wx.EVT_MENU, self.OnHideFoldingMargin, id=wx.py.frame.ID_HIDEFOLDINGMARGIN)
+
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_NEW)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_OPEN)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_REVERT)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_CLOSE)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_SAVE)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_SAVEAS)
+#         self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_NAMESPACE)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_PRINT)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_UNDO)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_REDO)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_CUT)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_COPY)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_COPY_PLUS)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_PASTE)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_PASTE_PLUS)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_CLEAR)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_SELECTALL)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_AUTOCOMP_SHOW)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_AUTOCOMP_MAGIC)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_AUTOCOMP_SINGLE)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_AUTOCOMP_DOUBLE)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_CALLTIPS_SHOW)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_CALLTIPS_INSERT)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_WRAP)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_SHOW_LINENUMBERS)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.ID_FIND)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_FINDNEXT)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_FINDPREVIOUS)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_SHOWTOOLS)
+        self.Bind(wx.EVT_UPDATE_UI, self.OnUpdateMenu, id=wx.py.frame.ID_HIDEFOLDINGMARGIN)
+
+        self.Bind(wx.EVT_ACTIVATE, self.OnActivate)
+        self.Bind(wx.EVT_FIND, self.OnFindNext)
+        self.Bind(wx.EVT_FIND_NEXT, self.OnFindNext)
+        self.Bind(wx.EVT_FIND_CLOSE, self.OnFindClose)
+
+        self.Bind(wx.EVT_MENU, self.reset, id=self.ID_RESET)
+        self.Bind(wx.EVT_MENU, self.OnShowView, id=self.ID_SHOW_VIEW)
+        self.Bind(wx.EVT_MENU, self.OnEditPaths, id=self.ID_EDIT_PATHS)
+        
+        # Add F3/Shift+F3 accelerators to Find/Find Next
+        accel = wx.AcceleratorTable([
+            (wx.ACCEL_NORMAL, wx.WXK_F3, findNext.GetId()),
+            (wx.ACCEL_SHIFT, wx.WXK_F3, findPrev.GetId())])
+        self.SetAcceleratorTable(accel)
+
+
     #===========================================================================
     # 
     #===========================================================================
@@ -228,10 +408,13 @@ class PythonConsole(wx.py.shell.ShellFrame):
         """ Load Python paths from the parent application's preferences.
         """
         app = wx.GetApp()
-        if hasattr(app, 'getPref'):
+        if not hasattr(app, 'getPref'):
+            return
+        if not self.paths:
             self.paths = app.getPref('scripting.pythonpath', self.ORIG_PATHS)
-        else:
-            self.paths = self.ORIG_PATHS
+        if not self.startupScript:
+            self.startupScript = app.getPref('scripting.startupScript', None)
+        self.execStartupScript = app.getPref('scripting.execStartupScript', False)
     
     
     def parentUpdated(self):
@@ -301,7 +484,9 @@ class PythonConsole(wx.py.shell.ShellFrame):
     
     def execute(self, filename=None, code=None, globalScope=True, start=None,
                 finish=None, focus=True):
-        """ Run a file or a string of code.
+        """ Run a file or a string of code. Executes multi-line scripts, 
+            either in the editor's scope (modifying editor's global values)
+            or its own local scope.
         """
         # Used when executing in local scope, so script containing the 
         # `if __name__=` pattern will run as expected.

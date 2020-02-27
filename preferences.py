@@ -674,6 +674,16 @@ class PrefsDialog(SC.SizedDialog):
              "Enable Python scripting functionality. Warning: Downloaded "
              "scripts may pose a security risk to your computer. "
              "Use with caution!", UseCheckbox=True)
+        _add(PG.BoolProperty("Execute Console Startup Script",
+                             "scripting.executeStartupScript"),
+             "Execute the startup script (specified below) when the scripting "
+             "console opens or when a script is run via the 'Run Script' menu "
+             "item.", UseCheckbox=True)
+        _add(PG.FileProperty("Console Startup Script", 
+                             "scripting.startupScript"),
+             "A Python script to be executed when the scripting console "
+             "opens or a script is run via the 'Run Script' menu item. "
+             "May be left blank. Note: Script must run in Python 2.7!")
         
         _add(PG.PropertyCategory("Miscellaneous"))
         _add(PG.BoolProperty("Show Full Path in Title Bar", "showFullPath"),
@@ -683,7 +693,8 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.IntProperty("X Axis Value Precision", "precisionX", value=4))
         _add(PG.IntProperty("Y Axis Value Precision", "precisionY", value=4))
         _add(PG.EnumProperty("Locale", "locale", self.LANG_LABELS))
-        _add(PG.EnumProperty("Automatic Update Check Interval", "updater.interval", 
+        _add(PG.EnumProperty("Automatic Update Check Interval", 
+                             "updater.interval", 
                              INTERVALS.values()))
         _add(PG.BoolProperty("Show Advanced Options", "showAdvancedOptions"),
              "Show advanced/experimental features. These are not required for "
