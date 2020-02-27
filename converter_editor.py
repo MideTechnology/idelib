@@ -107,7 +107,7 @@ class ConverterEditor(SC.SizedDialog):
 
 # FOR DEVELOPMENT TESTING. REMOVE ME!
 if __name__ == '__main__':# or True:
-    from mide_ebml.unit_conversion import Pressure2Meters
+    from idelib.unit_conversion import Pressure2Meters
     
     app = wx.App()
     conv = Pressure2Meters()

@@ -24,16 +24,16 @@ CWD = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(CWD)
 
 try:
-    import mide_ebml
+    import idelib
 except ImportError:
-    if os.path.exists('../mide_ebml'):
+    if os.path.exists('../idelib'):
         sys.path.append(os.path.abspath('..'))
-    elif os.path.exists(os.path.join(CWD, '../mide_ebml')):
-        sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
-    import mide_ebml #@UnusedImport
+    elif os.path.exists(os.path.join(CWD, '../idelib')):
+        sys.path.append(os.path.abspath(os.path.join(CWD, '../idelib')))
+    import idelib #@UnusedImport
 
-# from mide_ebml import util as ebml_util
-from mide_ebml.ebmlite import loadSchema
+# from idelib import util as ebml_util
+from idelib.ebmlite import loadSchema
 
 #===============================================================================
 # 
@@ -276,7 +276,7 @@ def readUserPage(devPath):
         props = mideSchema.load(propData)
     else:
         props = None
-#     manifest = ebml_util.read_ebml(manData, schema='mide_ebml.ebml.schema.manifest')
+#     manifest = ebml_util.read_ebml(manData, schema='idelib.ebml.schema.manifest')
 #     calibration = ebml_util.read_ebml(calData)
     manifest = manifestSchema.load(manData)
     calibration = mideSchema.load(calData)

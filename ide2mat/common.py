@@ -18,13 +18,13 @@ import time
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
-    _ = importlib.import_module('mide_ebml')
+    _ = importlib.import_module('idelib')
 except ImportError:
     sys.path.append('..')
 
 
-from mide_ebml import importer
-from mide_ebml.parsers import ChannelDataBlock
+from idelib import importer
+from idelib.parsers import ChannelDataBlock
 
 
 #===============================================================================
@@ -294,7 +294,7 @@ class TimestampFixer(object):
 
 class SimpleUpdater(object):
     """ A simple text-based progress updater. Simplified version of the one in
-        `mide_ebml.importer`
+        `idelib.importer`
     """
     
     def __init__(self, cancelAt=1.0, quiet=False, out=sys.stdout, precision=0):

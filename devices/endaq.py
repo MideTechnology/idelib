@@ -10,7 +10,7 @@ import os
 import re
 from time import time, sleep
 
-from mide_ebml.ebmlite import loadSchema
+from idelib.ebmlite import loadSchema
 
 from devices.base import DeviceTimeout, os_specific
 from devices.ssx import SlamStickX

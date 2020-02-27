@@ -19,16 +19,16 @@ import numpy as np
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
-    _ = importlib.import_module('mide_ebml')
+    _ = importlib.import_module('idelib')
 except ImportError:
     sys.path.append('..')
 
-from mide_ebml import __version__ as ebml_version    
-from mide_ebml import matfile
-from mide_ebml import importer
-from mide_ebml.matfile import MP
-from mide_ebml.parsers import ChannelDataBlock, MPL3115PressureTempParser
-from mide_ebml.calibration import CombinedPoly, PolyPoly
+from idelib import __version__ as ebml_version    
+from idelib import matfile
+from idelib import importer
+from idelib.matfile import MP
+from idelib.parsers import ChannelDataBlock, MPL3115PressureTempParser
+from idelib.calibration import CombinedPoly, PolyPoly
 
 from devices import SlamStickX
 from common import SimpleUpdater, validateArguments

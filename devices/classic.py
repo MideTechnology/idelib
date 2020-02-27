@@ -1,7 +1,7 @@
 '''
 Class defintion and supporting items for Mide Slam Stick Classic data recorders.
 
-@todo: Move everything from mide_ebml.classic.config into this module. It is 
+@todo: Move everything from idelib.classic.config into this module. It is 
     more appropriate here.
 
 Created on Jan 28, 2015
@@ -14,10 +14,10 @@ from datetime import datetime
 import os
 import time
 
-from mide_ebml.classic import config as classic_config
-from mide_ebml.classic.dataset import Dataset
-from mide_ebml.classic.importer import createDefaultSensors
-from mide_ebml.calibration import Univariate
+from idelib.classic import config as classic_config
+from idelib.classic.dataset import Dataset
+from idelib.classic.importer import createDefaultSensors
+from idelib.calibration import Univariate
 from base import Recorder
 
 #===============================================================================

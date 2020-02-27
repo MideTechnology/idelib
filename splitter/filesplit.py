@@ -15,28 +15,28 @@ import sys
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
-    _ = import_module('mide_ebml')
+    _ = import_module('idelib')
 except ImportError:
     sys.path.append('..')
     
-# from mide_ebml.ebml.schema.mide import MideDocument
-import mide_ebml
-from mide_ebml import parsers
-# from mide_ebml import util
-from mide_ebml.importer import nullUpdater
+# from idelib.ebml.schema.mide import MideDocument
+import idelib
+from idelib import parsers
+# from idelib import util
+from idelib.importer import nullUpdater
 
-from mide_ebml import ebmlite
-mideSchema = ebmlite.loadSchema(os.path.join(os.path.dirname(mide_ebml.__file__), 
+from idelib import ebmlite
+mideSchema = ebmlite.loadSchema(os.path.join(os.path.dirname(idelib.__file__), 
                                              'ebmlite/schemata/mide.xml'))
 
 #===============================================================================
 # 
 #===============================================================================
 
-from mide_ebml.dataset import __DEBUG__
+from idelib.dataset import __DEBUG__
 
 import logging
-logger = logging.getLogger('mide_ebml')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 if __DEBUG__:

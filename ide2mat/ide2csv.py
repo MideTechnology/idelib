@@ -18,13 +18,13 @@ import sys
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
-    _ = importlib.import_module('mide_ebml')
+    _ = importlib.import_module('idelib')
 except ImportError:
     sys.path.append('..')
 
-from mide_ebml import __version__ as ebml_version
-from mide_ebml import importer
-from mide_ebml.matfile import exportMat
+from idelib import __version__ as ebml_version
+from idelib import importer
+from idelib.matfile import exportMat
 
 from common import sanitizeFilename
 

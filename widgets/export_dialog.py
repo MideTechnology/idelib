@@ -415,12 +415,12 @@ class ExportDialog(sc.SizedDialog):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
             
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
 
@@ -751,12 +751,12 @@ class CSVExportDialog(ExportDialog):
             
                 * addHeaders: `True` if the 'Include Column Headers' option
                     was checked.
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
 
@@ -878,12 +878,12 @@ class FFTExportDialog(ExportDialog):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
             
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
                 * windowSize: The specified window (a/k/a slice) size for use
@@ -981,12 +981,12 @@ class PSDExportDialog(FFTExportDialog):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
             
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
                 * windowSize: The specified window (a/k/a slice) size for use
@@ -1076,14 +1076,14 @@ class SpectrogramExportDialog(FFTExportDialog):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
             
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
                 * slices: The number of slices per second to plot (i.e. the
                     X resolution).
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
                 * windowSize: The specified window (a/k/a slice) size for use
@@ -1112,7 +1112,7 @@ if __name__ == '__main__':# or True:
     locale.setlocale(locale.LC_ALL, 'English_United States.1252')
     
     from pprint import pprint
-    from mide_ebml import importer
+    from idelib import importer
     doc=importer.importFile(updater=importer.SimpleUpdater(0.01))
     
     class FakeViewer(object):

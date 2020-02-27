@@ -33,7 +33,7 @@ import wx
 import wx.lib.sized_controls as SC
 
 from common import makeBackup, restoreBackup
-from mide_ebml.ebmlite import loadSchema
+from idelib.ebmlite import loadSchema
 
 import devices
 

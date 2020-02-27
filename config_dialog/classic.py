@@ -14,7 +14,7 @@ import time
 import wx
 import wx.lib.sized_controls as SC
 
-# from mide_ebml import util
+# from idelib import util
 from common import cleanUnicode
 from timeutil import makeWxDateTime
 from widgets.shared import DateTimeCtrl

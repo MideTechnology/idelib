@@ -13,8 +13,8 @@ import random
 
 import numpy
 
-from mide_ebml import dataset as DS
-# from mide_ebml.calibration import Transform, CombinedPoly, PolyPoly
+from idelib import dataset as DS
+# from idelib.calibration import Transform, CombinedPoly, PolyPoly
 
 #===============================================================================
 # 

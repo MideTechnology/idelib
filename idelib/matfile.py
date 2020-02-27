@@ -181,7 +181,7 @@ class MatStream(object):
         """ Constructor. Create a new .MAT file.
         
             @param filename: The name of the new file, or `None`.
-            @keyword doc: The `mide_ebml.dataset.Dataset` from which to export.
+            @keyword doc: The `idelib.dataset.Dataset` from which to export.
             @keyword msg: The message string to appear at the start of the
                 MAT file. The first 4 bytes must be non-zero.
             @keyword serialize: If `True`, start the first file with a 

@@ -13,7 +13,7 @@ from wx.lib.dialogs import ScrolledMessageDialog
 import wx.lib.filebrowsebutton as FB
 import wx.lib.sized_controls as SC
 
-from mide_ebml.matfile import MatStream
+from idelib.matfile import MatStream
 
 from tools.base import ToolDialog
 from widgets.multifile import MultiFileSelect

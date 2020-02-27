@@ -20,7 +20,7 @@ from xml.etree import ElementTree as ET
 
 import wx
 
-from mide_ebml.ebmlite import loadSchema, util
+from idelib.ebmlite import loadSchema, util
 
 DEFAULTS_PATH = os.path.join(os.path.dirname(__file__), 'defaults')
 
