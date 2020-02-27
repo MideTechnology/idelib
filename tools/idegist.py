@@ -106,6 +106,7 @@ class IdeSummarizer(ToolDialog):
         self.headerCheck = self.addCheck(
             subpane, "Include Column Headers",
             name="useHeaders",
+            checked=True,
             tooltip=(
                 "Write column descriptions in first row. Applies only to"
                 " text-based formats."
@@ -241,7 +242,8 @@ class IdeSummarizer(ToolDialog):
                 csv_writer = csv.writer(csvfile, delimiter=delimiter)
 
                 # Writing column headers
-                csv_writer.writerow(scripts.idegist.CsvRowTuple._fields)
+                if headers:
+                    csv_writer.writerow(scripts.idegist.CsvRowTuple._fields)
 
                 class StopExecution(Exception):
                     pass
