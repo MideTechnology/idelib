@@ -50,7 +50,7 @@ def Datafiles(*filenames, **kw):
         for filename in filenames
         if os.path.isfile(filename))
 
-schemas = Datafiles('mide_ebml/ebmlite/schemata/*.xml',
+schemas = Datafiles('idelib/ebmlite/schemata/*.xml',
                     'LICENSES/*.txt',
                     'ABOUT/*',
                     'resources/*',

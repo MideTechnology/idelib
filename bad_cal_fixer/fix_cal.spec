@@ -55,9 +55,9 @@ def Datafiles(*filenames, **kw):
         for filename in filenames
         if os.path.isfile(filename))
 
-# schemas = Datafiles('mide.xml', '../mide_ebml/ebmlite/schemata/mide.xml',
+# schemas = Datafiles('mide.xml', '../idelib/ebmlite/schemata/mide.xml',
 #                    strip_path=True)#False)
-schemas = [['mide_ebml/ebmlite/schemata/mide.xml',  '../mide_ebml/ebmlite/schemata/mide.xml', "DATA"]]
+schemas = [['idelib/ebmlite/schemata/mide.xml',  '../idelib/ebmlite/schemata/mide.xml', "DATA"]]
 
 a = Analysis(['fix_cal.py'],
              pathex=['..', HOME_DIR, os.path.abspath(os.path.join(HOME_DIR,'..'))],
