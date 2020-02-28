@@ -354,8 +354,8 @@ class ToolDialog(SC.SizedDialog):
         """
         """
         self.SetButtonSizer(self.CreateStdDialogButtonSizer(wx.OK | wx.CANCEL))
-        self.okBtn = self.FindWindowById(wx.ID_OK)
-        self.cancelBtn = self.FindWindowById(wx.ID_CANCEL)
+        self.okBtn = self.FindWindowById(wx.ID_OK, parent=self)
+        self.cancelBtn = self.FindWindowById(wx.ID_CANCEL, parent=self)
 
         # Kind of a hack, but the OK/Cancel labels are confusing.
         self.okBtn.SetLabel("Run")
