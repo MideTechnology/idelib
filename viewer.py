@@ -77,7 +77,6 @@ import plugins
 import tools.raw2mat
 import tools.filesplit
 import tools.ide2csv
-import tools.idegist
 
 
 #===============================================================================
@@ -3031,8 +3030,7 @@ class ViewerApp(wx.App):
 
     defaultPlugins = [tools.raw2mat,
                       tools.filesplit,
-                      tools.ide2csv,
-                      tools.idegist,]
+                      tools.ide2csv,]
 
     def saveAllPrefs(self, filename=None, hideFile=None):
         """ Save all preferences, including defaults, to the config file.

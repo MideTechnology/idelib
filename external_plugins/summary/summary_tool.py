@@ -5,7 +5,7 @@ import csv
 import wx
 
 import idelib.importer
-import scripts.idegist
+import summary_script
 from widgets.multifile import MultiFileSelect
 from tools.base import ToolDialog
 from tools.raw2mat import ModalExportProgress
@@ -243,7 +243,7 @@ class IdeSummarizer(ToolDialog):
 
                 # Writing column headers
                 if headers:
-                    csv_writer.writerow(scripts.idegist.CsvRowTuple._fields)
+                    csv_writer.writerow(summary_script.CsvRowTuple._fields)
 
                 class StopExecution(Exception):
                     pass
@@ -267,7 +267,7 @@ class IdeSummarizer(ToolDialog):
                             wx.Yield()
                             for channel in ds.channels.values():
                                 for subchannel in channel.subchannels:
-                                    csv_writer.writerow(scripts.idegist.summarize_sch(subchannel, bivariates=not noBivariates))
+                                    csv_writer.writerow(summary_script.summarize_sch(subchannel, bivariates=not noBivariates))
 
                                     sampleCount += len(subchannel.getSession())
                                     update_or_raise(sampleCount)

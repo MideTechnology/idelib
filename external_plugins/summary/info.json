@@ -1,0 +1,9 @@
+{"name": "Batch IDE Summarizer",
+ "version": "0.0",
+ "description": "A utility for summarizing metrics across multiple IDE files.",
+ "type": "tool",
+ "module": "summary_tool",
+ "author": "Becker B. Awqatty",
+ "copyright": "Copyright (c) 2020 Midé Technology",
+ "url": "http://mide.com/"
+ }
