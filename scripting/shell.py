@@ -11,10 +11,12 @@ from __future__ import absolute_import, print_function
 
 from datetime import datetime
 import os
+import site
 import sys
 import tempfile
 from threading import RLock
 
+from six.moves import builtins
 import wx.adv
 import wx.py
 
@@ -123,6 +125,10 @@ class PythonConsole(wx.py.shell.ShellFrame):
             @keyword statusText: Initial text for the status bar.
             @keyword locals: A dictionary of local variables (like `exec` uses)
         """
+        # The PyInstaller 'frozen' Python doesn't have the `help` function.
+        # Force it to be present.
+        builtins.help = site._Helper()
+        
         name = getattr(wx.GetApp(), 'fullAppName', '')
         
         self.baseTitle = kwargs.setdefault('title', self.BASE_TITLE)
