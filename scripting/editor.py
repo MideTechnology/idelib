@@ -5,7 +5,6 @@ from __future__ import absolute_import, print_function
 from datetime import datetime
 import os.path
 import string
-import tempfile
 
 import wx
 import wx.aui as AUI
@@ -340,6 +339,15 @@ class ScriptEditor(wx.Frame, MenuMixin):
     ID_MENU_SCRIPT_RUN = wx.NewIdRef()
     ID_MENU_SCRIPT_RUN_SEL = wx.NewIdRef()
     
+    PREFS = {'checkForChanges': True,
+            'changeCheckInterval': 500,
+            'defaultDir': "",
+            'showWhitespace': True,
+            'showGuides': True,
+            'showLineNumbers': True,
+            'edgeColumn': 78,
+            'showEdge': True
+            }
     
     def __init__(self, *args, **kwargs):
         """ Constructor. Standard `wx.Frame` arguments, plus:
@@ -380,6 +388,15 @@ class ScriptEditor(wx.Frame, MenuMixin):
         self.finddata = wx.FindReplaceData()
         self.finddata.SetFlags(wx.FR_DOWN)
 
+        self.checkForChanges = True
+        self.changeCheckInterval = 500
+        self.defaultDir = ""
+        self.showWhitespace = True
+        self.showGuides = True
+        self.showLineNumbers = True
+        self.edgeColumn = 78
+        self.showEdge = True
+
         self.loadPrefs()
         self.buildMenus()
 
@@ -405,20 +422,33 @@ class ScriptEditor(wx.Frame, MenuMixin):
         """
         self.changeCheckTimer.Stop()
         
-        # TODO: Read from viewer preferences
-        self.checkForChanges = True
-        self.changeCheckInterval = 500
-        self.defaultDir = ""
-        self.showWhitespace = True
-        self.showGuides = True
-        self.showLineNumbers = True
-        self.edgeColumn = 78
-        self.showEdge = True
+        app = wx.GetApp()
+        if hasattr(app, 'getPref'):
+            for k,v in self.PREFS.items():
+                setattr(self, k, app.getPref('scripting.editor.%s' % k, v))
         
         for n in xrange(self.nb.GetPageCount()):
             self.nb.GetPage(n).updateOptions()
 
         if self.checkForChanges:
+            self.changeCheckTimer.Start(self.changeCheckInterval)
+
+
+    def savePrefs(self):
+        """ Save editor configuration to the main app.
+        """
+        try:
+            timerRunning = self.changeCheckTimer.IsRunning()
+            self.changeCheckTimer.Stop()
+        except RuntimeError:
+            timerRunning = False
+
+        app = wx.GetApp()
+        if hasattr(app, 'setPref'):
+            for k in self.PREFS.keys():
+                app.setPref('scripting.editor.%s' % k, getattr(self, k))
+
+        if timerRunning:
             self.changeCheckTimer.Start(self.changeCheckInterval)
 
 
@@ -515,7 +545,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
                          'Show Indentation Guides',
                          'Show vertical tab alignment guides',
                          self.OnViewMenuItem, 
-                         kind=wx.ITEM_CHECK, checked=self.showLineNumbers)
+                         kind=wx.ITEM_CHECK, checked=self.showGuides)
 
 
         # "Script" menu
@@ -970,6 +1000,7 @@ class ScriptEditor(wx.Frame, MenuMixin):
         except (AttributeError, KeyError):
             pass
         
+        self.savePrefs()
         evt.Skip()
         
 
