@@ -66,11 +66,11 @@ import devices.efm32_firmware
 from threaded_file import ThreadAwareFile
 
 # The actual data-related stuff
-from mide_ebml import ebmlite
-import mide_ebml.classic.importer
-import mide_ebml.multi_importer
-import mide_ebml.matfile
-import mide_ebml.unit_conversion
+from idelib import ebmlite
+import idelib.classic.importer
+import idelib.multi_importer
+import idelib.matfile
+import idelib.unit_conversion
 
 # Plug-ins
 import plugins
@@ -895,7 +895,7 @@ class Viewer(wx.Frame, MenuMixin):
             self.displayMenu.Enable(False)
             return
         self.unitConverters = {self.ID_DATA_DISPLAY_NATIVE: None}
-        cons = mide_ebml.unit_conversion.getApplicableConverters(self.dataset)
+        cons = idelib.unit_conversion.getApplicableConverters(self.dataset)
 
         for c in sorted(cons, key=lambda x: x.units):
             params = {}
@@ -1367,11 +1367,11 @@ class Viewer(wx.Frame, MenuMixin):
         badMsg = u"The file may be irretrievably damaged."
 
         if ext in ('.ide','.mide'):
-            importer = mide_ebml.importer.openFile
-            reader = mide_ebml.importer.readData
+            importer = idelib.importer.openFile
+            reader = idelib.importer.readData
         else:
-            importer = mide_ebml.classic.importer.openFile
-            reader = mide_ebml.classic.importer.readData
+            importer = idelib.classic.importer.openFile
+            reader = idelib.classic.importer.readData
             badMsg = (u"The file may be irretrievably damaged, "
                       "or it may not a Slam Stick Classic file.")
 
@@ -1412,7 +1412,7 @@ class Viewer(wx.Frame, MenuMixin):
                     return
 
             # Classic: Blank file
-            if isinstance(newDoc, mide_ebml.classic.dataset.Dataset):
+            if isinstance(newDoc, idelib.classic.dataset.Dataset):
                 if not newDoc.sessions:
                     self.ask("This Classic file contains no data.",
                         "Import Error", wx.OK, wx.ICON_ERROR, extendedMessage=\
@@ -1422,7 +1422,7 @@ class Viewer(wx.Frame, MenuMixin):
                     stream.closeAll()
                     return
 
-        except mide_ebml.parsers.ParsingError as err:
+        except idelib.parsers.ParsingError as err:
             self.ask("The file '%s' could not be opened" % name,
                      "Import Error", wx.OK, icon=wx.ICON_ERROR,
                      extendedMessage=badMsg)
@@ -1554,7 +1554,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.closeFile()
 
         streams = [ThreadAwareFile(filename, 'rb') for filename in filenames]
-        newDoc = mide_ebml.multi_importer.multiOpen(streams)
+        newDoc = idelib.multi_importer.multiOpen(streams)
 
         self.dataset = newDoc
         if len(newDoc.sessions) > 1:
@@ -1565,7 +1565,7 @@ class Viewer(wx.Frame, MenuMixin):
         else:
             self.session = newDoc.lastSession
 
-        loader = Loader(self, newDoc, mide_ebml.multi_importer.multiRead,
+        loader = Loader(self, newDoc, idelib.multi_importer.multiRead,
                         **self.app.getPref('loader'))
         self.pushOperation(loader)
         self.SetTitle(self.app.getWindowTitle(self))
@@ -1648,7 +1648,7 @@ class Viewer(wx.Frame, MenuMixin):
                     source.exportCsv(stream, **settings)
 
             elif exportType == 'MAT':
-                mide_ebml.matfile.exportMat(source, filename, **settings)
+                idelib.matfile.exportMat(source, filename, **settings)
 
         except Exception as err:
             self.handleError(err, what="exporting %s" % exportType)
@@ -1725,10 +1725,10 @@ class Viewer(wx.Frame, MenuMixin):
             from the preferences. Channel/subchannel combinations not known are
             assigned one of the standard default colors.
 
-            @param source: The source, either `mide_ebml.dataset.Channel`,
-                `mide_ebml.dataset.SubChannel`, or `mide_ebml.dataset.EventList`
+            @param source: The source, either `idelib.dataset.Channel`,
+                `idelib.dataset.SubChannel`, or `idelib.dataset.EventList`
         """
-        if isinstance(source, mide_ebml.dataset.EventList):
+        if isinstance(source, idelib.dataset.EventList):
             source = source.parent
 
         color = getattr(source, 'color', None)
@@ -1755,7 +1755,7 @@ class Viewer(wx.Frame, MenuMixin):
     def setPlotColor(self, source, color):
         """ Writes a plot's color to the preferences.
         """
-        if isinstance(source, mide_ebml.dataset.EventList):
+        if isinstance(source, idelib.dataset.EventList):
             source = source.parent
         sourceId = "%02x.%d" % (source.parent.id, source.id)
         colors = self.root.app.getPref('plotColors')

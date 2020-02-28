@@ -6,7 +6,7 @@ from time import time
 import wx
 import  wx.lib.filebrowsebutton as FB
 
-from mide_ebml import recovery
+from idelib import recovery
 from tools.base import ToolDialog
 
 #===============================================================================

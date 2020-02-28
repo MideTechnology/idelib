@@ -8,7 +8,7 @@ import locale
 import wx; wx = wx;
 from wx.lib.agw.floatspin import FloatSpin
 
-from mide_ebml import importer
+from idelib import importer
 from widgets.timeline import TimeNavigatorCtrl
 
 

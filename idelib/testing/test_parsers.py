@@ -5,16 +5,16 @@ import unittest
 import mock
 import numpy as np
 
-from mide_ebml.importer import openFile
-from mide_ebml.parsers import ChannelDataArrayBlockParser, ChannelDataArrayBlock
-from mide_ebml.ebmlite.core import *
+from idelib.importer import openFile
+from idelib.parsers import ChannelDataArrayBlockParser, ChannelDataArrayBlock
+from idelib.ebmlite.core import *
 
 
 class TestChannelDataArrayBlockParser(unittest.TestCase):
     """ Tests for ChannelDataArrayBlockParser """
 
     def setUp(self):
-        self.doc = openFile('./mide_ebml/testing/SSX70065.IDE')
+        self.doc = openFile('./idelib/testing/SSX70065.IDE')
         chDatBlockEl = self.doc.ebmldoc.children[161]
         self.element = [x for x in self.doc.ebmldoc.value if type(x) is chDatBlockEl and x[0].value == 32][0]
         self.block = ChannelDataArrayBlock(self.element)
@@ -59,7 +59,7 @@ class TestChannelDataArrayBlock(unittest.TestCase):
     # with new stuff, but (most of) the other stuff should be fine as-is
 
     def setUp(self):
-        self.doc = openFile('./mide_ebml/testing/SSX70065.IDE')
+        self.doc = openFile('./idelib/testing/SSX70065.IDE')
         self.ebmldoc = self.doc.ebmldoc
 
         def chFilter(x):

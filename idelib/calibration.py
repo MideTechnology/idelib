@@ -28,7 +28,7 @@ from time import sleep
 import numpy as np
 
 import logging
-logger = logging.getLogger('mide_ebml')
+logger = logging.getLogger('idelib')
 
 #===============================================================================
 # 

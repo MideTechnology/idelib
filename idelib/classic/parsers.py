@@ -5,7 +5,7 @@ import os.path
 import struct
 import time
 
-from mide_ebml import parsers
+from idelib import parsers
 
 #===============================================================================
 # Data parsers

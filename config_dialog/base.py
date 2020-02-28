@@ -1843,7 +1843,7 @@ class Tab(SP.ScrolledPanel, Group):
 #     import sys
 #     
 #     print "running %s main" % __file__
-#     from mide_ebml.ebmlite import util
+#     from idelib.ebmlite import util
 #     SCHEMA = loadSchema('config_ui.xml')
 #     
 #     # XXX: TEST CODE, loads the UI from a file (XML or EBML), specified as a 

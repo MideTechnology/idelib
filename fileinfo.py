@@ -13,7 +13,7 @@ import wx.lib.sized_controls as SC
 
 from config_dialog.special_tabs import InfoPanel, CalibrationPanel
 import devices
-# from mide_ebml import util
+# from idelib import util
 
 #===============================================================================
 # 
@@ -301,7 +301,7 @@ class RecorderInfoDialog(SC.SizedDialog):
     @classmethod
     def showRecorderInfo(cls, ebmldoc, showAll=False):
         """ Display information about the device that made a recording.
-            @param root: The `mide_ebml.dataset.Dataset` with info to show
+            @param root: The `idelib.dataset.Dataset` with info to show
         """
         
         dlg = cls(None, -1, "%s Recording Properties" % ebmldoc.filename, 
@@ -320,10 +320,10 @@ if __name__ == "__main__":
     
     print "Starting test..."
     if CLASSIC_TEST:
-        from mide_ebml.classic import importer as classic_importer
+        from idelib.classic import importer as classic_importer
         doc = classic_importer.importFile('test_recordings/data.dat')
     else:
-        from mide_ebml import importer
+        from idelib import importer
         doc=importer.importFile(updater=importer.SimpleUpdater(0.25, quiet=True))
         
     print "filename: %r" % doc.filename

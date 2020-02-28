@@ -19,13 +19,13 @@ import sys
 # Song and dance to find libraries in sibling folder.
 # Should not matter after PyInstaller builds it.
 try:
-    _ = import_module('mide_ebml')
+    _ = import_module('idelib')
 except ImportError:
     sys.path.append('..')
     
-from mide_ebml.matfile import MatStream
-from mide_ebml.matfile import MP
-from mide_ebml import importer
+from idelib.matfile import MatStream
+from idelib.matfile import MP
+from idelib import importer
 
 
 class StreamedEventList(object):
@@ -139,7 +139,7 @@ def ideIterator(doc, writer, channelId=0, calChannelId=1, **kwargs):
 
 class SimpleUpdater(object):
     """ A simple text-based progress updater. Simplifed version of the one in
-        mide_ebml.importer
+        idelib.importer
     """
     
     def __init__(self, cancelAt=1.0, quiet=False, out=sys.stdout, precision=0):

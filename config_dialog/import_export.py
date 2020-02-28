@@ -12,7 +12,7 @@ import os.path
 
 import wx
 
-from mide_ebml.ebmlite import loadSchema, Element
+from idelib.ebmlite import loadSchema, Element
 from .base import logger, ConfigBase
 from . import legacy
 from devices import getDevices

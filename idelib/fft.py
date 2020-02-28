@@ -10,12 +10,12 @@ This module requires Numpy.
 try:
     import numpy as np
 except ImportError:
-    raise ImportError("mide_ebml.fft requires Numpy")
+    raise ImportError("idelib.fft requires Numpy")
 
 #try:
 #    from pyfft.builders import rfft
 #except ImportError:
-#    raise ImportError("mide_ebml.fft requires pyfftw")
+#    raise ImportError("idelib.fft requires pyfftw")
 
 
 #===============================================================================
@@ -104,7 +104,7 @@ class FFTList(object):
         that utilizes `EventList` data (plotting, etc.) should work for
         `FFTList` objects without much refactoring.
         
-        @see: `mide_ebml.dataset.EventList`
+        @see: `idelib.dataset.EventList`
     """
     
     defaultWindowSize = 65536.0 

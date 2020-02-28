@@ -1,5 +1,5 @@
 '''
-Module mide_ebml.recovery: Utilities to perform basic data recovery from a 
+Module idelib.recovery: Utilities to perform basic data recovery from a 
 damaged IDE file. 
 
 Created on Nov 7, 2017
@@ -21,8 +21,8 @@ import sys
 
 sys.path.insert(0,'..')
 
-from mide_ebml.ebmlite import loadSchema, UnknownElement
-from mide_ebml.ebmlite.encoding import encodeId
+from idelib.ebmlite import loadSchema, UnknownElement
+from idelib.ebmlite.encoding import encodeId
 
 
 #===============================================================================

@@ -12,11 +12,11 @@ import os
 import sys
 sys.path.insert(0, '..')
 
-import mide_ebml.ebmlite
-from mide_ebml.ebmlite import loadSchema
-from mide_ebml.ebmlite import util
+import idelib.ebmlite
+from idelib.ebmlite import loadSchema
+from idelib.ebmlite import util
 
-mide_ebml.ebmlite.SCHEMA_PATH.insert(0, os.path.dirname(__file__))
+idelib.ebmlite.SCHEMA_PATH.insert(0, os.path.dirname(__file__))
 schema = loadSchema('mide.xml')
 
 

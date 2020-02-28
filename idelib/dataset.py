@@ -74,7 +74,7 @@ SCHEMA_FILE = 'mide.xml'
 #===============================================================================
 
 import logging
-logger = logging.getLogger('mide_ebml')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 

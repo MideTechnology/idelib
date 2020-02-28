@@ -21,7 +21,7 @@ testFiles = glob.glob(r"C:\Users\dstokes\workspace\SSXViewer\test_recordings\Com
 from dataset import __DEBUG__
 
 import logging
-logger = logging.getLogger('mide_ebml')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 if __DEBUG__:

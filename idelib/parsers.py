@@ -258,7 +258,7 @@ def getElementHandlers(module=None, subElements=False):
         are identified by being subclasses of `ElementHandler`.
     
         @keyword module: The module from which to get the handlers. Defaults to
-            the current module (i.e. `mide_ebml.parsers`).
+            the current module (i.e. `idelib.parsers`).
         @keyword subElements: `True` if the set of handlers should also
             include non-root elements (e.g. the sub-elements of a
             `RecordingProperties` or `ChannelDataBlock`).

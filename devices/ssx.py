@@ -18,12 +18,12 @@ try:
 except ImportError:
     from StringIO import StringIO
 
-from mide_ebml.dataset import Dataset
-from mide_ebml import importer
-from mide_ebml.parsers import CalibrationListParser, RecordingPropertiesParser
-from mide_ebml.parsers import getParserRanges
+from idelib.dataset import Dataset
+from idelib import importer
+from idelib.parsers import CalibrationListParser, RecordingPropertiesParser
+from idelib.parsers import getParserRanges
 
-from mide_ebml.ebmlite import loadSchema
+from idelib.ebmlite import loadSchema
 
 from .base import ConfigError, Recorder, os_specific
 
@@ -662,7 +662,7 @@ class SlamStickX(Recorder):
 
     def getUserCalPolynomials(self, filename=None, refresh=False):
         """ Get the recorder's user-defined calibration data as a dictionary
-            of `mide_ebml.transforms.Transform` subclass objects.
+            of `idelib.transforms.Transform` subclass objects.
         """
         filename = self.userCalFile if filename is None else filename
         if filename is None or not os.path.exists(filename):
@@ -849,7 +849,7 @@ class SlamStickX(Recorder):
         """ Write a set of calibration to a file. For the keyword arguments, a
             value of `False` will simply not write the corresponding element.
         
-            @param transforms: A dictionary or list of `mide_ebml.calibration`
+            @param transforms: A dictionary or list of `idelib.calibration`
                 objects.
             @keyword date: The date of calibration.
             @keyword expires: The calibration expiration date.
@@ -879,7 +879,7 @@ class SlamStickX(Recorder):
     def writeUserCal(self, transforms, filename=None):
         """ Write user calibration to the SSX.
         
-            @param transforms: A dictionary or list of `mide_ebml.calibration`
+            @param transforms: A dictionary or list of `idelib.calibration`
                 objects.
             @keyword filename: An alternate file to which to write the data,
                 instead of the standard user calibration file.

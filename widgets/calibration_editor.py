@@ -7,7 +7,7 @@ from __future__ import absolute_import, print_function
 import wx
 import wx.lib.sized_controls as SC
 
-from mide_ebml.calibration import Transform, Univariate, Bivariate
+from idelib.calibration import Transform, Univariate, Bivariate
 
 #===============================================================================
 # 
@@ -518,7 +518,7 @@ class PolyEditDialog(SC.SizedDialog):
 #===============================================================================
 
 # if __name__ == '__main__':
-#     from mide_ebml import importer
+#     from idelib import importer
 #     doc = importer.importFile()
 #     transforms = doc.transforms
 #     channels = doc.channels

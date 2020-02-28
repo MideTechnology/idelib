@@ -4,7 +4,7 @@ Created on Jul 1, 2014
 @author: dstokes
 '''
 
-from mide_ebml import importer
+from idelib import importer
 import dataset
 import parsers
 

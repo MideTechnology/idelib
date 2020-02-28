@@ -19,7 +19,7 @@ import wx.adv
 import wx.py
 
 import images
-import mide_ebml
+import idelib
 from widgets import htmlwindow
 
 #===============================================================================
@@ -610,7 +610,7 @@ class PythonConsole(wx.py.shell.ShellFrame):
         localVars = kwargs.setdefault('locals', {})
         localVars.update({'app': app,
 #                           'build_info': build_info,
-                          'mide_ebml': mide_ebml,
+                          'idelib': idelib,
                           'viewer': parent
                           })
         

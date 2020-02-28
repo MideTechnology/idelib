@@ -51,20 +51,20 @@ DB_LOG_FILE = os.path.join(CAL_PATH, 'SSX_Calibration_Sheet.csv')
 DB_BAD_LOG_FILE = os.path.join(CAL_PATH, 'SSX_Bad_Calibration.csv') 
 
 
-# Rigmarole to make sure the mide_ebml library can be found.
+# Rigmarole to make sure the idelib library can be found.
 try:
     CWD = os.path.abspath(os.path.dirname(__file__))
     sys.path.append(CWD)
     sys.path.append(os.path.abspath(os.path.join(CWD, '..')))
     sys.path.append(VIEWER_PATH)
     
-    import mide_ebml
+    import idelib
 except ImportError:
-    if os.path.exists('../mide_ebml'):
+    if os.path.exists('../idelib'):
         sys.path.append(os.path.abspath('..'))
-    elif os.path.exists(os.path.join(CWD, '../mide_ebml')):
-        sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
-    import mide_ebml #@UnusedImport
+    elif os.path.exists(os.path.join(CWD, '../idelib')):
+        sys.path.append(os.path.abspath(os.path.join(CWD, '../idelib')))
+    import idelib #@UnusedImport
 
 
 #===============================================================================

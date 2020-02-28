@@ -17,12 +17,12 @@ import sys
 import unittest
 import mock
 
-from mide_ebml.dataset import *
+from idelib.dataset import *
 
-from mide_ebml.calibration import Transform, CombinedPoly, PolyPoly
-from mide_ebml.calibration import AccelTransform
-from mide_ebml import importer
-from mide_ebml import parsers
+from idelib.calibration import Transform, CombinedPoly, PolyPoly
+from idelib.calibration import AccelTransform
+from idelib import importer
+from idelib import parsers
 
 import numpy as np
 
@@ -119,7 +119,7 @@ class TransformableTestCase(unittest.TestCase):
         
         # configure above objects
         fileStream = open(
-            './mide_ebml/testing/SSX70065.IDE', 'rb')
+            './idelib/testing/SSX70065.IDE', 'rb')
         self.xform1.dataset = Dataset(fileStream)
         self.xform1.dataset.transforms = {1: "123", 2: "456"}
         self.xform1.children = [self.genericObject]
@@ -189,7 +189,7 @@ class DatasetTestCase(unittest.TestCase):
     def setUp(self):
         """ Open a file for testing in a new dataset. """
         self.fileStream = open(
-            './mide_ebml/testing/SSX70065.IDE', 'rb')
+            './idelib/testing/SSX70065.IDE', 'rb')
         self.dataset = Dataset(self.fileStream)
 
         self.channelCheck = {}
@@ -427,7 +427,7 @@ class SessionTestCase(unittest.TestCase):
     """ Test case for methods in the Session class. """
     
     def testInitAndEQ(self):
-        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
+        self.dataset = importer.importFile('./idelib/testing/SSX70065.IDE')
         session1 = Session(
             self.dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
         session2 = Session(
@@ -446,7 +446,7 @@ class SessionTestCase(unittest.TestCase):
     def testRepr(self):
         """ Test that __repr__ is creating the correct string. """
         fileStream = open(
-            './mide_ebml/testing/SSX70065.IDE', 'rb')
+            './idelib/testing/SSX70065.IDE', 'rb')
         dataset = Dataset(fileStream)
         session1 = Session(
             dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
@@ -462,7 +462,7 @@ class SensorTestCase(unittest.TestCase):
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
+        self.dataset = importer.importFile('./idelib/testing/SSX70065.IDE')
         
         self.sensor1 = Sensor(self.dataset, 1)
         self.sensor2 = Sensor(self.dataset, 2, "3", 4, 5, 6, 7)
@@ -531,7 +531,7 @@ class ChannelTestCase(unittest.TestCase):
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
+        self.dataset = importer.importFile('./idelib/testing/SSX70065.IDE')
         self.dataset.addSensor(0)
         
         self.fakeParser = GenericObject()
@@ -701,7 +701,7 @@ class SubChannelTestCase(unittest.TestCase):
     
     def setUp(self):
         """ Open a file for testing in a new dataset. """
-        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
+        self.dataset = importer.importFile('./idelib/testing/SSX70065.IDE')
         self.dataset.addSensor(0)
         
         self.fakeParser = GenericObject()
@@ -847,7 +847,7 @@ class EventListTestCase(unittest.TestCase):
     """ Test case for methods in the EventList class. """
     
     def setUp(self):
-        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
+        self.dataset = importer.importFile('./idelib/testing/SSX70065.IDE')
         self.dataset.addSession(0, 1, 2)
         self.dataset.addSensor(0)
         
@@ -1632,7 +1632,7 @@ class EventArrayTestCase(unittest.TestCase):
         self.assertTrue(np.all(array1 == array2))
 
     def setUp(self):
-        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
+        self.dataset = importer.importFile('./idelib/testing/SSX70065.IDE')
         self.dataset.addSession(0, 1, 2)
         self.dataset.addSensor(0)
 
@@ -2729,7 +2729,7 @@ class PlotTestCase(unittest.TestCase):
     """ Unit test for the Plot class. """
     
     def setUp(self):
-        self.dataset = importer.importFile('./mide_ebml/testing/SSX70065.IDE')
+        self.dataset = importer.importFile('./idelib/testing/SSX70065.IDE')
         self.dataset.addSession(0, 1, 2)
         self.dataset.addSensor(0)
         
@@ -2811,7 +2811,7 @@ class DataTestCase(unittest.TestCase):
     """
 
     def setUp(self):
-        self.dataset = importer.importFile('./mide_ebml/testing/SSX_Data.IDE')
+        self.dataset = importer.importFile('./idelib/testing/SSX_Data.IDE')
         self.delta = 0.0015
 
 
@@ -2824,7 +2824,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./mide_ebml/testing/SSX_Data_Ch8_Calibrated.csv', 'rb') as f:
+        with open('./idelib/testing/SSX_Data_Ch8_Calibrated.csv', 'rb') as f:
             for new, old in zip(out, f):
 #                 self.assertEqual(old.strip(), new.strip())
                 for a,b in zip(eval(new),eval(old)):
@@ -2846,7 +2846,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./mide_ebml/testing/SSX_Data_Ch8_NoCalibration.csv', 'rb') as f:
+        with open('./idelib/testing/SSX_Data_Ch8_NoCalibration.csv', 'rb') as f:
             for new, old in zip(out, f):
 #                 self.assertEqual(old.strip(), new.strip())
                 for a,b in zip(eval(new),eval(old)):
@@ -2866,7 +2866,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./mide_ebml/testing/SSX_Data_Ch8_NoBivariates.csv', 'rb') as f:
+        with open('./idelib/testing/SSX_Data_Ch8_NoBivariates.csv', 'rb') as f:
             for new, old in zip(out, f):
 #                 self.assertEqual(old.strip(), new.strip())
                 for a,b in zip(eval(new),eval(old)):
@@ -2890,7 +2890,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./mide_ebml/testing/SSX_Data_Ch8_RollingMean_NoCal.csv', 'rb') as f:
+        with open('./idelib/testing/SSX_Data_Ch8_RollingMean_NoCal.csv', 'rb') as f:
             for new, old in zip(out, f):
                 for a,b in zip(eval(new),eval(old)):
                     self.assertAlmostEqual(a, b, delta=self.delta, 
@@ -2914,7 +2914,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./mide_ebml/testing/SSX_Data_Ch8_TotalMean_NoCal.csv', 'rb') as f:
+        with open('./idelib/testing/SSX_Data_Ch8_TotalMean_NoCal.csv', 'rb') as f:
             for new, old in zip(out, f):
                 for a,b in zip(eval(new),eval(old)):
                     self.assertAlmostEqual(a, b, delta=self.delta, 
@@ -2934,7 +2934,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./mide_ebml/testing/SSX_Data_Ch8_RollingMean.csv', 'rb') as f:
+        with open('./idelib/testing/SSX_Data_Ch8_RollingMean.csv', 'rb') as f:
             for new, old in zip(out, f):
                 for a,b in zip(eval(new),eval(old)):
                     self.assertAlmostEqual(a, b, delta=self.delta, 
@@ -2953,7 +2953,7 @@ class DataTestCase(unittest.TestCase):
         accel.exportCsv(out)
         out.seek(0)
         
-        with open('./mide_ebml/testing/SSX_Data_Ch8_TotalMean.csv', 'rb') as f:
+        with open('./idelib/testing/SSX_Data_Ch8_TotalMean.csv', 'rb') as f:
             for new, old in zip(out, f):
                 for a,b in zip(eval(new),eval(old)):
                     self.assertAlmostEqual(a, b, delta=self.delta, 

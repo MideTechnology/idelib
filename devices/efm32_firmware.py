@@ -31,7 +31,7 @@ from widgets import device_dialog, htmlwindow
 import devices
 from logger import logger
 
-from mide_ebml.ebmlite import loadSchema
+from idelib.ebmlite import loadSchema
 
 from common import roundUp
 from updater import isNewer

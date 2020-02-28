@@ -2013,7 +2013,7 @@ class WarningRangeIndicator(object):
         """ Constructor.
         
             @param parent: The parent plot.
-            @type warning: `mide_ebml.dataset.WarningRange`
+            @type warning: `idelib.dataset.WarningRange`
             @keyword color: The warning area drawing color. Defaults to
                 the `warningColor` in the preferences or pink.
             @keyword brush: The warning area fill `wx.Brush`. Defaults to

@@ -18,9 +18,9 @@ import wx.lib.sized_controls as SC
 from config_dialog.special_tabs import EditableCalibrationPanel
 from devices import fromRecording
 from logger import logger
-from mide_ebml.parsers import CalibrationListParser
+from idelib.parsers import CalibrationListParser
 
-from mide_ebml.ebmlite import loadSchema
+from idelib.ebmlite import loadSchema
 
 schema_mide = loadSchema('mide.xml')
 
@@ -311,7 +311,7 @@ def editCalibration(root):
 #===============================================================================
 
 if __name__ == "__main__":
-    from mide_ebml.importer import importFile
+    from idelib.importer import importFile
     
     class TestApp(wx.App):
         dataset = importFile()
