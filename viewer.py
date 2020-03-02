@@ -3229,14 +3229,14 @@ class ViewerApp(wx.App):
         if numIncomp > 0:
             msg.append('\nIncompatible Plug-ins (%d):' % numIncomp)
             for p in self.plugins.incompatible:
-                ppath = "built-in" if getattr(p, 'builtin', False) else p.path
-                msg.append('    * %s (%s)' % (p.name, ppath))
+                msg.append('    * %s' % (p[1]))
+                logger.warning("Incompatible plug-in: %s (%s)" % (p[1],p[0]))
 
         if numBad > 0:
             msg.append('\nBad/Damaged Plug-ins (%d):' % numBad)
             for p in self.plugins.bad:
-                ppath = "built-in" if getattr(p, 'builtin', False) else p.path
-                msg.append('    * %s (%s)' % (p.name, ppath))
+                msg.append('    * %s' % (p[1]))
+                logger.error("Bad plug-in: %s (%s)" % (p[1],p[0]))
 
         wx.MessageBox('\n'.join(msg), "Plug-in Error",
                       style=wx.ICON_WARNING|wx.OK)
