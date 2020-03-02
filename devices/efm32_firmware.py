@@ -276,7 +276,7 @@ class FirmwareUpdater(object):
             fwBin = fwzip.read(appName, password)
             self.validateFirmware(fwBin, strict=strict)
 
-            sigName = self.info.get('sig_name', filename+'.sig')
+            sigName = info.get('sig_name', filename+'.sig')
             if sigName in self.contents:
                 with zipfile.ZipFile(self.filename, 'r') as fwzip:
                     sigBin = fwzip.read(sigName, password)
@@ -1141,7 +1141,7 @@ class FirmwareUpdateDialog(wx.Dialog):
         self.Bind(wx.EVT_TIMER, self.checkForDeviceReconnect, self.rebootTimer)
 
         self.SetSizerAndFit(sizer)
-        self.SetSizeWH(400,-1)
+        self.SetSize((400,-1))
 
         if "LOG-0002" in self.device.partNumber:
             self.but = '"X"'
@@ -1253,7 +1253,11 @@ class FirmwareUpdateDialog(wx.Dialog):
         """
         # This will immediately detect disconnect for devices in bootloader
         # mode, which is what we want to happen. 
-        devs = devices.getDevices([self.device.path], types=RECORDER_TYPES)
+        try:
+            devs = devices.getDevices([self.device.path], types=RECORDER_TYPES)
+        except IOError:
+            # A race condition can sometimes make getDevices fail. Ignore.
+            devs = None
         if not devs:
             logger.info('Rebooting: waiting for device to reconnect...')
             self.rebootTimer.Stop()
@@ -1265,7 +1269,11 @@ class FirmwareUpdateDialog(wx.Dialog):
         """ Timer event handler for checking if the updated device has 
             reappeared as a USB disk.
         """
-        devs = devices.getDevices(types=RECORDER_TYPES)
+        try:
+            devs = devices.getDevices(types=RECORDER_TYPES)
+        except IOError:
+            return
+        
         serials = [d.serial for d in devs]
         
         if self.device.serial in serials:
