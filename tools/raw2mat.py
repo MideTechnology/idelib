@@ -304,9 +304,9 @@ class Raw2Mat(ToolDialog):
 #===============================================================================
 
 def launch(parent=None):
-    dlg = Raw2Mat(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
-    dlg.ShowModal()
-    
+    with Raw2Mat(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER) as dlg:
+        dlg.ShowModal()
+
 
 def init(*args, **kwargs):
     return launch
@@ -338,9 +338,9 @@ def test(*args, **kwargs):
 
         
     _app = TestApp()
-    dlg = Raw2Mat(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
-    dlg.ShowModal()
-    print dlg.GetSize()
+    with Raw2Mat(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER) as dlg:
+        dlg.ShowModal()
+        print dlg.GetSize()
 
 if __name__ == "__main__":
     test()
