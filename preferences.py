@@ -590,47 +590,34 @@ class PrefsDialog(SC.SizedDialog):
                 self.pg.SetPropertyAttribute(prop, att, val)
             return prop
         
-        self.pg.Append(PG.PropertyCategory("UI Colors"))
-        _add(PG.ColourProperty("Plot Background", "plotBgColor"))
-        _add(PG.ColourProperty("Major Grid Lines", "majorHLineColor"))
-        _add(PG.ColourProperty("Minor Grid Lines", "minorHLineColor"))
-        _add(PG.ColourProperty("Buffer Maximum", "maxRangeColor"),
-             "The color of the buffer maximum envelope line, when plotting "
-             "one source. This color is set automatically when plotting "
-             "multiple sources simultaneously.")
-        _add(PG.ColourProperty("Buffer Mean", "meanRangeColor"),
-             "The color of the buffer mean envelope line, when plotting "
-             "one source. This color is set automatically when plotting "
-             "multiple sources simultaneously.")
-        _add(PG.ColourProperty("Buffer Minimum", "minRangeColor"),
-             "The color of the buffer minimum envelope line, when plotting "
-             "one source. This color is set automatically when plotting "
-             "multiple sources simultaneously.")
-        _add(PG.ColourProperty("Warning Range Highlight Color", "warningColor"),
-             "The color of the shading over the plot where extreme conditions "
-             "may have adversely affected the data (e.g. extreme temperatures "
-             "that affect accelerometer accuracy on a Slam Stick X).")
-        _add(PG.ColourProperty("Out-of-Range Highlight Color", "outOfRangeColor"),
-             "The color of the shading of time before and/or after the "
-             "first/last sample in the dataset.")
-        _add(PG.FloatProperty("Legend Opacity", "legendOpacity"),
-             "The opacity of the legend background; 0 is transparent, "
-             "1 is solid", advanced=True)
-        
-        _add(PG.PropertyCategory("Data"))
-        _add(PG.BoolProperty("Remove Total Mean by Default", "removeMean"), 
-             "By default, remove the total median of buffer means from the "
-             "data (if the data contains buffer mean data).",
-             UseCheckbox=True)
-        _add(PG.FloatProperty("Rolling Mean Span (seconds)", "rollingMeanSpan"),
-             "The width of the time span used to compute the 'rolling mean' "
-             "used when \"Remove Rolling Mean from Data\" is enabled.")
-        _add(PG.BoolProperty("Disable Bivariate References by Default", "noBivariates"), 
-             "By default, prevent bivariate calibration polynomials from "
-             "referencing other channels (e.g. accelerometer temperature "
-             "compensation). Disabling references improves performance.",
-             UseCheckbox=True)
-        
+        # NOTE: It seems like a bug in wxPython 4.0.7 prevents 
+        # `SetPropertyValues` from setting `ColourPropery` values. Explicitly
+        # setting them doesn't seem to work reliably. Properties removed
+        # for the time being.
+#         self.pg.Append(PG.PropertyCategory("UI Colors"))
+#         _add(PG.ColourProperty("Plot Background", "plotBgColor"))
+#         _add(PG.ColourProperty("Major Grid Lines", "majorHLineColor"))
+#         _add(PG.ColourProperty("Minor Grid Lines", "minorHLineColor"))
+#         _add(PG.ColourProperty("Buffer Maximum", "maxRangeColor"),
+#              "The color of the buffer maximum envelope line, when plotting "
+#              "one source. This color is set automatically when plotting "
+#              "multiple sources simultaneously.")
+#         _add(PG.ColourProperty("Buffer Mean", "meanRangeColor"),
+#              "The color of the buffer mean envelope line, when plotting "
+#              "one source. This color is set automatically when plotting "
+#              "multiple sources simultaneously.")
+#         _add(PG.ColourProperty("Buffer Minimum", "minRangeColor"),
+#              "The color of the buffer minimum envelope line, when plotting "
+#              "one source. This color is set automatically when plotting "
+#              "multiple sources simultaneously.")
+#         _add(PG.ColourProperty("Warning Range Highlight Color", "warningColor"),
+#              "The color of the shading over the plot where extreme conditions "
+#              "may have adversely affected the data (e.g. extreme temperatures "
+#              "that affect accelerometer accuracy on a Slam Stick X).")
+#         _add(PG.ColourProperty("Out-of-Range Highlight Color", "outOfRangeColor"),
+#              "The color of the shading of time before and/or after the "
+#              "first/last sample in the dataset.")
+         
         _add(PG.PropertyCategory("Drawing"))
         _add(PG.EnumProperty("Initial Display Layout", "initialDisplayMode",
                              Preferences.INITIAL_DISPLAY))
@@ -656,6 +643,23 @@ class PrefsDialog(SC.SizedDialog):
              "of the Oversampling Multiplier.")
         _add(PG.EnumProperty("Legend Position (main view)", "legendPosition",
                              Preferences.LEGEND_POSITIONS))
+        _add(PG.FloatProperty("Legend Opacity", "legendOpacity"),
+             "The opacity of the legend background; 0 is transparent, "
+             "1 is solid", advanced=True)
+          
+        _add(PG.PropertyCategory("Data"))
+        _add(PG.BoolProperty("Remove Total Mean by Default", "removeMean"), 
+             "By default, remove the total median of buffer means from the "
+             "data (if the data contains buffer mean data).",
+             UseCheckbox=True)
+        _add(PG.FloatProperty("Rolling Mean Span (seconds)", "rollingMeanSpan"),
+             "The width of the time span used to compute the 'rolling mean' "
+             "used when \"Remove Rolling Mean from Data\" is enabled.")
+        _add(PG.BoolProperty("Disable Bivariate References by Default", "noBivariates"), 
+             "By default, prevent bivariate calibration polynomials from "
+             "referencing other channels (e.g. accelerometer temperature "
+             "compensation). Disabling references improves performance.",
+             UseCheckbox=True)
         
         _add(PG.PropertyCategory("Importing"))
         _add(PG.IntProperty("Pre-Plotting Samples", 'loader_minCount'), 
