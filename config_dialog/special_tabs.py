@@ -13,6 +13,7 @@ from collections import OrderedDict
 from datetime import datetime
 import os.path
 import time
+from math import factorial
 
 import wx #@UnusedImport
 from wx.html import HtmlWindow
@@ -23,9 +24,68 @@ from widgets.calibration_editor import PolyEditDialog
 
 from config_dialog.base import Tab, registerTab
 
+import numpy as np
+    
+
 #===============================================================================
 # 
 #===============================================================================
+
+
+def n_choose_k(n, k):
+    return factorial(n) // (factorial(k) * factorial(n - k))
+
+
+def get_reduced_polynomial_coefficients(coefficients, references):
+    """
+    Reduces any univariate or bivariate polynomial to one where the references values are all zero.
+
+    The guiding math used to calculate the coefficients can be given as the following LaTeX code,
+    with occurrences of 0^0 being replaced by 1 (seen in the conditional statements within the code):
+
+    For the univariate case, the desired formulation is:
+    P = \sum\limits_{j=0}^{n} x^j \sum\limits_{i=j}^{n} a_i (-s)^{i-j} {i\choose j}
+
+    For the bivariate case, the desired formulation is as follows (with C being the coefficient matrix to be returned):
+    P = \sum\limits_{i=0}^{n} \sum\limits_{j=0}^{n} x^i y^j *C_{i,j}
+
+    This coefficient matrix C is calculated using the following equation:
+    C_{i,j} = \sum\limits_{k=i}^{n} \sum\limits_{g=j}^{n} a_{k,g} {g\choose j} {k\choose i} (-s)^{g-j} (-r)^{k-i}
+
+    In the above math, A is the coefficient matrix of the
+    unshifted polynomial, and s and r and the offsets of x and y
+    respectively
+
+
+    :param coefficients: The list of coefficients for the calibration polynomial
+    :param references: The list of references (offsets) for the variables
+    :return: The coefficients of the reduced polynomial.  This will represent the same polynomial as the one given,
+    but with only zero reference values.
+    """
+    if len(references) == 1:
+        out = np.zeros(len(coefficients))
+        for j in range(len(coefficients)):
+            for k in range(j, len(coefficients)):
+                offset_power = (-references[0]) ** (k - j) if references[0] != 0 or k != j else 1
+
+                out[j] += coefficients[k] * offset_power * n_choose_k(k, j)
+    else:
+        coeff_length = int(np.sqrt(len(coefficients)))
+        out = np.zeros((coeff_length, coeff_length))
+        coefficients = np.array(coefficients).reshape(coeff_length, coeff_length)[::-1, ::-1].T
+
+        for j in range(coeff_length):
+            for k in range(coeff_length):
+                for m in range(j, coeff_length):
+                    for n in range(k, coeff_length):
+                        offset_power1 = (-references[0]) ** (n - k) if references[0] != 0 or n != k else 1
+                        offset_power2 = (-references[1]) ** (m - j) if references[1] != 0 or m != j else 1
+
+                        out[j, k] += coefficients[m, n] * n_choose_k(n, k) * n_choose_k(m, j) * offset_power1 * offset_power2
+
+        out = out[::-1, ::-1].T
+    return out
+
         
 class InfoPanel(HtmlWindow):
     """ A generic configuration dialog page showing various read-only properties
@@ -490,7 +550,10 @@ class CalibrationPanel(InfoPanel):
                 refs = ', '.join(map(self.cleanFloat, cal.references))
                 self.html.append('<li>Coefficients: <tt>%s</tt></li>' % coeffs)
                 self.html.append('<li>Reference(s): <tt>%s</tt></li>' % refs)
-            poly = cal.source.split()[-1]
+
+            reduced_polynomial_coeffs = get_reduced_polynomial_coefficients(cal.coefficients, cal.references).flatten()
+
+            poly = cal.__class__(reduced_polynomial_coeffs, channelId=-1, subchannelId=-1).source.split()[-1]
             self.html.append('<li>Polynomial: <tt>%s</tt></li>' % str(cal))
             if str(cal) != poly:
                 self.html.append('<li>Polynomial, Reduced: <tt>%s</tt></li>' % poly)
