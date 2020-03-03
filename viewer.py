@@ -250,6 +250,7 @@ class Viewer(wx.Frame, MenuMixin):
         self.Bind(events.EVT_INIT_PLOTS, self.initPlots)
         self.Bind(events.EVT_IMPORT_ERROR, self.handleError)
 
+        # Note: suspend/resume drawing events not currently generated anywhere.
         self.Bind(events.EVT_SUSPEND_DRAWING, self.suspendDrawing)
         self.Bind(events.EVT_RESUME_DRAWING, self.resumeDrawing)
 
@@ -1121,16 +1122,18 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def suspendDrawing(self, evt=None):
-        """ Pause the plot drawing. This method can be used as an event handler.
+        """ Pause the plot drawing. This method can be used as an event
+            handler.
         """
-        # TODO: Hook this back up.
-#         self.drawingSuspended.set()
-        self.drawingSuspended.clear()
+        self.drawingSuspended.set()
 
 
-    def resumeDrawing(self, evt=None, redraw=False):
+    def resumeDrawing(self, evt=None, redraw=True):
         """ Resume the plot drawing. This method can be used as an event
             handler.
+            
+            @keyword redraw: If `True`, force the plots to redraw. Not used
+                if the method is called by an event.
         """
         if evt is not None:
             suspended = self.drawingSuspended.isSet()
@@ -1143,7 +1146,7 @@ class Viewer(wx.Frame, MenuMixin):
 
 
     def getTab(self, idx=None):
-        """ Helper method for getting the active plot tab.
+        """ Get the currently active plot tab.
         """
         if idx is None:
             return self.plotarea.getActivePage()

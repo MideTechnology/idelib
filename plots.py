@@ -8,6 +8,7 @@ Widgets for the main view plots.
 from collections import defaultdict
 import colorsys
 import sys
+import threading
 import time
 
 from wx import aui
@@ -121,6 +122,7 @@ class VerticalScale(ViewerPanel):
         # Just in case the initial units are too long to fit
         self.setUnits(self.Parent.yUnits[1])
 
+
     #===========================================================================
     # 
     #===========================================================================
@@ -142,6 +144,10 @@ class VerticalScale(ViewerPanel):
                 Elements that take a long time to draw shouldn't respond
                 if `tracking` is `True`.
         """
+        try:
+            self.Parent.plot.abortRendering.set()
+        except RuntimeError:
+            pass
         if instigator == self:
             return
         vSize = self.GetSize()[1]
@@ -154,7 +160,10 @@ class VerticalScale(ViewerPanel):
         self.unitsPerPixel = abs((top - bottom) / (vSize + 0.0))
         self.Parent.updateScrollbar()
         if not tracking:
-            self.Parent.Refresh()
+            try:
+                self.Parent.Refresh()
+            except RuntimeError:
+                pass
     
     
     def getValueRange(self):
@@ -273,6 +282,7 @@ class VerticalScale(ViewerPanel):
             self.setValueRange(*self.originalRange, instigator=None, tracking=False)
         evt.Skip()
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -289,7 +299,7 @@ class PlotCanvas(wx.ScrolledWindow):
     RANGE_MIN_STYLE = ("minRangeColor", "LIGHT BLUE", 1, wx.USER_DASH, [8,4])
     RANGE_MAX_STYLE = ("maxRangeColor", "PINK", 1, wx.USER_DASH, [2,4])
     RANGE_MEAN_STYLE = ("meanRangeColor", "YELLOW", 1, wx.USER_DASH, [8,4,4,4])
-    
+
 
     def loadPrefs(self):
         """ Get all the preferences used by the plot.
@@ -363,7 +373,7 @@ class PlotCanvas(wx.ScrolledWindow):
         self._cursor_default = wx.Cursor(wx.CURSOR_DEFAULT)
 
         self.pauseTimer = wx.Timer()
-        self.abortRendering = False
+        self.abortRendering = threading.Event()
 
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
@@ -642,7 +652,10 @@ class PlotCanvas(wx.ScrolledWindow):
                 _makeline(minPts, pMin)
                 _makeline(meanPts, pMean)
                 _makeline(maxPts, pMax)
-                
+
+                if self.abortRendering.isSet():
+                    break 
+                               
             _finishline(minPts)
             _finishline(meanPts)
             _finishline(maxPts)
@@ -705,7 +718,7 @@ class PlotCanvas(wx.ScrolledWindow):
         """
         if self.root.drawingSuspended.isSet():
             return
-               
+            
         if self.root.dataset.loading:
             # Pause the import during painting to make it faster.
             job, paused = self.root.pauseOperation()
@@ -713,6 +726,7 @@ class PlotCanvas(wx.ScrolledWindow):
             paused = False
             
         try:
+            self.abortRendering.clear()
             self._OnPaint(evt)
             
         except IndexError as err:
@@ -875,7 +889,7 @@ class PlotCanvas(wx.ScrolledWindow):
         # The actual data plotting
         linesDrawn = 0
         for s in parent.sources:
-            if self.abortRendering:
+            if self.abortRendering.isSet():
                 break
             linesDrawn += self._drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
             
@@ -911,7 +925,7 @@ class PlotCanvas(wx.ScrolledWindow):
                   chunkSize):
         """ Does the plotting of a single source.
         """
-        if self.abortRendering is True or self.root.drawingSuspended.isSet():
+        if self.abortRendering.isSet() or self.root.drawingSuspended.isSet():
             # Bail if user interrupted drawing (scrolling, etc.)
             # Doesn't actually work yet!
             return 0
@@ -947,6 +961,8 @@ class PlotCanvas(wx.ScrolledWindow):
                         lines = []
                         lastPt = maxLines[0][:2]
                         for i in range(0,len(minLines),2):
+                            if self.abortRendering.isSet():
+                                return i
                             a = minLines[i]
                             b = maxLines[i]
                             lines.append((lastPt[0],lastPt[1],a[0],a[1]))
@@ -968,7 +984,7 @@ class PlotCanvas(wx.ScrolledWindow):
 #             dc.DrawLineList(lines)
             for i in range(0, len(lines), chunkSize):
                 dc.DrawLineList(lines[i:i+chunkSize])
-                if self.abortRendering is True:
+                if self.abortRendering.isSet():
                     return i
         else:
             lines = self.lineList[source] = []
@@ -1011,7 +1027,7 @@ class PlotCanvas(wx.ScrolledWindow):
                 
                 # And now the rest of the samples:
                 for i, event in enumerate(events, 1):
-                    if self.abortRendering is True:
+                    if self.abortRendering.isSet():
                         # Bail if user interrupted drawing (scrolling, etc.)
                         return
                     for chId, eVal in enumerate(event[1:]):
@@ -1082,7 +1098,7 @@ class PlotCanvas(wx.ScrolledWindow):
         """
         # TODO: Maybe draw this to a cached bitmap, then just draw that?
         numSources = len(self.Parent.sources)
-        if self.abortRendering is True or not self.root.showLegend:
+        if not self.root.showLegend:
             return
         
         # Legend is antialiased
@@ -1311,17 +1327,20 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Window resize event handler.
         """
         self.legendRect = None
-        self.abortRendering = True
+        self.abortRendering.set()
         
-        # Start up (or reset) the timer delaying the redraw 
-        self.pauseTimer.Start(25, wx.TIMER_ONE_SHOT)
+        # Start up (or reset) the timer delaying the redraw
+        self.root.suspendDrawing()
+        self.pauseTimer.Start(250, wx.TIMER_ONE_SHOT)
 
 
     def OnTimerFinish(self, evt):
         """ Handle expiration of the timer that delays refresh during resize.
         """
-        self.abortRendering = False
+        self.abortRendering.clear()
+        self.root.drawingSuspended.clear()
         self.Refresh()
+
 
 #===============================================================================
 # 
@@ -1994,7 +2013,21 @@ class Plot(ViewerPanel, MenuMixin):
         self.root.app.setPref("showLegend", False)
         self.root.setMenuItem(self.root.menubar, self.root.ID_VIEW_LEGEND, checked=False)
         self.Parent.redraw()
-        
+    
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def Destroy(self):
+        """ Destroy the plot. Called when closing window/tab.
+        """
+        try:
+            self.plot.abortRendering.set()
+            self.plot.pauseTimer.Stop()
+        except RuntimeError:
+            pass
+        return super(Plot,self).Destroy()
+
 
 #===============================================================================
 # 
