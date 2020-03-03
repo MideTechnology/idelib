@@ -435,7 +435,10 @@ class Plugin(object):
                     if os.path.exists(src):
                         sys.path.append(self.path)
                         self.module = imp.load_source(self.moduleName, src)
-                        sys.path.pop()
+                        try:
+                            sys.path.remove(self.path)
+                        except ValueError:
+                            pass
                     else:
                         self.module = imp.load_compiled(self.moduleName, com)
                 else:
