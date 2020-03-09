@@ -185,7 +185,7 @@ class ToolDialog(SC.SizedDialog):
         return cb
 
 
-    def addCheck(self, parent, label, checked=False, indent=False, name=None,
+    def addCheck(self, parent, label, checked=None, indent=False, name=None,
                  tooltip=None):
         """ Add a checkbox without a field. 
         
@@ -197,8 +197,9 @@ class ToolDialog(SC.SizedDialog):
                 `None` if the parent does not use the 'form' layout.
             @keyword tooltip: A string to display as the control's tool tip. 
         """
-        if name:
-            checked = self.getPref(name, checked)
+        if checked is None:
+            default = False
+            checked = self.getPref(name, default) if name else default
             
         if indent is True:
             SC.SizedPanel(parent, -1)

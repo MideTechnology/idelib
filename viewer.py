@@ -3030,7 +3030,7 @@ class ViewerApp(wx.App):
 
     defaultPlugins = [tools.raw2mat,
                       tools.filesplit,
-                      tools.ide2csv]
+                      tools.ide2csv,]
 
     def saveAllPrefs(self, filename=None, hideFile=None):
         """ Save all preferences, including defaults, to the config file.

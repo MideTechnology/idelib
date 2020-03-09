@@ -433,7 +433,12 @@ class Plugin(object):
                     src = os.path.join(self.path, self.moduleName+'.py')
                     com = os.path.join(self.path, self.moduleName+'.pyc')
                     if os.path.exists(src):
+                        sys.path.append(self.path)
                         self.module = imp.load_source(self.moduleName, src)
+                        try:
+                            sys.path.remove(self.path)
+                        except ValueError:
+                            pass
                     else:
                         self.module = imp.load_compiled(self.moduleName, com)
                 else:
