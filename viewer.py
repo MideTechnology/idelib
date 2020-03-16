@@ -274,9 +274,12 @@ class Viewer(wx.Frame, MenuMixin):
             To make scripting a little simpler.
         """
         try:
+            if self.dataset is not None:
+                title = self.dataset.filename
+            else:
+                title = self.app.getWindowTitle(self, showApp=False, number=False)
             return '<%s %s: "%s">' % (type(self).__name__, self.number,
-                                  self.app.getWindowTitle(self, showApp=False,
-                                                          number=False))
+                                      title.encode("ascii", "replace"))
         except:
             return super(Viewer, self).__repr__()
 

@@ -1437,6 +1437,21 @@ class Plot(ViewerPanel, MenuMixin):
 #         self.setTabText()
 
 
+    def __repr__(self):
+        """ x.__repr__() <==> repr(x), but more human-readable.
+            To make scripting a little simpler.
+        """
+        try:
+            idx = self.Parent.GetPageIndex(self)
+            if idx < 0:
+                return super(Plot, self).__repr__()
+            
+            title = self.Parent.GetPageText(idx).encode("ascii", "replace")
+            return '<%s %s: "%s">' % (type(self).__name__, idx, title)
+        except:
+            return super(Plot, self).__repr__()
+
+
     def buildLegendMenu(self):
         """ Create the legend contextual `wx.Menu`.
         """
