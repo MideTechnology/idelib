@@ -55,28 +55,26 @@ class SplashPageContents(wx.Panel):
         sizer = wx.BoxSizer(wx.VERTICAL)
         self.SetSizer(sizer)
         
-        openBtn = wx.Button(self, -1, "Open a Recording", size=(240,-1))
+        openBtn = wx.Button(self, -1, "Open a Recording",
+                            size=(240,-1), pos=(200, 266))
         confBtn = wx.Button(self, -1, "Configure a Recording Device",
-                            size=(240,-1))
-        resBtn = wx.Button(self, -1, "enDAQ Recorder Resources", size=(240,-1))
+                            size=(240,-1), pos=(200, 300))
+        resBtn = wx.Button(self, -1, "enDAQ Recorder Resources",
+                           size=(240,-1), pos=(200, 350))
         
         openBtn.SetToolTip("Import a recording file (IDE, DAT)")
         confBtn.SetToolTip("Configure an enDAQ or Slam Stick data recorder")
         resBtn.SetToolTip("Visit enDAQ support (opens in browser)")
         
-#         bcolor = wx.Colour(230,112,37)
-#         for b in (openBtn, confBtn, resBtn):
-#             b.SetBackgroundColour(bcolor)
-#             b.SetForegroundColour(wx.WHITE)
-#             b.Set(bcolor)
-        
-        sizer.Add((0,0), 1)
-        sizer.Add(openBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
-        sizer.AddSpacer(8)
-        sizer.Add(confBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
-        sizer.AddSpacer(24)
-        sizer.Add(resBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
-        sizer.AddSpacer(80)
+        # Relative positioning was ugly if the window was too small.
+        # If reinstated, remove the `pos=` from the Button creation.
+#         sizer.Add((0,0), 1)
+#         sizer.Add(openBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
+#         sizer.AddSpacer(8)
+#         sizer.Add(confBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
+#         sizer.AddSpacer(24)
+#         sizer.Add(resBtn, 0, wx.ALIGN_BOTTOM|wx.ALIGN_CENTER, 8)
+#         sizer.AddSpacer(80)
 
         self.Bind(wx.EVT_ERASE_BACKGROUND, self.OnEraseBackground)
         openBtn.Bind(wx.EVT_BUTTON, self.root.OnFileOpenMenu)
@@ -120,7 +118,7 @@ class SplashPageContents(wx.Panel):
                     
     
     def OnFileRightClick(self, evt):
-        """
+        """ Handle the 'open' button being right-clicked; show 'recent' menu.
         """
         filenames = self.root.app.prefs.getRecentFiles()
         if not filenames:
