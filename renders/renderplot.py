@@ -85,18 +85,28 @@ class PlotView(FFTView, ZoomingPlot):
 
         self.lines = None
         if self.subchannels is not None:
-            subchannelIds = [c.id for c in self.subchannels]
-            start, stop = self.source.getRangeIndices(*self.range)
-            data = self.source.arrayValues(start,stop,subchannels=subchannelIds,display=self.useConvertedUnits)
-            fs = self.source.getSampleRate()
-            self.data = self.generateData(data, rows=stop-start,
-                                          cols=len(self.subchannels), fs=fs,
-                                          sliceSize=self.sliceSize)
+            for channel in set(c.parent for c in self.subchannels):
+                subchannels = [s for s in self.subchannels if s in channel.children]
+                source = channel.getSession()
+                subchannelIds = [s.id for s in subchannels]
+                start, stop = source.getRangeIndices(*self.range)
+                data = source.arrayValues(start, stop, subchannels=subchannelIds, display=self.useConvertedUnits)
+                fs = source.getSampleRate()
+                data = self.generateData(data, rows=stop-start,
+                                         cols=len(subchannels), fs=fs,
+                                         sliceSize=self.sliceSize)
 
+                if data is not None:
+                    for i in range(data.shape[1] - 1):
+                        self.axes.plot(data[:, 0], data[:, i + 1], antialiased=True, linewidth=0.5,
+                                       label=subchannels[i - 1].name, color=[float(x)/255. for x in self.root.getPlotColor(subchannels[i-1])])
+
+                if data is not None:
+                    if self.data is None:
+                        self.data = [data]
+                    else:
+                        self.data.append(data)
         if self.data is not None:
-            for i in range(data.shape[0]):
-                self.axes.plot(self.data[:, 0], self.data[:, i+1], antialiased=True, linewidth=0.5,
-                               label=self.subchannels[i-1].name, color=[float(x)/255. for x in self.root.getPlotColor(self.subchannels[i-1])])
             bbox = self.axes.dataLim
             self.axes.set_xlim(bbox.xmin, bbox.xmax)
             self.axes.set_ylim(bbox.ymin, bbox.ymax)
@@ -138,7 +148,7 @@ class PlotView(FFTView, ZoomingPlot):
                 frequency.
         """
         cols, rows = data.shape
-        t = np.arange(0, rows/fs, 1/fs)
+        t = np.linspace(0, (rows - 1)/fs, rows)
         return np.vstack((t, data)).T
 
 
