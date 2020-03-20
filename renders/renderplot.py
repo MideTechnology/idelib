@@ -141,7 +141,7 @@ class PlotView(FFTView, ZoomingPlot):
                 frequency.
         """
         cols, rows = data.shape
-        t = np.linspace(0, rows/fs, rows)
+        t = np.linspace(0, (rows - 1)/fs, rows)
         return np.vstack((t, data)).T
 
 
