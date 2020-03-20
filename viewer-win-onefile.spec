@@ -18,9 +18,13 @@ startTime = datetime.now()
 try:
     import socket, sys, time
     sys.path.append(HOME_DIR)
-    from build_info import APPNAME, BUILD_NUMBER, DEBUG, VERSION
+    from build_info import APPNAME, BUILD_NUMBER, DEBUG, BETA, VERSION
     versionString = '.'.join(map(str,VERSION))
+    if DEBUG or BETA:
+        buildtype = "BETA" if BETA else "DEBUG"
+        versionString += " %s b%s" % (buildtype, BUILD_NUMBER)
 except Exception:
+    raise
     BUILD_NUMBER = versionString = VERSION = "Unknown"
     DEBUG = True
     print("*** Couldn't read and/or change build number!")
@@ -97,5 +101,5 @@ exe = EXE(pyz,
           console=DEBUG
           )
 
-print("*** Completed building version %s, Build number %d, DEBUG=%s" % (versionString,BUILD_NUMBER,DEBUG))
+print("*** Completed building version %s, Build number %s, DEBUG=%s" % (versionString,BUILD_NUMBER,DEBUG))
 print("*** Elapsed build time: %s" % (datetime.now()-startTime))

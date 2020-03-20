@@ -108,7 +108,7 @@ def makeReleaseNotes(textfile=RELEASE_NOTES_FILE, output=None):
     return output
 
 
-def compressFiles(args):
+def compressFiles(args, preview=False):
     """ Create zips of the executables, ready for upload.
     """
     for k,v in args.items():
@@ -123,11 +123,12 @@ def compressFiles(args):
             if os.path.exists(zipname):
                 print("Skipping existing file %s" % zipname)
                 continue
-            else:
-                print("Creating zip %s" % zipname)
-            z = zipfile.ZipFile(zipname, 'w', zipfile.ZIP_DEFLATED)
-            z.write(ex)
-            z.close()
+            
+            print("Creating zip %s" % zipname)
+            if not preview:
+                z = zipfile.ZipFile(zipname, 'w', zipfile.ZIP_DEFLATED)
+                z.write(ex)
+                z.close()
 
         # Only one directory of exes
         break
@@ -208,6 +209,8 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--allowDirty', action="store_true",
                         help=("Allow builds if the git repo is 'dirty' (i.e. has "
                               "uncommitted changes)"))
+    parser.add_argument('-z', '--zip', action="store_true",
+                        help="Create zip files of the executables.")
     parser.add_argument('-p', '--preview', action="store_true",
                         help="Don't build, just preview.")
     args = parser.parse_args()
@@ -284,7 +287,7 @@ if __name__ == "__main__":
 
     buildType = ''
     if thisDebug:
-        buildType = ' experimental'
+        buildType = ' debug'
     elif thisBeta:
         buildType = ' beta'
 
@@ -318,6 +321,9 @@ if __name__ == "__main__":
     except (IOError, WindowsError):
         print("Could not set Windows version info!")
 
+    if args.zip and not args.preview:
+        compressFiles(buildArgs)
+
     print("*"*78)
     print("Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now() - t0))
 
@@ -340,10 +346,5 @@ if __name__ == "__main__":
         info = updateJson(thisVersion, VERSION_INFO_FILE, preview=args.preview)
         if args.preview:
             print("PREVIEW of info file: %s" % json.dumps(info))
-        else:
-            compressFiles(buildArgs)
-
-        # TEST
-        compressFiles(buildArgs)
 
     print("*"*78)
