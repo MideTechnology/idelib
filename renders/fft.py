@@ -495,6 +495,8 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
         self.sizer.Add(self.canvas, 1, wx.TOP | wx.LEFT | wx.EXPAND)
 
         self.axes.set_title(self.title)
+        self.axes.set_xlabel("Frequency (Hz)")
+        self.axes.set_ylabel("%s%s" % (self.yLabel, self.yUnits))
 
         self.initialize_zoom_rectangle()
 
