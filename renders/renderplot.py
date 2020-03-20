@@ -55,6 +55,8 @@ class PlotView(FFTView, ZoomingPlot):
         self.canvas = FigureCanvas(self, -1, self.figure)
 
         self.axes.set_title(self.title)
+        self.axes.set_xlabel('Time (s)')
+        self.axes.set_ylabel("%s%s" % (self.yLabel, self.yUnits))
 
         # Sizer to contain the canvas
         self.sizer = wx.BoxSizer(wx.VERTICAL)
