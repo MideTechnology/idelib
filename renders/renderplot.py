@@ -106,8 +106,15 @@ class PlotView(FFTView, ZoomingPlot):
                         self.data = [data]
                     else:
                         self.data.append(data)
-
-        if self.data is None:
+        if self.data is not None:
+            bbox = self.axes.dataLim
+            self.axes.set_xlim(bbox.xmin, bbox.xmax)
+            self.axes.set_ylim(bbox.ymin, bbox.ymax)
+            self.axes.legend()
+            self.axes.grid(True)
+            self.canvas.draw()
+            self.Fit()
+        else:
             logger.info("No data for %s!" % self.FULLNAME)
             self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
             return
