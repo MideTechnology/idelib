@@ -60,6 +60,7 @@
             </MasterElement>
         </MasterElement>
         <MasterElement name="QueryWiFi" id="0x85">Get a response for current WiFi State</MasterElement>
+        <MasterElement name="NetworkStatus" id="0x87">Get network identifiers </MasterElement>
     </MasterElement>
 
     <MasterElement name="EBMLResponse" id="0x86" multiple="0" mandatory="0">Response payload to above EBML command payload. Not all commands generate a response
@@ -81,5 +82,9 @@
 			<UIntegerElement name="WifiErrorBadAuth" id="0x5303" multiple="0" mandatory="1">Sticky Boolean flag, ==1 means that a connection attempt failed due to bad authentication information, else if ==0 password was good or network connection attempt was out of range Cleared when "SetWifi" is called</UIntegerElement>
 			<UIntegerElement name="RSSI" id="0x5205" multiple="0" mandatory="0">Signal Strength, 0-100, where 100 is perfect. Only present if CONNECTED</UIntegerElement>
 		</MasterElement>
+        <MasterElement name="NetworkStatusResponse" id="0x5400" multiple="0" mandatory="0">
+            <BinaryElement name="IPV4Address" id="0x5401" multiple="0" mandatory="0"Network IP address; absent if not connected. />
+            <BinaryElement name="MACAddress" id="0x5402" multiple="0" mandatory="1" Network MAC address />
+        </MasterElement>
     </MasterElement>
 </Schema>
