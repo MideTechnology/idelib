@@ -25,6 +25,7 @@
 *.xlsx
 *.zip
 *~
+.~*
 
 test*.xml
 test*.png
