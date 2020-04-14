@@ -83,8 +83,8 @@
 			<UIntegerElement name="RSSI" id="0x5205" multiple="0" mandatory="0">Signal Strength, 0-100, where 100 is perfect. Only present if CONNECTED</UIntegerElement>
 		</MasterElement>
         <MasterElement name="NetworkStatusResponse" id="0x5400" multiple="0" mandatory="0">
-            <BinaryElement name="IPV4Address" id="0x5401" multiple="0" mandatory="0"> Network IP address; absent if not connected. </BinaryElement>
-            <BinaryElement name="MACAddress" id="0x5402" multiple="0" mandatory="1"> Network MAC address </BinaryElement>
+            <BinaryElement name="IPV4Address" id="0x5401" multiple="0" mandatory="0"Network IP address; absent if not connected. />
+            <BinaryElement name="MACAddress" id="0x5402" multiple="0" mandatory="1" Network MAC address />
         </MasterElement>
     </MasterElement>
 </Schema>
