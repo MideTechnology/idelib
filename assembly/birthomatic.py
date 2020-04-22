@@ -99,21 +99,21 @@ sys.path.append(CWD)
 sys.path.append(os.path.abspath(os.path.join(CWD, '..')))
 
 try:
-    import mide_ebml
+    import idelib
 except ImportError:
-    if os.path.exists('../mide_ebml'):
+    if os.path.exists('../idelib'):
         sys.path.append(os.path.abspath('..'))
-    elif os.path.exists(os.path.join(CWD, '../mide_ebml')):
-        sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
+    elif os.path.exists(os.path.join(CWD, '../idelib')):
+        sys.path.append(os.path.abspath(os.path.join(CWD, '../idelib')))
     elif os.path.exists(VIEWER_PATH):
         sys.path.append(VIEWER_PATH)
-    import mide_ebml #@UnusedImport
+    import idelib #@UnusedImport
 
-# from mide_ebml.importer import importFile, SimpleUpdater
+# from idelib.importer import importFile, SimpleUpdater
 import devices
-# from mide_ebml import xml2ebml
-from mide_ebml.ebmlite import loadSchema
-from mide_ebml.ebmlite import util as ebml_util
+# from idelib import xml2ebml
+from idelib.ebmlite import loadSchema
+from idelib.ebmlite import util as ebml_util
 
 import birth_utils as utils
 import calibration
@@ -474,14 +474,14 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         firmware.makeManifestXml(TEMPLATE_PATH, partNum, hwRev, serialNum, 
                                  accelSerialNum, manXmlFile, birthday=birthday,
                                  batchId=batchId)
-#         manEbml = xml2ebml.readXml(manXmlFile, schema='mide_ebml.ebml.schema.manifest')
+#         manEbml = xml2ebml.readXml(manXmlFile, schema='idelib.ebml.schema.manifest')
         manEbml = ebml_util.loadXml(manXmlFile, manifestSchema)
         with open(changeFilename(manXmlFile, ext="ebml"), 'wb') as f:
             f.write(manEbml)
     
         calXmlFile = os.path.join(chipDirName, 'cal.template.xml')
         calibration.makeCalTemplateXml(TEMPLATE_PATH, partNum, hwRev, calXmlFile)
-#         calEbml = xml2ebml.readXml(calXmlFile, schema='mide_ebml.ebml.schema.mide') 
+#         calEbml = xml2ebml.readXml(calXmlFile, schema='idelib.ebml.schema.mide') 
         calEbml = ebml_util.loadXml(calXmlFile, mideSchema)
         with open(changeFilename(calXmlFile, ext="ebml"), 'wb') as f:
             f.write(calEbml)
@@ -489,7 +489,7 @@ def birth(serialNum=None, partNum=None, hwRev=None, fwRev=None, accelSerialNum=N
         propXmlFile = os.path.join(chipDirName, 'recprop.xml')
         propTemplate = firmware.makeRecPropXml(TEMPLATE_PATH, partNum, hwRev, accelSerialNum, propXmlFile)
         if propTemplate is not None and os.path.exists(propXmlFile):
-#             propEbml = xml2ebml.readXml(propXmlFile, schema='mide_ebml.ebml.schema.mide')
+#             propEbml = xml2ebml.readXml(propXmlFile, schema='idelib.ebml.schema.mide')
             propEbml = ebml_util.loadXml(propXmlFile, mideSchema) 
             with open(changeFilename(propXmlFile, ext="ebml"), 'wb') as f:
                 f.write(propEbml)

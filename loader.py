@@ -18,7 +18,7 @@ from events import EvtInitPlots, EvtSetTimeRange, EvtSetVisibleRange
 from events import EvtResumeDrawing
 from events import EvtImportError
 
-# import mide_ebml
+# import idelib
 
 class Loader(Job):
     """ The object that does the work of spawning an asynchronous file-loading

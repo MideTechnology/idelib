@@ -18,12 +18,12 @@ import zipfile
 
 from docutils.examples import html_body
 
-# from mide_ebml import xml2ebml
-# import mide_ebml.ebml.schema.mide as schema_mide
-# import mide_ebml.ebml.schema.manifest as schema_manifest
+# from idelib import xml2ebml
+# import idelib.ebml.schema.mide as schema_mide
+# import idelib.ebml.schema.manifest as schema_manifest
 
-from mide_ebml.ebmlite import loadSchema
-import mide_ebml.ebmlite.util as ebml_util
+from idelib.ebmlite import loadSchema
+import idelib.ebmlite.util as ebml_util
 
 from assembly import birth_utils as util
 

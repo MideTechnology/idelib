@@ -9,7 +9,8 @@ __date__ = "Nov 14, 2013"
 
 import os
 
-from devices.base import Recorder, ConfigError, ConfigVersionError, os_specific
+from devices.base import Recorder, os_specific
+from devices.base import ConfigError, ConfigVersionError, DeviceTimeout
 
 from .ssx import SlamStickX
 from .ssc import SlamStickC
@@ -31,7 +32,7 @@ RECORDER_TYPES = [SlamStickClassic, SlamStickC, SlamStickS, EndaqS, SlamStickX]
 # TODO: Clean this up, use OS-specific functions directly. 
 #===============================================================================
 
-def deviceChanged(recordersOnly=True, types=RECORDER_TYPES):
+def deviceChanged(recordersOnly=True, types=RECORDER_TYPES, clear=False):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
         
@@ -39,8 +40,11 @@ def deviceChanged(recordersOnly=True, types=RECORDER_TYPES):
             is reported as a change. If `True`, the mounted drives are checked
             and `True` is only returned if the change occurred to a recorder.
             Checking for recorders only takes marginally more time.
+        @keyword types: A list of `Recorder` subclasses to find.
+        @keyword clear: If `True`, clear the cache of previously-detected
+            drives and devices.
     """
-    return os_specific.deviceChanged(recordersOnly, types)
+    return os_specific.deviceChanged(recordersOnly, types, clear=clear)
 
 
 def getDeviceList(types=RECORDER_TYPES):
@@ -59,7 +63,14 @@ def getDevices(paths=None, types=RECORDER_TYPES):
         @return: A list of instances of `Recorder` subclasses.
     """
     result = []
-    paths = os_specific.getDeviceList(types) if paths is None else paths
+    
+    if paths is None:
+        paths = os_specific.getDeviceList(types)
+    else:
+        if isinstance(paths, basestring):
+            paths = [paths]
+        paths = [os.path.splitdrive(os.path.realpath(p))[0] for p in paths]
+
     for dev in paths:
         for t in types:
             if t.isRecorder(dev):

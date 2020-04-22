@@ -66,9 +66,9 @@ class ExportDialog(sc.SizedDialog):
             for use in warning dialogs.
     """
     
-    RB_RANGE_ALL = wx.NewId()
-    RB_RANGE_VIS = wx.NewId()
-    RB_RANGE_CUSTOM = wx.NewId()
+    RB_RANGE_ALL = wx.NewIdRef()
+    RB_RANGE_VIS = wx.NewIdRef()
+    RB_RANGE_CUSTOM = wx.NewIdRef()
     
     DEFAULT_TITLE = "Export Data"
     DEFAULT_UNITS = ("seconds", "s")
@@ -100,7 +100,7 @@ class ExportDialog(sc.SizedDialog):
 
         super(ExportDialog, self).__init__(*args, **kwargs)
         
-        self.noBmp = wx.EmptyBitmapRGBA(16,16,0,0,0,1.0)
+        self.noBmp = wx.Bitmap.FromRGBA(16,16,0,0,0,255)
         self.rangeBtns = []
         
         self.buildUI()
@@ -347,7 +347,7 @@ class ExportDialog(sc.SizedDialog):
         l.SetSizerProps(valign="center")
         ctrl = wx.Choice(parent, -1, choices=choices)
         if tooltip:
-            ctrl.SetToolTipString(tooltip)
+            ctrl.SetToolTip(tooltip)
         ctrl.SetSizerProps(expand=True)
         if isinstance(default, basestring) and default in choices:
             ctrl.Select(choices.index(default))
@@ -371,7 +371,7 @@ class ExportDialog(sc.SizedDialog):
         ctrl = wx.CheckBox(parent, -1, label)
         ctrl.SetValue(default)
         if isinstance(tooltip, basestring):
-            ctrl.SetToolTipString(tooltip)
+            ctrl.SetToolTip(tooltip)
         return ctrl, parent
     
     
@@ -415,12 +415,12 @@ class ExportDialog(sc.SizedDialog):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
             
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
 
@@ -751,12 +751,12 @@ class CSVExportDialog(ExportDialog):
             
                 * addHeaders: `True` if the 'Include Column Headers' option
                     was checked.
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
 
@@ -878,12 +878,12 @@ class FFTExportDialog(ExportDialog):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
             
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
                 * windowSize: The specified window (a/k/a slice) size for use
@@ -981,12 +981,12 @@ class PSDExportDialog(FFTExportDialog):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
             
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
                 * windowSize: The specified window (a/k/a slice) size for use
@@ -1076,14 +1076,14 @@ class SpectrogramExportDialog(FFTExportDialog):
         """ Retrieve the settings specified in the dialog as a dictionary. The
             dictionary contains the following keys:
             
-                * channels: a list of `mide_ebml.dataset.SubChannel` objects.
+                * channels: a list of `idelib.dataset.SubChannel` objects.
                 * indexRange: The first and last event index in the specified
                     interval of time.
                 * numRows: The number of samples in the given channel in the
                     specified interval.
                 * slices: The number of slices per second to plot (i.e. the
                     X resolution).
-                * source: The `mide_ebml.dataset.EventList` for the parent
+                * source: The `idelib.dataset.EventList` for the parent
                     channel in the current session.
                 * timeRange: The specified interval's start and end times.
                 * windowSize: The specified window (a/k/a slice) size for use
@@ -1112,7 +1112,7 @@ if __name__ == '__main__':# or True:
     locale.setlocale(locale.LC_ALL, 'English_United States.1252')
     
     from pprint import pprint
-    from mide_ebml import importer
+    from idelib import importer
     doc=importer.importFile(updater=importer.SimpleUpdater(0.01))
     
     class FakeViewer(object):

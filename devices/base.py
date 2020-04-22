@@ -40,6 +40,12 @@ class ConfigVersionError(ConfigError):
         hardware or firmware version.
     """
 
+
+class DeviceTimeout(Exception):
+    """ Exception raised when a device fails to respond within an expected
+        length of time.
+    """
+
 #===============================================================================
 # 
 #===============================================================================
@@ -60,14 +66,13 @@ class Recorder(object):
     manufacturer = None
     homepage = None
     
-    @classmethod
-    def fromPath(cls, path):
-        """ 
-        """
-        return cls(path)
-
 
     def __init__(self, path):
+        """ Constructor.
+            
+            @param path: The filesystem path to the recording device, or
+                `None`.
+        """
         self.path = path
         if path is not None:
             self.path = os.path.realpath(os.path.expandvars(path))
@@ -80,6 +85,7 @@ class Recorder(object):
         self._info = None
         self._config = None
         self._name = None
+        self._notes = None
         self._sn = None
         self._snInt = None
         self._sensors = None
@@ -154,12 +160,21 @@ class Recorder(object):
 
 
     @property
+    def firmware(self):
+        """ The recorder's manufacturer-issued firmware version string or name.
+        """
+        return str(self.firmwareVersion)
+    
+
+    @property
     def birthday(self):
+        """ The recorder's date of manufacture. """
         return None
     
     
     @property
     def canRecord(self):
+        """ Can the device be set to start recording via software? """
         return False
 
     
@@ -208,6 +223,7 @@ class Recorder(object):
             @keyword verify: If `True`, the configuration data will be
                 validated prior to export.
         """
+        # XXX: exportConfig NEEDS TO BE REFACTORED!
         if data is None:
             data = self.getConfig()
         if not data:
@@ -225,13 +241,17 @@ class Recorder(object):
         """ Read device configuration data from a file. The file must contain
             the device's product name, a newline, and then the data in the
             device's native format. If the product name doesn't match the
-            device's product name a `ConfigVersionError` is raised.
+            device's product name a `ConfigVersionError` is raised instead of
+            updating the device's configuration.
             
             @param filename: The name of the exported config file to import.
             @keyword update: If `True`, the config data is applied to the
                 device. If `False`, it is just imported.
-            @return: A dictionary of configuration attributes.
+            @return: A tuple containing the imported file's device info
+                (device name, firmware version, hardware version) and a
+                dictionary of configuration attributes.
         """
+        # XXX: importConfig NEEDS TO BE REFACTORED!
         if allowOlder is None:
             allowOlder = self._importOlderFwConfig
         if allowNewer is None:
@@ -241,9 +261,8 @@ class Recorder(object):
         if allowNewerHw is None:
             allowNewerHw = self._importNewerHwConfig
 
-
         with open(filename,'rb') as f:
-            # First line is JSON containing product name, FW version, HW version
+            # First line is JSON containing product name, FwRev, HwRev
             # The HW version is new (20150729), so fill in with a default.
             vers = json.loads(f.readline().strip())
             if len(vers) == 2:
@@ -262,19 +281,18 @@ class Recorder(object):
                     good = good and allowNewerHw
 
             versions = (cname, cfwvers, self.productName, self.firmwareVersion)
-            if not good:
+            if update and not good:
                 raise ConfigVersionError(
                     "Device mismatch: this is %r v.%r, file is %r v.%r" % \
-                    versions, versions)
+                    versions, vers)
         
-            config = self._loadConfig(StringIO(f.read()), hwRev=chwvers, fwRev=cfwvers)
+            config = self._loadConfig(StringIO(f.read()), hwRev=chwvers,
+                                      fwRev=cfwvers)
             
         if update:
             self.getConfig().update(config)
-        else:
-            self._config = config
         
-        return self._config
+        return vers, config
 
 
     def getConfig(self, default=None, refresh=False):
@@ -312,17 +330,17 @@ class Recorder(object):
     
     
     def getManifest(self, refresh=False):
-        """
+        """ Get the recorder's manifest (low-level system properties).
         """
         return None
     
     def getUserCalibration(self, refresh=False):
-        """
+        """ Get user-specified calibration data from the recorder.
         """
         return None
 
     def getFactoryCalibration(self, refresh=False):
-        """
+        """ Get factory-applied calibration data from the recorder.
         """
         return None
     
@@ -358,14 +376,21 @@ class Recorder(object):
 
 
     def getFactoryCalDate(self, refresh=False):
+        """ Get the date of the recorder's factory calibration.
+        """
         return None
     
     
     def getUserCalDate(self, refresh=False):
+        """ Get the date of the recorder's user-applied calibration (if any).
+        """
         return None
     
     
     def getCalDate(self, refresh=False):
+        """ Get the date of the recorder's active calibration (user
+            calibration if it exists, otherwise the factory calibration).
+        """
         return None
 
 

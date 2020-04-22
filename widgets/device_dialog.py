@@ -2,6 +2,8 @@
 Dialog for selecting recording devices.
 
 """
+from __future__ import absolute_import, print_function
+
 from collections import namedtuple
 from datetime import datetime
 import sys
@@ -23,8 +25,8 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
     """ The dialog for selecting data to export.
     """
 
-    ID_SET_TIME = wx.NewId()
-    ID_START_RECORDING = wx.NewId()
+    ID_SET_TIME = wx.NewIdRef()
+    ID_START_RECORDING = wx.NewIdRef()
     
     # Indices of icons. Proportional to severity.
     ICON_INFO, ICON_WARN, ICON_ERROR = range(3)
@@ -43,7 +45,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
     ADVANCED_COLUMNS = (COLUMNS + 
                         (ColumnInfo("HW Rev.", "hardwareVersion", cleanUnicode, ''),
-                         ColumnInfo("FW Rev.", "firmwareVersion", cleanUnicode, '')))
+                         ColumnInfo("FW Rev.", "firmware", cleanUnicode, '')))
 
     # Tool tips for the 'record' button
     RECORD_UNSELECTED = "No recorder selected"
@@ -131,26 +133,26 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.setClockButton = wx.Button(buttonpane, self.ID_SET_TIME, 
                                         "Set All Clocks")
         self.setClockButton.SetSizerProps(halign="left")
-        self.setClockButton.SetToolTipString("Set the time of every attached "
+        self.setClockButton.SetToolTip("Set the time of every attached "
                                              "recorder with a RTC")
         
         self.recordButton = wx.Button(buttonpane, self.ID_START_RECORDING,
                                       "Start Recording")
         self.recordButton.SetSizerProps(halign="left")
-        self.recordButton.SetToolTipString(self.RECORD_ENABLED)
+        self.recordButton.SetToolTip(self.RECORD_ENABLED)
         self.recordButton.Enable(False)
         
         sc.SizedPanel(buttonpane, -1).SetSizerProps(proportion=1) # Spacer
         
         self.okButton = wx.Button(buttonpane, wx.ID_OK, okText)
-        self.okButton.SetToolTipString(okHelp)
+        self.okButton.SetToolTip(okHelp)
         self.okButton.SetSizerProps(halign="right")
         self.okButton.Enable(False)
         self.cancelButton = wx.Button(buttonpane, wx.ID_CANCEL, cancelText)
         self.cancelButton.SetSizerProps(halign="right")
 
         # Call deviceChanged() to set the initial state. Result ignored.
-        deviceChanged(recordersOnly=True)
+        deviceChanged(recordersOnly=False, clear=True)
         self.populateList()
         listmix.ColumnSorterMixin.__init__(self, len(self.ColumnInfo._fields))
 
@@ -166,6 +168,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.Bind(wx.EVT_LIST_ITEM_DESELECTED, self.OnItemDeselected, self.list)
         self.list.Bind(wx.EVT_LEFT_DCLICK, self.OnItemDoubleClick)
         self.Bind(wx.EVT_LIST_COL_CLICK, self.OnColClick, self.list)
+        self.Bind(wx.EVT_SHOW, self.OnShow)
         
         if self.hideClock:
             self.setClockButton.Hide()
@@ -187,22 +190,19 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.timer = wx.Timer(self)
         self.Bind(wx.EVT_TIMER, self.TimerHandler)
         
-        if self.autoUpdate:
-            self.timer.Start(self.autoUpdate)
-
 
     def TimerHandler(self, evt=None):
         """ Handle timer 'tick' by refreshing device list.
         """
-        if deviceChanged(recordersOnly=True):
-            self.SetCursor(wx.StockCursor(wx.CURSOR_ARROWWAIT))
+        if deviceChanged(recordersOnly=False):
+            self.SetCursor(wx.Cursor(wx.CURSOR_ARROWWAIT))
             newPaths = tuple(getDeviceList(types=self.deviceTypes))
             if newPaths == self.recorderPaths:
-                self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+                self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
                 return
             self.recorderPaths = newPaths
             self.populateList()
-            self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+            self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
 
     def setItemIcon(self, index, dev):
@@ -278,14 +278,19 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         self.listMsgs = [None] * len(self.recorderPaths)
         self.listToolTips = [None] * len(self.recorderPaths)
 
-        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
-        
-        for dev in getDevices(self.recorderPaths):
+        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
+
+        # For some reason, this wouldn't find devices if one of their files
+        # is open (and only if it were opened via the Open File dialog).
+        # See https://github.com/MideTechnology/SlamStickLab/issues/182
+        # For now, don't restrict to the recorderPaths, find & fix real cause!
+#         for dev in getDevices(self.recorderPaths):
+        for dev in getDevices():
             try:
-                index = self.list.InsertStringItem(sys.maxint, dev.path)
+                index = self.list.InsertItem(sys.maxint, dev.path)
                 self.recorders[index] = dev
                 for i, col in enumerate(self.COLUMNS[1:], 1):
-                    self.list.SetStringItem(index, i, self._thing2string(dev, col))
+                    self.list.SetItem(index, i, self._thing2string(dev, col))
                     self.list.SetColumnWidth(i, wx.LIST_AUTOSIZE)
                     self.listWidth = max(self.listWidth, 
                                          self.list.GetItemRect(index)[2])
@@ -316,7 +321,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         if not self.recorders or not self.selected:
             self.OnItemDeselected(None)
             
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
 
     def getSelected(self):
@@ -333,17 +338,17 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
 
 
     def OnItemSelected(self,evt):
-        self.selected = self.list.GetItemData(evt.m_item.GetId())
+        self.selected = self.list.GetItemData(evt.Item.GetId())
         if self.listMsgs[self.selected] is not None:
             self.infoText.SetLabel(self.listMsgs[self.selected])
         self.okButton.Enable(True)
         
         recorder = self.recorders.get(self.selected, None)
         if recorder.canRecord:
-            self.recordButton.SetToolTipString(self.RECORD_ENABLED)
+            self.recordButton.SetToolTip(self.RECORD_ENABLED)
             self.recordButton.Enable(True)
         else:
-            self.recordButton.SetToolTipString(self.RECORD_UNSUPPORTED)
+            self.recordButton.SetToolTip(self.RECORD_UNSUPPORTED)
             self.recordButton.Enable(False)
         
         evt.Skip()
@@ -358,7 +363,7 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
             self.infoText.SetLabel("")
         
         self.recordButton.Enable(False)
-        self.recordButton.SetToolTipString(self.RECORD_UNSELECTED)
+        self.recordButton.SetToolTip(self.RECORD_UNSELECTED)
         
         if evt is not None:
             evt.Skip()
@@ -380,10 +385,23 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         if index != -1 and index != self.lastToolTipItem:
             item = self.list.GetItemData(index)
             if self.listToolTips[item] is not None:
-                self.list.SetToolTipString(self.listToolTips[item])
+                self.list.SetToolTip(self.listToolTips[item])
             else:
                 self.list.UnsetToolTip()
             self.lastToolTipItem = index
+        evt.Skip()
+    
+    
+    def OnShow(self, evt):
+        """ Handle dialog being shown/hidden.
+        """
+        if evt.IsShown():
+            if self.autoUpdate:
+                self.timer.Start(self.autoUpdate)
+#                 print("XXX: timer started")
+        else:
+            self.timer.Stop()
+#             print("XXX: timer stopped")
         evt.Skip()
         
 
@@ -391,14 +409,14 @@ class DeviceSelectionDialog(sc.SizedDialog, listmix.ColumnSorterMixin):
         """ Set all clocks. Used as an event handler.
         """
         butts = self.okButton, self.cancelButton, self.setClockButton
-        self.SetCursor(wx.StockCursor(wx.CURSOR_WAIT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_WAIT))
         for b in butts:
             b.Enable(False)
         for rec in self.recorders.values():
             rec.setTime()
         for b in butts:
             b.Enable(True)
-        self.SetCursor(wx.StockCursor(wx.CURSOR_DEFAULT))
+        self.SetCursor(wx.Cursor(wx.CURSOR_DEFAULT))
 
 
     def startRecording(self, evt=None):
@@ -456,5 +474,5 @@ if __name__ == '__main__':
     app = wx.App()
     
     result = selectDevice(showAdvanced=True)#hideClock=True, hideRecord=True)
-    print result
+    print("Result:", result)
     

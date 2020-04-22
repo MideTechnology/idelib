@@ -1,10 +1,13 @@
 """
+Dialogs for editing Univariate and Bivariate polynomials.
+
 """
+from __future__ import absolute_import, print_function
 
 import wx
 import wx.lib.sized_controls as SC
 
-from mide_ebml.calibration import Transform, Univariate, Bivariate
+from idelib.calibration import Transform, Univariate, Bivariate
 
 #===============================================================================
 # 
@@ -17,7 +20,7 @@ def cleanSplit(s, dtype=float):
 # 
 #===============================================================================
 
-class CoeffValidator(wx.PyValidator):
+class CoeffValidator(wx.Validator):
     """ Validator for a text field containing polynomial coefficients.
     """
     NAME = "coefficients"
@@ -34,7 +37,7 @@ class CoeffValidator(wx.PyValidator):
         self.varName = self.NAME
         self.num = 0
         
-        wx.PyValidator.__init__(self)
+        wx.Validator.__init__(self)
 
 
     def Clone(self):
@@ -77,7 +80,7 @@ class CoeffValidator(wx.PyValidator):
         
         if err is not None:
             textCtrl.errIcon.SetBitmap(self.root.errBmp)
-            textCtrl.errIcon.SetToolTipString(err)
+            textCtrl.errIcon.SetToolTip(err)
 #             textCtrl.SetBackgroundColour(self.root.errColor)
 
             if not quiet:
@@ -127,8 +130,8 @@ class PolyEditDialog(SC.SizedDialog):
     """ Dialog for editing Univariate and Bivariate polynomials.
     """
     
-    ID_UNIVARIATE = wx.NewId()
-    ID_BIVARIATE = wx.NewId()
+    ID_UNIVARIATE = wx.NewIdRef()
+    ID_BIVARIATE = wx.NewIdRef()
     
     DEFAULT_TITLE = "Edit Polynomial"
     DEFAULT_COEFFS = (1,0)
@@ -264,9 +267,9 @@ class PolyEditDialog(SC.SizedDialog):
         super(PolyEditDialog, self).__init__(parent, wxId, **kwargs)
 
         # Error icons and window background color.
-        self.noBmp = wx.EmptyBitmapRGBA(16,16,0,0,0,1.0)
+        self.noBmp = wx.Bitmap.FromRGBA(16,16,0,0,0,255)
         self.errBmp = wx.ArtProvider.GetBitmap(wx.ART_ERROR, wx.ART_CMN_DIALOG, (16,16))
-        self.bgColor = wx.SystemSettings_GetColour(wx.SYS_COLOUR_WINDOW)
+        self.bgColor = wx.SystemSettings.GetColour(wx.SYS_COLOUR_WINDOW)
         self.errColor = "pink"
 
         self.buildUI()
@@ -509,41 +512,35 @@ class PolyEditDialog(SC.SizedDialog):
             self.polyType = Bivariate
         self.updateUI()
 
-#===============================================================================
-# 
-#===============================================================================
-
-
-
 
 #===============================================================================
 # 
 #===============================================================================
 
-if __name__ == '__main__':
-    from mide_ebml import importer
-    doc = importer.importFile()
-    transforms = doc.transforms
-    channels = doc.channels
-    print "loaded %r" % doc.filename
-    
-    app = wx.App()
-   
-    def show(d, title="Edit Polynomial", cal=1, **kwargs):
-        title = "%s (ID %d)" % (title, cal)
-        d = d(None, -1, title=title, transforms=transforms, channels=channels, cal=transforms[cal], **kwargs)
-        d.ShowModal()
-        cal = d.cal
-        d.Destroy()
-        if hasattr(cal, 'channelId'):
-            print "%r, refs channel %r.%r" % (cal, cal.channelId, cal.subchannelId)
-        else:
-            print "%r" % cal
-        return cal
-    
-    show(PolyEditDialog, cal=1)
-    show(PolyEditDialog, cal=2, changeType=False)
-    show(PolyEditDialog, cal=3, changeType=False, changeSource=False)
-    show(PolyEditDialog, cal=0, changeType=False)
-    
-    app.MainLoop()
+# if __name__ == '__main__':
+#     from idelib import importer
+#     doc = importer.importFile()
+#     transforms = doc.transforms
+#     channels = doc.channels
+#     print("loaded %r" % doc.filename)
+#     
+#     app = wx.App()
+#    
+#     def show(d, title="Edit Polynomial", cal=1, **kwargs):
+#         title = "%s (ID %d)" % (title, cal)
+#         d = d(None, -1, title=title, transforms=transforms, channels=channels, cal=transforms[cal], **kwargs)
+#         d.ShowModal()
+#         cal = d.cal
+#         d.Destroy()
+#         if hasattr(cal, 'channelId'):
+#             print("%r, refs channel %r.%r" % (cal, cal.channelId, cal.subchannelId))
+#         else:
+#             print("%r" % cal)
+#         return cal
+#     
+#     show(PolyEditDialog, cal=1)
+#     show(PolyEditDialog, cal=2, changeType=False)
+#     show(PolyEditDialog, cal=3, changeType=False, changeSource=False)
+#     show(PolyEditDialog, cal=0, changeType=False)
+#     
+#     app.MainLoop()

@@ -8,7 +8,7 @@ import os
 import platform
 import sys
 
-# HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SSXViewer'
+# HOME_DIR = 'C:\\Users\\dstokes\\workspace\\SlamStickLab'
 HOME_DIR = os.getcwd()
 startTime = datetime.now()
 
@@ -18,14 +18,18 @@ startTime = datetime.now()
 try:
     import socket, sys, time
     sys.path.append(HOME_DIR)
-    from build_info import BUILD_NUMBER, DEBUG, VERSION
+    from build_info import APPNAME, BUILD_NUMBER, DEBUG, BETA, VERSION
     versionString = '.'.join(map(str,VERSION))
+    if DEBUG or BETA:
+        buildtype = "BETA" if BETA else "DEBUG"
+        versionString += " %s b%s" % (buildtype, BUILD_NUMBER)
 except Exception:
+    raise
     BUILD_NUMBER = versionString = VERSION = "Unknown"
     DEBUG = True
     print("*** Couldn't read and/or change build number!")
 
-name='Slam Stick Lab %s (%s).exe' % (versionString, platform.architecture()[0][:3])
+name='%s %s (%s).exe' % (APPNAME, versionString, platform.architecture()[0][:3])
 
 # Collect data files (needed for getting schema XML)
 # Modified version of https://github.com/pyinstaller/pyinstaller/wiki/Recipe-Collect-Data-Files
@@ -50,10 +54,7 @@ def Datafiles(*filenames, **kw):
         for filename in filenames
         if os.path.isfile(filename))
 
-schemas = Datafiles('mide_ebml/ebml/schema/mide.xml',
-                    'mide_ebml/ebml/schema/manifest.xml',
-                    'mide_ebml/ebml/schema/matroska.xml',
-                    'mide_ebml/ebmlite/schemata/*.xml',
+schemas = Datafiles('idelib/ebmlite/schemata/*.xml',
                     'LICENSES/*.txt',
                     'ABOUT/*',
                     'resources/*',
@@ -91,7 +92,7 @@ exe = EXE(pyz,
           schemas,
           exclude_binaries=False,
           name=name,
-          icon='ssl.ico',
+          icon='endaq_lab.ico',
           debug=DEBUG,
           strip=None,
           upx=True,
@@ -100,5 +101,5 @@ exe = EXE(pyz,
           console=DEBUG
           )
 
-print("*** Completed building version %s, Build number %d, DEBUG=%s" % (versionString,BUILD_NUMBER,DEBUG))
+print("*** Completed building version %s, Build number %s, DEBUG=%s" % (versionString,BUILD_NUMBER,DEBUG))
 print("*** Elapsed build time: %s" % (datetime.now()-startTime))

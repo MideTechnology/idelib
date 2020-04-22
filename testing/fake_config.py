@@ -7,7 +7,7 @@ import time
 sys.path.insert(0,'..')
 
 import devices
-from mide_ebml import util
+from idelib import util
 from assembly.firmware import ssx_bootloadable_device
 
 
@@ -42,7 +42,7 @@ def setFakeCalDate(path, *args):
     cal = ssx.getCalibration()
     cal['CalibrationDate'] = int(t)
 
-    mandata = util.build_ebml('DeviceManifest', man, 'mide_ebml.ebml.schema.manifest')
+    mandata = util.build_ebml('DeviceManifest', man, 'idelib.ebml.schema.manifest')
     caldata = util.build_ebml('CalibrationList', cal)
     fake = ssx_bootloadable_device.makeUserpage(mandata, caldata)
     

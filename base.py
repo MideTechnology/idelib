@@ -77,7 +77,7 @@ class ViewerPanel(wx.Panel):
             btn.SetBitmapDisabled(bitmaps[1].GetBitmap())
             
         if tooltip is not None:
-            btn.SetToolTipString(tooltip)
+            btn.SetToolTip(tooltip)
      
         sizer.Add(btn, 0, sizerFlags)
         if Id == -1:
@@ -198,13 +198,14 @@ class MenuMixin(object):
         @ivar contextMenu: The object's context menu, if any.
     """
     
-    def addMenuItem(self, menu, id_, text, helpString, handler=None, 
+    def addMenuItem(self, menu, id_, text=u'', helpString=u'', handler=None, 
                     enabled=True, kind=wx.ITEM_NORMAL, checked=False):
         """ Helper method for doing the grunt work involved in adding a menu
             item to a menu.
             
             @param menu: The menu to which to add the menu item.
-            @param id_: The menu item's ID (e.g. `wx.OPEN`, `wx.CLOSE`, etc.)
+            @param id_: The menu item's ID (e.g. `wx.ID_OPEN`, `wx.ID_CLOSE`,
+                etc.)
             @param text: The menu item text.
             @param helpString: Help text for the menu item.
             @keyword handler: A method for handling `wx.EVT_MENU` events.
@@ -217,7 +218,13 @@ class MenuMixin(object):
             @return: The new menu item.
         """
         if id_ == -1:
-            id_ = wx.NewId()
+            id_ = wx.NewIdRef()
+            
+#         if helpString is None:
+#             helpString = u""
+#         elif not helpString:
+#             helpString = text.split('\t')[0].replace('&', '').rstrip('.') + '.'
+            
         item = menu.Append(id_, text, helpString, kind)
         item.Enable(enabled)
         if kind == wx.ITEM_CHECK:
@@ -225,6 +232,7 @@ class MenuMixin(object):
         if handler is not None:
             self.Bind(wx.EVT_MENU, handler, item)
         return item
+
 
     def addMenu(self, menubar, text):
         """ Create a submenu in a given menu bar.
@@ -247,9 +255,9 @@ class MenuMixin(object):
             @keyword enabled: The initial enabled state of the submenu.
         """
         if id_ == -1:
-            id_ = wx.NewId()
+            id_ = wx.NewIdRef()
         subM = wx.Menu()
-        menu.AppendMenu(id_, text, subM)
+        menu.Append(id_, text, subM)
         menu.Enable(id_, enabled)
         return subM
 

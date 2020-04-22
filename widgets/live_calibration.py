@@ -8,7 +8,7 @@ Created on Jan 5, 2016
 '''
 
 __author__ = "dstokes"
-__copyright__ = "Copyright 2016 Mide Technology Corporation"
+__copyright__ = "Copyright 2020 Mide Technology Corporation"
 
 import os.path
 
@@ -18,9 +18,9 @@ import wx.lib.sized_controls as SC
 from config_dialog.special_tabs import EditableCalibrationPanel
 from devices import fromRecording
 from logger import logger
-from mide_ebml.parsers import CalibrationListParser
+from idelib.parsers import CalibrationListParser
 
-from mide_ebml.ebmlite import loadSchema
+from idelib.ebmlite import loadSchema
 
 schema_mide = loadSchema('mide.xml')
 
@@ -33,8 +33,8 @@ class LiveCalibrationDialog(SC.SizedDialog):
         recording. 
     """
     
-    ID_IMPORT = wx.NewId()
-    ID_EXPORT = wx.NewId()
+    ID_IMPORT = wx.NewIdRef()
+    ID_EXPORT = wx.NewIdRef()
     
     IMPORT_TYPES=("Any Calibration File Type (*.cal, *.dat, *.ide)|*.cal;*.dat;*.ide|"
                   "Exported Calibration File (*.cal)|*.cal|"
@@ -105,7 +105,7 @@ class LiveCalibrationDialog(SC.SizedDialog):
         filename = None
         dlg = wx.FileDialog(self, wildcard=self.IMPORT_TYPES,
                             message="Choose a file containing calibration data",
-                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST)
         
         while True:
             try:
@@ -165,7 +165,7 @@ class LiveCalibrationDialog(SC.SizedDialog):
         # Created once, used multiple times later.
         dlg = wx.FileDialog(self, wildcard=self.IMPORT_TYPES,
                             message="Choose a file containing calibration data",
-                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST)
         
         # Keep prompting the user until they either successfully load cal data,
         # or they cancel.
@@ -231,7 +231,7 @@ class LiveCalibrationDialog(SC.SizedDialog):
                             message="Export calibration",
                             wildcard=("Exported calibration file (*.cal)|*.cal|"
                                       "User calibration file (usercal.dat)|*.dat"),
-                            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+                            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             try:
                 self.dev.writeUserCal(self.calList.info, filename=dlg.GetPath())
@@ -311,7 +311,7 @@ def editCalibration(root):
 #===============================================================================
 
 if __name__ == "__main__":
-    from mide_ebml.importer import importFile
+    from idelib.importer import importFile
     
     class TestApp(wx.App):
         dataset = importFile()

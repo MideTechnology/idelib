@@ -8,6 +8,7 @@ Widgets for the main view plots.
 from collections import defaultdict
 import colorsys
 import sys
+import threading
 import time
 
 from wx import aui
@@ -21,11 +22,11 @@ from base import ViewerPanel, MenuMixin
 from common import expandRange, mapRange, inRect, constrain, greater, lesser
 from widgets.timeline import VerticalScaleCtrl
 
-from logger import logger
-
 from build_info import DEBUG
+from logger import logger
+from splash import SplashPage
 
-import numpy as np
+# import numpy as np
 
 # ANTIALIASING_MULTIPLIER = 3.33
 # RESAMPLING_JITTER = 0.125
@@ -103,7 +104,7 @@ class VerticalScale(ViewerPanel):
                                        style=wx.NO_BORDER|wx.ALIGN_RIGHT)
         self.scale.SetRange(*self.visibleRange)
         self.scale.SetBackgroundColour(self.root.uiBgColor)
-        self.scale.SetCursor(wx.StockCursor(wx.CURSOR_SIZENS))
+        self.scale.SetCursor(wx.Cursor(wx.CURSOR_SIZENS))
         sizer.Add(self.scale, -1, wx.EXPAND)
         self.SetSizer(sizer)
         self.SetMinSize((self.root.corner.GetSize()[0],-1))
@@ -120,6 +121,7 @@ class VerticalScale(ViewerPanel):
 
         # Just in case the initial units are too long to fit
         self.setUnits(self.Parent.yUnits[1])
+
 
     #===========================================================================
     # 
@@ -142,6 +144,10 @@ class VerticalScale(ViewerPanel):
                 Elements that take a long time to draw shouldn't respond
                 if `tracking` is `True`.
         """
+        try:
+            self.Parent.plot.abortRendering.set()
+        except RuntimeError:
+            pass
         if instigator == self:
             return
         vSize = self.GetSize()[1]
@@ -154,7 +160,10 @@ class VerticalScale(ViewerPanel):
         self.unitsPerPixel = abs((top - bottom) / (vSize + 0.0))
         self.Parent.updateScrollbar()
         if not tracking:
-            self.Parent.Refresh()
+            try:
+                self.Parent.Refresh()
+            except RuntimeError:
+                pass
     
     
     def getValueRange(self):
@@ -174,7 +183,7 @@ class VerticalScale(ViewerPanel):
         """
         if setSize:
             w = self.unitLabel.GetTextExtent(units)[0]
-            bw = self.zoomInButton.GetSizeTuple()[0]
+            bw = self.zoomInButton.GetSize()[0]
             if w > bw:
                 scaledFont = self.defaultFont.Scaled(bw/(w+0.0))
                 if scaledFont.GetPointSize() < self.MIN_LABEL_PT_SIZE:
@@ -273,6 +282,7 @@ class VerticalScale(ViewerPanel):
             self.setValueRange(*self.originalRange, instigator=None, tracking=False)
         evt.Skip()
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -289,7 +299,7 @@ class PlotCanvas(wx.ScrolledWindow):
     RANGE_MIN_STYLE = ("minRangeColor", "LIGHT BLUE", 1, wx.USER_DASH, [8,4])
     RANGE_MAX_STYLE = ("maxRangeColor", "PINK", 1, wx.USER_DASH, [2,4])
     RANGE_MEAN_STYLE = ("meanRangeColor", "YELLOW", 1, wx.USER_DASH, [8,4,4,4])
-    
+
 
     def loadPrefs(self):
         """ Get all the preferences used by the plot.
@@ -359,11 +369,11 @@ class PlotCanvas(wx.ScrolledWindow):
         self.NO_PEN = wx.Pen("white", style=wx.TRANSPARENT)
         self.BLACK_PEN = wx.Pen("black", style=wx.SOLID)
         
-        self._cursor_arrowwait = wx.StockCursor(wx.CURSOR_ARROWWAIT)
-        self._cursor_default = wx.StockCursor(wx.CURSOR_DEFAULT)
+        self._cursor_arrowwait = wx.Cursor(wx.CURSOR_ARROWWAIT)
+        self._cursor_default = wx.Cursor(wx.CURSOR_DEFAULT)
 
         self.pauseTimer = wx.Timer()
-        self.abortRendering = False
+        self.abortRendering = threading.Event()
 
         self.Bind(wx.EVT_PAINT, self.OnPaint)
         self.Bind(wx.EVT_MOTION, self.OnMouseMotion)
@@ -433,7 +443,7 @@ class PlotCanvas(wx.ScrolledWindow):
                      self.minRangePen,
                      self.maxRangePen)
         
-        self._pointPen = wx.Pen(wx.Colour(255,255,255,.5), 1, self.style)
+        self._pointPen = wx.Pen(wx.Colour(255,255,255,128), 1, self.style)
         self.legendRect = None
         
     
@@ -642,7 +652,10 @@ class PlotCanvas(wx.ScrolledWindow):
                 _makeline(minPts, pMin)
                 _makeline(meanPts, pMean)
                 _makeline(maxPts, pMax)
-                
+
+                if self.abortRendering.isSet():
+                    break 
+                               
             _finishline(minPts)
             _finishline(meanPts)
             _finishline(maxPts)
@@ -705,7 +718,7 @@ class PlotCanvas(wx.ScrolledWindow):
         """
         if self.root.drawingSuspended.isSet():
             return
-               
+            
         if self.root.dataset.loading:
             # Pause the import during painting to make it faster.
             job, paused = self.root.pauseOperation()
@@ -713,6 +726,7 @@ class PlotCanvas(wx.ScrolledWindow):
             paused = False
             
         try:
+            self.abortRendering.clear()
             self._OnPaint(evt)
             
         except IndexError as err:
@@ -746,7 +760,7 @@ class PlotCanvas(wx.ScrolledWindow):
             msg = "An error occurred while trying to read the recording file."
             self.root.handleError(err, msg, closeFile=True)
             
-        except wx.PyDeadObjectError:
+        except RuntimeError:
             # Could occur when shutting down. Ignore it.
             pass
         
@@ -761,7 +775,7 @@ class PlotCanvas(wx.ScrolledWindow):
         
         try:
             self.SetCursor(self._cursor_default)
-        except wx.PyDeadObjectError:
+        except RuntimeError:
             # May occur when shutting down. Ignore.
             pass
         
@@ -793,7 +807,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc = wx.GCDC(dc)
             dc.SetUserScale(self.userScale, self.userScale)
         
-        dc.BeginDrawing()
+#         dc.BeginDrawing()
         
         parent = self.Parent
         legend = parent.legend
@@ -805,8 +819,8 @@ class PlotCanvas(wx.ScrolledWindow):
         # BUG: This does not work for vertically split plots; they all start
         # at the start of the visible range instead of relative position on
         # the timeline. Investigate.
-#         hRange = map(int,self.root.getVisibleRange())
-        hRange = self.getRelRange()
+        hRange = map(int,self.root.getVisibleRange())
+#         hRange = self.getRelRange()
         vRange = legend.scale.GetRange()
                 
         # TODO: Implement regional redrawing.
@@ -875,11 +889,11 @@ class PlotCanvas(wx.ScrolledWindow):
         # The actual data plotting
         linesDrawn = 0
         for s in parent.sources:
-            if self.abortRendering:
+            if self.abortRendering.isSet():
                 break
             linesDrawn += self._drawPlot(dc, s, size, hRange, vRange, hScale, vScale, chunkSize)
             
-        dc.EndDrawing()
+#         dc.EndDrawing()
         self.SetCursor(self._cursor_default)
         
         if DEBUG and linesDrawn > 0:# and len(parent.sources) > 1:
@@ -911,7 +925,7 @@ class PlotCanvas(wx.ScrolledWindow):
                   chunkSize):
         """ Does the plotting of a single source.
         """
-        if self.abortRendering is True or self.root.drawingSuspended.isSet():
+        if self.abortRendering.isSet() or self.root.drawingSuspended.isSet():
             # Bail if user interrupted drawing (scrolling, etc.)
             # Doesn't actually work yet!
             return 0
@@ -947,6 +961,8 @@ class PlotCanvas(wx.ScrolledWindow):
                         lines = []
                         lastPt = maxLines[0][:2]
                         for i in range(0,len(minLines),2):
+                            if self.abortRendering.isSet():
+                                return i
                             a = minLines[i]
                             b = maxLines[i]
                             lines.append((lastPt[0],lastPt[1],a[0],a[1]))
@@ -968,7 +984,7 @@ class PlotCanvas(wx.ScrolledWindow):
 #             dc.DrawLineList(lines)
             for i in range(0, len(lines), chunkSize):
                 dc.DrawLineList(lines[i:i+chunkSize])
-                if self.abortRendering is True:
+                if self.abortRendering.isSet():
                     return i
         else:
             lines = self.lineList[source] = []
@@ -1011,7 +1027,7 @@ class PlotCanvas(wx.ScrolledWindow):
                 
                 # And now the rest of the samples:
                 for i, event in enumerate(events, 1):
-                    if self.abortRendering is True:
+                    if self.abortRendering.isSet():
                         # Bail if user interrupted drawing (scrolling, etc.)
                         return
                     for chId, eVal in enumerate(event[1:]):
@@ -1064,7 +1080,7 @@ class PlotCanvas(wx.ScrolledWindow):
             parent.zoomToFit(self)
             parent.firstPlot = False
             self.SetCursor(self._cursor_default)
-            dc.EndDrawing()
+#             dc.EndDrawing()
             return 0
         
         if self.drawPoints and len(lines) < size[0] / 4:
@@ -1072,7 +1088,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetPen(self._pointPen)
             dc.SetBrush(pointBrush)
             for p in self.pointList[source]:
-                dc.DrawCirclePoint(p,self.weight*self.viewScale*self.pointSize)
+                dc.DrawCircle(p,self.weight*self.viewScale*self.pointSize)
         
         return len(lines)
 
@@ -1082,7 +1098,7 @@ class PlotCanvas(wx.ScrolledWindow):
         """
         # TODO: Maybe draw this to a cached bitmap, then just draw that?
         numSources = len(self.Parent.sources)
-        if self.abortRendering is True or not self.root.showLegend:
+        if not self.root.showLegend:
             return
         
         # Legend is antialiased
@@ -1115,7 +1131,7 @@ class PlotCanvas(wx.ScrolledWindow):
         else:
             x, y, w, h, swatchSize, items = self.legendRect
 
-        dc.BeginDrawing()
+#         dc.BeginDrawing()
         dc.SetPen(self.BLACK_PEN)
         dc.SetBrush(self.legendBrush)
         dc.DrawRectangle(x, y, w, h)
@@ -1126,7 +1142,7 @@ class PlotCanvas(wx.ScrolledWindow):
             dc.SetBrush(b)
             dc.DrawText(n, textPos, vpos)
             dc.DrawRectangle(swatchPos, vpos, swatchSize, swatchSize)
-        dc.EndDrawing()
+#         dc.EndDrawing()
 
 
     #===========================================================================
@@ -1143,13 +1159,13 @@ class PlotCanvas(wx.ScrolledWindow):
         
         # draw rectangle
         dc = wx.ClientDC( self )
-        dc.BeginDrawing()
+#         dc.BeginDrawing()
         dc.SetPen(wx.Pen(wx.BLACK))
         dc.SetBrush(wx.Brush( wx.WHITE, wx.TRANSPARENT ))
         dc.SetLogicalFunction(wx.INVERT)
         dc.DrawRectangle( ptx,pty, rectWidth,rectHeight)
         dc.SetLogicalFunction(wx.COPY)
-        dc.EndDrawing()
+#         dc.EndDrawing()
  
 
     #===========================================================================
@@ -1311,17 +1327,20 @@ class PlotCanvas(wx.ScrolledWindow):
         """ Window resize event handler.
         """
         self.legendRect = None
-        self.abortRendering = True
+        self.abortRendering.set()
         
-        # Start up (or reset) the timer delaying the redraw 
-        self.pauseTimer.Start(25, wx.TIMER_ONE_SHOT)
+        # Start up (or reset) the timer delaying the redraw
+        self.root.suspendDrawing()
+        self.pauseTimer.Start(250, wx.TIMER_ONE_SHOT)
 
 
     def OnTimerFinish(self, evt):
         """ Handle expiration of the timer that delays refresh during resize.
         """
-        self.abortRendering = False
+        self.abortRendering.clear()
+        self.root.drawingSuspended.clear()
         self.Refresh()
+
 
 #===============================================================================
 # 
@@ -1331,15 +1350,15 @@ class Plot(ViewerPanel, MenuMixin):
     """ A display of one or more subchannels of data, consisting of the 
         vertical scale and actual plot-drawing canvas.
     """
-    ID_MENU_SETCOLOR = wx.NewId()
-    ID_MENU_SETPOS_UL = wx.NewId()
-    ID_MENU_SETPOS_UR = wx.NewId()
-    ID_MENU_SETPOS_LR = wx.NewId()
-    ID_MENU_SETPOS_LL = wx.NewId()
-    ID_MENU_MOVE_TOP = wx.NewId()
-    ID_MENU_MOVE_BOTTOM = wx.NewId()
-    ID_MENU_REMOVE = wx.NewId()
-    ID_MENU_HIDE_LEGEND = wx.NewId()
+    ID_MENU_SETCOLOR = wx.NewIdRef()
+    ID_MENU_SETPOS_UL = wx.NewIdRef()
+    ID_MENU_SETPOS_UR = wx.NewIdRef()
+    ID_MENU_SETPOS_LR = wx.NewIdRef()
+    ID_MENU_SETPOS_LL = wx.NewIdRef()
+    ID_MENU_MOVE_TOP = wx.NewIdRef()
+    ID_MENU_MOVE_BOTTOM = wx.NewIdRef()
+    ID_MENU_REMOVE = wx.NewIdRef()
+    ID_MENU_HIDE_LEGEND = wx.NewIdRef()
     LEGEND_POS_IDS = [ID_MENU_SETPOS_UL, ID_MENU_SETPOS_UR,
                       ID_MENU_SETPOS_LL, ID_MENU_SETPOS_LR]
         
@@ -1416,6 +1435,21 @@ class Plot(ViewerPanel, MenuMixin):
         self.buildLegendMenu()
         self.enableMenus()
 #         self.setTabText()
+
+
+    def __repr__(self):
+        """ x.__repr__() <==> repr(x), but more human-readable.
+            To make scripting a little simpler.
+        """
+        try:
+            idx = self.Parent.GetPageIndex(self)
+            if idx < 0:
+                return super(Plot, self).__repr__()
+            
+            title = self.Parent.GetPageText(idx).encode("ascii", "replace")
+            return '<%s %s: "%s">' % (type(self).__name__, idx, title)
+        except:
+            return super(Plot, self).__repr__()
 
 
     def buildLegendMenu(self):
@@ -1553,17 +1587,35 @@ class Plot(ViewerPanel, MenuMixin):
         """ Set the name displayed on the plot's tab.
         """
         if len(self.sources) == 0:
+            # No sources. Just use units.
             ttip = s = self.yUnits[0]
         else:
             ttip = '\n'.join([s.parent.displayName for s in reversed(self.sources)])
             if len(self.sources) == 1:
+                # Just one source. Use subchannel name or units.
                 if self.sources[0].parent.units[0] != self.yUnits[0]:
                     # Special case: show converted units
                     s = self.yUnits[0]
                 else:
+                    # Use subchannel display name
                     s = self.sources[0].parent.displayName
             else:
-                s = "%s (%d sources)" % (self.yUnits[0], len(self.sources)) 
+                # More than one source. Use a meaningful name.
+#                 s = "%s (%d sources)" % (self.yUnits[0], len(self.sources)) 
+
+                parent = self.sources[0].parent.parent
+                sensor = self.sources[0].parent.sensor
+                if parent.name != "ADC" and all(s.parent.parent == parent for s in self.sources):
+                    # All from same channel: use channel name. unless the name
+                    # is too generic (i.e. ADC).
+                    s = "%s (%d sources)" % (parent.name, len(self.sources))
+                elif sensor and all(s.parent.sensor == sensor for s in self.sources):
+                    # All from same sensor: use sensor name (if applicable)
+                    s = "%s (%d sources)" % (sensor.name, len(self.sources))
+                else:
+                    # (Probably) a mix of sources. Use units.
+                    s = "%s (%d sources)" % (self.yUnits[0], len(self.sources)) 
+                    
         try:
             i = self.Parent.GetPageIndex(self)
             self.Parent.SetPageText(i, s)
@@ -1582,7 +1634,6 @@ class Plot(ViewerPanel, MenuMixin):
         self.plotTransform = con
         
         if not self.sources:
-#             print "no sources"
             if self.plotTransform is not None:
                 self.yUnits = self.plotTransform.units
             self.setTabText()
@@ -1760,7 +1811,7 @@ class Plot(ViewerPanel, MenuMixin):
         
         changed = False
         for source in self.sources:
-            val = val and source.hasMinMeanMax and source.allowMeanRemoval
+            val = val and source.allowMeanRemoval
             if source.removeMean != val or source.rollingMeanSpan != span:
                 source.rollingMeanSpan = span
                 source.removeMean = val
@@ -1791,7 +1842,7 @@ class Plot(ViewerPanel, MenuMixin):
         if self != activePage and activePage is not None:
             return
 
-        meanEnabled = any(s.allowMeanRemoval and s.hasMinMeanMax for s in self.sources)
+        meanEnabled = any(s.allowMeanRemoval for s in self.sources)
         minmaxEnabled = any(s.hasMinMeanMax for s in self.sources)
         rt = self.root
         mb = rt.menubar
@@ -1977,7 +2028,21 @@ class Plot(ViewerPanel, MenuMixin):
         self.root.app.setPref("showLegend", False)
         self.root.setMenuItem(self.root.menubar, self.root.ID_VIEW_LEGEND, checked=False)
         self.Parent.redraw()
-        
+    
+    #===========================================================================
+    # 
+    #===========================================================================
+    
+    def Destroy(self):
+        """ Destroy the plot. Called when closing window/tab.
+        """
+        try:
+            self.plot.abortRendering.set()
+            self.plot.pauseTimer.Stop()
+        except RuntimeError:
+            pass
+        return super(Plot,self).Destroy()
+
 
 #===============================================================================
 # 
@@ -1991,29 +2056,109 @@ class WarningRangeIndicator(object):
                 wx.HORIZONTAL_HATCH, wx.VERTICAL_HATCH)
 
     
-    def __init__(self, parent, warning, color=None, style=None):
+    def __init__(self, parent, warning, color=None, brush=None, penColor=None,
+                 pen=None, menuId=None):
         """ Constructor.
+        
             @param parent: The parent plot.
-            @type warning: `mide_ebml.dataset.WarningRange`
-            @keyword color: The warning area drawing color.
-            @keyword style: The warning area fill style.
+            @type warning: `idelib.dataset.WarningRange`
+            @keyword color: The warning area drawing color. Defaults to
+                the `warningColor` in the preferences or pink.
+            @keyword brush: The warning area fill `wx.Brush`. Defaults to
+                a normal brush using one of the patterns in `PATTERNS`.
+            @keyword penColor: The color for the pen. Defaults to the brush
+                color.
+            @keyword pen: The warning area outline `wx.Pen`.  Defaults to
+                transparent unless a `penColor` is specified.
         """
-        if style is None:
-            style = self.PATTERNS[warning.id % len(self.PATTERNS)]
         if color is None:
             color = parent.root.app.getPref("warningColor", "PINK")
+        if brush is None:
+            style = self.PATTERNS[warning.id % len(self.PATTERNS)]
+            brush = wx.Brush(color, style)
+        if pen is None:
+            if penColor is None:
+                pen = wx.Pen(color, style=wx.TRANSPARENT)
+            else:
+                pen = wx.Pen(penColor)
+        if menuId is None:
+            menuId = wx.NewIdRef()
+        
+        self.brush = brush
+        self.pen = pen
+        
         self.source = warning
         self.sessionId = parent.root.session.sessionId
-        self.brush = wx.Brush(color, style=style)
-        self.pen = wx.Pen(color, style=wx.TRANSPARENT)
+        
+        self.menuId = menuId
+        
         self.oldDraw = None
         self.rects = None
+        self.oldNavDraw = None
+        self.navRects = None
+        
         try:
             self.sourceList = warning.getSessionSource(self.sessionId)
         except AttributeError:
             # Happens if the source is bad (wrong IDs in the `WarningRange`)
             self.sourceList = None
+
+
+    def _draw(self, dc, hRange, hScale, oldDraw, rects, scale=1.0, size=None):
+        """ Draw a series of out-of-bounds rectangles in the given drawing
+            context. Used for drawing in both the main view (`draw()`) and the
+            time navigator (`navigatorDraw()`).
+            
+            @todo: Apply transforms to the DC itself before passing it, 
+                eliminating all the scale and offset stuff.
+            @todo: Condensed mode, using block min/max?
+            
+            @param dc: The drawing context (a `wx.DC` subclass). 
+        """
+        oldPen = dc.GetPen()
+        oldBrush = dc.GetBrush()
+        size = dc.GetSize() if size is None else size
+        dc.SetPen(self.pen)
+        dc.SetBrush(self.brush)
+
+        h = int(size[1] * scale)
+        prev = [None, 0, 0, 0]
         
+        thisDraw = (hRange, hScale, scale, size)
+        if thisDraw != oldDraw or not rects:
+            rects = []
+            for r in self.source.getRange(*hRange, sessionId=self.sessionId):
+                # TODO: Apply transforms to DC in window's OnPaint() before
+                # calling WarningRangeIndicator.draw(), eliminating these
+                # offsets and scalars. May break rubber-band zooming, though.
+                x = int((r[0]-hRange[0])*hScale)
+                w = int(((r[1]-hRange[0])*hScale)-x if r[1] != -1 else size[0]*scale)
+                rect = [x, 0, w or 1, h]
+
+                # Optimization: Discard identical rectangles (can happen when
+                # zoomed out)
+                if rect == prev:
+                    continue
+
+                # Optimization: Replace previous rectangle if it has same start
+                elif x == prev[0]:
+                    rects[-1] = rect
+                    
+                # Optimization: merge close rectangles.
+                elif len(rects) > 0 and x - (prev[2]+prev[0]) <= 3:
+                        rects[-1][2] = (x+w) - prev[0]
+                        
+                else:
+                    rects.append(rect)
+                    
+                prev = rects[-1]
+
+        dc.DrawRectangleList(rects)
+        
+        dc.SetPen(oldPen)
+        dc.SetBrush(oldBrush)
+        return thisDraw, rects
+    
     
     def draw(self, dc, hRange, hScale, scale=1.0, size=None):
         """ Draw a series of out-of-bounds rectangles in the given drawing
@@ -2022,38 +2167,39 @@ class WarningRangeIndicator(object):
             @todo: Apply transforms to the DC itself before passing it, 
                 eliminating all the scale and offset stuff.
             
-            @param dc: TThe drawing context (a `wx.DC` subclass). 
+            @param dc: The drawing context (a `wx.DC` subclass). 
         """
         if self.sourceList is None or len(self.sourceList) < 2:
             return
-        
-        oldPen = dc.GetPen()
-        oldBrush = dc.GetBrush()
-        size = dc.GetSize() if size is None else size
-        dc.SetPen(self.pen)
-        dc.SetBrush(self.brush)
 
-        thisDraw = (hRange, hScale, scale, size)
-        if thisDraw != self.oldDraw or not self.rects:
-            self.oldDraw = thisDraw
-            self.rects = []
-            for r in self.source.getRange(*hRange, sessionId=self.sessionId):
-                # TODO: Apply transforms to DC in PlotCanvas.OnPaint() before
-                # calling WarningRangeIndicator.draw(), eliminating these
-                # offsets and scalars. May break rubber-band zooming, though.
-                x = (r[0]-hRange[0])*hScale
-                y = 0
-                w = ((r[1]-hRange[0])*hScale)-x if r[1] != -1 else size[0]*scale
-                h = size[1] * scale
-                rect = int(x),int(y),int(w),int(h)
-                self.rects.append(rect)
-        
-        dc.DrawRectangleList(self.rects)
-        
-        dc.SetPen(oldPen)
-        dc.SetBrush(oldBrush)
+        self.oldDraw, self.rects = self._draw(dc, hRange, hScale, self.oldDraw,
+                                              self.rects, scale=scale,
+                                              size=size)
 
 
+    def navigatorDraw(self, nav, dc):
+        """ Draw a series of out-of-bounds rectangles in the time navigator's
+            drawing context.
+            
+            @todo: Apply transforms to the DC itself before passing it, 
+                eliminating all the scale and offset stuff.
+            
+            @param nav: The window's `TimeNavigator`
+            @param dc: The drawing context (a `wx.DC` subclass). 
+        """
+        if self.sourceList is None or len(self.sourceList) < 2:
+            return
+
+        size = dc.GetSize()
+        hRange = nav.timerange
+        if hRange[0] >= hRange[1]:
+            return
+        hScale = size[0] / (hRange[1] - hRange[0] + 0.0)
+
+        self.oldNavDraw, self.navRects = self._draw(dc, hRange, hScale,
+                                                    self.oldNavDraw,
+                                                    self.navRects, size=size)
+        
         
 #===============================================================================
 # 
@@ -2069,6 +2215,7 @@ class PlotSet(aui.AuiNotebook):
         
             @keyword root: The viewer's 'root' window.
         """
+        showSplash = kwargs.pop('splash', True)
         self.root = kwargs.pop('root', None)
         kwargs.setdefault('style',   aui.AUI_NB_TOP  
                                    | aui.AUI_NB_TAB_SPLIT 
@@ -2091,6 +2238,10 @@ class PlotSet(aui.AuiNotebook):
         self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSE, self.OnPageClose)
         self.Bind(aui.EVT_AUINOTEBOOK_PAGE_CLOSED, self.OnPageClosed)
         
+        self.showingSplash = False
+        if showSplash:
+            self.showSplash()
+    
 
     def loadPrefs(self):
         """ (Re-)Load the app preferences.
@@ -2100,16 +2251,51 @@ class PlotSet(aui.AuiNotebook):
 
 
     def __len__(self):
+        """ Get the number of pages (tabs).
+        """
         return self.GetPageCount()
     
     
     def __iter__(self):
+        """ Iterate pages.
+        """
         for i in xrange(len(self)):
             yield(self.GetPage(i))
     
     
     def __getitem__(self, idx):
+        """ Get a page by index.
+        """
         return self.GetPage(idx)
+    
+    
+    def showSplash(self):
+        """ Show the 'splash screen' tab. Only applicable if no plots have
+            been added yet.
+        """
+        if len(self) > 0:
+            return None
+        
+        splash = SplashPage(self, -1, root=self.root)
+        self.AddPage(splash, "Welcome")
+        self.Refresh()
+        splash.Refresh()
+        self.showingSplash = True
+        
+        return splash
+    
+    
+    def hideSplash(self):
+        """ Hide (delete) the 'splash screen' tab.
+        
+            @return: `True` if the splash screen was removed.
+        """
+        if self.showingSplash:
+            self.DeletePage(0)
+            self.showingSplash = False
+            return True
+        else:
+            return False
     
     
     def getActivePage(self):
@@ -2130,6 +2316,8 @@ class PlotSet(aui.AuiNotebook):
             @keyword title: The name displayed on the plot's tab
                 (defaults to 'Plot #')
         """
+        self.hideSplash()
+        
         if source is not None:
             title = source.name or title
             
@@ -2141,7 +2329,7 @@ class PlotSet(aui.AuiNotebook):
         
         plot = Plot(self, source=source, root=self.root, name=name, units=units, 
                     initialRange=initialRange)
-        plot.SetToolTipString(name)
+        plot.SetToolTip(name)
         self.AddPage(plot, title)
         plot.setTabText()
         self.Refresh()

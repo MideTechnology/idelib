@@ -18,12 +18,12 @@ try:
 except ImportError:
     from StringIO import StringIO
 
-from mide_ebml.dataset import Dataset
-from mide_ebml import importer
-from mide_ebml.parsers import CalibrationListParser, RecordingPropertiesParser
-from mide_ebml.parsers import getParserRanges
+from idelib.dataset import Dataset
+from idelib import importer
+from idelib.parsers import CalibrationListParser, RecordingPropertiesParser
+from idelib.parsers import getParserRanges
 
-from mide_ebml.ebmlite import loadSchema
+from idelib.ebmlite import loadSchema
 
 from .base import ConfigError, Recorder, os_specific
 
@@ -156,7 +156,8 @@ class SlamStickX(Recorder):
             return default
         
         if name is None:
-            return self._info
+            # Whole dict requested: return a copy (prevents accidental edits)
+            return self._info.copy()
         else:
             return self._info.get(name, default)
 
@@ -239,6 +240,7 @@ class SlamStickX(Recorder):
     @property
     def name(self):
         """ The recording device's (user-assigned) name. """
+        # Note: this also gets and caches the recorder description.
         if self._name is not None:
             return self._name
         
@@ -250,11 +252,26 @@ class SlamStickX(Recorder):
             # Old config format
             userdata = self.getConfig().get('RecorderUserData', {})
             self._name = userdata.get('RecorderName', '')
+            self._notes = userdata.get('RecorderDesc', '')
         else:
             # New config format
             self._name = conf.get(0x8ff7f, '')
+            self._notes = conf.get(0x9ff7f, '')
             
         return self._name
+
+
+    @property
+    def notes(self):
+        """ The recording device's (user-assigned) description. """
+        if self._notes is not None:
+            return self._notes
+        
+        # The `name` property also reads and caches the description. Call it
+        # first.
+        _ = self.name
+        
+        return self._notes
 
 
     @property
@@ -265,17 +282,19 @@ class SlamStickX(Recorder):
     
     @property
     def productId(self):
+        """ The recording device's type ID. """
         return self.getInfo('RecorderTypeUID', 0x12) & 0xff
     
     
     @property
     def partNumber(self):
+        """ The recording device's manufacturer-issued part number. """
         return self.getInfo('PartNumber', '')
     
     
     @property
     def serial(self):
-        """ The recorder's manufacturer-issued serial number. """
+        """ The recorder's manufacturer-issued serial number (as string). """
         if self._sn is None:
             self._snInt = self.getInfo('RecorderSerial', None)
             if self._snInt == None:
@@ -287,22 +306,37 @@ class SlamStickX(Recorder):
 
     @property
     def serialInt(self):
+        """ The recorder's manufacturer-issued serial number (as integer). """
         _ = self.serial # Calls property, which sets _snInt attribute
         return self._snInt
 
 
     @property
     def hardwareVersion(self):
+        """ The recorder's manufacturer-issued hardware version number. """
         return self.getInfo('HwRev', -1)
 
     
     @property
     def firmwareVersion(self):
+        """ The recorder's manufacturer-issued firmware version number.
+        """
         return self.getInfo('FwRev', -1)
 
 
     @property
+    def firmware(self):
+        """ The recorder's manufacturer-issued firmware version string or name.
+        """
+        fw = self.getInfo('FwRevStr', None)
+        if not fw:
+            fw = "1.%s" % self.firmwareVersion
+        return fw
+
+
+    @property
     def birthday(self):
+        """ The recorder's date of manufacture. """
         return self.getInfo('DateOfManufacture')
 
 
@@ -454,7 +488,9 @@ class SlamStickX(Recorder):
                 if `None` (default).
             @keyword pause: If `True` (default), the system waits until a
                 whole-numbered second before setting the clock. This may
-                improve accuracy across multiple recorders.
+                improve accuracy across multiple recorders, but may take up
+                to a second to run. Not applicable if a specific time is
+                provided (i.e. `t` is not `None`).
             @keyword retries: The number of attempts to make, should the first
                 fail. Random filesystem things can potentially cause hiccups.
             @return: The time that was set, as integer seconds since the epoch.
@@ -464,12 +500,14 @@ class SlamStickX(Recorder):
         
         if t is None:
             t = int(time())
-        elif isinstance(t, datetime):
-            t = calendar.timegm(t.timetuple())
-        elif isinstance(t, (struct_time, tuple)):
-            t = calendar.timegm(t)
         else:
-            t = int(t)
+            pause = False
+            if isinstance(t, datetime):
+                t = calendar.timegm(t.timetuple())
+            elif isinstance(t, (struct_time, tuple)):
+                t = calendar.timegm(t)
+            else:
+                t = int(t)
         
         try:
             with open(self.clockFile, 'wb') as f:
@@ -624,7 +662,7 @@ class SlamStickX(Recorder):
 
     def getUserCalPolynomials(self, filename=None, refresh=False):
         """ Get the recorder's user-defined calibration data as a dictionary
-            of `mide_ebml.transforms.Transform` subclass objects.
+            of `idelib.transforms.Transform` subclass objects.
         """
         filename = self.userCalFile if filename is None else filename
         if filename is None or not os.path.exists(filename):
@@ -811,7 +849,7 @@ class SlamStickX(Recorder):
         """ Write a set of calibration to a file. For the keyword arguments, a
             value of `False` will simply not write the corresponding element.
         
-            @param transforms: A dictionary or list of `mide_ebml.calibration`
+            @param transforms: A dictionary or list of `idelib.calibration`
                 objects.
             @keyword date: The date of calibration.
             @keyword expires: The calibration expiration date.
@@ -841,7 +879,7 @@ class SlamStickX(Recorder):
     def writeUserCal(self, transforms, filename=None):
         """ Write user calibration to the SSX.
         
-            @param transforms: A dictionary or list of `mide_ebml.calibration`
+            @param transforms: A dictionary or list of `idelib.calibration`
                 objects.
             @keyword filename: An alternate file to which to write the data,
                 instead of the standard user calibration file.

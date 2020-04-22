@@ -94,9 +94,9 @@ class MultiFileSelect(wx.Panel):
         index = self.listbox.HitTest(evt.GetPosition())
         if index != self.lastIndex:
             if index >= 0:
-                self.listbox.SetToolTipString(self.files[index])
+                self.listbox.SetToolTip(self.files[index])
             else:
-                self.listbox.SetToolTipString('')
+                self.listbox.SetToolTip('')
         self.lastIndex = index
         evt.Skip()
         
@@ -108,7 +108,7 @@ class MultiFileSelect(wx.Panel):
                                  defaultDir=self.defaultDir,
                                  defaultFile=self.defaultFile,
                                  wildcard=self.wildcard,
-                                 style=wx.OPEN | wx.MULTIPLE | wx.CHANGE_DIR)
+                                 style=wx.FD_OPEN | wx.FD_MULTIPLE | wx.FD_CHANGE_DIR)
         if self.dlg.ShowModal() == wx.ID_OK:
             for f in self.dlg.GetPaths():
                 if f not in self.files:

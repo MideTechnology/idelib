@@ -5,14 +5,14 @@ Created on Feb 14, 2018
 '''
 
 __author__ = "dstokes"
-__copyright__ = "Copyright 2018 Mide Technology Corporation"
+__copyright__ = "Copyright 2020 Mide Technology Corporation"
 
 import os
 
 import wx
 
 from logger import logger
-import mide_ebml
+import idelib
 from threaded_file import ThreadAwareFile
 
 #===============================================================================
@@ -48,8 +48,8 @@ class Importer(object):
     TYPE = "MIDE Data File"
     EXT = "*.ide"
 
-    OPENER = mide_ebml.importer.openFile
-    READER = mide_ebml.importer.readData
+    OPENER = idelib.importer.openFile
+    READER = idelib.importer.readData
     
     
     def __init__(self):
@@ -95,7 +95,7 @@ class Importer(object):
                     stream.closeAll()
                     return None, None
                 
-        except mide_ebml.parsers.ParsingError as err:
+        except idelib.parsers.ParsingError as err:
             stream.closeAll()
             raise FileImportError("The file '%s' could not be opened" % name,
                                   exception=err)

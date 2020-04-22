@@ -14,7 +14,7 @@ import time
 import wx
 import wx.lib.sized_controls as SC
 
-# from mide_ebml import util
+# from idelib import util
 from common import cleanUnicode
 from timeutil import makeWxDateTime
 from widgets.shared import DateTimeCtrl
@@ -55,11 +55,11 @@ class BaseConfigPanel(SC.SizedScrolledPanel):
         if tooltip is None:
             return
         tooltip = cleanUnicode(tooltip)
-        cb.SetToolTipString(tooltip)
+        cb.SetToolTip(tooltip)
         if cb in self.controls:
             for c in self.controls[cb]:
                 try:
-                    c.SetToolTipString(tooltip)
+                    c.SetToolTip(tooltip)
                 except AttributeError:
                     pass
         
@@ -154,7 +154,7 @@ class BaseConfigPanel(SC.SizedScrolledPanel):
             self.controls[b].append(pad)
 
         if tooltip is not None:
-            b.SetToolTipString(cleanUnicode(tooltip))
+            b.SetToolTip(cleanUnicode(tooltip))
         if handler is not None:
             b.Bind(wx.EVT_BUTTON, handler)
         return b
@@ -182,7 +182,7 @@ class BaseConfigPanel(SC.SizedScrolledPanel):
         SC.SizedPanel(self, -1) # Spacer
         
         if tooltip is not None:
-            c.SetToolTipString(cleanUnicode(tooltip))
+            c.SetToolTip(cleanUnicode(tooltip))
             
         self.controls[c] = [None]
         if col1 != self:
@@ -1102,8 +1102,8 @@ class ConfigDialog(SC.SizedDialog):
             there are multiple types of recorders using the MIDE format.
     """
     
-    ID_IMPORT = wx.NewId()
-    ID_EXPORT = wx.NewId()
+    ID_IMPORT = wx.NewIdRef()
+    ID_EXPORT = wx.NewIdRef()
     
     ICON_INFO = 0
     ICON_WARN = 1
@@ -1198,7 +1198,7 @@ class ConfigDialog(SC.SizedDialog):
                             message="Choose an exported configuration file",
                             wildcard=("Exported config file (*.cfx)|*.cfx|"
                                       "All files (*.*)|*.*"),
-                            style=wx.OPEN|wx.CHANGE_DIR|wx.FILE_MUST_EXIST)
+                            style=wx.FD_OPEN|wx.FD_CHANGE_DIR|wx.FD_FILE_MUST_EXIST)
         while not done:
             try:
                 d = dlg.ShowModal()
@@ -1252,7 +1252,7 @@ class ConfigDialog(SC.SizedDialog):
         dlg = wx.FileDialog(self, message="Export Device Configuration", 
                             wildcard=("Exported config file (*.cfx)|*.cfx|"
                                       "All files (*.*)|*.*"),
-                            style=wx.SAVE|wx.OVERWRITE_PROMPT)
+                            style=wx.FD_SAVE|wx.FD_OVERWRITE_PROMPT)
         if dlg.ShowModal() == wx.ID_OK:
             try:
                 self.device.exportConfig(dlg.GetPath(), data=self.getData())
@@ -1311,6 +1311,8 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
         useUtc = dlg.useUtc
         setTime = dlg.setTime
         data = dlg.getData()
+        msg = getattr(dev, "POST_CONFIG_MSG", None)
+
         if save:
             try:
                 dev.saveConfig(data)
@@ -1324,7 +1326,7 @@ def configureRecorder(path, save=True, setTime=True, useUtc=True, parent=None,
                     msg += "\nThe recorder appears to have been removed."
                 wx.MessageBox(msg, "Configuration Error", wx.OK | wx.ICON_ERROR,
                               parent=parent)
-        result = data, dlg.setTime, dlg.useUtc, dev
+        result = data, dlg.setTime, dlg.useUtc, dev, msg
         
     dlg.Destroy()
     return result

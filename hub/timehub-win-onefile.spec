@@ -28,7 +28,7 @@ except Exception:
 
 DEBUG = False
 
-schemas = Tree('../mide_ebml/ebml/schema', 'mide_ebml/ebml/schema')
+schemas = Tree('../idelib/ebml/schema', 'idelib/ebml/schema')
 
 a = Analysis(['timehub.py'],
              pathex=[HOME_DIR],

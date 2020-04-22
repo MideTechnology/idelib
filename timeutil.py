@@ -42,19 +42,25 @@ def makeWxDateTime(val):
     if isinstance(val, (int, long, float)):
         val = time.gmtime(val)
     elif isinstance(val, wx.DateTime):
-        return wx.DateTimeFromDateTime(val)
+        # XXX: Not sure this is correct for wxPython4
+        # return wx.DateTimeFromDateTime(val)
+        return val
     # Assume a struct_time or other sequence:
-    return wx.DateTimeFromDMY(val[2], val[1]-1, val[0], val[3], val[4], val[5])
+    return wx.DateTime.FromDMY(val[2], val[1]-1, val[0], val[3], val[4], val[5])
         
 
-def getUtcOffset():
-    """ Get the local offset from UTC time, in hours (float).
+def getUtcOffset(seconds=False):
+    """ Get the local offset from UTC time, in hours or seconds (float).
     """
     gt = time.gmtime()
     lt = time.localtime()
-    val = (time.mktime(lt) - time.mktime(gt)) / 60.0 / 60.0
+    val = (time.mktime(lt) - time.mktime(gt))
     if lt.tm_isdst == 1:
-        val += 1
+        val += 3600
+        
+    if not seconds:
+        val /= 60.0 * 60.0
+        
     return val
 
 
@@ -62,7 +68,7 @@ def getUtcOffset():
 # Field validators
 #===============================================================================
 
-class TimeValidator(wx.PyValidator):
+class TimeValidator(wx.Validator):
     """
     """
     validCharacters = "-.0123456789"

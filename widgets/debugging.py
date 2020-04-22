@@ -10,7 +10,7 @@ import wx.py
 
 import build_info
 import images
-import mide_ebml
+import idelib
 
 #===============================================================================
 # 
@@ -105,7 +105,7 @@ class DebugConsole(wx.py.shell.ShellFrame):
         localVars = kwargs.setdefault('locals', {})
         localVars.update({'app': app,
                           'build_info': build_info,
-                          'mide_ebml': mide_ebml,
+                          'idelib': idelib,
                           'viewer': viewer})
         con = cls(viewer, **kwargs)
         viewer.childViews[con.GetId()] = con

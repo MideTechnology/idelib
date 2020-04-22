@@ -46,23 +46,23 @@ sys.path.append(CWD)
 sys.path.append(os.path.abspath(os.path.join(CWD, '..')))
 
 try:
-    import mide_ebml
+    import idelib
 except ImportError:
-    if os.path.exists('../mide_ebml'):
+    if os.path.exists('../idelib'):
         sys.path.append(os.path.abspath('..'))
-    elif os.path.exists(os.path.join(CWD, '../mide_ebml')):
-        sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
+    elif os.path.exists(os.path.join(CWD, '../idelib')):
+        sys.path.append(os.path.abspath(os.path.join(CWD, '../idelib')))
     elif os.path.exists(VIEWER_PATH):
         sys.path.append(VIEWER_PATH)
-    import mide_ebml #@UnusedImport
+    import idelib #@UnusedImport
 
 #===============================================================================
 # 
 #===============================================================================
 
 import devices
-# from mide_ebml import xml2ebml
-from mide_ebml.ebmlite import util as ebml_util
+# from idelib import xml2ebml
+from idelib.ebmlite import util as ebml_util
 
 import firmware
 import calibration
@@ -496,7 +496,7 @@ def calibrateSSX(dev, certNum, calRev, calDirName, calTemplateName,
     
     # Create current calibration XML
     try:
-#         calXml = xml2ebml.dumpXmlElement(xml2ebml.readEbml(caldata, schema='mide_ebml.ebml.schema.mide').roots[0])
+#         calXml = xml2ebml.dumpXmlElement(xml2ebml.readEbml(caldata, schema='idelib.ebml.schema.mide').roots[0])
 #         utils.writeFile(calCurrentXml, calXml)
         caldoc = calibration.schema_mide.load(calCurrentName)
         calXml = ET.tostring(ebml_util.toXml(caldoc), encoding="utf-8")

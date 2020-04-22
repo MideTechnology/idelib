@@ -10,7 +10,13 @@ from datetime import datetime
 import os.path
 import shutil
 import sys
-from threading import Thread as Thread
+from threading import Event, Thread
+
+try:
+    from ctypes import windll
+    DOUBLE_CLICK_DEBOUNCE_TIME = windll.user32.GetDoubleClickTime()
+except (ImportError, AttributeError):
+    DOUBLE_CLICK_DEBOUNCE_TIME = 300
 
 
 #===============================================================================
@@ -129,27 +135,6 @@ def cleanUnicode(obj, encoding='utf8', errors='replace'):
         return repr(obj)
 
 
-# def hex32(val):
-#     """ Format an integer as an 8 digit hex number. """
-#     return "0x%08x" % val
-
-# def hex16(val):
-#     """ Format an integer as an 4 digit hex number. """
-#     return "0x%04x" % val
-
-# def hex8(val):
-#     """ Format an integer as a 2 digit hex number. """
-#     return "0x%02x" % val
-
-# def str2int(val):
-#     """ Semi-smart conversion of string to integer; works for decimal and hex.
-#     """
-#     try:
-#         return int(val)
-#     except ValueError:
-#         return int(val, 16)
-
-
 def wordJoin(words, conj="and", oxford=True):
     """ Function to do an English joining of list items.
         @param words: A list (or other iterable) of items. Items will be cast
@@ -160,13 +145,17 @@ def wordJoin(words, conj="and", oxford=True):
     """
     words = map(cleanUnicode, words)
     numWords = len(words)
-    if numWords > 2:
+    if numWords == 0:
+        return u""
+    elif numWords == 1:
+        return words[0]
+    elif numWords == 2:
+        return (u" %s " % conj).join(words)
+    else:
         if oxford:
             return u"%s, %s %s" % (', '.join(words[:-1]), conj, words[-1])
         else:
             return u"%s %s %s" % (', '.join(words[:-1]), conj, words[-1])
-    else:
-        return (u" %s " % conj).join(words)
 
 
 def parseTime(val):
@@ -242,7 +231,7 @@ def getAppPath():
     """ Get the application's home directory.
     """
     if getattr(sys, 'frozen', False):
-        # 'Compiled' executable
+        # PyInstaller 'compiled' executable
         return os.path.dirname(sys.executable)
     
     return os.path.dirname(os.path.abspath(__file__))
@@ -310,13 +299,40 @@ class Job(Thread):
         self.dataset = dataset
         self.numUpdates = numUpdates
         self.updateInterval = updateInterval
-        self.cancelled = False
-        self.paused = False
+        self._cancelled = Event()
+        self._paused = Event()
         self.startTime = self.lastTime = self.pauseTime = None
         self.totalPauseTime = None
         self.pausable = True
+        
+        self._cancelled.clear()
+        self._paused.clear()
 
         super(Job, self).__init__()
+    
+    
+    @property
+    def paused(self):
+        return self._paused.isSet()
+
+
+    @paused.setter
+    def paused(self, p):
+        self.pause(p)
+
+
+    @property
+    def cancelled(self):
+        return self._cancelled.isSet()
+
+
+    @cancelled.setter
+    def cancelled(self, c):
+        if c:
+            self._cancelled.set()
+        else:
+            self._cancelled.clear()
+
 
 
     def cancel(self, blocking=True):
@@ -335,8 +351,15 @@ class Job(Thread):
 
 
     def pause(self, pause=True):
-        self.paused = pause and self.pausable
-        if pause:
+        """ Attempt to pause (or resume) the job.
+        """
+        
+        if pause and self.pausable:
+            self._paused.set()
+        else:
+            self._paused.clear()
+            
+        if self._paused.isSet():
             self.pauseTime = datetime.now()
         elif self.pauseTime is not None:
             pt = datetime.now() - self.pauseTime

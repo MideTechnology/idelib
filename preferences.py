@@ -9,6 +9,7 @@ Created on May 8, 2014
 import fnmatch
 import json
 import os.path
+from threading import RLock
 import time
 
 import wx; wx=wx
@@ -84,10 +85,11 @@ class Preferences(object):
                        "00.2": "RED",        # Acceleration X
                        "01.0": "DARK GREEN", # Pressure
                        "01.1": "VIOLET",     # Temperature
+                       
                        # SSX v2
-                       "08.0": "RED",                 # Acceleration Z
+                       "08.0": "RED",                  # Acceleration X
                        "08.1": "GREEN",                # Acceleration Y
-                       "08.2": "BLUE",                  # Acceleration X
+                       "08.2": "BLUE",                 # Acceleration Z
                        "20.0": wx.Colour(255,100,100), # Acceleration X (DC)
                        "20.1": wx.Colour(100,255,100), # Acceleration Y (DC)
                        "20.2": wx.Colour(100,100,255), # Acceleration Z (DC)
@@ -111,6 +113,10 @@ class Preferences(object):
                        "33.1": "GREEN", # IMU Magnetometer Y
                        "33.2": "BLUE",  # IMU Magnetometer Z
                        
+                       # Control Pad/Fast pressure/temperature (channel 59)
+                       "3b.0": wx.Colour(91,181,148),
+                       "3b.1": wx.Colour(92,95,180),
+                       
                        # IMU Quaternion data (channel 0x41, 65 decimal)
                        # X/Y/Z components same as accelerometer axes
                        "41.0": "RED",
@@ -120,14 +126,20 @@ class Preferences(object):
                        "41.4": "BLUE VIOLET",
                        
                        # IMU Quaternion data (channel 0x46, 70 decimal)
-                       "46.0": "RED",
-                       "46.1": "GREEN",
-                       "46.2": "BLUE",
-                       "46.3": "GOLD",
+                       "46.0": "RED",   # Quaternion X
+                       "46.1": "GREEN", # Quaternion Y
+                       "46.2": "BLUE",  # Quaternion Z
+                       "46.3": "GOLD",  # Quaternion W
                        
-                       # Control Pad/Fast pressure/temperature (channel 59)
-                       "3b.0": wx.Colour(91,181,148),
-                       "3b.1": wx.Colour(92,95,180),
+                       # 40/200g digital accelerometer
+                       "50.0": "RED",   # Acceleration X
+                       "50.1": "GREEN", # Acceleration Y
+                       "50.2": "BLUE",  # Acceleration Z
+    
+                       # BMG250 gyroscope (channel 0x54, 84 decimal)
+                       "54.0": "RED",   # gyroscope X
+                       "54.1": "GREEN", # gyroscope Y
+                       "54.2": "BLUE",  # gyroscope Z
         },
         # default colors: used for subchannel plots not in plotColors
         'defaultColors': ["DARK GREEN",
@@ -151,7 +163,7 @@ class Preferences(object):
 #         'locale': 'English_United States.1252', # Python's locale name string
         'locale': 'LANGUAGE_ENGLISH_US', # wxPython constant name (wx.*)
         'loader': dict(numUpdates=100, updateInterval=1.0, minCount=10000000),
-        'openOnStart': True,
+        'openOnStart': False,
         'showDebugChannels': DEBUG,
         'showFullPath': True,#False,
         'showUtcTime': True,
@@ -174,21 +186,63 @@ class Preferences(object):
 
 
     def __init__(self, filename=None, clean=False):
-#         logger.info("Preferences.__init__(filename=%r, clean=%r)" % (filename, clean))
-        if filename is None:
-            if wx.GetApp() is not None:
-                # wx.StandardPaths fails if called outside of an App.
-                prefPath = wx.StandardPaths.Get().GetUserDataDir()
-            else:
-                prefPath = ''
-            self.prefsFile = os.path.join(prefPath, self.defaultPrefsFile)
-        else:
-            self.prefsFile = filename
-
+        """ Constructor.
+        
+            @keyword filename: The name of the preferences file to load, or
+                `None` to import the default file.
+            @keyword clean: If `True`, do not read preferences.
+        """
+        self.busy = RLock()
+        self.prefsFile = filename
         self.prefs = {}
+        
         if not clean:
-            self.loadPrefs()
+            if os.path.exists(self.prefsFile):
+                self.loadPrefs()
+            else:
+                # To be removed later
+                self.loadLegacy()
 
+
+    @property
+    def prefsFile(self):
+        """ Get the name of the preferences file. Returns the default if not
+            previously set.
+        """
+        if getattr(self, '_prefsFile', None) is not None:
+            return self._prefsFile
+        
+        if wx.GetApp() is not None:
+            # wx.StandardPaths fails if called outside of an App.
+            prefPath = wx.StandardPaths.Get().GetUserDataDir()
+        else:
+            prefPath = ''
+            
+        self._prefsFile = os.path.join(prefPath, self.defaultPrefsFile)
+        return self._prefsFile
+        
+        
+    @prefsFile.setter
+    def prefsFile(self, filename):
+        """ Set the name of the preferences file. `None` will set it to the
+            default.
+        """
+        self._prefsFile = filename
+
+
+    def loadLegacy(self):
+        """ Import legacy Slam Stick Lab preferences.
+        
+            @todo: Remove this after a few versions of enDAQ Lab.
+        """
+        with self.busy:
+            filename = os.path.join(self.prefsFile, '../..', 
+                                    u"Slam\u2022Stick Lab", "ss_lab.cfg")
+            
+            prefs = self.loadPrefs(os.path.abspath(filename))
+            prefs.pop('openOnStart', None)
+            return prefs
+        
 
     def loadPrefs(self, filename=None):
         """ Load saved preferences from file.
@@ -198,29 +252,32 @@ class Preferences(object):
                 return wx.Colour(*c)
             return c
         
-#         self.fileHistory = wx.FileHistory()
-        self.prefs = {}
-        filename = filename or self.prefsFile
-        logger.info("Loading prefs file %r (exists=%r)" % (filename,os.path.exists(filename)))
-        if not filename:
-            return self.prefs
-        
-        filename = os.path.realpath(os.path.expanduser(filename))
-
-        prefs = {}
-        if not os.path.exists(filename):
-            # No preferences file; probably the first run for this machine/user
-            return self.prefs
-        try:
-            with open(filename) as f:
-                prefs = json.load(f)
-                if isinstance(prefs, dict):
+        with self.busy:
+            self.prefs = {}
+            filename = filename or self.prefsFile
+            logger.info("Loading prefs file %r (exists=%r)" % 
+                        (filename,os.path.exists(filename)))
+            if not filename:
+                return self.prefs
+            
+            filename = os.path.realpath(os.path.expanduser(filename))
+    
+            prefs = {}
+            if not os.path.exists(filename):
+                # No preferences file; probably the first run for this machine/user
+                return self.prefs
+            try:
+                with open(filename) as f:
+                    prefs = json.load(f)
+                    if not isinstance(prefs, dict):
+                        raise ValueError
+                    
                     vers = prefs.get('prefsVersion', self.PREFS_VERSION)
                     if vers != self.PREFS_VERSION:
                         # Mismatched preferences version!
                         # FUTURE: Possibly translate old prefs to new format
-                        n = "n older" if vers < self.PREFS_VERSION else " newer"
-                        wx.MessageBox("The preferences file appears to use a%s "
+                        n = "an older" if vers < self.PREFS_VERSION else "a newer"
+                        wx.MessageBox("The preferences file appears to use %s "
                             "format than expected;\ndefaults will be used." % n,
                             "Preferences Version Mismatch")
                         return self.prefs
@@ -232,20 +289,14 @@ class Preferences(object):
                         if isinstance(prefs[k], list):
                             for i in xrange(len(prefs[k])):
                                 prefs[k][i] = tuple2color(prefs[k][i])
-        except (ValueError, IOError):# as err:
-            # Import problem. Bad file will raise IOError; bad JSON, ValueError.
-            wx.MessageBox("An error occurred while trying to read the "
-                          "preferences file.\nDefault settings will be used.",
-                          "Preferences File Error")
-        
-        # Load recent file history
-#         hist = prefs.setdefault('fileHistory', {}).setdefault('import', [])
-#         map(self.fileHistory.AddFileToHistory, hist)
-#         self.fileHistory.UseMenu(self.recentFilesMenu)
-#         self.fileHistory.AddFilesToMenu()
-        
-        self.prefs = prefs
-        return self.prefs
+            except (ValueError, IOError):# as err:
+                # Import problem. Bad file will raise IOError; bad JSON, ValueError.
+                wx.MessageBox("An error occurred while trying to read the "
+                              "preferences file.\nDefault settings will be used.",
+                              "Preferences File Error")
+            
+            self.prefs = prefs
+            return self.prefs
 
 
     def savePrefs(self, filename=None):
@@ -261,50 +312,62 @@ class Preferences(object):
                 d = tuple(d)
             return d
         
-        prefs = self.prefs.copy()
-        prefs['prefsVersion'] = self.PREFS_VERSION
-        filename = filename or self.prefsFile
-        
-        try:
-            path = os.path.split(filename)[0]
-            if not os.path.exists(path):
-                os.makedirs(path)
-            with open(filename, 'w') as f:
-                json.dump(_fix(prefs), f, indent=2, sort_keys=True)
-        except IOError:# as err:
-            # TODO: Report a problem, or just ignore?
-            pass
+        with self.busy:
+            prefs = self.prefs.copy()
+            prefs['prefsVersion'] = self.PREFS_VERSION
+            filename = filename or self.prefsFile
+            
+            try:
+                path = os.path.split(filename)[0]
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                with open(filename, 'w') as f:
+                    json.dump(_fix(prefs), f, indent=2, sort_keys=True)
+            except IOError:# as err:
+                # TODO: Report a problem, or just ignore?
+                pass
         
     
     def saveAllPrefs(self, filename=None, hideFile=None):
         """ Save all preferences, including defaults, to the config file.
             Primarily for debugging.
         """
-        prefs = self.defaultPrefs.copy()
-        prefs.update(self.prefs)
-        self.prefs = prefs
-        self.savePrefs(filename, hideFile)
+        with self.busy:
+            prefs = self.defaultPrefs.copy()
+            prefs.update(self.prefs)
+            self.prefs = prefs
+            self.savePrefs(filename, hideFile)
 
     
     def addRecentFile(self, filename, category="import"):
         """ Add a file to a history list. If the list is at capacity, the
             oldest file is removed.
         """
-        self.changedFiles = True
-        allFiles = self.prefs.setdefault('fileHistory', {})
-        files = allFiles.setdefault(category, [])
-        if filename:
-            if filename in files:
-                files.remove(filename)
-            files.insert(0,filename)
-        allFiles[category] = files[:(self.getPref('fileHistorySize'))]
+        with self.busy:
+            self.changedFiles = True
+            allFiles = self.prefs.setdefault('fileHistory', {})
+            files = allFiles.setdefault(category, [])
+            if filename:
+                if filename in files:
+                    files.remove(filename)
+                files.insert(0,filename)
+            allFiles[category] = files[:(self.getPref('fileHistorySize'))]
 
 
     def getRecentFiles(self, category="import"):
         """ Retrieve the list of recent files within a category.
         """
-        hist = self.prefs.setdefault('fileHistory', {})
-        return hist.setdefault(category, [])
+        with self.busy:
+            hist = self.prefs.setdefault('fileHistory', {})
+            return hist.setdefault(category, [])
+
+
+    def clearRecentFiles(self, category="import"):
+        """ Clear the list of recent files within a category.
+        """
+        with self.busy:
+            hist = self.prefs.setdefault('fileHistory', {})
+            del hist.setdefault(category, [])[:]
 
 
     def getPref(self, name, default=None, section=None):
@@ -315,31 +378,34 @@ class Preferences(object):
             @keyword section: An optional "section" name from which to
                 delete. Currently a prefix in this implementation.
         """
-        if section is not None:
-            name = "%s.%s" % (section, name)
-        return self.prefs.get(name, self.defaultPrefs.get(name, default))
+        with self.busy:
+            if section is not None:
+                name = "%s.%s" % (section, name)
+            return self.prefs.get(name, self.defaultPrefs.get(name, default))
 
 
     def setPref(self, name, val, section=None, persistent=True):
         """ Set the value of a preference. Returns the value set as a
             convenience.
         """
-        if section is not None:
-            name = "%s.%s" % (section, name)
-        prefs = self.prefs if persistent else self.defaultPrefs
-        prefs[name] = val
-        return val
+        with self.busy:
+            if section is not None:
+                name = "%s.%s" % (section, name)
+            prefs = self.prefs if persistent else self.defaultPrefs
+            prefs[name] = val
+            return val
 
 
     def hasPref(self, name, section=None, defaults=False):
         """ Check to see if a preference exists, in either the user-defined
             preferences or the defaults.
         """
-        if section is not None:
-            name = "%s.%s" % (section, name)
-        if defaults:
-            return (name in self.prefs) or (name in self.defaultPrefs)
-        return name in self.prefs
+        with self.busy:
+            if section is not None:
+                name = "%s.%s" % (section, name)
+            if defaults:
+                return (name in self.prefs) or (name in self.defaultPrefs)
+            return name in self.prefs
     
     
     def deletePref(self, name=None, section=None):
@@ -350,15 +416,16 @@ class Preferences(object):
             @keyword section: An optional section name, limiting the scope.
             @return: The number of deleted preferences.
         """
-        if section is not None:
-            name = name if name is not None else "*"
-            name = "%s.%s" % (section, name)
-        if name is None:
-            return
-        keys = fnmatch.filter(self.prefs.keys(), name)
-        for k in keys:
-            self.prefs.pop(k, None)
-        return len(keys)
+        with self.busy:
+            if section is not None:
+                name = name if name is not None else "*"
+                name = "%s.%s" % (section, name)
+            if name is None:
+                return
+            keys = fnmatch.filter(self.prefs.keys(), name)
+            for k in keys:
+                self.prefs.pop(k, None)
+            return len(keys)
 
     
     def editPrefs(self, parent=None):
@@ -523,47 +590,34 @@ class PrefsDialog(SC.SizedDialog):
                 self.pg.SetPropertyAttribute(prop, att, val)
             return prop
         
-        self.pg.Append(PG.PropertyCategory("UI Colors"))
-        _add(PG.ColourProperty("Plot Background", "plotBgColor"))
-        _add(PG.ColourProperty("Major Grid Lines", "majorHLineColor"))
-        _add(PG.ColourProperty("Minor Grid Lines", "minorHLineColor"))
-        _add(PG.ColourProperty("Buffer Maximum", "maxRangeColor"),
-             "The color of the buffer maximum envelope line, when plotting "
-             "one source. This color is set automatically when plotting "
-             "multiple sources simultaneously.")
-        _add(PG.ColourProperty("Buffer Mean", "meanRangeColor"),
-             "The color of the buffer mean envelope line, when plotting "
-             "one source. This color is set automatically when plotting "
-             "multiple sources simultaneously.")
-        _add(PG.ColourProperty("Buffer Minimum", "minRangeColor"),
-             "The color of the buffer minimum envelope line, when plotting "
-             "one source. This color is set automatically when plotting "
-             "multiple sources simultaneously.")
-        _add(PG.ColourProperty("Warning Range Highlight Color", "warningColor"),
-             "The color of the shading over the plot where extreme conditions "
-             "may have adversely affected the data (e.g. extreme temperatures "
-             "that affect accelerometer accuracy on a Slam Stick X).")
-        _add(PG.ColourProperty("Out-of-Range Highlight Color", "outOfRangeColor"),
-             "The color of the shading of time before and/or after the "
-             "first/last sample in the dataset.")
-        _add(PG.FloatProperty("Legend Opacity", "legendOpacity"),
-             "The opacity of the legend background; 0 is transparent, "
-             "1 is solid", advanced=True)
-        
-        _add(PG.PropertyCategory("Data"))
-        _add(PG.BoolProperty("Remove Total Mean by Default", "removeMean"), 
-             "By default, remove the total median of buffer means from the "
-             "data (if the data contains buffer mean data).",
-             UseCheckbox=True)
-        _add(PG.FloatProperty("Rolling Mean Span (seconds)", "rollingMeanSpan"),
-             "The width of the time span used to compute the 'rolling mean' "
-             "used when \"Remove Rolling Mean from Data\" is enabled.")
-        _add(PG.BoolProperty("Disable Bivariate References by Default", "noBivariates"), 
-             "By default, prevent bivariate calibration polynomials from "
-             "referencing other channels (e.g. accelerometer temperature "
-             "compensation). Disabling references improves performance.",
-             UseCheckbox=True)
-        
+        # NOTE: It seems like a bug in wxPython 4.0.7 prevents 
+        # `SetPropertyValues` from setting `ColourPropery` values. Explicitly
+        # setting them doesn't seem to work reliably. Properties removed
+        # for the time being.
+#         self.pg.Append(PG.PropertyCategory("UI Colors"))
+#         _add(PG.ColourProperty("Plot Background", "plotBgColor"))
+#         _add(PG.ColourProperty("Major Grid Lines", "majorHLineColor"))
+#         _add(PG.ColourProperty("Minor Grid Lines", "minorHLineColor"))
+#         _add(PG.ColourProperty("Buffer Maximum", "maxRangeColor"),
+#              "The color of the buffer maximum envelope line, when plotting "
+#              "one source. This color is set automatically when plotting "
+#              "multiple sources simultaneously.")
+#         _add(PG.ColourProperty("Buffer Mean", "meanRangeColor"),
+#              "The color of the buffer mean envelope line, when plotting "
+#              "one source. This color is set automatically when plotting "
+#              "multiple sources simultaneously.")
+#         _add(PG.ColourProperty("Buffer Minimum", "minRangeColor"),
+#              "The color of the buffer minimum envelope line, when plotting "
+#              "one source. This color is set automatically when plotting "
+#              "multiple sources simultaneously.")
+#         _add(PG.ColourProperty("Warning Range Highlight Color", "warningColor"),
+#              "The color of the shading over the plot where extreme conditions "
+#              "may have adversely affected the data (e.g. extreme temperatures "
+#              "that affect accelerometer accuracy on a Slam Stick X).")
+#         _add(PG.ColourProperty("Out-of-Range Highlight Color", "outOfRangeColor"),
+#              "The color of the shading of time before and/or after the "
+#              "first/last sample in the dataset.")
+         
         _add(PG.PropertyCategory("Drawing"))
         _add(PG.EnumProperty("Initial Display Layout", "initialDisplayMode",
                              Preferences.INITIAL_DISPLAY))
@@ -589,6 +643,23 @@ class PrefsDialog(SC.SizedDialog):
              "of the Oversampling Multiplier.")
         _add(PG.EnumProperty("Legend Position (main view)", "legendPosition",
                              Preferences.LEGEND_POSITIONS))
+        _add(PG.FloatProperty("Legend Opacity", "legendOpacity"),
+             "The opacity of the legend background; 0 is transparent, "
+             "1 is solid", advanced=True)
+          
+        _add(PG.PropertyCategory("Data"))
+        _add(PG.BoolProperty("Remove Total Mean by Default", "removeMean"), 
+             "By default, remove the total median of buffer means from the "
+             "data (if the data contains buffer mean data).",
+             UseCheckbox=True)
+        _add(PG.FloatProperty("Rolling Mean Span (seconds)", "rollingMeanSpan"),
+             "The width of the time span used to compute the 'rolling mean' "
+             "used when \"Remove Rolling Mean from Data\" is enabled.")
+        _add(PG.BoolProperty("Disable Bivariate References by Default", "noBivariates"), 
+             "By default, prevent bivariate calibration polynomials from "
+             "referencing other channels (e.g. accelerometer temperature "
+             "compensation). Disabling references improves performance.",
+             UseCheckbox=True)
         
         _add(PG.PropertyCategory("Importing"))
         _add(PG.IntProperty("Pre-Plotting Samples", 'loader_minCount'), 
@@ -601,6 +672,22 @@ class PrefsDialog(SC.SizedDialog):
                              ("Close previous file","Open in new window", "Ask")),
              "The application's behavior when opening a file while another "
              "is already open.")
+
+        _add(PG.PropertyCategory("Scripting"))
+        _add(PG.BoolProperty("Enable Scripting", "scriptingEnabled"),
+             "Enable Python scripting functionality. Warning: Downloaded "
+             "scripts may pose a security risk to your computer. "
+             "Use with caution!", UseCheckbox=True)
+        _add(PG.BoolProperty("Execute Console Startup Script",
+                             "scripting.executeStartupScript"),
+             "Execute the startup script (specified below) when the scripting "
+             "console opens or when a script is run via the 'Run Script' menu "
+             "item.", UseCheckbox=True)
+        _add(PG.FileProperty("Console Startup Script", 
+                             "scripting.startupScript"),
+             "A Python script to be executed when the scripting console "
+             "opens or a script is run via the 'Run Script' menu item. "
+             "May be left blank. Note: Script must run in Python 2.7!")
         
         _add(PG.PropertyCategory("Miscellaneous"))
         _add(PG.BoolProperty("Show Full Path in Title Bar", "showFullPath"),
@@ -610,7 +697,8 @@ class PrefsDialog(SC.SizedDialog):
         _add(PG.IntProperty("X Axis Value Precision", "precisionX", value=4))
         _add(PG.IntProperty("Y Axis Value Precision", "precisionY", value=4))
         _add(PG.EnumProperty("Locale", "locale", self.LANG_LABELS))
-        _add(PG.EnumProperty("Automatic Update Check Interval", "updater.interval", 
+        _add(PG.EnumProperty("Automatic Update Check Interval", 
+                             "updater.interval", 
                              INTERVALS.values()))
         _add(PG.BoolProperty("Show Advanced Options", "showAdvancedOptions"),
              "Show advanced/experimental features. These are not required for "

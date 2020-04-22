@@ -9,12 +9,11 @@ from __future__ import absolute_import, print_function
 
 from collections import namedtuple
 import ctypes
+import errno
 import os
 import string
 import sys
 import time
-
-import pywintypes
 
 #===============================================================================
 # 
@@ -28,7 +27,7 @@ Drive = namedtuple("Drive", ("path","label","sn","fs","type"))
 
 if 'win' in sys.platform and sys.platform != 'darwin':
     kernel32 = ctypes.windll.kernel32
-    import win32api, win32con, win32file
+    import pywintypes, win32api, win32con, win32file #@UnresolvedImport
 else:
     kernel32 = None
 
@@ -54,6 +53,44 @@ def getDriveInfo(dev):
             fileSystemNameBuffer.value, kernel32.GetDriveTypeA(dev))
 
 
+def readUncachedFile(filename):
+    """ Read a file, circumventing the disk cache. Returns the data read.
+    """
+    filename = os.path.realpath(filename)
+    root = os.path.dirname(filename)
+
+    if not os.path.isfile(filename):
+        raise IOError(errno.ENOENT, 'No such file', filename)
+
+    size = os.path.getsize(filename)
+    spc, bps, _fc, _tc  = win32file.GetDiskFreeSpace(root)
+    bpc = spc * bps
+
+    if size > bpc:
+        blocks = size // bpc
+        if bpc % size:
+            blocks += 1
+        size = blocks * bpc
+    else:
+        size = bpc
+
+    try:
+        f1 = win32file.CreateFile(filename,
+                                  win32con.GENERIC_READ, 
+                                  win32con.FILE_SHARE_READ,
+                                  None,
+                                  win32con.OPEN_EXISTING,
+                                  win32con.FILE_FLAG_NO_BUFFERING,
+                                  0)
+        _hr, data = win32file.ReadFile( f1, size )
+        win32api.CloseHandle(f1)        
+        return data
+    
+    except pywintypes.error as err: 
+        raise IOError(err.strerror)
+
+
+
 def readRecorderClock(dev):
     """ Read a (SSX) clock file, circumventing the disk cache. Returns the
         system time and the encoded device time.
@@ -61,7 +98,8 @@ def readRecorderClock(dev):
     root = os.path.abspath(os.path.join(os.path.dirname(dev), '..','..'))
     
     try:
-        f1 = win32file.CreateFile(dev, win32con.GENERIC_READ, 
+        f1 = win32file.CreateFile(dev,
+                                  win32con.GENERIC_READ, 
                                   win32con.FILE_SHARE_READ,
                                   None,
                                   win32con.OPEN_EXISTING,
@@ -113,16 +151,24 @@ last_devices = 0
 last_recorders = None
 
 
-def deviceChanged(recordersOnly, types):
+def deviceChanged(recordersOnly, types, clear=False):
     """ Returns `True` if a drive has been connected or disconnected since
         the last call to `deviceChanged()`.
         
-        @keyword recordersOnly: If `False`, any change to the mounted drives
+        @param recordersOnly: If `False`, any change to the mounted drives
             is reported as a change. If `True`, the mounted drives are checked
             and `True` is only returned if the change occurred to a recorder.
             Checking for recorders only takes marginally more time.
+        @param types: A list of known `Recorder` classes to detect.
+        @keyword clear: If `True`, clear the cache of previously-detected
+            drives and devices.
     """
     global last_devices, last_recorders
+    
+    if clear:
+        last_devices = 0
+        last_recorders = None
+    
     newDevices = kernel32.GetLogicalDrives()
     changed = newDevices != last_devices
     last_devices = newDevices

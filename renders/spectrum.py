@@ -69,7 +69,7 @@ import numpy as np
 #try:
 #    from pyfftw.builders import rfft
 #except ImportError:
-#    raise ImportError("mide_ebml.fft requires pyfftw")
+#    raise ImportError("idelib.fft requires pyfftw")
 
 ma = np.ma
 

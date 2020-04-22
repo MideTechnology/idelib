@@ -77,11 +77,11 @@ def Datafiles(*filenames, **kw):
         for filename in filenames
         if os.path.isfile(filename))
 
-#schemas = Datafiles('../mide_ebml/ebml/schema/mide.xml', 
-#                    '../mide_ebml/ebml/schema/manifest.xml', 
-#                    '../mide_ebml/ebml/schema/matroska.xml',
+#schemas = Datafiles('../idelib/ebml/schema/mide.xml', 
+#                    '../idelib/ebml/schema/manifest.xml', 
+#                    '../idelib/ebml/schema/matroska.xml',
 #                    strip_path=True)#False)
-schemas = Tree('../mide_ebml/ebml/schema', 'mide_ebml/ebml/schema')
+schemas = Tree('../idelib/ebml/schema', 'idelib/ebml/schema')
         
 a = Analysis(['ide2mat.py'],
              pathex=['..', HOME_DIR, os.path.abspath(os.path.join(HOME_DIR,'..'))],

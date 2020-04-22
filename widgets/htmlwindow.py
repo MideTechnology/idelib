@@ -5,6 +5,7 @@ Created on Sep 8, 2015
 
 @author: dstokes
 '''
+from __future__ import absolute_import, print_function
 
 import urllib
 
@@ -102,7 +103,7 @@ class SaferHtmlWindow(wx.html.HtmlWindow):
             href += self.tracking
             
         # Launch external web browser
-        logger.info('Updater HTML window opened %s' % href)
+        logger.info('HTML window opened %s' % href)
         wx.LaunchDefaultBrowser(href)
 
 
@@ -169,6 +170,6 @@ if __name__ == '__main__':
 #                     buttons=wx.YES_NO|wx.CANCEL, 
                      setBgColor=False)
     r = dlg.ShowModal()
-    print "Returned %r (%s)" % (r, responses.get(r, 'Unknown'))
+    print("Returned %r (%s)" % (r, responses.get(r, 'Unknown')))
     dlg.Destroy()
     

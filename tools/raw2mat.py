@@ -13,7 +13,7 @@ from wx.lib.dialogs import ScrolledMessageDialog
 import wx.lib.filebrowsebutton as FB
 import wx.lib.sized_controls as SC
 
-from mide_ebml.matfile import MatStream
+from idelib.matfile import MatStream
 
 from tools.base import ToolDialog
 from widgets.multifile import MultiFileSelect
@@ -304,9 +304,9 @@ class Raw2Mat(ToolDialog):
 #===============================================================================
 
 def launch(parent=None):
-    dlg = Raw2Mat(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
-    dlg.ShowModal()
-    
+    with Raw2Mat(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER) as dlg:
+        dlg.ShowModal()
+
 
 def init(*args, **kwargs):
     return launch
@@ -338,9 +338,9 @@ def test(*args, **kwargs):
 
         
     _app = TestApp()
-    dlg = Raw2Mat(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
-    dlg.ShowModal()
-    print dlg.GetSize()
+    with Raw2Mat(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER) as dlg:
+        dlg.ShowModal()
+        print dlg.GetSize()
 
 if __name__ == "__main__":
     test()

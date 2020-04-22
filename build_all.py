@@ -25,6 +25,9 @@ from git.repo import Repo
 
 from assembly import birth_utils as util
 
+import build_info
+APPNAME = getattr(build_info, 'APPNAME', 'enDAQ Lab')
+
 HOME_DIR = os.getcwd()
 VERSION_INFO_FILE = 'updater files/slam_stick_lab.json'
 BETA_INFO_FILE = 'updater files/slam_stick_lab_beta.json'
@@ -33,32 +36,32 @@ RELEASE_NOTES_HTML = util.changeFilename(RELEASE_NOTES_FILE, ext=".html")
 
 VERPATCH_PATH = os.path.realpath(r"..\verpatch-bin-1.0.10\verpatch.exe")
 
-# PYINSTALLER_32 = r'c:\Python27_32\Scripts\pyinstaller.exe'
-# PYINSTALLER_64 = r'c:\Python27\Scripts\pyinstaller.exe'
+PYINSTALLER_32 = r'venv\python27_32\Scripts\pyinstaller.exe'
+PYINSTALLER_64 = r'venv\python27_wx4\Scripts\pyinstaller.exe'
 
-PYINSTALLER_32 = r'venv\python27_wx3_32b\Scripts\pyinstaller.exe'
-PYINSTALLER_64 = r'venv\python27_wx3\Scripts\pyinstaller.exe'
+ICON = r".\endaq_lab.ico"
 
 builds = (
-    PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer-win-onefile.spec',
-    PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer-win-onefile.spec',
-#     PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i .\ssl.ico viewer.spec',
-#     PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i .\ssl.ico viewer.spec',
+#     PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i %(icon)s viewer-win-onefile.spec',
+    PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i %(icon)s viewer-win-onefile.spec',
+#     PYINSTALLER_32 + r' %(options)s --noconfirm --onefile --distpath="%(dist_32)s" -i %(icon)s viewer.spec',
+#     PYINSTALLER_64 + r' --noconfirm --onefile --distpath="%(dist_64)s" --workpath=build_64 -i %(icon)s viewer.spec',
 )
 
 logger = logging.getLogger('SlamStickLab.BuildAll')
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
-def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine, 
-              branch=None, commit=None):
+def writeInfo(version, debug, beta, buildNum, buildTime, buildMachine,
+              branch=None, commit=None, appName=APPNAME):
     """ Write the latest build info (date, build number, etc.) to the
         ``build_info.py`` module.
     """
     with open('build_info.py', 'wb') as f:
         f.write('# AUTOMATICALLY UPDATED FILE: EDIT WITH CAUTION!\n')
+        f.write('APPNAME = %r\n' % appName)
         f.write('VERSION = %s\n' % str(version))
         f.write('DEBUG = %s\n' % debug)
         f.write('BETA = %s\n' % beta)
@@ -75,14 +78,14 @@ def updateJson(version, filename=VERSION_INFO_FILE, preview=False):
     """
     with open(VERSION_INFO_FILE, 'r') as f:
         info = json.load(f)
-     
+
     info["version"] = version
     info["date"] = int(thisTime)
-    
+
     if not args.preview:
         with open(filename,'w') as f:
             json.dump(info, f)
-    
+
     return info
 
 
@@ -95,17 +98,17 @@ def makeReleaseNotes(textfile=RELEASE_NOTES_FILE, output=None):
     with open(textfile, "rb") as f:
         txt = unicode(f.read(), encoding="utf8")
         html = html_body(txt).replace("h1>", "h2>")
-        
+
     with open(output, "wb") as f:
         f.write("<html><body>\n")
         f.write("<!-- automatically generated; edits will be lost! -->\n")
         f.write(html)
         f.write("</body></html>\n")
-    
-    return output
-    
 
-def compressFiles(args):
+    return output
+
+
+def compressFiles(args, preview=False):
     """ Create zips of the executables, ready for upload.
     """
     for k,v in args.items():
@@ -120,17 +123,18 @@ def compressFiles(args):
             if os.path.exists(zipname):
                 print("Skipping existing file %s" % zipname)
                 continue
-            else:
-                print("Creating zip %s" % zipname)
-            z = zipfile.ZipFile(zipname, 'w', zipfile.ZIP_DEFLATED)
-            z.write(ex)
-            z.close()
             
+            print("Creating zip %s" % zipname)
+            if not preview:
+                z = zipfile.ZipFile(zipname, 'w', zipfile.ZIP_DEFLATED)
+                z.write(ex)
+                z.close()
+
         # Only one directory of exes
         break
-                
 
-def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None,
+
+def setWindowsInfo(filename, appName, version, buildNum, suffix=None, comment=None,
                    year=None):
     """ Set the Windows application information using verpatch.
     """
@@ -140,9 +144,9 @@ def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None,
         version = '.'.join(map(str, version))
     version = "%s.%s" % (version, buildNum)
     fileVersion = version
-    
+
     if isinstance(suffix, basestring):
-        suffix = suffix.strip() 
+        suffix = suffix.strip()
         if suffix:
             fileVersion = "%s %s" % (version, suffix)
 
@@ -150,11 +154,12 @@ def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None,
            '/s company "%(company)s" '
            '/s copyright "(c) %(year)s %(company)s" '
            '/pv "%(productVersion)s" '
-           '/s desc "Utility for configuring and analyzing data from Slam Stick data recorders." '
-           '/s product "Slam Stick Lab"')
+           '/s desc "Utility for configuring and analyzing data from enDAQ and Slam Stick data recorders." '
+           '/s product "%(product)s"')
 
     args = {'verpatch': VERPATCH_PATH,
             'app': filename,
+            'product': appName,
             'fileVersion': fileVersion,
             'productVersion': version,
             'company': "Mide Technology Corporation",
@@ -163,12 +168,12 @@ def setWindowsInfo(filename, version, buildNum, suffix=None, comment=None,
 
     if comment is not None:
         cmd += '/sc %(comment)r'
-        
+
     print(repr(cmd % args))
     subprocess.call(cmd % args, stdout=sys.stdout, stdin=sys.stdin, shell=True)
 
 
-def setAllWindowsInfo(args, version, buildNum, suffix=None, comment=None, 
+def setAllWindowsInfo(args, appName, version, buildNum, suffix=None, comment=None,
                       year=None):
     """ Set the Windows application information for all binaries using
         verpatch. Calls `setWindowsInfo()`
@@ -180,17 +185,17 @@ def setAllWindowsInfo(args, version, buildNum, suffix=None, comment=None,
         exes.update(glob(os.path.join(v, '*.exe')))
 
     for ex in exes:
-        setWindowsInfo(ex, version, buildNum, suffix, comment, year)
-            
-            
+        setWindowsInfo(ex, appName, version, buildNum, suffix, comment, year)
+
+
 #===============================================================================
-# 
+#
 #===============================================================================
 
 if __name__ == "__main__":
-    
+
     parser = argparse.ArgumentParser(description="Multi-Target Builder")
-    parser.add_argument('-v', '--version',  
+    parser.add_argument('-v', '--version',
                         help="A new version number, as 'x.y.z'. "
                         "Note: editing build_info.py is better.")
     parser.add_argument('-b', '--beta', action='store_true',
@@ -204,21 +209,23 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--allowDirty', action="store_true",
                         help=("Allow builds if the git repo is 'dirty' (i.e. has "
                               "uncommitted changes)"))
+    parser.add_argument('-z', '--zip', action="store_true",
+                        help="Create zip files of the executables.")
     parser.add_argument('-p', '--preview', action="store_true",
                         help="Don't build, just preview.")
     args = parser.parse_args()
-    
+
     #===============================================================================
-    # 
+    #
     #===============================================================================
-    
+
     t0 = datetime.now()
-    
+
     try:
         repo = Repo('.')
     except InvalidGitRepositoryError:
         repo = None
-    
+
     if repo is not None:
         if repo.is_dirty():
             if args.allowDirty:
@@ -226,69 +233,71 @@ if __name__ == "__main__":
             else:
                 print("*** Repository is dirty! Commit all changes before building!")
                 exit(1)
-    
+
     if not os.path.exists(VERPATCH_PATH):
         logger.error("Could not find VERPATCH.EXE utility!")
         exit(1)
-    
+
     try:
         sys.path.append(HOME_DIR)
         from build_info import VERSION, BETA, DEBUG, BUILD_NUMBER, BUILD_MACHINE, BUILD_TIME
-        from build_info import REPO_BRANCH, REPO_COMMIT_ID
-        
+        from build_info import REPO_BRANCH, REPO_COMMIT_ID, APPNAME
+
         if args.version is not None:
             thisVersion = map(int, filter(len, args.version.split('.')))
-            thisVersion = tuple(thisVersion + ([0] * (3-len(thisVersion)))) 
+            thisVersion = tuple(thisVersion + ([0] * (3-len(thisVersion))))
         else:
             thisVersion = VERSION
-        
+
         thisBuildNumber = BUILD_NUMBER - 1 if args.noincrement else BUILD_NUMBER
         thisBeta = args.beta is True
         thisDebug = not (args.release or thisBeta)
         thisTime = time.time()
-        
+        thisMachine = socket.gethostname()
+
         thisBranch = thisCommit = None
         if repo is not None:
             try:
                 thisBranch = repo.active_branch.name
                 thisCommit = repo.iter_commits().next().hexsha
             except (AttributeError, IndexError):
-                pass 
-        
+                pass
+
         if not args.preview:
-            writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber, thisTime, socket.gethostname(), thisBranch, thisCommit)
+            writeInfo(thisVersion, thisDebug, thisBeta, thisBuildNumber,
+                      thisTime, thisMachine, thisBranch, thisCommit,
+                      appName=APPNAME)
         versionString = '.'.join(map(str,thisVersion))
-    
+
     except ImportError:
         print("import error")
         logger.warning("*** Couldn't read and/or change build number!")
         thisBuildNumber = thisVersion = versionString = "Unknown"
         thisDebug = True
-    
+
     print("*"*78)
-    print ("*** Building Version %s, Build number %d," % 
-           (versionString,thisBuildNumber), end=' ')
+    print ("*** Building %s Version %s, Build number %d," %
+           (APPNAME, versionString,thisBuildNumber), end=' ')
     if thisDebug:
         print("DEBUG version")
     elif thisBeta:
         print("BETA version")
     else:
         print("Release version")
-    
+
     buildType = ''
     if thisDebug:
-        buildType = ' experimental'
+        buildType = ' debug'
     elif thisBeta:
         buildType = ' beta'
-        
+
     buildArgs = {
-    #     'dist_32': 'Slam Stick Lab v%s.%04d (32 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
-    #     'dist_64': 'Slam Stick Lab v%s.%04d (64 bit)%s' % (versionString, thisBuildNumber, ' experimental' if thisDebug else ''),
-        'dist_32': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
-        'dist_64': 'Slam Stick Lab v%s.%04d%s' % (versionString, thisBuildNumber, buildType),
+        'dist_32': '%s v%s.%04d%s' % (APPNAME, versionString, thisBuildNumber, buildType),
+        'dist_64': '%s v%s.%04d%s' % (APPNAME, versionString, thisBuildNumber, buildType),
+        'icon': ICON,
         'options': '--clean' if args.clean else ''
     }
-    
+
     # TODO: Generate release notes HTML from ReStructuredText TXT file.
     try:
         print("Copying release notes to ABOUT directory...")
@@ -296,7 +305,7 @@ if __name__ == "__main__":
         copyfile(RELEASE_NOTES_HTML, notes)
     except (IOError):
         print("Could not copy release notes!")
-    
+
     bad = 0
     for i, build in enumerate(builds):
         print("="*78),("\nBuild #%d: %s\n" % (i+1, build % buildArgs)),("="*78)
@@ -304,40 +313,38 @@ if __name__ == "__main__":
             bad = 0
         else:
             bad += subprocess.call(build % buildArgs, stdout=sys.stdout, stdin=sys.stdin, shell=True)
-    
+
     try:
         print("Setting Windows version information...")
-        
+
         setAllWindowsInfo(buildArgs, versionString, thisBuildNumber, buildType)
     except (IOError, WindowsError):
         print("Could not set Windows version info!")
-    
+
+    if args.zip and not args.preview:
+        compressFiles(buildArgs)
+
     print("*"*78)
     print("Completed %d builds, %d failures in %s" % (len(builds), bad, datetime.now() - t0))
-    
+
     if bad == len(builds):
         print("Everything failed; restoring old build_info.")
         if not args.preview:
-            writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME, 
+            writeInfo(VERSION, DEBUG, BETA, BUILD_NUMBER, BUILD_TIME,
                       BUILD_MACHINE, REPO_BRANCH, REPO_COMMIT_ID)
     else:
         print("Version: %s, build %s, DEBUG=%s, BETA=%s" %
               (versionString, thisBuildNumber, thisDebug, thisBeta))
         # Reset the DEBUG variable in the info file (local runs are always DEBUG)
         if not args.preview:
-            writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime, 
+            writeInfo(thisVersion, True, True, thisBuildNumber+1, thisTime,
                       socket.gethostname(), thisBranch, thisCommit)
-    
+
     if args.release and bad == 0:
         print("*"*78)
         print("Everything is okay; updating version info file '%s'" % VERSION_INFO_FILE)
         info = updateJson(thisVersion, VERSION_INFO_FILE, preview=args.preview)
         if args.preview:
             print("PREVIEW of info file: %s" % json.dumps(info))
-        else:
-            compressFiles(buildArgs)
-    
-        # TEST
-        compressFiles(buildArgs)
-            
+
     print("*"*78)

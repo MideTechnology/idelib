@@ -21,10 +21,10 @@ import time
 import numpy as np
 
 
-from mide_ebml import __version__ as ebml_version    
-from mide_ebml import importer
-from mide_ebml.parsers import ChannelDataBlock, MPL3115PressureTempParser
-from mide_ebml.calibration import Univariate, Bivariate
+from idelib import __version__ as ebml_version    
+from idelib import importer
+from idelib.parsers import ChannelDataBlock, MPL3115PressureTempParser
+from idelib.calibration import Univariate, Bivariate
 
 from build_info import DEBUG, BUILD_NUMBER, VERSION, BUILD_TIME #@UnusedImport
 __version__ = VERSION
@@ -348,7 +348,7 @@ def makeInputType(channel):
 
 class SimpleUpdater(object):
     """ A simple text-based progress updater. Simplified version of the one in
-        `mide_ebml.importer`
+        `idelib.importer`
     """
     
     def __init__(self, cancelAt=1.0, quiet=False, out=sys.stdout, precision=0):

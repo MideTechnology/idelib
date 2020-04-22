@@ -30,6 +30,7 @@ __copyright__=u"Copyright (c) 2015 Mid\xe9 Technology"
 
 PLUGIN_INFO = {"type": "tool",
                "name": "Batch IDE Exporter",
+               "description": "Convert one or more files to another format.",
                "app": u"Slam\u2022Stick Lab",
                "minAppVersion": (1,4,2),
                }
@@ -322,9 +323,9 @@ class Ide2Csv(ToolDialog):
 #===============================================================================
 
 def launch(parent=None):
-    dlg = Ide2Csv(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
-    dlg.ShowModal()
-    
+    with Ide2Csv(parent, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER) as dlg:
+        dlg.ShowModal()
+
 
 def init(*args, **kwargs):
     return launch
@@ -356,9 +357,9 @@ def test(*args, **kwargs):
 
         
     _app = TestApp()
-    dlg = Ide2Csv(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER)
-    dlg.ShowModal()
-    print dlg.GetSize()
+    with Ide2Csv(None, -1, style=wx.DEFAULT_DIALOG_STYLE|wx.RESIZE_BORDER) as dlg:
+        dlg.ShowModal()
+        print dlg.GetSize()
 
 if __name__ == "__main__":
     test()

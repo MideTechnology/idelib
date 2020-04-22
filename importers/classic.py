@@ -5,13 +5,13 @@ Created on Feb 23, 2018
 '''
 
 __author__ = "dstokes"
-__copyright__ = "Copyright 2018 Mide Technology Corporation"
+__copyright__ = "Copyright 2020 Mide Technology Corporation"
 
 import os.path
 
 import wx
 
-import mide_ebml.classic
+import idelib.classic
 from .base import Importer, FileImportError
 from threaded_file import ThreadAwareFile
 
@@ -34,8 +34,8 @@ class SSClassicImporter(Importer):
     TYPE = "Slam Stick Classic Data File"
     EXT = "*.dat"
 
-    OPENER = mide_ebml.classic.importer.openFile
-    READER = mide_ebml.classic.importer.readData
+    OPENER = idelib.classic.importer.openFile
+    READER = idelib.classic.importer.readData
 
 
     def importFile(self, filename, root):
@@ -62,7 +62,7 @@ class SSClassicImporter(Importer):
                 stream.closeAll()
                 return None, None
             
-        except mide_ebml.parsers.ParsingError as err:
+        except idelib.parsers.ParsingError as err:
             stream.closeAll()
             raise FileImportError("The file '%s' could not be opened" % name,
                                   exception=err)

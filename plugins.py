@@ -31,6 +31,8 @@ easily handled as modules.
 Plug-In Info
 ============
 Additional, optional keys in ``info.json`` or `PLUGIN_INFO`:
+  * name (string): The name of the plug-in.
+  * description (string): A brief description of the plug-in.
   * app (string): The name of the app for which the plug-in was written. May
       contain glob-style wildcards.
   * architecture (string): The required system architecture, ``32bit`` or
@@ -292,8 +294,8 @@ class Plugin(object):
 
 
     def validate(self, app=None, appVersion=None):
-        """ Validate the plugin, using information from the info file. Also sets
-            a couple of attributes.
+        """ Validate the plugin, using information from the info file. Also
+            sets a couple of attributes.
         """
         # Get requisite data from the plugin info
         try:
@@ -301,6 +303,7 @@ class Plugin(object):
             if self.moduleName is None:
                 self.moduleName = self.info['module']
             self.name = self.info.get('name', self.moduleName)
+            self.desc = self.info.get('description', '')
         except (KeyError, AttributeError) as err:
             raise PluginImportError('Could not find plugin info in',
                                     self.path, err)
@@ -430,7 +433,12 @@ class Plugin(object):
                     src = os.path.join(self.path, self.moduleName+'.py')
                     com = os.path.join(self.path, self.moduleName+'.pyc')
                     if os.path.exists(src):
+                        sys.path.append(self.path)
                         self.module = imp.load_source(self.moduleName, src)
+                        try:
+                            sys.path.remove(self.path)
+                        except ValueError:
+                            pass
                     else:
                         self.module = imp.load_compiled(self.moduleName, com)
                 else:

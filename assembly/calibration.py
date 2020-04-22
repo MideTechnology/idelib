@@ -33,24 +33,24 @@ INKSCAPE_PATH = r"C:\Program Files (x86)\Inkscape\inkscape.exe"
 CWD = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(CWD)
 
-# Song and dance to make sure the mide_ebml library can be found.
+# Song and dance to make sure the idelib library can be found.
 try:
-    import mide_ebml
+    import idelib
 except ImportError:
-    if os.path.exists('../mide_ebml'):
+    if os.path.exists('../idelib'):
         sys.path.append(os.path.abspath('..'))
-    elif os.path.exists(os.path.join(CWD, '../mide_ebml')):
-        sys.path.append(os.path.abspath(os.path.join(CWD, '../mide_ebml')))
+    elif os.path.exists(os.path.join(CWD, '../idelib')):
+        sys.path.append(os.path.abspath(os.path.join(CWD, '../idelib')))
     elif os.path.exists(VIEWER_PATH):
         sys.path.append(VIEWER_PATH)
-    import mide_ebml #@UnusedImport
+    import idelib #@UnusedImport
 
-# from mide_ebml import util as ebml_util
-# from mide_ebml import xml2ebml
-from mide_ebml.importer import importFile, SimpleUpdater
+# from idelib import util as ebml_util
+# from idelib import xml2ebml
+from idelib.importer import importFile, SimpleUpdater
 
-from mide_ebml.ebmlite import loadSchema
-from mide_ebml.ebmlite import util as ebmlite_util
+from idelib.ebmlite import loadSchema
+from idelib.ebmlite import util as ebmlite_util
 
 from glob import glob
 testFiles = glob(r"R:\LOG-Data_Loggers\LOG-0002_Slam_Stick_X\Product_Database\_Calibration\SSX0000039\DATA\20140923\*.IDE")
@@ -1212,7 +1212,7 @@ class Calibrator(object):
         return data
 
 
-#     def createEbml(self, xmlTemplate=None, schema="mide_ebml.ebml.schema.mide"):
+#     def createEbml(self, xmlTemplate=None, schema="idelib.ebml.schema.mide"):
     def createEbml(self, xmlTemplate=None, schema=schema_mide):
         """ Create the calibration EBML data, for inclusion in a recorder's
             user page or an external user calibration file.
