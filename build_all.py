@@ -36,8 +36,8 @@ RELEASE_NOTES_HTML = util.changeFilename(RELEASE_NOTES_FILE, ext=".html")
 
 VERPATCH_PATH = os.path.realpath(r"..\verpatch-bin-1.0.10\verpatch.exe")
 
-PYINSTALLER_32 = r'venv\python27_32\Scripts\pyinstaller.exe'
-PYINSTALLER_64 = r'venv\python27_wx4\Scripts\pyinstaller.exe'
+PYINSTALLER_32 = r'.\buildEnv\Scripts\pyinstaller.exe'
+PYINSTALLER_64 = r'.\buildEnv\Scripts\pyinstaller.exe'
 
 ICON = r".\endaq_lab.ico"
 
