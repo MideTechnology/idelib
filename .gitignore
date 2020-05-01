@@ -68,3 +68,4 @@ SlamStickLab.egg-info/
 venv*
 htmlcov*
 .coverage
+buildEnv/  

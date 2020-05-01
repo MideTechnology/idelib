@@ -99,7 +99,8 @@ class PlotView(FFTView, ZoomingPlot):
                 if data is not None:
                     for i in range(data.shape[1] - 1):
                         self.axes.plot(data[:, 0], data[:, i + 1], antialiased=True, linewidth=0.5,
-                                       label=subchannels[i - 1].name, color=[float(x)/255. for x in self.root.getPlotColor(subchannels[i-1])])
+                                       label=subchannels[i].name, color=[float(x)/255. for x in self.root.getPlotColor(subchannels[i])],
+                                       zorder=data.shape[1] - i)
 
                 if data is not None:
                     if self.data is None:
