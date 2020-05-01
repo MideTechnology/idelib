@@ -565,7 +565,8 @@ class FFTView(wx.Frame, MenuMixin, ZoomingPlot):
             # self.makeLineList()
             for i in range(1, self.data.shape[1]):
                 self.axes.plot(self.data[:, 0], self.data[:, i], antialiased=True, linewidth=0.5,
-                               label=self.subchannels[i-1].name, color=[float(x)/255. for x in self.root.getPlotColor(self.subchannels[i-1])])
+                               label=self.subchannels[i-1].name, color=[float(x)/255. for x in self.root.getPlotColor(self.subchannels[i-1])],
+                               zorder=self.data.shape[1] - i)
 
             if self.logarithmic[0]:
                 self.axes.set_xscale('log')
