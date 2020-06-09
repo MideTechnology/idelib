@@ -1543,6 +1543,7 @@ class PSDView(FFTView):
         sourceUnits = self.subchannels[0].units[1]
         if sourceUnits:
             self.yUnits = u" (%s\u00b2/Hz)" % sourceUnits
+            self.axes.set_ylabel("%s%s" % (self.yLabel, self.yUnits))
             
         self.formatter = '%E'
 
