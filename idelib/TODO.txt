@@ -1,0 +1,80 @@
+mide_ebml To-Do List
+====================
+
+*Note:* See also individual TODO items noted in the code ("TODO:" in comments,
+"@todo" in doc strings. This list includes some of them, but not all.
+
+
+Major items
+-----------
+Unit testing FTW. Some should be created prior to the refactoring-related items
+listed below.
+
+Refactor everything to use Numpy for parsing data. Early experiments with this
+ran into a bottleneck somewhere, probably implicit casting of Numpy arrays to 
+Python lists, so just changing the parser isn't enough.
+
+Related to the above: Change things so that the EventList data for a parent
+Channel returns a flat tuple/list/array/etc., rather than a time and a tuple.
+Many things expect channels to have tuple values, though, so this will be
+fairly substantial. However, making this change will allow for more use of
+Numpy, which could make everything much faster.
+
+Refactor (or rewrite) the underlying EBML library. It has some very nice 
+features (schemas), but it wasn't designed for handling files with tens of 
+thousands of elements; it's a memory hog. Certain components could possibly 
+benefit from the wider application of Numpy. Maybe create an official fork of
+the GitHub repository, so we can share our changes.
+
+
+Minor items
+-----------
+Consider implementing a subclass of EventList optimized for channels with
+single-sample data blocks (i.e. pressure/temperature). There's a lot of
+overhead in place for handling the subsamples in the accelerometer data blocks.
+
+Consider implementing a subclass of EventList for subchannels to get rid of all
+the `if self._hasSubchannels` stuff. This would mean four EventList classes if
+single-sample ones is also implemented, though. This is slightly less critical
+now that the CombinedPoly and PolyPoly are being used.
+
+Roll multi_importer into importer. The former module's openFile and readData
+functions are better than the original's. Unsure how much will need to be 
+refactored elsewhere, though.
+
+The mix-in classes used in dataset.py are over-engineered. Identify the
+required functionality and simplify. Very little of Cascading is used.
+
+Identify stubs of functionality that were left over from early designs and
+are no longer necessary.
+
+Consider a rewrite the whole updater/callback system to make it compatible with
+the wxPython progress dialog. It's pretty nice on its own, but just different
+enough to complicate things.
+
+Handle discontinuous data better. Possibly more of a viewer-side task, but it
+will need backend support in the mide-ebml library. 
+
+
+Longer term
+-----------
+
+Support for streaming data. Will require refactoring the underlying EBML 
+library (noted above).
+
+
+Wish List items
+---------------
+
+Move device descriptions from the viewer into mide_ebml library. Provide a
+function for adding recorder types, so viewer plug-ins can create them. 
+
+Single-point events. Similar to an extreme case of discontinuity in the data.
+These could be marks with non-numeric data (annotations, etc.), which would
+just render in the viewer as something like a vertical line. 
+
+Special-case parsers, identified by keyword in the channel format string, for
+parsing different types of data (i.e. GPS NMEA strings).
+
+More/better sample code.
+
