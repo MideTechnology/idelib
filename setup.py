@@ -1,6 +1,6 @@
 import setuptools
 
-with open('README.md', 'r') as fh:
+with open('README.md', 'r', encoding='utf-8') as fh:
     long_description = fh.read()
 
 INSTALL_REQUIRES = [
@@ -19,7 +19,7 @@ EXAMPLE_REQUIRES = [
     ]
 
 setuptools.setup(
-        name='idelib-archive',
+        name='idelib',
         version='3.0.0rc1',
         author='Mide Technology',
         author_email='help@mide.com',
@@ -38,12 +38,12 @@ setuptools.setup(
                      'Topic :: Scientific/Engineering',
                      ],
         keywords='ebml binary ide mide',
-        packages=setuptools.find_packages(),
-        package_dir={'': '.'},
+        packages=setuptools.find_packages(exclude=('testing',)),
+        package_dir={'idelib': './idelib'},
         package_data={
-            '': ['schemata/*'],
+            'idelib': ['schemata/*'],
         },
-        test_suite='tests',
+        test_suite='./testing',
         install_requires=INSTALL_REQUIRES,
         extras_require={
             'test': INSTALL_REQUIRES + TEST_REQUIRES,
