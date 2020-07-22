@@ -77,3 +77,10 @@ python:
   - "3.7"
   - "3.8"
 
+deploy:
+  provider: pypi
+  username: "__token__"
+  password:
+    secure: OHB9KzqT9/gpbixcrtG/dqSdGgfteRDIATNPwEijuQg3Xec/cgDlmayCdTnrknIe4kOHexCTczkUWSzQd2Ap0T96kIJ9ALu720TEreU2NhHJtlk43e02k8wwZoR8838d4Bl2f5YQmQZAMiiXBgCDEknS8ELUzxJNmvih53NEp4VzmdmFYozfZaOO0buD1RGXtX+fV9pPdHT7cGmkonFFes+8r9GnYsknrxQxaroOFX46hmETI5hBitTAsw6al4Bw2xBfUrlN0fZ3niKD/jU529Jdup2FLs3PmeAw0cHPBgALZcW6wdCeEI71+YE2ox7o6tU4r3KIOe7SBxfuoMAMHWUzwYLnuDUjFefAU/zHLt/fIQdjaJRAdp6N8/bUR8/tbCIKHYDXrXh2fQkuPh06eh9eLc229DezX0wQZ31QSBDI3BJd4+9GicP9yUA9r+998wsM3qRayNeLhBVimDxXHOnMCkNBELMaqxpon2VcnyNDwtureznepLDMBPbFhVyysnDmSt1AhKAurKMXuVXLW7lubsr34hTDbqmFg9cfisRxVVqTb3JFBQz5an/Sxbce5A95RQNGcB2bz+ow0rmLj8YrNAtiZjbf5KJ1pP+aV7Wcylf0DgrK2o2vCB/Kk8N4k9DeKdrFxs+hx/227i9ozAN5ERTSgSlh4FjGKJRyWV8=
+    on:
+      branch: main
