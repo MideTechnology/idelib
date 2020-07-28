@@ -1643,6 +1643,12 @@ class EventList(Transformable):
         """
         # TODO: optimization: refactor calls of iterSlice() to pass slices?
         if not isinstance(start, slice):
+            if start is not None:
+                start = round(start)
+            if end is not None:
+                end = round(end)
+            if step is not None:
+                step = round(step)
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
 
@@ -1731,6 +1737,12 @@ class EventList(Transformable):
         """
         # TODO: optimization: refactor calls of iterJitterySlice() to pass slices?
         if not isinstance(start, slice):
+            if start is not None:
+                start = round(start)
+            if end is not None:
+                end = round(end)
+            if step is not None:
+                step = round(step)
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
         
@@ -2431,7 +2443,13 @@ class EventList(Transformable):
             _self.removeMean = _self.allowMeanRemoval and removeMean
         if meanSpan is not None:
             _self.rollingMeanSpan = meanSpan
-        
+
+        if start is not None:
+            start = round(start)
+        if stop is not None:
+            stop = round(stop)
+        if step is not None:
+            step = round(step)
         start, stop, step = slice(start, stop, step).indices(len(self))
 
         totalLines = len(range(start, stop, step))
