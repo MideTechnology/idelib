@@ -130,6 +130,7 @@ class TestEventArray:
              (0, 100, 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
              (0, 99.9, 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
              (0.1, 99.9, 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
+             (np.float(0.1), np.float(99.9), 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
              ]
             )
     def test_array_values(self, channel_8_eventarray, start, end, step, expected):
@@ -142,6 +143,7 @@ class TestEventArray:
              (0, 100, 1, np.arange(100, dtype=np.float64)),
              (0, 99.9, 1, np.arange(100, dtype=np.float64)),
              (0.1, 99.9, 1, np.arange(100, dtype=np.float64)),
+             (np.float(0.1), np.float(99.9), 1, np.arange(100, dtype=np.float64)),
              ]
             )
     def test_array_jittery_values(self, channel_8_eventarray, start, end, step, expected):
