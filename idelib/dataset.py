@@ -2772,6 +2772,12 @@ class EventArray(EventList):
         """
         # TODO: optimization: refactor calls of iterSlice() to pass slices?
         if not isinstance(start, slice):
+            if start is not None:
+                start = round(start)
+            if end is not None:
+                end = round(end)
+            if step is not None:
+                step = round(step)
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
 
@@ -2863,6 +2869,12 @@ class EventArray(EventList):
         """
         # TODO: optimization: refactor calls of iterJitterySlice() to pass slices?
         if not isinstance(start, slice):
+            if start is not None:
+                start = round(start)
+            if end is not None:
+                end = round(end)
+            if step is not None:
+                step = round(step)
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
 
