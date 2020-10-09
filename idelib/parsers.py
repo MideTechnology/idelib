@@ -896,6 +896,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
 
         self._parser = None
         self._streamDtype = None
+        self._commonDtype = None
 
     @property
     def payload(self):
@@ -919,45 +920,61 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         # All numpy-compatible data streams use `struct.Struct` parsers
         isNumpyCompatibleFormat = isinstance(parser, struct.Struct)
 
-        if isNumpyCompatibleFormat:
+        if not isNumpyCompatibleFormat:
+            # No parser format -> assume that data is from an old .ide file
+            #   & should be handled safely using the parser object
+            blocks = list(ChannelDataBlock.parseWith(
+                self, parser, start, end, step, subchannel
+            ))
+            return np.array(blocks, dtype=np.float64).T
 
-            if parser is self._parser:
-                streamDtype = self._streamDtype
+        if parser is self._parser:
+            streamDtype = self._streamDtype
+            commonDtype = self._commonDtype
+        else:
+            parser_format = parser.format
+            if isinstance(parser_format, (bytes, bytearray)):
+                parser_format = parser_format.decode()
+            if parser_format[0] in ['<', '>']:
+                endian = parser_format[0]
+                parser_format = parser_format[1:]
             else:
-                parser_format = parser.format
-                if parser_format[0] in ['<', '>']:
-                    endian = parser_format[0]
-                    parser_format = parser_format[1:]
-                else:
-                    endian = '>'
+                endian = '>'
 
-                streamDtype = np.dtype(','.join([endian+typeId
-                                              for typeId in parser_format]))
+            streamDtype = np.dtype(
+                ','.join([endian+typeId for typeId in parser_format])
+            )
 
-                self._parser = parser
-                self._streamDtype = streamDtype
+            isHomogeneous = len(set(parser_format)) == 1
+            if isHomogeneous:
+                commonDtype = np.dtype(endian + parser_format[0])
+            else:
+                commonDtype = None
 
-            rawData = np.frombuffer(self.payload, dtype=streamDtype)[start:end:step]
+            self._parser = parser
+            self._streamDtype = streamDtype
+            self._commonDtype = commonDtype
 
-            # Special cases for single-channel outputs
-            if len(streamDtype) == 0:
-                return rawData[np.newaxis]
-            elif subchannel is not None:
-                return rawData[streamDtype.names[subchannel]][np.newaxis]
+        if commonDtype is not None:
+            rawData = np.frombuffer(self.payload, dtype=commonDtype)
+            rawData = rawData.reshape(-1, len(streamDtype) or 1)[start:end:step].T
 
-            data = np.empty((len(streamDtype),) + rawData.shape,
-                            dtype=np.float64)
-            for i, chName in enumerate(streamDtype.names):
-                data[i] = rawData[chName]
+            if len(streamDtype) > 0 and subchannel is not None:
+                return rawData[[subchannel]]
+            return rawData
 
-            return data
+        rawData = np.frombuffer(self.payload, dtype=streamDtype)[start:end:step]
 
-        # No parser format -> assume that data is from an old .ide file type
-        #   & should be handled safely using the parser object
-        blocks = list(ChannelDataBlock.parseWith(
-            self, parser, start, end, step, subchannel
-        ))
-        return np.array(blocks, dtype=np.float64).T
+        # Special cases for single-channel outputs
+        if subchannel is not None:
+            return rawData[streamDtype.names[subchannel]][np.newaxis]
+
+        data = np.empty((len(streamDtype),) + rawData.shape,
+                        dtype=np.float64)
+        for i, chName in enumerate(streamDtype.names):
+            data[i] = rawData[chName]
+
+        return data
 
     def parseByIndexWith(self, parser, indices, subchannel=None):
         """ Parse an element's payload and get a specific set of samples. Used
