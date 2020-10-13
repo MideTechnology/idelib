@@ -916,6 +916,14 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         # 'p': '',
         # 'P': '',
     }
+    assert all(
+        struct.calcsize(f'<{stype}') == np.dtype(f'<{nptype}').itemsize
+        for stype, nptype in TO_NP_TYPESTR.items()
+    )
+    assert all(
+        struct.calcsize(f'>{stype}') == np.dtype(f'>{nptype}').itemsize
+        for stype, nptype in TO_NP_TYPESTR.items()
+    )
 
     def __init__(self, element):
         super(ChannelDataArrayBlock, self).__init__(element)
