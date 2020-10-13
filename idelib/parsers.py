@@ -920,7 +920,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         struct.calcsize(endian+stype) == np.dtype(endian+nptype).itemsize
         for stype, nptype in TO_NP_TYPESTR.items()
         for endian in ('<', '>')
-    )
+    ), "invalid mapping from struct to numpy typestrings"
 
     def __init__(self, element):
         super(ChannelDataArrayBlock, self).__init__(element)
