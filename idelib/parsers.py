@@ -909,7 +909,7 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         'Q': 'u8',
         # 'n': '',
         # 'N': '',
-        'e': 'f2',
+        # 'e': 'f2',  unsupported in Python3.5
         'f': 'f4',
         'd': 'f8',
         # 's': '',
