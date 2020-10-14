@@ -877,7 +877,6 @@ class ChannelDataBlock(BaseDataBlock):
 
 
 class ChannelDataArrayBlock(ChannelDataBlock):
-
     def __init__(self, element):
         super(ChannelDataArrayBlock, self).__init__(element)
         self._payload = None
@@ -892,6 +891,34 @@ class ChannelDataArrayBlock(ChannelDataBlock):
             self._payload = np.array(self._payloadEl.value)
             self._payloadEl.gc()
         return self._payload
+
+    # Define standard mapping from struct to numpy typestring
+    #   (conversions taken from struct & numpy docs:)
+    #   https://docs.python.org/3/library/struct.html#format-characters
+    #   https://numpy.org/doc/stable/reference/arrays.dtypes.html#specifying-and-constructing-data-types
+    TO_NP_TYPESTR = {
+        # 'x': '',
+        'c': 'b',
+        'b': 'b',
+        'B': 'B',
+        '?': '?',
+        'h': 'i2',
+        'H': 'u2',
+        'i': 'i4',
+        'I': 'u4',
+        'l': 'i4',
+        'L': 'u4',
+        'q': 'i8',
+        'Q': 'u8',
+        # 'n': '',
+        # 'N': '',
+        # 'e': 'f2',  unsupported in Python3.5
+        'f': 'f4',
+        'd': 'f8',
+        # 's': '',
+        # 'p': '',
+        # 'P': '',
+    }
 
     def parseWith(self, parser, start=None, end=None, step=1, subchannel=None):
         """ Parse an element's payload. Use this instead of directly using
@@ -929,13 +956,13 @@ class ChannelDataArrayBlock(ChannelDataBlock):
             else:
                 endian = '>'
 
-            streamDtype = np.dtype(
-                ','.join([endian+typeId for typeId in parser_format])
-            )
+            streamDtype = np.dtype(','.join([
+                endian + self.TO_NP_TYPESTR[typeId] for typeId in parser_format
+            ]))
 
             isHomogeneous = len(set(parser_format)) == 1
             if isHomogeneous:
-                commonDtype = np.dtype(endian + parser_format[0])
+                commonDtype = np.dtype(endian + self.TO_NP_TYPESTR[parser_format[0]])
             else:
                 commonDtype = None
 
