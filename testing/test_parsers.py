@@ -1,5 +1,6 @@
 import unittest
 import mock
+import struct
 
 from ebmlite.core import *  # type: ignore
 import numpy as np  # type: ignore
@@ -106,6 +107,14 @@ class TestChannelDataArrayBlock(unittest.TestCase):
 
     def testGetHeader(self):
         self.assertEqual(self.block.getHeader(), (211, 32))
+
+    def testToNpTypestr(self):
+        for stype, nptype in ChannelDataArrayBlock.TO_NP_TYPESTR.items():
+            for endian in ('<', '>'):
+                assert (
+                    struct.calcsize(endian+stype)
+                    == np.dtype(endian+nptype).itemsize
+                )
 
     def testParseWith(self):
         parser = self.doc.channels[32].parser
