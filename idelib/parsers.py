@@ -889,6 +889,21 @@ class ChannelDataBlock(BaseDataBlock):
 
 
 class ChannelDataArrayBlock(ChannelDataBlock):
+    def __init__(self, element):
+        super(ChannelDataArrayBlock, self).__init__(element)
+        self._payload = None
+
+        self._parser = None
+        self._streamDtype = None
+        self._commonDtype = None
+
+    @property
+    def payload(self):
+        if self._payload is None:
+            self._payload = np.array(self._payloadEl.value)
+            self._payloadEl.gc()
+        return self._payload
+
     # Define standard mapping from struct to numpy typestring
     #   (conversions taken from struct & numpy docs:)
     #   https://docs.python.org/3/library/struct.html#format-characters
@@ -916,26 +931,6 @@ class ChannelDataArrayBlock(ChannelDataBlock):
         # 'p': '',
         # 'P': '',
     }
-    assert all(
-        struct.calcsize(endian+stype) == np.dtype(endian+nptype).itemsize
-        for stype, nptype in TO_NP_TYPESTR.items()
-        for endian in ('<', '>')
-    ), "invalid mapping from struct to numpy typestrings"
-
-    def __init__(self, element):
-        super(ChannelDataArrayBlock, self).__init__(element)
-        self._payload = None
-
-        self._parser = None
-        self._streamDtype = None
-        self._commonDtype = None
-
-    @property
-    def payload(self):
-        if self._payload is None:
-            self._payload = np.array(self._payloadEl.value)
-            self._payloadEl.gc()
-        return self._payload
 
     def parseWith(self, parser, start=None, end=None, step=1, subchannel=None):
         """ Parse an element's payload. Use this instead of directly using
