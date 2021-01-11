@@ -12,6 +12,7 @@ Created on Dec 10, 2013
 
 from collections import OrderedDict
 import datetime
+import pkg_resources
 import time
 
 from ebmlite import loadSchema
@@ -20,7 +21,7 @@ from ebmlite import loadSchema
 # 
 # ==============================================================================
 
-mideSchema = loadSchema('mide_ide.xml')
+mideSchema = loadSchema(pkg_resources.resource_filename('idelib', 'schemata/mide_ide.xml'))
 
 
 # ==============================================================================

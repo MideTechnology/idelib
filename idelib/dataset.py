@@ -53,6 +53,7 @@ from datetime import datetime
 
 from functools import partial
 import os.path
+import pkg_resources
 import random
 import struct
 import sys
@@ -65,7 +66,7 @@ from .transforms import Transform, CombinedPoly, PolyPoly
 from .parsers import getParserTypes, getParserRanges
 
 
-SCHEMA_FILE = 'mide_ide.xml'
+SCHEMA_FILE = pkg_resources.resource_filename('idelib', 'schemata/mide_ide.xml')
 
 #===============================================================================
 # DEBUGGING: XXX: Remove later!
