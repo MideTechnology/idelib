@@ -53,7 +53,8 @@ from datetime import datetime
 
 from functools import partial
 import os.path
-import pkg_resources
+import contextlib
+import importlib_resources
 import random
 import struct
 import sys
@@ -66,7 +67,7 @@ from .transforms import Transform, CombinedPoly, PolyPoly
 from .parsers import getParserTypes, getParserRanges
 
 
-SCHEMA_FILE = pkg_resources.resource_filename('idelib', 'schemata/mide_ide.xml')
+SCHEMA_REF = importlib_resources.files('idelib') / 'schemata' / 'mide_ide.xml'
 
 #===============================================================================
 # DEBUGGING: XXX: Remove later!
@@ -269,7 +270,11 @@ class Dataset(Cascading):
             self.name = name
 
         if stream is not None:
-            schema = loadSchema(SCHEMA_FILE)
+            self.schema_manager = contextlib.ExitStack()
+            schema_path = self.schema_manager.enter_context(
+                importlib_resources.as_file(SCHEMA_REF)
+            )
+            schema = loadSchema(str(schema_path))
             self.schemaVersion = schema.version
             self.ebmldoc = schema.load(stream, 'MideDocument')
             if not quiet:
@@ -304,6 +309,8 @@ class Dataset(Cascading):
                 s.close()
             except (AttributeError, IOError):
                 pass
+
+        self.schema_manager.close()
             
         return result
                 

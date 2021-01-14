@@ -12,23 +12,20 @@ Created on Dec 10, 2013
 
 from collections import OrderedDict
 import datetime
-import pkg_resources
+import importlib_resources
 import time
 
 from ebmlite import loadSchema
 
-# ==============================================================================
-# 
-# ==============================================================================
 
-mideSchema = loadSchema(pkg_resources.resource_filename('idelib', 'schemata/mide_ide.xml'))
+SCHEMA_REF = importlib_resources.files('idelib') / 'schemata' / 'mide_ide.xml'
 
 
 # ==============================================================================
 # 
 # ==============================================================================
 
-def verify(data, schema=mideSchema):
+def verify(data, schema=None):
     """ Basic sanity-check of data validity. If the data is bad an exception
         will be raised. The specific exception varies depending on the problem
         in the data.
@@ -36,6 +33,11 @@ def verify(data, schema=mideSchema):
         :keyword schema: The full module name of the EBML schema.
         :return: `True`. Any problems will raise exceptions.
     """
+    if schema is None:
+        with importlib_resources.as_file(SCHEMA_REF) as schema_path:
+            schema = loadSchema(str(schema_path))
+            return verify(data, schema)
+
     return schema.verify(data)
 
 
@@ -113,4 +115,6 @@ def build_attributes(data):
         `FloatAttribute`, etc.). The value element type will otherwise be 
         inferred.
     """
-    return mideSchema['Attribute'].encode(encode_attributes(data))
+    with importlib_resources.as_file(SCHEMA_REF) as schema_path:
+        schema = loadSchema(str(schema_path))
+        return schema['Attribute'].encode(encode_attributes(data))
