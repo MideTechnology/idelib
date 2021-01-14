@@ -6,7 +6,6 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 INSTALL_REQUIRES = [
     'numpy',
     'ebmlite>=3.0.0',
-    'importlib-resources',
     ]
 
 TEST_REQUIRES = [

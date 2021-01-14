@@ -54,7 +54,7 @@ from datetime import datetime
 from functools import partial
 import os.path
 import contextlib
-import importlib_resources
+import importlib.resources
 import random
 import struct
 import sys
@@ -66,8 +66,6 @@ import numpy as np
 from .transforms import Transform, CombinedPoly, PolyPoly
 from .parsers import getParserTypes, getParserRanges
 
-
-SCHEMA_REF = importlib_resources.files('idelib') / 'schemata' / 'mide_ide.xml'
 
 #===============================================================================
 # DEBUGGING: XXX: Remove later!
@@ -272,7 +270,7 @@ class Dataset(Cascading):
         if stream is not None:
             self.schema_manager = contextlib.ExitStack()
             schema_path = self.schema_manager.enter_context(
-                importlib_resources.as_file(SCHEMA_REF)
+                importlib.resources.path('idelib.schemata', 'mide_ide.xml')
             )
             schema = loadSchema(str(schema_path))
             self.schemaVersion = schema.version

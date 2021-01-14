@@ -12,13 +12,10 @@ Created on Dec 10, 2013
 
 from collections import OrderedDict
 import datetime
-import importlib_resources
+import importlib.resources
 import time
 
 from ebmlite import loadSchema
-
-
-SCHEMA_REF = importlib_resources.files('idelib') / 'schemata' / 'mide_ide.xml'
 
 
 # ==============================================================================
@@ -34,7 +31,7 @@ def verify(data, schema=None):
         :return: `True`. Any problems will raise exceptions.
     """
     if schema is None:
-        with importlib_resources.as_file(SCHEMA_REF) as schema_path:
+        with importlib.resources.path('idelib.schemata', 'mide_ide.xml') as schema_path:
             schema = loadSchema(str(schema_path))
             return verify(data, schema)
 
@@ -115,6 +112,6 @@ def build_attributes(data):
         `FloatAttribute`, etc.). The value element type will otherwise be 
         inferred.
     """
-    with importlib_resources.as_file(SCHEMA_REF) as schema_path:
+    with importlib.resources.path('idelib.schemata', 'mide_ide.xml') as schema_path:
         schema = loadSchema(str(schema_path))
         return schema['Attribute'].encode(encode_attributes(data))
