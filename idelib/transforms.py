@@ -208,7 +208,7 @@ class Univariate(Transform):
     
     # XXX: kwargs added to __init__() as work-around for bad SSS templates! 
     def __init__(self, coeffs, calId=None, dataset=None, reference=0, 
-                 varName=b"x", attributes=None, **kwargs):
+                 varName="x", attributes=None, **kwargs):
         """ Construct a simple polynomial function from a set of coefficients.
             
             :param coeffs: A list of coefficients
