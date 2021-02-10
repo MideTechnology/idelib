@@ -2590,39 +2590,39 @@ class EventArray(EventList):
     # Derived utility methods
     #===========================================================================
 
-    def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
-        """ Get the index of a raw data block that contains the given event
-            index.
-
-            :param idx: The event index to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
-        """
-        # TODO: profile & determine if this change is beneficial
-        if len(self._blockIndicesArray) != len(self._blockIndices):
-            self._blockIndicesArray = np.array(self._blockIndices)
-
-        idxOffset = max(start, 1)
-        return idxOffset-1 + np.searchsorted(
-            self._blockIndicesArray[idxOffset:stop], idx, side='right'
-        )
-
-
-    def _getBlockIndexWithTime(self, t, start=0, stop=None):
-        """ Get the index of a raw data block in which the given time occurs.
-
-            :param t: The time to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
-        """
-        # TODO: profile & determine if this change is beneficial
-        if len(self._blockTimesArray) != len(self._blockTimes):
-            self._blockTimesArray = np.array(self._blockTimes)
-
-        idxOffset = max(start, 1)
-        return idxOffset-1 + np.searchsorted(
-            self._blockTimesArray[idxOffset:stop], t, side='right'
-        )
+    # def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
+    #     """ Get the index of a raw data block that contains the given event
+    #         index.
+    #
+    #         :param idx: The event index to find
+    #         :keyword start: The first block index to search
+    #         :keyword stop: The last block index to search
+    #     """
+    #     # TODO: profile & determine if this change is beneficial
+    #     if len(self._blockIndicesArray) != len(self._blockIndices):
+    #         self._blockIndicesArray = np.array(self._blockIndices)
+    #
+    #     idxOffset = max(start, 1)
+    #     return idxOffset-1 + np.searchsorted(
+    #         self._blockIndicesArray[idxOffset:stop], idx, side='right'
+    #     )
+    #
+    #
+    # def _getBlockIndexWithTime(self, t, start=0, stop=None):
+    #     """ Get the index of a raw data block in which the given time occurs.
+    #
+    #         :param t: The time to find
+    #         :keyword start: The first block index to search
+    #         :keyword stop: The last block index to search
+    #     """
+    #     # TODO: profile & determine if this change is beneficial
+    #     if len(self._blockTimesArray) != len(self._blockTimes):
+    #         self._blockTimesArray = np.array(self._blockTimes)
+    #
+    #     idxOffset = max(start, 1)
+    #     return idxOffset-1 + np.searchsorted(
+    #         self._blockTimesArray[idxOffset:stop], t, side='right'
+    #     )
 
 
     def _getBlockRollingMean(self, blockIdx, force=False):
@@ -3112,7 +3112,7 @@ class EventArray(EventList):
     '''
 
     def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                        times=True, display=False):
+                        times=True, display=False, iterator=iter):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
 
@@ -3131,13 +3131,13 @@ class EventArray(EventList):
                 and max, respectively).
         """
 
-        return np.moveaxis([i for i in self.iterMinMeanMax(
+        return np.moveaxis([i for i in iterator(self.iterMinMeanMax(
             startTime, endTime, padding, times, display
-        )], 0, -1)
+        ))], 0, -1)
 
 
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                      times=True, display=False):
+                      times=True, display=False, iterator=iter):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval. (Currently an alias of `arrayMinMeanMax`.)
 
@@ -3156,11 +3156,11 @@ class EventArray(EventList):
                 and max, respectively).
         """
         return self.arrayMinMeanMax(startTime, endTime, padding, times,
-                                    display)
+                                    display, iterator)
 
 
     def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
-                           display=False):
+                           display=False, iterator=iter):
         """ Get the single minimum, mean, and maximum value for blocks within a
             specified interval. Note: Using this with a parent channel without
             specifying a subchannel number can produce meaningless data if the
@@ -3178,7 +3178,7 @@ class EventArray(EventList):
                 and max, respectively).
         """
         stats = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                     display=display)
+                                     display=display, iterator=iterator)
 
         if stats.size == 0:
             return None
@@ -3196,7 +3196,7 @@ class EventArray(EventList):
             )
 
 
-    def getMax(self, startTime=None, endTime=None, display=False):
+    def getMax(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, returns the maximum among all
             Subchannels.
@@ -3208,7 +3208,7 @@ class EventArray(EventList):
             :return: The event with the maximum value.
         """
         maxs = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                    display=display)[2].max(axis=0)
+                                    display=display, iterator=iterator)[2].max(axis=0)
 
         blockIdx = maxs.argmax()  # TODO: is this bug-free? double-check
         sampleIdxRange = self._data[blockIdx].indexRange
@@ -3218,7 +3218,7 @@ class EventArray(EventList):
         return blockData[:, subIdx]
 
 
-    def getMin(self, startTime=None, endTime=None, display=False):
+    def getMin(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the event with the minimum value, optionally within a specified
             time range. For Channels, returns the minimum among all
             Subchannels.
@@ -3233,7 +3233,7 @@ class EventArray(EventList):
             self._computeMinMeanMax()
 
         mins = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                    display=display)[0].min(axis=0)
+                                    display=display, iterator=iterator)[0].min(axis=0)
 
         blockIdx = mins.argmin()  # TODO: is this bug-free? double-check
         sampleIdxRange = self._data[blockIdx].indexRange
@@ -3487,7 +3487,7 @@ class WarningRange(object):
             return s
         
     
-    def getRange(self, start=None, end=None, sessionId=None):
+    def getRange(self, start=None, end=None, sessionId=None, iterator=iter):
         """ Retrieve the invalid periods within a given range of events.
             
             :return: A list of invalid periods' [start, end] times.
@@ -3512,7 +3512,7 @@ class WarningRange(object):
         if outOfRange:
             result = [[start,start]]
         
-        for event in source.iterRange(start, end):
+        for event in iter(source.iterRange(start, end)):
             t = event[0]
             if self.valid(event[1:]):
                 if outOfRange:
