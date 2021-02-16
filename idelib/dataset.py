@@ -2457,9 +2457,6 @@ class EventList(Transformable):
         totalSamples = totalLines * numChannels
         updateInt = int(totalLines * callbackInterval)
         
-        # Catch all or no exceptions
-        ex = None if raiseExceptions or noCallback else Exception
-        
         t0 = datetime.now()
         if headers:
             stream.write('"Time"%s%s\n' % 
@@ -2477,8 +2474,11 @@ class EventList(Transformable):
                         callback(num*numChannels, total=totalSamples)
             if callback is not None:
                 callback(done=True)
-        except ex as e:
-            callback(error=e)
+        except Exception as e:
+            if raiseExceptions:
+                raise
+            elif callback is not None:
+                callback(error=e)
 
         return num+1, datetime.now() - t0
 
