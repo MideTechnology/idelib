@@ -2506,14 +2506,14 @@ class EventArray(EventList):
         dynamically read from the underlying EBML file. 
     """
 
-    # def __init__(self, parentChannel, session=None, parentList=None):
-    #     """ Constructor. This should almost always be done indirectly via
-    #         the `getSession()` method of `Channel` and `SubChannel` objects.
-    #     """
-    #     super(EventArray, self).__init__(parentChannel, session, parentList)
-    #
-    #     self._blockIndicesArray = np.array([], dtype=np.float64)
-    #     self._blockTimesArray = np.array([], dtype=np.float64)
+    def __init__(self, parentChannel, session=None, parentList=None):
+        """ Constructor. This should almost always be done indirectly via
+            the `getSession()` method of `Channel` and `SubChannel` objects.
+        """
+        super(EventArray, self).__init__(parentChannel, session, parentList)
+
+        self._blockIndicesArray = np.array([], dtype=np.float64)
+        self._blockTimesArray = np.array([], dtype=np.float64)
 
     #===========================================================================
     # New utility methods
@@ -2598,7 +2598,7 @@ class EventArray(EventList):
     #         :keyword start: The first block index to search
     #         :keyword stop: The last block index to search
     #     """
-    #     # NOTE: This appears to be marginally slower than the original code.
+    #     # TODO: profile & determine if this change is beneficial
     #     if len(self._blockIndicesArray) != len(self._blockIndices):
     #         self._blockIndicesArray = np.array(self._blockIndices)
     #
@@ -2615,7 +2615,7 @@ class EventArray(EventList):
     #         :keyword start: The first block index to search
     #         :keyword stop: The last block index to search
     #     """
-    #     # NOTE: This appears to be marginally slower than the original code.
+    #     # TODO: profile & determine if this change is beneficial
     #     if len(self._blockTimesArray) != len(self._blockTimes):
     #         self._blockTimesArray = np.array(self._blockTimes)
     #
