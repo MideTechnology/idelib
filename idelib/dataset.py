@@ -2590,39 +2590,39 @@ class EventArray(EventList):
     # Derived utility methods
     #===========================================================================
 
-    # def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
-    #     """ Get the index of a raw data block that contains the given event
-    #         index.
-    #
-    #         :param idx: The event index to find
-    #         :keyword start: The first block index to search
-    #         :keyword stop: The last block index to search
-    #     """
-    #     # TODO: profile & determine if this change is beneficial
-    #     if len(self._blockIndicesArray) != len(self._blockIndices):
-    #         self._blockIndicesArray = np.array(self._blockIndices)
-    #
-    #     idxOffset = max(start, 1)
-    #     return idxOffset-1 + np.searchsorted(
-    #         self._blockIndicesArray[idxOffset:stop], idx, side='right'
-    #     )
-    #
-    #
-    # def _getBlockIndexWithTime(self, t, start=0, stop=None):
-    #     """ Get the index of a raw data block in which the given time occurs.
-    #
-    #         :param t: The time to find
-    #         :keyword start: The first block index to search
-    #         :keyword stop: The last block index to search
-    #     """
-    #     # TODO: profile & determine if this change is beneficial
-    #     if len(self._blockTimesArray) != len(self._blockTimes):
-    #         self._blockTimesArray = np.array(self._blockTimes)
-    #
-    #     idxOffset = max(start, 1)
-    #     return idxOffset-1 + np.searchsorted(
-    #         self._blockTimesArray[idxOffset:stop], t, side='right'
-    #     )
+    def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
+        """ Get the index of a raw data block that contains the given event
+            index.
+
+            :param idx: The event index to find
+            :keyword start: The first block index to search
+            :keyword stop: The last block index to search
+        """
+        # TODO: profile & determine if this change is beneficial
+        if len(self._blockIndicesArray) != len(self._blockIndices):
+            self._blockIndicesArray = np.array(self._blockIndices)
+
+        idxOffset = max(start, 1)
+        return idxOffset-1 + np.searchsorted(
+            self._blockIndicesArray[idxOffset:stop], idx, side='right'
+        )
+
+
+    def _getBlockIndexWithTime(self, t, start=0, stop=None):
+        """ Get the index of a raw data block in which the given time occurs.
+
+            :param t: The time to find
+            :keyword start: The first block index to search
+            :keyword stop: The last block index to search
+        """
+        # TODO: profile & determine if this change is beneficial
+        if len(self._blockTimesArray) != len(self._blockTimes):
+            self._blockTimesArray = np.array(self._blockTimes)
+
+        idxOffset = max(start, 1)
+        return idxOffset-1 + np.searchsorted(
+            self._blockTimesArray[idxOffset:stop], t, side='right'
+        )
 
 
     def _getBlockRollingMean(self, blockIdx, force=False):
