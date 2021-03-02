@@ -2015,7 +2015,7 @@ class EventList(Transformable):
 
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                      times=True, display=False):
+                      times=True, display=False, iterator=iter):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
             
@@ -2033,12 +2033,12 @@ class EventList(Transformable):
             :return: A list of sets of three events (min, mean, and max, 
                 respectively).
         """
-        return list(self.iterMinMeanMax(startTime, endTime, padding, times, 
-                                        display=display))
+        return list(iterator(self.iterMinMeanMax(startTime, endTime, padding, times,
+                                                 display=display)))
     
     
     def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
-                           display=False):
+                           display=False, iterator=iter):
         """ Get the single minimum, mean, and maximum value for blocks within a
             specified interval. Note: Using this with a parent channel without
             specifying a subchannel number can produce meaningless data if the
@@ -2054,7 +2054,7 @@ class EventList(Transformable):
                 unit conversion) will be applied to the results. 
             :return: A set of three events (min, mean, and max, respectively).
         """
-        mmm = np.array(self.getMinMeanMax(startTime, endTime, times=False, display=display))
+        mmm = np.array(self.getMinMeanMax(startTime, endTime, times=False, display=display, iterator=iterator))
         if mmm.size == 0:
             return None
         if self.hasSubchannels and subchannel is not None:
@@ -2083,7 +2083,7 @@ class EventList(Transformable):
         return startBlockIdx, endBlockIdx
 
 
-    def getMax(self, startTime=None, endTime=None, display=False):
+    def getMax(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, the maximum of all Subchannels is
             returned.
@@ -2114,15 +2114,15 @@ class EventList(Transformable):
             blockKeyFun = _blockSubchannelMax
             keyFun = _subChannelMax
             
-        blockIter = self.iterMinMeanMax(startTime, endTime, display=display)
+        blockIter = iterator(self.iterMinMeanMax(startTime, endTime, display=display))
     
         blockIdx = max(enumerate(blockIter),key=blockKeyFun)[0]
         block = self._data[blockIdx]
-        return max(self.iterSlice(*block.indexRange, display=display),
+        return max(iterator(self.iterSlice(*block.indexRange, display=display)),
                    key=keyFun)
 
 
-    def getMin(self, startTime=None, endTime=None, display=False):
+    def getMin(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the event with the minimum value, optionally within a specified
             time range. For Channels, the minimum of all Subchannels is
             returned.
@@ -2156,11 +2156,11 @@ class EventList(Transformable):
             blockKeyFun = _blockSubchannelMin
             keyFun = _subChannelMin
             
-        blockIter = self.iterMinMeanMax(startTime, endTime, display=display)
+        blockIter = iterator(self.iterMinMeanMax(startTime, endTime, display=display))
     
         blockIdx = min(enumerate(blockIter),key=blockKeyFun)[0]
         block = self._data[blockIdx]
-        return min(self.iterSlice(*block.indexRange, display=display),
+        return min(iterator(self.iterSlice(*block.indexRange, display=display)),
                    key=keyFun)
 
 
@@ -3507,12 +3507,12 @@ class WarningRange(object):
         if v is None:
             return result
         
-        outOfRange =  v[-1] != True
+        outOfRange =  v[-1] is not True
 
         if outOfRange:
-            result = [[start,start]]
+            result = [[start, start]]
         
-        for event in iter(source.iterRange(start, end)):
+        for event in iterator(source.iterRange(start, end)):
             t = event[0]
             if self.valid(event[1:]):
                 if outOfRange:
@@ -3520,12 +3520,12 @@ class WarningRange(object):
                     outOfRange = False
             else:
                 if not outOfRange:
-                    result.append([t,t])
+                    result.append([t, t])
                     outOfRange = True
         
         # Close out any open invalid range
         if outOfRange:
-            result[-1][1] = -1 #end
+            result[-1][1] = -1  # end
         
         return result
     
