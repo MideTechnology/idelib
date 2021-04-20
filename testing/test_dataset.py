@@ -1065,6 +1065,7 @@ class EventListTestCase(unittest.TestCase):
     def testGetInterval(self):
         """ Test the getInterval method. """
         fakeObject = GenericObject()
+        fakeObject.startTime = 3
         fakeObject.endTime = 1
         accel = self.dataset.channels[32].getSession()
         
@@ -1074,7 +1075,6 @@ class EventListTestCase(unittest.TestCase):
         
         # with mocked data
         accel._data = [fakeObject]
-        accel._firstTime = 3
         self.assertEqual(accel.getInterval(), (3, 1))
         self.assertEqual(accel._lastTime, 1)
         
@@ -1871,6 +1871,7 @@ class EventArrayTestCase(unittest.TestCase):
     def testGetInterval(self):
         """ Test the getInterval method. """
         fakeObject = GenericObject()
+        fakeObject.startTime = 3
         fakeObject.endTime = 1
         accel = self.dataset.channels[32].getSession()
 
@@ -1880,7 +1881,6 @@ class EventArrayTestCase(unittest.TestCase):
 
         # with mocked data
         accel._data = [fakeObject]
-        accel._firstTime = 3
         self.assertEqual(accel.getInterval(), (3, 1))
         self.assertEqual(accel._lastTime, 1)
 
