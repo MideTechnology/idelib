@@ -1128,7 +1128,6 @@ class EventList(Transformable):
         self._length = 0
         self.dataset = parentChannel.dataset
         self.hasSubchannels = not isinstance(self.parent, SubChannel)
-        self._firstTime = self._lastTime = None
         self._parentList = parentList
         self._childLists = []
         
@@ -1237,8 +1236,6 @@ class EventList(Transformable):
         newList = self.__class__(parent, self.session, self)
         newList._data = self._data
         newList._length = self._length
-        newList._firstTime = self._firstTime
-        newList._lastTime = self._lastTime
         newList.dataset = self.dataset
         newList.hasMinMeanMax = self.hasMinMeanMax
         newList.removeMean = self.removeMean
@@ -1272,10 +1269,6 @@ class EventList(Transformable):
         else:
             self.session.lastTime = max(self.session.lastTime, block.endTime)
 
-        if self._firstTime is None:
-            self._firstTime = block.startTime
-        self._lastTime = block.endTime
-        
         # Check that the block actually contains at least one sample.
         if block.numSamples < 1:
             # Ignore blocks with empty payload. Could occur in FW <17.
@@ -1330,21 +1323,23 @@ class EventList(Transformable):
             self.hasMinMeanMax = True
 #             self.hasMinMeanMax = False
 #             self.allowMeanRemoval = False
-        
-    
+
+    @property
+    def _firstTime(self):
+        return self._data[0].startTime if self._data else None
+
+    @property
+    def _lastTime(self):
+        return self._data[-1].endTime if self._data else None
+
     def getInterval(self):
         """ Get the first and last event times in the set.
         """
         if len(self._data) == 0:
             return None
-#         if self._firstTime is None:
-#             self._firstTime = self._data[0].startTime
-        if self.dataset.loading:
-            return self._firstTime, self._data[-1].endTime
-        if self._lastTime is None:
-            self._lastTime = self._data[-1].endTime
+
         return self._firstTime, self._lastTime
-    
+
 
     def _getBlockIndexRange(self, blockIdx):
         """ Get the first and last index of the subsamples within a block,
