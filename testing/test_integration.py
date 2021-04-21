@@ -4,39 +4,25 @@ import pytest  # type: ignore
 import idelib
 
 
-@pytest.mark.parametrize('filename', [
-    os.path.join('testing', 'test3.IDE'),
+@pytest.mark.parametrize('filename, ch_axes', [
+    (
+        os.path.join('testing', 'test3.IDE'),
+        {
+            8: 5,  # t, x, y, z, mic
+            36: 3,  # t, press, temp
+            59: 3,  # t, press, temp
+            70: 5,  # t, x, y, z, w
+            80: 4,  # t, x, y, z
+            84: 4,  # t, x, y, z
+        },
+    ),
 ])
-def test_integ_channels(filename):
+def test_integ_channels_1(filename, ch_axes):
     with idelib.importFile(filename) as ds:
-        assert {i for i in ds.channels.keys()} == {8, 36, 59, 70, 80, 84}
+        assert set(ds.channels.keys()) == set(ch_axes.keys())
 
-        accel100g_ch = ds.channels[8]
-        data = accel100g_ch.getSession().arraySlice()
-        assert data.shape[0] == 5  # t, x, y, z, mic
-        assert data.size > 0
-
-        accel40g_ch = ds.channels[80]
-        data = accel40g_ch.getSession().arraySlice()
-        assert data.shape[0] == 4  # t, x, y, z
-        assert data.size > 0
-
-        rot_ch = ds.channels[84]
-        data = rot_ch.getSession().arraySlice()
-        assert data.shape[0] == 4  # t, x, y, z
-        assert data.size > 0
-
-        orient_ch = ds.channels[70]
-        data = orient_ch.getSession().arraySlice()
-        assert data.shape[0] == 5  # t, x, y, z, w
-        assert data.size > 0
-
-        pt_ch = ds.channels[36]
-        data = pt_ch.getSession().arraySlice()
-        assert data.shape[0] == 3  # t, press, temp
-        assert data.size > 0
-
-        pt_ctrl_ch = ds.channels[59]
-        data = pt_ctrl_ch.getSession().arraySlice()
-        assert data.shape[0] == 3  # t, press, temp
-        assert data.size > 0
+        for ch_no, axis_count in ch_axes.items():
+            channel = ds.channels[ch_no]
+            data = channel.getSession().arraySlice()
+            assert data.shape[0] == axis_count
+            assert data.size > 0
