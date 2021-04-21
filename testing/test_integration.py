@@ -16,6 +16,16 @@ import idelib
             84: 4,  # t, x, y, z
         },
     ),
+    (
+        os.path.join('testing', 'SSX00038.IDE'),
+        {
+            8: 4,  # t, x, y, z
+            32: 4,  # t, x, y, z
+            36: 3,  # t, press, temp
+            59: 3,  # t, press, temp
+            70: 5,  # t, x, y, z, w
+        },
+    ),
 ])
 def test_integ_channels_1(filename, ch_axes):
     with idelib.importFile(filename) as ds:
