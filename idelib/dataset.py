@@ -1128,7 +1128,6 @@ class EventList(Transformable):
         self._length = 0
         self.dataset = parentChannel.dataset
         self.hasSubchannels = not isinstance(self.parent, SubChannel)
-        self._firstTime = self._lastTime = None
         self._parentList = parentList
         self._childLists = []
         
@@ -1237,8 +1236,6 @@ class EventList(Transformable):
         newList = self.__class__(parent, self.session, self)
         newList._data = self._data
         newList._length = self._length
-        newList._firstTime = self._firstTime
-        newList._lastTime = self._lastTime
         newList.dataset = self.dataset
         newList.hasMinMeanMax = self.hasMinMeanMax
         newList.removeMean = self.removeMean
@@ -1272,10 +1269,6 @@ class EventList(Transformable):
         else:
             self.session.lastTime = max(self.session.lastTime, block.endTime)
 
-        if self._firstTime is None:
-            self._firstTime = block.startTime
-        self._lastTime = block.endTime
-        
         # Check that the block actually contains at least one sample.
         if block.numSamples < 1:
             # Ignore blocks with empty payload. Could occur in FW <17.
@@ -1330,21 +1323,23 @@ class EventList(Transformable):
             self.hasMinMeanMax = True
 #             self.hasMinMeanMax = False
 #             self.allowMeanRemoval = False
-        
-    
+
+    @property
+    def _firstTime(self):
+        return self._data[0].startTime if self._data else None
+
+    @property
+    def _lastTime(self):
+        return self._data[-1].endTime if self._data else None
+
     def getInterval(self):
         """ Get the first and last event times in the set.
         """
         if len(self._data) == 0:
             return None
-#         if self._firstTime is None:
-#             self._firstTime = self._data[0].startTime
-        if self.dataset.loading:
-            return self._firstTime, self._data[-1].endTime
-        if self._lastTime is None:
-            self._lastTime = self._data[-1].endTime
+
         return self._firstTime, self._lastTime
-    
+
 
     def _getBlockIndexRange(self, blockIdx):
         """ Get the first and last index of the subsamples within a block,
@@ -2015,7 +2010,7 @@ class EventList(Transformable):
 
     
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                      times=True, display=False):
+                      times=True, display=False, iterator=iter):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
             
@@ -2033,12 +2028,12 @@ class EventList(Transformable):
             :return: A list of sets of three events (min, mean, and max, 
                 respectively).
         """
-        return list(self.iterMinMeanMax(startTime, endTime, padding, times, 
-                                        display=display))
+        return list(iterator(self.iterMinMeanMax(startTime, endTime, padding, times,
+                                                 display=display)))
     
     
     def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
-                           display=False):
+                           display=False, iterator=iter):
         """ Get the single minimum, mean, and maximum value for blocks within a
             specified interval. Note: Using this with a parent channel without
             specifying a subchannel number can produce meaningless data if the
@@ -2054,7 +2049,7 @@ class EventList(Transformable):
                 unit conversion) will be applied to the results. 
             :return: A set of three events (min, mean, and max, respectively).
         """
-        mmm = np.array(self.getMinMeanMax(startTime, endTime, times=False, display=display))
+        mmm = np.array(self.getMinMeanMax(startTime, endTime, times=False, display=display, iterator=iterator))
         if mmm.size == 0:
             return None
         if self.hasSubchannels and subchannel is not None:
@@ -2083,7 +2078,7 @@ class EventList(Transformable):
         return startBlockIdx, endBlockIdx
 
 
-    def getMax(self, startTime=None, endTime=None, display=False):
+    def getMax(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, the maximum of all Subchannels is
             returned.
@@ -2114,15 +2109,15 @@ class EventList(Transformable):
             blockKeyFun = _blockSubchannelMax
             keyFun = _subChannelMax
             
-        blockIter = self.iterMinMeanMax(startTime, endTime, display=display)
+        blockIter = iterator(self.iterMinMeanMax(startTime, endTime, display=display))
     
         blockIdx = max(enumerate(blockIter),key=blockKeyFun)[0]
         block = self._data[blockIdx]
-        return max(self.iterSlice(*block.indexRange, display=display),
+        return max(iterator(self.iterSlice(*block.indexRange, display=display)),
                    key=keyFun)
 
 
-    def getMin(self, startTime=None, endTime=None, display=False):
+    def getMin(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the event with the minimum value, optionally within a specified
             time range. For Channels, the minimum of all Subchannels is
             returned.
@@ -2156,11 +2151,11 @@ class EventList(Transformable):
             blockKeyFun = _blockSubchannelMin
             keyFun = _subChannelMin
             
-        blockIter = self.iterMinMeanMax(startTime, endTime, display=display)
+        blockIter = iterator(self.iterMinMeanMax(startTime, endTime, display=display))
     
         blockIdx = min(enumerate(blockIter),key=blockKeyFun)[0]
         block = self._data[blockIdx]
-        return min(self.iterSlice(*block.indexRange, display=display),
+        return min(iterator(self.iterSlice(*block.indexRange, display=display)),
                    key=keyFun)
 
 
@@ -2457,9 +2452,6 @@ class EventList(Transformable):
         totalSamples = totalLines * numChannels
         updateInt = int(totalLines * callbackInterval)
         
-        # Catch all or no exceptions
-        ex = None if raiseExceptions or noCallback else Exception
-        
         t0 = datetime.now()
         if headers:
             stream.write('"Time"%s%s\n' % 
@@ -2477,8 +2469,11 @@ class EventList(Transformable):
                         callback(num*numChannels, total=totalSamples)
             if callback is not None:
                 callback(done=True)
-        except ex as e:
-            callback(error=e)
+        except Exception as e:
+            if raiseExceptions:
+                raise
+            elif callback is not None:
+                callback(error=e)
 
         return num+1, datetime.now() - t0
 
@@ -3112,7 +3107,7 @@ class EventArray(EventList):
     '''
 
     def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                        times=True, display=False):
+                        times=True, display=False, iterator=iter):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
 
@@ -3131,13 +3126,13 @@ class EventArray(EventList):
                 and max, respectively).
         """
 
-        return np.moveaxis([i for i in self.iterMinMeanMax(
+        return np.moveaxis([i for i in iterator(self.iterMinMeanMax(
             startTime, endTime, padding, times, display
-        )], 0, -1)
+        ))], 0, -1)
 
 
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                      times=True, display=False):
+                      times=True, display=False, iterator=iter):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval. (Currently an alias of `arrayMinMeanMax`.)
 
@@ -3156,11 +3151,11 @@ class EventArray(EventList):
                 and max, respectively).
         """
         return self.arrayMinMeanMax(startTime, endTime, padding, times,
-                                    display)
+                                    display, iterator)
 
 
     def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
-                           display=False):
+                           display=False, iterator=iter):
         """ Get the single minimum, mean, and maximum value for blocks within a
             specified interval. Note: Using this with a parent channel without
             specifying a subchannel number can produce meaningless data if the
@@ -3178,7 +3173,7 @@ class EventArray(EventList):
                 and max, respectively).
         """
         stats = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                     display=display)
+                                     display=display, iterator=iterator)
 
         if stats.size == 0:
             return None
@@ -3196,7 +3191,7 @@ class EventArray(EventList):
             )
 
 
-    def getMax(self, startTime=None, endTime=None, display=False):
+    def getMax(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, returns the maximum among all
             Subchannels.
@@ -3208,7 +3203,7 @@ class EventArray(EventList):
             :return: The event with the maximum value.
         """
         maxs = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                    display=display)[2].max(axis=0)
+                                    display=display, iterator=iterator)[2].max(axis=0)
 
         blockIdx = maxs.argmax()  # TODO: is this bug-free? double-check
         sampleIdxRange = self._data[blockIdx].indexRange
@@ -3218,7 +3213,7 @@ class EventArray(EventList):
         return blockData[:, subIdx]
 
 
-    def getMin(self, startTime=None, endTime=None, display=False):
+    def getMin(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the event with the minimum value, optionally within a specified
             time range. For Channels, returns the minimum among all
             Subchannels.
@@ -3233,7 +3228,7 @@ class EventArray(EventList):
             self._computeMinMeanMax()
 
         mins = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                    display=display)[0].min(axis=0)
+                                    display=display, iterator=iterator)[0].min(axis=0)
 
         blockIdx = mins.argmin()  # TODO: is this bug-free? double-check
         sampleIdxRange = self._data[blockIdx].indexRange
@@ -3487,7 +3482,7 @@ class WarningRange(object):
             return s
         
     
-    def getRange(self, start=None, end=None, sessionId=None):
+    def getRange(self, start=None, end=None, sessionId=None, iterator=iter):
         """ Retrieve the invalid periods within a given range of events.
             
             :return: A list of invalid periods' [start, end] times.
@@ -3507,12 +3502,12 @@ class WarningRange(object):
         if v is None:
             return result
         
-        outOfRange =  v[-1] != True
+        outOfRange =  v[-1] is not True
 
         if outOfRange:
-            result = [[start,start]]
+            result = [[start, start]]
         
-        for event in source.iterRange(start, end):
+        for event in iterator(source.iterRange(start, end)):
             t = event[0]
             if self.valid(event[1:]):
                 if outOfRange:
@@ -3520,12 +3515,12 @@ class WarningRange(object):
                     outOfRange = False
             else:
                 if not outOfRange:
-                    result.append([t,t])
+                    result.append([t, t])
                     outOfRange = True
         
         # Close out any open invalid range
         if outOfRange:
-            result[-1][1] = -1 #end
+            result[-1][1] = -1  # end
         
         return result
     

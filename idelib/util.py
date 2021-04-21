@@ -16,18 +16,12 @@ import time
 
 from ebmlite import loadSchema
 
-# ==============================================================================
-# 
-# ==============================================================================
-
-mideSchema = loadSchema('mide_ide.xml')
-
 
 # ==============================================================================
 # 
 # ==============================================================================
 
-def verify(data, schema=mideSchema):
+def verify(data, schema=None):
     """ Basic sanity-check of data validity. If the data is bad an exception
         will be raised. The specific exception varies depending on the problem
         in the data.
@@ -35,6 +29,8 @@ def verify(data, schema=mideSchema):
         :keyword schema: The full module name of the EBML schema.
         :return: `True`. Any problems will raise exceptions.
     """
+    if schema is None:
+        schema = loadSchema('mide_ide.xml')
     return schema.verify(data)
 
 
@@ -81,6 +77,8 @@ def encode_attributes(data):
         data = list(data.items())
     
     result = []
+    elementType = None
+
     for d in data:
         if isinstance(d[1], (tuple, list)) and not isinstance(d[1], time.struct_time):
             k = d[0]
@@ -112,4 +110,5 @@ def build_attributes(data):
         `FloatAttribute`, etc.). The value element type will otherwise be 
         inferred.
     """
+    mideSchema = loadSchema('mide_ide.xml')
     return mideSchema['Attribute'].encode(encode_attributes(data))
