@@ -127,6 +127,9 @@ class TestEventArray:
     @pytest.mark.parametrize(
             'start, end, step, expected',
             [(None, None, None, np.arange(1000, dtype=np.float64)[np.newaxis, :]),
+             (None, 100, 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
+             (900, None, 1, np.arange(900, 1000, dtype=np.float64)[np.newaxis, :]),
+             #(None, None, 20, np.arange(0, 1000, 20, dtype=np.float64)[np.newaxis, :]),
              (0, 100, 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
              (0, 99.9, 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
              (0.1, 99.9, 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
@@ -140,6 +143,9 @@ class TestEventArray:
     @pytest.mark.parametrize(
             'start, end, step, expected',
             [(None, None, None, np.arange(1000, dtype=np.float64)),
+             (None, 100, 1, np.arange(100, dtype=np.float64)),
+             (900, None, 1, np.arange(900, 1000, dtype=np.float64)),
+             #(None, None, 20, np.arange(0, 1000, 20, dtype=np.float64)),
              (0, 100, 1, np.arange(100, dtype=np.float64)),
              (0, 99.9, 1, np.arange(100, dtype=np.float64)),
              (0.1, 99.9, 1, np.arange(100, dtype=np.float64)),
