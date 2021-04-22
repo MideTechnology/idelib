@@ -1280,8 +1280,6 @@ class EventList(Transformable):
         oldLength = self._length
 
         block.blockIndex = len(self._data)
-        self._data.append(block)
-        self._length += block.numSamples
         block.indexRange = (oldLength, self._length)
         
         # _singleSample hint not explicitly set; set it based on this block. 
@@ -1295,12 +1293,6 @@ class EventList(Transformable):
                 self.parent.singleSample = self._singleSample
             if self.parent.parent is not None:
                 self.parent.parent.singleSample = self._singleSample
-
-        # Cache the index range for faster searching
-        self._blockIndices.append(oldLength)
-        self._blockTimes.append(block.startTime)
-        
-        self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
 
         # HACK (somewhat): Single-sample-per-block channels get min/mean/max
         # which is just the same as the value of the sample. Set the values,
@@ -1323,6 +1315,15 @@ class EventList(Transformable):
             self.hasMinMeanMax = True
 #             self.hasMinMeanMax = False
 #             self.allowMeanRemoval = False
+
+        # Cache the index range for faster searching
+        self._blockIndices.append(oldLength)
+        self._blockTimes.append(block.startTime)
+
+        self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
+
+        self._data.append(block)
+        self._length += block.numSamples
 
     @property
     def _firstTime(self):
@@ -1458,10 +1459,11 @@ class EventList(Transformable):
             firstBlock = lastBlock = None
         
         try:
-            block._rollingMean = rollingMean = np.median(
+            rollingMean = np.median(
                 [b.mean for b in self._data[firstBlock:lastBlock]],
                 axis=0, overwrite_input=True
             )
+            block._rollingMean = rollingMean
             block._rollingMeanSpan = rollingMeanSpan = span
             block._rollingMeanLen = rollingMeanLen = len(self._data)
         
