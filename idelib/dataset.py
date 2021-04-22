@@ -1280,8 +1280,8 @@ class EventList(Transformable):
         oldLength = self._length
 
         block.blockIndex = len(self._data)
-        block.indexRange = (oldLength, self._length)
-        
+        block.indexRange = (oldLength, oldLength + block.numSamples)
+
         # _singleSample hint not explicitly set; set it based on this block. 
         # There will be problems if the first block has only one sample, but
         # future ones don't. This shouldn't happen, though.
