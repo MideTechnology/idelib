@@ -20,7 +20,7 @@ EXAMPLE_REQUIRES = [
 
 setuptools.setup(
         name='idelib',
-        version='3.0.0rc1',
+        version='3.0.1a1',
         author='Mide Technology',
         author_email='help@mide.com',
         description='Python API for accessing IDE data recordings',
@@ -35,6 +35,7 @@ setuptools.setup(
                      'Programming Language :: Python :: 3.6',
                      'Programming Language :: Python :: 3.7',
                      'Programming Language :: Python :: 3.8',
+                     'Programming Language :: Python :: 3.9',
                      'Topic :: Scientific/Engineering',
                      ],
         keywords='ebml binary ide mide',
