@@ -1736,8 +1736,8 @@ class EventArrayTestCase(unittest.TestCase):
         self.assertEqual(self.eventArray1.session, self.dataset.sessions[0])
         self.assertEqual(self.eventArray1.subchannelId, None)
 
-        self.assertEqual(self.eventArray1._blockIndicesArray.size, 0)
-        self.assertEqual(self.eventArray1._blockTimesArray.size, 0)
+        # self.assertEqual(self.eventArray1._blockIndicesArray.size, 0)
+        # self.assertEqual(self.eventArray1._blockTimesArray.size, 0)
 
     # TODO add test
     #def test_JoinTimesValues(self):

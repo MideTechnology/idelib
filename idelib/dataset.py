@@ -2503,14 +2503,14 @@ class EventArray(EventList):
         dynamically read from the underlying EBML file. 
     """
 
-    def __init__(self, parentChannel, session=None, parentList=None):
-        """ Constructor. This should almost always be done indirectly via
-            the `getSession()` method of `Channel` and `SubChannel` objects.
-        """
-        super(EventArray, self).__init__(parentChannel, session, parentList)
-
-        self._blockIndicesArray = np.array([], dtype=np.float64)
-        self._blockTimesArray = np.array([], dtype=np.float64)
+    # def __init__(self, parentChannel, session=None, parentList=None):
+    #     """ Constructor. This should almost always be done indirectly via
+    #         the `getSession()` method of `Channel` and `SubChannel` objects.
+    #     """
+    #     super(EventArray, self).__init__(parentChannel, session, parentList)
+    #
+    #     self._blockIndicesArray = np.array([], dtype=np.float64)
+    #     self._blockTimesArray = np.array([], dtype=np.float64)
 
     #===========================================================================
     # New utility methods
@@ -2587,61 +2587,61 @@ class EventArray(EventList):
     # Derived utility methods
     #===========================================================================
 
-    def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
-        """ Get the index of a raw data block that contains the given event
-            index.
-
-            :param idx: The event index to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
-        """
-        # TODO: profile & determine if this change is beneficial
-        if len(self._blockIndicesArray) != len(self._blockIndices):
-            self._blockIndicesArray = np.array(self._blockIndices)
-
-        idxOffset = max(start, 1)
-        return idxOffset-1 + np.searchsorted(
-            self._blockIndicesArray[idxOffset:stop], idx, side='right'
-        )
-
-
-    def _getBlockIndexWithTime(self, t, start=0, stop=None):
-        """ Get the index of a raw data block in which the given time occurs.
-
-            :param t: The time to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
-        """
-        # TODO: profile & determine if this change is beneficial
-        if len(self._blockTimesArray) != len(self._blockTimes):
-            self._blockTimesArray = np.array(self._blockTimes)
-
-        idxOffset = max(start, 1)
-        return idxOffset-1 + np.searchsorted(
-            self._blockTimesArray[idxOffset:stop], t, side='right'
-        )
+    # def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
+    #     """ Get the index of a raw data block that contains the given event
+    #         index.
+    #
+    #         :param idx: The event index to find
+    #         :keyword start: The first block index to search
+    #         :keyword stop: The last block index to search
+    #     """
+    #     # TODO: profile & determine if this change is beneficial
+    #     if len(self._blockIndicesArray) != len(self._blockIndices):
+    #         self._blockIndicesArray = np.array(self._blockIndices)
+    #
+    #     idxOffset = max(start, 1)
+    #     return idxOffset-1 + np.searchsorted(
+    #         self._blockIndicesArray[idxOffset:stop], idx, side='right'
+    #     )
 
 
-    def _getBlockRollingMean(self, blockIdx, force=False):
-        """ Get the mean of a block and its neighbors within a given time span.
-            Note: Values are taken pre-calibration, and all subchannels are
-            returned.
-            
-            :param blockIdx: The index of the block to check.
-            :return: An array containing the mean values of each subchannel. 
-        """
-        if isinstance(blockIdx, Sequence):
-            blockIdx = np.array(blockIdx)
-        elif not isinstance(blockIdx, np.ndarray):
-            return super(EventArray, self)._getBlockRollingMean(blockIdx, force)
-
-        uniqueBlockIndices, blocksPerm = np.unique(blockIdx, return_inverse=True)
-
-        uniqueBlockMeans = np.stack([
-            super(EventArray, self)._getBlockRollingMean(idx, force)
-            for idx in uniqueBlockIndices
-        ], axis=-1)
-        return uniqueBlockMeans[:, blocksPerm]
+    # def _getBlockIndexWithTime(self, t, start=0, stop=None):
+    #     """ Get the index of a raw data block in which the given time occurs.
+    #
+    #         :param t: The time to find
+    #         :keyword start: The first block index to search
+    #         :keyword stop: The last block index to search
+    #     """
+    #     # TODO: profile & determine if this change is beneficial
+    #     if len(self._blockTimesArray) != len(self._blockTimes):
+    #         self._blockTimesArray = np.array(self._blockTimes)
+    #
+    #     idxOffset = max(start, 1)
+    #     return idxOffset-1 + np.searchsorted(
+    #         self._blockTimesArray[idxOffset:stop], t, side='right'
+    #     )
+    #
+    #
+    # def _getBlockRollingMean(self, blockIdx, force=False):
+    #     """ Get the mean of a block and its neighbors within a given time span.
+    #         Note: Values are taken pre-calibration, and all subchannels are
+    #         returned.
+    #
+    #         :param blockIdx: The index of the block to check.
+    #         :return: An array containing the mean values of each subchannel.
+    #     """
+    #     if isinstance(blockIdx, Sequence):
+    #         blockIdx = np.array(blockIdx)
+    #     elif not isinstance(blockIdx, np.ndarray):
+    #         return super(EventArray, self)._getBlockRollingMean(blockIdx, force)
+    #
+    #     uniqueBlockIndices, blocksPerm = np.unique(blockIdx, return_inverse=True)
+    #
+    #     uniqueBlockMeans = np.stack([
+    #         super(EventArray, self)._getBlockRollingMean(idx, force)
+    #         for idx in uniqueBlockIndices
+    #     ], axis=-1)
+    #     return uniqueBlockMeans[:, blocksPerm]
 
 
     #===========================================================================
