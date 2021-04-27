@@ -523,12 +523,6 @@ class BaseDataBlock(object):
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
-        if start is not None:
-            start = round(start)
-        if end is not None:
-            end = round(end)
-        if step is not None:
-            step = round(step)
         start, end, step = slice(start, end, step).indices(self.payloadSize // parser.size)
 
         start = (start*parser.size)
@@ -669,12 +663,6 @@ class SimpleChannelDataBlock(BaseDataBlock):
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
-        if start is not None:
-            start = round(start)
-        if end is not None:
-            end = round(end)
-        if step is not None:
-            step = round(step)
         start, end, step = slice(start, end, step).indices(
             (self.payloadSize-self.headerSize) // parser.size
         )
