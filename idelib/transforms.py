@@ -7,13 +7,11 @@ being in how they are used.
 """
 
 __all__ = ['Transform', 'Univariate', 'Bivariate', 'CombinedPoly', 'PolyPoly',
-           'AccelTransform', 'AccelTransform10G', ]
+           'AccelTransform']
 
 from collections import OrderedDict
 import math
 from time import sleep
-
-import numpy as np
 
 import logging
 logger = logging.getLogger('idelib-archive')
@@ -22,6 +20,7 @@ logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 #===============================================================================
 # 
 #===============================================================================
+
 
 class Transform(object):
     """ Base class for all data-manipulating objects (e.g. calibration
@@ -117,13 +116,13 @@ class Transform(object):
     @classmethod
     def null(cls, *args, **kwargs):
         return args[0]
-    
 
 
 #===============================================================================
 # Simple Transforms. These could be represented by Univariate polynomials,
 # but are hard-coded for efficiency's sake.
 #===============================================================================
+
 
 class AccelTransform(Transform):
     """ A simple transform to convert accelerometer values (parsed as
@@ -154,13 +153,12 @@ class AccelTransform(Transform):
         """
         t = self.__class__(self.range[0], self.range[1], self.id, self.dataset)
         return t
-    
-     
 
 
 #===============================================================================
 # Polynomial Generators
 #===============================================================================
+
 
 class Univariate(Transform):
     """ A simple calibration polynomial in the general form:
@@ -172,7 +170,7 @@ class Univariate(Transform):
     modifiesValue = True
     
     @classmethod
-    def _floatOrInt(self, v):
+    def _floatOrInt(cls, v):
         """ Helper method to convert floats with no decimal component to ints. """
 #         iv = int(v)
 #         return iv if iv == v else v
@@ -181,24 +179,24 @@ class Univariate(Transform):
     
     
     @classmethod
-    def _stremove(self, s, old):
+    def _stremove(cls, s, old):
         """ Helper method to remove a set of substrings from a string. """
         result = str(s)
         for o in old:
-            result = result.replace(o,'')
+            result = result.replace(o, '')
         return result
     
     
     @classmethod
     def _streplace(cls, s, *args):
         """ Helper method to replace multiple substrings. """
-        for old,new in args:
+        for old, new in args:
             s = s.replace(old, new)
         return s
     
     
     @classmethod
-    def _fixSums(self, s):
+    def _fixSums(cls, s):
         """ Helper method to replace consecutive addition/subtraction combos. """
         result = str(s)
         for old, new in (("--", "+"), ("-+", "-"), ("+-", "-"), ("++", "+")):
@@ -208,7 +206,7 @@ class Univariate(Transform):
     
     # XXX: kwargs added to __init__() as work-around for bad SSS templates! 
     def __init__(self, coeffs, calId=None, dataset=None, reference=0, 
-                 varName=b"x", attributes=None, **kwargs):
+                 varName="x", attributes=None, **kwargs):
         """ Construct a simple polynomial function from a set of coefficients.
             
             :param coeffs: A list of coefficients
@@ -280,13 +278,13 @@ class Univariate(Transform):
             # optimization: remove multiplication by 1
             q = "%s*" % v if v != 1 else ""
     
-            f.append("(%s%s)" % (q,x))
+            f.append("(%s%s)" % (q, x))
             strF.append("(%s%s)" % (q, strX))
     
-        self._str = "+".join(map(str,reversed(strF)))
+        self._str = "+".join(map(str, reversed(strF)))
         self._str = self._fixSums(self._str)
         
-        self._source = "lambda x: %s" % ("+".join(map(str,reversed(f))))
+        self._source = "lambda x: %s" % ("+".join(map(str, reversed(f))))
         self._source = self._fixSums(self._source)
         self._function = eval(self._source, {'math': math})
     
@@ -363,8 +361,6 @@ class Bivariate(Univariate):
                 can be any arbitrary (but hopefully meaningful) strings.
             :keyword calId: The polynomial's calibration ID (if any).
             :keyword dataset: The parent `dataset.Dataset`.
-            :keyword varName: The name of the variable to be used in the
-                string version of the polynomial. For display purposes.
             :keyword attributes: A dictionary of generic attributes, e.g.
                 ones parsed from `Attribute` EBML elements, or `None`.
         """
@@ -373,7 +369,7 @@ class Bivariate(Univariate):
         self._sessionId = None
         self.channelId, self.subchannelId = channelId, subchannelId
         if channelId is None or subchannelId is None:
-            raise ValueError("Bivariate polynomial requires channel and " \
+            raise ValueError("Bivariate polynomial requires channel and "
                     "subchannel IDs; got %r, %d" % (channelId, subchannelId))
         
         if len(coeffs) != 4:
@@ -386,7 +382,7 @@ class Bivariate(Univariate):
         self.id = calId
         
         self._references = (float(reference), float(reference2))
-        self._coeffs = tuple(map(float,coeffs))
+        self._coeffs = tuple(map(float, coeffs))
         self._variables = tuple(map(str, varNames))
         
         self._session = None
@@ -430,8 +426,8 @@ class Bivariate(Univariate):
                 ('(0*x*y)+', ''), ('(0*x)+', ''), ('(0*y)+', ''),
                 ('*)', ')'), ('+)', ')'), 
                 ('(0)', ''), ('(0.0)', ''), ('()', ''), 
-                ('(1)','1.0'), ('(1.0)','1.0'),
-                ("(1*", "("), ("(1.0*", "("), #("(x)", "x"), ("(y)", "y"),
+                ('(1)', '1.0'), ('(1.0)', '1.0'),
+                ("(1*", "("), ("(1.0*", "("),  # ("(x)", "x"), ("(y)", "y"),
                 ("--", "+"), ("-+", "-"), ("+-", "-"), ("++", "+")
             )
             if src.endswith('+0') or src.endswith('+0.0'):
@@ -461,7 +457,7 @@ class Bivariate(Univariate):
         
         # Replace standard variable names with custom ones. Change one to 
         # a stand-in first, to prevent problems if one name contains the other.
-        self._str = self._streplace(self._str, ("x","\x00"), 
+        self._str = self._streplace(self._str, ("x", "\x00"), 
                                     ("y", varNames[1]), ("\x00", varNames[0]))
 
         # Optimizations: Build a simplified expression for function.
@@ -485,7 +481,7 @@ class Bivariate(Univariate):
         
         # Optimization: it is possible that the polynomial could exclude Y
         # completely. If that's the case, use a dummy value to speed things up.
-        self._noY = (0,1) if 'y' not in src else False 
+        self._noY = (0, 1) if 'y' not in src else False 
 
 
     def __call__(self, timestamp, value, session=None, noBivariates=False):
@@ -510,7 +506,7 @@ class Bivariate(Univariate):
             
             # Optimization: don't check the other channel if Y is unused
             if noBivariates:
-                y = (0,1)
+                y = (0, 1)
             else:
                 y = self._noY or self._eventlist.getMeanNear(timestamp)
             return timestamp, self._function(value, y)
@@ -519,7 +515,7 @@ class Bivariate(Univariate):
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
-            logger.warning("%s occurred in Bivariate polynomial %r" % \
+            logger.warning("%s occurred in Bivariate polynomial %r" %
                            err.__class__.__name__, self.id)
             return None
 
@@ -596,8 +592,8 @@ class CombinedPoly(Bivariate):
 
         self.kwargs = kwargs
         p = list(kwargs.values())[0]
-        for attr in ('dataset','_eventlist','_sessionId','channelId',
-                     'subchannelId', '_references', '_coeffs','_variables'):
+        for attr in ('dataset', '_eventlist', '_sessionId', 'channelId',
+                     'subchannelId', '_references', '_coeffs', '_variables'):
             setattr(self, attr, getattr(poly, attr, getattr(p, attr, None)))
                     
         self.dataset = self.dataset or dataset
@@ -613,11 +609,11 @@ class CombinedPoly(Bivariate):
                     for attr in ('_str', '_source', '_function', '_noY'):
                         setattr(self, attr, getattr(p, attr, None))
                     return
-            phead, src= "lambda x", "x"
+            phead, src = "lambda x", "x"
         else:
-            phead,src = self.poly.source.split(": ")
+            phead, src = self.poly.source.split(": ")
             
-        for k,v in self.subpolys.items():
+        for k, v in self.subpolys.items():
             if v is None:
                 ssrc = "lambda x: x"
             else:
@@ -626,7 +622,7 @@ class CombinedPoly(Bivariate):
             src = self._reduce(src.replace(k, s))
 
         if self._subchannel is not None:
-            src = src.replace('x','x[%d]' % self._subchannel)
+            src = src.replace('x', 'x[%d]' % self._subchannel)
         
         # Merge in all function globals, in case components use additional
         # libraries (e.g. math). 
@@ -640,15 +636,15 @@ class CombinedPoly(Bivariate):
         self._str = src
         self._source = "%s: %s" % (phead, src)
         self._function = eval(self._source, evalGlobals)
-        self._noY = (0,1) if 'y' not in src else False
+        self._noY = (0, 1) if 'y' not in src else False
         
         
     def asDict(self):
         """ Dump the polynomial as a dictionary. Intended for use when
             generating EBML.
         """
-        raise TypeError("Can't generate dictionary for %s" % \
-                        self.__class.__.__name)
+        raise TypeError("Can't generate dictionary for %s" %
+                        self.__class__.__name__)
 
     
     def isValid(self, session=None, noBivariates=False):
@@ -676,7 +672,7 @@ class PolyPoly(CombinedPoly):
         self.id = calId
         self.polys = polys
         poly = polys[0]
-        for attr in ('dataset','_eventlist','_sessionId','channelId','subchannelId'):
+        for attr in ('dataset', '_eventlist', '_sessionId', 'channelId', 'subchannelId'):
             setattr(self, attr, getattr(poly, attr, None))
         
         self.dataset = self.dataset or dataset
@@ -687,7 +683,7 @@ class PolyPoly(CombinedPoly):
     def _build(self):
         params = []
         body = []
-        for n,p in enumerate(self.polys):
+        for n, p in enumerate(self.polys):
             params.append('x%d' % n)
             if p is None:
                 body.append('x%d' % n)
@@ -699,10 +695,10 @@ class PolyPoly(CombinedPoly):
         self._str = src
 
         if 'y' in src:
-            params.insert(0,'y')
+            params.insert(0, 'y')
             self._noY = False
         else:
-            self._noY = (0,1)
+            self._noY = (0, 1)
         
         # Merge in all function globals, in case components use additional
         # libraries (e.g. math). 
@@ -757,7 +753,7 @@ class PolyPoly(CombinedPoly):
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
             if getattr(self.dataset, 'loading', False):
-                logger.warning("%s occurred in combined polynomial %r" % \
+                logger.warning("%s occurred in combined polynomial %r" %
                                (err.__class__.__name__, self))
                 return None
             raise
@@ -769,6 +765,3 @@ class PolyPoly(CombinedPoly):
         if not Transform.isValid(self, session, noBivariates):
             return False
         return all(p.isValid(session, noBivariates) for p in self.polys)
-        
-
-

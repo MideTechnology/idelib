@@ -124,7 +124,28 @@ class TestEventArray:
     def test_init(self, new_event_array, channel_8_eventarray):
         assert new_event_array == channel_8_eventarray
 
-    def test_array_values(self, channel_8_eventarray):
-        values = channel_8_eventarray.arrayValues(start=None, end=None, step=None, subchannels=(0,))
-        np.testing.assert_equal(values,
-                                np.arange(1000, dtype=np.float64)[np.newaxis, :])
+    @pytest.mark.parametrize(
+            'start, end, step, expected',
+            [(None, None, None, np.arange(1000, dtype=np.float64)[np.newaxis, :]),
+             (None, 100, 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
+             (900, None, 1, np.arange(900, 1000, dtype=np.float64)[np.newaxis, :]),
+             #(None, None, 20, np.arange(0, 1000, 20, dtype=np.float64)[np.newaxis, :]),
+             (0, 100, 1, np.arange(100, dtype=np.float64)[np.newaxis, :]),
+             ]
+            )
+    def test_array_values(self, channel_8_eventarray, start, end, step, expected):
+        values = channel_8_eventarray.arrayValues(start=start, end=end, step=step, subchannels=(0,))
+        np.testing.assert_equal(values, expected)
+
+    @pytest.mark.parametrize(
+            'start, end, step, expected',
+            [(None, None, None, np.arange(1000, dtype=np.float64)),
+             (None, 100, 1, np.arange(100, dtype=np.float64)),
+             (900, None, 1, np.arange(900, 1000, dtype=np.float64)),
+             #(None, None, 20, np.arange(0, 1000, 20, dtype=np.float64)),
+             (0, 100, 1, np.arange(100, dtype=np.float64)),
+             ]
+            )
+    def test_array_jittery_values(self, channel_8_eventarray, start, end, step, expected):
+        values = channel_8_eventarray.arrayJitterySlice(start=start, end=end, step=step)[1, :]
+        np.testing.assert_equal(values, expected)

@@ -603,7 +603,7 @@ def getExitCondition(recording, bytesRead=1000):
         if idx <= len(data):
             result = data[idx]
     except (IOError, IndexError, ValueError) as e:
-        logger.warn(e)
+        logger.warning(e)
 
     recording.seek(offset)
     return result        
