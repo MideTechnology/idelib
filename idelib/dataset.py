@@ -56,10 +56,12 @@ import os.path
 import random
 import struct
 import sys
+import tempfile
 from time import sleep
 
 from ebmlite.core import loadSchema
 import numpy as np
+import psutil
 
 from .transforms import Transform, CombinedPoly, PolyPoly
 from .parsers import getParserTypes, getParserRanges
@@ -193,6 +195,10 @@ class Transformable(Cascading):
             subchannelId = getattr(self, "id", None)
             self.parent.getTransforms(subchannelId, _tlist)
         return _tlist
+
+    def _initializeCache(self, *args, **kwargs):
+        for session in self.sessions.values():
+            session._initializeCache(*args, **kwargs)
 
 
 #===============================================================================
@@ -1103,7 +1109,10 @@ class SubChannel(Channel):
                and self.displayRange == other.displayRange \
                and self.hasDisplayRange == other.hasDisplayRange \
                and self.sessions == other.sessions \
-               and self.allowMeanRemoval == other.allowMeanRemoval  
+               and self.allowMeanRemoval == other.allowMeanRemoval
+
+    def _initializeCache(self, *args, **kwargs):
+        raise NotImplemented("EventArrays don't support caching")
                
 
 #===============================================================================
@@ -3273,6 +3282,47 @@ class EventArray(EventList):
             return self.arrayJitterySlice(startIdx, stopIdx, step, jitter,
                                           display=display)
         return self.arraySlice(startIdx, stopIdx, step, display=display)
+
+    def _initializeCache(self, *args, **kwargs):
+        """ Creates a cache of the raw data, either in memory or on disk """
+
+        dataLen = sum([d.payload.size for d in self._data])
+
+        useMemMap = kwargs['useMemMap']
+        if useMemMap:
+            self._cacheDir = tempfile.TemporaryDirectory()
+            self._rawBytes = np.memmap(self._cacheDir.name + '/{}'.format(self.channelId),
+                                       mode='w+',
+                                       dtype=np.uint8,
+                                       shape=(dataLen,))
+        else:
+            self._rawBytes = np.zeros((dataLen,), dtype=np.uint8)
+
+        idx = 0
+        for d in self._data:
+            self._rawBytes[idx:idx+d.payload.size] = d._payload[:]
+            d._payload = self._rawBytes[idx:idx+d.payload.size]
+            idx += d._payload.size
+
+        parser = self.parent.parser
+        if isinstance(parser, struct.Struct):
+            rawData = self._rawBytes.reshape((-1, parser.size))
+            if parser.format[0] in '<>=':
+                endian = parser.format[0]
+                parserDtype = parser.format[1:]
+            else:
+                endian = '='
+                parserDtype = parser.format
+
+            if len(set(parserDtype)) == 1:
+                self._rawData = rawData.view(np.dtype(endian + parserDtype[0]))
+            else:
+                names = [sc.displayName for sc in self.parent.subchannels]
+                self._rawData = rawData.view(np.dtype([(name, endian + d) for d, name in zip(parserDtype, names)]))
+        else:
+            raise NotImplemented
+
+        pass
 
 
 #===============================================================================

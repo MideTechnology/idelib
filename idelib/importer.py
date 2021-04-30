@@ -9,6 +9,7 @@ from time import time as time_time
 from time import sleep
 
 import struct
+import psutil
 
 from . import transforms
 from .dataset import Dataset
@@ -505,6 +506,11 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         # This can occur if there is a bad element in the data
         # (typically the last)
         doc.fileDamaged = True
+
+    # create caches on each channel
+    useMemMap = (psutil.virtual_memory().available/doc.ebmldoc.stream.__sizeof__()) < 2
+    for channel in doc.channels.values():
+        channel._initializeCache(useMemMap=useMemMap)
 
     doc.loading = False
     updater(done=True)
