@@ -2842,15 +2842,33 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
-        raw_slice = [
-            [times[np.newaxis].T, values.T]
-            for times, values in self._blockSlice(start, end, step, display)
-        ]
-        if not raw_slice:
-            no_of_chs = (len(self.parent.types) if self.hasSubchannels else 1)
-            return np.empty((no_of_chs+1, 0), dtype=np.float)
+        import tqdm
+        a = 1
+        import numpy.lib.recfunctions
 
-        return np.block(raw_slice).T
+        if not self.useAllTransforms:
+            xform = self._comboXform
+        elif display:
+            xform = self._displayXform or self._fullXform
+        else:
+            xform = self._fullXform
+
+        raw_slice = self._rawData[slice(start, end, step)].T
+        scalarDtype = len(raw_slice.dtype) == 0
+        if not scalarDtype:
+            raw_slice = numpy.lib.recfunctions.structured_to_unstructured(raw_slice[0]).T
+        timestamps = self._timestamps[slice(start, end, step)]
+        _, values = xform(
+                timestamps,
+                raw_slice,
+                session=self.session,
+                noBivariates=self.noBivariates,
+                )
+        outArr = np.zeros((len(self.parent.types) + 1, raw_slice.shape[1]))
+        outArr[0, :] = timestamps
+        for i in range(len(values)):
+            outArr[i + 1, :] = values[i]
+        return outArr
 
 
     def _blockJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
@@ -3287,6 +3305,7 @@ class EventArray(EventList):
         """ Creates a cache of the raw data, either in memory or on disk """
 
         dataLen = sum([d.payload.size for d in self._data])
+        sampleLen = sum([d.numSamples for d in self._data])
 
         useMemMap = kwargs['useMemMap']
         if useMemMap:
@@ -3295,14 +3314,27 @@ class EventArray(EventList):
                                        mode='w+',
                                        dtype=np.uint8,
                                        shape=(dataLen,))
+            self._timestamps = np.memmap(self._cacheDir.name + '/{}'.format(self.channelId),
+                                         mode='w+',
+                                         dtype=np.float64,
+                                         shape=(sampleLen,))
         else:
             self._rawBytes = np.zeros((dataLen,), dtype=np.uint8)
+            self._timestamps = np.zeros((sampleLen,), dtype=np.float64)
 
-        idx = 0
+        payloadIdx = 0
+        timestampIdx = 0
         for d in self._data:
-            self._rawBytes[idx:idx+d.payload.size] = d._payload[:]
-            d._payload = self._rawBytes[idx:idx+d.payload.size]
-            idx += d._payload.size
+            self._rawBytes[payloadIdx:payloadIdx+d.payload.size] = d._payload[:]
+            d._payload = self._rawBytes[payloadIdx:payloadIdx+d.payload.size]
+            payloadIdx += d._payload.size
+            if d.numSamples == 1:
+                self._timestamps[timestampIdx] = d.startTime
+                timestampIdx += 1
+            else:
+                sampleTime = (d.endTime - d.startTime)/(d.numSamples - 1)
+                self._timestamps[timestampIdx:timestampIdx + d.numSamples] = d.startTime + np.arange(d.numSamples)*sampleTime
+                timestampIdx += d.numSamples
 
         parser = self.parent.parser
         if isinstance(parser, struct.Struct):
