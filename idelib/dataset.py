@@ -2842,8 +2842,6 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
-        import tqdm
-        a = 1
         import numpy.lib.recfunctions
 
         if not self.useAllTransforms:
@@ -2853,11 +2851,16 @@ class EventArray(EventList):
         else:
             xform = self._fullXform
 
-        raw_slice = self._rawData[slice(start, end, step)].T
+        if isinstance(start, type(slice(0, 10, 2))):
+            idx = start
+        else:
+            idx = slice(start, end, step)
+
+        raw_slice = self._rawData[idx].T
         scalarDtype = len(raw_slice.dtype) == 0
         if not scalarDtype:
             raw_slice = numpy.lib.recfunctions.structured_to_unstructured(raw_slice[0]).T
-        timestamps = self._timestamps[slice(start, end, step)]
+        timestamps = self._timestamps[idx]
         _, values = xform(
                 timestamps,
                 raw_slice,
