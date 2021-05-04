@@ -3306,6 +3306,7 @@ class EventArray(EventList):
 
     def _initializeCache(self, *args, **kwargs):
         """ Creates a cache of the raw data, either in memory or on disk """
+        from .parsers import ChannelDataArrayBlock
 
         dataLen = sum([d.payload.size for d in self._data])
         sampleLen = sum([d.numSamples for d in self._data])
@@ -3350,10 +3351,10 @@ class EventArray(EventList):
                 parserDtype = parser.format
 
             if len(set(parserDtype)) == 1:
-                self._rawData = rawData.view(np.dtype(endian + parserDtype[0]))
+                self._rawData = rawData.view(np.dtype(endian + ChannelDataArrayBlock.TO_NP_TYPESTR[parserDtype[0]]))
             else:
                 names = [sc.displayName for sc in self.parent.subchannels]
-                self._rawData = rawData.view(np.dtype([(name, endian + d) for d, name in zip(parserDtype, names)]))
+                self._rawData = rawData.view(np.dtype([(name, endian + ChannelDataArrayBlock.TO_NP_TYPESTR[d]) for d, name in zip(parserDtype, names)]))
         else:
             raise NotImplemented
 
