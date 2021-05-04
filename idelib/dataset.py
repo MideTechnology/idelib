@@ -3343,12 +3343,12 @@ class EventArray(EventList):
         parser = self.parent.parser
         if isinstance(parser, struct.Struct):
             rawData = self._rawBytes.reshape((-1, parser.size))
-            if parser.format[0] in '<>=':
-                endian = parser.format[0]
-                parserDtype = parser.format[1:]
+            if str(parser.format)[0] in '<>=':
+                endian = str(parser.format[0])
+                parserDtype = str(parser.format)[1:]
             else:
                 endian = '='
-                parserDtype = parser.format
+                parserDtype = str(parser.format)
 
             if len(set(parserDtype)) == 1:
                 self._rawData = rawData.view(np.dtype(endian + ChannelDataArrayBlock.TO_NP_TYPESTR[parserDtype[0]]))
