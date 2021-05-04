@@ -3345,7 +3345,7 @@ class EventArray(EventList):
             if isinstance(parser.format, bytes):
                 parser_format = parser.format.decode()
             else:
-                parseer_format = parser.format
+                parser_format = parser.format
             rawData = self._rawBytes.reshape((-1, parser.size))
             if parser_format[0] in '<>=':
                 endian = parser_format[0]
