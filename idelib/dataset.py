@@ -3342,13 +3342,17 @@ class EventArray(EventList):
 
         parser = self.parent.parser
         if isinstance(parser, struct.Struct):
+            if isinstance(parser.format, bytes):
+                parser_format = parser.format.decode()
+            else:
+                parseer_format = parser.format
             rawData = self._rawBytes.reshape((-1, parser.size))
-            if str(parser.format)[0] in '<>=':
-                endian = str(parser.format[0])
-                parserDtype = str(parser.format)[1:]
+            if parser_format[0] in '<>=':
+                endian = parser_format[0]
+                parserDtype = parser_format[1:]
             else:
                 endian = '='
-                parserDtype = str(parser.format)
+                parserDtype = parser_format
 
             if len(set(parserDtype)) == 1:
                 self._rawData = rawData.view(np.dtype(endian + ChannelDataArrayBlock.TO_NP_TYPESTR[parserDtype[0]]))
