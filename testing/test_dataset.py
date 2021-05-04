@@ -36,6 +36,7 @@ import numpy as np  # type: ignore
 
 from .file_streams import makeStreamLike
 
+
 #===============================================================================
 # 
 #===============================================================================
@@ -2203,99 +2204,31 @@ class EventArrayTestCase(unittest.TestCase):
 
     def testArraySlice(self):
         """ Test for the arraySlice method. """
-        length = 4
-        eventArray = mock.Mock(spec=EventArray)
-        eventArray.configure_mock(
-            useAllTransforms=True,
-            __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
-            _data=mock.Mock(),
-            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
-                                     range(length)[idx]),
-            _getBlockIndexRange=lambda idx: [idx, idx+1],
-            _getBlockSampleTime=lambda idx: 0.01*idx,
-            _getBlockRollingMean=lambda blockIdx: (0,),
-            allowMeanRemoval=True,
-            removeMean=True,
-            hasMinMeanMax=True,
-            parent=mock.Mock(),
-            session=mock.sentinel.session,
-            noBivariates=mock.sentinel.noBivariates,
-            hasSubchannels=True,
-            _blockSlice=(
-                lambda *a, **kw:
-                EventArray._blockSlice(eventArray, *a, **kw)
-            ),
-            _makeBlockEventsFactory=(
-                lambda *a, **kw:
-                EventArray._makeBlockEventsFactory(eventArray, *a, **kw)
-            ),
-        )
-        eventArray._data.configure_mock(
-            __getitem__=lambda self, i: mock.Mock(
-                id=i % length, numSamples=1,
-                startTime=eventArray._getBlockSampleTime(i),
-            )
-        )
-        eventArray.parent.configure_mock(
-            parseBlock=(lambda block, start=None, end=None, step=1:
-                        np.array([[range(length)[block.id]]]))
-        )
+        testDataset = importer.openFile(makeStreamLike('./test.ide'))
+        importer.readData(testDataset)
+        eventArray = testDataset.channels[8].getSession()
 
         # Run test
-        np.testing.assert_array_equal(
-            EventArray.arraySlice(eventArray),
-            [(0.00, 0.01, 0.02, 0.03), (0, 7, 14, 21)]
+        t = np.arange(0, 1e6, 1e3)
+        x = np.arange(0, 1, 1e-3)
+        np.testing.assert_array_almost_equal(
+            eventArray.arraySlice(),
+            np.vstack([t, 1e3*x, np.floor(1e3*(x**2)), np.floor(1e3*(x**.5))])
         )
 
     def testIterJitterySlice(self):
         """ Test for the iterJitterySlice method. """
         # Stub dependencies
-        length = 4
-        eventArray = mock.Mock(spec=EventArray)
-        eventArray.configure_mock(
-            useAllTransforms=True,
-            __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
-            _data=mock.Mock(),
-            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
-                                     range(length)[idx]),
-            _getBlockIndexRange=lambda idx: [idx, idx+1],
-            _getBlockSampleTime=lambda idx: 0.01*idx,
-            _getBlockRollingMean=lambda blockIdx: (0,),
-            allowMeanRemoval=True,
-            removeMean=True,
-            hasMinMeanMax=True,
-            parent=mock.Mock(),
-            session=mock.sentinel.session,
-            noBivariates=mock.sentinel.noBivariates,
-            hasSubchannels=True,
-            _blockJitterySlice=(
-                lambda *a, **kw:
-                EventArray._blockJitterySlice(eventArray, *a, **kw)
-            ),
-            _makeBlockEventsFactory=(
-                lambda *a, **kw:
-                EventArray._makeBlockEventsFactory(eventArray, *a, **kw)
-            ),
-        )
-        eventArray._data.configure_mock(
-            __getitem__=lambda self, i: mock.Mock(
-                id=i % length, numSamples=1,
-                startTime=eventArray._getBlockSampleTime(i),
-            )
-        )
-        eventArray.parent.configure_mock(
-            parseBlockByIndex=(lambda block, indices, subchannel=None:
-                               np.array([[range(length)[block.id]]]))
-        )
+        testDataset = importer.openFile(makeStreamLike('./test.ide'))
+        importer.readData(testDataset)
+        eventArray = testDataset.channels[8].getSession()
 
         # Run test
-        np.testing.assert_array_equal(
-            list(EventArray.iterJitterySlice(eventArray)),
-            [(0.00, 0), (0.01, 7), (0.02, 14), (0.03, 21)]
+        t = np.arange(0, 1e6, 1e3)
+        x = np.arange(0, 1, 1e-3)
+        np.testing.assert_array_almost_equal(
+            np.array(list(EventArray.iterJitterySlice(eventArray))).T,
+            np.vstack([t, 1e3*x, np.floor(1e3*(x**2)), np.floor(1e3*(x**.5))])
         )
 
     def testArrayJitterySlice(self):
