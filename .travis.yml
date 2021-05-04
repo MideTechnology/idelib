@@ -3,7 +3,7 @@ before_install:
   - python --version
 install:
   - pip install .[test]
-script: python -m pytest ./testing/ --cov=idelib-archive
+script: python -m pytest ./testing/ --cov=idelib
 after_success:
   - codecov
 
