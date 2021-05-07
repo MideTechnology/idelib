@@ -685,7 +685,9 @@ class Channel(Transformable):
         self.dataset = dataset
         self.sampleRate = sampleRate
         self.attributes = attributes
-       
+
+        self._unitsStr = None
+
         self.cache = bool(cache)
         self.singleSample = singleSample
 
@@ -735,8 +737,27 @@ class Channel(Transformable):
 
 
     def __repr__(self):
-        return '<%s %d: %r at 0x%08x>' % (self.__class__.__name__, 
-                                          self.id, self.path(), id(self))
+        if self._unitsStr is None:
+            # If there's no cached string of measurement types and units, make it.
+            if not self.children:
+                units = [self.units]
+            else:
+                units = [c.units for c in self.children]
+
+                # If all subchannel units are the same, show only one.
+                if len(set(units)) == 1:  # Cheesy test for identical units tuples
+                    units = [units[0]]
+
+            names = []
+            for measurement, name in units:
+                if name:
+                    name = "(%s)" % name
+                names.append(("%s %s" % (measurement, name)).strip())
+            self._unitsStr = ", ".join(names)
+
+        s = (": %s" % self._unitsStr) if self._unitsStr else ""
+        return '<%s %d %r%s>' % (self.__class__.__name__,
+                                 self.id, self.path(), s)
 
 
     def __getitem__(self, idx):
@@ -936,7 +957,9 @@ class SubChannel(Channel):
         self.dataset = parent.dataset
         self.axisName = axisName
         self.attributes = attributes
-        
+
+        self._unitsStr = None
+
         if name is None:
             self.name = "%s:%02d" % (parent.name, subchannelId)
         else:
@@ -1003,6 +1026,14 @@ class SubChannel(Channel):
         self.color = color
 
 
+    def __repr__(self):
+        super().__repr__()
+        s = (": %s" % self._unitsStr) if self._unitsStr else ""
+        return '<%s %d.%d %r%s>' % (self.__class__.__name__,
+                                      self.parent.id, self.id,
+                                      self.path(), s)
+
+
     @property
     def children(self):
         return []
@@ -1012,11 +1043,6 @@ class SubChannel(Channel):
     def sampleRate(self):
         return self.parent.sampleRate
 
-
-    def __repr__(self):
-        return '<%s %d.%d: %r at 0x%08x>' % (self.__class__.__name__, 
-                                             self.parent.id, self.id, 
-                                             self.path(), id(self))
 
     def __len__(self):
         raise AttributeError('SubChannel has no children.')
@@ -2493,6 +2519,13 @@ class EventArray(EventList):
 
         self._blockIndicesArray = np.array([], dtype=np.float64)
         self._blockTimesArray = np.array([], dtype=np.float64)
+
+
+    def __repr__(self):
+        repr(self.parent)  # this generates `parent._unitsStr`
+        s = (": %s" % self.parent._unitsStr) if self.parent._unitsStr else ""
+        return "<%s %r: %s at 0x%08x>" % (self.__class__.__name__,
+                                          self.path(), s, id(self))
 
     #===========================================================================
     # New utility methods
