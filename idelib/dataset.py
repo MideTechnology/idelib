@@ -2524,7 +2524,7 @@ class EventArray(EventList):
     def __repr__(self):
         repr(self.parent)  # this generates `parent._unitsStr`
         s = (": %s" % self.parent._unitsStr) if self.parent._unitsStr else ""
-        return "<%s %r: %s at 0x%08x>" % (self.__class__.__name__,
+        return "<%s %r%s at 0x%08x>" % (self.__class__.__name__,
                                           self.path(), s, id(self))
 
     #===========================================================================
