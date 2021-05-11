@@ -14,6 +14,9 @@ import math
 from time import sleep
 
 import logging
+
+import numpy as np
+
 logger = logging.getLogger('idelib-archive')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
@@ -287,6 +290,35 @@ class Univariate(Transform):
         self._source = "lambda x: %s" % ("+".join(map(str, reversed(f))))
         self._source = self._fixSums(self._source)
         self._function = eval(self._source, {'math': math})
+
+    def inplace(self, value, y, out=None, **kwargs):
+        """
+            In-place calculation for univariate polynomials.  If feasible,
+            re-uses memory to reduce memory overhead without impacting performance.
+
+            :param value: The original values to transform
+            :param y: not used, keeps function signature the same as bivariates
+            :keyword out: The array to save the data to.  If not specified,
+                          this is the same array as the value.
+        """
+        if out is None:
+            out = value
+
+        if len(self.coefficients) == 1:  # trivial case
+            out[:] = self.coefficients[0]
+        if len(self.coefficients) == 2:  # linear case
+            if self.references[0] != 0:
+                out[:] = value - self.references[0]
+            elif out is not value:
+                out[:] = value
+            if self.coefficients[0] != 1:
+                out[:] = out*self.coefficients[0]
+            out[:] = out + self.coefficients[1]
+        else:  # all higher orders
+            if self.references[0] == 0:
+                out[:] = np.polyval(self.coefficients, value)
+            else:
+                out[:] = np.polyval(self.coefficients, value - self.references[0])
     
     
     @property
@@ -519,6 +551,22 @@ class Bivariate(Univariate):
                            err.__class__.__name__, self.id)
             return None
 
+    def inplace(self, value, y, session=None, noBivariates=False, out=None):
+        cxy, cx, cy, c = self.coefficients
+        xref, yref = self.references
+        if noBivariates:
+            cxy = 0
+            cy = 0
+            yref = 0
+        coeffs = (cxy,
+                  cx - cxy*yref,
+                  cy - cxy*xref,
+                  c + cxy*xref*yref - cx*xref - cy*yref)
+        expr = '+'.join(
+                ['{}*{}'.format(coeff, var) for coeff, var in zip(coeffs, ['value*y', 'value', 'y', '1']) if
+                 coeff != 0])
+        out[:] = eval(expr)
+
 
     def asDict(self):
         """ Dump the polynomial as a dictionary. Intended for use when
@@ -612,7 +660,7 @@ class CombinedPoly(Bivariate):
             phead, src = "lambda x", "x"
         else:
             phead, src = self.poly.source.split(": ")
-            
+
         for k, v in self.subpolys.items():
             if v is None:
                 ssrc = "lambda x: x"
@@ -637,6 +685,28 @@ class CombinedPoly(Bivariate):
         self._source = "%s: %s" % (phead, src)
         self._function = eval(self._source, evalGlobals)
         self._noY = (0, 1) if 'y' not in src else False
+
+    def inplace(self, timestamp, value, y, session=None, noBivariates=False, out=None):
+        """
+            In-place calculation for combinded polynomials.  If feasible,
+            re-uses memory to reduce memory overhead without impacting performance.
+
+            :param timestamp: Timestamps of samples, used for getting bivariate data
+            :param y: other channel data to use for bivariate polynomials.
+            :param value: The original values to transform
+            :keyword session: Recording session to gather data from.
+            :keyword out: The array to save the data to.  If not specified,
+                          this is the same array as the value.
+        """
+        for k, v in self.subpolys.items():
+            if v is None:
+                continue
+            if k == self.variables[0]:
+                v.inplace(value, y, session=session, noBivariates=noBivariates, out=out)
+            elif k == self.variables[1]:
+                y = y.copy()
+                v.inplace(y, 0, session=session, noBivariates=noBivariates, out=y)
+        self.poly.inplace(out, y, session=session, noBivariates=noBivariates, out=out)
         
         
     def asDict(self):
@@ -757,6 +827,58 @@ class PolyPoly(CombinedPoly):
                                (err.__class__.__name__, self))
                 return None
             raise
+
+    def inplace(self, timestamp, value, session=None, noBivariates=False, out=None):
+        """
+            In-place calculation for polypoly polynomials.  If feasible,
+            re-uses memory to reduce memory overhead without impacting performance.
+
+            :param timestamp: Timestamps of samples, used for getting bivariate data
+            :param value: The original values to transform
+            :keyword session: Recording session to gather data from.
+            :keyword out: The array to save the data to.  If not specified,
+                          this is the same array as the value.
+        """
+        if out is None:
+            out = value
+        elif out is not value:
+            out[:] = value
+
+        session = self.dataset.lastSession if session is None else session
+        sessionId = None if session is None else session.sessionId
+
+        try:
+            if self._noY is False:
+                if self._eventlist is None or self._sessionId != sessionId:
+                    channel = self.dataset.channels[self.channelId][self.subchannelId]
+                    self._eventlist = channel.getSession(session.sessionId)
+                    self._sessionId = session.sessionId
+                if len(self._eventlist) == 0:
+                    return
+
+                # Optimization: don't check the other channel if Y is unused
+                if noBivariates:
+                    y = (0, 1)
+                else:
+                    y = self._noY or self._eventlist.getMeanNear(timestamp)
+
+                for i, poly in enumerate(self.polys):
+                    poly.inplace(timestamp, out[i], y, session=session, noBivariates=noBivariates, out=out[i])
+            else:
+                for i, poly in enumerate(self.polys):
+                    poly.inplace(timestamp, out[i], 0, session=session, noBivariates=noBivariates, out=out[i])
+
+            # return self._function(value, y)
+
+        except (IndexError, ZeroDivisionError) as err:
+            # In multithreaded environments, there's a rare race condition
+            # in which the main channel can be accessed before the calibration
+            # channel has loaded. This should fix it.
+            logger.warning("%s occurred in Bivariate polynomial %r" %
+                           err.__class__.__name__, self.id)
+            return None
+
+        pass
 
 
     def isValid(self, session=None, noBivariates=False):

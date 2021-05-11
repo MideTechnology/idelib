@@ -61,6 +61,7 @@ from time import sleep
 
 from ebmlite.core import loadSchema
 import numpy as np
+import numpy.lib.recfunctions
 import psutil
 
 from .transforms import Transform, CombinedPoly, PolyPoly
@@ -1241,7 +1242,19 @@ class EventList(Transformable):
     def copy(self, newParent=None):
         """ Create a shallow copy of the event list.
         """
-        parent = self.parent if newParent is None else newParent
+        if newParent is None:
+            parent = self.parent
+            # rawBytes = self.parent._rawBytes
+            rawData = self.parent.getSession()._rawData
+        elif self.parent != newParent:
+            parent = newParent
+            if self.parent.getSession()._rawData.dtype.name is None:
+                rawData = self.parent.getSession()._rawData[:, newParent.id, np.newaxis]
+            else:
+                rawData = self.parent.getSession()._rawData[self.parent.getSession()._rawData.dtype.names[newParent.id]]
+
+        else:
+            pass
         newList = self.__class__(parent, self.session, self)
         newList._data = self._data
         newList._length = self._length
@@ -1252,6 +1265,9 @@ class EventList(Transformable):
         newList.noBivariates = self.noBivariates
         newList._blockIndices = self._blockIndices
         newList._blockTimes = self._blockTimes
+        # newList._rawBytes = rawBytes
+        newList._rawData = rawData
+        newList._timestamps = self.parent.getSession()._timestamps
         return newList
     
 
@@ -2830,7 +2846,6 @@ class EventArray(EventList):
             for event in blockEvents.T:
                 yield event
 
-
     def arraySlice(self, start=None, end=None, step=1, display=False):
         """ Create an array of events within a range of indices.
 
@@ -2842,7 +2857,6 @@ class EventArray(EventList):
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
-        import numpy.lib.recfunctions
 
         if not self.useAllTransforms:
             xform = self._comboXform
@@ -2861,16 +2875,15 @@ class EventArray(EventList):
         if not scalarDtype:
             raw_slice = numpy.lib.recfunctions.structured_to_unstructured(raw_slice[0]).T
         timestamps = self._timestamps[idx]
-        _, values = xform(
+        outArr = np.zeros((len(self.parent.types) + 1, raw_slice.shape[1]))
+        outArr[0, :] = timestamps
+        xform.inplace(
                 timestamps,
                 raw_slice,
                 session=self.session,
                 noBivariates=self.noBivariates,
+                out=outArr[1:]
                 )
-        outArr = np.zeros((len(self.parent.types) + 1, raw_slice.shape[1]))
-        outArr[0, :] = timestamps
-        for i in range(len(values)):
-            outArr[i + 1, :] = values[i]
         return outArr
 
 
