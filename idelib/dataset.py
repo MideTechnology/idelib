@@ -737,27 +737,32 @@ class Channel(Transformable):
 
 
     def __repr__(self):
-        if self._unitsStr is None:
-            # If there's no cached string of measurement types and units, make it.
-            if not self.children:
-                units = [self.units]
-            else:
-                units = [c.units for c in self.children]
+        try:
+            if self._unitsStr is None:
+                # If there's no cached string of measurement types and units, make it.
+                if not self.children:
+                    units = [self.units]
+                else:
+                    units = [c.units for c in self.children]
 
-                # If all subchannel units are the same, show only one.
-                if len(set(units)) == 1:  # Cheesy test for identical units tuples
-                    units = [units[0]]
+                    # If all subchannel units are the same, show only one.
+                    if len(set(units)) == 1:  # Cheesy test for identical units tuples
+                        units = [units[0]]
 
-            names = []
-            for measurement, name in units:
-                if name:
-                    name = "(%s)" % name
-                names.append(("%s %s" % (measurement, name)).strip())
-            self._unitsStr = ", ".join(names)
+                names = []
+                for measurement, name in units:
+                    if name:
+                        name = "(%s)" % name
+                    names.append(("%s %s" % (measurement, name)).strip())
+                self._unitsStr = ", ".join(names)
 
-        s = (": %s" % self._unitsStr) if self._unitsStr else ""
-        return '<%s %d %r%s>' % (self.__class__.__name__,
-                                 self.id, self.path(), s)
+            s = (": %s" % self._unitsStr) if self._unitsStr else ""
+            return '<%s %d %r%s>' % (self.__class__.__name__,
+                                     self.id, self.path(), s)
+
+        except (AttributeError, TypeError, ValueError):
+            # Just in case, so __repr__() never completely fails.
+            return object.__repr__(self)
 
 
     def __getitem__(self, idx):
@@ -1027,11 +1032,16 @@ class SubChannel(Channel):
 
 
     def __repr__(self):
-        super().__repr__()
-        s = (": %s" % self._unitsStr) if self._unitsStr else ""
-        return '<%s %d.%d %r%s>' % (self.__class__.__name__,
-                                      self.parent.id, self.id,
-                                      self.path(), s)
+        try:
+            super().__repr__()
+            s = (": %s" % self._unitsStr) if self._unitsStr else ""
+            return '<%s %d.%d %r%s>' % (self.__class__.__name__,
+                                          self.parent.id, self.id,
+                                          self.path(), s)
+
+        except (AttributeError, TypeError, ValueError):
+            # Just in case, so __repr__() never completely fails.
+            return object.__repr__(self)
 
 
     @property
@@ -2522,10 +2532,19 @@ class EventArray(EventList):
 
 
     def __repr__(self):
-        repr(self.parent)  # this generates `parent._unitsStr`
-        s = (": %s" % self.parent._unitsStr) if self.parent._unitsStr else ""
-        return "<%s %r%s at 0x%08x>" % (self.__class__.__name__,
-                                          self.path(), s, id(self))
+        try:
+            repr(self.parent)  # this generates `parent._unitsStr`
+            s = (": %s" % self.parent._unitsStr) if self.parent._unitsStr else ""
+            if self.hasSubchannels:
+                return "<%s %r%s (%dx%d samples)>" % (self.__class__.__name__,
+                                                      self.path(), s, len(self),
+                                                      len(self.parent.children))
+
+            return "<%s %r%s (%s samples)>" % (self.__class__.__name__,
+                                               self.path(), s, len(self))
+
+        except (AttributeError, TypeError, ValueError):
+            return object.__repr__(self)
 
     #===========================================================================
     # New utility methods
