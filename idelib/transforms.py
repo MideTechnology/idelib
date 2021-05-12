@@ -706,6 +706,8 @@ class CombinedPoly(Bivariate):
             elif k == self.variables[1]:
                 y = y.copy()
                 v.inplace(y, 0, session=session, noBivariates=noBivariates, out=y)
+        if self.poly is None:
+            return
         self.poly.inplace(out, y, session=session, noBivariates=noBivariates, out=out)
         
         

@@ -1248,7 +1248,7 @@ class EventList(Transformable):
             rawData = self.parent.getSession()._rawData
         elif self.parent != newParent:
             parent = newParent
-            if self.parent.getSession()._rawData.dtype.name is None:
+            if len(self.parent.getSession()._rawData.dtype) == 0:
                 rawData = self.parent.getSession()._rawData[:, newParent.id, np.newaxis]
             else:
                 rawData = self.parent.getSession()._rawData[self.parent.getSession()._rawData.dtype.names[newParent.id]]
