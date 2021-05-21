@@ -1538,7 +1538,7 @@ class EventArray(Transformable):
         )
 
 
-    def _getBlockRollingMean(self, blockIdx, force=False):
+    def _getBlockRollingMean_old(self, blockIdx, force=False):
         """ Get the mean of a block and its neighbors within a given time span.
             Note: Values are taken pre-calibration, and all subchannels are
             returned.
@@ -1594,6 +1594,28 @@ class EventArray(Transformable):
             # May no longer occur with new EBML library.
 #             logger.info( "Type error!")
             return None
+
+
+    def _getBlockRollingMean(self, blockIdx, force=False):
+        """ Get the mean of a block and its neighbors within a given time span.
+            Note: Values are taken pre-calibration, and all subchannels are
+            returned.
+            
+            :param blockIdx: The index of the block to check.
+            :return: An array containing the mean values of each subchannel. 
+        """
+        if isinstance(blockIdx, Sequence):
+            blockIdx = np.array(blockIdx)
+        elif not isinstance(blockIdx, np.ndarray):
+            return self._getBlockRollingMean_old(blockIdx, force)
+
+        uniqueBlockIndices, blocksPerm = np.unique(blockIdx, return_inverse=True)
+
+        uniqueBlockMeans = np.stack([
+            self._getBlockRollingMean_old(idx, force)
+            for idx in uniqueBlockIndices
+        ], axis=-1)
+        return uniqueBlockMeans[:, blocksPerm]
 
 
     #===========================================================================
