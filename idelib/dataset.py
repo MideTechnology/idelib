@@ -1148,64 +1148,6 @@ class EventList(Transformable):
         return blockIdx
 
 
-    def _getBlockRollingMean(self, blockIdx, force=False):
-        """ Get the mean of a block and its neighbors within a given time span.
-            Note: Values are taken pre-calibration, and all subchannels are
-            returned.
-            
-            :param blockIdx: The index of the block to check.
-            :return: An array containing the mean values of each subchannel. 
-        """
-        # XXX: I don't remember why I do this.
-#         if force is False:
-#             if self.removeMean is False or self.allowMeanRemoval is False:
-#                 return None
-        
-        block = self._data[blockIdx]
-        span = self.rollingMeanSpan
-        
-        if (block._rollingMean is not None 
-            and block._rollingMeanSpan == span 
-            and block._rollingMeanLen == len(self._data)):
-            return block._rollingMean
-
-        self._computeMinMeanMax()
-        
-        if span != -1:
-            firstBlock = self._getBlockIndexWithTime(block.startTime - (span/2), 
-                                                     stop=blockIdx)
-            lastBlock = self._getBlockIndexWithTime(block.startTime + (span/2), 
-                                                    start=blockIdx)
-            lastBlock = max(lastBlock+1, firstBlock+1)
-        else:
-            firstBlock = lastBlock = None
-        
-        try:
-            rollingMean = np.median(
-                [b.mean for b in self._data[firstBlock:lastBlock]],
-                axis=0, overwrite_input=True
-            )
-            block._rollingMean = rollingMean
-            block._rollingMeanSpan = rollingMeanSpan = span
-            block._rollingMeanLen = rollingMeanLen = len(self._data)
-        
-            if span == -1:
-                # Set-wide median/mean removal; same across all blocks.
-                for b in self._data:
-                    b._rollingMean = rollingMean
-                    b._rollingMeanSpan = rollingMeanSpan
-                    b._rollingMeanLen = rollingMeanLen
-            
-            return block._rollingMean
-        
-        except TypeError:
-            # XXX: HACK! b.mean can occasionally be a tuple at very start.
-            # Occurs very rarely in multithreaded loading. Find and fix cause.
-            # May no longer occur with new EBML library.
-#             logger.info( "Type error!")
-            return None
-
-
 
 #===============================================================================
 #
@@ -1628,18 +1570,54 @@ class EventArray(EventList):
             :param blockIdx: The index of the block to check.
             :return: An array containing the mean values of each subchannel. 
         """
-        if isinstance(blockIdx, Sequence):
-            blockIdx = np.array(blockIdx)
-        elif not isinstance(blockIdx, np.ndarray):
-            return super(EventArray, self)._getBlockRollingMean(blockIdx, force)
+        # XXX: I don't remember why I do this.
+#         if force is False:
+#             if self.removeMean is False or self.allowMeanRemoval is False:
+#                 return None
+        
+        block = self._data[blockIdx]
+        span = self.rollingMeanSpan
+        
+        if (block._rollingMean is not None 
+            and block._rollingMeanSpan == span 
+            and block._rollingMeanLen == len(self._data)):
+            return block._rollingMean
 
-        uniqueBlockIndices, blocksPerm = np.unique(blockIdx, return_inverse=True)
-
-        uniqueBlockMeans = np.stack([
-            super(EventArray, self)._getBlockRollingMean(idx, force)
-            for idx in uniqueBlockIndices
-        ], axis=-1)
-        return uniqueBlockMeans[:, blocksPerm]
+        self._computeMinMeanMax()
+        
+        if span != -1:
+            firstBlock = self._getBlockIndexWithTime(block.startTime - (span/2), 
+                                                     stop=blockIdx)
+            lastBlock = self._getBlockIndexWithTime(block.startTime + (span/2), 
+                                                    start=blockIdx)
+            lastBlock = max(lastBlock+1, firstBlock+1)
+        else:
+            firstBlock = lastBlock = None
+        
+        try:
+            rollingMean = np.median(
+                [b.mean for b in self._data[firstBlock:lastBlock]],
+                axis=0, overwrite_input=True
+            )
+            block._rollingMean = rollingMean
+            block._rollingMeanSpan = rollingMeanSpan = span
+            block._rollingMeanLen = rollingMeanLen = len(self._data)
+        
+            if span == -1:
+                # Set-wide median/mean removal; same across all blocks.
+                for b in self._data:
+                    b._rollingMean = rollingMean
+                    b._rollingMeanSpan = rollingMeanSpan
+                    b._rollingMeanLen = rollingMeanLen
+            
+            return block._rollingMean
+        
+        except TypeError:
+            # XXX: HACK! b.mean can occasionally be a tuple at very start.
+            # Occurs very rarely in multithreaded loading. Find and fix cause.
+            # May no longer occur with new EBML library.
+#             logger.info( "Type error!")
+            return None
 
 
     #===========================================================================
