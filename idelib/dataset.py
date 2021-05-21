@@ -1107,49 +1107,6 @@ class SubChannel(Channel):
                
 
 #===============================================================================
-# 
-#===============================================================================
-
-class EventList(Transformable):
-    """ A list-like object containing discrete time/value pairs. Data is 
-        dynamically read from the underlying EBML file. 
-    """
-
-    def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
-        """ Get the index of a raw data block that contains the given event
-            index.
-            
-            :param idx: The event index to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
-        """
-        if stop:
-            blockIdx = bisect_right(self._blockIndices, idx, start, stop)
-        else:
-            blockIdx = bisect_right(self._blockIndices, idx, start)
-        if blockIdx:
-            return blockIdx-1
-        return blockIdx
-    
-    
-    def _getBlockIndexWithTime(self, t, start=0, stop=None):
-        """ Get the index of a raw data block in which the given time occurs.
-        
-            :param t: The time to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
-        """
-        if stop:
-            blockIdx = bisect_right(self._blockTimes, t, start, stop)
-        else:
-            blockIdx = bisect_right(self._blockTimes, t, start)
-        if blockIdx:
-            return blockIdx-1
-        return blockIdx
-
-
-
-#===============================================================================
 #
 #===============================================================================
 
@@ -1167,7 +1124,7 @@ def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
     return default
 
 
-class EventArray(EventList):
+class EventArray(Transformable):
     """ A list-like object containing discrete time/value pairs. Data is 
         dynamically read from the underlying EBML file. 
     """
@@ -1536,6 +1493,16 @@ class EventArray(EventList):
             :keyword stop: The last block index to search
         """
         # TODO: profile & determine if this change is beneficial
+        '''
+        if stop:
+            blockIdx = bisect_right(self._blockIndices, idx, start, stop)
+        else:
+            blockIdx = bisect_right(self._blockIndices, idx, start)
+        if blockIdx:
+            return blockIdx-1
+        return blockIdx
+
+        '''
         if len(self._blockIndicesArray) != len(self._blockIndices):
             self._blockIndicesArray = np.array(self._blockIndices)
 
@@ -1553,6 +1520,15 @@ class EventArray(EventList):
             :keyword stop: The last block index to search
         """
         # TODO: profile & determine if this change is beneficial
+        '''
+        if stop:
+            blockIdx = bisect_right(self._blockTimes, t, start, stop)
+        else:
+            blockIdx = bisect_right(self._blockTimes, t, start)
+        if blockIdx:
+            return blockIdx-1
+        return blockIdx
+        '''
         if len(self._blockTimesArray) != len(self._blockTimes):
             self._blockTimesArray = np.array(self._blockTimes)
 
@@ -2937,6 +2913,5 @@ class WarningRange(object):
 
 # HACK to work around the fact that the `register` method doesn't show up
 # in `dir()`, which creates an error display in PyLint/PyDev/etc. 
-getattr(Iterable, 'register')(EventList)
 getattr(Iterable, 'register')(EventArray)
 getattr(Iterable, 'register')(WarningRange)
