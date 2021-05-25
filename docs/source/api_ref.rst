@@ -6,4 +6,3 @@ IDE Parser API Reference
    :caption: Contents:
 
    idelib/dataset
-   idelib/calibration

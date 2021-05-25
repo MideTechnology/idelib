@@ -31,17 +31,6 @@ Note: a :class:`Dataset` object perfoms *lazy-loading*, meaning that it only loa
     ds.close()  # remember to close the file after use!
 
 
-Accessing the enDAQ Lab's IDE file
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Alternatively, you can also access the :class:`Dataset` object for the IDE file currently open in enDAQ Lab. (Note that the Lab is responsible for cleaning up this :class:`Dataset` object on its own, so there's no need to call its ``close()`` method in this case.) It can be accessed like this::
-
-    ds = viewer.dataset
-    # no need to close!
-
-For more on accessing data and features from the main enDAQ Lab application, see :ref:`global_vars`.
-
-
 Getting recording data
 ----------------------
 

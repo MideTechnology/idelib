@@ -10,10 +10,7 @@ As of enDAQ Lab 2.0, Lab now provides a built-in scripting environment which ena
    :maxdepth: 2
    :caption: Contents:
 
-   scripting_tools
    ide_basics
-   automation
-   eg_scripts
    api_ref
 
 

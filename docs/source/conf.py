@@ -12,26 +12,19 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import os
-import sys
-sys.path.insert(0, os.path.abspath(os.path.join('..', '..')))
 
-import build_info
+import idelib
 
 # -- Project information -----------------------------------------------------
 
-project = u'enDAQ-Lab'
+project = u'idelib'
 copyright = u'2020, Mide Technology Corp.'
-author = u'Becker Awqatty'
+author = u''
 
 # The short X.Y version
-version = u'.'.join([str(i) for i in build_info.VERSION[:2]])
+version = u'.'.join([str(i) for i in idelib.__version__[:2]])
 # The full version, including alpha/beta/rc tags
-release = (
-    u'.'.join([u'{}'.format(i) for i in build_info.VERSION])
-    + u'.{}'.format(build_info.BUILD_NUMBER)
-    + (u' beta' if build_info.BETA else u'')
-)
+release = u'.'.join([u'{}'.format(i) for i in idelib.__version__])
 
 
 # -- General configuration ---------------------------------------------------
