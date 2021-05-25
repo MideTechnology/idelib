@@ -1132,7 +1132,7 @@ class EventArray(Transformable):
     # Default 5 second rolling mean
     DEFAULT_MEAN_SPAN = 5000000
 
-    def __init__(self, parentChannel, session=None, parentList=None):
+    def __init__(self, parentChannel, session=None, parentList=None, subchannels=slice(None)):
         """ Constructor. This should almost always be done indirectly via
             the `getSession()` method of `Channel` and `SubChannel` objects.
         """
@@ -1166,10 +1166,9 @@ class EventArray(Transformable):
         
         if self.hasSubchannels:
             self.channelId = self.parent.id
-            self.subchannelId = None
         else:
             self.channelId = self.parent.parent.id
-            self.subchannelId = self.parent.id
+        self.subchannelIds = subchannels
         
         self._hasSubsamples = False
         
@@ -1678,11 +1677,7 @@ class EventArray(Transformable):
                 )
                 valx -= np.array(mx)
 
-            if not self.hasSubchannels:
-                # Doesn't quite work; transform dataset attribute not set?
-                return np.array([tx, valx[self.subchannelId]])
-            else:
-                return np.append([tx], valx)
+            return np.append([tx], valx[self.subchannelIds])
 
         elif isinstance(idx, slice):
             # vvv Main difference from `EventList.__getitem__` vvv
@@ -1735,7 +1730,7 @@ class EventArray(Transformable):
                and self._blockTimes == other._blockTimes \
                and self._blockIndices == other._blockIndices \
                and self.channelId == other.channelId \
-               and self.subchannelId == other.subchannelId \
+               and self.subchannelIds == other.subchannelIds \
                and self.channelId == other.channelId \
                and self._hasSubsamples == other._hasSubsamples \
                and self.hasDisplayRange == other.hasDisplayRange \
@@ -1748,8 +1743,7 @@ class EventArray(Transformable):
                and self.allowMeanRemoval == other.allowMeanRemoval 
 
 
-    def itervalues(self, start=None, end=None, step=1, subchannels=True,
-                   display=False):
+    def itervalues(self, start=None, end=None, step=1, display=False):
         """ Iterate all values in the given index range (w/o times).
 
             :keyword start: The first index in the range, or a slice.
@@ -1768,19 +1762,12 @@ class EventArray(Transformable):
             np.stack(values)
             for _, values in self._blockSlice(start, end, step, display)
         )
-        if self.hasSubchannels and subchannels is not True:
-            chIdx = np.asarray(subchannels)
-            return (vals
-                    for blockVals in iterBlockValues
-                    for vals in blockVals[chIdx].T)
-        else:
-            return (vals
-                    for blockVals in iterBlockValues
-                    for vals in blockVals.T)
+        return (vals
+                for blockVals in iterBlockValues
+                for vals in blockVals[self.subchannelIds].T)
 
 
-    def arrayValues(self, start=None, end=None, step=1, subchannels=True,
-                    display=False):
+    def arrayValues(self, start=None, end=None, step=1, display=False):
         """ Get all values in the given index range (w/o times).
 
             :keyword start: The first index in the range, or a slice.
@@ -1795,12 +1782,7 @@ class EventArray(Transformable):
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
         # -> take directly from _blockSlice
-        arrayEvents = self.arraySlice(start, end, step, display)
-
-        if self.hasSubchannels and subchannels is not True:
-            return arrayEvents[np.asarray(subchannels)+1]
-        else:
-            return arrayEvents[1:]
+        return self.arraySlice(start, end, step, display)[1:]
 
 
     def _blockSlice(self, start=None, end=None, step=1, display=False):
@@ -1865,7 +1847,7 @@ class EventArray(Transformable):
             :return: an iterable of events in the specified index range.
         """
         for times, values in self._blockSlice(start, end, step, display):
-            blockEvents = np.append(times[np.newaxis], values, axis=0)
+            blockEvents = np.append(times[np.newaxis], values[self.subchannelIds], axis=0)
             for event in blockEvents.T:
                 yield event
 
@@ -1882,11 +1864,11 @@ class EventArray(Transformable):
             :return: a structured array of events in the specified index range.
         """
         raw_slice = [
-            [times[np.newaxis].T, values.T]
+            [times[np.newaxis].T, values[self.subchannelIds].T]
             for times, values in self._blockSlice(start, end, step, display)
         ]
         if not raw_slice:
-            no_of_chs = (len(self.parent.types) if self.hasSubchannels else 1)
+            no_of_chs = len(range(self.parent.types)[self.subchannelIds])
             return np.empty((no_of_chs+1, 0), dtype=np.float)
 
         return np.block(raw_slice).T
@@ -1954,7 +1936,7 @@ class EventArray(Transformable):
 
 
     def iterJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
-                         display=False):
+                         display=False, subchannels=slice(None)):
         """ Create an iterator producing events for a range of indices.
 
             :keyword start: The first index in the range, or a slice.
@@ -1971,13 +1953,13 @@ class EventArray(Transformable):
         
         for times, values in self._blockJitterySlice(start, end, step, jitter,
                                                      display):
-            blockEvents = np.append(times[np.newaxis], values, axis=0)
+            blockEvents = np.append(times[np.newaxis], values[self.subchannelIds], axis=0)
             for event in blockEvents.T:
                 yield event
 
 
     def arrayJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
-                          display=False):
+                          display=False, subchannels=slice(None)):
         """ Create an array of events within a range of indices.
 
             :keyword start: The first index in the range, or a slice.
@@ -1993,13 +1975,13 @@ class EventArray(Transformable):
         self._computeMinMeanMax()
         
         raw_slice = [
-            [times[np.newaxis].T, values.T]
+            [times[np.newaxis].T, values[self.subchannelIds].T]
             for times, values in self._blockJitterySlice(
                 start, end, step, jitter, display
             )
         ]
         if not raw_slice:
-            no_of_chs = (len(self.parent.types) if self.hasSubchannels else 1)
+            no_of_chs = len(range(self.parent.types)[self.subchannelIds])
             return np.empty((no_of_chs+1, 0), dtype=np.float)
 
         return np.block(raw_slice).T
@@ -2085,7 +2067,7 @@ class EventArray(Transformable):
                 the session.
         """
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
-        return self.iterSlice(startIdx,endIdx,step,display=display)        
+        return self.iterSlice(startIdx, endIdx, step, display=display)        
 
 
     def arrayRange(self, startTime=None, endTime=None, step=1, display=False):
@@ -2145,8 +2127,6 @@ class EventArray(Transformable):
         session = self.session
         removeMean = self.removeMean and self.allowMeanRemoval
         _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
-            parent_id = self.subchannelId
 
         if self.useAllTransforms:
             xform = self._fullXform
@@ -2197,13 +2177,8 @@ class EventArray(Transformable):
             
             # Transformation has negative coefficient for inverted z-axis data
             # -> need to sort mins/maxes to compensate
-            if hasSubchannels:
-                # 'rotate' the arrays, sort them, 'rotate' back.
-                result = list(zip(*list(map(sorted, list(zip(*result))))))
-            else:
-                result = tuple((v[parent_id],) for v in result)
-                if result[0][0] > result[2][0]:
-                    result = result[::-1]
+            # 'rotate' the arrays, sort them, 'rotate' back.
+            result = list(zip(*map(sorted, list(zip(*result))[self.subchannelIds])))
 
             if times:
                 yield tuple((tx,)+x for x in result)
@@ -2282,17 +2257,17 @@ class EventArray(Transformable):
 
         if stats.size == 0:
             return None
-        if self.hasSubchannels and subchannel is not None:
+        if subchannel is not None:
             return (
-                stats[0, subchannel].min(),
-                np.median(stats[1, subchannel]),
-                stats[2, subchannel].max(),
+                stats[0, self.subchannelIds][subchannel].min(),
+                np.median(stats[1, self.subchannelIds][subchannel]),
+                stats[2, self.subchannelIds][subchannel].max(),
             )
         else:
             return (
-                stats[0].min(),
-                np.mean(np.median(stats[1], axis=-1)),
-                stats[2].max(),
+                stats[0, self.subchannelIds].min(),
+                np.mean(np.median(stats[1, self.subchannelIds], axis=-1)),
+                stats[2, self.subchannelIds].max(),
             )
 
 
@@ -2508,9 +2483,7 @@ class EventArray(Transformable):
         """
         b = self._getBlockIndexWithTime(t)
         _, m = self._comboXform(t, self._getBlockRollingMean(b, force=True))
-        if self.hasSubchannels:
-            return m
-        return m[self.subchannelId]
+        return m[self.subchannelIds]
 
 
     def _computeMinMeanMax(self):
