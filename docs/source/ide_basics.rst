@@ -19,7 +19,7 @@ Opening an IDE File
 
 You can open an IDE file like so::
 
-    filename = "C:\\your\\file\\path.IDE"
+    filename = "/your/file/path.IDE"
     with idelib.importFile(filename) as ds:
         print(type(ds))
 
@@ -103,7 +103,7 @@ To simply use all recording data, we can iterate through each subchannel in a da
 EventArrays & raw data
 ~~~~~~~~~~~~~~~~~~~~~~
 
-Each :class:`Channel` and :class:`Subchannel` object has a ``getSession()`` method, which returns an :class:`EventArray` object. :class:`EventArray` is a wrapper around a channel's underlying recording data that loads data on demand from the source file. You can index an :class:`EventArray` (e.g., ``eventarray[i]`` for some index ``i``) to get a numpy ``ndarray`` of data. Data is organized in an n-dimensional array.
+Each :class:`Channel` and :class:`SubChannel` object has a ``getSession()`` method, which returns an :class:`EventArray` object. :class:`EventArray` is a wrapper around a channel's underlying recording data that loads data on demand from the source file. You can index an :class:`EventArray` (e.g., ``eventarray[i]`` for some index ``i``) to get a numpy ``ndarray`` of data. Data is organized in an n-dimensional array.
 
 For subchannels, this will always be a 2-by-n array, where n is the number of samples recorded; ``eventarray[1]`` indexes the samples, ``eventarray[0]`` indexes the respective timestamps.
 

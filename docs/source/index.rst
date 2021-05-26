@@ -1,10 +1,8 @@
-Scripting in enDAQ Lab
-======================
+IDELib: a Python Library for accessing enDAQ sensor recordings
+==============================================================
 
-Overview
---------
+`idelib` is a Python API for accessing `enDAQ <https://endaq.com/>`_'s IDE recordings. The IDE format is an `EBML <https://github.com/ietf-wg-cellar/ebml-specification>`_ encoded file using a custom schemata. This library utilizes our `ebmlite <https://github.com/MideTechnology/ebmlite>`_ to parse the files, and provides classes that make reading data simple.
 
-As of enDAQ Lab 2.0, Lab now provides a built-in scripting environment which enables users to programmatically interact in Python with many of the components of enDAQ Lab. This documentation aims to introduce users to the various scripting tools, the underlying Python API, and some common use cases that one might encounter when using the scripting environment.
 
 .. toctree::
    :maxdepth: 2

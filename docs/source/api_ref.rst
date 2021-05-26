@@ -1,4 +1,4 @@
-IDE Parser API Reference
+IDELib API Reference
 ========================
 
 .. toctree::
