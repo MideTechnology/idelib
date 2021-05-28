@@ -752,7 +752,7 @@ class CombinedPoly(Bivariate):
         if out is None:
             out = values.astype(np.float64)
 
-        if isinstance(self.poly, Bivariate):
+        if len(self.variables) == 2:
             if np.isscalar(y):
                 # x*y*a0 + x*a1 + y*a2 + a3 = x*(y*a0 + a1) + (y*a2 + a3)
                 # out[:] = values
@@ -760,7 +760,7 @@ class CombinedPoly(Bivariate):
                 np.add(out, y*self._fastCoeffs[2] + self._fastCoeffs[3], out=out)
             else:
                 pass
-        elif isinstance(self.poly, Univariate):
+        elif len(self.variables) == 1:
             np.multiply(out, self._fastCoeffs[0], out=out)
             np.add(out, self._fastCoeffs[1], out=out)
         else:
