@@ -11,14 +11,14 @@ matrix:
   include:
     # This build is stalling after passing, not sure why.  Since python 3.5 is currently being tested, skip for now
     # Windows doesn't support native python yet, so here we are - 3.5
-     - os: windows
-       language: shell
-       env: PATH=/c/python35:/c/Python35/scripts:$PATH
-       before_install:
-         - choco install python3 --version=3.5.4
-         - python -m pip install virtualenv
-         - virtualenv $HOME/venv
-         - source $HOME/venv/Scripts/activate
+    - os: windows
+      language: shell
+      env: PATH=/c/python35:/c/Python35/scripts:$PATH
+      before_install:
+        - choco install python3 --version=3.5.4
+        - python -m pip install virtualenv
+        - virtualenv $HOME/venv
+        - source $HOME/venv/Scripts/activate
     # Windows doesn't support native python yet, so here we are - 3.6
     - os: windows
       language: shell
