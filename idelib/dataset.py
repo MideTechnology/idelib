@@ -2491,6 +2491,8 @@ class EventArray(EventList):
         """
         super(EventArray, self).__init__(parentChannel, session, parentList)
 
+        self._mean = None
+
         self._blockIndicesArray = np.array([], dtype=np.float64)
         self._blockTimesArray = np.array([], dtype=np.float64)
 
@@ -2525,15 +2527,15 @@ class EventArray(EventList):
             """ Creates a structured array of event data for a given set of
                 event times and values. (Used in event iteration methods.)
             """
-            times, values = retryUntilReturn(
-                partial(xform, times, values, session=session,
+
+            values = retryUntilReturn(
+                partial(xform.inplace, values, session=session,
                         noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=partial(logger.info,
                                 "%s: bad transform @%s"
                                 % (parent.name, times)),
             )
-            values = np.asarray(values)
 
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
@@ -3208,6 +3210,34 @@ class EventArray(EventList):
         subIdx = blockData[1:].min(axis=0).argmin()
 
         return blockData[:, subIdx]
+
+
+    def getMean(self, startTime=None, endTime=None, display=False, iterator=iter):
+        """ Get the mean value of all events, optionally within a specified
+            time range. For Channels, returns the minimum among all
+            Subchannels.
+
+            :keyword startTime: The starting time. Defaults to the start.
+            :keyword endTime: The ending time. Defaults to the end.
+            :keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            :return: The event with the minimum value.
+        """
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+
+        if startTime is None and endTime is None:
+            if self._mean is not None:
+                return self._mean
+
+        means = self.arrayMinMeanMax(startTime, endTime, times=False,
+                                     display=display, iterator=iterator)[1]
+        mean = np.sum([d.numSamples*mean for d, mean in zip(self._data, means[0])])/np.sum(d.numSamples for d in self._data)
+
+        if startTime is None and endTime is None:
+            self._mean = mean
+
+        return mean
 
 
     def getMeanNear(self, t, outOfRange=False):

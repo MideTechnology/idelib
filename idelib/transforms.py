@@ -14,12 +14,20 @@ import math
 from time import sleep
 
 import logging
+
+import numpy as np
+
 logger = logging.getLogger('idelib-archive')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 #===============================================================================
 # 
 #===============================================================================
+
+
+def _binomial(n, k):
+    """ Binomial coefficient of n choose k"""
+    return math.factorial(n)/(math.factorial(k)*math.factorial(n-k))
 
 
 class Transform(object):
@@ -107,6 +115,10 @@ class Transform(object):
             return (self.function is not None)
         except AttributeError:
             return False
+
+
+    def inplace(self, *args, **kwargs):
+        raise NotImplemented
 
     
     #===========================================================================
@@ -219,9 +231,14 @@ class Univariate(Transform):
             :keyword attributes: A dictionary of generic attributes, e.g.
                 ones parsed from `Attribute` EBML elements, or `None`.
         """
+        if len(coeffs) > 2 or len(coeffs) == 0:
+            raise ValueError('Coefficients of length {} are not supported.  '
+                             'Coefficients must be length 1 (constant) or 2 '
+                             '(linear).'.format(len(coeffs)))
         self.id = calId
         self.dataset = dataset
         self._coeffs = tuple(coeffs)
+        self._fastCoeffs = tuple(coeffs)
         self._variables = (varName,)
         self._references = (reference,)
         self._session = None
@@ -247,6 +264,12 @@ class Univariate(Transform):
                               reference=self._references[0], 
                               varName=self._variables[0])
 
+
+    # def inplace(self, value, session=None, noBivariates=False, out=None):
+    #     if out is None:
+    #         out = np.zeros_like(value, dtype=np.float64)
+    #     out = 1
+
     
     def _build(self):
         """ Internal method that (re-)constructs the polynomial function.
@@ -259,7 +282,17 @@ class Univariate(Transform):
         if reference != 0:
             varName = "(%s-%s)" % (varName, reference)
             srcVarName = "(%s-%s)" % (srcVarName, reference)
-        
+
+        if len(coeffs) == 1:
+            self._fastCoeffs = tuple(self._coeffs)
+            self._str = str(self._fastCoeffs[0])
+        elif len(coeffs) == 2:
+            # a0*(x - ref) + a1 = a0*x + (a1 - a0*ref)
+            self._fastCoeffs = (self._coeffs[0], self._coeffs[1] - self._coeffs[0]*reference)
+        else:
+            raise ValueError('Invalid list of coefficients.')
+
+
         # f is used to build the lambda
         # strF is used to build the string version
         coeffs = list(reversed(coeffs))
@@ -364,6 +397,10 @@ class Bivariate(Univariate):
             :keyword attributes: A dictionary of generic attributes, e.g.
                 ones parsed from `Attribute` EBML elements, or `None`.
         """
+        if len(coeffs) not in [1, 4]:
+            raise ValueError('Coefficients of length {} are not supported.  '
+                             'Coefficients must be length 1 (constant) or 4 '
+                             '(linear).'.format(len(coeffs)))
         self.dataset = dataset
         self._eventlist = None
         self._sessionId = None
@@ -383,6 +420,7 @@ class Bivariate(Univariate):
         
         self._references = (float(reference), float(reference2))
         self._coeffs = tuple(map(float, coeffs))
+        self._fastCoeffs = tuple(self._coeffs)
         self._variables = tuple(map(str, varNames))
         
         self._session = None
@@ -441,7 +479,26 @@ class Bivariate(Univariate):
         coeffs = self._coeffs
         reference, reference2 = self._references
         varNames = self._variables
-        
+
+        if len(coeffs) not in [1, 4]:
+            raise ValueError('Coefficients of length {} are not supported.  '
+                             'Coefficients must be length 1 (constant) or 4 '
+                             '(linear).'.format(len(coeffs)))
+
+        if len(coeffs) == 1:
+            self._fastCoeffs = tuple(self._coeffs)
+        if len(coeffs) == 4:
+            # a0*(x - refx)*(y - refy) + a1*(x - refx) + a2*(y - refy) + a3 =
+            # = a0*x*y + x*(a1 - a0*refy) + y*(a2 - a0*refx) +
+            #   + (a0*refx*refy + a3 - a1*refx - a2*refy)
+            self._fastCoeffs = (
+                self._coeffs[0],
+                self._coeffs[1] - self._coeffs[0]*reference2,
+                self._coeffs[2] - self._coeffs[0]*reference,
+                self._coeffs[3] + self._coeffs[0]*reference*reference2 -
+                self._coeffs[1]*reference - self._coeffs[2]*reference2,
+                )
+
         # Construct the polynomial expression string
         strF = "(%s*x*y)+(%s*x)+(%s*y)+%s"
         src = strF % tuple(map(self._floatOrInt, coeffs))
@@ -508,7 +565,7 @@ class Bivariate(Univariate):
             if noBivariates:
                 y = (0, 1)
             else:
-                y = self._noY or self._eventlist.getMeanNear(timestamp)
+                y = self._noY or self._eventlist.getMean()
             return timestamp, self._function(value, y)
         
         except (IndexError, ZeroDivisionError) as err:
@@ -586,6 +643,7 @@ class CombinedPoly(Bivariate):
         self.id = calId
         self.poly = poly
         self.subpolys = kwargs
+        self._fastCoeffs = None
         
         if subchannel is not None:
             self.poly = self.poly[subchannel]
@@ -608,6 +666,7 @@ class CombinedPoly(Bivariate):
                 if p is not None:
                     for attr in ('_str', '_source', '_function', '_noY'):
                         setattr(self, attr, getattr(p, attr, None))
+                    self._fastCoeffs = (1, 0)
                     return
             phead, src = "lambda x", "x"
         else:
@@ -632,6 +691,40 @@ class CombinedPoly(Bivariate):
         for p in self.subpolys.values():
             if p is not None:
                 evalGlobals.update(p._function.__globals__)
+
+        if isinstance(self.poly, Bivariate):
+            # a0*(b0*x + b1)*(c0*y + c1) + a1*(b0*x + b1) + a2*(c0*y + c1) + a3 =
+            # x*y*(a0*b0*c0) + x*(a0*b0*c1 + a1*b0) + y*(a0*b1*c0 + a2*c0) + (a0*b1*c1 + a1*b1 + a2*c1 + a3)
+            a = self.poly._fastCoeffs
+            if self.poly.variables[0] in self.subpolys:
+                if self.subpolys[self.variables[0]] is not None:
+                    b = self.subpolys[self.variables[0]]._fastCoeffs
+                else:
+                    b = (1, 0)
+            else:
+                b = (1, 0)
+            if self.poly.variables[1] in self.subpolys:
+                if self.subpolys[self.variables[1]] is not None:
+                    c = self.subpolys[self.variables[1]]._fastCoeffs
+                else:
+                    c = (1, 0)
+            else:
+                c = (1, 0)
+            self._fastCoeffs = (
+                a[0]*b[0]*c[0],
+                a[0]*b[0]*c[1] + a[1]*b[0],
+                a[0]*b[1]*c[0] + a[2]*c[0],
+                a[0]*b[1]*c[1] + a[1]*b[1] + a[2]*c[1] + a[3],
+                )
+        elif isinstance(self.poly, Univariate):
+            # a0*(b0*x + b1) + a1 = a0*b0*x + (a1 + a0*b1)
+            a = self.poly._fastCoeffs
+            b = self.subpolys[self.poly.variables[0]]
+            if b is None:
+                b = (1, 0)
+            else:
+                b = b._fastCoeffs
+            self._fastCoeffs = (a[0]*b[0], a[1] + a[0]*b[1])
         
         self._str = src
         self._source = "%s: %s" % (phead, src)
@@ -653,6 +746,26 @@ class CombinedPoly(Bivariate):
         if not Transform.isValid(self, session, noBivariates):
             return False
         return all(p.isValid(session, noBivariates) for p in self.subpolys.values())
+
+
+    def inplace(self, values, y=0, out=None, **kwargs):
+        if out is None:
+            out = values.astype(np.float64)
+
+        if isinstance(self.poly, Bivariate):
+            if np.isscalar(y):
+                # x*y*a0 + x*a1 + y*a2 + a3 = x*(y*a0 + a1) + (y*a2 + a3)
+                # out[:] = values
+                np.multiply(out, y*self._fastCoeffs[0] + self._fastCoeffs[1], out=out)
+                np.add(out, y*self._fastCoeffs[2] + self._fastCoeffs[3], out=out)
+            else:
+                pass
+        elif isinstance(self.poly, Univariate):
+            np.multiply(out, self._fastCoeffs[0], out=out)
+            np.add(out, self._fastCoeffs[1], out=out)
+        else:
+            raise
+        return out
         
 
 #------------------------------------------------------------------------------ 
@@ -736,12 +849,12 @@ class PolyPoly(CombinedPoly):
                 # XXX: Hack! EventList length can be 0 if a thread is running.
                 # This almost immediately gets fixed. Find real cause.
                 try:    
-                    y = self._eventlist.getMeanNear(timestamp, outOfRange=True)
+                    y = self._eventlist.getMean()
                 except IndexError:
                     sleep(0.001)
                     if len(self._eventlist) == 0:
                         return None
-                    y = self._eventlist.getMeanNear(timestamp, outOfRange=True)
+                    y = self._eventlist.getMean()
                     
                 return timestamp, self._function(y, *values)
             
@@ -754,6 +867,53 @@ class PolyPoly(CombinedPoly):
             # channel has loaded. This should fix it.
             if getattr(self.dataset, 'loading', False):
                 logger.warning("%s occurred in combined polynomial %r" %
+                               (err.__class__.__name__, self))
+                return None
+            raise
+
+
+    def inplace(self, values, session=None, noBivariates=False, out=None):
+        out = values.astype(np.float64)
+
+        try:
+            # Optimization: don't check the other channel if Y is unused
+            if self._noY is False:
+                if noBivariates:
+                    return self._function(0, *values)
+
+                session = self.dataset.lastSession if session is None else session
+                sessionId = None if session is None else session.sessionId
+
+                if self._eventlist is None or self._sessionId != sessionId:
+                    channel = self.dataset.channels[self.channelId][self.subchannelId]
+                    self._eventlist = channel.getSession(session.sessionId)
+                    self._sessionId = session.sessionId
+
+                # XXX: Hack! EventList length can be 0 if a thread is running.
+                # This almost immediately gets fixed. Find real cause.
+                try:
+                    y = self._eventlist.getMean()
+                except IndexError:
+                    sleep(0.001)
+                    if len(self._eventlist) == 0:
+                        return None
+                    y = self._eventlist.getMean()
+
+                for i, poly in enumerate(self.polys):
+                    poly.inplace(out[i], y=y, out=out[i])
+                return out
+
+            else:
+                for i, poly in enumerate(self.polys):
+                    poly.inplace(out[i], out=out[i])
+                return out
+
+        except (TypeError, IndexError, ZeroDivisionError) as err:
+            # In multithreaded environments, there's a rare race condition
+            # in which the main channel can be accessed before the calibration
+            # channel has loaded. This should fix it.
+            if getattr(self.dataset, 'loading', False):
+                logger.warning("%s occurred in combined polynomial %r"%
                                (err.__class__.__name__, self))
                 return None
             raise
