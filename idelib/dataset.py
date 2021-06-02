@@ -43,9 +43,8 @@ Created on Sep 26, 2013
 #    handling of race conditions is a hack. Also make some flags (like
 #    `Dataset.loading`) properties that get/set a `threading.Event`?
 
-__all__ = ['Channel', 'Dataset', 'EventList', 'EventArray', 'Plot', 'Sensor',
-           'Session', 'SubChannel', 'WarningRange', 'Cascading',
-           'Transformable']
+__all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
+           'SubChannel', 'WarningRange', 'Cascading', 'Transformable']
 
 from bisect import bisect_right
 from collections.abc import Iterable, Sequence
