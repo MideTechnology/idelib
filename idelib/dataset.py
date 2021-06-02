@@ -17,18 +17,18 @@ Created on Sep 26, 2013
 #    creating more than one way to do the same thing. More often than not, 
 #    they are the result of over-engineering things.
 #
-# TODO: The new, cached EventList transforms save the combined transforms on
-#    the parent EventList. This should probably be revised to have the cached
+# TODO: The new, cached EventArray transforms save the combined transforms on
+#    the parent EventArray. This should probably be revised to have the cached
 #    transforms saved on the children; this will allow multiple copies of
-#    EventLists to have different transforms, simplifying the whole regular
+#    EventArrays to have different transforms, simplifying the whole regular
 #    versus 'display' things and make 'useAllTransforms' unnecessary. 
 #
 # TODO: Handle files with channels containing a single sample better. Right now,
 #    they are ignored, causing problems with other calculations.
 #
-# TODO: Consider an EventList subclass for subchannels to reduce the number
+# TODO: Consider an EventArray subclass for subchannels to reduce the number
 #    of conditionals evaluated, and/or see about making parent Channels' 
-#    EventLists flat.
+#    EventArrays flat.
 #   
 # TODO: Nice discontinuity handing. This will probably be conveyed as events 
 #     with null values. An attribute/keyword may be needed to suppress this when 
@@ -38,7 +38,7 @@ Created on Sep 26, 2013
 #    `yield`  instead (e.g. parseElement(), etc.)
 # 
 # TODO: Consider thread safety. Use a `threading.RLock` around adding/ending
-#    a Session, updating/using Transforms, appending/accessing EventList data,
+#    a Session, updating/using Transforms, appending/accessing EventArray data,
 #    etc. Not (yet?) a serious problem, but it could be in the future; current
 #    handling of race conditions is a hack. Also make some flags (like
 #    `Dataset.loading`) properties that get/set a `threading.Event`?
@@ -1438,7 +1438,7 @@ class EventArray(Transformable):
             as if the channel were just a flat list of subsamples.
         """
         block = self._data[blockIdx]
-        # EventList.append() should set block.indexRange. In case it didn't:
+        # EventArray.append() should set block.indexRange. In case it didn't:
         if block.indexRange is None:
             total = 0
             for i in range(blockIdx+1):
