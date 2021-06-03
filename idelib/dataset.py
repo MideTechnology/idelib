@@ -2546,8 +2546,8 @@ class EventArray(EventList):
                                     "%s: bad offset (1) @%s"
                                     % (parent.name, block.startTime)),
                 )
-                _, offset = retryUntilReturn(
-                    partial(xform, block.startTime, offset, session=session,
+                offset = retryUntilReturn(
+                    partial(xform.inplace, offset, session=session,
                             noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=partial(logger.info,

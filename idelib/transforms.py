@@ -9,9 +9,11 @@ being in how they are used.
 __all__ = ['Transform', 'Univariate', 'Bivariate', 'CombinedPoly', 'PolyPoly',
            'AccelTransform']
 
+import weakref
 from collections import OrderedDict
 import math
 from time import sleep
+import warnings
 
 import logging
 
@@ -47,6 +49,7 @@ class Transform(object):
         self._function = eval(self._source, {'math': math})
         self._lastSession = None
         self._timeOffset = 0
+        self._watchers = weakref.WeakSet()
         
         # Custom attributes, e.g. Attribute elements in the EBML.
         self.attributes = kwargs.pop('attributes', None)
@@ -118,7 +121,22 @@ class Transform(object):
 
 
     def inplace(self, *args, **kwargs):
-        raise NotImplemented
+        raise NotImplementedError()
+
+
+    @property
+    def useMean(self):
+        warnings.warn(UserWarning('{} does not support useMean'.format(type(self))))
+        return False
+
+
+    @useMean.setter
+    def useMean(self, value):
+        warnings.warn(UserWarning('{} does not support useMean'.format(type(self))))
+
+
+    def addWatcher(self, watcher):
+        self._watchers.add(watcher)
 
     
     #===========================================================================
@@ -158,6 +176,7 @@ class AccelTransform(Transform):
         self.coefficients = ((amax / 32767.0), amax)
 
         self.dataset = None
+        self._watchers = weakref.WeakSet()
 
 
     def copy(self):
@@ -244,10 +263,15 @@ class Univariate(Transform):
         self._session = None
         self._lastSession = None
         self._timeOffset = 0
+        self._watchers = weakref.WeakSet()
         
         self.attributes = attributes
         
         self._build()
+
+
+    def __hash__(self):
+        return hash((self._coeffs, self._references))
         
 
     def __eq__(self, other):
@@ -320,6 +344,16 @@ class Univariate(Transform):
         self._source = "lambda x: %s" % ("+".join(map(str, reversed(f))))
         self._source = self._fixSums(self._source)
         self._function = eval(self._source, {'math': math})
+
+
+    def inplace(self, values, session=None, noBivariates=False, out=None):
+        if out is None:
+            out = np.asarray(values).astype(np.float64)
+
+        np.multiply(out, self._fastCoeffs[0], out=out)
+        np.add(out, self._fastCoeffs[1], out=out)
+
+        return out
     
     
     @property
@@ -345,7 +379,7 @@ class Univariate(Transform):
         self._variables = val
         self._build()
     
-    
+
     @property
     def references(self):
         """ The constant offset(s). """
@@ -411,10 +445,10 @@ class Bivariate(Univariate):
         
         if len(coeffs) != 4:
             raise ValueError("Bivariate polynomial must have exactly 4 "
-                             "coefficients; %d were supplied" % len(coeffs))
+                             "coefficients; {} were supplied".format(len(coeffs)))
         if len(varNames) != 2:
             raise ValueError("Bivariate polynomial must have two variable "
-                             "names; %d were supplied" % len(varNames))
+                             "names; {} were supplied".format(len(varNames)))
         
         self.id = calId
         
@@ -427,8 +461,15 @@ class Bivariate(Univariate):
         self._timeOffset = 0
         
         self.attributes = attributes
+
+        self._useMean = True
+        self._watchers = weakref.WeakSet()
         
         self._build()
+
+
+    def __hash__(self):
+        return hash(self._str)
         
         
     def __eq__(self, other):
@@ -621,6 +662,18 @@ class Bivariate(Univariate):
             return self.isValid(session, noBivariates, _retries-1)
 
 
+    @property
+    def useMean(self):
+        return self._useMean
+
+
+    @useMean.setter
+    def useMean(self, value):
+        self._useMean = value
+        for w in self._watchers:
+            w.useMean = self.useMean
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -656,6 +709,7 @@ class CombinedPoly(Bivariate):
                     
         self.dataset = self.dataset or dataset
         self._subchannel = subchannel
+        self._watchers = weakref.WeakSet()
         self._build()
     
     
@@ -730,6 +784,10 @@ class CombinedPoly(Bivariate):
         self._source = "%s: %s" % (phead, src)
         self._function = eval(self._source, evalGlobals)
         self._noY = (0, 1) if 'y' not in src else False
+
+        for x in [self.poly] + list(self.subpolys.values()):
+            if x is not None:
+                x.addWatcher(self)
         
         
     def asDict(self):
@@ -790,6 +848,7 @@ class PolyPoly(CombinedPoly):
         
         self.dataset = self.dataset or dataset
         self._eventlist = None
+        self._watchers = weakref.WeakSet()
         self._build()
 
 
@@ -819,6 +878,7 @@ class PolyPoly(CombinedPoly):
         for p in self.polys:
             if p is not None:
                 evalGlobals.update(p._function.__globals__)
+                p.addWatcher(self)
         
         self._source = "lambda %s: %s" % (','.join(params), src)
         self._function = eval(self._source, evalGlobals)

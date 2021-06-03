@@ -28,7 +28,7 @@ from idelib.dataset import (Cascading,
                             )
 
 from idelib.transforms import Transform, CombinedPoly, PolyPoly
-from idelib.transforms import AccelTransform
+from idelib.transforms import AccelTransform, Univariate
 from idelib import importer
 from idelib import parsers
 
@@ -2054,8 +2054,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -2107,8 +2106,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -2160,8 +2158,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -2208,8 +2205,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -2257,8 +2253,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -2306,8 +2301,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -2848,25 +2842,17 @@ class DataTestCase(unittest.TestCase):
 
     
     def testUncalibratedExport(self):
-        """ Test export with no per-channel polynomials.
-        """
-        self.dataset.channels[8][0].setTransform(None)
-        self.dataset.channels[8][1].setTransform(None)
-        self.dataset.channels[8][2].setTransform(None)
+        """ Test export with no per-channel polynomials."""
 
         out = StringIO()
         accel = self.dataset.channels[8].getSession()
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_NoCalibration.csv', 'rb') as f:
-            for new, old in zip(out, f):
-#                 self.assertEqual(old.strip(), new.strip())
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_array_almost_equal(new.T, old)
 
 
     def testNoBivariates(self):
