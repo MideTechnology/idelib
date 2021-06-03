@@ -1107,10 +1107,24 @@ class SubChannel(Channel):
                
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
-class EventList(Transformable):
+def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
+                     default=None):
+    """ Repeats a function call until a non-None value is returned, and
+        returns that value.
+    """
+    for _ in range(max_tries):
+        value = func()
+        if value is not None:
+            return value
+        on_fail()
+        sleep(delay)
+    return default
+
+
+class EventArray(Transformable):
     """ A list-like object containing discrete time/value pairs. Data is 
         dynamically read from the underlying EBML file. 
     """
@@ -1175,8 +1189,11 @@ class EventList(Transformable):
             self.parseBlock = self.parent.parseBlock
         else:
             self.parseBlock = self.parent.parent.parseBlock
-        
-        
+
+        self._blockIndicesArray = np.array([], dtype=np.float64)
+        self._blockTimesArray = np.array([], dtype=np.float64)
+
+
     def updateTransforms(self, recurse=True):
         """ (Re-)Build and (re-)apply the transformation functions.
         """
@@ -1342,6 +1359,81 @@ class EventList(Transformable):
         return self._firstTime, self._lastTime
 
 
+    #===========================================================================
+    # New utility methods
+    #===========================================================================
+
+    def _makeBlockEventsFactory(self, display):
+        """ Generates a function that makes numpy arrays of event data.
+            The generated function is optimized to be run repeatedly in a loop.
+        """
+
+        # OPTIMIZATION: making local variables for faster access
+        parent = self.parent
+        session = self.session
+        hasSubchannels = self.hasSubchannels
+        if not hasSubchannels:
+            subchannelId = parent.id
+        _getBlockRollingMean = self._getBlockRollingMean
+        removeMean = (self.allowMeanRemoval and self.removeMean
+#                       and self.hasMinMeanMax
+                      )
+
+        if not self.useAllTransforms:
+            xform = self._comboXform
+        elif display:
+            xform = self._displayXform or self._fullXform
+        else:
+            xform = self._fullXform
+
+        def _makeBlockEvents(times, values, block, blockIdx):
+            """ Creates a structured array of event data for a given set of
+                event times and values. (Used in event iteration methods.)
+            """
+            times, values = retryUntilReturn(
+                partial(xform, times, values, session=session,
+                        noBivariates=self.noBivariates),
+                max_tries=2, delay=0.001,
+                on_fail=partial(logger.info,
+                                "%s: bad transform @%s"
+                                % (parent.name, times)),
+            )
+            values = np.asarray(values)
+
+            # Note: _getBlockRollingMean returns None if removeMean==False
+            if removeMean:
+                offset = retryUntilReturn(
+                    partial(_getBlockRollingMean, blockIdx),
+                    max_tries=2, delay=0.001,
+                    on_fail=partial(logger.info,
+                                    "%s: bad offset (1) @%s"
+                                    % (parent.name, block.startTime)),
+                )
+                _, offset = retryUntilReturn(
+                    partial(xform, block.startTime, offset, session=session,
+                            noBivariates=self.noBivariates),
+                    max_tries=2, delay=0.001, default=(None, offset),
+                    on_fail=partial(logger.info,
+                                    "%s: bad offset (2) @%s"
+                                    % (parent.name, block.startTime)),
+                )
+
+                if offset is not None:
+                    values -= np.array(offset)[..., np.newaxis]
+                else:
+                    logger.info('%r event offset is None' % parent.name)
+
+            if not hasSubchannels:
+                values = values[[subchannelId]]
+
+            return (times, values)
+
+        return _makeBlockEvents
+
+    #===========================================================================
+    # Old utility methods
+    #===========================================================================
+
     def _getBlockIndexRange(self, blockIdx):
         """ Get the first and last index of the subsamples within a block,
             as if the channel were just a flat list of subsamples.
@@ -1392,15 +1484,16 @@ class EventList(Transformable):
             block._timeRange = block.startTime, block.endTime
             return block._timeRange
         
-
     def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
         """ Get the index of a raw data block that contains the given event
             index.
-            
+
             :param idx: The event index to find
             :keyword start: The first block index to search
             :keyword stop: The last block index to search
         """
+        # TODO: profile & determine if this change is beneficial
+        '''
         if stop:
             blockIdx = bisect_right(self._blockIndices, idx, start, stop)
         else:
@@ -1408,15 +1501,26 @@ class EventList(Transformable):
         if blockIdx:
             return blockIdx-1
         return blockIdx
-    
-    
+
+        '''
+        if len(self._blockIndicesArray) != len(self._blockIndices):
+            self._blockIndicesArray = np.array(self._blockIndices)
+
+        idxOffset = max(start, 1)
+        return idxOffset-1 + np.searchsorted(
+            self._blockIndicesArray[idxOffset:stop], idx, side='right'
+        )
+
+
     def _getBlockIndexWithTime(self, t, start=0, stop=None):
         """ Get the index of a raw data block in which the given time occurs.
-        
+
             :param t: The time to find
             :keyword start: The first block index to search
             :keyword stop: The last block index to search
         """
+        # TODO: profile & determine if this change is beneficial
+        '''
         if stop:
             blockIdx = bisect_right(self._blockTimes, t, start, stop)
         else:
@@ -1424,9 +1528,17 @@ class EventList(Transformable):
         if blockIdx:
             return blockIdx-1
         return blockIdx
+        '''
+        if len(self._blockTimesArray) != len(self._blockTimes):
+            self._blockTimesArray = np.array(self._blockTimes)
+
+        idxOffset = max(start, 1)
+        return idxOffset-1 + np.searchsorted(
+            self._blockTimesArray[idxOffset:stop], t, side='right'
+        )
 
 
-    def _getBlockRollingMean(self, blockIdx, force=False):
+    def _getBlockRollingMean_old(self, blockIdx, force=False):
         """ Get the mean of a block and its neighbors within a given time span.
             Note: Values are taken pre-calibration, and all subchannels are
             returned.
@@ -1482,1128 +1594,6 @@ class EventList(Transformable):
             # May no longer occur with new EBML library.
 #             logger.info( "Type error!")
             return None
-    
-
-    def __getitem__(self, idx, display=False):
-        """ Get a specific data point by index.
-        
-            :param idx: An index, a `slice`, or a
-             tuple of one or both
-            :return: For single results, a tuple containing (time, value).
-                For multiple results, a list of (time, value) tuples.
-        """
-        # TODO: Cache this; a Channel's SubChannels will often be used together.
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
-            
-        if isinstance(idx, int):
-            
-            if idx >= len(self):
-                raise IndexError("EventList index out of range")
-            
-            if idx < 0:
-                idx = max(0, len(self) + idx)
-            
-            blockIdx = self._getBlockIndexWithIndex(idx)
-            subIdx = idx - self._getBlockIndexRange(blockIdx)[0]
-            
-            block = self._data[blockIdx]
-            
-            t = block.startTime + self._getBlockSampleTime(blockIdx) * subIdx
-            val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[0]
-            
-            eventx = xform(t, val, session=self.session, noBivariates=self.noBivariates)
-            if eventx is None:
-                logger.info( "%s: bad transform %r %r" % (self.parent.name,t, val))
-                sleep(0.001)
-                eventx = xform(t, val, session=self.session, noBivariates=self.noBivariates)
-                if eventx is None:
-                    return None
-            tx, valx = eventx
-
-            m = self._getBlockRollingMean(blockIdx)
-            if m is not None:
-                mx = xform(t, m, session=self.session, noBivariates=self.noBivariates)
-                if mx is None:
-                    logger.info( "%s: bad offset @%s" % (self.parent.name,t))
-                    sleep(0.001)
-                    mx = xform(t, m, session=self.session, noBivariates=self.noBivariates)
-                valx = tuple(valx - np.array(mx[1]))
-                
-            if self.hasSubchannels:
-                return (tx,) + valx
-            else:
-                # Doesn't quite work; transform dataset attribute not set?
-                return (tx, valx[self.subchannelId])
-
-        elif isinstance(idx, slice):
-            return list(self.iterSlice(idx.start, idx.stop, idx.step))
-        
-        else:
-            raise TypeError("EventList indices must be integers or slices, not %s (%r)" % (type(idx), idx))
-
-
-    def __iter__(self):
-        """ Iterator for the EventList. WAY faster than getting individual
-            events.
-        """
-        return self.iterSlice()
-                
-
-    def __len__(self):
-        """ x.__len__() <==> len(x)
-        """
-        if self._singleSample:
-            return len(self._data)
-        if len(self._data) == 0:
-            return 0
-        # For some reason, the cached self._length wasn't thread-safe.
-#         return self._length
-        try:
-            return self._data[-1].indexRange[-1]
-        except (TypeError, IndexError):
-            # Can occur early on while asynchronously loading.
-            return self._length
-    
-    
-    def __eq__(self, other):
-        if other is self:
-            return True
-        elif not isinstance(other, self.__class__):
-            return False
-        else:
-            return self.parent == other.parent \
-               and self.session == other.session \
-               and self._data == other._data \
-               and self._length == other._length \
-               and self.dataset == other.dataset \
-               and self.hasSubchannels == other.hasSubchannels \
-               and self._firstTime == other._firstTime \
-               and self._parentList == other._parentList \
-               and self._childLists == other._childLists \
-               and self.noBivariates == other.noBivariates \
-               and self._singleSample == other._singleSample \
-               and self._blockTimes == other._blockTimes \
-               and self._blockIndices == other._blockIndices \
-               and self.channelId == other.channelId \
-               and self.subchannelId == other.subchannelId \
-               and self.channelId == other.channelId \
-               and self._hasSubsamples == other._hasSubsamples \
-               and self.hasDisplayRange == other.hasDisplayRange \
-               and self.displayRange == other.displayRange \
-               and self.removeMean == other.removeMean \
-               and self.hasMinMeanMax == other.hasMinMeanMax \
-               and self.rollingMeanSpan == other.rollingMeanSpan \
-               and self.transform == other.transform \
-               and self.useAllTransforms == other.useAllTransforms \
-               and self.allowMeanRemoval == other.allowMeanRemoval 
-
-
-    def itervalues(self, start=None, end=None, step=1, subchannels=True, display=False):
-        """ Iterate all values in the list (no times).
-        
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
-                a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword subchannels: A list of subchannel IDs or Boolean. `True`
-                will return all subchannels in native order.
-            :keyword display: If `True`, the `EventList` transform (i.e. the 
-                'display' transform) will be applied to the data.
-        """
-        # TODO: Optimize; times don't need to be computed since they aren't used
-        if self.hasSubchannels and subchannels != True:
-            # Create a function instead of chewing the subchannels every time
-            chFilter = eval("lambda x: (%s,)" % ",".join(
-                "x[%d]" % (1+ch) for ch in subchannels
-            ))
-            return (chFilter(event)
-                    for event in self.iterSlice(start, end, step, display))
-        else:
-            return (event[1:]
-                    for event in self.iterSlice(start, end, step, display))
-
-
-    def iterSlice(self, start=None, end=None, step=1, display=False):
-        """ Create an iterator producing events for a range indices.
-        
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
-                a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword display: If `True`, the `EventList` transform (i.e. the 
-                'display' transform) will be applied to the data.
-        """
-        # TODO: optimization: refactor calls of iterSlice() to pass slices?
-        if not isinstance(start, slice):
-            start = slice(start, end, step)
-        start, end, step = start.indices(len(self))
-
-        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
-        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
-
-        blockStep = max(1, (step + 0.0) / self._data[startBlockIdx].numSamples)
-        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
-        
-        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
-        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-
-        # OPTIMIZATION: making local variables for faster access
-        parent = self.parent
-        parent_parseBlock = parent.parseBlock
-        session = self.session
-        hasSubchannels = self.hasSubchannels
-        if not hasSubchannels:
-            subchannelId = parent.id 
-        _data = self._data
-        _getBlockSampleTime = self._getBlockSampleTime
-        _getBlockRollingMean = self._getBlockRollingMean
-        removeMean = self.allowMeanRemoval and self.removeMean #and self.hasMinMeanMax
-        offset = None
-
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
-
-        # in each block, the next subIdx is (step+subIdx)%numSamples
-        for i in range(numBlocks):
-            blockIdx = int(startBlockIdx + (i * blockStep))
-            block = _data[blockIdx]
-            sampleTime = _getBlockSampleTime(blockIdx)
-            lastSubIdx = endSubIdx if blockIdx == endBlockIdx else block.numSamples
-            times = (block.startTime + sampleTime * t for t in range(subIdx, lastSubIdx, step))
-            
-            values = parent_parseBlock(block, start=subIdx, end=lastSubIdx, step=step)
-
-            if removeMean:
-                offset = _getBlockRollingMean(blockIdx)
-                if offset is None:
-                    logger.info( "%s: bad offset (1) @%s" % (self.parent.name,block.startTime))
-                    sleep(0.001)
-                    offset = _getBlockRollingMean(blockIdx)
-                mx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                if mx is None:
-                    logger.info( "%s: bad offset(2) @%s" % (self.parent.name,block.startTime))
-                    sleep(0.001)
-                    mx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                if mx is not None:
-                    offset = np.array(mx[1])
-                
-            for t, vals in zip(times, values):
-                eventx = xform(t, vals, session=session, noBivariates=self.noBivariates)
-                if eventx is None:
-                    logger.info( "%s: bad transform @%s" % (self.parent.name,t))
-                    sleep(0.001)
-                    eventx = xform(t, vals, session=session, noBivariates=self.noBivariates)
-                t, vals = eventx
-                    
-                if offset is not None:
-                    vals = tuple(vals-offset)
-                if hasSubchannels:
-                    yield (t,) + vals
-                else:
-                    yield (t, vals[subchannelId])
-            
-            subIdx = (lastSubIdx-1+step) % block.numSamples
-
-
-    def iterJitterySlice(self, start=None, end=None, step=1, jitter=0.5, display=False):
-        """ Create an iterator producing events for a range indices.
-        
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
-                a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword jitter: The amount to vary the sample time, as a normalized
-                percent of the regular time between samples.
-            :keyword display: If `True`, the `EventList` transform (i.e. the 
-                'display' transform) will be applied to the data.
-        """
-        # TODO: optimization: refactor calls of iterJitterySlice() to pass slices?
-        if not isinstance(start, slice):
-            start = slice(start, end, step)
-        start, end, step = start.indices(len(self))
-        
-        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
-        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
-
-        blockStep = max(1, (step + 0.0) / self._data[startBlockIdx].numSamples)
-        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
-        
-        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
-        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-
-        # OPTIMIZATION: making local variables for faster access
-        parent = self.parent
-        parent_parseBlockByIndex = parent.parseBlockByIndex
-        session = self.session
-        hasSubchannels = self.hasSubchannels
-        if not hasSubchannels:
-            subchannelId = parent.id 
-        _data = self._data
-        _getBlockSampleTime = self._getBlockSampleTime
-        _getBlockRollingMean = self._getBlockRollingMean
-        removeMean = self.allowMeanRemoval and self.removeMean
-        offset = None
-        
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
-        
-        # in each block, the next subIdx is (step+subIdx)%numSamples
-        for i in range(numBlocks):
-            blockIdx = int(startBlockIdx + (i * blockStep))
-            block = _data[blockIdx]
-            sampleTime = _getBlockSampleTime(i)
-            lastSubIdx = endSubIdx if blockIdx == endBlockIdx else block.numSamples
-            
-            indices = list(range(subIdx, lastSubIdx, step))
-            if step > 1:
-                for x in range(2, len(indices)-1):
-                    indices[x] = int(indices[x] + (((random.random()*2)-1) * jitter * step))
-                
-            times = (block.startTime + sampleTime * t for t in indices)
-            values = parent_parseBlockByIndex(block, indices) 
-
-            # Note: _getBlockRollingMean returns None if removeMean==False
-            if removeMean:
-                offset = _getBlockRollingMean(blockIdx)
-                if offset is None:
-                    sleep(0.001)
-                    offset = _getBlockRollingMean(blockIdx)
-                
-                mx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                if mx is None:
-                    # Thread-induced race condition? Try again.
-                    logger.warning("iterJitterySlice: offset is None")
-                    sleep(0.001)
-                    mx = xform(block.startTime, offset, session=session, noBivariates=self.noBivariates)
-                offset = np.array(mx[1])
-                
-            for t, vals in zip(times, values):
-                eventx = xform(t, vals, session, noBivariates=self.noBivariates)
-                if eventx is None:
-                    # Thread-induced race condition? Try again.
-                    sleep(0.001)
-                    eventx = xform(t, vals, session, noBivariates=self.noBivariates)
-                t, vals = eventx
-                    
-                if offset is not None:
-                    vals = tuple(vals-offset)
-                else:
-                    logger.info('%r event offset is None' % self.parent.name)
-                if hasSubchannels:
-                    yield (t,) + vals
-                else:
-                    yield (t, vals[subchannelId])
-
-            subIdx = (lastSubIdx-1+step) % block.numSamples
-
-      
-    def getEventIndexBefore(self, t):
-        """ Get the index of an event occurring on or immediately before the
-            specified time.
-        
-            :param t: The time (in microseconds)
-            :return: The index of the event preceding the given time, -1 if
-                the time occurs before the first event.
-        """
-        if t <= self._data[0].startTime:
-            return -1
-        blockIdx = self._getBlockIndexWithTime(t)
-        try:
-            block = self._data[blockIdx]
-        except IndexError:
-            blockIdx = len(self._data)-1
-            block = self._data[blockIdx]
-        return int(block.indexRange[0] + \
-                   ((t - block.startTime) / self._getBlockSampleTime(blockIdx)))
-        
- 
-    def getEventIndexNear(self, t):
-        """ The the event occurring closest to a specific time. 
-        
-            :param t: The time (in microseconds)
-            :return: 
-        """
-        if t <= self._data[0].startTime:
-            return 0
-        idx = self.getEventIndexBefore(t)
-        events = self[idx:idx+2]
-        if events[0][0] == t or len(events) == 1:
-            return idx
-        return min((t - events[0][0], idx), (events[1][0] - t, idx+1))[1]
-
-
-    def getRangeIndices(self, startTime, endTime):
-        """ Get the first and last event indices that fall within the 
-            specified interval.
-            
-            :keyword startTime: The first time (in microseconds by default),
-                `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
-                the session.
-        """
-        if self.parent.singleSample:
-            startIdx = self._getBlockIndexWithTime(startTime)
-            if endTime is None:
-                endIdx = len(self)
-            else:
-                endIdx = self._getBlockIndexWithTime(endTime, startIdx) + 1
-            return startIdx, endIdx
-            
-        if startTime is None or startTime <= self._data[0].startTime:
-            startIdx = startBlockIdx = 0
-            startBlock = self._data[0]
-        else:
-            startBlockIdx = self._getBlockIndexWithTime(startTime)
-            startBlock = self._data[startBlockIdx]
-            startIdx = int(startBlock.indexRange[0] + \
-                           ((startTime - startBlock.startTime) / \
-                            self._getBlockSampleTime(startBlockIdx)) + 1)
-            
-        if endTime is None:
-            endIdx = self._data[-1].indexRange[1]
-        elif endTime <= self._data[0].startTime:
-            endIdx = 0
-        else:
-            endIdx = self.getEventIndexBefore(endTime)+1
-        return max(0, startIdx), min(endIdx, len(self))
-    
-
-    def getRange(self, startTime=None, endTime=None, display=False):
-        """ Get a set of data occurring in a given interval.
-        
-            :keyword startTime: The first time (in microseconds by default),
-                `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
-                the session.
-        """
-        return list(self.iterRange(startTime, endTime, display=display))
-
-
-    def iterRange(self, startTime=None, endTime=None, step=1, display=False):
-        """ Get a set of data occurring in a given interval.
-        
-            :keyword startTime: The first time (in microseconds by default),
-                `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
-                the session.
-        """
-        startIdx, endIdx = self.getRangeIndices(startTime, endTime)
-        return self.iterSlice(startIdx,endIdx,step,display=display)        
-
-
-    def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                       times=True, display=False):
-        """ Get the minimum, mean, and maximum values for blocks within a
-            specified interval.
-
-            :todo: Remember what `padding` was for, and either implement or
-                remove it completely. Related to plotting; see `plots`.
-            
-            :keyword startTime: The first time (in microseconds by default),
-                `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
-                the session.
-            :keyword times: If `True` (default), the results include the 
-                block's starting time. 
-            :keyword display: If `True`, the final 'display' transform (e.g.
-                unit conversion) will be applied to the results. 
-            :return: An iterator producing sets of three events (min, mean, 
-                and max, respectively).
-        """
-        if not self.hasMinMeanMax:
-            self._computeMinMeanMax()
-            
-        startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
-        
-        # OPTIMIZATION: Local variables for things used in inner loops
-        hasSubchannels = self.hasSubchannels
-        session = self.session
-        removeMean = self.removeMean and self.allowMeanRemoval
-        _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
-            parent_id = self.subchannelId
-
-        if self.useAllTransforms:
-            xform = self._fullXform
-            if display:
-                xform = self._displayXform or xform
-        else:
-            xform = self._comboXform
-
-        for block in self._data[startBlockIdx:endBlockIdx]:
-            t = block.startTime
-            m = _getBlockRollingMean(block.blockIndex)
-            
-            # HACK: Multithreaded loading can (very rarely) fail at start.
-            # The problem is almost instantly resolved, though. Find root cause.
-            tries = 0
-            if removeMean and m is None:
-                sleep(0.01)
-                m = _getBlockRollingMean(block.blockIndex)
-                tries += 1
-                if tries > 10 or not self.dataset.loading:
-                    break
-            
-            if m is not None:
-                mx = xform(t, m, session, noBivariates=self.noBivariates)
-                if mx is None:
-                    sleep(0.005)
-                    mx = xform(t, m, session, noBivariates=self.noBivariates)
-                    if mx is None:
-                        mx = t, m
-                m = np.array(mx[1])
-                
-            result = []
-            result_append = result.append
-            
-            for val in (block.min, block.mean, block.max):
-                event=xform(t, val, session, noBivariates=self.noBivariates)
-                if event is None:
-                    # HACK: No bivariate data (yet), possibly still loading.
-                    # Retry once.
-                    sleep(0.005)
-                    event = xform(t, val, session, noBivariates=self.noBivariates)
-                    if event is None:
-                        event = t, val
-                tx, valx = event
-                if removeMean and m is not None:
-                    valx = valx - m
-                result_append(valx)
-            
-            # Transformation has negative coefficient for inverted z-axis data
-            # -> need to sort mins/maxes to compensate
-            if hasSubchannels:
-                # 'rotate' the arrays, sort them, 'rotate' back.
-                result = list(zip(*list(map(sorted, list(zip(*result))))))
-            else:
-                result = tuple((v[parent_id],) for v in result)
-                if result[0][0] > result[2][0]:
-                    result = result[::-1]
-
-            if times:
-                yield tuple((tx,)+x for x in result)
-            else:
-                yield tuple(result)
-
-    
-    def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                      times=True, display=False, iterator=iter):
-        """ Get the minimum, mean, and maximum values for blocks within a
-            specified interval.
-            
-            :todo: Remember what `padding` was for, and either implement or
-                remove it completely. Related to plotting; see `plots`.
-            
-            :keyword startTime: The first time (in microseconds by default),
-                `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
-                the session.
-            :keyword times: If `True` (default), the results include the 
-                block's starting time. 
-            :keyword display: If `True`, the final 'display' transform (e.g.
-                unit conversion) will be applied to the results. 
-            :return: A list of sets of three events (min, mean, and max, 
-                respectively).
-        """
-        return list(iterator(self.iterMinMeanMax(startTime, endTime, padding, times,
-                                                 display=display)))
-    
-    
-    def getRangeMinMeanMax(self, startTime=None, endTime=None, subchannel=None,
-                           display=False, iterator=iter):
-        """ Get the single minimum, mean, and maximum value for blocks within a
-            specified interval. Note: Using this with a parent channel without
-            specifying a subchannel number can produce meaningless data if the
-            channels use different units or are on different scales.
-            
-            :keyword startTime: The first time (in microseconds by default),
-                `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
-                the session.
-            :keyword subchannel: The subchannel ID to retrieve, if the
-                EventList's parent has subchannels.
-            :keyword display: If `True`, the final 'display' transform (e.g.
-                unit conversion) will be applied to the results. 
-            :return: A set of three events (min, mean, and max, respectively).
-        """
-        mmm = np.array(self.getMinMeanMax(startTime, endTime, times=False, display=display, iterator=iterator))
-        if mmm.size == 0:
-            return None
-        if self.hasSubchannels and subchannel is not None:
-            return (mmm[:,0,subchannel].min(), 
-                    np.median(mmm[:,1,subchannel]).mean(), 
-                    mmm[:,2,subchannel].max())
-        return (mmm[:,0].min(), np.median(mmm[:,1]), mmm[:,2].max())
-        
-    
-    def _getBlockRange(self, startTime=None, endTime=None):
-        """ Get blocks falling within a time range. Used internally.
-        """
-        if startTime is None:
-            startBlockIdx = 0
-        else:
-            startBlockIdx = self._getBlockIndexWithTime(startTime)
-            startBlockIdx = max(startBlockIdx-1, 0)
-        if endTime is None:
-            endBlockIdx = len(self._data)
-        else:
-            if endTime < 0:
-                endTime += self._data[-1].endTime
-            endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx)
-            endBlockIdx = min(len(self._data), max(startBlockIdx+1, endBlockIdx+1))
-            
-        return startBlockIdx, endBlockIdx
-
-
-    def getMax(self, startTime=None, endTime=None, display=False, iterator=iter):
-        """ Get the event with the maximum value, optionally within a specified
-            time range. For Channels, the maximum of all Subchannels is
-            returned.
-            
-            :keyword startTime: The starting time. Defaults to the start.
-            :keyword endTime: The ending time. Defaults to the end.
-            :keyword display: If `True`, the final 'display' transform (e.g.
-                unit conversion) will be applied to the results. 
-            :return: The event with the maximum value.
-        """
-        # Optimization: actual functions are faster than building/using lambdas
-        def _blockChannelMax(x):
-            return max(x[1][-1][1:])
-
-        def _blockSubchannelMax(x):
-            return x[1][-1][-1]
-        
-        def _channelMax(x):
-            return max(x[1:])
-
-        def _subChannelMax(x):
-            return x[-1]
-
-        if self.hasSubchannels:
-            blockKeyFun = _blockChannelMax
-            keyFun = _channelMax
-        else:
-            blockKeyFun = _blockSubchannelMax
-            keyFun = _subChannelMax
-            
-        blockIter = iterator(self.iterMinMeanMax(startTime, endTime, display=display))
-    
-        blockIdx = max(enumerate(blockIter),key=blockKeyFun)[0]
-        block = self._data[blockIdx]
-        return max(iterator(self.iterSlice(*block.indexRange, display=display)),
-                   key=keyFun)
-
-
-    def getMin(self, startTime=None, endTime=None, display=False, iterator=iter):
-        """ Get the event with the minimum value, optionally within a specified
-            time range. For Channels, the minimum of all Subchannels is
-            returned.
-            
-            :keyword startTime: The starting time. Defaults to the start.
-            :keyword endTime: The ending time. Defaults to the end.
-            :keyword display: If `True`, the final 'display' transform (e.g.
-                unit conversion) will be applied to the results. 
-            :return: The event with the minimum value.
-        """
-        # Optimization: actual functions are faster than building/using lambdas
-        def _blockChannelMin(x):
-            return min(x[1][0][1:])
-
-        def _blockSubchannelMin(x):
-            return x[1][0][-1]
-        
-        def _channelMin(x):
-            return min(x[1:])
-
-        def _subChannelMin(x):
-            return x[-1]
-        
-        if not self.hasMinMeanMax:
-            self._computeMinMeanMax()
-        
-        if self.hasSubchannels:
-            blockKeyFun = _blockChannelMin
-            keyFun = _channelMin
-        else:
-            blockKeyFun = _blockSubchannelMin
-            keyFun = _subChannelMin
-            
-        blockIter = iterator(self.iterMinMeanMax(startTime, endTime, display=display))
-    
-        blockIdx = min(enumerate(blockIter),key=blockKeyFun)[0]
-        block = self._data[blockIdx]
-        return min(iterator(self.iterSlice(*block.indexRange, display=display)),
-                   key=keyFun)
-
-
-    def _computeMinMeanMax(self):
-        """ Calculate the minimum, mean, and max for files without that data
-            recorded. Not recommended for large data sets.
-        """
-        if self.hasMinMeanMax or self._singleSample:
-            return
-        
-        if self.hasSubchannels:
-            parseBlock = self.parent.parseBlock
-        else:
-            parseBlock = self.parent.parent.parseBlock
-        
-        try:
-            for block in self._data:
-                if None in (block.min, block.mean, block.max):
-                    vals = np.array(parseBlock(block))
-                    block.min = tuple(vals.min(axis=0))
-                    block.mean = tuple(vals.mean(axis=0))
-                    block.max = tuple(vals.max(axis=0))
-            
-                self.hasMinMeanMax = True
-
-        except struct.error:
-            logger.warning("_computeMinMeanMax struct error: %r" % (block.indexRange,))
-            if __DEBUG__:
-                raise
-
-
-    def _getBlockSampleTime(self, blockIdx=0):
-        """ Get the time between samples within a given data block.
-            
-            :keyword blockIdx: The index of the block to measure. Times
-                within the same block are expected to be consistent, but can
-                possibly vary from block to block.
-            :return: The sample rate, as samples per second
-        """
-        if len(self._data) == 0:
-            # Channel has no events. Probably shouldn't happen.
-            # TODO: Get the sample rate from another session?
-            return -1
-        
-#         if blockIdx < 0:
-#             blockIdx += len(self._data)
-        
-        # See if it's already been computed or provided in the recording
-        block = self._data[blockIdx]
-        if block.sampleTime is not None:
-            return block.sampleTime
-        
-        startTime = block.startTime
-        endTime = block.endTime
-
-        if endTime is None or endTime == startTime:
-            # No recorded end time, or a single-sample block.
-            if len(self._data) == 1:
-                # Only one block; can't compute from that!
-                # TODO: Implement getting sample rate in case of single block?
-                return -1
-            elif blockIdx == len(self._data) - 1:
-                # Last block; use previous.
-                block.sampleTime = self._getBlockSampleTime(blockIdx-1)
-                return block.sampleTime
-            else:
-                endTime = self._data[blockIdx+1].startTime
-            block.endTime = endTime
-        
-        numSamples = block.getNumSamples(self.parent.parser)
-        if numSamples <= 1:
-            block.sampleTime = endTime - startTime
-            return block.sampleTime
-
-        block.sampleTime = (endTime - startTime) / (numSamples-1.0)
-        
-        return block.sampleTime
-
-
-    def _getBlockSampleRate(self, blockIdx=0):
-        """ Get the channel's sample rate. This is either supplied as part of
-            the channel definition or calculated from the actual data and
-            cached.
-            
-            :keyword blockIdx: The block to check. Optional, because in an
-                ideal world, all blocks would be the same.
-            :return: The sample rate, as samples per second (float)
-        """
-        
-        if self._data[blockIdx].sampleRate is None:
-            sampTime = self._getBlockSampleTime(blockIdx)
-            if sampTime > 0:
-                self._data[blockIdx].sampleRate = 1000000.0 / sampTime
-            else:
-                self._data[blockIdx].sampleRate = 0
-        return self._data[blockIdx].sampleRate
-
-
-    def getSampleTime(self, idx=None):
-        """ Get the time between samples.
-            
-            :keyword idx: Because it is possible for sample rates to vary
-                within a channel, an event index can be specified; the time
-                between samples for that event and its siblings will be 
-                returned.
-            :return: The time between samples (us)
-        """
-        sr = self.parent.sampleRate
-        if idx is None and sr is not None:
-            return 1.0 / sr
-        else:
-            idx = 0
-        return self._getBlockSampleTime(self._getBlockIndexWithIndex(idx))
-    
-    
-    def getSampleRate(self, idx=None):
-        """ Get the channel's sample rate. This is either supplied as part of
-            the channel definition or calculated from the actual data and
-            cached.
-            
-            :keyword idx: Because it is possible for sample rates to vary
-                within a channel, an event index can be specified; the sample
-                rate for that event and its siblings will be returned.
-            :return: The sample rate, as samples per second (float)
-        """
-        sr = self.parent.sampleRate
-        if idx is None and sr is not None:
-            return sr
-        else:
-            idx = 0
-        return self._getBlockSampleRate(self._getBlockIndexWithIndex(idx))
-    
-
-    def getValueAt(self, at, outOfRange=False, display=False):
-        """ Retrieve the value at a specific time, interpolating between
-            existing events.
-            
-            :todo: Optimize. This creates a bottleneck in the calibration.
-            
-            :param at: The time at which to take the sample.
-            :keyword outOfRange: If `False`, times before the first sample
-                or after the last will raise an `IndexError`. If `True`, the
-                first or last time, respectively, is returned.
-        """
-        startIdx = self.getEventIndexBefore(at)
-        if startIdx < 0:
-            first = self.__getitem__(0, display=display)
-            if first[0] == at:
-                return first
-            if outOfRange:
-                return first
-            raise IndexError("Specified time occurs before first event (%d)" % first[0])
-        elif startIdx >= len(self) - 1:
-            last = self.__getitem__(-1, display=display)
-            if last[0] == at:
-                return last
-            if outOfRange:
-                return last
-            raise IndexError("Specified time occurs after last event (%d)" % last[0])
-        
-        startEvt = self.__getitem__(startIdx, display=display)
-        endEvt = self.__getitem__(startIdx+1, display=display)
-        relAt = at - startEvt[0]
-        endTime = endEvt[0] - startEvt[0] + 0.0
-        percent = relAt/endTime
-        
-        return (at,) + tuple(
-            v1 + (percent * (v2-v1))
-            for v1, v2 in zip(startEvt[1:], endEvt[1:])
-        )
-    
-
-    def getMeanNear(self, t, outOfRange=False):
-        """ Retrieve the mean value near a given time. 
-        """
-        b = self._getBlockIndexWithTime(t)
-        if outOfRange:
-            b = min(len(self._data)-1,b)
-        m = self._comboXform(t, self._getBlockRollingMean(b, force=True))[1]
-        if self.hasSubchannels:
-            return m
-        return m[self.subchannelId]
-        
-
-    def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
-                           jitter=0, display=False):
-        """ Retrieve the events occurring within a given interval,
-            undersampled as to not exceed a given length (e.g. the size of
-            the data viewer's screen width).
-        
-            :todo: Optimize iterResampledRange(); not very efficient,
-                particularly not with single-sample blocks.
-        """
-        startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
-        numPoints = (stopIdx - startIdx)
-        startIdx = max(startIdx-padding, 0)
-        stopIdx = min(stopIdx+padding, len(self))
-        step = max(-int(-numPoints // maxPoints), 1)
-        
-        if jitter != 0:
-            return self.iterJitterySlice(startIdx, stopIdx, step, jitter,
-                                         display=display)
-        return self.iterSlice(startIdx, stopIdx, step, display=display)
-
-
-    def exportCsv(self, stream, start=None, stop=None, step=1, subchannels=True,
-                  callback=None, callbackInterval=0.01, timeScalar=1,
-                  raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
-                  useUtcTime=False, useIsoFormat=False, headers=False, 
-                  removeMean=None, meanSpan=None, display=False,
-                  noBivariates=False):
-        """ Export events as CSV to a stream (e.g. a file).
-        
-            :param stream: The stream object to which to write CSV data.
-            :keyword start: The first event index to export.
-            :keyword stop: The last event index to export.
-            :keyword step: The number of events between exported lines.
-            :keyword subchannels: A sequence of individual subchannel numbers
-                to export. Only applicable to objects with subchannels.
-                `True` (default) exports them all.
-            :keyword callback: A function (or function-like object) to notify
-                as work is done. It should take four keyword arguments:
-                `count` (the current line number), `total` (the total number
-                of lines), `error` (an exception, if raised during the
-                export), and `done` (will be `True` when the export is
-                complete). If the callback object has a `cancelled`
-                attribute that is `True`, the CSV export will be aborted.
-                The default callback is `None` (nothing will be notified).
-            :keyword callbackInterval: The frequency of update, as a
-                normalized percent of the total lines to export.
-            :keyword timeScalar: A scaling factor for the event times.
-                The default is 1 (microseconds).
-            :keyword raiseExceptions: 
-            :keyword dataFormat: The number of decimal places to use for the
-                data. This is the same format as used when formatting floats.
-            :keyword useUtcTime: If `True`, times are written as the UTC
-                timestamp. If `False`, times are relative to the recording.
-            :keyword useIsoFormat: If `True`, the time column is written as
-                the standard ISO date/time string. Only applies if `useUtcTime`
-                is `True`.
-            :keyword headers: If `True`, the first line of the CSV will contain
-                the names of each column.
-            :keyword removeMean: Overrides the EventArray's mean removal for the
-                export.
-            :keyword meanSpan: The span of the mean removal for the export. 
-                -1 removes the total mean.
-            :keyword display: If `True`, export using the EventArray's 'display'
-                transform (e.g. unit conversion).
-            :return: Tuple: The number of rows exported and the elapsed time.
-        """
-        noCallback = callback is None
-        _self = self.copy()
-
-        # Create a function for formatting the event time.        
-        if useUtcTime and _self.session.utcStartTime:
-            if useIsoFormat:
-                timeFormatter = lambda x: datetime.utcfromtimestamp(x[0] * timeScalar + _self.session.utcStartTime).isoformat()
-            else:
-                timeFormatter = lambda x: dataFormat % (x[0] * timeScalar + _self.session.utcStartTime)
-        else:
-            timeFormatter = lambda x: dataFormat % (x[0] * timeScalar)
-        
-        # Create the function for formatting an entire row.
-        if _self.hasSubchannels:
-            if isinstance(subchannels, Iterable):
-                fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(subchannels))
-                formatter = lambda x: fstr % ((timeFormatter(x),) +
-                                              tuple(x[1+v] for v in subchannels))
-                names = [_self.parent.subchannels[x].name for x in subchannels]
-            else:
-                fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(_self.parent.types))
-                formatter = lambda x: fstr % ((timeFormatter(x),) + tuple(x[1:]))
-                names = [x.name for x in _self.parent.subchannels]
-        else:
-            fstr = "%%s%s%s" % (delimiter, dataFormat)
-            formatter = lambda x: fstr % (timeFormatter(x), x[1:])
-            names = [_self.parent.name]
-
-        if removeMean is not None:
-            _self.removeMean = _self.allowMeanRemoval and removeMean
-        if meanSpan is not None:
-            _self.rollingMeanSpan = meanSpan
-        
-        start, stop, step = slice(start, stop, step).indices(len(self))
-
-        totalLines = len(range(start, stop, step))
-        numChannels = len(names)
-        totalSamples = totalLines * numChannels
-        updateInt = int(totalLines * callbackInterval)
-        
-        t0 = datetime.now()
-        if headers:
-            stream.write('"Time"%s%s\n' % 
-                         (delimiter, delimiter.join(['"%s"' % n for n in names])))
-            
-        num = 0
-        try:
-            for num, evt in enumerate(_self.iterSlice(start, stop, step, display=display)):
-                stream.write("%s\n" % formatter(evt))
-                if callback is not None:
-                    if getattr(callback, 'cancelled', False):
-                        callback(done=True)
-                        break
-                    if updateInt == 0 or num % updateInt == 0:
-                        callback(num*numChannels, total=totalSamples)
-            if callback is not None:
-                callback(done=True)
-        except Exception as e:
-            if raiseExceptions:
-                raise
-            elif callback is not None:
-                callback(error=e)
-
-        return num+1, datetime.now() - t0
-
-
-#===============================================================================
-#
-#===============================================================================
-
-def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
-                     default=None):
-    """ Repeats a function call until a non-None value is returned, and
-        returns that value.
-    """
-    for _ in range(max_tries):
-        value = func()
-        if value is not None:
-            return value
-        on_fail()
-        sleep(delay)
-    return default
-
-
-class EventArray(EventList):
-    """ A list-like object containing discrete time/value pairs. Data is 
-        dynamically read from the underlying EBML file. 
-    """
-
-    def __init__(self, parentChannel, session=None, parentList=None):
-        """ Constructor. This should almost always be done indirectly via
-            the `getSession()` method of `Channel` and `SubChannel` objects.
-        """
-        super(EventArray, self).__init__(parentChannel, session, parentList)
-
-        self._mean = None
-
-        self._blockIndicesArray = np.array([], dtype=np.float64)
-        self._blockTimesArray = np.array([], dtype=np.float64)
-
-    #===========================================================================
-    # New utility methods
-    #===========================================================================
-
-    def _makeBlockEventsFactory(self, display):
-        """ Generates a function that makes numpy arrays of event data.
-            The generated function is optimized to be run repeatedly in a loop.
-        """
-
-        # OPTIMIZATION: making local variables for faster access
-        parent = self.parent
-        session = self.session
-        hasSubchannels = self.hasSubchannels
-        if not hasSubchannels:
-            subchannelId = parent.id
-        _getBlockRollingMean = self._getBlockRollingMean
-        removeMean = (self.allowMeanRemoval and self.removeMean
-#                       and self.hasMinMeanMax
-                      )
-
-        if not self.useAllTransforms:
-            xform = self._comboXform
-        elif display:
-            xform = self._displayXform or self._fullXform
-        else:
-            xform = self._fullXform
-
-        def _makeBlockEvents(times, values, block, blockIdx):
-            """ Creates a structured array of event data for a given set of
-                event times and values. (Used in event iteration methods.)
-            """
-
-            values = retryUntilReturn(
-                partial(xform.inplace, values, session=session,
-                        noBivariates=self.noBivariates),
-                max_tries=2, delay=0.001,
-                on_fail=partial(logger.info,
-                                "%s: bad transform @%s"
-                                % (parent.name, times)),
-            )
-
-            # Note: _getBlockRollingMean returns None if removeMean==False
-            if removeMean:
-                offset = retryUntilReturn(
-                    partial(_getBlockRollingMean, blockIdx),
-                    max_tries=2, delay=0.001,
-                    on_fail=partial(logger.info,
-                                    "%s: bad offset (1) @%s"
-                                    % (parent.name, block.startTime)),
-                )
-                offset = retryUntilReturn(
-                    partial(xform.inplace, offset, session=session,
-                            noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001, default=(None, offset),
-                    on_fail=partial(logger.info,
-                                    "%s: bad offset (2) @%s"
-                                    % (parent.name, block.startTime)),
-                )
-
-                if offset is not None:
-                    values -= np.array(offset)[..., np.newaxis]
-                else:
-                    logger.info('%r event offset is None' % parent.name)
-
-            if not hasSubchannels:
-                values = values[[subchannelId]]
-
-            return (times, values)
-
-        return _makeBlockEvents
-
-    #===========================================================================
-    # Derived utility methods
-    #===========================================================================
-
-    def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
-        """ Get the index of a raw data block that contains the given event
-            index.
-
-            :param idx: The event index to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
-        """
-        # TODO: profile & determine if this change is beneficial
-        if len(self._blockIndicesArray) != len(self._blockIndices):
-            self._blockIndicesArray = np.array(self._blockIndices)
-
-        idxOffset = max(start, 1)
-        return idxOffset-1 + np.searchsorted(
-            self._blockIndicesArray[idxOffset:stop], idx, side='right'
-        )
-
-
-    def _getBlockIndexWithTime(self, t, start=0, stop=None):
-        """ Get the index of a raw data block in which the given time occurs.
-
-            :param t: The time to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
-        """
-        # TODO: profile & determine if this change is beneficial
-        if len(self._blockTimesArray) != len(self._blockTimes):
-            self._blockTimesArray = np.array(self._blockTimes)
-
-        idxOffset = max(start, 1)
-        return idxOffset-1 + np.searchsorted(
-            self._blockTimesArray[idxOffset:stop], t, side='right'
-        )
 
 
     def _getBlockRollingMean(self, blockIdx, force=False):
@@ -2617,12 +1607,12 @@ class EventArray(EventList):
         if isinstance(blockIdx, Sequence):
             blockIdx = np.array(blockIdx)
         elif not isinstance(blockIdx, np.ndarray):
-            return super(EventArray, self)._getBlockRollingMean(blockIdx, force)
+            return self._getBlockRollingMean_old(blockIdx, force)
 
         uniqueBlockIndices, blocksPerm = np.unique(blockIdx, return_inverse=True)
 
         uniqueBlockMeans = np.stack([
-            super(EventArray, self)._getBlockRollingMean(idx, force)
+            self._getBlockRollingMean_old(idx, force)
             for idx in uniqueBlockIndices
         ], axis=-1)
         return uniqueBlockMeans[:, blocksPerm]
@@ -2700,6 +1690,62 @@ class EventArray(EventList):
 
         raise TypeError("EventArray indices must be integers or slices,"
                         " not %s (%r)" % (type(idx), idx))
+
+
+    def __iter__(self):
+        """ Iterator for the EventList. WAY faster than getting individual
+            events.
+        """
+        return self.iterSlice()
+                
+
+    def __len__(self):
+        """ x.__len__() <==> len(x)
+        """
+        if self._singleSample:
+            return len(self._data)
+        if len(self._data) == 0:
+            return 0
+        # For some reason, the cached self._length wasn't thread-safe.
+#         return self._length
+        try:
+            return self._data[-1].indexRange[-1]
+        except (TypeError, IndexError):
+            # Can occur early on while asynchronously loading.
+            return self._length
+    
+    
+    def __eq__(self, other):
+        if other is self:
+            return True
+        elif not isinstance(other, self.__class__):
+            return False
+        else:
+            return self.parent == other.parent \
+               and self.session == other.session \
+               and self._data == other._data \
+               and self._length == other._length \
+               and self.dataset == other.dataset \
+               and self.hasSubchannels == other.hasSubchannels \
+               and self._firstTime == other._firstTime \
+               and self._parentList == other._parentList \
+               and self._childLists == other._childLists \
+               and self.noBivariates == other.noBivariates \
+               and self._singleSample == other._singleSample \
+               and self._blockTimes == other._blockTimes \
+               and self._blockIndices == other._blockIndices \
+               and self.channelId == other.channelId \
+               and self.subchannelId == other.subchannelId \
+               and self.channelId == other.channelId \
+               and self._hasSubsamples == other._hasSubsamples \
+               and self.hasDisplayRange == other.hasDisplayRange \
+               and self.displayRange == other.displayRange \
+               and self.removeMean == other.removeMean \
+               and self.hasMinMeanMax == other.hasMinMeanMax \
+               and self.rollingMeanSpan == other.rollingMeanSpan \
+               and self.transform == other.transform \
+               and self.useAllTransforms == other.useAllTransforms \
+               and self.allowMeanRemoval == other.allowMeanRemoval 
 
 
     def itervalues(self, start=None, end=None, step=1, subchannels=True,
@@ -2959,8 +2005,88 @@ class EventArray(EventList):
         return np.block(raw_slice).T
 
 
-    # EventList implementation suffices -> no overload required
-    # def iterRange(self, startTime=None, endTime=None, step=1, display=False):
+    def getEventIndexBefore(self, t):
+        """ Get the index of an event occurring on or immediately before the
+            specified time.
+        
+            :param t: The time (in microseconds)
+            :return: The index of the event preceding the given time, -1 if
+                the time occurs before the first event.
+        """
+        if t <= self._data[0].startTime:
+            return -1
+        blockIdx = self._getBlockIndexWithTime(t)
+        try:
+            block = self._data[blockIdx]
+        except IndexError:
+            blockIdx = len(self._data)-1
+            block = self._data[blockIdx]
+        return int(block.indexRange[0] + \
+                   ((t - block.startTime) / self._getBlockSampleTime(blockIdx)))
+        
+ 
+    def getEventIndexNear(self, t):
+        """ The the event occurring closest to a specific time. 
+        
+            :param t: The time (in microseconds)
+            :return: 
+        """
+        if t <= self._data[0].startTime:
+            return 0
+        idx = self.getEventIndexBefore(t)
+        events = self[idx:idx+2]
+        if events[0][0] == t or len(events) == 1:
+            return idx
+        return min((t - events[0][0], idx), (events[1][0] - t, idx+1))[1]
+
+
+    def getRangeIndices(self, startTime, endTime):
+        """ Get the first and last event indices that fall within the 
+            specified interval.
+            
+            :keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            :keyword endTime: The second time, or `None` to use the end of
+                the session.
+        """
+        if self.parent.singleSample:
+            startIdx = self._getBlockIndexWithTime(startTime)
+            if endTime is None:
+                endIdx = len(self)
+            else:
+                endIdx = self._getBlockIndexWithTime(endTime, startIdx) + 1
+            return startIdx, endIdx
+            
+        if startTime is None or startTime <= self._data[0].startTime:
+            startIdx = startBlockIdx = 0
+            startBlock = self._data[0]
+        else:
+            startBlockIdx = self._getBlockIndexWithTime(startTime)
+            startBlock = self._data[startBlockIdx]
+            startIdx = int(startBlock.indexRange[0] + \
+                           ((startTime - startBlock.startTime) / \
+                            self._getBlockSampleTime(startBlockIdx)) + 1)
+            
+        if endTime is None:
+            endIdx = self._data[-1].indexRange[1]
+        elif endTime <= self._data[0].startTime:
+            endIdx = 0
+        else:
+            endIdx = self.getEventIndexBefore(endTime)+1
+        return max(0, startIdx), min(endIdx, len(self))
+    
+
+    def iterRange(self, startTime=None, endTime=None, step=1, display=False):
+        """ Get a set of data occurring in a given interval.
+        
+            :keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            :keyword endTime: The second time, or `None` to use the end of
+                the session.
+        """
+        startIdx, endIdx = self.getRangeIndices(startTime, endTime)
+        return self.iterSlice(startIdx,endIdx,step,display=display)        
+
 
     def arrayRange(self, startTime=None, endTime=None, step=1, display=False):
         """ Get a set of data occurring in a given time interval.
@@ -2989,8 +2115,7 @@ class EventArray(EventList):
         """
         return self.arrayRange(startTime, endTime, display=display)
 
-    '''
-    TODO: revisit overloading iterMinMeanMax for efficiency
+
     def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
                        times=True, display=False):
         """ Get the minimum, mean, and maximum values for blocks within a
@@ -2998,23 +2123,23 @@ class EventArray(EventList):
 
             :todo: Remember what `padding` was for, and either implement or
                 remove it completely. Related to plotting; see `plots`.
-
+            
             :keyword startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
             :keyword endTime: The second time, or `None` to use the end of
                 the session.
-            :keyword times: If `True` (default), the results include the
-                block's starting time.
+            :keyword times: If `True` (default), the results include the 
+                block's starting time. 
             :keyword display: If `True`, the final 'display' transform (e.g.
-                unit conversion) will be applied to the results.
-            :return: An iterator producing sets of three events (min, mean,
+                unit conversion) will be applied to the results. 
+            :return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
         """
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
-
+            
         startBlockIdx, endBlockIdx = self._getBlockRange(startTime, endTime)
-
+        
         # OPTIMIZATION: Local variables for things used in inner loops
         hasSubchannels = self.hasSubchannels
         session = self.session
@@ -3031,54 +2156,60 @@ class EventArray(EventList):
             xform = self._comboXform
 
         for block in self._data[startBlockIdx:endBlockIdx]:
-            # NOTE: Without this, a file in which some blocks don't have
-            # min/mean/max will fail. Should not happen, though.
-#             if block.minMeanMax is None:
-#                 continue
-
             t = block.startTime
-            if removeMean:
-                # HACK: Multithreaded loading can (very rarely) fail at start.
-                # The problem is almost instantly resolved, though. Find root cause.
-                offset = retryUntilReturn(
-                    partial(_getBlockRollingMean, block.blockIndex),
-                    max_tries=10, delay=0.01
-                )
-            else:
-                offset = _getBlockRollingMean(block.blockIndex)
-
-            if offset is not None:
-                _, mx = retryUntilReturn(
-                    partial(xform, t, offset, session,
-                            noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.005, default=(t, offset)
-                )
-                offset = np.array(mx)
-
-            values = np.stack((block.min, block.mean, block.max)).T
-            tx, values = retryUntilReturn(
-                partial(xform, t, values, session,
-                        noBivariates=self.noBivariates),
-                max_tries=2, delay=0.005, default=(t, values)
-            )
-            values = np.array(values).T
-            if offset is not None:
-                values -= offset
-            # ^ shape -> (min/mean/max, channels)
-
+            m = _getBlockRollingMean(block.blockIndex)
+            
+            # HACK: Multithreaded loading can (very rarely) fail at start.
+            # The problem is almost instantly resolved, though. Find root cause.
+            tries = 0
+            if removeMean and m is None:
+                sleep(0.01)
+                m = _getBlockRollingMean(block.blockIndex)
+                tries += 1
+                if tries > 10 or not self.dataset.loading:
+                    break
+            
+            if m is not None:
+                mx = xform(t, m, session, noBivariates=self.noBivariates)
+                if mx is None:
+                    sleep(0.005)
+                    mx = xform(t, m, session, noBivariates=self.noBivariates)
+                    if mx is None:
+                        mx = t, m
+                m = np.array(mx[1])
+                
+            result = []
+            result_append = result.append
+            
+            for val in (block.min, block.mean, block.max):
+                event=xform(t, val, session, noBivariates=self.noBivariates)
+                if event is None:
+                    # HACK: No bivariate data (yet), possibly still loading.
+                    # Retry once.
+                    sleep(0.005)
+                    event = xform(t, val, session, noBivariates=self.noBivariates)
+                    if event is None:
+                        event = t, val
+                tx, valx = event
+                if removeMean and m is not None:
+                    valx = valx - m
+                result_append(valx)
+            
             # Transformation has negative coefficient for inverted z-axis data
             # -> need to sort mins/maxes to compensate
-            values.sort(axis=0)
-
-            if not hasSubchannels:
-                values = values[:, [parent_id]]
+            if hasSubchannels:
+                # 'rotate' the arrays, sort them, 'rotate' back.
+                result = list(zip(*list(map(sorted, list(zip(*result))))))
+            else:
+                result = tuple((v[parent_id],) for v in result)
+                if result[0][0] > result[2][0]:
+                    result = result[::-1]
 
             if times:
-                tx = np.broadcast_to(tx, (values.shape[0], 1))
-                yield np.concatenate((tx, values), axis=-1)
+                yield tuple((tx,)+x for x in result)
             else:
-                yield values
-    '''
+                yield tuple(result)
+
 
     def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
                         times=True, display=False, iterator=iter):
@@ -3165,6 +2296,25 @@ class EventArray(EventList):
             )
 
 
+    def _getBlockRange(self, startTime=None, endTime=None):
+        """ Get blocks falling within a time range. Used internally.
+        """
+        if startTime is None:
+            startBlockIdx = 0
+        else:
+            startBlockIdx = self._getBlockIndexWithTime(startTime)
+            startBlockIdx = max(startBlockIdx-1, 0)
+        if endTime is None:
+            endBlockIdx = len(self._data)
+        else:
+            if endTime < 0:
+                endTime += self._data[-1].endTime
+            endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx)
+            endBlockIdx = min(len(self._data), max(startBlockIdx+1, endBlockIdx+1))
+            
+        return startBlockIdx, endBlockIdx
+
+
     def getMax(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the event with the maximum value, optionally within a specified
             time range. For Channels, returns the maximum among all
@@ -3212,33 +2362,146 @@ class EventArray(EventList):
         return blockData[:, subIdx]
 
 
-    def getMean(self, startTime=None, endTime=None, display=False, iterator=iter):
-        """ Get the mean value of all events, optionally within a specified
-            time range. For Channels, returns the minimum among all
-            Subchannels.
-
-            :keyword startTime: The starting time. Defaults to the start.
-            :keyword endTime: The ending time. Defaults to the end.
-            :keyword display: If `True`, the final 'display' transform (e.g.
-                unit conversion) will be applied to the results.
-            :return: The event with the minimum value.
+    def _getBlockSampleTime(self, blockIdx=0):
+        """ Get the time between samples within a given data block.
+            
+            :keyword blockIdx: The index of the block to measure. Times
+                within the same block are expected to be consistent, but can
+                possibly vary from block to block.
+            :return: The sample rate, as samples per second
         """
-        if not self.hasMinMeanMax:
-            self._computeMinMeanMax()
+        if len(self._data) == 0:
+            # Channel has no events. Probably shouldn't happen.
+            # TODO: Get the sample rate from another session?
+            return -1
+        
+#         if blockIdx < 0:
+#             blockIdx += len(self._data)
+        
+        # See if it's already been computed or provided in the recording
+        block = self._data[blockIdx]
+        if block.sampleTime is not None:
+            return block.sampleTime
+        
+        startTime = block.startTime
+        endTime = block.endTime
 
-        if startTime is None and endTime is None:
-            if self._mean is not None:
-                return self._mean
+        if endTime is None or endTime == startTime:
+            # No recorded end time, or a single-sample block.
+            if len(self._data) == 1:
+                # Only one block; can't compute from that!
+                # TODO: Implement getting sample rate in case of single block?
+                return -1
+            elif blockIdx == len(self._data) - 1:
+                # Last block; use previous.
+                block.sampleTime = self._getBlockSampleTime(blockIdx-1)
+                return block.sampleTime
+            else:
+                endTime = self._data[blockIdx+1].startTime
+            block.endTime = endTime
+        
+        numSamples = block.getNumSamples(self.parent.parser)
+        if numSamples <= 1:
+            block.sampleTime = endTime - startTime
+            return block.sampleTime
 
-        means = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                     display=display, iterator=iterator)[1]
-        mean = np.sum([d.numSamples*mean for d, mean in zip(self._data, means[0])])/np.sum(d.numSamples for d in self._data)
+        block.sampleTime = (endTime - startTime) / (numSamples-1.0)
+        
+        return block.sampleTime
 
-        if startTime is None and endTime is None:
-            self._mean = mean
 
-        return mean
+    def _getBlockSampleRate(self, blockIdx=0):
+        """ Get the channel's sample rate. This is either supplied as part of
+            the channel definition or calculated from the actual data and
+            cached.
+            
+            :keyword blockIdx: The block to check. Optional, because in an
+                ideal world, all blocks would be the same.
+            :return: The sample rate, as samples per second (float)
+        """
+        
+        if self._data[blockIdx].sampleRate is None:
+            sampTime = self._getBlockSampleTime(blockIdx)
+            if sampTime > 0:
+                self._data[blockIdx].sampleRate = 1000000.0 / sampTime
+            else:
+                self._data[blockIdx].sampleRate = 0
+        return self._data[blockIdx].sampleRate
 
+
+    def getSampleTime(self, idx=None):
+        """ Get the time between samples.
+            
+            :keyword idx: Because it is possible for sample rates to vary
+                within a channel, an event index can be specified; the time
+                between samples for that event and its siblings will be 
+                returned.
+            :return: The time between samples (us)
+        """
+        sr = self.parent.sampleRate
+        if idx is None and sr is not None:
+            return 1.0 / sr
+        else:
+            idx = 0
+        return self._getBlockSampleTime(self._getBlockIndexWithIndex(idx))
+    
+    
+    def getSampleRate(self, idx=None):
+        """ Get the channel's sample rate. This is either supplied as part of
+            the channel definition or calculated from the actual data and
+            cached.
+            
+            :keyword idx: Because it is possible for sample rates to vary
+                within a channel, an event index can be specified; the sample
+                rate for that event and its siblings will be returned.
+            :return: The sample rate, as samples per second (float)
+        """
+        sr = self.parent.sampleRate
+        if idx is None and sr is not None:
+            return sr
+        else:
+            idx = 0
+        return self._getBlockSampleRate(self._getBlockIndexWithIndex(idx))
+    
+
+    def getValueAt(self, at, outOfRange=False, display=False):
+        """ Retrieve the value at a specific time, interpolating between
+            existing events.
+            
+            :todo: Optimize. This creates a bottleneck in the calibration.
+            
+            :param at: The time at which to take the sample.
+            :keyword outOfRange: If `False`, times before the first sample
+                or after the last will raise an `IndexError`. If `True`, the
+                first or last time, respectively, is returned.
+        """
+        startIdx = self.getEventIndexBefore(at)
+        if startIdx < 0:
+            first = self.__getitem__(0, display=display)
+            if first[0] == at:
+                return first
+            if outOfRange:
+                return first
+            raise IndexError("Specified time occurs before first event (%d)" % first[0])
+        elif startIdx >= len(self) - 1:
+            last = self.__getitem__(-1, display=display)
+            if last[0] == at:
+                return last
+            if outOfRange:
+                return last
+            raise IndexError("Specified time occurs after last event (%d)" % last[0])
+        
+        startEvt = self.__getitem__(startIdx, display=display)
+        endEvt = self.__getitem__(startIdx+1, display=display)
+        relAt = at - startEvt[0]
+        endTime = endEvt[0] - startEvt[0] + 0.0
+        percent = relAt/endTime
+        
+        return (at,) + tuple(
+            v1 + (percent * (v2-v1))
+            for v1, v2 in zip(startEvt[1:], endEvt[1:])
+        )
+    
 
     def getMeanNear(self, t, outOfRange=False):
         """ Retrieve the mean value near a given time.
@@ -3278,9 +2541,25 @@ class EventArray(EventList):
                     raise
 
 
-    # EventList implementation suffices -> no overload required
-    # def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
-    #                        jitter=0, display=False):
+    def iterResampledRange(self, startTime, stopTime, maxPoints, padding=0,
+                           jitter=0, display=False):
+        """ Retrieve the events occurring within a given interval,
+            undersampled as to not exceed a given length (e.g. the size of
+            the data viewer's screen width).
+        
+            :todo: Optimize iterResampledRange(); not very efficient,
+                particularly not with single-sample blocks.
+        """
+        startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
+        numPoints = (stopIdx - startIdx)
+        startIdx = max(startIdx-padding, 0)
+        stopIdx = min(stopIdx+padding, len(self))
+        step = max(-int(-numPoints // maxPoints), 1)
+        
+        if jitter != 0:
+            return self.iterJitterySlice(startIdx, stopIdx, step, jitter,
+                                         display=display)
+        return self.iterSlice(startIdx, stopIdx, step, display=display)
 
 
     def arrayResampledRange(self, startTime, stopTime, maxPoints, padding=0,
@@ -3303,6 +2582,117 @@ class EventArray(EventList):
             return self.arrayJitterySlice(startIdx, stopIdx, step, jitter,
                                           display=display)
         return self.arraySlice(startIdx, stopIdx, step, display=display)
+
+
+    def exportCsv(self, stream, start=None, stop=None, step=1, subchannels=True,
+                  callback=None, callbackInterval=0.01, timeScalar=1,
+                  raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
+                  useUtcTime=False, useIsoFormat=False, headers=False, 
+                  removeMean=None, meanSpan=None, display=False,
+                  noBivariates=False):
+        """ Export events as CSV to a stream (e.g. a file).
+        
+            :param stream: The stream object to which to write CSV data.
+            :keyword start: The first event index to export.
+            :keyword stop: The last event index to export.
+            :keyword step: The number of events between exported lines.
+            :keyword subchannels: A sequence of individual subchannel numbers
+                to export. Only applicable to objects with subchannels.
+                `True` (default) exports them all.
+            :keyword callback: A function (or function-like object) to notify
+                as work is done. It should take four keyword arguments:
+                `count` (the current line number), `total` (the total number
+                of lines), `error` (an exception, if raised during the
+                export), and `done` (will be `True` when the export is
+                complete). If the callback object has a `cancelled`
+                attribute that is `True`, the CSV export will be aborted.
+                The default callback is `None` (nothing will be notified).
+            :keyword callbackInterval: The frequency of update, as a
+                normalized percent of the total lines to export.
+            :keyword timeScalar: A scaling factor for the event times.
+                The default is 1 (microseconds).
+            :keyword raiseExceptions: 
+            :keyword dataFormat: The number of decimal places to use for the
+                data. This is the same format as used when formatting floats.
+            :keyword useUtcTime: If `True`, times are written as the UTC
+                timestamp. If `False`, times are relative to the recording.
+            :keyword useIsoFormat: If `True`, the time column is written as
+                the standard ISO date/time string. Only applies if `useUtcTime`
+                is `True`.
+            :keyword headers: If `True`, the first line of the CSV will contain
+                the names of each column.
+            :keyword removeMean: Overrides the EventArray's mean removal for the
+                export.
+            :keyword meanSpan: The span of the mean removal for the export. 
+                -1 removes the total mean.
+            :keyword display: If `True`, export using the EventArray's 'display'
+                transform (e.g. unit conversion).
+            :return: Tuple: The number of rows exported and the elapsed time.
+        """
+        noCallback = callback is None
+        _self = self.copy()
+
+        # Create a function for formatting the event time.        
+        if useUtcTime and _self.session.utcStartTime:
+            if useIsoFormat:
+                timeFormatter = lambda x: datetime.utcfromtimestamp(x[0] * timeScalar + _self.session.utcStartTime).isoformat()
+            else:
+                timeFormatter = lambda x: dataFormat % (x[0] * timeScalar + _self.session.utcStartTime)
+        else:
+            timeFormatter = lambda x: dataFormat % (x[0] * timeScalar)
+        
+        # Create the function for formatting an entire row.
+        if _self.hasSubchannels:
+            if isinstance(subchannels, Iterable):
+                fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(subchannels))
+                formatter = lambda x: fstr % ((timeFormatter(x),) +
+                                              tuple(x[1+v] for v in subchannels))
+                names = [_self.parent.subchannels[x].name for x in subchannels]
+            else:
+                fstr = '%s' + delimiter + delimiter.join([dataFormat] * len(_self.parent.types))
+                formatter = lambda x: fstr % ((timeFormatter(x),) + tuple(x[1:]))
+                names = [x.name for x in _self.parent.subchannels]
+        else:
+            fstr = "%%s%s%s" % (delimiter, dataFormat)
+            formatter = lambda x: fstr % (timeFormatter(x), x[1:])
+            names = [_self.parent.name]
+
+        if removeMean is not None:
+            _self.removeMean = _self.allowMeanRemoval and removeMean
+        if meanSpan is not None:
+            _self.rollingMeanSpan = meanSpan
+        
+        start, stop, step = slice(start, stop, step).indices(len(self))
+
+        totalLines = len(range(start, stop, step))
+        numChannels = len(names)
+        totalSamples = totalLines * numChannels
+        updateInt = int(totalLines * callbackInterval)
+        
+        t0 = datetime.now()
+        if headers:
+            stream.write('"Time"%s%s\n' % 
+                         (delimiter, delimiter.join(['"%s"' % n for n in names])))
+            
+        num = 0
+        try:
+            for num, evt in enumerate(_self.iterSlice(start, stop, step, display=display)):
+                stream.write("%s\n" % formatter(evt))
+                if callback is not None:
+                    if getattr(callback, 'cancelled', False):
+                        callback(done=True)
+                        break
+                    if updateInt == 0 or num % updateInt == 0:
+                        callback(num*numChannels, total=totalSamples)
+            if callback is not None:
+                callback(done=True)
+        except Exception as e:
+            if raiseExceptions:
+                raise
+            elif callback is not None:
+                callback(error=e)
+
+        return num+1, datetime.now() - t0
 
 
 #===============================================================================
@@ -3545,6 +2935,5 @@ class WarningRange(object):
 
 # HACK to work around the fact that the `register` method doesn't show up
 # in `dir()`, which creates an error display in PyLint/PyDev/etc. 
-getattr(Iterable, 'register')(EventList)
 getattr(Iterable, 'register')(EventArray)
 getattr(Iterable, 'register')(WarningRange)
