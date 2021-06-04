@@ -337,6 +337,10 @@ class Univariate(Transform):
     
             f.append("(%s%s)" % (q, x))
             strF.append("(%s%s)" % (q, strX))
+
+        if tuple(coeffs) == (0,):
+            f = [0]
+            strF = [0]
     
         self._str = "+".join(map(str, reversed(strF)))
         self._str = self._fixSums(self._str)
@@ -349,9 +353,16 @@ class Univariate(Transform):
     def inplace(self, values, session=None, noBivariates=False, out=None):
         if out is None:
             out = np.asarray(values).astype(np.float64)
+        else:
+            out[:] = values
 
-        np.multiply(out, self._fastCoeffs[0], out=out)
-        np.add(out, self._fastCoeffs[1], out=out)
+        if len(self._fastCoeffs) == 1:
+            out[:] = self._fastCoeffs
+        elif len(self._fastCoeffs) == 2:
+            np.multiply(out, self._fastCoeffs[0], out=out)
+            np.add(out, self._fastCoeffs[1], out=out)
+        else:
+            raise
 
         return out
     
