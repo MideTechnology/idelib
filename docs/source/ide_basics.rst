@@ -116,7 +116,7 @@ Getting metadata
 :class:`Dataset` makes available some basic metadata. Some useful pieces of information are stored directly as members:
 
 >>> ds.filename
-u'C:\\Users\\Public\\SSX09546_019.IDE'
+'/home/enDAQ/recordings/SSX09546_019.IDE'
 
 Other data is stored in the dict member ``recorderInfo``:
 
