@@ -19,13 +19,13 @@ Opening an IDE File
 
 You can open an IDE file like so::
 
-    filename = "/your/file/path.IDE"
+    filename = "/path/to/your/file.IDE"
     with idelib.importFile(filename) as ds:
         print(type(ds))
 
 Note: a :class:`Dataset` object perfoms *lazy-loading*, meaning that it only loads information as is needed. As a result, it internally retains a handle to the source file which after use needs to be closed. This can be accomplished by either using :class:`Dataset` as a *context manager* (as seen above; this is the recommended method), or by using :class:`Dataset` as a normal value and calling the ``close()`` method manually::
 
-    filename = "C:\\your\\file\\path.IDE"
+    filename = "/path/to/your/file.IDE"
     ds = idelib.importFile(filename)
     # use `ds` here
     ds.close()  # remember to close the file after use!
