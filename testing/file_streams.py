@@ -1,6 +1,7 @@
 from io import BytesIO, StringIO
 
 FILES = [('./testing/SSX70065.IDE', 'rb'),
+         ('./testing/SSX66115.IDE', 'rb'),
          ('./test.ide', 'rb')]
 FILE_DICT = {}
 

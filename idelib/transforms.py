@@ -288,12 +288,6 @@ class Univariate(Transform):
                               reference=self._references[0], 
                               varName=self._variables[0])
 
-
-    # def inplace(self, value, session=None, noBivariates=False, out=None):
-    #     if out is None:
-    #         out = np.zeros_like(value, dtype=np.float64)
-    #     out = 1
-
     
     def _build(self):
         """ Internal method that (re-)constructs the polynomial function.
@@ -350,7 +344,7 @@ class Univariate(Transform):
         self._function = eval(self._source, {'math': math})
 
 
-    def inplace(self, values, session=None, noBivariates=False, out=None):
+    def inplace(self, values, timestamp=None, session=None, noBivariates=False, out=None):
         if out is None:
             out = np.asarray(values).astype(np.float64)
         else:
@@ -453,13 +447,6 @@ class Bivariate(Univariate):
         if channelId is None or subchannelId is None:
             raise ValueError("Bivariate polynomial requires channel and "
                     "subchannel IDs; got %r, %d" % (channelId, subchannelId))
-        
-        if len(coeffs) != 4:
-            raise ValueError("Bivariate polynomial must have exactly 4 "
-                             "coefficients; {} were supplied".format(len(coeffs)))
-        if len(varNames) != 2:
-            raise ValueError("Bivariate polynomial must have two variable "
-                             "names; {} were supplied".format(len(varNames)))
         
         self.id = calId
         
@@ -627,6 +614,52 @@ class Bivariate(Univariate):
             logger.warning("%s occurred in Bivariate polynomial %r" %
                            err.__class__.__name__, self.id)
             return None
+
+    def inplace(self, values, timestamp=None, session=None, noBivariates=False, out=None):
+        if out is None:
+            out = np.asarray(values).astype(np.float64)
+        else:
+            out[:] = values
+
+        try:
+            if noBivariates:
+                y = 0
+            else:
+                session = self.dataset.lastSession if session is None else session
+                sessionId = None if session is None else session.sessionId
+                if self._eventlist is None or self._sessionId != sessionId:
+                    channel = self.dataset.channels[self.channelId][self.subchannelId]
+                    self._eventlist = channel.getSession(session.sessionId)
+                    self._sessionId = session.sessionId
+                    if self.useMean or timestamp is None:
+                        y = self._eventlist.getMean()
+                    else:
+                        y = np.fromiter((self._eventlist[self._eventlist.getEventIndexNear(t)][1] for t in timestamp), dtype=np.float64)
+
+            if np.isscalar(y):
+                # a2*x*y + b2*x + c2*y + d2 =
+                # x*(a2*y + b) + (c2*y + d2) =
+                # x*a3 + b3
+                a3 = self._fastCoeffs[0]*y + self._fastCoeffs[1]
+                b3 = self._fastCoeffs[2]*y + self._fastCoeffs[3]
+                out *= a3
+                out += b3
+            else:
+                out[:] = values*y*self._fastCoeffs[0]
+                out += values*self._fastCoeffs[1]
+                out += y*self._fastCoeffs[2]
+                out += self._fastCoeffs[3]
+
+        except (IndexError, ZeroDivisionError) as err:
+            # In multithreaded environments, there's a rare race condition
+            # in which the main channel can be accessed before the calibration
+            # channel has loaded. This should fix it.
+            logger.warning("%s occurred in Bivariate polynomial %r"%
+                           err.__class__.__name__, self.id)
+            return None
+
+
+        return out
 
 
     def asDict(self):
@@ -817,7 +850,7 @@ class CombinedPoly(Bivariate):
         return all(p.isValid(session, noBivariates) for p in self.subpolys.values())
 
 
-    def inplace(self, values, y=0, out=None, **kwargs):
+    def inplace(self, values, timestamp=None, out=None, **kwargs):
         if out is None:
             out = values.astype(np.float64)
 
@@ -830,8 +863,8 @@ class CombinedPoly(Bivariate):
             else:
                 pass
         elif len(self.variables) == 1:
-            np.multiply(out, self._fastCoeffs[0], out=out)
-            np.add(out, self._fastCoeffs[1], out=out)
+            out *= self._fastCoeffs[0]
+            out += self._fastCoeffs[1]
         else:
             raise
         return out
@@ -943,7 +976,7 @@ class PolyPoly(CombinedPoly):
             raise
 
 
-    def inplace(self, values, session=None, noBivariates=False, out=None):
+    def inplace(self, values, timestamp=None, session=None, noBivariates=False, out=None):
         out = values.astype(np.float64)
 
         try:
