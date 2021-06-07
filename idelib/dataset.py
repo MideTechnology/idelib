@@ -1393,7 +1393,7 @@ class EventArray(Transformable):
                 event times and values. (Used in event iteration methods.)
             """
             values = retryUntilReturn(
-                partial(xform.inplace, values, session=session,
+                partial(xform.inplace, values, timestamp=times, session=session,
                         noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=partial(logger.info,
@@ -1412,7 +1412,7 @@ class EventArray(Transformable):
                                     % (parent.name, block.startTime)),
                 )
                 offset = retryUntilReturn(
-                    partial(xform.inplace, offset, session=session,
+                    partial(xform.inplace, offset, timestamp=block.startTime, session=session,
                             noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=partial(logger.info,
@@ -1658,7 +1658,7 @@ class EventArray(Transformable):
             val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[:, 0]
 
             valx = retryUntilReturn(
-                partial(xform.inplace, val, session=self.session,
+                partial(xform.inplace, val, timestamp=t, session=self.session,
                         noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=partial(logger.info,
@@ -1671,7 +1671,7 @@ class EventArray(Transformable):
             m = self._getBlockRollingMean(blockIdx)
             if m is not None:
                 mx = retryUntilReturn(
-                    partial(xform.inplace, m, session=self.session,
+                    partial(xform.inplace, m, timestamp=t, session=self.session,
                             noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001,
                     on_fail=partial(logger.info,
