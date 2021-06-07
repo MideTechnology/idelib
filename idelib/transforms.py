@@ -121,6 +121,7 @@ class Transform(object):
 
 
     def inplace(self, *args, **kwargs):
+        """ Transform """
         raise NotImplementedError()
 
 
@@ -254,6 +255,7 @@ class Univariate(Transform):
             raise ValueError('Coefficients of length {} are not supported.  '
                              'Coefficients must be length 1 (constant) or 2 '
                              '(linear).'.format(len(coeffs)))
+        coeffs = tuple(float(x) for x in coeffs)
         self.id = calId
         self.dataset = dataset
         self._coeffs = tuple(coeffs)
@@ -344,7 +346,8 @@ class Univariate(Transform):
         self._function = eval(self._source, {'math': math})
 
 
-    def inplace(self, values, timestamp=None, session=None, noBivariates=False, out=None):
+    def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
+        """ Univariate"""
         if out is None:
             out = np.asarray(values).astype(np.float64)
         else:
@@ -440,6 +443,7 @@ class Bivariate(Univariate):
             raise ValueError('Coefficients of length {} are not supported.  '
                              'Coefficients must be length 1 (constant) or 4 '
                              '(linear).'.format(len(coeffs)))
+        coeffs = tuple(float(x) for x in coeffs)
         self.dataset = dataset
         self._eventlist = None
         self._sessionId = None
@@ -577,7 +581,59 @@ class Bivariate(Univariate):
         
         # Optimization: it is possible that the polynomial could exclude Y
         # completely. If that's the case, use a dummy value to speed things up.
-        self._noY = (0, 1) if 'y' not in src else False 
+        self._noY = (0, 1) if 'y' not in src else False
+
+
+    def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
+        """ Bivariate """
+        if out is None:
+            out = np.zeros_like(values, dtype=np.float64)
+
+        session = self.dataset.lastSession if session is None else session
+        sessionId = None if session is None else session.sessionId
+
+        try:
+            if self._eventlist is None or self._sessionId != sessionId:
+                channel = self.dataset.channels[self.channelId][self.subchannelId]
+                self._eventlist = channel.getSession(session.sessionId)
+                self._sessionId = session.sessionId
+
+        except IndexError as err:
+            # In multithreaded environments, there's a rare race condition
+            # in which the main channel can be accessed before the calibration
+            # channel has loaded. This should fix it.
+            logger.warning("%s occurred in Bivariate polynomial %r" %
+                           err.__class__.__name__, self.id)
+            return None
+
+        if noBivariates:
+            y = 0
+        elif self.useMean:
+            y = self._eventlist.getMean()
+        elif y is None and timestamp is None:
+            y = self._eventlist.getMean()
+        elif y is None and timestamp is not None:
+            y = np.fromiter((self._eventlist[self._eventlist.getEventIndexNear(t)][0] for t in timestamp), dtype=np.float64)
+
+        if len(self._fastCoeffs) == 1:
+            out[:] = self._fastCoeffs
+        elif len(self._fastCoeffs) == 4:
+            if np.isscalar(y):
+                # a0*x*y + a1*x + a2*y + a3 =
+                # x*(a0*y + a1) + (a2*y + a3)
+                out[:] = values
+                out *= self._fastCoeffs[0]*y + self._fastCoeffs[1]
+                out += self._fastCoeffs[2]*y + self._fastCoeffs[3]
+            else:
+                out += values*y*self._fastCoeffs[0]
+                out += values*self._fastCoeffs[1]
+                out += y*self._fastCoeffs[2]
+                out += self._fastCoeffs[3]
+
+        else:
+            raise
+
+        return out
 
 
     def __call__(self, timestamp, value, session=None, noBivariates=False):
@@ -615,51 +671,13 @@ class Bivariate(Univariate):
                            err.__class__.__name__, self.id)
             return None
 
-    def inplace(self, values, timestamp=None, session=None, noBivariates=False, out=None):
-        if out is None:
-            out = np.asarray(values).astype(np.float64)
-        else:
-            out[:] = values
-
-        try:
-            if noBivariates:
-                y = 0
-            else:
-                session = self.dataset.lastSession if session is None else session
-                sessionId = None if session is None else session.sessionId
-                if self._eventlist is None or self._sessionId != sessionId:
-                    channel = self.dataset.channels[self.channelId][self.subchannelId]
-                    self._eventlist = channel.getSession(session.sessionId)
-                    self._sessionId = session.sessionId
-                    if self.useMean or timestamp is None:
-                        y = self._eventlist.getMean()
-                    else:
-                        y = np.fromiter((self._eventlist[self._eventlist.getEventIndexNear(t)][1] for t in timestamp), dtype=np.float64)
-
-            if np.isscalar(y):
-                # a2*x*y + b2*x + c2*y + d2 =
-                # x*(a2*y + b) + (c2*y + d2) =
-                # x*a3 + b3
-                a3 = self._fastCoeffs[0]*y + self._fastCoeffs[1]
-                b3 = self._fastCoeffs[2]*y + self._fastCoeffs[3]
-                out *= a3
-                out += b3
-            else:
-                out[:] = values*y*self._fastCoeffs[0]
-                out += values*self._fastCoeffs[1]
-                out += y*self._fastCoeffs[2]
-                out += self._fastCoeffs[3]
-
         except (IndexError, ZeroDivisionError) as err:
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
-            logger.warning("%s occurred in Bivariate polynomial %r"%
+            logger.warning("%s occurred in Bivariate polynomial %r" %
                            err.__class__.__name__, self.id)
             return None
-
-
-        return out
 
 
     def asDict(self):
@@ -755,20 +773,19 @@ class CombinedPoly(Bivariate):
         self._subchannel = subchannel
         self._watchers = weakref.WeakSet()
         self._build()
+
+        self._useMean = True
     
     
     def _build(self):
         if self.poly is None:
+            self.poly = Univariate((1, 0))
             if len(self.subpolys) == 1:
                 p = list(self.subpolys.values())[0]
                 if p is not None:
                     for attr in ('_str', '_source', '_function', '_noY'):
                         setattr(self, attr, getattr(p, attr, None))
-                    self._fastCoeffs = (1, 0)
-                    return
-            phead, src = "lambda x", "x"
-        else:
-            phead, src = self.poly.source.split(": ")
+        phead, src = self.poly.source.split(": ")
             
         for k, v in self.subpolys.items():
             if v is None:
@@ -819,7 +836,7 @@ class CombinedPoly(Bivariate):
             a = self.poly._fastCoeffs
             b = self.subpolys[self.poly.variables[0]]
             if b is None:
-                b = (1, 0)
+                b = (1., 0.)
             else:
                 b = b._fastCoeffs
             self._fastCoeffs = (a[0]*b[0], a[1] + a[0]*b[1])
@@ -832,6 +849,62 @@ class CombinedPoly(Bivariate):
         for x in [self.poly] + list(self.subpolys.values()):
             if x is not None:
                 x.addWatcher(self)
+
+    def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
+        """ CombinedPoly """
+        if out is None or np.isscalar(out):
+            out = np.asarray(values).astype(np.float64)
+        else:
+            out[:] = values
+
+        try:
+            if len(self.variables) == 1:
+                out *= self._fastCoeffs[0]
+                out += self._fastCoeffs[1]
+            else:
+
+                session = self.dataset.lastSession if session is None else session
+                sessionId = None if session is None else session.sessionId
+
+                if self._eventlist is None or self._sessionId != sessionId:
+                    channel = self.dataset.channels[self.channelId][self.subchannelId]
+                    self._eventlist = channel.getSession(session.sessionId)
+                    self._sessionId = session.sessionId
+
+                if noBivariates:
+                    y = 0
+                elif self.useMean:
+                    y = self._eventlist.getMean()
+                elif y is None and timestamp is None:
+                    y = self._eventlist.getMean()
+                elif y is None and timestamp is not None:
+                    y = np.fromiter(
+                            (self._eventlist[self._eventlist.getEventIndexNear(t)][0] for t in
+                             timestamp), dtype=np.float64)
+
+                if np.isscalar(y):
+                    # a2*x*y + b2*x + c2*y + d2 =
+                    # x*(a2*y + b) + (c2*y + d2) =
+                    # x*a3 + b3
+                    a3 = self._fastCoeffs[0]*y + self._fastCoeffs[1]
+                    b3 = self._fastCoeffs[2]*y + self._fastCoeffs[3]
+                    out *= a3
+                    out += b3
+                else:
+                    out[:] = values*y*self._fastCoeffs[0]
+                    out += values*self._fastCoeffs[1]
+                    out += y*self._fastCoeffs[2]
+                    out += self._fastCoeffs[3]
+
+            return out
+
+        except (IndexError, ZeroDivisionError) as err:
+            # In multithreaded environments, there's a rare race condition
+            # in which the main channel can be accessed before the calibration
+            # channel has loaded. This should fix it.
+            logger.warning("%s occurred in Bivariate polynomial %r"%
+                           err.__class__.__name__, self.id)
+            return None
         
         
     def asDict(self):
@@ -848,26 +921,6 @@ class CombinedPoly(Bivariate):
         if not Transform.isValid(self, session, noBivariates):
             return False
         return all(p.isValid(session, noBivariates) for p in self.subpolys.values())
-
-
-    def inplace(self, values, timestamp=None, out=None, **kwargs):
-        if out is None:
-            out = values.astype(np.float64)
-
-        if len(self.variables) == 2:
-            if np.isscalar(y):
-                # x*y*a0 + x*a1 + y*a2 + a3 = x*(y*a0 + a1) + (y*a2 + a3)
-                # out[:] = values
-                np.multiply(out, y*self._fastCoeffs[0] + self._fastCoeffs[1], out=out)
-                np.add(out, y*self._fastCoeffs[2] + self._fastCoeffs[3], out=out)
-            else:
-                pass
-        elif len(self.variables) == 1:
-            out *= self._fastCoeffs[0]
-            out += self._fastCoeffs[1]
-        else:
-            raise
-        return out
         
 
 #------------------------------------------------------------------------------ 
@@ -894,6 +947,8 @@ class PolyPoly(CombinedPoly):
         self._eventlist = None
         self._watchers = weakref.WeakSet()
         self._build()
+
+        self._useMean = True
 
 
     def _build(self):
@@ -976,14 +1031,20 @@ class PolyPoly(CombinedPoly):
             raise
 
 
-    def inplace(self, values, timestamp=None, session=None, noBivariates=False, out=None):
-        out = values.astype(np.float64)
+    def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
+        """polypoly"""
+        if out is None:
+            out = values.astype(np.float64)
+        else:
+            out[:] = values
 
         try:
             # Optimization: don't check the other channel if Y is unused
             if self._noY is False:
                 if noBivariates:
-                    return self._function(0, *values)
+                    for i, poly in enumerate(self.polys):
+                        poly.inplace(out[i], y=0, out=out[i])
+                    return out
 
                 session = self.dataset.lastSession if session is None else session
                 sessionId = None if session is None else session.sessionId

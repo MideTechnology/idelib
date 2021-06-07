@@ -226,6 +226,7 @@ class TestBivariate:
         bivariate.useMean = useMean
         vals = bivariate.inplace(
                 np.arange(5),
+                y=y,
                 timestamp=timestamps,
                 noBivariates=noBivariates,
                 )

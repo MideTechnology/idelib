@@ -2039,14 +2039,10 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_Calibrated.csv', 'rb') as f:
-            for new, old in zip(out, f):
-#                 self.assertEqual(old.strip(), new.strip())
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
     
     def testUncalibratedExport(self):
@@ -2060,7 +2056,7 @@ class DataTestCase(unittest.TestCase):
         new = np.genfromtxt(out, delimiter=', ')
         old = accel.__getitem__(slice(None), display=True)
 
-        np.testing.assert_array_almost_equal(new.T, old)
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
 
     def testNoBivariates(self):
@@ -2073,14 +2069,10 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_NoBivariates.csv', 'rb') as f:
-            for new, old in zip(out, f):
-#                 self.assertEqual(old.strip(), new.strip())
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
 
     def testRollingMeanRemoval(self):
@@ -2097,13 +2089,10 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_RollingMean_NoCal.csv', 'rb') as f:
-            for new, old in zip(out, f):
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
     
     def testTotalMeanRemoval(self):
@@ -2121,13 +2110,10 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_TotalMean_NoCal.csv', 'rb') as f:
-            for new, old in zip(out, f):
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
     
 
     def testCalibratedRollingMeanRemoval(self):
@@ -2141,13 +2127,10 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_RollingMean.csv', 'rb') as f:
-            for new, old in zip(out, f):
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
     
     def testCalibratedTotalMeanRemoval(self):
@@ -2160,13 +2143,10 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_TotalMean.csv', 'rb') as f:
-            for new, old in zip(out, f):
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
     
 
 #===============================================================================
