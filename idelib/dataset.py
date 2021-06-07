@@ -1262,7 +1262,11 @@ class EventList(Transformable):
 
 
     def path(self):
-        return "%s, %s" % (self.parent.path(), self.session.sessionId)
+        """ Get the combined names of all the object's parents/grandparents.
+        """
+        if self.session.sessionId:
+            return "%s (session %s)" % (self.parent.path(), self.session.sessionId)
+        return self.parent.path()
 
 
     def copy(self, newParent=None):
