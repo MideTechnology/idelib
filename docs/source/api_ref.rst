@@ -1,5 +1,5 @@
-IDELib API Reference
-========================
+`idelib` API Reference
+======================
 
 .. toctree::
    :maxdepth: 2
