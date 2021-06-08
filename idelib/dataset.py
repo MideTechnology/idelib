@@ -1033,11 +1033,11 @@ class SubChannel(Channel):
 
     def __repr__(self):
         try:
-            super().__repr__()
+            super().__repr__()  # Superclass' `__repr__()` generates `_unitsStr`
             s = (": %s" % self._unitsStr) if self._unitsStr else ""
             return '<%s %d.%d %r%s>' % (self.__class__.__name__,
-                                          self.parent.id, self.id,
-                                          self.path(), s)
+                                        self.parent.id, self.id,
+                                        self.path(), s)
 
         except (AttributeError, TypeError, ValueError):
             # Just in case, so __repr__() never completely fails.
