@@ -9,6 +9,7 @@ for fName, mode in FILES:
     with open(fName, mode) as f:
         FILE_DICT[fName] = (f.read(), mode)
 
+
 def makeStreamLike(fName):
     dat, mode = FILE_DICT[fName]
     if 'b' in mode:

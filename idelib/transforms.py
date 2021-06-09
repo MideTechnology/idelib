@@ -120,15 +120,23 @@ class Transform(object):
             return False
 
 
-    def inplace(self, *args, **kwargs):
-        """ Transform """
+    def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
+        """ In-place Transform call for the Transform base class.
+            All subclasses are required to implement this method, so it will
+            raise an error if called.
+        """
         raise NotImplementedError()
 
 
     @property
     def useMean(self):
+        """ Property to determine if a transform will use the mean of the
+            secondary channel.  The base class and all univariate polynomials
+            do not have a secondary channel, so they will always return the
+            default `True` and generate a warning.
+        """
         warnings.warn(UserWarning('{} does not support useMean'.format(type(self))))
-        return False
+        return True
 
 
     @useMean.setter
@@ -137,6 +145,11 @@ class Transform(object):
 
 
     def addWatcher(self, watcher):
+        """ Adds `watcher` to the list (a `WeakSet`) of watchers.  The watchers
+            are other polynomials, such as a `CombinedPoly`, which reference
+            this polynomial.  This is used to propogate changes to all
+            polynomials which reference this one.
+        """
         self._watchers.add(watcher)
 
     
@@ -198,6 +211,12 @@ class Univariate(Transform):
         
         Instances are function-like objects that take one argument: a sensor
         reading.
+
+        TODO: in-place changes force this to be in the form of either
+              `f(x) = coeffs[0]*x + coeffs[1]`
+              or
+              `f(x) = coeffs[0]`
+              This behavior will need to be updated later.
     """
     modifiesValue = True
     
@@ -347,7 +366,26 @@ class Univariate(Transform):
 
 
     def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
-        """ Univariate"""
+        """ In-place transform for the `Univariate` transform.  It reduces the
+            number of array allocations/operations compared to the normal
+            `__call__` method.  The user can supply an `out` argument to save
+            the results to that array, or leave `out` equal to `None`.  If `out`
+            is `None`, then this method will allocate an array in the shape of
+            `values`.
+
+            The method uses the following algebra, calculated in the `_build`
+            method, to reduce the equation to fewer operations.  For brevity:
+                `x` = `values`
+                `an` = `coeffs[n]`
+                `bn` = `_fastCoeffs[n]`
+
+            `f(x) = a0*(x - ref) + a1`
+             =>
+            `f(x) = x*(a0) + (a1 - a0*ref)`
+             =>
+            `f(x) = b0*x + b1`
+
+        """
         if out is None:
             out = np.asarray(values).astype(np.float64)
         else:
@@ -585,7 +623,46 @@ class Bivariate(Univariate):
 
 
     def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
-        """ Bivariate """
+        """ In-place transform for the `Bivariate` transform.  It reduces the
+            number of array allocations/operations compared to the normal
+            `__call__` method.  The user can supply an `out` argument to save
+            the results to that array, or leave `out` equal to `None`.  If `out`
+            is `None`, then this method will allocate an array in the shape of
+            `values`.
+
+            When calculating the `y` value, several things need to be taken into
+            account in the following priority:
+            1. If `noBivariates` is `True`, then `y` must be equal to `0`.
+            2. If `self.useMean` is `True`, then `y` is equal to the mean of the
+               full length of the secondary channel.
+            3. If `y` is provided, then use the provided value.
+            4. If `timestamp` is provided, then get the values for the given `timestamp`.
+            5. Otherwise, default to the mean of the secondary channel.
+
+            Depending on if `y` is scalar, one of two methods will be used, detailed below.
+
+            The method uses the following algebra, calculated in the `_build`
+            method, to reduce the equation to fewer operations.  For brevity:
+                `x` = `values`
+                `xref`, `yref` = `references`
+                `an` = `coeffs[n]`
+                `bn` = `_fastCoeffs[n]`
+
+            `y` is not scalar:
+
+              `f(x) = a0*(x - xref)*(y - yref) + a1*(x - xref) + a2*(y - yref) + a3`
+               =>
+              `f(x) = x*y*(a0) + x*(a1 - a0*yref) + y*(a2 - a0*xref) + (a3 + a0*xref*yref - a1*xref - a2*yref)`
+               =>
+              `f(x) = b0*x*y + b1*x + b2*y + b3`
+
+            `y` is scalar:
+
+              `f(x) = b0*x*y + b1*x + b2*y + b3`
+               =>
+              `f(x) = x*(b0*y + b1) + (b2*y + b3)`
+        """
+
         if out is None:
             out = np.zeros_like(values, dtype=np.float64)
 
@@ -851,7 +928,69 @@ class CombinedPoly(Bivariate):
                 x.addWatcher(self)
 
     def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
-        """ CombinedPoly """
+        """ In-place transform for the `CombinedPoly` transform.  It reduces the
+            number of array allocations/operations compared to the normal
+            `__call__` method.  The user can supply an `out` argument to save
+            the results to that array, or leave `out` equal to `None`.  If `out`
+            is `None`, then this method will allocate an array in the shape of
+            `values`.
+
+            If the component polynomials of this `CombinedPoly` are all
+            `Univariate`, then the following equation will be used.  Otherwise,
+            the rest of the documentation will detail how a `CombinedPoly` based
+            on a `Bivariate` behaves.
+
+            The method uses the following algebra, calculated in the `_build`
+            method, to reduce the equation to fewer operations.  For brevity:
+                `x` = `values`
+                `xref`, `yref` = `references`
+                `an` = `poly.coeffs[n]`
+                `bn` = `subpoly['x']._fastCoeffs[n]`
+                `cn` = `_fastCoeffs[n]`
+
+            `f(x) = a0*(b0*x + b1 - xref) + a1`
+             =>
+            `f(x) = x*(a0*b0) + (a0*(b1 - xref) + a1)`
+             =>
+            `f(x) = c0*x + c1`
+
+            When calculating the `y` value, several things need to be taken into
+            account in the following priority:
+            1. If `noBivariates` is `True`, then `y` must be equal to `0`.
+            2. If `self.useMean` is `True`, then `y` is equal to the mean of the
+               full length of the secondary channel.
+            3. If `y` is provided, then use the provided value.
+            4. If `timestamp` is provided, then get the values for the given `timestamp`.
+            5. Otherwise, default to the mean of the secondary channel.
+
+            Depending on if `y` is scalar, one of two methods will be used, detailed below.
+
+            The method uses the following algebra, calculated in the `_build`
+            method, to reduce the equation to fewer operations.  For brevity:
+                `x` = `values`
+                `xref`, `yref` = `references`
+                `an` = `poly.coeffs[n]`
+                `bn` = `subpoly['x']._fastCoeffs[n]`
+                `cn` = `subpoly['y']._fastCoeffs[n]`
+                `dn` = `_fastCoeffs[n]`
+
+            `y` is not scalar:
+
+              `f(x) = a0*(b0*x + b1 - xref)*(c0*y + c1 - yref) + a1*(b0*x + b1 - xref) +
+                    + a2*(c0*y + c1 - yref) + a3`
+               =>
+              `f(x) = x*y*(a0*b0*c0) + x*(a0*b0*(c1 - yref) + a1*b0) +
+                    + y*(a0*(b1 - xref)*c0 + a2*c0) +
+                    + (a0*(b1 - xref)*(c1 - yref) + a1*(b1 - xref) + a2*(c1 - yref) + a3)`
+               =>
+              `f(x) = d0*x*y + d1*x + d2*y + d3`
+
+            `y` is scalar:
+
+              `f(x) = d0*x*y + d1*x + d2*y + d3`
+               =>
+              `f(x) = x*(d0*y + d1) + (d2*y + d3)`
+        """
         if out is None or np.isscalar(out):
             out = np.asarray(values).astype(np.float64)
         else:
@@ -1032,7 +1171,16 @@ class PolyPoly(CombinedPoly):
 
 
     def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
-        """polypoly"""
+        """ In-place transform for the `PolyPoly` transform.  It reduces the
+            number of array allocations/operations compared to the normal
+            `__call__` method.  The user can supply an `out` argument to save
+            the results to that array, or leave `out` equal to `None`.  If `out`
+            is `None`, then this method will allocate an array in the shape of
+            `values`.
+
+            This method does not do any calculations, and instead leaves that to
+            its member polynomials.
+        """
         if out is None:
             out = values.astype(np.float64)
         else:
