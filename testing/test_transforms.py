@@ -111,7 +111,7 @@ class TestTransform:
 
     def testUseMean(self, genericTransform):
         with pytest.warns(UserWarning):
-            assert genericTransform.useMean is False
+            assert genericTransform.useMean is True
 
     def testAddWatcher(self):
         """ Check that the weakset of watchers is updated properly """
