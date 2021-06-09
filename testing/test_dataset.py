@@ -2078,9 +2078,6 @@ class DataTestCase(unittest.TestCase):
     def testRollingMeanRemoval(self):
         """ Test regular export, with the rolling mean removed from the data.
         """
-        self.dataset.channels[8][0].setTransform(None)
-        self.dataset.channels[8][1].setTransform(None)
-        self.dataset.channels[8][2].setTransform(None)
         
         out = StringIO()
         accel = self.dataset.channels[8].getSession()
@@ -2099,9 +2096,6 @@ class DataTestCase(unittest.TestCase):
         """ Test regular export, calibrated, with the total mean removed from
             the data.
         """
-        self.dataset.channels[8][0].setTransform(None)
-        self.dataset.channels[8][1].setTransform(None)
-        self.dataset.channels[8][2].setTransform(None)
 
         out = StringIO()
         accel = self.dataset.channels[8].getSession()
