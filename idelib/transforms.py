@@ -292,12 +292,14 @@ class Univariate(Transform):
 
 
     def __hash__(self):
-        return hash((self._coeffs, self._references))
+        return hash((self._coeffs, self._references, self.id))
         
 
     def __eq__(self, other):
         try:
-            return self._coeffs == other._coeffs and self._references == other._references
+            return self._coeffs == other._coeffs and \
+                   self._references == other._references and \
+                   self.id == other.id
         except AttributeError:
             return False
 
