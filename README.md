@@ -5,7 +5,7 @@
 
 _idelib_ is a Python API for accessing [enDAQ's](http://endaq.com) IDE recordings.  The IDE format is
 an [EBML](http://matroska-org.github.io/libebml/specs.html) encoded file using a 
-custom schemata.  This library utilizes our 
+custom schema.  This library utilizes our 
 [ebmlite](https://github.com/MideTechnology/ebmlite) to parse the files, and 
 provides classes that make reading data simple.
 
