@@ -50,6 +50,7 @@ __all__ = ['Channel', 'Dataset', 'EventList', 'EventArray', 'Plot', 'Sensor',
 from bisect import bisect_right
 from collections.abc import Iterable, Sequence
 from datetime import datetime
+from threading import Lock
 
 from functools import partial
 import os.path
@@ -62,7 +63,7 @@ from ebmlite.core import loadSchema
 import numpy as np
 
 from .transforms import Transform, CombinedPoly, PolyPoly
-from .parsers import getParserTypes, getParserRanges
+from .parsers import getParserTypes, getParserRanges, ChannelDataBlock
 
 
 SCHEMA_FILE = 'mide_ide.xml'
@@ -255,6 +256,8 @@ class Dataset(Cascading):
         self.loadCancelled = False
         self.loading = True
         self.filename = getattr(stream, "name", None)
+
+        self._channelDataLock = Lock()
         
         # Subsets: used when importing multiple files into the same dataset.
         self.subsets = []
@@ -489,6 +492,17 @@ class Dataset(Cascading):
         """
         for ch in self.channels.values():
             ch.updateTransforms()
+
+    def allocateCaches(self):
+        for channel in self.channels.values():
+            for ea in channel.sessions.values():
+                with self._channelDataLock:
+                    ea.allocateCache()
+
+    def fillCaches(self):
+        for channel in self.channels.values():
+            for ea in channel.sessions.values():
+                ea.fillCache()
 
 
 #===============================================================================
@@ -1195,6 +1209,29 @@ class EventArray(Transformable):
 
         self._mean = None
 
+        format = self.parent.parser.format
+        if len(format) == 0:
+            self._npType = np.uint8
+        else:
+            print(format)
+
+            if format[0] in ['<', '>', '=']:
+                endian = format[0]
+                dtypes = [endian + ChannelDataBlock.TO_NP_TYPESTR[x] for x in format[1:]]
+            else:
+                dtypes = [ChannelDataBlock.TO_NP_TYPESTR[x] for x in format]
+
+            self._npType = np.dtype([(str(i), dtype) for i, dtype in enumerate(dtypes)])
+
+        self._channelDataLock = parentChannel.dataset._channelDataLock
+        self._cacheArray = None
+        self._cacheBytes = None
+        self._fullyCached = False
+        self._cacheStart = None
+        self._cacheEnd = None
+        self._cacheBlockStart = None
+        self._cacheBlockEnd = None
+
 
     def updateTransforms(self, recurse=True):
         """ (Re-)Build and (re-)apply the transformation functions.
@@ -1797,12 +1834,32 @@ class EventArray(Transformable):
         """
         # TODO: Optimize; times don't need to be computed since they aren't used
         # -> take directly from _blockSlice
-        arrayEvents = self.arraySlice(start, end, step, display)
 
-        if self.hasSubchannels and subchannels is not True:
-            return arrayEvents[np.asarray(subchannels)+1]
+        if not isinstance(start, slice):
+            start = slice(start, end, step)
+        start, end, step = start.indices(len(self))
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
         else:
-            return arrayEvents[1:]
+            xform = self._comboXform
+
+        rawData = self._accessCache(start, end, step)
+
+        if isinstance(self.parent, SubChannel):
+            out = np.zeros((1, len(rawData)))
+        else:
+            out = np.zeros((len(rawData.dtype), len(rawData)))
+
+        if isinstance(self.parent, SubChannel):
+            xform.polys[self.subchannelId].inplace(rawData, out=out)
+        else:
+            for i, (k, _) in enumerate(rawData.dtype.descr):
+                xform.polys[i].inplace(rawData[k], out=out[i])
+
+        return out
 
 
     def _blockSlice(self, start=None, end=None, step=1, display=False):
@@ -1883,15 +1940,33 @@ class EventArray(Transformable):
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
-        raw_slice = [
-            [times[np.newaxis].T, values.T]
-            for times, values in self._blockSlice(start, end, step, display)
-        ]
-        if not raw_slice:
-            no_of_chs = (len(self.parent.types) if self.hasSubchannels else 1)
-            return np.empty((no_of_chs+1, 0), dtype=np.float)
+        if not isinstance(start, slice):
+            start = slice(start, end, step)
+        start, end, step = start.indices(len(self))
 
-        return np.block(raw_slice).T
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        rawData = self._accessCache(start, end, step)
+
+        if isinstance(self.parent, SubChannel):
+            out = np.zeros((2, len(rawData)))
+        else:
+            out = np.zeros((len(rawData.dtype) + 1, len(rawData)))
+
+        self._inplaceTime(start, end, step, out=out[0])
+
+        if isinstance(self.parent, SubChannel):
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1])
+        else:
+            for i, (k, _) in enumerate(rawData.dtype.descr):
+                xform.polys[i].inplace(rawData[k], out=out[i + 1])
+
+        return out
 
 
     def _blockJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
@@ -2708,6 +2783,7 @@ class EventArray(Transformable):
         try:
             for num, evt in enumerate(_self.iterSlice(start, stop, step, display=display)):
                 stream.write("%s\n" % formatter(evt))
+                # print(evt - np.array([float(x) for x in formatter(evt).split(', ')]))
                 if callback is not None:
                     if getattr(callback, 'cancelled', False):
                         callback(done=True)
@@ -2723,6 +2799,83 @@ class EventArray(Transformable):
                 callback(error=e)
 
         return num+1, datetime.now() - t0
+
+    def allocateCache(self):
+
+        payloadLen = sum((d.payloadSize for d in self._data))
+        self._cacheBytes = np.zeros(payloadLen, dtype=np.uint8)
+
+        self._cacheArray = self._cacheBytes.view(self._npType)
+
+    def fillCache(self):
+        idx = 0
+        for d in self._data:
+            with self.dataset._channelDataLock:
+                payloadLen = len(d._payloadEl.value)
+                self._cacheBytes[idx:idx + payloadLen] = np.frombuffer(d._payloadEl.value, dtype=np.uint8)
+                d._payloadEl._value = self._cacheBytes[idx:idx + payloadLen]
+                d._payload = self._cacheBytes[idx:idx + payloadLen].view(self._npType)
+                idx += payloadLen
+
+    def _accessCache(self, start, end, step):
+        """ Access cached data in a thread-safe way.  If data has not fully
+            loaded, instead allocate an appropriately large array, fill it with
+            data, then return that instead.
+        """
+
+        if isinstance(self.parent, SubChannel):
+            schId = self.subchannelId
+            ch = self.parent.parent
+            rawData = ch.getSession(self.session.sessionId)._accessCache(start, end, step)
+            schKey = rawData.dtype.names[schId]
+            return rawData[schKey]
+
+        if self.dataset.loading:
+            nSamples = int(np.ceil((end - start)/step))
+            newBytes = np.zeros(nSamples*self._npType.itemsize, dtype=np.uint8)
+            newArray = newBytes.view(self._npType)
+
+            nextStart = start
+            idx = 0
+            for d in self._data:
+                with self.dataset._channelDataLock:
+                    blockStart, blockEnd = d.indexRange
+                    if blockStart > end:
+                        return newArray
+                    elif blockEnd < nextStart:
+                        continue
+
+                    relativeStart = nextStart - blockStart
+                    if end > blockEnd:
+                        relativeEnd = blockEnd - blockStart
+                    else:
+                        relativeEnd = end - blockStart
+
+                    payloadView = d.payload.view(self._npType)[relativeStart:relativeEnd:step]
+                    newArray[idx:idx + len(payloadView)] = payloadView
+                    idx += len(payloadView)
+                    nextStart = idx*step
+
+            return newArray
+        else:
+            with self.dataset._channelDataLock:
+                return self._cacheArray[start:end:step]
+
+    def _inplaceTime(self, start, end, step, out=None):
+        if out is None:
+            out = np.zeros((int(np.ceil((end - start)/step)),))
+
+        arrayStart = float(self._data[0].startTime)
+        arrayEnd = float(self._data[-1].endTime)
+        nSamples = len(self)
+        samplePeriod = (arrayEnd - arrayStart)/(nSamples - 1)
+
+        out[:] = np.linspace(
+                arrayStart + start*samplePeriod,
+                arrayStart + end*samplePeriod,
+                len(out),
+                )
+        return out
 
 
 #===============================================================================

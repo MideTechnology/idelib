@@ -504,6 +504,10 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         # (typically the last)
         doc.fileDamaged = True
 
+    doc.allocateCaches()
+
+    doc.fillCaches()
+
     doc.loading = False
     updater(done=True)
     return eventsRead

@@ -2039,10 +2039,11 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        new = np.genfromtxt(out, delimiter=', ')
+        new = np.genfromtxt(out, delimiter=', ').T
         old = accel.__getitem__(slice(None), display=True)
+        old = np.round(1e6*old)/1e6
 
-        np.testing.assert_allclose(new.T, old, rtol=1e-4)
+        np.testing.assert_allclose(new, old, rtol=1e-4)
 
     
     def testUncalibratedExport(self):
