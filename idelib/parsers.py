@@ -49,7 +49,7 @@ from . import transforms
 from .util import decode_attributes
 
 import logging
-logger = logging.getLogger('idelib-archive')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 #===============================================================================
@@ -262,7 +262,7 @@ def getElementHandlers(module=None, subElements=False):
         are identified by being subclasses of `ElementHandler`.
     
         :keyword module: The module from which to get the handlers. Defaults to
-            the current module (i.e. `idelib-archive.parsers`).
+            the current module (i.e. `idelib.parsers`).
         :keyword subElements: `True` if the set of handlers should also
             include non-root elements (e.g. the sub-elements of a
             `RecordingProperties` or `ChannelDataBlock`).
