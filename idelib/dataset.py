@@ -1299,6 +1299,14 @@ class EventArray(Transformable):
         newList.noBivariates = self.noBivariates
         newList._blockIndices = self._blockIndices
         newList._blockTimes = self._blockTimes
+        newList._channelDataLock = self._channelDataLock
+        newList._cacheArray = self._cacheArray
+        newList._cacheBytes = self._cacheBytes
+        newList._fullyCached = self._fullyCached
+        newList._cacheStart = self._cacheStart
+        newList._cacheEnd = self._cacheEnd
+        newList._cacheBlockStart = self._cacheBlockStart
+        newList._cacheBlockEnd = self._cacheBlockEnd
         return newList
     
 
@@ -2068,7 +2076,7 @@ class EventArray(Transformable):
             :return: a structured array of events in the specified index range.
         """
         self._computeMinMeanMax()
-        
+
         raw_slice = [
             [times[np.newaxis].T, values.T]
             for times, values in self._blockJitterySlice(
@@ -2778,6 +2786,13 @@ class EventArray(Transformable):
         if headers:
             stream.write('"Time"%s%s\n' % 
                          (delimiter, delimiter.join(['"%s"' % n for n in names])))
+
+        data = _self.arraySlice(start, stop, step)
+        if useUtcTime and _self.session.utcStartTime:
+            if useIsoFormat:
+                times = data[0]
+                data = data.astype([('time', '<U19')] + [(str(i), np.float64) for i in range(1, 4)])
+
             
         num = 0
         try:
