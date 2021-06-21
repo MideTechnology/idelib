@@ -1212,13 +1212,15 @@ class EventArray(Transformable):
         if len(format) == 0:
             self._npType = np.uint8
         else:
+            if isinstance(format, bytes):
+                format = format.decode()
             print(format)
 
             if format[0] in ['<', '>', '=']:
                 endian = format[0]
                 dtypes = [endian + ChannelDataBlock.TO_NP_TYPESTR[x] for x in format[1:]]
             else:
-                dtypes = [ChannelDataBlock.TO_NP_TYPESTR[x] for x in format]
+                dtypes = [ChannelDataBlock.TO_NP_TYPESTR[x] for x in str(format)]
 
             self._npType = np.dtype([(str(i), dtype) for i, dtype in enumerate(dtypes)])
 
@@ -1968,10 +1970,10 @@ class EventArray(Transformable):
         self._inplaceTime(start, end, step, out=out[0])
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1])
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0])
         else:
             for i, (k, _) in enumerate(rawData.dtype.descr):
-                xform.polys[i].inplace(rawData[k], out=out[i + 1])
+                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0])
 
         return out
 
@@ -1998,6 +2000,12 @@ class EventArray(Transformable):
         if jitter is True:
             jitter = 0.5
         scaledJitter = jitter * abs(step)
+
+        indices = np.arange(start, end, step)
+        if scaledJitter > 0.5:
+            indices[1:-1] += np.rint(
+                    scaledJitter*np.random.uniform(-1, 1, max(0, len(indices) - 2))
+                    ).astype(indices.dtype)
 
         startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
         endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
@@ -2074,19 +2082,62 @@ class EventArray(Transformable):
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
+
+        # Check for non-jittered cases
+        if jitter is True:
+            jitter = 0.5
+        scaledJitter = jitter * abs(step)
+
+        if scaledJitter <= 0.5:
+            return self.arraySlice(start=start, end=end, step=step, display=display)
+
+        # begin as normal
         self._computeMinMeanMax()
 
-        raw_slice = [
-            [times[np.newaxis].T, values.T]
-            for times, values in self._blockJitterySlice(
-                start, end, step, jitter, display
-            )
-        ]
-        if not raw_slice:
-            no_of_chs = (len(self.parent.types) if self.hasSubchannels else 1)
-            return np.empty((no_of_chs+1, 0), dtype=np.float)
+        if not isinstance(start, slice):
+            start = slice(start, end, step)
+        start, end, step = start.indices(len(self))
 
-        return np.block(raw_slice).T
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        # grab all raw data
+        rawData = self._accessCache(start, end, 1)
+
+        # slightly janky way of enforcing output length
+        if isinstance(self.parent, SubChannel):
+            out = np.zeros((2, len(self._accessCache(start, end, step))))
+        else:
+            out = np.zeros((len(rawData.dtype) + 1, len(self._accessCache(start, end, step))))
+
+        # save on space by being really clever and storing indices in timestamps
+        indices = out[0].view(np.int64)
+        indices[:] = np.arange(start, end, step, dtype=np.int64)
+        if len(indices) > 2:
+            indices[1:-1] += np.rint(np.random.uniform(
+                    -scaledJitter, scaledJitter, (len(indices) - 2,)
+                    )).astype(np.int64)
+
+        # now index raw data
+        rawData = rawData[indices]
+
+        # now times
+        times = self._inplaceTime(start, end, 1)
+        times = times[indices]
+        out[0] = times[:]
+        del times
+
+        if isinstance(self.parent, SubChannel):
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0])
+        else:
+            for i, (k, _) in enumerate(rawData.dtype.descr):
+                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0])
+
+        return out
 
 
     def getEventIndexBefore(self, t):
