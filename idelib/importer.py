@@ -21,7 +21,7 @@ from . import parsers
 # from dataset import __DEBUG__
 
 import logging
-logger = logging.getLogger('idelib-archive')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 

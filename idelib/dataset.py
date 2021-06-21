@@ -72,7 +72,7 @@ SCHEMA_FILE = 'mide_ide.xml'
 #===============================================================================
 
 import logging
-logger = logging.getLogger('idelib-archive')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 
