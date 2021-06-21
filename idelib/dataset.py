@@ -43,12 +43,16 @@ Created on Sep 26, 2013
 #    handling of race conditions is a hack. Also make some flags (like
 #    `Dataset.loading`) properties that get/set a `threading.Event`?
 
+from __future__ import annotations
+
 __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
            'SubChannel', 'WarningRange', 'Cascading', 'Transformable']
 
 from bisect import bisect_right
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Sequence, Mapping
+from collections import defaultdict
 from datetime import datetime
+from typing import Tuple, Callable, Any, NewType
 
 from functools import partial
 import os.path
@@ -86,6 +90,13 @@ else:
     
 # import ebml
 # logger.info("Loaded python-ebml from %s" % os.path.abspath(ebml.__file__))
+
+
+#===============================================================================
+# Type Annotation Classes
+#===============================================================================
+
+UnitType = NewType("UnitType", str)
 
 
 #===============================================================================
@@ -490,6 +501,98 @@ class Dataset(Cascading):
             ch.updateTransforms()
 
 
+    def _iterDataByUtype(self, sessionId=None) -> Iterable[Tuple[UnitType, EventArray]]:
+        """ Iterate through data by unit type. Subchannels within a single
+            channel are separated by unit type.
+
+            :keyword sessionId: the ID of the session to retrieve
+        """
+        for ch_id, channel in self.channels.items():
+            # Group subchannel id's by unit type
+            sch_ids_by_utype = defaultdict(list)
+            for sch_id, subchannel in enumerate(channel.subchannels):
+                utype_group = subchannel.units[0]
+                sch_ids_by_utype[utype_group].append(sch_id)
+
+            # Separate each channel into subchannels of like-unit-type
+            for utype, sch_ids in sch_ids_by_utype.items():
+                yield utype, channel.getSession(sessionId, subchannels=sch_ids)
+
+
+    def getUtypeArrays(self, unittype: UnitType, sessionId=None) -> Sequence[EventArray]:
+        """ Collect any data of the given unit type from all channels.
+
+            :param unittype: the desired data's unit type (e.g.,
+                "Acceleration", "Pressure", etc.)
+            :keyword sessionId: the ID of the session to retrieve
+        """
+        return [
+            eventarray
+            for (u, eventarray) in self._iterDataByUtype(sessionId)
+            if u == unittype
+        ]
+
+
+    def getArraysByUtype(self, sessionId=None) -> Mapping[UnitType, Sequence[EventArray]]:
+        """ Collect data from all recording channels, organized by by unit type.
+            Subchannels within a single channel are separated by unit type.
+
+            :keyword sessionId: the ID of the session to retrieve
+        """
+        result = defaultdict(list)
+        for utype, eventarray in self._iterDataByUtype(sessionId):
+            result[utype].append(eventarray)
+        return result
+
+
+    def getBestUtypeArray(
+        self,
+        unittype: UnitType,
+        key: Callable[[EventArray], Any] = lambda ea: len(ea),
+        sessionId=None
+    ) -> EventArray:
+        """ Choose a single channel's data of the given unit type based on the
+            given key function.
+
+            :param unittype: the desired data's unit type (e.g.,
+                "Acceleration", "Pressure", etc.)
+            :keyword key: a preference function; used as the `key` parameter in
+                built-in Python function `max`
+            :keyword sessionId: the ID of the session to retrieve
+        """
+        return max(
+            (
+                eventarray
+                for (u, eventarray) in self._iterDataByUtype(sessionId)
+                if u == unittype
+            ),
+            key=key,
+        )
+
+
+    def getBestArraysByUtype(
+        self,
+        key: Callable[[EventArray], Any] = lambda ea: len(ea),
+        sessionId=None,
+    ) -> Mapping[UnitType, EventArray]:
+        """ Collect data from all recording channels, organized by by unit type.
+            Subchannels within a single channel are separated by unit type.
+
+            :keyword key: a preference function; used as the `key` parameter in
+                built-in Python function `max`
+            :keyword sessionId: the ID of the session to retrieve
+        """
+        result = {}
+        for utype, eventarray in self._iterDataByUtype(sessionId):
+            if utype not in result:
+                result[utype] = eventarray
+                continue
+
+            result[utype] = max(result[utype], eventarray, key=max_key)
+
+        return result
+
+
 #===============================================================================
 # 
 #===============================================================================
@@ -788,7 +891,7 @@ class Channel(Transformable):
         return self.subchannels[subchannelId]
 
 
-    def getSession(self, sessionId=None):
+    def getSession(self, sessionId=None, subchannels=slice(None)):
         """ Retrieve data recorded in a Session. 
             
             :keyword sessionId: The ID of the session to retrieve.
@@ -1131,9 +1234,12 @@ class EventArray(Transformable):
     # Default 5 second rolling mean
     DEFAULT_MEAN_SPAN = 5000000
 
-    def __init__(self, parentChannel, session=None, parentList=None):
+    def __init__(self, parentChannel, session=None, parentList=None, subchannelsIndex=slice(None)):
         """ Constructor. This should almost always be done indirectly via
             the `getSession()` method of `Channel` and `SubChannel` objects.
+
+            :param subchannelsIndex: a index for selecting a subset of the
+                present subchannels
         """
         self.parent = parentChannel
         self.session = session
