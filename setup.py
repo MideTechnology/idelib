@@ -12,6 +12,7 @@ TEST_REQUIRES = [
     'pytest>=4.6',
     'mock',
     'pytest-cov',
+    'sphinx',
     ]
 
 EXAMPLE_REQUIRES = [
