@@ -3,7 +3,9 @@ before_install:
   - python --version
 install:
   - pip install .[test]
-script: python -m pytest ./testing/ --cov=idelib
+script:
+  - python -m pytest ./testing/ --cov=idelib
+  - sphinx-build -W -b html docs/source docs/html
 after_success:
   - bash <(curl -s https://codecov.io/bash)
 
