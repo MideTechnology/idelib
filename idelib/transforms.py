@@ -1107,6 +1107,15 @@ class CombinedPoly(Bivariate):
         try:
             if len(self.variables) == 1:
                 if isinstance(self.poly, ComplexTransform):
+
+                    if self.variables[0] in self.subpolys and not isinstance(self.subpolys[self.variables[0]], ComplexTransform):
+                        values = self.subpolys[self.variables[0]].inplace(
+                                values,
+                                timestamp=timestamp,
+                                session=session,
+                                noBivariates=noBivariates,
+                                )
+
                     if scalar:
                         out = self.poly.function(values)
                     else:

@@ -9,6 +9,7 @@ Data type conversion. Each class contains two special attributes:
 :author: dstokes
 """
 import math
+import weakref
 
 import numpy as np
 
@@ -202,6 +203,7 @@ class Pressure2Meters(UnitConverter, ComplexTransform):
         self.id = calId
         self._lastSession = None
         self._timeOffset = 0
+        self._watchers = weakref.WeakSet()
         self._build()
 
     def __hash__(self):
