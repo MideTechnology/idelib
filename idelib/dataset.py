@@ -2689,6 +2689,23 @@ class EventArray(Transformable):
         return self.arraySlice(startIdx, stopIdx, step, display=display)
 
 
+    def toPandas(self):
+        """ Copy data to a `pandas.DataFrame` object.
+        """
+        import pandas as pd
+
+        data = self.arraySlice()
+
+        if isinstance(self.parent, SubChannel):
+            columns = [self.parent.axisName]
+        elif isinstance(self.parent, Channel):
+            columns = [self.parent.subchannels[i].axisName for i in None]
+
+        return pd.DataFrame(
+            data[1:].T,
+            columns=columns,
+        )
+
     def exportCsv(self, stream, start=None, stop=None, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
