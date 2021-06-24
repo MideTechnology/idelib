@@ -47,6 +47,7 @@ class Transform(object):
         self._str = "x"
         self._source = "lambda x: x"
         self._function = eval(self._source, {'math': math})
+        self._variables = ("x",)
         self._lastSession = None
         self._timeOffset = 0
         self._watchers = weakref.WeakSet()
@@ -160,6 +161,70 @@ class Transform(object):
     @classmethod
     def null(cls, *args, **kwargs):
         return args[0]
+
+
+class ComplexTransform(Transform):
+    """ An mixin class for arbitrarily complex functions that don't follow a set form.
+
+        Instances are function-like objects that take one argument: a sensor
+        reading.
+    """
+
+    def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
+        """ In-place transform for the `ComplexTransform` transform.  These functions
+            can't be easily reduced and combined like polynomials, so this instead
+            wraps the `function` method.
+        """
+
+        scalar = np.isscalar(values)
+
+        if scalar:
+            values = float(values)
+        elif out is None:
+            out = np.zeros_like(values, dtype=np.float64)
+
+        if len(self._variables) == 1:
+
+            if scalar:
+                out = self.function(values)
+            else:
+                out[:] = self.function(values)
+        else:
+
+            session = self.dataset.lastSession if session is None else session
+            sessionId = None if session is None else session.sessionId
+
+            try:
+                if self._eventlist is None or self._sessionId != sessionId:
+                    channel = self.dataset.channels[self.channelId][self.subchannelId]
+                    self._eventlist = channel.getSession(session.sessionId)
+                    self._sessionId = session.sessionId
+
+            except IndexError as err:
+                # In multithreaded environments, there's a rare race condition
+                # in which the main channel can be accessed before the calibration
+                # channel has loaded. This should fix it.
+                logger.warning("%s occurred in Bivariate polynomial %r" %
+                               err.__class__.__name__, self.id)
+                return None
+
+            if noBivariates:
+                y = 0
+            elif self.useMean:
+                y = self._eventlist.getMean()
+            elif y is None and timestamp is None:
+                y = self._eventlist.getMean()
+            elif y is None and timestamp is not None:
+                y = np.fromiter((self._eventlist[self._eventlist.getEventIndexNear(t)][0] for t in
+                                 timestamp), dtype=np.float64)
+
+            if scalar:
+                out = self.function(values, y)
+            else:
+                out[:] = self.function(values, y)
+
+        return out
+
 
 
 #===============================================================================
@@ -911,14 +976,16 @@ class CombinedPoly(Bivariate):
             # x*y*(a0*b0*c0) + x*(a0*b0*c1 + a1*b0) + y*(a0*b1*c0 + a2*c0) + (a0*b1*c1 + a1*b1 + a2*c1 + a3)
             a = self.poly._fastCoeffs
             if self.poly.variables[0] in self.subpolys:
-                if self.subpolys[self.variables[0]] is not None:
+                if self.subpolys[self.variables[0]] is not None and \
+                        not isinstance(self.subpolys[self.variables[0]], ComplexTransform):
                     b = self.subpolys[self.variables[0]]._fastCoeffs
                 else:
                     b = (1, 0)
             else:
                 b = (1, 0)
             if self.poly.variables[1] in self.subpolys:
-                if self.subpolys[self.variables[1]] is not None:
+                if self.subpolys[self.variables[1]] is not None and \
+                        not isinstance(self.subpolys[self.variables[1]], ComplexTransform):
                     c = self.subpolys[self.variables[1]]._fastCoeffs
                 else:
                     c = (1, 0)
@@ -956,6 +1023,12 @@ class CombinedPoly(Bivariate):
             the results to that array, or leave `out` equal to `None`.  If `out`
             is `None`, then this method will allocate an array in the shape of
             `values`.
+
+            If any component polynomials are a `ComplexTransform`, those will be
+            calculated first.
+
+            If the main polynomial is a `Complex Transform`, then all values
+            will be calculated separately.
 
             If the component polynomials of this `CombinedPoly` are all
             `Univariate`, then the following equation will be used.  Otherwise,
@@ -1016,6 +1089,15 @@ class CombinedPoly(Bivariate):
 
         scalar = np.isscalar(values)
 
+        # Catches the case where the first subpoly is a `ComplexTransform`
+        if self.variables[0] in self.subpolys and isinstance(self.subpolys[self.variables[0]], ComplexTransform):
+            values = self.subpolys[self.variables[0]].inplace(
+                    values,
+                    timestamp=timestamp,
+                    session=session,
+                    noBivariates=noBivariates,
+                    )
+
         if scalar:
             values = float(values)
         elif out is None:
@@ -1024,12 +1106,28 @@ class CombinedPoly(Bivariate):
 
         try:
             if len(self.variables) == 1:
-                if scalar:
-                    out = values
+                if isinstance(self.poly, ComplexTransform):
+
+                    if self.variables[0] in self.subpolys and not isinstance(self.subpolys[self.variables[0]], ComplexTransform):
+                        values = self.subpolys[self.variables[0]].inplace(
+                                values,
+                                timestamp=timestamp,
+                                session=session,
+                                noBivariates=noBivariates,
+                                )
+
+                    if scalar:
+                        out = self.poly.function(values)
+                    else:
+                        out[:] = self.poly.function(values)
                 else:
-                    out[:] = values
-                out *= self._fastCoeffs[0]
-                out += self._fastCoeffs[1]
+                    if scalar:
+                        out = values
+                    else:
+                        out[:] = values
+
+                    out *= self._fastCoeffs[0]
+                    out += self._fastCoeffs[1]
             else:
 
                 session = self.dataset.lastSession if session is None else session
@@ -1051,26 +1149,74 @@ class CombinedPoly(Bivariate):
                             (self._eventlist[self._eventlist.getEventIndexNear(t)][0] for t in
                              timestamp), dtype=np.float64)
 
-                if np.isscalar(y):
-                    # a2*x*y + b2*x + c2*y + d2 =
-                    # x*(a2*y + b) + (c2*y + d2) =
-                    # x*a3 + b3
+                # Catches the case where the secondary subpoly is a `ComplexTransform`
+                if self.variables[1] in self.subpolys and isinstance(self.subpolys[self.variables[1]], ComplexTransform):
+                    y = self.subpolys[self.variables[1]].inplace(
+                            y,
+                            timestamp=timestamp,
+                            session=session,
+                            noBivariates=noBivariates,
+                            )
+
+                # in this instance, basically give up on efficiency
+                if isinstance(self.poly, ComplexTransform):
+
+                    if self.variables[0] in self.subpolys and not isinstance(self.subpolys[self.variables[0]], ComplexTransform):
+                        values = self.subpolys[self.variables[0]].inplace(
+                                values,
+                                timestamp=timestamp,
+                                session=session,
+                                noBivariates=noBivariates,
+                                )
+
+                    if self.variables[1] in self.subpolys and not isinstance(self.subpolys[self.variables[1]], ComplexTransform):
+                        y = self.subpolys[self.variables[1]].inplace(
+                                y,
+                                timestamp=timestamp,
+                                session=session,
+                                noBivariates=noBivariates,
+                                )
+
                     if scalar:
-                        out = values
+                        out = self.poly.inplace(
+                                values,
+                                y=y,
+                                timestamp=timestamp,
+                                session=session,
+                                noBivariates=noBivariates,
+                                )
                     else:
-                        out[:] = values
-                    a3 = self._fastCoeffs[0]*y + self._fastCoeffs[1]
-                    b3 = self._fastCoeffs[2]*y + self._fastCoeffs[3]
-                    out *= a3
-                    out += b3
+
+                        out[:] = self.poly.inplace(
+                                values,
+                                y=y,
+                                timestamp=timestamp,
+                                session=session,
+                                noBivariates=noBivariates,
+                                )
+
                 else:
-                    if np.scalar:
-                        out = values*y*self._fastCoeffs[0]
+
+                    if np.isscalar(y):
+                        # a2*x*y + b2*x + c2*y + d2 =
+                        # x*(a2*y + b) + (c2*y + d2) =
+                        # x*a3 + b3
+                        if scalar:
+                            out = values
+                        else:
+                            out[:] = values
+                        a3 = self._fastCoeffs[0]*y + self._fastCoeffs[1]
+                        b3 = self._fastCoeffs[2]*y + self._fastCoeffs[3]
+                        out *= a3
+                        out += b3
                     else:
-                        out[:] = values*y*self._fastCoeffs[0]
-                    out += values*self._fastCoeffs[1]
-                    out += y*self._fastCoeffs[2]
-                    out += self._fastCoeffs[3]
+                        if np.scalar:
+                            out = values*y*self._fastCoeffs[0]
+                        else:
+                            out[:] = values*y*self._fastCoeffs[0]
+                        out += values*self._fastCoeffs[1]
+                        out += y*self._fastCoeffs[2]
+                        out += self._fastCoeffs[3]
 
             return out
 
@@ -1078,7 +1224,7 @@ class CombinedPoly(Bivariate):
             # In multithreaded environments, there's a rare race condition
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
-            logger.warning("%s occurred in Bivariate polynomial %r"%
+            logger.warning("%s occurred in Bivariate polynomial %r" %
                            err.__class__.__name__, self.id)
             return None
         

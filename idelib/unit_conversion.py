@@ -9,10 +9,11 @@ Data type conversion. Each class contains two special attributes:
 :author: dstokes
 """
 import math
+import weakref
 
 import numpy as np
 
-from .transforms import Univariate
+from .transforms import ComplexTransform, Transform, Univariate
 from .dataset import Channel
 
 # ==============================================================================
@@ -34,17 +35,21 @@ def registerConverter(cls):
 # 
 # ==============================================================================
 
-class UnitConverter(Univariate):
+class UnitConverter(Transform):
     """ Mix-in class for unit conversion transforms.
     """
     modifiesValue = True
     modifiesTime = False
     parameters = None
-    
+
+    def convert(self, v):
+        """ Convert a value to new units.  Aliases self.function() """
+        return self.function(v)
+
     @classmethod
     def isApplicable(cls, obj):
         """ Is this converter applicable to the given object?
-         
+
             :param obj: A `Channel` or `EventList` (or a subclass of either).
                 Can also be a list or tuple of said objects. In the latter case,
                 the applicability of each item is tested, and `True` returned
@@ -67,16 +72,16 @@ class UnitConverter(Univariate):
             return False
         units = (fromUnits[0] or sourceUnits[0], fromUnits[1] or sourceUnits[1])
         return units == sourceUnits
-    
-    def convert(self, v):
-        """ Convert a value to new units.  Aliases self.function() """
-        return self.function(v)
+
+
+class LinearUnitConverter(Univariate, UnitConverter):
+    """ Mix-in class for linear unit conversion transforms.
+    """
     
     def revert(self, v):
         """ Convert a value back to the original units. Primarily for display
             purposes.
         """
-        # TODO: Make this work on Univariates with more than 2 coefficients.
         # May never be needed.
         a, b = self.coefficients
         ref = self.references[0]
@@ -88,7 +93,7 @@ class UnitConverter(Univariate):
 
 
 @registerConverter
-class Celsius2Fahrenheit(UnitConverter):
+class Celsius2Fahrenheit(LinearUnitConverter):
     """ Convert degrees Celsius to Fahrenheit. 
     """
     convertsFrom = ('Temperature', '\xb0C')
@@ -102,7 +107,7 @@ class Celsius2Fahrenheit(UnitConverter):
     
 
 @registerConverter
-class Celsius2Kelvin(UnitConverter):
+class Celsius2Kelvin(LinearUnitConverter):
     """ Convert degrees Celsius to Kelvin. 
     """
     convertsFrom = ('Temperature', '\xb0C')
@@ -116,7 +121,7 @@ class Celsius2Kelvin(UnitConverter):
         
 
 @registerConverter
-class Gravity2MPerSec2(UnitConverter):
+class Gravity2MPerSec2(LinearUnitConverter):
     """ Convert acceleration from g to m/s^2.
     """
     convertsFrom = ('Acceleration', 'g')
@@ -128,7 +133,7 @@ class Gravity2MPerSec2(UnitConverter):
 
 
 @registerConverter
-class Meters2Feet(UnitConverter):
+class Meters2Feet(LinearUnitConverter):
     """ Convert meters to feet.
     """
     convertsFrom = (None, 'm')
@@ -140,7 +145,7 @@ class Meters2Feet(UnitConverter):
 
 
 @registerConverter
-class Pa2PSI(UnitConverter):
+class Pa2PSI(LinearUnitConverter):
     """ Convert air pressure from Pascals to pounds per square inch.
     """
     convertsFrom = ('Pressure', 'Pa')
@@ -152,7 +157,7 @@ class Pa2PSI(UnitConverter):
 
 
 @registerConverter
-class Pa2atm(UnitConverter):
+class Pa2atm(LinearUnitConverter):
     """ Convert air pressure from Pascals to atmospheres.
     """
     convertsFrom = ('Pressure', 'Pa')
@@ -169,7 +174,7 @@ class Pa2atm(UnitConverter):
 
 
 @registerConverter
-class Pressure2Meters(UnitConverter):
+class Pressure2Meters(UnitConverter, ComplexTransform):
     """ Convert pressure in Pascals to an altitude in meters.
     """
     convertsFrom = ('Pressure', 'Pa')
@@ -198,6 +203,7 @@ class Pressure2Meters(UnitConverter):
         self.id = calId
         self._lastSession = None
         self._timeOffset = 0
+        self._watchers = weakref.WeakSet()
         self._build()
 
     def __hash__(self):
