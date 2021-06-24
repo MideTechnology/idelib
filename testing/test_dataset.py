@@ -13,7 +13,11 @@ from io import StringIO, BytesIO
 import sys
 import unittest
 import mock
+import os
 
+import pytest
+
+import idelib
 from idelib.dataset import (Cascading,
                             Channel,
                             Dataset,
@@ -34,6 +38,37 @@ from idelib import parsers
 import numpy as np  # type: ignore
 
 from .file_streams import makeStreamLike
+
+
+# ==============================================================================
+# Fixtures
+# ==============================================================================
+
+_fileStrings = {}
+
+
+def _load_file(filePath):
+    if filePath not in _fileStrings:
+        with open(filePath, 'rb') as f:
+            _fileStrings[filePath] = f.read()
+    out = BytesIO(_fileStrings[filePath])
+    out.name = filePath
+    return out
+
+
+@pytest.fixture
+def testIDE():
+    doc = idelib.importer.openFile(_load_file('./test.IDE'))
+    idelib.importer.readData(doc)
+    return doc
+
+
+@pytest.fixture
+def SSX70065IDE():
+    doc = idelib.importer.openFile(_load_file('./testing/SSX70065.IDE'))
+    idelib.importer.readData(doc)
+    return doc
+
 
 #===============================================================================
 # 
@@ -79,7 +114,7 @@ class GenericObject(object):
 # 
 #===============================================================================
 
-class CascadingTestCase(unittest.TestCase):
+class TestCascading(unittest.TestCase):
     """ Test case for methods in the Cascading class. """
     
     def setUp(self):
@@ -117,7 +152,7 @@ class CascadingTestCase(unittest.TestCase):
 # 
 #===============================================================================
 
-class TransformableTestCase(unittest.TestCase):
+class TestTransformable(unittest.TestCase):
     """ Test case for methods in the Transformable class. """
     def setUp(self):
         
@@ -190,7 +225,7 @@ class TransformableTestCase(unittest.TestCase):
 # 
 #===============================================================================
 
-class DatasetTestCase(unittest.TestCase):
+class TestDataset(unittest.TestCase):
     """ Test case for methods in the Dataset class. """
     
     def setUp(self):
@@ -429,7 +464,7 @@ class DatasetTestCase(unittest.TestCase):
 # 
 #===============================================================================
 
-class SessionTestCase(unittest.TestCase):
+class TestSession(unittest.TestCase):
     """ Test case for methods in the Session class. """
     
     def testInitAndEQ(self):
@@ -462,7 +497,7 @@ class SessionTestCase(unittest.TestCase):
 # 
 #===============================================================================
 
-class SensorTestCase(unittest.TestCase):
+class TestSensor(unittest.TestCase):
     """ Test case for methods in the Sensor class. """
     
     def setUp(self):
@@ -531,7 +566,7 @@ class SensorTestCase(unittest.TestCase):
 # 
 #===============================================================================
 
-class ChannelTestCase(unittest.TestCase):
+class TestChannel(unittest.TestCase):
     """ Test case for methods in the Channel class. """
     
     def setUp(self):
@@ -701,7 +736,7 @@ class ChannelTestCase(unittest.TestCase):
 # 
 #===============================================================================
  
-class SubChannelTestCase(unittest.TestCase):
+class TestSubChannel(unittest.TestCase):
     """ Test case for methods in the SubChannel class. """
     
     def setUp(self):
@@ -849,39 +884,47 @@ class SubChannelTestCase(unittest.TestCase):
 #
 #===============================================================================
 
-class EventArrayTestCase(unittest.TestCase):
+class TestEventArray:
     """ Test case for methods in the EventArray class. """
 
-    def assertArrayEqual(self, array1, array2):
-        self.assertTrue(np.all(array1 == array2))
+    @pytest.fixture
+    def dataset(self, SSX70065IDE):
+        SSX70065IDE.addSession(0, 1, 2)
+        SSX70065IDE.addSensor(0)
 
-    def setUp(self):
-        self.dataset = importer.importFile('./testing/SSX70065.IDE')
-        self.dataset.addSession(0, 1, 2)
-        self.dataset.addSensor(0)
+        return SSX70065IDE
 
-        self.fakeParser = GenericObject()
-        self.fakeParser.types = [0]
-        self.fakeParser.format = []
+    @pytest.fixture
+    def fakeParser(self):
+        parser = GenericObject()
+        parser.types = [0]
+        parser.format = []
 
-        self.channel1 = Channel(
-            self.dataset, channelId=0, name="channel1", parser=self.fakeParser,
+        return parser
+
+    @pytest.fixture
+    def _channel1(self, dataset, fakeParser):
+        return Channel(
+            dataset, channelId=0, name="channel1", parser=fakeParser,
             displayRange=[0]
         )
-        self.eventArray1 = EventArray(self.channel1,
-                                      session=self.dataset.sessions[0])
 
-        self.channel1.addSubChannel(subchannelId=0)
+    @pytest.fixture
+    def eventArray1(self, _channel1, dataset):
+        return EventArray(_channel1, session=dataset.sessions[0])
 
-        self.subChannel1 = SubChannel(self.channel1, 0)
+    @pytest.fixture
+    def channel1(self, _channel1):
+        _channel1.addSubChannel(subchannelId=0)
 
-    def tearDown(self):
-        self.dataset = None
-        self.fakeParser = None
-        self.channel1 = None
-        self.eventArray1 = None
+        return _channel1
 
-    def mockData(self):
+    @pytest.fixture
+    def subchannel1(self, channel1):
+        return SubChannel(channel1, 0)
+
+    @pytest.fixture
+    def mockData(self, eventArray1):
         """ mock up a bit of fake data so I don't have to worry that external
             classes are working during testing.
         """
@@ -890,7 +933,7 @@ class EventArrayTestCase(unittest.TestCase):
         fakeData.indexRange = [0, 4]
         fakeData.sampleTime = 1
         fakeData.numSamples = 1
-        self.eventArray1._data = [fakeData]
+        eventArray1._data = [fakeData]
 
     def mockIterSlice(self,  *args, **kwargs):
         """ Mock up iterslice so it doesn't get called while testing
@@ -919,110 +962,103 @@ class EventArrayTestCase(unittest.TestCase):
     # Base Method Tests
     # --------------------------------------------------------------------------
 
-    def testConstructor(self):
+    def testConstructor(self, eventArray1, channel1, dataset):
         """ Test the __init__ method. """
-        self.assertEqual(self.eventArray1._blockIndices, [])
-        self.assertEqual(self.eventArray1._blockTimes, [])
-        self.assertEqual(self.eventArray1._childLists, [])
-        self.assertEqual(self.eventArray1._data, [])
-        self.assertEqual(self.eventArray1._firstTime, None)
-        self.assertFalse(self.eventArray1._hasSubsamples)
-        self.assertEqual(self.eventArray1._lastTime, None)
-        self.assertEqual(self.eventArray1._length, 0)
-        self.assertEqual(self.eventArray1._parentList, None)
-        self.assertEqual(self.eventArray1._singleSample,
-                         self.channel1.singleSample)
+        assert eventArray1._blockIndices == []
+        assert eventArray1._blockTimes == []
+        assert eventArray1._childLists == []
+        assert eventArray1._data == []
+        assert eventArray1._firstTime is None
+        assert eventArray1._hasSubsamples is False
+        assert eventArray1._lastTime is None
+        assert eventArray1._length == 0
+        assert eventArray1._parentList is None
+        assert eventArray1._singleSample == channel1.singleSample
 
-        self.assertEqual(self.eventArray1.channelId, self.channel1.id)
-        self.assertEqual(self.eventArray1.dataset, self.channel1.dataset)
-        self.assertEqual(self.eventArray1.displayRange,
-                         self.channel1.displayRange)
-        self.assertTrue(self.eventArray1.hasMinMeanMax)
-        self.assertEqual(self.eventArray1.hasDisplayRange,
-                         self.channel1.hasDisplayRange)
-        self.assertTrue(self.eventArray1.hasSubchannels)
-        self.assertFalse(self.eventArray1.noBivariates)
-        self.assertEqual(self.eventArray1.parent, self.channel1)
-        self.assertFalse(self.eventArray1.removeMean)
-        self.assertEqual(self.eventArray1.rollingMeanSpan,
-                         EventArray.DEFAULT_MEAN_SPAN)
-        self.assertEqual(self.eventArray1.session, self.dataset.sessions[0])
-        self.assertEqual(self.eventArray1.subchannelId, None)
+        assert eventArray1.channelId == channel1.id
+        assert eventArray1.dataset == channel1.dataset
+        assert eventArray1.displayRange == channel1.displayRange
+        assert eventArray1.hasMinMeanMax is True
+        assert eventArray1.hasDisplayRange == channel1.hasDisplayRange
+        assert eventArray1.hasSubchannels is True
+        assert eventArray1.noBivariates is False
+        assert eventArray1.parent == channel1
+        assert eventArray1.removeMean is False
+        assert eventArray1.rollingMeanSpan == EventArray.DEFAULT_MEAN_SPAN
+        assert eventArray1.session == dataset.sessions[0]
+        assert eventArray1.subchannelId is None
 
-        self.assertEqual(self.eventArray1._blockIndicesArray.size, 0)
-        self.assertEqual(self.eventArray1._blockTimesArray.size, 0)
+        assert eventArray1._blockIndicesArray.size == 0
+        assert eventArray1._blockTimesArray.size == 0
 
-    # TODO add test
-    #def test_JoinTimesValues(self):
+    @pytest.mark.skip('not yet implemented')
+    def testJoinTimesValues(self):
+        pass
 
-    def testUpdateTransforms(self):
+    def testUpdateTransformsNoRecursion(self, eventArray1, channel1, dataset):
         """ Test the updateTransforms method. """
         # update transforms without recursion
-        self.eventArray1.updateTransforms(False)
-        self.assertEqual(
-            self.eventArray1._comboXform,
-            PolyPoly([self.channel1.transform]*len(self.channel1.types))
-        )
+        eventArray1.updateTransforms(False)
+        assert eventArray1._comboXform == PolyPoly([channel1.transform]*len(channel1.types))
+
         xs = [c.transform if c is not None else None
-              for c in self.channel1.subchannels]
-        xs = [CombinedPoly(t, x=self.channel1.transform, dataset=self.dataset)
+              for c in channel1.subchannels]
+        xs = [CombinedPoly(t, x=channel1.transform, dataset=dataset)
               for t in xs]
-        self.assertEqual(self.eventArray1._fullXform,
-                         PolyPoly(xs, dataset=self.dataset))
-        self.tearDown()
+        assert eventArray1._fullXform == PolyPoly(xs, dataset=dataset)
+
+    def testUpdateTransformsYesRecursion(self, eventArray1, channel1, dataset):
 
         # update transforms with recursion
-        self.setUp()
-        self.eventArray1.updateTransforms(True)
-        self.assertEqual(self.eventArray1._displayXform,
-                         PolyPoly(xs, dataset=self.dataset))
-        self.tearDown()
+        xs = [c.transform if c is not None else None
+              for c in channel1.subchannels]
+        xs = [CombinedPoly(t, x=channel1.transform, dataset=dataset)
+              for t in xs]
+        eventArray1.updateTransforms(True)
+        assert eventArray1._displayXform == PolyPoly(xs, dataset=self.dataset)
+
+    def testUpdateTransformsOther(self, eventArray1, channel1, dataset):
 
         # test for when there's a subchannel with a corresponding session
-        self.setUp()
-        self.eventArray1.session.sessionId = 'session0'
-        self.eventArray1.parent.subchannels[0]._sessions = {'session0': self.eventArray1}
-        self.eventArray1.updateTransforms()
+        eventArray1.session.sessionId = 'session0'
+        eventArray1.parent.subchannels[0]._sessions = {'session0': eventArray1}
+        eventArray1.updateTransforms()
         xs = [c.transform if c is not None else None
-              for c in self.eventArray1.parent.subchannels]
-        self.assertEqual(
-            self.eventArray1._displayXform,
-            PolyPoly(
-                [CombinedPoly(self.eventArray1.transform,
-                              x=xs[0], dataset=self.dataset)],
-                dataset=self.dataset,
-            )
-        )
+              for c in eventArray1.parent.subchannels]
+        assert eventArray1._displayXform == PolyPoly(
+                [CombinedPoly(eventArray1.transform, x=xs[0], dataset=dataset)],
+                dataset=dataset,
+                )
 
-    def testUnits(self):
+    def testUnits(self, eventArray1):
         """ Test the units property. """
-        self.assertEqual(self.eventArray1.units, ('', ''))
+        assert eventArray1.units == ('', '')
 
-    def testPath(self):
+    def testPath(self, eventArray1):
         """ Test the path method. """
-        self.assertEqual(self.eventArray1.path(), "channel1, 0")
+        assert eventArray1.path() == "channel1, 0"
 
-    def testCopy(self):
+    def testCopy(self, eventArray1):
         """ Test the copy method. Since this is a shallow copy, don't use the
             build in equality check.
         """
-        eventArrayCopy = self.eventArray1.copy()
-        self.assertEqual(self.eventArray1.parent, eventArrayCopy.parent)
-        self.assertEqual(self.eventArray1.session, eventArrayCopy.session)
-        self.assertEqual(self.eventArray1.dataset, eventArrayCopy.dataset)
-        self.assertEqual(self.eventArray1.hasSubchannels, eventArrayCopy.hasSubchannels)
-        self.assertEqual(self.eventArray1.noBivariates, eventArrayCopy.noBivariates)
-        self.assertEqual(self.eventArray1.channelId, eventArrayCopy.channelId)
-        self.assertEqual(self.eventArray1.subchannelId, eventArrayCopy.subchannelId)
-        self.assertEqual(self.eventArray1.channelId, eventArrayCopy.channelId)
-        self.assertEqual(self.eventArray1.hasDisplayRange, eventArrayCopy.hasDisplayRange)
-        self.assertEqual(self.eventArray1.displayRange, eventArrayCopy.displayRange)
-        self.assertEqual(self.eventArray1.removeMean, eventArrayCopy.removeMean)
-        self.assertEqual(self.eventArray1.hasMinMeanMax, eventArrayCopy.hasMinMeanMax)
-        self.assertEqual(self.eventArray1.rollingMeanSpan, eventArrayCopy.rollingMeanSpan)
-        self.assertEqual(self.eventArray1.transform, eventArrayCopy.transform)
-        self.assertEqual(self.eventArray1.useAllTransforms, eventArrayCopy.useAllTransforms)
-        self.assertEqual(self.eventArray1.allowMeanRemoval, eventArrayCopy.allowMeanRemoval)
+        eventArrayCopy = eventArray1.copy()
+        assert eventArray1.parent == eventArrayCopy.parent
+        assert eventArray1.session == eventArrayCopy.session
+        assert eventArray1.dataset == eventArrayCopy.dataset
+        assert eventArray1.hasSubchannels == eventArrayCopy.hasSubchannels
+        assert eventArray1.noBivariates == eventArrayCopy.noBivariates
+        assert eventArray1.channelId == eventArrayCopy.channelId
+        assert eventArray1.subchannelId == eventArrayCopy.subchannelId
+        assert eventArray1.channelId == eventArrayCopy.channelId
+        assert eventArray1.hasDisplayRange == eventArrayCopy.hasDisplayRange
+        assert eventArray1.displayRange == eventArrayCopy.displayRange
+        assert eventArray1.removeMean == eventArrayCopy.removeMean
+        assert eventArray1.hasMinMeanMax == eventArrayCopy.hasMinMeanMax
+        assert eventArray1.rollingMeanSpan == eventArrayCopy.rollingMeanSpan
+        assert eventArray1.transform == eventArrayCopy.transform
+        assert eventArray1.useAllTransforms == eventArrayCopy.useAllTransforms
+        assert eventArray1.allowMeanRemoval == eventArrayCopy.allowMeanRemoval
 
 
     @unittest.skip('failing, poorly formed')
@@ -1037,70 +1073,70 @@ class EventArrayTestCase(unittest.TestCase):
         fakeData.parseMinMeanMax = lambda x: x
 
         # append boring basic fakeData
-        self.eventArray1.append(fakeData)
+        eventArray1.append(fakeData)
 
-        self.assertEqual(fakeData.blockIndex, 0)
-        self.assertFalse(fakeData.cache)
-        self.assertEqual(fakeData.indexRange, (0, 1))
-        self.assertEqual(self.eventArray1._blockIndices, [0])
-        self.assertEqual(self.eventArray1._blockTimes, [2])
-        self.assertEqual(self.eventArray1._firstTime, 2)
-        self.assertEqual(self.eventArray1._lastTime, 4)
-        self.assertEqual(self.eventArray1._length, 1)
-        self.assertTrue(self.eventArray1._singleSample)
+        assert fakeData.blockIndex == 0
+        assert fakeData.cache is False
+        assert fakeData.indexRange == (0, 1)
+        assert eventArray1._blockIndices == [0]
+        assert eventArray1._blockTimes == [2]
+        assert eventArray1._firstTime == 2
+        assert eventArray1._lastTime == 4
+        assert eventArray1._length == 1
+        assert eventArray1._singleSample is True
 
         # append single sample fakeData
-        self.eventArray1._singleSample = True
+        eventArray1._singleSample = True
 
-        self.eventArray1.append(fakeData)
+        eventArray1.append(fakeData)
 
-        self.assertEqual(fakeData.blockIndex, 1)
-        self.assertFalse(fakeData.cache)
-        self.assertEqual(fakeData.indexRange, (1, 2))
-        self.assertEqual(self.eventArray1._blockIndices, [0, 1])
-        self.assertEqual(self.eventArray1._blockTimes, [2, 2])
-        self.assertEqual(self.eventArray1._firstTime, 2)
-        self.assertEqual(self.eventArray1._lastTime, 4)
-        self.assertEqual(self.eventArray1._length, 2)
-        self.assertTrue(self.eventArray1._singleSample)
+        assert fakeData.blockIndex == 1
+        assert fakeData.cache is False
+        assert fakeData.indexRange == (1, 2)
+        assert eventArray1._blockIndices == [0, 1]
+        assert eventArray1._blockTimes == [2, 2]
+        assert eventArray1._firstTime == 2
+        assert eventArray1._lastTime == 4
+        assert eventArray1._length == 2
+        assert eventArray1._singleSample is True
 
         # append with times stripped out
-        self.eventArray1.session.firstTime = None
-        self.eventArray1.session.lastTime = None
-        self.eventArray1._firstTime = None
+        eventArray1.session.firstTime = None
+        eventArray1.session.lastTime = None
+        eventArray1._firstTime = None
 
-        self.eventArray1.append(fakeData)
+        eventArray1.append(fakeData)
 
-        self.assertEqual(fakeData.blockIndex, 2)
-        self.assertFalse(fakeData.cache)
-        self.assertEqual(fakeData.indexRange, (2, 3))
-        self.assertEqual(self.eventArray1._blockIndices, [0, 1, 2])
-        self.assertEqual(self.eventArray1._blockTimes, [2, 2, 2])
-        self.assertEqual(self.eventArray1._firstTime, 2)
-        self.assertEqual(self.eventArray1._lastTime, 4)
-        self.assertEqual(self.eventArray1._length, 3)
-        self.assertTrue(self.eventArray1._singleSample)
+        assert fakeData.blockIndex == 2
+        assert fakeData.cache is False
+        assert fakeData.indexRange == (2, 3)
+        assert eventArray1._blockIndices == [0, 1, 2]
+        assert eventArray1._blockTimes == [2, 2, 2]
+        assert eventArray1._firstTime == 2
+        assert eventArray1._lastTime == 4
+        assert eventArray1._length == 3
+        assert eventArray1._singleSample is True
 
-    def testGetInterval(self):
+    def testGetInterval(self, dataset):
         """ Test the getInterval method. """
         fakeObject = GenericObject()
         fakeObject.startTime = 3
         fakeObject.endTime = 1
-        accel = self.dataset.channels[32].getSession()
+        accel = dataset.channels[32].getSession()
 
         # without _data, return None
-        self.assertEqual(accel.getInterval(), None)
-        self.assertEqual(accel._lastTime, None)
+        assert accel.getInterval() == None
+        assert accel._lastTime is None
 
         # with mocked data
         accel._data = [fakeObject]
-        self.assertEqual(accel.getInterval(), (3, 1))
-        self.assertEqual(accel._lastTime, 1)
+        assert accel.getInterval() == (3, 1)
+        assert accel._lastTime == 1
 
         # with mocked data and a mocked dataset
         accel.dataset = GenericObject()
         accel.dataset.loading = True
-        self.assertEqual(accel.getInterval(), (3, 1))
+        assert accel.getInterval() == (3, 1)
 
     def mockForGetItem(self, section):
         """ Mock different things for testGetItem. """
@@ -1124,15 +1160,15 @@ class EventArrayTestCase(unittest.TestCase):
             def mockParseBlock(block, start=None, end=None, step=None):
                 return [(block,)]
 
-            self.eventArray1._getBlockIndexRange = mockGetBlockIndexRange
-            self.eventArray1._getBlockIndexWithIndex = mockGetBlockIndexWithIndex
-            self.eventArray1.parent.parseBlock = mockParseBlock
-            self.eventArray1._displayXform = self.eventArray1._comboXform = \
-                self.eventArray1._fullXform = mockXform
+            eventArray1._getBlockIndexRange = mockGetBlockIndexRange
+            eventArray1._getBlockIndexWithIndex = mockGetBlockIndexWithIndex
+            eventArray1.parent.parseBlock = mockParseBlock
+            eventArray1._displayXform = eventArray1._comboXform = \
+                eventArray1._fullXform = mockXform
 
-            self.eventArray1._data = [GenericObject() for _ in range(4)]
+            eventArray1._data = [GenericObject() for _ in range(4)]
 
-            for i, datum in enumerate(self.eventArray1._data):
+            for i, datum in enumerate(eventArray1._data):
                 datum.id = i
 
         # mock without xforms
@@ -1141,23 +1177,23 @@ class EventArrayTestCase(unittest.TestCase):
             def mockXform(time, val, session=None, noBivariates=False):
                 return None
 
-            self.eventArray1._displayXform = self.eventArray1._comboXform = \
-                self.eventArray1._fullXform = mockXform
+            eventArray1._displayXform = eventArray1._comboXform = \
+                eventArray1._fullXform = mockXform
 
         # with blockRollingMean
         elif section == 2:
 
             self.mockForGetItem(0)
 
-            self.eventArray1._getBlockRollingMean = lambda x: [1]
+            eventArray1._getBlockRollingMean = lambda x: [1]
 
             def mockXform(time, val, session=None, noBivariates=False):
                 if type(val) is tuple:
                     return time, val
                 return time, [val.id]
 
-            self.eventArray1._displayXform = self.eventArray1._comboXform = \
-                self.eventArray1._fullXform = mockXform
+            eventArray1._displayXform = eventArray1._comboXform = \
+                eventArray1._fullXform = mockXform
 
         # for __getitem__ to work in getEventIndexNear
         elif section == 3:
@@ -1166,7 +1202,7 @@ class EventArrayTestCase(unittest.TestCase):
             def mockGetBlockSampleTime(idx, start=None):
                 return 1
 
-            self.eventArray1._getBlockSampleTime = mockGetBlockSampleTime
+            eventArray1._getBlockSampleTime = mockGetBlockSampleTime
 
     def testGetItem(self):
         """ Test the getitem special method. """

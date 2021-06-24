@@ -1214,7 +1214,6 @@ class EventArray(Transformable):
         else:
             if isinstance(format, bytes):
                 format = format.decode()
-            print(format)
 
             if format[0] in ['<', '>', '=']:
                 endian = format[0]
@@ -2148,14 +2147,17 @@ class EventArray(Transformable):
             :return: The index of the event preceding the given time, -1 if
                 the time occurs before the first event.
         """
-        if t <= self._data[0].startTime:
+        if t < self._data[0].startTime:
             return -1
+
+        if t >= self._data[-1].endTime:
+            return self._data[-1].indexRange[1]
+
         blockIdx = self._getBlockIndexWithTime(t)
         try:
             block = self._data[blockIdx]
         except IndexError:
-            blockIdx = len(self._data)-1
-            block = self._data[blockIdx]
+            block = self._data[-1]
         return int(block.indexRange[0] + \
                    ((t - block.startTime) / self._getBlockSampleTime(blockIdx)))
         
@@ -2168,11 +2170,16 @@ class EventArray(Transformable):
         """
         if t <= self._data[0].startTime:
             return 0
+
+        if t >= self._data[-1].endTime:
+            return self._data[-1].indexRange[1]
+
         idx = self.getEventIndexBefore(t)
-        events = self[idx:idx+2]
-        if events[0][0] == t or len(events) == 1:
+        events = self[idx:idx+2][0]
+        if len(events) == 1:
             return idx
-        return min((t - events[0][0], idx), (events[1][0] - t, idx+1))[1]
+
+        return idx + abs(events - t).argmin()
 
 
     def getRangeIndices(self, startTime, endTime):
@@ -2935,11 +2942,7 @@ class EventArray(Transformable):
         nSamples = len(self)
         samplePeriod = (arrayEnd - arrayStart)/(nSamples - 1)
 
-        out[:] = np.linspace(
-                arrayStart + start*samplePeriod,
-                arrayStart + end*samplePeriod,
-                len(out),
-                )
+        out[:] = np.arange(start, end, step)*samplePeriod + arrayStart
         return out
 
 
