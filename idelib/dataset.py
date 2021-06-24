@@ -2581,10 +2581,11 @@ class EventArray(Transformable):
             :return: The time between samples (us)
         """
         sr = self.parent.sampleRate
-        if idx is None and sr is not None:
-            return 1.0 / sr
-        else:
-            idx = 0
+        if idx is None:
+            if sr is not None:
+                return 1.0/sr
+            else:
+                idx = 0
         return self._getBlockSampleTime(self._getBlockIndexWithIndex(idx))
     
     
