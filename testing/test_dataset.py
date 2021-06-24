@@ -59,7 +59,7 @@ def _load_file(filePath):
 
 @pytest.fixture
 def testIDE():
-    doc = idelib.importer.openFile(_load_file('./test.IDE'))
+    doc = idelib.importer.openFile(_load_file('./test.ide'))
     idelib.importer.readData(doc)
     return doc
 
@@ -1862,7 +1862,7 @@ class TestData(unittest.TestCase):
     """
 
     def setUp(self):
-        self.dataset = importer.importFile('./testing/SSX_Data.ide')
+        self.dataset = importer.importFile('./testing/SSX_Data.IDE')
         self.delta = 0.0015
 
 
