@@ -4,8 +4,7 @@ before_install:
 install:
   - pip install .[test]
 script:
-  - ls
-  - python -m pytest ./testing/ --cov=idelib --rootdir=.
+  - python -m pytest ./testing/ --cov=idelib
   - sphinx-build -W -b html docs/source docs/html
 after_success:
   - bash <(curl -s https://codecov.io/bash)

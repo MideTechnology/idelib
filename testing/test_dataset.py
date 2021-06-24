@@ -1862,7 +1862,7 @@ class TestData(unittest.TestCase):
     """
 
     def setUp(self):
-        self.dataset = importer.importFile('./testing/SSX_Data.IDE')
+        self.dataset = importer.importFile('./testing/SSX_Data.ide')
         self.delta = 0.0015
 
 
