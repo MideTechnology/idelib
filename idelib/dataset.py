@@ -1208,18 +1208,20 @@ class EventArray(Transformable):
 
         self._mean = None
 
-        format = self.parent.parser.format
-        if len(format) == 0:
+        _format = self.parent.parser.format
+        if isinstance(self.parent, SubChannel):
+            self._npType = self.parent.parent.getSession()._npType[self.subchannelId]
+        elif len(_format) == 0:
             self._npType = np.uint8
         else:
-            if isinstance(format, bytes):
-                format = format.decode()
+            if isinstance(_format, bytes):
+                _format = _format.decode()
 
-            if format[0] in ['<', '>', '=']:
-                endian = format[0]
-                dtypes = [endian + ChannelDataBlock.TO_NP_TYPESTR[x] for x in format[1:]]
+            if _format[0] in ['<', '>', '=']:
+                endian = _format[0]
+                dtypes = [endian + ChannelDataBlock.TO_NP_TYPESTR[x] for x in _format[1:]]
             else:
-                dtypes = [ChannelDataBlock.TO_NP_TYPESTR[x] for x in str(format)]
+                dtypes = [ChannelDataBlock.TO_NP_TYPESTR[x] for x in str(_format)]
 
             self._npType = np.dtype([(str(i), dtype) for i, dtype in enumerate(dtypes)])
 
@@ -2371,9 +2373,24 @@ class EventArray(Transformable):
                 and max, respectively).
         """
 
-        return np.moveaxis([i for i in iterator(self.iterMinMeanMax(
-            startTime, endTime, padding, times, display
-        ))], 0, -1)
+        startBlock, endBlock = self._getBlockRange(startTime, endTime)
+        shape = (3, max(1, len(self._npType)), endBlock - startBlock)
+        scid = self.subchannelId
+        isSubchannel = isinstance(self.parent, SubChannel)
+
+        out = np.zeros(shape)
+
+        for i, d in enumerate(self._data[startBlock:endBlock]):
+            if isSubchannel:
+                out[0, 0, i] = d.min[scid]
+                out[1, 0, i] = d.mean[scid]
+                out[2, 0, i] = d.max[scid]
+            else:
+                out[0, :, i] = d.min
+                out[1, :, i] = d.mean
+                out[2, :, i] = d.max
+
+        return out
 
 
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,

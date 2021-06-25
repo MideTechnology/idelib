@@ -8,7 +8,7 @@ Basic IDE library unit tests.
     `calibration.AccelTransform`. These classes may be refactored out in the
     future.
 """
-
+import struct
 from io import StringIO, BytesIO
 import sys
 import unittest
@@ -744,8 +744,62 @@ class TestChannel(unittest.TestCase):
 # 
 #===============================================================================
 
-class TestSubChannel(unittest.TestCase):
+class TestSubChannel:
     """ Test case for methods in the SubChannel class. """
+
+    @pytest.fixture
+    def dataset(self, SSX70065IDE):
+        SSX70065IDE.addSensor(0)
+        return SSX70065IDE
+
+    @pytest.fixture
+    def fakeParser(self):
+        return struct.Struct(b'<hh')
+
+    @pytest.fixture
+    def sensor1(self, dataset):
+        return Sensor(dataset, 2, '3', 4, 5, 6, 7)
+
+    @pytest.fixture
+    def channel1(self, dataset, fakeParser):
+        return Channel(
+                dataset,
+                channelId=0,
+                name="channel1",
+                parser=fakeParser,
+                displayRange=[0],
+                )
+
+    @pytest.fixture
+    def channel2(self, dataset, fakeParser, sensor1):
+        return Channel(
+                dataset,
+                channelId=2,
+                parser=fakeParser,
+                sensor=sensor1,
+                name="channel2",
+                units=6,
+                displayRange=[8],
+                sampleRate=9,
+                cache=10,
+                singleSample=11,
+                attributes=12,
+                )
+
+    @pytest.fixture
+    def subChannel1(self, channel2):
+        return SubChannel(
+                channel2,
+                0,
+                name=None,
+                units=('a', 'b'),
+                transform=3,
+                displayRange=[4],
+                sensorId=5,
+                warningId=6,
+                axisName=7,
+                attributes=8,
+                )
 
     def setUp(self):
         """ Open a file for testing in a new dataset. """
@@ -771,7 +825,6 @@ class TestSubChannel(unittest.TestCase):
                                       units=('a', 'b'), transform=3,
                                       displayRange=[4], sensorId=5, warningId=6,
                                       axisName=7, attributes=8)
-        parentList = self.dataset.channels[32].getSession()
 
 
     def tearDown(self):
@@ -782,110 +835,99 @@ class TestSubChannel(unittest.TestCase):
         self.channel2 = None
         self.fakeParser = None
 
-
-    def testInit(self):
+    def testInit(self, dataset, channel1, channel2, subChannel1):
         """ Test the constructor for SubChannel. """
-        self.assertEqual(self.subChannel1.id, 0)
-        self.assertEqual(self.subChannel1.parent, self.channel2)
-        self.assertEqual(self.subChannel1.warningId, 6)
-        self.assertEqual(self.subChannel1.cache, self.channel2.cache)
-        self.assertEqual(self.subChannel1.dataset, self.dataset)
-        self.assertEqual(self.subChannel1.axisName, 7)
-        self.assertEqual(self.subChannel1.attributes, 8)
-        self.assertEqual(self.subChannel1.name, "channel2:00")
-        self.assertEqual(self.subChannel1.units, ('a', 'b'))
-        self.assertEqual(self.subChannel1.displayName, 'a')
-        self.assertEqual(self.subChannel1.sensor, self.channel1.sensor)
-        self.assertEqual(self.subChannel1.types, (self.channel1.types[0], ))
-        self.assertEqual(self.subChannel1.displayRange, [4])
-        self.assertTrue(self.subChannel1.hasDisplayRange)
-        self.assertEqual(self.subChannel1.allowMeanRemoval,
-                         self.channel2.allowMeanRemoval)
-        self.assertFalse(self.subChannel1.removeMean)
-        self.assertEqual(self.subChannel1.singleSample,
-                         self.channel2.singleSample)
+        assert subChannel1.id == 0
+        assert subChannel1.parent == channel2
+        assert subChannel1.warningId == 6
+        assert subChannel1.cache == channel2.cache
+        assert subChannel1.dataset == dataset
+        assert subChannel1.axisName == 7
+        assert subChannel1.attributes == 8
+        assert subChannel1.name == "channel2:00"
+        assert subChannel1.units == ('a', 'b')
+        assert subChannel1.displayName == 'a'
+        assert subChannel1.sensor == channel1.sensor
+        assert subChannel1.types == (channel1.types[0], )
+        assert subChannel1.displayRange == [4]
+        assert subChannel1.hasDisplayRange is True
+        assert subChannel1.allowMeanRemoval == channel2.allowMeanRemoval
+        assert subChannel1.removeMean is False
+        assert subChannel1.singleSample == channel2.singleSample
 
-
-    def testChildren(self):
+    def testChildren(self, subChannel1):
         """ Test the children property. """
-        self.assertEqual(self.subChannel1.children, [])
+        assert subChannel1.children == []
 
-
-    def testSampleRate(self):
+    def testSampleRate(self, subChannel1, channel2):
         """ Test the sampleRate property. """
-        self.assertEqual(self.subChannel1.sampleRate, self.channel2.sampleRate)
+        assert subChannel1.sampleRate == channel2.sampleRate
 
-
-    def testRepr(self):
+    def testRepr(self, subChannel1):
         """ Test the repr special method. """
-        self.assertIn(
-            "<SubChannel 2.0: %r at" % 'SSX70065:3:channel2:channel2:00',
-            repr(self.subChannel1))
+        assert "<SubChannel 2.0: 'SSX70065:3:channel2:channel2:00' at" in repr(subChannel1)
 
-
-    def testLen(self):
+    def testLen(self, subChannel1):
         """ Test the len special method. """
-        self.assertRaises(AttributeError, self.subChannel1.__len__)
+        with pytest.raises(AttributeError):
+            len(subChannel1)
 
-
-    def testParser(self):
+    def testParser(self, subChannel1, channel2):
         """ Test the parser property. """
-        self.assertEqual(self.subChannel1.parser, self.channel2.parser)
+        assert subChannel1.parser == channel2.parser
 
-
-    def testSessions(self):
+    def testSessions(self, subChannel1):
         """ Test the sessions property. """
-        self.assertEqual(self.subChannel1.sessions,{})
 
-        self.subChannel1._sessions = [1, 2]
+        assert subChannel1.sessions == {}
 
-        self.assertEqual(self.subChannel1.sessions, [1, 2])
+        subChannel1._sessions = [1, 2]
 
+        assert subChannel1.sessions == [1, 2]
 
-    def testParseBlock(self):
+    def testParseBlock(self, channel2, subChannel1):
         """ Test the parseBlock method.
             Run the same test as for Channel.
         """
         fakeBlock = GenericObject()
-        self.assertEqual(self.channel2.parseBlock(fakeBlock),
-                         self.subChannel1.parseBlock(fakeBlock))
 
+        assert channel2.parseBlock(fakeBlock) == subChannel1.parseBlock(fakeBlock)
 
-    def testParseBlockByIndex(self):
+    def testParseBlockByIndex(self, channel2, subChannel1):
         """ Test the parseBlockByIndex method.
             Run the same test as for Channel.
         """
         fakeBlock = GenericObject()
-        self.assertEqual(self.channel2.parseBlockByIndex(fakeBlock, 1),
-                         self.subChannel1.parseBlockByIndex(fakeBlock, 1))
 
+        assert channel2.parseBlockByIndex(fakeBlock, 1) == \
+               subChannel1.parseBlockByIndex(fakeBlock, 1)
 
-    def testGetSession(self):
+    def testGetSession(self, dataset, channel2, subChannel1):
         """ Test the getSession method. """
         # set up test
-        self.subChannel1.dataset.addSession(0, 1, 2)
-        self.channel2.subchannels = [GenericObject()]
-        parentList = self.dataset.channels[32].getSession()
+        subChannel1.dataset.addSession(0, 1, 2)
+        channel2.subchannels = [GenericObject()]
+        parentList = dataset.channels[32].getSession()
         parentList.dataset.addSession(0, 1, 2)
         eventArray = EventArray(
-            self.subChannel1,
-            session=self.dataset.lastSession,
-            parentList=self.subChannel1.parent.getSession())
+            subChannel1,
+            session=dataset.lastSession,
+            parentList=subChannel1.parent.getSession())
 
         # check the session was added
-        self.assertEqual(self.subChannel1.getSession(), eventArray)
-        self.assertEqual(self.subChannel1._sessions[2], eventArray)
-        self.assertEqual(self.subChannel1.getSession(2), eventArray)
+        assert subChannel1.getSession() == eventArray
+        assert subChannel1._sessions[2] == eventArray
+        assert subChannel1.getSession(2) == eventArray
 
-
-    def testAddSubChannel(self):
+    def testAddSubChannel(self, subChannel1):
         """ Test addSubChannel method.  This will throw an error. """
-        self.assertRaises(AttributeError, self.subChannel1.addSubChannel)
+        with pytest.raises(AttributeError):
+            subChannel1.addSubChannel()
 
-
-    def testGetSubchannel(self):
+    def testGetSubchannel(self, subChannel1):
         """ Test getSubChannel method.  This will always throw an error. """
-        self.assertRaises(AttributeError, self.subChannel1.getSubChannel)
+        with pytest.raises(AttributeError):
+            subChannel1.getSubChannel()
 
 
 #===============================================================================
@@ -1513,21 +1555,20 @@ class TestEventArray:
             [((0, 3), (0, 4), (0, 5))]
         )
 
-    def testArrayMinMeanMax(self):
+    def testArrayMinMeanMax(self, eventArray):
         """ Test arrayMinMeanMax. """
-        # TODO test other hasSubchannels x times combos
 
-        # Stub data/methods
-        eventArray = mock.Mock(spec=EventArray)
-        eventArray.iterMinMeanMax = mock.Mock(spec=EventArray.iterMinMeanMax)
-
-        statsStub = [((0., 3), (0., 4), (0., 5))]
-        eventArray.hasSubchannels = True
-        eventArray.iterMinMeanMax.return_value = iter(statsStub)
+        expected = np.zeros((3, 3, 10))
+        expected[1, 0, :] = 499
+        expected[1, 1, :] = 332
+        expected[1, 2, :] = 666
+        expected[2, 0, :] = 999
+        expected[2, 1, :] = 998
+        expected[2, 2, :] = 999
 
         # Run tests
-        result = EventArray.arrayMinMeanMax(eventArray)
-        np.testing.assert_array_equal(result, np.moveaxis(statsStub, 0, -1))
+        result = eventArray.arrayMinMeanMax()
+        np.testing.assert_array_equal(result, expected)
 
     def testGetMinMeanMax(self, testIDE):
         """ Test getMinMeanMax. """
@@ -1540,9 +1581,9 @@ class TestEventArray:
         means = [d.mean for d in eventArray._data]
         maxes = [d.max for d in eventArray._data]
 
-        arrayMins_ = np.stack([np.concatenate(([t], m)) for t, m in zip(times, mins_)]).T
-        arrayMeans = np.stack([np.concatenate(([t], m)) for t, m in zip(times, means)]).T
-        arrayMaxes = np.stack([np.concatenate(([t], m)) for t, m in zip(times, maxes)]).T
+        arrayMins_ = np.stack([m for t, m in zip(times, mins_)]).T
+        arrayMeans = np.stack([m for t, m in zip(times, means)]).T
+        arrayMaxes = np.stack([m for t, m in zip(times, maxes)]).T
 
         np.testing.assert_array_equal(
                 np.stack(eventArray.getMinMeanMax()),
