@@ -2055,12 +2055,12 @@ class EventArray(Transformable):
             :return: an iterable of events in the specified index range.
         """
         self._computeMinMeanMax()
+
+        data = self.arrayJitterySlice(start=start, end=end, step=step, jitter=jitter, display=display)
+
+        for evt in data.T:
+            yield evt
         
-        for times, values in self._blockJitterySlice(start, end, step, jitter,
-                                                     display):
-            blockEvents = np.append(times[np.newaxis], values, axis=0)
-            for event in blockEvents.T:
-                yield event
 
 
     def arrayJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
@@ -2105,7 +2105,7 @@ class EventArray(Transformable):
             xform = self._comboXform
 
         # grab all raw data
-        rawData = self._accessCache(start, end, 1)
+        rawData = self._accessCache(None, None, 1)
 
         # slightly janky way of enforcing output length
         if isinstance(self.parent, SubChannel):
@@ -2125,10 +2125,7 @@ class EventArray(Transformable):
         rawData = rawData[indices]
 
         # now times
-        times = self._inplaceTime(start, end, 1)
-        times = times[indices]
-        out[0] = times[:]
-        del times
+        self._inplaceTimeFromIndices(indices, out=out[0])
 
         if isinstance(self.parent, SubChannel):
             xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0])
@@ -2959,6 +2956,21 @@ class EventArray(Transformable):
         samplePeriod = (arrayEnd - arrayStart)/(nSamples - 1)
 
         out[:] = np.arange(start, end, step)
+        out *= samplePeriod
+        out += arrayStart
+        return out
+
+    def _inplaceTimeFromIndices(self, indices, out=None):
+        if out is None:
+            out = indices.astype(np.float64)
+
+        out[:] = indices
+
+        arrayStart = float(self._data[0].startTime)
+        arrayEnd = float(self._data[-1].endTime)
+        nSamples = len(self)
+        samplePeriod = (arrayEnd - arrayStart)/(nSamples - 1)
+
         out *= samplePeriod
         out += arrayStart
         return out
