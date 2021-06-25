@@ -9,7 +9,6 @@ Basic IDE library unit tests.
     future.
 """
 
-from contextlib import nullcontext
 from io import StringIO, BytesIO
 import sys
 import unittest
@@ -35,6 +34,8 @@ from idelib.transforms import Transform, CombinedPoly, PolyPoly
 from idelib.transforms import AccelTransform, Univariate
 from idelib import importer
 from idelib import parsers
+
+from testing.utils import nullcontext
 
 import numpy as np  # type: ignore
 
@@ -67,6 +68,13 @@ def testIDE():
 @pytest.fixture
 def SSX70065IDE():
     doc = idelib.importer.openFile(_load_file('./testing/SSX70065.IDE'))
+    idelib.importer.readData(doc)
+    return doc
+
+
+@pytest.fixture
+def SSX_DataIDE():
+    doc = idelib.importer.openFile(_load_file('./testing/SSX_Data.IDE'))
     idelib.importer.readData(doc)
     return doc
 
@@ -1776,84 +1784,63 @@ class TestEventArray:
 #
 #===============================================================================
 
-class TestPlot(unittest.TestCase):
+class TestPlot:
     """ Unit test for the Plot class. """
-    
-    def setUp(self):
-        self.dataset = importer.importFile('./testing/SSX70065.IDE')
-        self.dataset.addSession(0, 1, 2)
-        self.dataset.addSensor(0)
-        
-        self.fakeParser = GenericObject()
-        self.fakeParser.types = [0]
-        self.fakeParser.format = []
-        
-        self.channel1 = Channel(
-            self.dataset, channelId=0, name="channel1", parser=self.fakeParser,
-            displayRange=[0])
-        self.eventList1 = EventArray(self.channel1, session=self.dataset.sessions[0])
-        
-        self.channel1.addSubChannel(subchannelId=0)
-        
-        self.subChannel1 = SubChannel(self.channel1, 0)
-        
-        self.plot1 =  Plot(self.eventList1, 0, name="Plot1")
-    
-    
-    def tearDown(self):
-        self.dataset.close()
-        self.dataset = None
-        
-        self.fakeParser = None
-        self.channel1 = None
-        self.eventList1 = None
-        self.subChannel1 = None
-        self.plot1 = None
-    
-    
-    def mockData(self):
-        """ mock up a bit of fake data so I don't have to worry that external
-            classes are working during testing.
-        """
-        fakeData = GenericObject()
-        fakeData.startTime = 0
-        fakeData.indexRange = [0, 3]
-        fakeData.sampleTime = 1
-        fakeData.numSamples = 1
-        self.eventList1._data = [fakeData]
-    
-    
-    def testConstructor(self):
+
+    @pytest.fixture
+    def channel32(self, SSX70065IDE):
+        return SSX70065IDE.channels[32]
+
+    @pytest.fixture
+    def eventArray(self, channel32):
+        return channel32.getSession()
+
+    @pytest.fixture
+    def plot1(self, eventArray):
+        return Plot(eventArray, 0, name='Plot1')
+
+    def testConstructor(self, plot1, eventArray):
         """ Test for the constructor. """
-        self.assertEqual(self.plot1.source, self.eventList1)
-        self.assertEqual(self.plot1.id, 0)
-        self.assertEqual(self.plot1.session, self.eventList1.session)
-        self.assertEqual(self.plot1.dataset, self.eventList1.dataset)
-        self.assertEqual(self.plot1.name, "Plot1")
-        self.assertEqual(self.plot1.units, self.eventList1.units)
-        self.assertEqual(self.plot1.attributes, None)
+
+        plotParams = (
+            plot1.source,
+            plot1.id,
+            plot1.session,
+            plot1.dataset,
+            plot1.name,
+            plot1.units,
+            plot1.attributes,
+            )
+
+        targetParams = (
+            eventArray,
+            0,
+            eventArray.session,
+            eventArray.dataset,
+            'Plot1',
+            eventArray.units,
+            None,
+            )
+
+        assert plotParams == targetParams
         
-        
-    def testGetEventIndexBefore(self):
+    @pytest.mark.parametrize('t', [0, 1, 10, 100, 1000, 10000, 100000])
+    def testGetEventIndexBefore(self, eventArray, plot1, t):
         """ Test for getEventIndexBefore method. """
-        self.mockData()
+
+        assert plot1.getEventIndexBefore(t) == eventArray.getEventIndexBefore(t)
         
-        self.assertEqual(
-            self.plot1.getEventIndexBefore(0), 
-            self.eventList1.getEventIndexBefore(0))
-        
-        
+    @pytest.mark.skip('not implemented')
     def testGetRange(self):
         """ Test for getRange method. """
-        print('gotta get to this')#self.plot1.getRange(0, 1))
-        # TODO
+        pass
 
 
 #===============================================================================
 #--- Data test cases 
 #===============================================================================
 
-class TestData(unittest.TestCase):
+class TestData:
     """ Basic tests of data fidelity against older, "known good" CSV exports.
         Exports were generated using the library as of the release of 1.8.0.
 
@@ -1861,127 +1848,126 @@ class TestData(unittest.TestCase):
         errors. 
     """
 
-    def setUp(self):
-        self.dataset = importer.importFile('./testing/SSX_Data.IDE')
-        self.delta = 0.0015
+    @pytest.fixture
+    def dataset(self, SSX_DataIDE):
+        return SSX_DataIDE
 
+    @pytest.fixture
+    def channel8(self, dataset):
+        return dataset.channels[8]
 
-    def testCalibratedExport(self):
+    @pytest.fixture
+    def accelArray(self, channel8):
+        return channel8.getSession()
+
+    @pytest.fixture
+    def out(self):
+        return StringIO()
+
+    @staticmethod
+    def generateCsvArray(filestream, eventArray):
+        eventArray.exportCsv(filestream)
+        filestream.seek(0)
+        return np.genfromtxt(filestream, delimiter=', ').T
+
+    def testCalibratedExport(self, accelArray, out):
         """ Test regular export, with bivariate polynomials applied.
         """
-        out = StringIO()
-        accel = self.dataset.channels[8].getSession()
 
-        accel.exportCsv(out)
-        out.seek(0)
-        new = np.genfromtxt(out, delimiter=', ').T
-        old = accel.__getitem__(slice(None), display=True)
+        new = self.generateCsvArray(out, accelArray)
+        old = accelArray.__getitem__(slice(None), display=True)
         old = np.round(1e6*old)/1e6
 
-        np.testing.assert_allclose(new, old, rtol=1e-4)
+        np.testing.assert_equal(new[1:], old[1:])
 
-    
-    def testUncalibratedExport(self):
+    def testUncalibratedExport(self, accelArray, out):
         """ Test export with no per-channel polynomials."""
+        new = self.generateCsvArray(out, accelArray)
+        old = accelArray.__getitem__(slice(None), display=True)
+        old = np.round(1e6*old)/1e6
 
-        out = StringIO()
-        accel = self.dataset.channels[8].getSession()
+        np.testing.assert_equal(new[1:], old[1:])
 
-        accel.exportCsv(out)
-        out.seek(0)
-        new = np.genfromtxt(out, delimiter=', ')
-        old = accel.__getitem__(slice(None), display=True)
-
-        np.testing.assert_allclose(new.T, old, rtol=1e-4)
-
-
-    def testNoBivariates(self):
+    def testNoBivariates(self, accelArray, out):
         """ Test export with bivariate polynomial references disabled (values
             only offset, not temperature-corrected).
         """
-        out = StringIO()
-        accel = self.dataset.channels[8].getSession()
-        accel.noBivariates = True
 
-        accel.exportCsv(out)
-        out.seek(0)
-        new = np.genfromtxt(out, delimiter=', ')
-        old = accel.__getitem__(slice(None), display=True)
+        accelArray.noBivariates = True
 
-        np.testing.assert_allclose(new.T, old, rtol=1e-4)
+        new = self.generateCsvArray(out, accelArray)
+        old = accelArray.__getitem__(slice(None), display=True)
+        old = np.round(1e6*old)/1e6
 
+        np.testing.assert_equal(new[1:], old[1:])
 
-    def testRollingMeanRemoval(self):
+    def testRollingMeanRemoval(self, accelArray, out):
         """ Test regular export, with the rolling mean removed from the data.
         """
-        
-        out = StringIO()
-        accel = self.dataset.channels[8].getSession()
-        accel.removeMean = True
-        accel.rollingMeanSpan = 5000000
 
-        accel.exportCsv(out)
-        out.seek(0)
-        new = np.genfromtxt(out, delimiter=', ')
-        old = accel.__getitem__(slice(None), display=True)
+        accelArray.removeMean = True
+        accelArray.rollingMeanSpan = 5000000
 
-        np.testing.assert_allclose(new.T, old, rtol=1e-4)
+        new = self.generateCsvArray(out, accelArray)
+        old = accelArray.__getitem__(slice(None), display=True)
+        old = np.round(1e6*old)/1e6
 
+        np.testing.assert_equal(new[1:], old[1:])
     
-    def testTotalMeanRemoval(self):
+    def testTotalMeanRemoval(self, accelArray, out):
         """ Test regular export, calibrated, with the total mean removed from
             the data.
         """
 
-        out = StringIO()
-        accel = self.dataset.channels[8].getSession()
-        accel.removeMean = True
-        accel.rollingMeanSpan = -1
+        accelArray.removeMean = True
+        accelArray.rollingMeanSpan = -1
 
-        accel.exportCsv(out)
-        out.seek(0)
-        new = np.genfromtxt(out, delimiter=', ')
-        old = accel.__getitem__(slice(None), display=True)
+        new = self.generateCsvArray(out, accelArray)
+        old = accelArray.__getitem__(slice(None), display=True)
+        old = np.round(1e6*old)/1e6
 
-        np.testing.assert_allclose(new.T, old, rtol=1e-4)
-    
+        np.testing.assert_equal(new[1:], old[1:])
 
-    def testCalibratedRollingMeanRemoval(self):
+    def testCalibratedRollingMeanRemoval(self, accelArray, out):
         """ Test regular export, calibrated, with the rolling mean removed from
             the data.
         """
-        out = StringIO()
-        accel = self.dataset.channels[8].getSession()
-        accel.removeMean = True
-        accel.rollingMeanSpan = 5000000
 
-        accel.exportCsv(out)
-        out.seek(0)
-        new = np.genfromtxt(out, delimiter=', ')
-        old = accel.__getitem__(slice(None), display=True)
+        accelArray.removeMean = True
+        accelArray.rollingMeanSpan = 5000000
 
-        np.testing.assert_allclose(new.T, old, rtol=1e-4)
+        new = self.generateCsvArray(out, accelArray)
+        old = accelArray.__getitem__(slice(None), display=True)
+        old = np.round(1e6*old)/1e6
 
-    
-    def testCalibratedTotalMeanRemoval(self):
+        np.testing.assert_equal(new[1:], old[1:])
+
+    def testCalibratedTotalMeanRemoval(self, accelArray, out):
         """ Test regular export, with the total mean removed from the data.
         """
-        out = StringIO()
-        accel = self.dataset.channels[8].getSession()
-        accel.removeMean = True
-        accel.rollingMeanSpan = -1
 
-        accel.exportCsv(out)
-        out.seek(0)
-        new = np.genfromtxt(out, delimiter=', ')
-        old = accel.__getitem__(slice(None), display=True)
+        accelArray.removeMean = True
+        accelArray.rollingMeanSpan = -1
 
-        np.testing.assert_allclose(new.T, old, rtol=1e-4)
+        new = self.generateCsvArray(out, accelArray)
+        old = accelArray.__getitem__(slice(None), display=True)
+        old = np.round(1e6*old)/1e6
+
+        np.testing.assert_equal(new[1:], old[1:])
+
+    def testTimestamps(self, accelArray, out):
+        """ Tests the timestamps, which are the same on all exports
+        """
+
+        new = self.generateCsvArray(out, accelArray)
+        old = accelArray[:]
+
+        np.testing.assert_equal(new[0], old[0])
     
 
-#===============================================================================
+# ===============================================================================
 # 
-#===============================================================================
+# ==============================================================================
 
 DEFAULTS = {
     "sensors": {
