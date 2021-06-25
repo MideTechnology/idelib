@@ -1685,7 +1685,7 @@ class EventArray(Transformable):
         else:
             xform = self._fullXform
 
-        if isinstance(idx, int):
+        if isinstance(idx, (int, np.integer)):
 
             if idx >= len(self):
                 raise IndexError("EventArray index out of range")
@@ -1867,7 +1867,10 @@ class EventArray(Transformable):
             for i, (k, _) in enumerate(rawData.dtype.descr):
                 xform.polys[i].inplace(rawData[k], out=out[i])
 
-        return out
+        if subchannels is True:
+            return out
+        else:
+            return out[list(subchannels)]
 
 
     def _blockSlice(self, start=None, end=None, step=1, display=False):
@@ -2081,6 +2084,10 @@ class EventArray(Transformable):
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
+
+        if not isinstance(start, slice):
+            start = slice(start, end, step)
+        start, end, step = start.indices(len(self))
 
         # Check for non-jittered cases
         if jitter is True:

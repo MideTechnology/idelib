@@ -17,6 +17,8 @@ import os
 
 import pytest
 
+import numpy as np  # type: ignore
+
 import idelib
 from idelib.dataset import (Cascading,
                             Channel,
@@ -29,15 +31,12 @@ from idelib.dataset import (Cascading,
                             Transformable,
                             WarningRange,
                             )
-
 from idelib.transforms import Transform, CombinedPoly, PolyPoly
 from idelib.transforms import AccelTransform, Univariate
 from idelib import importer
 from idelib import parsers
 
 from testing.utils import nullcontext
-
-import numpy as np  # type: ignore
 
 from .file_streams import makeStreamLike
 
