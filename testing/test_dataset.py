@@ -1895,8 +1895,9 @@ class TestData:
 
         new = self.generateCsvArray(out, accelArray)
         old = accelArray[:]
+        old = np.round(1e6*old)/1e6
 
-        np.testing.assert_equal(new[0], old[0])
+        np.testing.assert_allclose(new[0], old[0], rtol=1e-10)
 
 
 # ===============================================================================
