@@ -2958,7 +2958,9 @@ class EventArray(Transformable):
         nSamples = len(self)
         samplePeriod = (arrayEnd - arrayStart)/(nSamples - 1)
 
-        out[:] = np.arange(start, end, step)*samplePeriod + arrayStart
+        out[:] = np.arange(start, end, step)
+        out *= samplePeriod
+        out += arrayStart
         return out
 
 
