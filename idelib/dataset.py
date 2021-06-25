@@ -1810,20 +1810,11 @@ class EventArray(Transformable):
             :return: an iterable of structured array value blocks in the
                 specified index range.
         """
-        # TODO: Optimize; times don't need to be computed since they aren't used
-        iterBlockValues = (
-            np.stack(values)
-            for _, values in self._blockSlice(start, end, step, display)
-        )
-        if self.hasSubchannels and subchannels is not True:
-            chIdx = np.asarray(subchannels)
-            return (vals
-                    for blockVals in iterBlockValues
-                    for vals in blockVals[chIdx].T)
-        else:
-            return (vals
-                    for blockVals in iterBlockValues
-                    for vals in blockVals.T)
+
+        out = self.arrayValues(start=start, end=end, step=step)
+
+        for evt in out.T:
+            yield evt
 
 
     def arrayValues(self, start=None, end=None, step=1, subchannels=True,
@@ -1934,10 +1925,10 @@ class EventArray(Transformable):
                 'display' transform) will be applied to the data.
             :return: an iterable of events in the specified index range.
         """
-        for times, values in self._blockSlice(start, end, step, display):
-            blockEvents = np.append(times[np.newaxis], values, axis=0)
-            for event in blockEvents.T:
-                yield event
+
+        out = self.arraySlice(start=start, end=end, step=step, display=display)
+        for evt in out.T:
+            yield evt
 
 
     def arraySlice(self, start=None, end=None, step=1, display=False):
