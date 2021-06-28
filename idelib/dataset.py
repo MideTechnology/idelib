@@ -943,7 +943,10 @@ class SubChannel(Channel):
                 name = name.decode()
             self.name = name
             if axisName is None:
-                self.axisName = self.name.split()[0]
+                if self.name:
+                    self.axisName = self.name.split()[0]
+                else:
+                    self.axisName = name
         
         # XXX: HACK HACK HACK REMOVE ME REMOVE ME
         if self.name == "Control Pad P":
