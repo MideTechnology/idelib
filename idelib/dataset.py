@@ -1280,7 +1280,7 @@ class EventArray(Transformable):
     def path(self):
         """ Get the combined names of all the object's parents/grandparents.
         """
-        if self.session.sessionId:
+        if self.session and self.session.sessionId:
             return "%s (session %s)" % (self.parent.path(), self.session.sessionId)
         return self.parent.path()
 
