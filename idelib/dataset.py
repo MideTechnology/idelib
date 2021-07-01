@@ -1392,11 +1392,7 @@ class EventArray(Transformable):
         self._data.append(block)
         self._length += block.numSamples
 
-        blockPayload = block._payloadEl.dump()
-        plLen = len(blockPayload)
-
-        self._cacheBytes[self._cacheLen:self._cacheLen + plLen] = blockPayload
-        self._cacheLen += plLen
+        block._payload = np.frombuffer(block._payloadEl.dump(), dtype=self._npType)
 
 
     @property
@@ -2915,14 +2911,15 @@ class EventArray(Transformable):
         self._cacheArray = self._cacheBytes.view(self._npType)
 
     def fillCache(self):
-        idx = 0
-        for d in self._data:
-            with self.dataset._channelDataLock:
-                payloadLen = len(d._payloadEl.value)
-                self._cacheBytes[idx:idx + payloadLen] = np.frombuffer(d._payloadEl.value, dtype=np.uint8)
-                d._payloadEl._value = self._cacheBytes[idx:idx + payloadLen]
-                d._payload = self._cacheBytes[idx:idx + payloadLen].view(self._npType)
-                idx += payloadLen
+        print(self)
+        with self.dataset._channelDataLock:
+            self._cacheArray = np.concatenate([d.payload for d in self._data])
+            self._cacheBytes = self._cacheArray.view(np.uint8)
+
+            idx = 0
+            for d in self._data:
+                d._payload = self._cacheArray[idx:idx + len(d._payload)]
+                idx += len(d._payload)
 
     def _accessCache(self, start, end, step):
         """ Access cached data in a thread-safe way.  If data has not fully
@@ -2937,35 +2934,10 @@ class EventArray(Transformable):
             schKey = rawData.dtype.names[schId]
             return rawData[schKey]
 
-        if self.dataset.loading:
-            nSamples = int(np.ceil((end - start)/step))
-            newBytes = np.zeros(nSamples*self._npType.itemsize, dtype=np.uint8)
-            newArray = newBytes.view(self._npType)
-
-            nextStart = start
-            idx = 0
-            for d in self._data:
-                with self.dataset._channelDataLock:
-                    blockStart, blockEnd = d.indexRange
-                    if blockStart > end:
-                        return newArray
-                    elif blockEnd < nextStart:
-                        continue
-
-                    relativeStart = nextStart - blockStart
-                    if end > blockEnd:
-                        relativeEnd = blockEnd - blockStart
-                    else:
-                        relativeEnd = end - blockStart
-
-                    payloadView = d.payload.view(self._npType)[relativeStart:relativeEnd:step]
-                    newArray[idx:idx + len(payloadView)] = payloadView
-                    idx += len(payloadView)
-                    nextStart = idx*step
-
-            return newArray
-        else:
-            with self.dataset._channelDataLock:
+        with self.dataset._channelDataLock:
+            if self.dataset.loading:
+                return np.concatenate([d.payload for d in self._data])[start:end:step]
+            else:
                 return self._cacheArray[start:end:step]
 
     def _inplaceTime(self, start, end, step, out=None):
@@ -2977,9 +2949,11 @@ class EventArray(Transformable):
         nSamples = len(self)
         samplePeriod = (arrayEnd - arrayStart)/(nSamples - 1)
 
-        out[:] = np.arange(start, end, step)
-        out *= samplePeriod
-        out += arrayStart
+        # out = samplePeriod*(step*out + start) + arrayStart
+        # out = out*(samplePeriod*step) + (samplePeriod*start + arrayStart)
+        out[:] = np.arange(len(out))
+        out *= samplePeriod*step
+        out += samplePeriod*start + arrayStart
         return out
 
     def _inplaceTimeFromIndices(self, indices, out=None):

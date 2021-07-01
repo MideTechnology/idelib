@@ -438,42 +438,6 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         # This just skips 'header' elements. It could be more efficient, but
         # the size of the header isn't significantly large; savings are minimal.
 
-        # elementList = [x for x in tqdm.tqdm(source.ebmldoc)]
-
-        idType = source.ebmldoc.children[0xA1].children[0xB0]
-        payloadType = source.ebmldoc.children[0xA1].children[0xB2]
-
-        channelSize = {k: 0 for k in source.channels.keys()}
-        for r in tqdm.tqdm(source.ebmldoc):
-
-            doc.loadCancelled = getattr(updater, "cancelled", False)
-            if doc.loadCancelled:
-                break
-
-            if updater.paused:
-                # Pause or throttle import.
-                pauseTime = time_time()
-                while updater.paused:
-                    sleep(0.125)
-                    if maxPause and time_time() - pauseTime > maxPause:
-                        break
-
-            elementList.append(r)
-            if not isinstance(r, source.ebmldoc.children[0xA1]):
-                continue
-
-            rd = {type(rc): rc for rc in r}
-
-            chId = rd[idType].dump()
-            payloadSize = rd[payloadType].size
-
-            channelSize[chId] += payloadSize
-
-        print(channelSize)
-
-        for ch, ea in doc.channels.items():
-            ea.getSession().allocateCache(channelSize[ch])
-
         for r in tqdm.tqdm(source.ebmldoc):
             
             r_name = r.name
@@ -527,7 +491,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:
                 # Update progress bar
                 updater(count=eventsRead+samplesRead,
-                        percent=(thisOffset-firstDataPos+0.0)/dataSize)
+                        percent=(1/3) + (2/3)*(thisOffset-firstDataPos)/dataSize)
                 nextUpdatePos = thisOffset + ticSize
                 nextUpdateTime = thisTime + updateInterval
             
@@ -544,7 +508,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         # (typically the last)
         doc.fileDamaged = True
 
-    # doc.fillCaches()
+    doc.fillCaches()
 
     doc.loading = False
     updater(done=True)
