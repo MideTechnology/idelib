@@ -492,11 +492,11 @@ class Dataset(Cascading):
         for ch in self.channels.values():
             ch.updateTransforms()
 
-    def allocateCaches(self):
+    def allocateCaches(self, sizes):
         for channel in self.channels.values():
             for ea in channel.sessions.values():
                 with self._channelDataLock:
-                    ea.allocateCache()
+                    ea.allocateCache(sizes[channel])
 
     def fillCaches(self):
         for channel in self.channels.values():
@@ -1233,6 +1233,7 @@ class EventArray(Transformable):
         self._cacheEnd = None
         self._cacheBlockStart = None
         self._cacheBlockEnd = None
+        self._cacheLen = 0
 
 
     def updateTransforms(self, recurse=True):
@@ -1390,6 +1391,13 @@ class EventArray(Transformable):
 
         self._data.append(block)
         self._length += block.numSamples
+
+        blockPayload = block._payloadEl.dump()
+        plLen = len(blockPayload)
+
+        self._cacheBytes[self._cacheLen:self._cacheLen + plLen] = blockPayload
+        self._cacheLen += plLen
+
 
     @property
     def _firstTime(self):
@@ -2371,7 +2379,7 @@ class EventArray(Transformable):
         """
 
         startBlock, endBlock = self._getBlockRange(startTime, endTime)
-        shape = (3, max(1, len(self._npType)), endBlock - startBlock)
+        shape = (3, max(1, len(self._npType)) + int(times), endBlock - startBlock)
         scid = self.subchannelId
         isSubchannel = isinstance(self.parent, SubChannel)
 
@@ -2379,13 +2387,25 @@ class EventArray(Transformable):
 
         for i, d in enumerate(self._data[startBlock:endBlock]):
             if isSubchannel:
-                out[0, 0, i] = d.min[scid]
-                out[1, 0, i] = d.mean[scid]
-                out[2, 0, i] = d.max[scid]
+                if times:
+                    out[:, 0, i] = d.startTime
+                    out[0, 1, i] = d.min[scid]
+                    out[1, 1, i] = d.mean[scid]
+                    out[2, 1, i] = d.max[scid]
+                else:
+                    out[0, 0, i] = d.min[scid]
+                    out[1, 0, i] = d.mean[scid]
+                    out[2, 0, i] = d.max[scid]
             else:
-                out[0, :, i] = d.min
-                out[1, :, i] = d.mean
-                out[2, :, i] = d.max
+                if times:
+                    out[:, 0, i] = d.startTime
+                    out[0, 1:, i] = d.min
+                    out[1, 1:, i] = d.mean
+                    out[2, 1:, i] = d.max
+                else:
+                    out[0, :, i] = d.min
+                    out[1, :, i] = d.mean
+                    out[2, :, i] = d.max
 
         return out
 
@@ -2885,10 +2905,12 @@ class EventArray(Transformable):
 
         return num+1, datetime.now() - t0
 
-    def allocateCache(self):
+    def allocateCache(self, size):
 
-        payloadLen = sum((d.payloadSize for d in self._data))
-        self._cacheBytes = np.zeros(payloadLen, dtype=np.uint8)
+        if (size/self._npType.itemsize) % 1 == 0.:
+            self._cacheBytes = np.zeros(size, dtype=np.uint8)
+        else:
+            a = 1
 
         self._cacheArray = self._cacheBytes.view(self._npType)
 

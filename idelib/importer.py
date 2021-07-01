@@ -8,11 +8,14 @@ import sys
 from time import time as time_time
 from time import sleep
 
+import numpy as np
 import struct
 
 from . import transforms
 from .dataset import Dataset
 from . import parsers
+
+import tqdm
 
 #===============================================================================
 # 
@@ -427,14 +430,51 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     
     timeOffset = 0
     maxPause = getattr(updater, "maxPause", maxPause)
-    
+
     # Actual importing ---------------------------------------------------------
     if source is None:
         source = doc
     try:    
         # This just skips 'header' elements. It could be more efficient, but
         # the size of the header isn't significantly large; savings are minimal.
-        for r in source.ebmldoc:
+
+        # elementList = [x for x in tqdm.tqdm(source.ebmldoc)]
+
+        idType = source.ebmldoc.children[0xA1].children[0xB0]
+        payloadType = source.ebmldoc.children[0xA1].children[0xB2]
+
+        channelSize = {k: 0 for k in source.channels.keys()}
+        for r in tqdm.tqdm(source.ebmldoc):
+
+            doc.loadCancelled = getattr(updater, "cancelled", False)
+            if doc.loadCancelled:
+                break
+
+            if updater.paused:
+                # Pause or throttle import.
+                pauseTime = time_time()
+                while updater.paused:
+                    sleep(0.125)
+                    if maxPause and time_time() - pauseTime > maxPause:
+                        break
+
+            elementList.append(r)
+            if not isinstance(r, source.ebmldoc.children[0xA1]):
+                continue
+
+            rd = {type(rc): rc for rc in r}
+
+            chId = rd[idType].dump()
+            payloadSize = rd[payloadType].size
+
+            channelSize[chId] += payloadSize
+
+        print(channelSize)
+
+        for ch, ea in doc.channels.items():
+            ea.getSession().allocateCache(channelSize[ch])
+
+        for r in tqdm.tqdm(source.ebmldoc):
             
             r_name = r.name
             
@@ -504,9 +544,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         # (typically the last)
         doc.fileDamaged = True
 
-    doc.allocateCaches()
-
-    doc.fillCaches()
+    # doc.fillCaches()
 
     doc.loading = False
     updater(done=True)
