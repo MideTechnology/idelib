@@ -2906,12 +2906,11 @@ class EventArray(Transformable):
         if (size/self._npType.itemsize) % 1 == 0.:
             self._cacheBytes = np.zeros(size, dtype=np.uint8)
         else:
-            a = 1
+            raise Exception("I haven't gotten to this yet, whoops")
 
         self._cacheArray = self._cacheBytes.view(self._npType)
 
     def fillCache(self):
-        print(self)
         with self.dataset._channelDataLock:
             self._cacheArray = np.concatenate([d.payload for d in self._data])
             self._cacheBytes = self._cacheArray.view(np.uint8)

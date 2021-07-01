@@ -15,8 +15,6 @@ from . import transforms
 from .dataset import Dataset
 from . import parsers
 
-import tqdm
-
 #===============================================================================
 # 
 #===============================================================================
@@ -438,7 +436,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         # This just skips 'header' elements. It could be more efficient, but
         # the size of the header isn't significantly large; savings are minimal.
 
-        for r in tqdm.tqdm(source.ebmldoc):
+        for r in source.ebmldoc:
             
             r_name = r.name
             
