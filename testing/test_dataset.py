@@ -1411,53 +1411,16 @@ class TestEventArray:
 
         np.testing.assert_equal(actual, expected)
 
-    def testIterJitterySlice(self):
+    @pytest.mark.parametrize('jitter, step', [(0.5, 5), (0.5, 1), (0.1, 20), (0.1, 5)])
+    def testIterJitterySlice(self, testIDE, jitter, step):
         """ Test for the iterJitterySlice method. """
-        # Stub dependencies
-        length = 4
-        eventArray = mock.Mock(spec=EventArray)
-        eventArray.configure_mock(
-            useAllTransforms=True,
-            __len__=lambda self: length,
-            _fullXform=Univariate((7, 0)),
-            _data=mock.Mock(),
-            _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
-                                     range(length)[idx]),
-            _getBlockIndexRange=lambda idx: [idx, idx+1],
-            _getBlockSampleTime=lambda idx: 0.01*idx,
-            _getBlockRollingMean=lambda blockIdx: (0,),
-            allowMeanRemoval=True,
-            removeMean=True,
-            hasMinMeanMax=True,
-            parent=mock.Mock(),
-            session=mock.sentinel.session,
-            noBivariates=mock.sentinel.noBivariates,
-            hasSubchannels=True,
-            _blockJitterySlice=(
-                lambda *a, **kw:
-                EventArray._blockJitterySlice(eventArray, *a, **kw)
-            ),
-            _makeBlockEventsFactory=(
-                lambda *a, **kw:
-                EventArray._makeBlockEventsFactory(eventArray, *a, **kw)
-            ),
-        )
-        eventArray._data.configure_mock(
-            __getitem__=lambda self, i: mock.Mock(
-                id=i % length, numSamples=1,
-                startTime=eventArray._getBlockSampleTime(i),
-            )
-        )
-        eventArray.parent.configure_mock(
-            parseBlockByIndex=(lambda block, indices, subchannel=None:
-                               np.array([[range(length)[block.id]]]))
-        )
 
-        # Run test
-        np.testing.assert_array_equal(
-            list(EventArray.iterJitterySlice(eventArray)),
-            [(0.00, 0), (0.01, 7), (0.02, 14), (0.03, 21)]
-        )
+        targetIdx = np.arange(0, 1000, step)
+
+        dt = np.diff(testIDE.channels[8].getSession()[:][0]).mean()
+        idx = np.array([x[0] for x in testIDE.channels[8].getSession().iterJitterySlice(None, None, step, jitter=jitter)])/dt
+
+        np.testing.assert_array_less(np.abs(targetIdx - idx).round(), step/jitter)
 
     @pytest.mark.parametrize('jitter, step', [(0.5, 5), (0.5, 1), (0.1, 20), (0.1, 5)])
     def testArrayJitterySlice(self, testIDE, jitter, step):
@@ -1558,16 +1521,18 @@ class TestEventArray:
     def testArrayMinMeanMax(self, eventArray):
         """ Test arrayMinMeanMax. """
 
-        expected = np.zeros((3, 3, 10))
-        expected[1, 0, :] = 499
-        expected[1, 1, :] = 332
-        expected[1, 2, :] = 666
-        expected[2, 0, :] = 999
-        expected[2, 1, :] = 998
-        expected[2, 2, :] = 999
+        expected = np.zeros((3, 4, 10))
+        expected[:, 0, :] = np.linspace(0, 900000, 10)
+        expected[1, 1, :] = 499
+        expected[1, 2, :] = 332
+        expected[1, 3, :] = 666
+        expected[2, 1, :] = 999
+        expected[2, 2, :] = 998
+        expected[2, 3, :] = 999
 
         # Run tests
         result = eventArray.arrayMinMeanMax()
+        print(result[:, 0, :])
         np.testing.assert_array_equal(result, expected)
 
     def testGetMinMeanMax(self, testIDE):
@@ -1576,18 +1541,13 @@ class TestEventArray:
         eventArray = testIDE.channels[8].getSession()
         eventArray.hasMinMeanMax = False
 
-        times = [d.startTime for d in eventArray._data]
-        mins_ = [d.min for d in eventArray._data]
-        means = [d.mean for d in eventArray._data]
-        maxes = [d.max for d in eventArray._data]
-
-        arrayMins_ = np.stack([m for t, m in zip(times, mins_)]).T
-        arrayMeans = np.stack([m for t, m in zip(times, means)]).T
-        arrayMaxes = np.stack([m for t, m in zip(times, maxes)]).T
+        mins_ = [np.concatenate(((d.startTime,), d.min)) for d in eventArray._data]
+        means = [np.concatenate(((d.startTime,), d.mean)) for d in eventArray._data]
+        maxes = [np.concatenate(((d.startTime,), d.max)) for d in eventArray._data]
 
         np.testing.assert_array_equal(
                 np.stack(eventArray.getMinMeanMax()),
-                np.stack([arrayMins_, arrayMeans, arrayMaxes]),
+                np.moveaxis(np.stack([mins_, means, maxes]), 1, -1),
                 )
 
     def testGetRangeMinMeanMax(self, testIDE):
