@@ -1948,6 +1948,9 @@ class EventArray(Transformable):
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
+
+        import tqdm
+
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
@@ -1973,6 +1976,28 @@ class EventArray(Transformable):
         else:
             for i, (k, _) in enumerate(rawData.dtype.descr):
                 xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0])
+
+        if not self.removeMean:
+            return out
+
+        if self.rollingMeanSpan == -1:
+            out[1:] -= out[1:].mean(axis=1)
+        else:
+            spanTime = self.rollingMeanSpan*1e-6
+            span = int(np.round(spanTime*self.getSampleRate())/10)
+            if span % 2 == 0:
+                span += 1
+            kernel = -np.ones((span,))/span
+            kernel[int(span/2)] += 1
+
+            s = kernel.shape[0] + out.shape[1] - 1
+            startIdx = (s - out.shape[1])//2
+            endIdx = startIdx + out.shape[1]
+
+            kernel = np.fft.rfft(kernel, s)
+
+            for i in tqdm.trange(1, out.shape[0]):
+                out[i] = np.fft.irfft(kernel*np.fft.rfft(out[i], s))[startIdx:endIdx]
 
         return out
 
