@@ -1715,6 +1715,7 @@ class TestEventArray:
         eventArray1._data[0].max = [5]
 
     def testMeanRemovalSingleBlock(self, testIDE):
+        """ Testing mean removal for spans less than one block """
 
         eventArray = testIDE.channels[8].getSession()
         eventArray.removeMean = False
@@ -1732,6 +1733,7 @@ class TestEventArray:
         np.testing.assert_array_equal(removedData, unremovedData)
 
     def testMeanRemovalFullFile(self, testIDE):
+        """ Testing mean removal spanning the full file """
 
         eventArray = testIDE.channels[8].getSession()
         eventArray.removeMean = False
