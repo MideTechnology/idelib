@@ -1949,8 +1949,6 @@ class EventArray(Transformable):
             :return: a structured array of events in the specified index range.
         """
 
-        import tqdm
-
         if not isinstance(start, slice):
             start = slice(start, end, step)
         start, end, step = start.indices(len(self))
