@@ -1981,23 +1981,49 @@ class EventArray(Transformable):
             return out
 
         if self.rollingMeanSpan == -1:
-            out[1:] -= out[1:].mean(axis=1)
+            out[1:] -= out[1:].mean(axis=1)[:, np.newaxis]
         else:
-            spanTime = self.rollingMeanSpan*1e-6
-            span = int(np.round(spanTime*self.getSampleRate())/10)
-            if span % 2 == 0:
-                span += 1
-            kernel = -np.ones((span,))/span
-            kernel[int(span/2)] += 1
+            with self._channelDataLock:
+                timeMean = np.zeros(
+                        (len(self._data),),
+                        [
+                            ('startTime', np.uint64),
+                            ('endTime', np.uint64),
+                            ('startIdx', np.uint64),
+                            ('endIdx', np.uint64),
+                            ('means', np.float64, (len(self._data[0].mean))),
+                            ],
+                        )
+                for i, d in enumerate(self._data):
+                    timeMean['startTime'][i] = d.startTime
+                    timeMean['endTime'][i] = d.endTime
+                    timeMean['startIdx'][i] = d.indexRange[0]
+                    timeMean['endIdx'][i] = d.indexRange[1]
+                    timeMean['means'][i] = d.mean
 
-            s = kernel.shape[0] + out.shape[1] - 1
-            startIdx = (s - out.shape[1])//2
-            endIdx = startIdx + out.shape[1]
+            for i, tm in enumerate(timeMean):
+                blockData = out[1:, tm['startIdx']:tm['endIdx']]
+                spanStart = tm['startTime'] - self.rollingMeanSpan
+                spanEnd = tm['endTime'] + self.rollingMeanSpan
 
-            kernel = np.fft.rfft(kernel, s)
+                firstBlock = 0
+                if i != 0:
+                    for j, block in zip(range(i - 1, -1, -1), timeMean[i - 1::-1]):
+                        if block['endTime'] < spanStart:
+                            firstBlock = j + 1
+                            break
 
-            for i in tqdm.trange(1, out.shape[0]):
-                out[i] = np.fft.irfft(kernel*np.fft.rfft(out[i], s))[startIdx:endIdx]
+                lastBlock = len(timeMean)
+                if i != (len(timeMean) - 1):
+                    for j, block in zip(range(i + 1, len(timeMean)), timeMean[i + 1:]):
+                        if block['startTime'] > spanEnd:
+                            lastBlock = j
+                            break
+
+                if firstBlock == lastBlock:
+                    blockData -= tm['means'][:, np.newaxis]
+                else:
+                    blockData -= timeMean['means'][firstBlock:lastBlock].mean(axis=0)[:, np.newaxis]
 
         return out
 

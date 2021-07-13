@@ -1714,6 +1714,37 @@ class TestEventArray:
         eventArray1._data[0].mean = [4]
         eventArray1._data[0].max = [5]
 
+    def testMeanRemovalSingleBlock(self, testIDE):
+
+        eventArray = testIDE.channels[8].getSession()
+        eventArray.removeMean = False
+
+        unremovedData = eventArray[:]
+
+        eventArray.rollingMeanSpan = 1
+        eventArray.removeMean = True
+
+        for d in eventArray._data:
+            unremovedData[1:, slice(*d.indexRange)] -= d.mean[:, np.newaxis]
+
+        removedData = eventArray[:]
+
+        np.testing.assert_array_equal(removedData, unremovedData)
+
+    def testMeanRemovalFullFile(self, testIDE):
+
+        eventArray = testIDE.channels[8].getSession()
+        eventArray.removeMean = False
+
+        unremovedData = eventArray[:]
+        unremovedData[1:] -= unremovedData[1:].mean(axis=1)[:, np.newaxis]
+
+        eventArray.rollingMeanSpan = -1
+        eventArray.removeMean = True
+
+        removedData = eventArray[:]
+
+        np.testing.assert_array_equal(removedData, unremovedData)
 
 #===============================================================================
 #
@@ -1800,8 +1831,8 @@ class TestData:
         return StringIO()
 
     @staticmethod
-    def generateCsvArray(filestream, eventArray):
-        eventArray.exportCsv(filestream)
+    def generateCsvArray(filestream, eventArray, **kwargs):
+        eventArray.exportCsv(filestream, **kwargs)
         filestream.seek(0)
         return np.genfromtxt(filestream, delimiter=', ').T
 
@@ -1840,10 +1871,13 @@ class TestData:
         """ Test regular export, with the rolling mean removed from the data.
         """
 
-        accelArray.removeMean = True
-        accelArray.rollingMeanSpan = 5000000
+        removeMean = True
+        meanSpan = 5000000
 
-        new = self.generateCsvArray(out, accelArray)
+        accelArray.removeMean = removeMean
+        accelArray.rollingMeanSpan = meanSpan
+
+        new = self.generateCsvArray(out, accelArray, removeMean=removeMean, meanSpan=meanSpan)
         old = accelArray.__getitem__(slice(None), display=True)
         old = np.round(1e6*old)/1e6
 
@@ -1854,10 +1888,13 @@ class TestData:
             the data.
         """
 
-        accelArray.removeMean = True
-        accelArray.rollingMeanSpan = -1
+        removeMean = True
+        meanSpan = -1
 
-        new = self.generateCsvArray(out, accelArray)
+        accelArray.removeMean = removeMean
+        accelArray.rollingMeanSpan = meanSpan
+
+        new = self.generateCsvArray(out, accelArray, removeMean=removeMean, meanSpan=meanSpan)
         old = accelArray.__getitem__(slice(None), display=True)
         old = np.round(1e6*old)/1e6
 
@@ -1868,10 +1905,13 @@ class TestData:
             the data.
         """
 
-        accelArray.removeMean = True
-        accelArray.rollingMeanSpan = 5000000
+        removeMean = True
+        meanSpan = 5000000
 
-        new = self.generateCsvArray(out, accelArray)
+        accelArray.removeMean = removeMean
+        accelArray.rollingMeanSpan = meanSpan
+
+        new = self.generateCsvArray(out, accelArray, removeMean=removeMean, meanSpan=meanSpan)
         old = accelArray.__getitem__(slice(None), display=True)
         old = np.round(1e6*old)/1e6
 
@@ -1881,10 +1921,13 @@ class TestData:
         """ Test regular export, with the total mean removed from the data.
         """
 
-        accelArray.removeMean = True
-        accelArray.rollingMeanSpan = -1
+        removeMean = True
+        meanSpan = -1
 
-        new = self.generateCsvArray(out, accelArray)
+        accelArray.removeMean = removeMean
+        accelArray.rollingMeanSpan = meanSpan
+
+        new = self.generateCsvArray(out, accelArray, removeMean=removeMean, meanSpan=meanSpan)
         old = accelArray.__getitem__(slice(None), display=True)
         old = np.round(1e6*old)/1e6
 
