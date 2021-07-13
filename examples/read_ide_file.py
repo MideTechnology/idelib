@@ -34,7 +34,8 @@ __credits__ = ['Connor Flanigan']
 # Loading an ide file is very simple, the supporting files are defined by
 # default in idelib.  This function returns a Document object which contains
 # the data for the given file
-doc = idelib.importFile('../test.ide')
+# doc = idelib.importFile('../test.ide')
+doc = idelib.importFile(r'C:\Users\cflanigan\Documents\assorted data\Software_Test_Recordings\20000_Hz_3200_Hz_ran_out_memory.IDE')
 
 
 # The channels in a document are contained in an easily accessed dictionary
@@ -50,11 +51,15 @@ for chID in doc.channels:
 # Channel 8 is the accelerometer data, so we'll start with that.
 # First, we get the EventArray
 ch8EventArray = doc.channels[8].getSession()
+ch8EventArray.removeMean = True
+
 
 # The EventArray object has several methods to access data, but the simplest is
 # EventArray.arraySlice, which returns a numpy ndarray where the first row is
 # the time in microseconds, and the following rows are the subchannels in order
 ch8Data = ch8EventArray.arraySlice()
+print(ch8Data[1:].mean())
+exit(0)
 ch8Time = ch8Data[0, :]/1e6
 ch8NSubchannels = len(doc.channels[8].subchannels)
 

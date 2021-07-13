@@ -50,6 +50,7 @@ from bisect import bisect_right
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from threading import Lock
+import warnings
 
 from functools import partial
 import os.path
@@ -1817,6 +1818,9 @@ class EventArray(Transformable):
                 specified index range.
         """
 
+        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+                                         'removed in future versions of idelib'))
+
         out = self.arrayValues(start=start, end=end, step=step)
 
         for evt in out.T:
@@ -1931,6 +1935,9 @@ class EventArray(Transformable):
                 'display' transform) will be applied to the data.
             :return: an iterable of events in the specified index range.
         """
+
+        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+                                         'removed in future versions of idelib'))
 
         out = self.arraySlice(start=start, end=end, step=step, display=display)
         for evt in out.T:
@@ -2107,6 +2114,10 @@ class EventArray(Transformable):
                 'display' transform) will be applied to the data.
             :return: an iterable of events in the specified index range.
         """
+
+        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+                                         'removed in future versions of idelib'))
+
         self._computeMinMeanMax()
 
         data = self.arrayJitterySlice(start=start, end=end, step=step, jitter=jitter, display=display)
@@ -2276,6 +2287,10 @@ class EventArray(Transformable):
             :keyword endTime: The second time, or `None` to use the end of
                 the session.
         """
+
+        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+                                         'removed in future versions of idelib'))
+
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
         return self.iterSlice(startIdx,endIdx,step,display=display)        
 
@@ -2327,6 +2342,10 @@ class EventArray(Transformable):
             :return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
         """
+
+        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+                                         'removed in future versions of idelib'))
+
         if not self.hasMinMeanMax:
             self._computeMinMeanMax()
             
@@ -2798,6 +2817,10 @@ class EventArray(Transformable):
             :todo: Optimize iterResampledRange(); not very efficient,
                 particularly not with single-sample blocks.
         """
+
+        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+                                         'removed in future versions of idelib'))
+
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
         numPoints = (stopIdx - startIdx)
         startIdx = max(startIdx-padding, 0)
