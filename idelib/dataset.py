@@ -700,6 +700,8 @@ class Channel(Transformable):
         self.sampleRate = sampleRate
         self.attributes = attributes
        
+        self._unitsStr = None
+
         self.cache = bool(cache)
         self.singleSample = singleSample
 
@@ -749,8 +751,32 @@ class Channel(Transformable):
 
 
     def __repr__(self):
-        return '<%s %d: %r at 0x%08x>' % (self.__class__.__name__, 
-                                          self.id, self.path(), id(self))
+        try:
+            if self._unitsStr is None:
+                # If there's no cached string of measurement types and units, make it.
+                if not self.children:
+                    units = [self.units]
+                else:
+                    units = [c.units for c in self.children]
+
+                    # If all subchannel units are the same, show only one.
+                    if len(set(units)) == 1:  # Cheesy test for identical units tuples
+                        units = [units[0]]
+
+                names = []
+                for measurement, name in units:
+                    if name:
+                        name = "(%s)" % name
+                    names.append(("%s %s" % (measurement, name)).strip())
+                self._unitsStr = ", ".join(names)
+
+            s = (": %s" % self._unitsStr) if self._unitsStr else ""
+            return '<%s %d %r%s>' % (self.__class__.__name__,
+                                     self.id, self.path(), s)
+
+        except (AttributeError, TypeError, ValueError):
+            # Just in case, so __repr__() never completely fails.
+            return object.__repr__(self)
 
 
     def __getitem__(self, idx):
@@ -951,6 +977,8 @@ class SubChannel(Channel):
         self.axisName = axisName
         self.attributes = attributes
         
+        self._unitsStr = None
+
         if name is None:
             self.name = "%s:%02d" % (parent.name, subchannelId)
         else:
@@ -1017,6 +1045,19 @@ class SubChannel(Channel):
         self.color = color
 
 
+    def __repr__(self):
+        try:
+            super().__repr__()  # Superclass' `__repr__()` generates `_unitsStr`
+            s = (": %s" % self._unitsStr) if self._unitsStr else ""
+            return '<%s %d.%d %r%s>' % (self.__class__.__name__,
+                                        self.parent.id, self.id,
+                                        self.path(), s)
+
+        except (AttributeError, TypeError, ValueError):
+            # Just in case, so __repr__() never completely fails.
+            return object.__repr__(self)
+
+
     @property
     def children(self):
         return []
@@ -1026,11 +1067,6 @@ class SubChannel(Channel):
     def sampleRate(self):
         return self.parent.sampleRate
 
-
-    def __repr__(self):
-        return '<%s %d.%d: %r at 0x%08x>' % (self.__class__.__name__, 
-                                             self.parent.id, self.id, 
-                                             self.path(), id(self))
 
     def __len__(self):
         raise AttributeError('SubChannel has no children.')
@@ -1286,7 +1322,11 @@ class EventArray(Transformable):
 
 
     def path(self):
-        return "%s, %s" % (self.parent.path(), self.session.sessionId)
+        """ Get the combined names of all the object's parents/grandparents.
+        """
+        if self.session and self.session.sessionId:
+            return "%s (session %s)" % (self.parent.path(), self.session.sessionId)
+        return self.parent.path()
 
 
     def copy(self, newParent=None):
@@ -1374,8 +1414,8 @@ class EventArray(Transformable):
             self.hasMinMeanMax = True #self.hasMinMeanMax and True
         else:
             # XXX: Attempt to calculate min/mean/max here instead of 
-            # in _computeMinMeanMax(). Causes issues with pressure for some
-            # reason - it starts removing mean and won't plot.
+            #  in _computeMinMeanMax(). Causes issues with pressure for some
+            #  reason - it starts removing mean and won't plot.
             vals = self.parseBlock(block)
             block.min = vals.min(axis=-1)
             block.mean = vals.mean(axis=-1)

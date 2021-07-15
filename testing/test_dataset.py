@@ -658,7 +658,7 @@ class TestChannel(unittest.TestCase):
 
     def testRepr(self):
         """ Test the repr special method. """
-        self.assertIn("<Channel 0: %r at" % 'channel1', repr(self.channel1))
+        self.assertIn("<Channel 0 %r" % 'channel1', repr(self.channel1))
 
 
     def testGetitem(self):
@@ -865,7 +865,7 @@ class TestSubChannel:
 
     def testRepr(self, subChannel1):
         """ Test the repr special method. """
-        assert "<SubChannel 2.0: 'SSX70065:3:channel2:channel2:00' at" in repr(subChannel1)
+        assert "<SubChannel 2.0 'SSX70065:3:channel2:channel2:00'" in repr(subChannel1)
 
     def testLen(self, subChannel1):
         """ Test the len special method. """
@@ -1094,7 +1094,7 @@ class TestEventArray:
 
     def testPath(self, eventArray1):
         """ Test the path method. """
-        assert eventArray1.path() == "channel1, 0"
+        assert eventArray1.path() == "channel1"
 
     def testCopy(self, eventArray1):
         """ Test the copy method. Since this is a shallow copy, don't use the
