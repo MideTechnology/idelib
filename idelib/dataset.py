@@ -1858,7 +1858,7 @@ class EventArray(Transformable):
                 specified index range.
         """
 
-        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+        warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
         out = self.arrayValues(start=start, end=end, step=step)
@@ -1976,7 +1976,7 @@ class EventArray(Transformable):
             :return: an iterable of events in the specified index range.
         """
 
-        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+        warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
         out = self.arraySlice(start=start, end=end, step=step, display=display)
@@ -2155,7 +2155,7 @@ class EventArray(Transformable):
             :return: an iterable of events in the specified index range.
         """
 
-        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+        warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
         self._computeMinMeanMax()
@@ -2328,7 +2328,7 @@ class EventArray(Transformable):
                 the session.
         """
 
-        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+        warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
@@ -2383,7 +2383,7 @@ class EventArray(Transformable):
                 and max, respectively).
         """
 
-        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+        warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
         if not self.hasMinMeanMax:
@@ -2859,7 +2859,7 @@ class EventArray(Transformable):
                 particularly not with single-sample blocks.
         """
 
-        warnings.warn(DeprecationWarning('iter methods should be expecte to be '
+        warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
