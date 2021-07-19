@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.com/MideTechnology/idelib.svg?branch=main)](https://travis-ci.com/MideTechnology/idelib)
+[![Build Status](https://travis-ci.com/MideTechnology/idelib.svg?branch=main)](https://travis-ci.com/MideTechnology/idelib) [![codecov](https://codecov.io/gh/MideTechnology/idelib/branch/develop/graph/badge.svg)](https://codecov.io/gh/MideTechnology/idelib)
 
 
 # _idelib_ README

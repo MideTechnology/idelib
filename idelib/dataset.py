@@ -71,7 +71,7 @@ SCHEMA_FILE = 'mide_ide.xml'
 #===============================================================================
 
 import logging
-logger = logging.getLogger('idelib-archive')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 
@@ -1228,6 +1228,8 @@ class EventArray(Transformable):
         self._blockIndicesArray = np.array([], dtype=np.float64)
         self._blockTimesArray = np.array([], dtype=np.float64)
 
+        self._mean = None
+
 
     def updateTransforms(self, recurse=True):
         """ (Re-)Build and (re-)apply the transformation functions.
@@ -1429,15 +1431,15 @@ class EventArray(Transformable):
             """ Creates a structured array of event data for a given set of
                 event times and values. (Used in event iteration methods.)
             """
-            times, values = retryUntilReturn(
-                partial(xform, times, values, session=session,
+            values = retryUntilReturn(
+                partial(xform.inplace, values, timestamp=times, session=session,
                         noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=partial(logger.info,
                                 "%s: bad transform @%s"
                                 % (parent.name, times)),
             )
-            values = np.asarray(values)
+            # values = np.asarray(values)
 
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
@@ -1448,8 +1450,8 @@ class EventArray(Transformable):
                                     "%s: bad offset (1) @%s"
                                     % (parent.name, block.startTime)),
                 )
-                _, offset = retryUntilReturn(
-                    partial(xform, block.startTime, offset, session=session,
+                offset = retryUntilReturn(
+                    partial(xform.inplace, offset, timestamp=block.startTime, session=session,
                             noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=partial(logger.info,
@@ -1691,24 +1693,24 @@ class EventArray(Transformable):
             block = self._data[blockIdx]
 
             t = block.startTime + self._getBlockSampleTime(blockIdx)*subIdx
+            tx = t
             val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[:, 0]
 
-            eventx = retryUntilReturn(
-                partial(xform, t, val, session=self.session,
+            valx = retryUntilReturn(
+                partial(xform.inplace, val, timestamp=t, session=self.session,
                         noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=partial(logger.info,
                                 "%s: bad transform %r %r"
                                 % (self.parent.name, t, val)),
             )
-            if eventx is None:
+            if valx is None:
                 return None
-            tx, valx = eventx
 
             m = self._getBlockRollingMean(blockIdx)
             if m is not None:
-                _, mx = retryUntilReturn(
-                    partial(xform, t, m, session=self.session,
+                mx = retryUntilReturn(
+                    partial(xform.inplace, m, timestamp=t, session=self.session,
                             noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001,
                     on_fail=partial(logger.info,
@@ -2540,6 +2542,35 @@ class EventArray(Transformable):
             v1 + (percent * (v2-v1))
             for v1, v2 in zip(startEvt[1:], endEvt[1:])
         )
+
+
+    def getMean(self, startTime=None, endTime=None, display=False, iterator=iter):
+        """ Get the mean value of all events, optionally within a specified
+            time range. For Channels, returns the mean among all
+            Subchannels.
+
+            :keyword startTime: The starting time. Defaults to the start.
+            :keyword endTime: The ending time. Defaults to the end.
+            :keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            :return: The event with the minimum value.
+        """
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+
+        if startTime is None and endTime is None:
+            if self._mean is not None:
+                return self._mean
+
+        means = self.arrayMinMeanMax(startTime, endTime, times=False,
+                                     display=display, iterator=iterator)[1]
+
+        mean = np.mean(np.average(means, weights=[d.numSamples for d in self._data], axis=-1))
+
+        if startTime is None and endTime is None:
+            self._mean = mean
+
+        return mean
     
 
     def getMeanNear(self, t, outOfRange=False):
