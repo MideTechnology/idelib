@@ -2525,7 +2525,7 @@ class EventArray(Transformable):
         means = self.arrayMinMeanMax(startTime, endTime, times=False,
                                      display=display, iterator=iterator)[1]
 
-        mean = np.mean(np.average(means[0], weights=[d.numSamples for d in self._data], axis=-1))
+        mean = np.mean(np.average(means, weights=[d.numSamples for d in self._data], axis=-1))
 
         if startTime is None and endTime is None:
             self._mean = mean
