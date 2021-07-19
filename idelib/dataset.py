@@ -2784,7 +2784,7 @@ class EventArray(Transformable):
 
     def getMean(self, startTime=None, endTime=None, display=False, iterator=iter):
         """ Get the mean value of all events, optionally within a specified
-            time range. For Channels, returns the minimum among all
+            time range. For Channels, returns the mean among all
             Subchannels.
 
             :keyword startTime: The starting time. Defaults to the start.
@@ -2802,7 +2802,8 @@ class EventArray(Transformable):
 
         means = self.arrayMinMeanMax(startTime, endTime, times=False,
                                      display=display, iterator=iterator)[1]
-        mean = np.sum([d.numSamples*mean for d, mean in zip(self._data, means[0])])/np.sum(d.numSamples for d in self._data)
+
+        mean = np.mean(np.average(means, weights=[d.numSamples for d in self._data], axis=-1))
 
         if startTime is None and endTime is None:
             self._mean = mean

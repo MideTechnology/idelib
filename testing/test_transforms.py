@@ -98,15 +98,11 @@ class TestTransform:
 
         assert genericTransform(timestamp, value, session=session) == (timestamp + offset, value)
 
-    @pytest.mark.parametrize('which, expected', [('generic', True), ('bad', False)])
-    def testIsValid(self, which, expected, genericTransform, badTransform):
-        if which == 'generic':
-            tf = genericTransform
-        elif which == 'bad':
-            tf = badTransform
-        else:
-            raise
-
+    @pytest.mark.parametrize('transformType,     expected',
+                           [('genericTransform', True),
+                            ('badTransform',     False)])
+    def testIsValid(self, transformType, expected, request):
+        tf = request.getfixturevalue(transformType)
         assert tf.isValid() == expected
 
     def testUseMean(self, genericTransform):
@@ -170,16 +166,15 @@ class TestUnivariate:
 class TestBivariate:
 
     @pytest.mark.parametrize('useTimestamp, noBivariates, useMean',
-                             [
-                                 (True,  True,  True),
-                                 (True,  True,  False),
-                                 (True,  False, True),
-                                 (True,  False, False),
-                                 (False, True,  True),
-                                 (False, True,  False),
-                                 (False, False, True),
-                                 (False, False, False),
-                                 ])
+                           [(True,          True,         True),
+                            (True,          True,         False),
+                            (True,          False,        True),
+                            (True,          False,        False),
+                            (False,         True,         True),
+                            (False,         True,         False),
+                            (False,         False,        True),
+                            (False,         False,        False),
+                            ])
     def testInplace(self, useTimestamp, noBivariates, useMean, bivariate, ssx66115):
         """
             Test inplace math for bivariate polynomials.  This one's more complex.

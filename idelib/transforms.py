@@ -27,11 +27,6 @@ logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 #===============================================================================
 
 
-def _binomial(n, k):
-    """ Binomial coefficient of n choose k"""
-    return math.factorial(n)/(math.factorial(k)*math.factorial(n-k))
-
-
 class Transform(object):
     """ Base class for all data-manipulating objects (e.g. calibration
         polynomials). Instantiates as a function-like object representing any 
