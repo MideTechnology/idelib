@@ -13,13 +13,11 @@ from io import StringIO, BytesIO
 import sys
 import unittest
 import mock
-import os
 
 import pytest
 
 import numpy as np  # type: ignore
 
-import idelib
 from idelib.dataset import (Cascading,
                             Channel,
                             Dataset,
@@ -59,22 +57,22 @@ def _load_file(filePath):
 
 @pytest.fixture
 def testIDE():
-    doc = idelib.importer.openFile(_load_file('./test.ide'))
-    idelib.importer.readData(doc)
+    doc = importer.openFile(_load_file('./test.ide'))
+    importer.readData(doc)
     return doc
 
 
 @pytest.fixture
 def SSX70065IDE():
-    doc = idelib.importer.openFile(_load_file('./testing/SSX70065.IDE'))
-    idelib.importer.readData(doc)
+    doc = importer.openFile(_load_file('./testing/SSX70065.IDE'))
+    importer.readData(doc)
     return doc
 
 
 @pytest.fixture
 def SSX_DataIDE():
-    doc = idelib.importer.openFile(_load_file('./testing/SSX_Data.IDE'))
-    idelib.importer.readData(doc)
+    doc = importer.openFile(_load_file('./testing/SSX_Data.IDE'))
+    importer.readData(doc)
     return doc
 
 
