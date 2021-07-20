@@ -944,14 +944,14 @@ class CombinedPoly(Bivariate):
                 if p is not None:
                     for attr in ('_str', '_source', '_function', '_noY'):
                         setattr(self, attr, getattr(p, attr, None))
-        phead, src = self.poly.source.split(": ")
-            
+        phead, _, src = self.poly.source.partition(": ")
+
         for k, v in self.subpolys.items():
             if v is None:
                 ssrc = "lambda x: x"
             else:
                 ssrc = v.source 
-            s = "(%s)" % ssrc.split(": ")[-1]
+            s = "(%s)" % ssrc.rpartition(": ")[-1]
             src = self._reduce(src.replace(k, s))
 
         if self._subchannel is not None:
@@ -1276,7 +1276,7 @@ class PolyPoly(CombinedPoly):
             if p is None:
                 body.append('x%d' % n)
             else:
-                body.append(p.source.split(':')[-1].replace('x', 'x%d' % n))
+                body.append(p.source.rpartition(':')[-1].replace('x', 'x%d' % n))
         
         # ends with a comma to ensure a tuple is returned
         src = "(%s,)" % (', '.join(body))
