@@ -1118,7 +1118,7 @@ class TestEventArray:
 
 
     @unittest.skip('failing, poorly formed')
-    def testAppend(self):
+    def testAppend(self, eventArray1):
         """ Test the append method. """
         fakeData = GenericObject()
         fakeData.numSamples = 1
@@ -1502,7 +1502,7 @@ class TestEventArray:
                 )
 
     @unittest.skip('failing, poorly formed')
-    def testIterMinMeanMax(self):
+    def testIterMinMeanMax(self, eventArray1):
         """ Test for iterMinMeanMax method. """
         self.mockData()
         eventArray1._data[0].minMeanMax = 1
@@ -1703,7 +1703,7 @@ class TestEventArray:
                 )
 
     @pytest.mark.skip("this doesn't actually do anything")
-    def testExportCSV(self):
+    def testExportCSV(self, eventArray1):
         """ Test for exportCsv method."""
         self.mockData()
         eventArray1._data[0].minMeanMax = 1
