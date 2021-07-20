@@ -27,7 +27,7 @@ from idelib.dataset import (Cascading,
                             )
 
 from idelib.transforms import Transform, CombinedPoly, PolyPoly
-from idelib.transforms import AccelTransform
+from idelib.transforms import AccelTransform, Univariate
 from idelib import importer
 from idelib import parsers
 
@@ -615,7 +615,7 @@ class ChannelTestCase(unittest.TestCase):
         
     def testRepr(self):
         """ Test the repr special method. """
-        self.assertIn("<Channel 0: %r at" % 'channel1', repr(self.channel1))
+        self.assertIn("<Channel 0 %r" % 'channel1', repr(self.channel1))
         
         
     def testGetitem(self):
@@ -776,7 +776,7 @@ class SubChannelTestCase(unittest.TestCase):
     def testRepr(self):
         """ Test the repr special method. """
         self.assertIn(
-            "<SubChannel 2.0: %r at" % 'SSX70065:3:channel2:channel2:00',
+            "<SubChannel 2.0 %r" % 'SSX70065:3:channel2:channel2:00',
             repr(self.subChannel1))
         
         
@@ -1000,7 +1000,7 @@ class EventArrayTestCase(unittest.TestCase):
 
     def testPath(self):
         """ Test the path method. """
-        self.assertEqual(self.eventArray1.path(), "channel1, 0")
+        self.assertEqual(self.eventArray1.path(), "channel1")
 
     def testCopy(self):
         """ Test the copy method. Since this is a shallow copy, don't use the
@@ -1196,24 +1196,22 @@ class EventArrayTestCase(unittest.TestCase):
 
         self.assertRaises(TypeError, EventArray.__getitem__, eventArray, 'd')
 
-        # if the transform returns a none type, it should just skip through
-        # and return None
-        eventArray.configure_mock(
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        None),
-            _getBlockRollingMean=lambda blockIdx: None,
-            hasSubchannels=True,
-        )
-        self.assertEqual(EventArray.__getitem__(eventArray, 0), None)
-        self.assertEqual(EventArray.__getitem__(eventArray, 1), None)
-        self.assertEqual(EventArray.__getitem__(eventArray, 2), None)
-        self.assertEqual(EventArray.__getitem__(eventArray, 3), None)
+        # # if the transform returns a none type, it should just skip through
+        # # and return None
+        # eventArray.configure_mock(
+        #     _fullXform=Univariate((None, 0)),
+        #     _getBlockRollingMean=lambda blockIdx: None,
+        #     hasSubchannels=True,
+        # )
+        # self.assertEqual(EventArray.__getitem__(eventArray, 0), None)
+        # self.assertEqual(EventArray.__getitem__(eventArray, 1), None)
+        # self.assertEqual(EventArray.__getitem__(eventArray, 2), None)
+        # self.assertEqual(EventArray.__getitem__(eventArray, 3), None)
 
         # if parent.parseBlock just bounces back data, then it should just
         # get a tuple with the timestamp and data
         eventArray.configure_mock(
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _getBlockRollingMean=lambda blockIdx: None,
             hasSubchannels=True,
         )
@@ -1225,8 +1223,7 @@ class EventArrayTestCase(unittest.TestCase):
         # If there is an offset, return a tuple of the timestamp and data,
         # minus the offset
         eventArray.configure_mock(
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _getBlockRollingMean=lambda blockIdx: (-5,),
             hasSubchannels=True,
         )
@@ -1239,8 +1236,7 @@ class EventArrayTestCase(unittest.TestCase):
         # if hasSubchannels is True, return a tuple of the timestamp and
         # the single channel's data
         eventArray.configure_mock(
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _getBlockRollingMean=lambda blockIdx: None,
             hasSubchannels=False, subchannelId=0
         )
@@ -1267,8 +1263,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -1320,8 +1315,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -1373,8 +1367,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -1421,8 +1414,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -1470,8 +1462,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -1519,8 +1510,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             _getBlockIndexWithIndex=(lambda idx, start=0, stop=None:
                                      range(length)[idx]),
@@ -1783,8 +1773,7 @@ class EventArrayTestCase(unittest.TestCase):
         eventArray.configure_mock(
             useAllTransforms=True,
             __len__=lambda self: length,
-            _fullXform=(lambda time, val, session=None, noBivariates=False:
-                        (time, tuple(7*i for i in val))),
+            _fullXform=Univariate((7, 0)),
             _data=mock.Mock(),
             getEventIndexBefore=lambda at: min(max(-1, int(at//0.01)), length-1),
             _getBlockIndexWithIndex=lambda idx: range(length)[idx],
@@ -2050,36 +2039,24 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_Calibrated.csv', 'rb') as f:
-            for new, old in zip(out, f):
-#                 self.assertEqual(old.strip(), new.strip())
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
     
     def testUncalibratedExport(self):
-        """ Test export with no per-channel polynomials.
-        """
-        self.dataset.channels[8][0].setTransform(None)
-        self.dataset.channels[8][1].setTransform(None)
-        self.dataset.channels[8][2].setTransform(None)
+        """ Test export with no per-channel polynomials."""
 
         out = StringIO()
         accel = self.dataset.channels[8].getSession()
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_NoCalibration.csv', 'rb') as f:
-            for new, old in zip(out, f):
-#                 self.assertEqual(old.strip(), new.strip())
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
 
     def testNoBivariates(self):
@@ -2092,22 +2069,15 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_NoBivariates.csv', 'rb') as f:
-            for new, old in zip(out, f):
-#                 self.assertEqual(old.strip(), new.strip())
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
 
     def testRollingMeanRemoval(self):
         """ Test regular export, with the rolling mean removed from the data.
         """
-        self.dataset.channels[8][0].setTransform(None)
-        self.dataset.channels[8][1].setTransform(None)
-        self.dataset.channels[8][2].setTransform(None)
         
         out = StringIO()
         accel = self.dataset.channels[8].getSession()
@@ -2116,22 +2086,16 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_RollingMean_NoCal.csv', 'rb') as f:
-            for new, old in zip(out, f):
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
     
     def testTotalMeanRemoval(self):
         """ Test regular export, calibrated, with the total mean removed from
             the data.
         """
-        self.dataset.channels[8][0].setTransform(None)
-        self.dataset.channels[8][1].setTransform(None)
-        self.dataset.channels[8][2].setTransform(None)
 
         out = StringIO()
         accel = self.dataset.channels[8].getSession()
@@ -2140,13 +2104,10 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_TotalMean_NoCal.csv', 'rb') as f:
-            for new, old in zip(out, f):
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
     
 
     def testCalibratedRollingMeanRemoval(self):
@@ -2160,13 +2121,10 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_RollingMean.csv', 'rb') as f:
-            for new, old in zip(out, f):
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
 
     
     def testCalibratedTotalMeanRemoval(self):
@@ -2179,13 +2137,10 @@ class DataTestCase(unittest.TestCase):
 
         accel.exportCsv(out)
         out.seek(0)
-        
-        with open('./testing/SSX_Data_Ch8_TotalMean.csv', 'rb') as f:
-            for new, old in zip(out, f):
-                for a,b in zip(eval(new),eval(old)):
-                    self.assertAlmostEqual(a, b, delta=self.delta, 
-                                           msg="Output differs: %r != %r" %
-                                           (old,new))
+        new = np.genfromtxt(out, delimiter=', ')
+        old = accel.__getitem__(slice(None), display=True)
+
+        np.testing.assert_allclose(new.T, old, rtol=1e-4)
     
 
 #===============================================================================

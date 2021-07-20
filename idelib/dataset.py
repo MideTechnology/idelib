@@ -71,7 +71,7 @@ SCHEMA_FILE = 'mide_ide.xml'
 #===============================================================================
 
 import logging
-logger = logging.getLogger('idelib-archive')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 
@@ -685,6 +685,8 @@ class Channel(Transformable):
         self.sampleRate = sampleRate
         self.attributes = attributes
        
+        self._unitsStr = None
+
         self.cache = bool(cache)
         self.singleSample = singleSample
 
@@ -734,8 +736,32 @@ class Channel(Transformable):
 
 
     def __repr__(self):
-        return '<%s %d: %r at 0x%08x>' % (self.__class__.__name__, 
-                                          self.id, self.path(), id(self))
+        try:
+            if self._unitsStr is None:
+                # If there's no cached string of measurement types and units, make it.
+                if not self.children:
+                    units = [self.units]
+                else:
+                    units = [c.units for c in self.children]
+
+                    # If all subchannel units are the same, show only one.
+                    if len(set(units)) == 1:  # Cheesy test for identical units tuples
+                        units = [units[0]]
+
+                names = []
+                for measurement, name in units:
+                    if name:
+                        name = "(%s)" % name
+                    names.append(("%s %s" % (measurement, name)).strip())
+                self._unitsStr = ", ".join(names)
+
+            s = (": %s" % self._unitsStr) if self._unitsStr else ""
+            return '<%s %d %r%s>' % (self.__class__.__name__,
+                                     self.id, self.path(), s)
+
+        except (AttributeError, TypeError, ValueError):
+            # Just in case, so __repr__() never completely fails.
+            return object.__repr__(self)
 
 
     def __getitem__(self, idx):
@@ -936,6 +962,8 @@ class SubChannel(Channel):
         self.axisName = axisName
         self.attributes = attributes
         
+        self._unitsStr = None
+
         if name is None:
             self.name = "%s:%02d" % (parent.name, subchannelId)
         else:
@@ -1005,6 +1033,19 @@ class SubChannel(Channel):
         self.color = color
 
 
+    def __repr__(self):
+        try:
+            super().__repr__()  # Superclass' `__repr__()` generates `_unitsStr`
+            s = (": %s" % self._unitsStr) if self._unitsStr else ""
+            return '<%s %d.%d %r%s>' % (self.__class__.__name__,
+                                        self.parent.id, self.id,
+                                        self.path(), s)
+
+        except (AttributeError, TypeError, ValueError):
+            # Just in case, so __repr__() never completely fails.
+            return object.__repr__(self)
+
+
     @property
     def children(self):
         return []
@@ -1014,11 +1055,6 @@ class SubChannel(Channel):
     def sampleRate(self):
         return self.parent.sampleRate
 
-
-    def __repr__(self):
-        return '<%s %d.%d: %r at 0x%08x>' % (self.__class__.__name__, 
-                                             self.parent.id, self.id, 
-                                             self.path(), id(self))
 
     def __len__(self):
         raise AttributeError('SubChannel has no children.')
@@ -1195,6 +1231,8 @@ class EventArray(Transformable):
         self._blockIndicesArray = np.array([], dtype=np.float64)
         self._blockTimesArray = np.array([], dtype=np.float64)
 
+        self._mean = None
+
 
     def updateTransforms(self, recurse=True):
         """ (Re-)Build and (re-)apply the transformation functions.
@@ -1245,7 +1283,11 @@ class EventArray(Transformable):
 
 
     def path(self):
-        return "%s, %s" % (self.parent.path(), self.session.sessionId)
+        """ Get the combined names of all the object's parents/grandparents.
+        """
+        if self.session and self.session.sessionId:
+            return "%s (session %s)" % (self.parent.path(), self.session.sessionId)
+        return self.parent.path()
 
 
     def copy(self, newParent=None):
@@ -1325,8 +1367,8 @@ class EventArray(Transformable):
             self.hasMinMeanMax = True #self.hasMinMeanMax and True
         else:
             # XXX: Attempt to calculate min/mean/max here instead of 
-            # in _computeMinMeanMax(). Causes issues with pressure for some
-            # reason - it starts removing mean and won't plot.
+            #  in _computeMinMeanMax(). Causes issues with pressure for some
+            #  reason - it starts removing mean and won't plot.
             vals = self.parseBlock(block)
             block.min = vals.min(axis=-1)
             block.mean = vals.mean(axis=-1)
@@ -1392,15 +1434,15 @@ class EventArray(Transformable):
             """ Creates a structured array of event data for a given set of
                 event times and values. (Used in event iteration methods.)
             """
-            times, values = retryUntilReturn(
-                partial(xform, times, values, session=session,
+            values = retryUntilReturn(
+                partial(xform.inplace, values, timestamp=times, session=session,
                         noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=partial(logger.info,
                                 "%s: bad transform @%s"
                                 % (parent.name, times)),
             )
-            values = np.asarray(values)
+            # values = np.asarray(values)
 
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
@@ -1411,8 +1453,8 @@ class EventArray(Transformable):
                                     "%s: bad offset (1) @%s"
                                     % (parent.name, block.startTime)),
                 )
-                _, offset = retryUntilReturn(
-                    partial(xform, block.startTime, offset, session=session,
+                offset = retryUntilReturn(
+                    partial(xform.inplace, offset, timestamp=block.startTime, session=session,
                             noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001, default=(None, offset),
                     on_fail=partial(logger.info,
@@ -1654,24 +1696,24 @@ class EventArray(Transformable):
             block = self._data[blockIdx]
 
             t = block.startTime + self._getBlockSampleTime(blockIdx)*subIdx
+            tx = t
             val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[:, 0]
 
-            eventx = retryUntilReturn(
-                partial(xform, t, val, session=self.session,
+            valx = retryUntilReturn(
+                partial(xform.inplace, val, timestamp=t, session=self.session,
                         noBivariates=self.noBivariates),
                 max_tries=2, delay=0.001,
                 on_fail=partial(logger.info,
                                 "%s: bad transform %r %r"
                                 % (self.parent.name, t, val)),
             )
-            if eventx is None:
+            if valx is None:
                 return None
-            tx, valx = eventx
 
             m = self._getBlockRollingMean(blockIdx)
             if m is not None:
-                _, mx = retryUntilReturn(
-                    partial(xform, t, m, session=self.session,
+                mx = retryUntilReturn(
+                    partial(xform.inplace, m, timestamp=t, session=self.session,
                             noBivariates=self.noBivariates),
                     max_tries=2, delay=0.001,
                     on_fail=partial(logger.info,
@@ -2503,6 +2545,35 @@ class EventArray(Transformable):
             v1 + (percent * (v2-v1))
             for v1, v2 in zip(startEvt[1:], endEvt[1:])
         )
+
+
+    def getMean(self, startTime=None, endTime=None, display=False, iterator=iter):
+        """ Get the mean value of all events, optionally within a specified
+            time range. For Channels, returns the mean among all
+            Subchannels.
+
+            :keyword startTime: The starting time. Defaults to the start.
+            :keyword endTime: The ending time. Defaults to the end.
+            :keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            :return: The event with the minimum value.
+        """
+        if not self.hasMinMeanMax:
+            self._computeMinMeanMax()
+
+        if startTime is None and endTime is None:
+            if self._mean is not None:
+                return self._mean
+
+        means = self.arrayMinMeanMax(startTime, endTime, times=False,
+                                     display=display, iterator=iterator)[1]
+
+        mean = np.mean(np.average(means, weights=[d.numSamples for d in self._data], axis=-1))
+
+        if startTime is None and endTime is None:
+            self._mean = mean
+
+        return mean
     
 
     def getMeanNear(self, t, outOfRange=False):
