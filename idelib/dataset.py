@@ -493,12 +493,6 @@ class Dataset(Cascading):
         for ch in self.channels.values():
             ch.updateTransforms()
 
-    def allocateCaches(self, sizes):
-        for channel in self.channels.values():
-            for ea in channel.sessions.values():
-                with self._channelDataLock:
-                    ea.allocateCache(sizes[channel])
-
     def fillCaches(self):
         for channel in self.channels.values():
             for ea in channel.sessions.values():
@@ -3013,15 +3007,6 @@ class EventArray(Transformable):
                 callback(error=e)
 
         return num+1, datetime.now() - t0
-
-    def allocateCache(self, size):
-
-        if (size/self._npType.itemsize) % 1 == 0.:
-            self._cacheBytes = np.zeros(size, dtype=np.uint8)
-        else:
-            raise Exception("I haven't gotten to this yet, whoops")
-
-        self._cacheArray = self._cacheBytes.view(self._npType)
 
     def fillCache(self):
         with self.dataset._channelDataLock:
