@@ -1857,8 +1857,7 @@ class EventArray(Transformable):
 
         out = self.arrayValues(start=start, end=end, step=step)
 
-        for evt in out.T:
-            yield evt
+        yield from out.T
 
 
     def arrayValues(self, start=None, end=None, step=1, subchannels=True,
@@ -1974,8 +1973,8 @@ class EventArray(Transformable):
                                          'removed in future versions of idelib'))
 
         out = self.arraySlice(start=start, end=end, step=step, display=display)
-        for evt in out.T:
-            yield evt
+
+        yield from out.T
 
 
     def arraySlice(self, start=None, end=None, step=1, display=False):
@@ -2156,8 +2155,7 @@ class EventArray(Transformable):
 
         data = self.arrayJitterySlice(start=start, end=end, step=step, jitter=jitter, display=display)
 
-        for evt in data.T:
-            yield evt
+        yield from data.T
         
 
 
