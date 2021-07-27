@@ -1891,9 +1891,9 @@ class EventArray(Transformable):
         rawData = self._accessCache(start, end, step)
 
         if isinstance(self.parent, SubChannel):
-            out = np.zeros((1, len(rawData)))
+            out = np.empty((1, len(rawData)))
         else:
-            out = np.zeros((len(rawData.dtype), len(rawData)))
+            out = np.empty((len(rawData.dtype), len(rawData)))
 
         if isinstance(self.parent, SubChannel):
             xform.polys[self.subchannelId].inplace(rawData, out=out)
@@ -2003,9 +2003,9 @@ class EventArray(Transformable):
         rawData = self._accessCache(start, end, step)
 
         if isinstance(self.parent, SubChannel):
-            out = np.zeros((2, len(rawData)))
+            out = np.empty((2, len(rawData)))
         else:
-            out = np.zeros((len(rawData.dtype) + 1, len(rawData)))
+            out = np.empty((len(rawData.dtype) + 1, len(rawData)))
 
         self._inplaceTime(start, end, step, out=out[0])
 
@@ -2022,7 +2022,7 @@ class EventArray(Transformable):
             out[1:] -= out[1:].mean(axis=1)[:, np.newaxis]
         else:
             with self._channelDataLock:
-                timeMean = np.zeros(
+                timeMean = np.empty(
                         (len(self._data),),
                         [
                             ('startTime', np.uint64),
@@ -2205,9 +2205,9 @@ class EventArray(Transformable):
 
         # slightly janky way of enforcing output length
         if isinstance(self.parent, SubChannel):
-            out = np.zeros((2, len(self._accessCache(start, end, step))))
+            out = np.empty((2, len(self._accessCache(start, end, step))))
         else:
-            out = np.zeros((len(rawData.dtype) + 1, len(self._accessCache(start, end, step))))
+            out = np.empty((len(rawData.dtype) + 1, len(self._accessCache(start, end, step))))
 
         # save on space by being really clever and storing indices in timestamps
         indices = out[0].view(np.int64)
@@ -2479,7 +2479,7 @@ class EventArray(Transformable):
         scid = self.subchannelId
         isSubchannel = isinstance(self.parent, SubChannel)
 
-        out = np.zeros(shape)
+        out = np.empty(shape)
 
         for i, d in enumerate(self._data[startBlock:endBlock]):
             if isSubchannel:
@@ -3037,7 +3037,7 @@ class EventArray(Transformable):
 
     def _inplaceTime(self, start, end, step, out=None):
         if out is None:
-            out = np.zeros((int(np.ceil((end - start)/step)),))
+            out = np.empty((int(np.ceil((end - start)/step)),))
 
         arrayStart = float(self._data[0].startTime)
         arrayEnd = float(self._data[-1].endTime)
