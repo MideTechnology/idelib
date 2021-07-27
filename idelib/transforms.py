@@ -950,8 +950,9 @@ class CombinedPoly(Bivariate):
             if v is None:
                 ssrc = "lambda x: x"
             else:
-                ssrc = v.source 
-            s = "(%s)" % ssrc.rpartition(": ")[-1]
+                ssrc = v.source
+            start, _, end = "(%s)" % ssrc.rpartition(": ")
+            s = end or start
             src = self._reduce(src.replace(k, s))
 
         if self._subchannel is not None:
@@ -1276,7 +1277,8 @@ class PolyPoly(CombinedPoly):
             if p is None:
                 body.append('x%d' % n)
             else:
-                body.append(p.source.rpartition(':')[-1].replace('x', 'x%d' % n))
+                start, _, end = p.source.rpartition(':')
+                body.append((end or start).replace('x', 'x%d' % n))
         
         # ends with a comma to ensure a tuple is returned
         src = "(%s,)" % (', '.join(body))
