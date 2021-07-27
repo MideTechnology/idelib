@@ -951,8 +951,8 @@ class CombinedPoly(Bivariate):
                 ssrc = "lambda x: x"
             else:
                 ssrc = v.source
-            start, _, end = "(%s)" % ssrc.rpartition(": ")
-            s = end or start
+            start, _, end = ssrc.rpartition(": ")
+            s = "(%s)" % (end or start)
             src = self._reduce(src.replace(k, s))
 
         if self._subchannel is not None:
