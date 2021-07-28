@@ -1222,6 +1222,7 @@ class EventArray(Transformable):
 
         self.removeMean = False
         self.hasMinMeanMax = True
+        self._rollingMeanSpan = None
         self.rollingMeanSpan = self.DEFAULT_MEAN_SPAN
 
         self.transform = None
@@ -1265,6 +1266,19 @@ class EventArray(Transformable):
         self._cacheBlockStart = None
         self._cacheBlockEnd = None
         self._cacheLen = 0
+
+
+    @property
+    def rollingMeanSpan(self):
+        return self._rollingMeanSpan
+
+
+    @rollingMeanSpan.setter
+    def rollingMeanSpan(self, value):
+        if value != -1:
+            warnings.warn('Rolling mean has been deprecated, this behavior has '
+                          'been replaced with total mean removal.')
+        self._rollingMeanSpan = value
 
 
     def updateTransforms(self, recurse=True):
@@ -2015,53 +2029,8 @@ class EventArray(Transformable):
             for i, (k, _) in enumerate(rawData.dtype.descr):
                 xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0])
 
-        if not self.removeMean:
-            return out
-
-        if self.rollingMeanSpan == -1:
+        if self.removeMean:
             out[1:] -= out[1:].mean(axis=1)[:, np.newaxis]
-        else:
-            with self._channelDataLock:
-                timeMean = np.empty(
-                        (len(self._data),),
-                        [
-                            ('startTime', np.uint64),
-                            ('endTime', np.uint64),
-                            ('startIdx', np.uint64),
-                            ('endIdx', np.uint64),
-                            ('means', np.float64, (len(self._data[0].mean))),
-                            ],
-                        )
-                for i, d in enumerate(self._data):
-                    timeMean['startTime'][i] = d.startTime
-                    timeMean['endTime'][i] = d.endTime
-                    timeMean['startIdx'][i] = d.indexRange[0]
-                    timeMean['endIdx'][i] = d.indexRange[1]
-                    timeMean['means'][i] = d.mean
-
-            for i, tm in enumerate(timeMean):
-                blockData = out[1:, tm['startIdx']:tm['endIdx']]
-                spanStart = tm['startTime'] - self.rollingMeanSpan
-                spanEnd = tm['endTime'] + self.rollingMeanSpan
-
-                firstBlock = 0
-                if i != 0:
-                    for j, block in zip(range(i - 1, -1, -1), timeMean[i - 1::-1]):
-                        if block['endTime'] < spanStart:
-                            firstBlock = j + 1
-                            break
-
-                lastBlock = len(timeMean)
-                if i != (len(timeMean) - 1):
-                    for j, block in zip(range(i + 1, len(timeMean)), timeMean[i + 1:]):
-                        if block['startTime'] > spanEnd:
-                            lastBlock = j
-                            break
-
-                if firstBlock == lastBlock:
-                    blockData -= tm['means'][:, np.newaxis]
-                else:
-                    blockData -= timeMean['means'][firstBlock:lastBlock].mean(axis=0)[:, np.newaxis]
 
         return out
 
