@@ -1915,6 +1915,9 @@ class EventArray(Transformable):
             for i, (k, _) in enumerate(rawData.dtype.descr):
                 xform.polys[i].inplace(rawData[k], out=out[i])
 
+        if self.removeMean:
+            out[1:] -= out[1:].mean(axis=1)[:, np.newaxis]
+
         if subchannels is True:
             return out
         else:
