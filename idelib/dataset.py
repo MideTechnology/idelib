@@ -3039,16 +3039,26 @@ class EventArray(Transformable):
         if out is None:
             out = np.empty((int(np.ceil((end - start)/step)),))
 
-        arrayStart = float(self._data[0].startTime)
-        arrayEnd = float(self._data[-1].endTime)
-        nSamples = len(self)
-        samplePeriod = (arrayEnd - arrayStart)/(nSamples - 1)
+        if self._singleSample:
+            out[:] = [d.startTime for d in self._data[start:end:step]]
+            return out
 
-        # out = samplePeriod*(step*out + start) + arrayStart
-        # out = out*(samplePeriod*step) + (samplePeriod*start + arrayStart)
-        out[:] = np.arange(len(out))
-        out *= samplePeriod*step
-        out += samplePeriod*start + arrayStart
+        vals = np.empty((self._data[-1].indexRange[-1],))
+
+        for d in self._data:
+            arrayStart = d.startTime
+            arrayEnd = d.endTime
+            startIdx, endIdx = d.indexRange
+            samplePeriod = (arrayEnd - arrayStart)/(d.numSamples - 1)
+
+            # out = samplePeriod*(step*out + start) + arrayStart
+            # out = out*(samplePeriod*step) + (samplePeriod*start + arrayStart)
+            vals[startIdx:endIdx] = np.arange(d.numSamples)
+            vals[startIdx:endIdx] *= samplePeriod
+            vals[startIdx:endIdx] += arrayStart
+
+        out[:] = vals[start:end:step]
+
         return out
 
     def _inplaceTimeFromIndices(self, indices, out=None):
