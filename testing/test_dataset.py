@@ -1725,8 +1725,9 @@ class TestEventArray:
         eventArray.rollingMeanSpan = 1
         eventArray.removeMean = True
 
-        for d in eventArray._data:
-            unremovedData[1:, slice(*d.indexRange)] -= d.mean[:, np.newaxis]
+        # for d in eventArray._data:
+        #     unremovedData[1:, slice(*d.indexRange)] -= d.mean[:, np.newaxis]
+        unremovedData[1:] -= unremovedData[1:].mean(axis=1)[:, np.newaxis]
 
         removedData = eventArray[:]
 
