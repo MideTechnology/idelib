@@ -13,13 +13,11 @@ from io import StringIO, BytesIO
 import sys
 import unittest
 import mock
-import os
 
 import pytest
 
 import numpy as np  # type: ignore
 
-import idelib
 from idelib.dataset import (Cascading,
                             Channel,
                             Dataset,
@@ -59,22 +57,22 @@ def _load_file(filePath):
 
 @pytest.fixture
 def testIDE():
-    doc = idelib.importer.openFile(_load_file('./test.ide'))
-    idelib.importer.readData(doc)
+    doc = importer.openFile(_load_file('./test.ide'))
+    importer.readData(doc)
     return doc
 
 
 @pytest.fixture
 def SSX70065IDE():
-    doc = idelib.importer.openFile(_load_file('./testing/SSX70065.IDE'))
-    idelib.importer.readData(doc)
+    doc = importer.openFile(_load_file('./testing/SSX70065.IDE'))
+    importer.readData(doc)
     return doc
 
 
 @pytest.fixture
 def SSX_DataIDE():
-    doc = idelib.importer.openFile(_load_file('./testing/SSX_Data.IDE'))
-    idelib.importer.readData(doc)
+    doc = importer.openFile(_load_file('./testing/SSX_Data.IDE'))
+    importer.readData(doc)
     return doc
 
 
@@ -1120,7 +1118,7 @@ class TestEventArray:
 
 
     @unittest.skip('failing, poorly formed')
-    def testAppend(self):
+    def testAppend(self, eventArray1):
         """ Test the append method. """
         fakeData = GenericObject()
         fakeData.numSamples = 1
@@ -1195,72 +1193,6 @@ class TestEventArray:
         accel.dataset = GenericObject()
         accel.dataset.loading = True
         assert accel.getInterval() == (3, 1)
-
-    def mockForGetItem(self, section):
-        """ Mock different things for testGetItem. """
-
-        # mock with xforms
-        if section == 0:
-
-            mockBlockIndex = [0, 1, 2, 3]
-
-            def mockGetBlockIndexWithIndex(idx, start=None):
-                return mockBlockIndex[idx]
-
-            def mockGetBlockIndexRange(idx):
-                return mockBlockIndex
-
-            def mockXform(time, val, session=None, noBivariates=False):
-                if type(val) is tuple:
-                    return time, val
-                return time, [val.id]
-
-            def mockParseBlock(block, start=None, end=None, step=None):
-                return [(block,)]
-
-            eventArray1._getBlockIndexRange = mockGetBlockIndexRange
-            eventArray1._getBlockIndexWithIndex = mockGetBlockIndexWithIndex
-            eventArray1.parent.parseBlock = mockParseBlock
-            eventArray1._displayXform = eventArray1._comboXform = \
-                eventArray1._fullXform = mockXform
-
-            eventArray1._data = [GenericObject() for _ in range(4)]
-
-            for i, datum in enumerate(eventArray1._data):
-                datum.id = i
-
-        # mock without xforms
-        elif section == 1:
-
-            def mockXform(time, val, session=None, noBivariates=False):
-                return None
-
-            eventArray1._displayXform = eventArray1._comboXform = \
-                eventArray1._fullXform = mockXform
-
-        # with blockRollingMean
-        elif section == 2:
-
-            self.mockForGetItem(0)
-
-            eventArray1._getBlockRollingMean = lambda x: [1]
-
-            def mockXform(time, val, session=None, noBivariates=False):
-                if type(val) is tuple:
-                    return time, val
-                return time, [val.id]
-
-            eventArray1._displayXform = eventArray1._comboXform = \
-                eventArray1._fullXform = mockXform
-
-        # for __getitem__ to work in getEventIndexNear
-        elif section == 3:
-            self.mockForGetItem(0)
-
-            def mockGetBlockSampleTime(idx, start=None):
-                return 1
-
-            eventArray1._getBlockSampleTime = mockGetBlockSampleTime
 
     def testGetItem(self):
         """ Test the getitem special method. """
@@ -1504,7 +1436,7 @@ class TestEventArray:
                 )
 
     @unittest.skip('failing, poorly formed')
-    def testIterMinMeanMax(self):
+    def testIterMinMeanMax(self, eventArray1):
         """ Test for iterMinMeanMax method. """
         self.mockData()
         eventArray1._data[0].minMeanMax = 1
@@ -1705,7 +1637,7 @@ class TestEventArray:
                 )
 
     @pytest.mark.skip("this doesn't actually do anything")
-    def testExportCSV(self):
+    def testExportCSV(self, eventArray1):
         """ Test for exportCsv method."""
         self.mockData()
         eventArray1._data[0].minMeanMax = 1
