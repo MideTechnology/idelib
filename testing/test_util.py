@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-import idelib.util
+import idelib.attributes
 
 NOW_DATETIME = datetime.datetime.now()
 NOW_STRUCT_TIME = time.localtime()
@@ -44,4 +44,4 @@ ENCODED_ATTRIBUTES = [[],
         )
 def test_encode_attributes(test_input, expected):
 
-    assert idelib.util.encode_attributes(test_input) == expected
+    assert idelib.attributes.encode_attributes(test_input) == expected

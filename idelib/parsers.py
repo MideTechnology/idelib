@@ -46,7 +46,7 @@ import types
 import numpy as np  
 
 from . import transforms
-from .util import decode_attributes
+from .attributes import decode_attributes
 
 import logging
 logger = logging.getLogger('idelib')
