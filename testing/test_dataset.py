@@ -1659,7 +1659,7 @@ class TestEventArray:
 
         # for d in eventArray._data:
         #     unremovedData[1:, slice(*d.indexRange)] -= d.mean[:, np.newaxis]
-        unremovedData[1:] -= unremovedData[1:].mean(axis=1)[:, np.newaxis]
+        unremovedData[1:] -= unremovedData[1:].mean(axis=1, keepdims=True)
 
         removedData = eventArray[:]
 

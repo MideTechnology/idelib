@@ -1916,7 +1916,7 @@ class EventArray(Transformable):
                 xform.polys[i].inplace(rawData[k], out=out[i])
 
         if self.removeMean:
-            out[1:] -= out[1:].mean(axis=1)[:, np.newaxis]
+            out[1:] -= out[1:].mean(axis=1, keepdims=True)
 
         if subchannels is True:
             return out
@@ -2033,7 +2033,7 @@ class EventArray(Transformable):
                 xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0])
 
         if self.removeMean:
-            out[1:] -= out[1:].mean(axis=1)[:, np.newaxis]
+            out[1:] -= out[1:].mean(axis=1, keepdims=True)
 
         return out
 
