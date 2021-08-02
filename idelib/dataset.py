@@ -269,7 +269,7 @@ class Dataset(Cascading):
         if stream is not None:
             schema = loadSchema(SCHEMA_FILE)
             self.schemaVersion = schema.version
-            self.ebmldoc = schema.load(stream, 'MideDocument')
+            self.ebmldoc = schema.load(stream, 'MideDocument', headers=True)
             if not quiet:
                 # It is currently assumed future versions will be backwards
                 # compatible. Change if/when not, or if certain old versions aren't.

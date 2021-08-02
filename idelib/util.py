@@ -4,11 +4,19 @@ Utility functions for doing low-level, general-purpose EBML reading and writing.
 
 from collections import Counter
 from io import IOBase
+import logging
 from pathlib import Path
+import sys
 
 from ebmlite import loadSchema
 
 from .importer import openFile
+
+# ==============================================================================
+#
+# ==============================================================================
+
+logger = logging.getLogger('idelib')
 
 
 # ==============================================================================
@@ -32,7 +40,7 @@ def verify(data, schema=None):
 #
 # ==============================================================================
 
-def extractTime(doc, out, startTime=None, endTime=None, channels=None,
+def extractTime(doc, out, startTime=0, endTime=None, channels=None,
                 updater=None):
     """ Efficiently extract data within a certain interval from an IDE file.
         Note that due to the way data is stored in an IDE, the exported
@@ -46,7 +54,9 @@ def extractTime(doc, out, startTime=None, endTime=None, channels=None,
         :param endTime: The end of the extraction range, relative to the
             recording's end.
         :param channels: A list of channel IDs to specifically export. If
-            `None`, all channels will be exported.
+            `None`, all channels will be exported. Note excluded channels will
+            still appear in the new IDE's `channels` dictionary, but the file
+            will contain no data for them.
         :param updater: A function (or function-like object) to notify as
             work is done. It should take four keyword arguments: `count` (the
             current line number), `total` (the total number of samples), `error`
@@ -59,6 +69,9 @@ def extractTime(doc, out, startTime=None, endTime=None, channels=None,
     """
     if isinstance(doc, (str, Path)):
         doc = openFile(doc)
+
+    if endTime is None:
+        endTime = sys.maxsize
 
     # Dictionaries (and similar) for tracking progress of each ChannelDataBlock
     # element handled. All keyed by channel ID (ChannelIDRef).
@@ -74,7 +87,7 @@ def extractTime(doc, out, startTime=None, endTime=None, channels=None,
 
     if isinstance(out, (str, Path)):
         fs = open(out, 'wb')
-    elif isinstance(out, IOBase):
+    elif isinstance(out, IOBase) or hasattr(out, 'seek'):
         fs = out
     else:
         raise TypeError("unsupported type for output; expected filename "
@@ -105,10 +118,10 @@ def extractTime(doc, out, startTime=None, endTime=None, channels=None,
 
                 blockEnd = blockEnd or blockStart
                 if chId is None:
-                    # logger.warning(f"Extractor: {el} missing <ChannelIDRef> subelement, skipping.")
+                    logger.warning(f"Extractor: {el} missing <ChannelIDRef> subelement, skipping.")
                     continue
                 if blockStart is None:
-                    # logger.warning(f"Extractor: {el} missing <StartTimeCodeAbs> subelement, skipping.")
+                    logger.warning(f"Extractor: {el} missing <StartTimeCodeAbs> subelement, skipping.")
                     continue
 
                 if channels and chId not in channels:
