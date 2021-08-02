@@ -1047,10 +1047,6 @@ class TestEventArray:
         assert eventArray1._blockIndicesArray.size == 0
         assert eventArray1._blockTimesArray.size == 0
 
-    @pytest.mark.skip('not yet implemented')
-    def testJoinTimesValues(self):
-        pass
-
     def testUpdateTransformsNoRecursion(self, eventArray1, channel1, dataset):
         """ Test the updateTransforms method. """
         # update transforms without recursion
