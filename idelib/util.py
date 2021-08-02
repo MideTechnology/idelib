@@ -118,10 +118,10 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
 
                 blockEnd = blockEnd or blockStart
                 if chId is None:
-                    logger.warning(f"Extractor: {el} missing <ChannelIDRef> subelement, skipping.")
+                    logger.warning("Extractor: {} missing <ChannelIDRef> subelement, skipping.".format(el))
                     continue
                 if blockStart is None:
-                    logger.warning(f"Extractor: {el} missing <StartTimeCodeAbs> subelement, skipping.")
+                    logger.warning("Extractor: {} missing <StartTimeCodeAbs> subelement, skipping.".format(el))
                     continue
 
                 if channels and chId not in channels:
