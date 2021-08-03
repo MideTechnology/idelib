@@ -1756,46 +1756,6 @@ class EventArray(Transformable):
 
             return self.arraySlice(idx, idx + 1)[:, 0]
 
-            blockIdx = self._getBlockIndexWithIndex(idx)
-            subIdx = idx - self._getBlockIndexRange(blockIdx)[0]
-
-            block = self._data[blockIdx]
-
-            t = block.startTime + self._getBlockSampleTime(blockIdx)*subIdx
-            tx = t
-            val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[:, [0]]
-
-            valx = retryUntilReturn(
-                partial(xform.inplace, val, timestamp=t, session=self.session,
-                        noBivariates=self.noBivariates),
-                max_tries=2, delay=0.001,
-                on_fail=partial(logger.info,
-                                "%s: bad transform %r %r"
-                                % (self.parent.name, t, val)),
-            )
-            if valx is None:
-                return None
-
-            valx = valx[:, 0]
-
-            m = self._getBlockRollingMean(blockIdx)
-            if m is not None:
-                mx = retryUntilReturn(
-                    partial(xform.inplace, m, timestamp=t, session=self.session,
-                            noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001,
-                    on_fail=partial(logger.info,
-                                    "%s: bad offset @%s"
-                                    % (self.parent.name, t)),
-                )
-                valx -= np.array(mx)
-
-            if not self.hasSubchannels:
-                # Doesn't quite work; transform dataset attribute not set?
-                return np.array([tx, valx[self.subchannelId]])
-            else:
-                return np.append([tx], valx)
-
         elif isinstance(idx, slice):
             # vvv Main difference from `EventList.__getitem__` vvv
             return self.arraySlice(idx)
