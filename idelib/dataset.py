@@ -1373,78 +1373,79 @@ class EventArray(Transformable):
             
             :attention: Added elements must be in chronological order!
         """
-        if block.numSamples is None:
-            block.numSamples = block.getNumSamples(self.parent.parser)
+        with self._channelDataLock:
+            if block.numSamples is None:
+                block.numSamples = block.getNumSamples(self.parent.parser)
 
-        # Set the session first/last times if they aren't already set.
-        # Possibly redundant if all sessions are 'closed.'
-        if self.session.firstTime is None:
-            self.session.firstTime = block.startTime
-        else:
-            self.session.firstTime = min(self.session.firstTime, block.startTime)
+            # Set the session first/last times if they aren't already set.
+            # Possibly redundant if all sessions are 'closed.'
+            if self.session.firstTime is None:
+                self.session.firstTime = block.startTime
+            else:
+                self.session.firstTime = min(self.session.firstTime, block.startTime)
 
-        if self.session.lastTime is None:
-            self.session.lastTime = block.endTime
-        else:
-            self.session.lastTime = max(self.session.lastTime, block.endTime)
+            if self.session.lastTime is None:
+                self.session.lastTime = block.endTime
+            else:
+                self.session.lastTime = max(self.session.lastTime, block.endTime)
 
-        # Check that the block actually contains at least one sample.
-        if block.numSamples < 1:
-            # Ignore blocks with empty payload. Could occur in FW <17.
-            # TODO: Make sure this doesn't hide too many errors!
-            logger.warning("Ignoring block with bad payload size for %r" % self)
-            return
-        
-        block.cache = self.parent.cache
-        oldLength = self._length
+            # Check that the block actually contains at least one sample.
+            if block.numSamples < 1:
+                # Ignore blocks with empty payload. Could occur in FW <17.
+                # TODO: Make sure this doesn't hide too many errors!
+                logger.warning("Ignoring block with bad payload size for %r" % self)
+                return
 
-        block.blockIndex = len(self._data)
-        block.indexRange = (oldLength, oldLength + block.numSamples)
+            block.cache = self.parent.cache
+            oldLength = self._length
 
-        # _singleSample hint not explicitly set; set it based on this block. 
-        # There will be problems if the first block has only one sample, but
-        # future ones don't. This shouldn't happen, though.
-        if self._singleSample is None:
-            self._singleSample = block.numSamples == 1
-            if self._parentList is not None:
-                self._parentList._singleSample = self._singleSample
-            if self.parent.singleSample is None:
-                self.parent.singleSample = self._singleSample
-            if self.parent.parent is not None:
-                self.parent.parent.singleSample = self._singleSample
+            block.blockIndex = len(self._data)
+            block.indexRange = (oldLength, oldLength + block.numSamples)
 
-        # HACK (somewhat): Single-sample-per-block channels get min/mean/max
-        # which is just the same as the value of the sample. Set the values,
-        # but don't set hasMinMeanMax.
-        if self._singleSample is True:# and not self.hasMinMeanMax:
-            block.minMeanMax = np.tile(block.payload, 3)
-            block.parseMinMeanMax(self.parent.parser)
-            self.hasMinMeanMax = False
-        elif block.minMeanMax is not None:
-            block.parseMinMeanMax(self.parent.parser)
-            self.hasMinMeanMax = True #self.hasMinMeanMax and True
-        else:
-            # XXX: Attempt to calculate min/mean/max here instead of 
-            #  in _computeMinMeanMax(). Causes issues with pressure for some
-            #  reason - it starts removing mean and won't plot.
-            vals = self.parseBlock(block)
-            block.min = vals.min(axis=-1)
-            block.mean = vals.mean(axis=-1)
-            block.max = vals.max(axis=-1)
-            self.hasMinMeanMax = True
-#             self.hasMinMeanMax = False
-#             self.allowMeanRemoval = False
+            # _singleSample hint not explicitly set; set it based on this block.
+            # There will be problems if the first block has only one sample, but
+            # future ones don't. This shouldn't happen, though.
+            if self._singleSample is None:
+                self._singleSample = block.numSamples == 1
+                if self._parentList is not None:
+                    self._parentList._singleSample = self._singleSample
+                if self.parent.singleSample is None:
+                    self.parent.singleSample = self._singleSample
+                if self.parent.parent is not None:
+                    self.parent.parent.singleSample = self._singleSample
 
-        # Cache the index range for faster searching
-        self._blockIndices.append(oldLength)
-        self._blockTimes.append(block.startTime)
+            # HACK (somewhat): Single-sample-per-block channels get min/mean/max
+            # which is just the same as the value of the sample. Set the values,
+            # but don't set hasMinMeanMax.
+            if self._singleSample is True:# and not self.hasMinMeanMax:
+                block.minMeanMax = np.tile(block.payload, 3)
+                block.parseMinMeanMax(self.parent.parser)
+                self.hasMinMeanMax = False
+            elif block.minMeanMax is not None:
+                block.parseMinMeanMax(self.parent.parser)
+                self.hasMinMeanMax = True #self.hasMinMeanMax and True
+            else:
+                # XXX: Attempt to calculate min/mean/max here instead of
+                #  in _computeMinMeanMax(). Causes issues with pressure for some
+                #  reason - it starts removing mean and won't plot.
+                vals = self.parseBlock(block)
+                block.min = vals.min(axis=-1)
+                block.mean = vals.mean(axis=-1)
+                block.max = vals.max(axis=-1)
+                self.hasMinMeanMax = True
+    #             self.hasMinMeanMax = False
+    #             self.allowMeanRemoval = False
 
-        self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
+            # Cache the index range for faster searching
+            self._blockIndices.append(oldLength)
+            self._blockTimes.append(block.startTime)
 
-        self._data.append(block)
-        self._length += block.numSamples
+            self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
 
-        block._payload = np.frombuffer(block._payloadEl.dump(), dtype=self._npType)
+            self._data.append(block)
+            self._length += block.numSamples
+
+            block._payload = np.frombuffer(block._payloadEl.dump(), dtype=self._npType)
 
 
     @property
