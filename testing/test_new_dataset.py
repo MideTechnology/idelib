@@ -149,3 +149,14 @@ class TestEventArray:
     def test_array_jittery_values(self, channel_8_eventarray, start, end, step, expected):
         values = channel_8_eventarray.arrayJitterySlice(start=start, end=end, step=step)[1, :]
         np.testing.assert_equal(values, expected)
+
+    @pytest.mark.parametrize('idx', [0, 500, 999, -1])
+    def test_getitem(self, channel_8_eventarray, idx):
+
+        if idx < 0:
+            x = 1000 + idx
+        else:
+            x = idx
+        expected = np.floor(np.array([x*1000, x, 1000*(x/1000)**2, 1000*(x/1000)**0.5]))
+
+        np.testing.assert_equal(channel_8_eventarray[idx], expected)
