@@ -1574,21 +1574,30 @@ class TestEventArray:
         assert eventArray.getSampleRate(idx) == expected
 
     @pytest.mark.parametrize(
-            'at, expected, raises',
+            'at, raises',
             [
-                (0, (0, 0, 0, 0), nullcontext()),
-                (10, (10, 0, 0, 0), nullcontext()),
-                (2000, (2000, 0, 0, 0), nullcontext()),
-                (9500, (9500, 0, 0, 0), nullcontext()),
-                (-1, None, pytest.raises(IndexError)),
+                (0, nullcontext()),
+                (10, nullcontext()),
+                (2000, nullcontext()),
+                (9500, nullcontext()),
+                (-1, pytest.raises(IndexError)),
                 ],
             )
-    def testGetValueAt(self, testIDE, at, expected, raises):
+    def testGetValueAt(self, testIDE, at, raises):
         """ Test for getValueAt method. """
+        if raises == nullcontext():
+            expected = None
+        else:
+            x = np.arange(1000)
+            vals = np.floor(np.array([x*1000, x, 1000.*(x/1000)**2, 1000*(x/1000)**0.5]))
+            expected = np.zeros([4])
+            expected[0] = at
+            for i in range(1, 4):
+                expected[i] = np.interp([at], vals[0], vals[i])
 
         eventArray = testIDE.channels[8].getSession()
         with raises:
-            assert eventArray.getValueAt(at) == expected
+            np.testing.assert_equal(eventArray.getValueAt(at), expected)
 
     @pytest.mark.parametrize(
             't, expected',
