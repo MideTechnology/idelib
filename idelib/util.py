@@ -71,7 +71,7 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
         doc = openFile(doc)
 
     if endTime is None:
-        endTime = sys.maxsize
+        endTime = float('infinity')
 
     # Dictionaries (and similar) for tracking progress of each ChannelDataBlock
     # element handled. All keyed by channel ID (ChannelIDRef).
@@ -187,4 +187,3 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
         updater(done=True)
 
     return copiedBytes, sum(channelsWritten.values())
-
