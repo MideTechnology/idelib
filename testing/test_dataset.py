@@ -1190,83 +1190,29 @@ class TestEventArray:
         accel.dataset.loading = True
         assert accel.getInterval() == (3, 1)
 
-    def testGetItem(self):
+    @pytest.mark.parametrize(
+            'idx, raises',
+            [(0, nullcontext()),
+             (5, nullcontext()),
+             (100, nullcontext()),
+             (-1, nullcontext()),
+             (-500, nullcontext()),
+             (1000, pytest.raises(IndexError)),
+             ('d', pytest.raises(TypeError)),
+             ])
+    def testGetItem(self, eventArray, idx, raises):
         """ Test the getitem special method. """
-        length = 4
-        eventArray = mock.Mock(spec=EventArray)
-        eventArray.configure_mock(
-            useAllTransforms=True,
-            __len__=lambda self: length,
-            _fullXform=None,
-            _data=mock.Mock(),
-            _getBlockIndexWithIndex=lambda idx: range(length)[idx],
-            _getBlockIndexRange=lambda idx: [idx, idx+1],
-            _getBlockSampleTime=lambda idx: 0.01*idx,
-            parent=mock.Mock(),
-            session=mock.sentinel.session,
-            noBivariates=mock.sentinel.noBivariates,
-        )
-        eventArray._data.configure_mock(
-            __getitem__=lambda self, i: mock.Mock(
-                id=i % length, startTime=eventArray._getBlockSampleTime(i)
-            )
-        )
-        eventArray.parent.configure_mock(
-            parseBlock=(lambda block, start=None, end=None, step=1:
-                        np.array([[range(length)[block.id]]]))
-        )
-        with pytest.raises(TypeError):
-            eventArray['d']
 
-        # # if the transform returns a none type, it should just skip through
-        # # and return None
-        # eventArray.configure_mock(
-        #     _fullXform=Univariate((None, 0)),
-        #     _getBlockRollingMean=lambda blockIdx: None,
-        #     hasSubchannels=True,
-        # )
-        # self.assertEqual(EventArray.__getitem__(eventArray, 0), None)
-        # self.assertEqual(EventArray.__getitem__(eventArray, 1), None)
-        # self.assertEqual(EventArray.__getitem__(eventArray, 2), None)
-        # self.assertEqual(EventArray.__getitem__(eventArray, 3), None)
+        if isinstance(raises, nullcontext):
+            x = idx
+            if x < 0:
+                x += 1000
+            expected = np.floor(np.array([x*1000, x, 1000.*(x/1000)**2, 1000*(x/1000)**0.5]))
+        else:
+            expected = None
 
-        # if parent.parseBlock just bounces back data, then it should just
-        # get a tuple with the timestamp and data
-        eventArray.configure_mock(
-            _fullXform=Univariate((7, 0)),
-            _getBlockRollingMean=lambda blockIdx: None,
-            hasSubchannels=True,
-        )
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 0), (0.00, 0))
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 1), (0.01, 7))
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 2), (0.02, 14))
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 3), (0.03, 21))
-
-        # If there is an offset, return a tuple of the timestamp and data,
-        # minus the offset
-        eventArray.configure_mock(
-            _fullXform=Univariate((7, 0)),
-            _getBlockRollingMean=lambda blockIdx: (-5,),
-            hasSubchannels=True,
-        )
-
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 0), (0.00, 35))
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 1), (0.01, 42))
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 2), (0.02, 49))
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 3), (0.03, 56))
-
-        # if hasSubchannels is True, return a tuple of the timestamp and
-        # the single channel's data
-        eventArray.configure_mock(
-            _fullXform=Univariate((7, 0)),
-            _getBlockRollingMean=lambda blockIdx: None,
-            hasSubchannels=False, subchannelId=0
-        )
-        eventArray.parent.configure_mock()
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 0), (0.00, 0))
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 1), (0.01, 7))
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 2), (0.02, 14))
-        np.testing.assert_array_equal(EventArray.__getitem__(eventArray, 3), (0.03, 21))
+        with raises:
+            np.testing.assert_array_equal(eventArray[idx], expected)
 
     def testIter(self, eventArray1):
         """ Test for iter special method. """
@@ -1585,15 +1531,15 @@ class TestEventArray:
             )
     def testGetValueAt(self, testIDE, at, raises):
         """ Test for getValueAt method. """
-        if raises == nullcontext():
-            expected = None
-        else:
+        if isinstance(raises, nullcontext):
             x = np.arange(1000)
             vals = np.floor(np.array([x*1000, x, 1000.*(x/1000)**2, 1000*(x/1000)**0.5]))
             expected = np.zeros([4])
             expected[0] = at
             for i in range(1, 4):
                 expected[i] = np.interp([at], vals[0], vals[i])
+        else:
+            expected = None
 
         eventArray = testIDE.channels[8].getSession()
         with raises:
