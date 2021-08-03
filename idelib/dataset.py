@@ -1759,7 +1759,7 @@ class EventArray(Transformable):
 
             t = block.startTime + self._getBlockSampleTime(blockIdx)*subIdx
             tx = t
-            val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[:, 0]
+            val = self.parent.parseBlock(block, start=subIdx, end=subIdx+1)[:, [0]]
 
             valx = retryUntilReturn(
                 partial(xform.inplace, val, timestamp=t, session=self.session,
@@ -1771,6 +1771,8 @@ class EventArray(Transformable):
             )
             if valx is None:
                 return None
+
+            valx = valx[:, 0]
 
             m = self._getBlockRollingMean(blockIdx)
             if m is not None:
