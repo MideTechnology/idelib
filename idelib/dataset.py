@@ -61,6 +61,7 @@ from time import sleep
 
 from ebmlite.core import loadSchema
 import numpy as np
+import numpy.lib.recfunctions as np_recfunctions
 
 from .transforms import Transform, CombinedPoly, PolyPoly
 from .parsers import getParserTypes, getParserRanges, ChannelDataBlock
@@ -1428,7 +1429,7 @@ class EventArray(Transformable):
                 # XXX: Attempt to calculate min/mean/max here instead of
                 #  in _computeMinMeanMax(). Causes issues with pressure for some
                 #  reason - it starts removing mean and won't plot.
-                vals = self.parseBlock(block)
+                vals = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
                 block.min = vals.min(axis=-1)
                 block.mean = vals.mean(axis=-1)
                 block.max = vals.max(axis=-1)
@@ -1746,11 +1747,14 @@ class EventArray(Transformable):
 
         if isinstance(idx, (int, np.integer)):
 
+
             if idx >= len(self):
                 raise IndexError("EventArray index out of range")
 
             if idx < 0:
                 idx = max(0, len(self) + idx)
+
+            return self.arraySlice(idx, idx + 1)[:, 0]
 
             blockIdx = self._getBlockIndexWithIndex(idx)
             subIdx = idx - self._getBlockIndexRange(blockIdx)[0]
