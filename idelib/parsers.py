@@ -892,26 +892,6 @@ class ChannelDataBlock(BaseDataBlock):
         # 'P': '',
     }
 
-    def parseMinMeanMax(self, parser):
-        if self.minMeanMax is None:
-            return None
-        try:
-            stats = np.array([
-                parser.unpack_from(self.minMeanMax, parser.size*i)
-                for i in range(3)
-            ])
-            # NOTE: Because the SSX Z axis is inverted, the min/max need correction
-            # This may create a performance hit. Optimize?
-            idx = (stats[0] > stats[2])
-            stats[[0, 2]][..., idx] = stats[[2, 0]][..., idx]
-
-            self.min, self.mean, self.max = [i.copy() for i in stats]
-            return stats
-        except struct.error:
-            # Bad min/mean/max data: too short. Ignore it.
-            self.minMeanMax = None
-            return None
-
     @property
     def minMeanMax(self):
         if self._minMeanMaxEl is None:
