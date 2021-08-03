@@ -19,6 +19,9 @@ class TestExtractTime:
         cls.dataset = importer.openFile(os.path.join(os.path.dirname(__file__), "SSX66115.IDE"))
         importer.readData(cls.dataset)
 
+        cls.extractionStart = cls.dataset.sessions[0].lastTime * .33
+        cls.extractionEnd = cls.extractionStart * 2
+
 
     @classmethod
     def teardown_class(cls):
@@ -44,13 +47,13 @@ class TestExtractTime:
         """
         Test extraction with only start time specified.
         """
-        extracted = self.extractTime2tempfile(startTime=4304240,
+        extracted = self.extractTime2tempfile(startTime=self.extractionStart,
                                               endTime=None,
                                               channels=None)
 
         for channel in extracted.channels.values():
             data = channel.getSession()
-            assert data[0][0] <= 4304240
+            assert data[0][0] <= self.extractionStart
 
 
     def test_extractTime_end(self):
@@ -58,34 +61,34 @@ class TestExtractTime:
         Test extraction with only end time specified.
         """
         extracted = self.extractTime2tempfile(startTime=0,
-                                              endTime=8608480,
+                                              endTime=self.extractionEnd,
                                               channels=None)
 
         for channel in extracted.channels.values():
             data = channel.getSession()
-            assert data[-1][0] >= 8608480
+            assert data[-1][0] >= self.extractionEnd
 
 
     def test_extractTime_start_end(self):
         """
         Test extraction with both start and end times specified.
         """
-        extracted = self.extractTime2tempfile(startTime=4304240,
-                                              endTime=8608480,
+        extracted = self.extractTime2tempfile(startTime=self.extractionStart,
+                                              endTime=self.extractionEnd,
                                               channels=None)
 
         for channel in extracted.channels.values():
             data = channel.getSession()
-            assert data[0][0] <= 4304240
-            assert data[-1][0] >= 8608480
+            assert data[0][0] <= self.extractionStart
+            assert data[-1][0] >= self.extractionEnd
 
 
     def test_extractTime_channels(self):
         """
         Test that only data from specified channels is extracted.
         """
-        extracted = self.extractTime2tempfile(startTime=4304240,
-                                              endTime=8608480,
+        extracted = self.extractTime2tempfile(startTime=self.extractionStart,
+                                              endTime=self.extractionEnd,
                                               channels=[8, 36])
 
         assert len(extracted.channels[8].getSession()) > 0
