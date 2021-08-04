@@ -1407,11 +1407,15 @@ class EventArray(Transformable):
             # but don't set hasMinMeanMax.
             if self._singleSample is True:# and not self.hasMinMeanMax:
                 block.minMeanMax = np.tile(block.payload, 3)
-                block.parseMinMeanMax(self.parent.parser)
+                mmmArr = np_recfunctions.structured_to_unstructured(
+                        block._minMeanMax.view(self._npType))
+                block.min, block.mean, block.max = mmmArr
                 self.hasMinMeanMax = False
             elif block.minMeanMax is not None:
-                block.parseMinMeanMax(self.parent.parser)
-                self.hasMinMeanMax = True #self.hasMinMeanMax and True
+                mmmArr = np_recfunctions.structured_to_unstructured(
+                    np.frombuffer(block.minMeanMax, self._npType))
+                block.min, block.mean, block.max = mmmArr
+                self.hasMinMeanMax = True
             else:
                 # XXX: Attempt to calculate min/mean/max here instead of
                 #  in _computeMinMeanMax(). Causes issues with pressure for some

@@ -98,13 +98,6 @@ class TestChannelDataBlock(unittest.TestCase):
         np.testing.assert_array_equal(self.block.payload,
                                       np.asarray(self.block._payloadEl.value))
 
-    def testParseMinMeanMax(self):
-        parser = self.doc.channels[32].parser
-
-        oldVal = super(self.block.__class__, self.block).parseMinMeanMax(parser)
-        newVal = self.block.parseMinMeanMax(parser)
-        np.testing.assert_array_equal(oldVal, newVal)
-
     def testGetHeader(self):
         self.assertEqual(self.block.getHeader(), (211, 32))
 
