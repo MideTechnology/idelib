@@ -5,6 +5,7 @@ Utility functions for doing low-level, general-purpose EBML reading and writing.
 from collections import Counter
 from io import IOBase
 import logging
+import os.path
 from pathlib import Path
 import sys
 
@@ -198,20 +199,45 @@ CHUNK_SIZE = 512 * 1024  # Size of chunks when looking for last sync
 SYNC = b'\xfa\x84ZZZZ'  # The raw EBML of a Sync element
 
 
-def _getLastSync(doc):
+def _getSize(stream):
     """
-    Retrieve the offset of the last `Sync` element in an IDE.
+    Get the length of a stream from its data.
+
+    :param stream: A file stream or file-like object (must implement `tell()`
+        and `seek()`).
+    :returns: The total length of the file.
+    """
+    if hasattr(stream, 'name'):
+        if os.path.isfile(stream.name):
+            return os.path.getsize(stream.name)
+
+    if not (hasattr(stream, 'seek') and hasattr(stream, 'tell')):
+        raise TypeError('Cannot get size of non-stream {}'.format(type(stream)))
+
+    originalPos = stream.tell()
+    thisRead = CHUNK_SIZE
+    while thisRead == CHUNK_SIZE:
+        thisRead = len(stream.read(CHUNK_SIZE))
+
+    eof = stream.tell()
+    stream.seek(originalPos)
+    return eof
+
+
+def _getLastSync(stream, length=None):
+    """
+    Retrieve the offset of the last `Sync` element with data after it in
+    an IDE.
 
     :param doc: The opened IDE `idelib.dataset.Dataset`
     :return: The offset of the last EBML `Sync` element in the file
     """
 
-    length = doc.ebmldoc.size
-    stream = doc.ebmldoc.stream
     if not (hasattr(stream, 'seek') and hasattr(stream, 'tell')):
         raise TypeError("IDE file had bad stream type ({})".format(type(stream)))
 
-    offset = length
+    originalPos = stream.tell()
+    offset = length or _getSize(stream)
 
     while True:
         offset = max(0, offset - CHUNK_SIZE)
@@ -226,11 +252,13 @@ def _getLastSync(doc):
             # they are in the payload, it still implies a ChannelDataBlock.
             block_idx = chunk.find(b'\xa1', sync_idx)
             if -1 < block_idx < chunk.rfind(b'\xb0', block_idx):
-                return offset + sync_idx
+                offset += sync_idx
+                break
         if offset <= 0:
             break
 
-    return 0
+    stream.seek(originalPos)
+    return max(offset, 0)
 
 
 def _getBlockTime(doc, el):
@@ -287,13 +315,18 @@ def _getLength(doc):
         start = min(blockStart, start) if blockStart is not None else blockStart
 
         count += 1
-        if count > 10:
+        if count > 10:  # Note: number is somewhat arbitrary
             break
 
     # Get ending time by jumping to a Sync near the end and reading blocks
     # from there to the end of file.
     stream = doc.ebmldoc.stream
-    stream.seek(_getLastSync(doc))
+
+    # Use the cached EBML document size if the IDE was already fully imported,
+    # otherwise use `None` so `_getLastSync()` will calculate it (faster than
+    # getting uncached `soc.ebmldoc.size`)
+    streamLength = None if doc.loading else doc.ebmldoc.size
+    stream.seek(_getLastSync(stream, streamLength))
     temp_ebml = doc.ebmldoc.schema.load(stream)
 
     for el in temp_ebml:
@@ -330,3 +363,44 @@ def getLength(doc):
     raise TypeError("getLength() needs a filename, stream, or Dataset; got {}".format(type(doc)))
 
 
+# ==============================================================================
+#
+# ==============================================================================
+
+
+def getExitCondition(recording):
+    """ Get the ``ExitCond`` Attribute from the end of a recording, if present.
+        The result will be an integer:
+
+        * 1: Button press
+        * 2: USB connection
+        * 3: Recording time limit reached
+        * 4: Low battery
+        * 5: File size limit reached
+        * 128: I/O error (can occur if disk is full or 4GB FAT32 size limit
+          reached.
+
+        :param recording: The IDE file, either a filename or a file-like object.
+    """
+    result = None
+
+    if isinstance(recording, str):
+        with open(recording, "rb") as fs:
+            return getExitCondition(fs)
+
+    offset = recording.tell()
+
+    recording.seek(_getSize(recording) - CHUNK_SIZE)
+    data = recording.read()
+    try:
+        # Seek out the exit condition Attribute by the
+        # string of its name, then offset to where the
+        # data is expected to be.
+        idx = data.index(b"ExitCond") + 11
+        if idx <= len(data):
+            result = data[idx]
+    except (IOError, IndexError, ValueError) as e:
+        logger.warning(e)
+
+    recording.seek(offset)
+    return result

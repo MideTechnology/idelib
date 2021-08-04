@@ -37,7 +37,7 @@ class TestExtractTime:
         out = tempfile.SpooledTemporaryFile(suffix=".ide")
         util.extractTime(self.dataset, out, **kwargs)
         out.seek(0)
-        extracted = importer.openFile(out, getExitCond=False)
+        extracted = importer.openFile(out)
         importer.readData(extracted)
 
         return extracted
