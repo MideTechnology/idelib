@@ -1425,8 +1425,6 @@ class EventArray(Transformable):
                 block.mean = vals.mean(axis=-1)
                 block.max = vals.max(axis=-1)
                 self.hasMinMeanMax = True
-    #             self.hasMinMeanMax = False
-    #             self.allowMeanRemoval = False
 
             # Cache the index range for faster searching
             self._blockIndices.append(oldLength)
@@ -1749,16 +1747,15 @@ class EventArray(Transformable):
         if isinstance(self.parent, SubChannel):
             xform.polys[self.subchannelId].inplace(rawData, out=out)
         else:
-            for i, (k, _) in enumerate(rawData.dtype.descr):
-                xform.polys[i].inplace(rawData[k], out=out[i])
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
 
-        if subchannels is True:
-            return out
-        else:
+        if isinstance(subchannels, Iterable):
             return out[list(subchannels)]
+        else:
+            return out
 
 
     def iterSlice(self, start=None, end=None, step=1, display=False):
@@ -1816,8 +1813,7 @@ class EventArray(Transformable):
         if isinstance(self.parent, SubChannel):
             xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0])
         else:
-            for i, (k, _) in enumerate(rawData.dtype.descr):
-                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0])
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out[1:], timestamp=out[0])
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
