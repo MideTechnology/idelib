@@ -108,6 +108,11 @@ class TestGetLength:
         cls.dataset = importer.importFile(cls.idefile)
 
 
+    @classmethod
+    def teardown_class(cls):
+        cls.dataset.close()
+
+
     def test_getSize(self):
         with open(self.idefile, 'rb') as fs:
             assert util._getSize(fs) == os.path.getsize(self.idefile), \
@@ -128,11 +133,33 @@ class TestGetLength:
     def test_getLastSync(self):
         # get all SyncElement offsets, since _getLastSync() doesn't get the
         # actual last sync, just one with data following it.
-        syncs = [el.offset for el in self.dataset.ebmldoc if el.name == "Sync"]
+        syncs = []
+        lastData = None
+        for el in self.dataset.ebmldoc:
+            if el.name == "ChannelDataBlock":
+                lastData = el
+            elif el.name == "Sync":
+                syncs.append(el.offset)
 
         with open(self.idefile, 'rb') as fs:
-            assert util._getLastSync(fs) in syncs, \
+            lastSync = util._getLastSync(fs)
+
+            assert lastSync in syncs, \
                 "_getLastSync() did not find SyncElement"
+            assert lastSync < lastData.offset, \
+                "_getLastSync() returned a SyncElement after all data"
+
+
+    def test_getBlockSize(self):
+        # Check _getBlockSize() gets the same values as the 'real' parser
+        for channel in self.dataset.channels.values():
+            for block in channel.getSession()._data:
+                cid, start, end = util._getBlockTime(self.dataset, block.element)
+
+                assert cid == channel.id, \
+                    "_getBlockSize() parsed ChannelID wrong"
+                assert start == block.startTime
+                assert end == block.endTime
 
 
     def test_getLength(self):
@@ -148,3 +175,5 @@ class TestGetLength:
         # Exit condition read when the file is fully imported.
         assert self.dataset.exitCondition == util.getExitCondition(self.idefile), \
             "getExitCondition() did not match Document.exitCondition"
+
+
