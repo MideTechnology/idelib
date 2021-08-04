@@ -10,6 +10,7 @@ import sys
 
 from ebmlite import loadSchema
 
+from .dataset import Dataset
 from .importer import openFile
 
 # ==============================================================================
@@ -187,3 +188,145 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
         updater(done=True)
 
     return copiedBytes, sum(channelsWritten.values())
+
+
+# ==============================================================================
+#
+# ==============================================================================
+
+CHUNK_SIZE = 512 * 1024  # Size of chunks when looking for last sync
+SYNC = b'\xfa\x84ZZZZ'  # The raw EBML of a Sync element
+
+
+def _getLastSync(doc):
+    """
+    Retrieve the offset of the last `Sync` element in an IDE.
+
+    :param doc: The opened IDE `idelib.dataset.Dataset`
+    :return: The offset of the last EBML `Sync` element in the file
+    """
+
+    length = doc.ebmldoc.size
+    stream = doc.ebmldoc.stream
+    if not (hasattr(stream, 'seek') and hasattr(stream, 'tell')):
+        raise TypeError("IDE file had bad stream type ({})".format(type(stream)))
+
+    offset = length
+
+    while True:
+        offset = max(0, offset - CHUNK_SIZE)
+        stream.seek(offset)
+        chunk = stream.read(CHUNK_SIZE + len(SYNC))
+        sync_idx = chunk.find(SYNC)
+        if sync_idx > -1:
+            # Make sure there's data after it by checking for ChannelDataBlock
+            # IDs. This is somewhat brittle, since the IDs are 1 byte, but it
+            # is not likely for anything but a ChannelDataBlock would have the
+            # IDs for ChannelDataBlock and ChannelIDRef in order. Even if
+            # they are in the payload, it still implies a ChannelDataBlock.
+            block_idx = chunk.find(b'\xa1', sync_idx)
+            if -1 < block_idx < chunk.rfind(b'\xb0', block_idx):
+                return offset + sync_idx
+        if offset <= 0:
+            break
+
+    return 0
+
+
+def _getBlockTime(doc, el):
+    """
+    Internal utility function to quickly get the ID and start and end times
+    of an IDE `ChannelDataBlock`. Works directly with the EBML.
+
+    :param doc: The opened IDE `idelib.dataset.Dataset`
+    :param el: The `ChannelDataBlock EBML element to process
+    :return: A tuple containing channel ID, start time, and end time.
+    """
+    start = end = None
+    chId = blockStart = blockEnd = None
+    for subEl in el:
+        if subEl.name == "ChannelIDRef":
+            chId = subEl.value
+        elif subEl.name == "StartTimeCodeAbs":
+            blockStart = subEl.value
+        elif subEl.name == "EndTimeCodeAbs":
+            blockEnd = subEl.value
+
+    # TODO: Modulus correction, if still needed (i.e., very old files)
+    blockEnd = blockEnd or blockStart
+    scalar = doc._parsers['ChannelDataBlock'].timeScalars.get(chId, 1)
+    if blockStart is not None:
+        # logger.warning("getLength: {} missing <EndTimeCodeAbs> subelement, skipping.".format(el))
+        start = blockStart // (1.0 / scalar)
+    if blockEnd is not None:
+        # logger.warning("getLength: {} missing <EndTimeCodeAbs> subelement, skipping.".format(el))
+        end = blockEnd // (1.0 / scalar)
+
+    return chId, start, end
+
+
+def _getLength(doc):
+    """
+    Retrieve the start and end times of an `idelib.dataset.Dataset` (e.g. an
+    open/imported IDE file). Used by `getLength()`.
+
+    :param doc: The opened IDE file
+    :return: The timestamps of the first and last samples in the file, in
+        microseconds, relative to the start of the recording.
+    """
+    start = float('infinity')
+    end = 0
+
+    # Get starting time, reading several blocks since different channels
+    # may not be in chronological order.
+    count = 0
+    for el in doc.ebmldoc:
+        if el.name != "ChannelDataBlock":
+            continue
+        _chId, blockStart, _blockEnd = _getBlockTime(doc, el)
+        start = min(blockStart, start) if blockStart is not None else blockStart
+
+        count += 1
+        if count > 10:
+            break
+
+    # Get ending time by jumping to a Sync near the end and reading blocks
+    # from there to the end of file.
+    stream = doc.ebmldoc.stream
+    stream.seek(_getLastSync(doc))
+    temp_ebml = doc.ebmldoc.schema.load(stream)
+
+    for el in temp_ebml:
+        if el.name != "ChannelDataBlock":
+            continue
+
+        _chId, _blockStart, blockEnd = _getBlockTime(doc, el)
+        if blockEnd:
+            end = max(blockEnd, end)
+
+    return start, end
+
+
+def getLength(doc):
+    """
+    Efficiently retrieve the start and end times of an IDE file, without it
+    having to be fully imported.
+
+    :param doc: The IDE filename, an `idelib.dataset.Dataset`, or stream
+        containing IDE data.
+    :return: The timestamps of the first and last samples in the file, in
+        microseconds, relative to the start of the recording.
+    """
+    # This really just wraps `_getLength()` in order to handle different
+    # source `doc` types
+    if isinstance(doc, str):
+        with open(doc, 'rb') as f:
+            return _getLength(openFile(f))
+    elif isinstance(doc, Dataset):
+        return _getLength(doc)
+    elif isinstance(doc, IOBase):
+        return _getLength(openFile(doc))
+
+    raise TypeError("getLength() needs a filename, stream, or Dataset; got {}".format(type(doc)))
+
+
