@@ -1452,115 +1452,9 @@ class EventArray(Transformable):
 
         return self._firstTime, self._lastTime
 
-
-    #===========================================================================
-    # New utility methods
-    #===========================================================================
-
-    def _makeBlockEventsFactory(self, display):
-        """ Generates a function that makes numpy arrays of event data.
-            The generated function is optimized to be run repeatedly in a loop.
-        """
-
-        # OPTIMIZATION: making local variables for faster access
-        parent = self.parent
-        session = self.session
-        hasSubchannels = self.hasSubchannels
-        if not hasSubchannels:
-            subchannelId = parent.id
-        _getBlockRollingMean = self._getBlockRollingMean
-        removeMean = (self.allowMeanRemoval and self.removeMean
-#                       and self.hasMinMeanMax
-                      )
-
-        if not self.useAllTransforms:
-            xform = self._comboXform
-        elif display:
-            xform = self._displayXform or self._fullXform
-        else:
-            xform = self._fullXform
-
-        def _makeBlockEvents(times, values, block, blockIdx):
-            """ Creates a structured array of event data for a given set of
-                event times and values. (Used in event iteration methods.)
-            """
-            values = xform.inplace(values,
-                                   timestamp=times,
-                                   session=session,
-                                   noBivariates=self.noBivariates)
-
-            # Note: _getBlockRollingMean returns None if removeMean==False
-            if removeMean:
-                offset = xform.inplace(_getBlockRollingMean(blockIdx),
-                                       timestamp=block.startTime,
-                                       session=session,
-                                       noBivariates=self.noBivariates)
-
-                if offset is not None:
-                    values -= np.array(offset)[..., np.newaxis]
-                else:
-                    logger.info('%r event offset is None' % parent.name)
-
-            if not hasSubchannels:
-                values = values[[subchannelId]]
-
-            return (times, values)
-
-        return _makeBlockEvents
-
     #===========================================================================
     # Old utility methods
     #===========================================================================
-
-    def _getBlockIndexRange(self, blockIdx):
-        """ Get the first and last index of the subsamples within a block,
-            as if the channel were just a flat list of subsamples.
-        """
-        block = self._data[blockIdx]
-        # EventArray.append() should set block.indexRange. In case it didn't:
-        if block.indexRange is None:
-            total = 0
-            for i in range(blockIdx+1):
-                if self._data[i].indexRange is None:
-                    numSamples = block.getNumSamples(self.parent.parser)
-                    self._data[i].indexRange = (total, total+numSamples)
-                    total += numSamples 
-        return block.indexRange
-            
-
-    def _getBlockTimeRange(self, blockIdx):
-        """ Get the start and end times of an individual data block.
-            Note that this takes an index, not a reference to the actual
-            element itself!
-
-            :param blockIdx: The index of the block to check.
-            :return: A tuple with the blocks start and end times.
-        """
-        block = self._data[blockIdx]
-        try:
-            return block._timeRange
-        except AttributeError:
-            if block.endTime is None:
-                # Probably a SimpleChannelDataBlock, which doesn't record end.
-                if len(self._data) == 1:
-                    # Can't compute without another block's start.
-                    # Don't cache; another thread may still be loading document
-                    # TODO: Have sensor description provide nominal sample rate?
-                    return block.startTime, None
-                
-                elif block.numSamples <= 1:
-                    block.endTime = block.startTime + self._getBlockSampleTime(blockIdx)
-    
-                elif blockIdx < len(self._data)-1:
-                    block.endTime = self._data[blockIdx+1].startTime - \
-                                    self._getBlockSampleTime(blockIdx)
-                else:
-                    block.endTime = block.startTime + \
-                                    (block.getNumSamples(self.parent.parser)-1) * \
-                                    self._getBlockSampleTime(blockIdx)
-                
-            block._timeRange = block.startTime, block.endTime
-            return block._timeRange
         
     def _getBlockIndexWithIndex(self, idx, start=0, stop=None):
         """ Get the index of a raw data block that contains the given event
@@ -1829,8 +1723,6 @@ class EventArray(Transformable):
                 'display' transform) will be applied to the data.
             :return: a structured array of values in the specified index range.
         """
-        # TODO: Optimize; times don't need to be computed since they aren't used
-        # -> take directly from _blockSlice
 
         if not isinstance(start, slice):
             start = slice(start, end, step)
@@ -1863,56 +1755,6 @@ class EventArray(Transformable):
             return out
         else:
             return out[list(subchannels)]
-
-
-    def _blockSlice(self, start=None, end=None, step=1, display=False):
-        """ Create an iterator producing events packed into numpy arrays for a
-            range of indices.
-
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
-                a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
-                'display' transform) will be applied to the data.
-            :return: an iterable of events in the specified index range.
-        """
-        # TODO: optimization: refactor calls of iterSlice() to pass slices?
-        if not isinstance(start, slice):
-            start = slice(start, end, step)
-        start, end, step = start.indices(len(self))
-
-        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
-        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
-
-        blockStep = max(1, step / self._data[startBlockIdx].numSamples)
-        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
-
-        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
-        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-
-        # OPTIMIZATION: making local variables for faster access
-        _data = self._data
-        _getBlockSampleTime = self._getBlockSampleTime
-        parent_parseBlock = self.parent.parseBlock
-        makeBlockEvents = self._makeBlockEventsFactory(display)
-
-        # in each block, the next subIdx is (step+subIdx)%numSamples
-        for i in range(numBlocks):
-            blockIdx = int(startBlockIdx + (i * blockStep))
-            block = _data[blockIdx]
-            sampleTime = _getBlockSampleTime(blockIdx)
-            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
-                          else block.numSamples)
-
-            yield makeBlockEvents(
-                times=(block.startTime
-                       + sampleTime*np.arange(subIdx, lastSubIdx, step)),
-                values=parent_parseBlock(block, subIdx, lastSubIdx, step),
-                block=block, blockIdx=blockIdx,
-            )
-
-            subIdx = (lastSubIdx-1+step) % block.numSamples
 
 
     def iterSlice(self, start=None, end=None, step=1, display=False):
@@ -1977,73 +1819,6 @@ class EventArray(Transformable):
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
 
         return out
-
-
-    def _blockJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
-                           display=False):
-        """ Create an iterator producing events for a range of indices.
-
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
-                a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword jitter: The amount by which to vary the sample time, as a
-                normalized percentage of the regular time between samples.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
-                'display' transform) will be applied to the data.
-            :return: an iterable of events in the specified index range.
-        """
-        # TODO: optimization: refactor calls of iterJitterySlice() to pass slices?
-        if not isinstance(start, slice):
-            start = slice(start, end, step)
-        start, end, step = start.indices(len(self))
-
-        if jitter is True:
-            jitter = 0.5
-        scaledJitter = jitter * abs(step)
-
-        indices = np.arange(start, end, step)
-        if scaledJitter > 0.5:
-            indices[1:-1] += np.rint(
-                    scaledJitter*np.random.uniform(-1, 1, max(0, len(indices) - 2))
-                    ).astype(indices.dtype)
-
-        startBlockIdx = self._getBlockIndexWithIndex(start) if start > 0 else 0
-        endBlockIdx = self._getBlockIndexWithIndex(end-1, start=startBlockIdx)
-
-        blockStep = max(1, step / self._data[startBlockIdx].numSamples)
-        numBlocks = int((endBlockIdx - startBlockIdx) / blockStep)+1
-
-        subIdx = start - self._getBlockIndexRange(startBlockIdx)[0]
-        endSubIdx = end - self._getBlockIndexRange(endBlockIdx)[0]
-
-        # OPTIMIZATION: making local variables for faster access
-        _data = self._data
-        _getBlockSampleTime = self._getBlockSampleTime
-        parent_parseBlockByIndex = self.parent.parseBlockByIndex
-        makeBlockEvents = self._makeBlockEventsFactory(display)
-
-        # in each block, the next subIdx is (step+subIdx)%numSamples
-        for i in range(numBlocks):
-            blockIdx = int(startBlockIdx + (i * blockStep))
-            block = _data[blockIdx]
-            sampleTime = _getBlockSampleTime(blockIdx)
-            lastSubIdx = (endSubIdx if blockIdx == endBlockIdx
-                          else block.numSamples)
-
-            indices = np.arange(subIdx, lastSubIdx, step)
-            if scaledJitter > 0.5:
-                indices[1:-1] += np.rint(
-                    scaledJitter * np.random.uniform(-1, 1, max(0, len(indices)-2))
-                ).astype(indices.dtype)
-
-            yield makeBlockEvents(
-                times=(block.startTime + sampleTime * indices),
-                values=parent_parseBlockByIndex(block, indices),
-                block=block, blockIdx=blockIdx,
-            )
-
-            subIdx = (lastSubIdx-1+step) % block.numSamples
 
 
     def iterJitterySlice(self, start=None, end=None, step=1, jitter=0.5,
