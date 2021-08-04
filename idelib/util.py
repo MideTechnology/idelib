@@ -207,14 +207,17 @@ def _getSize(stream):
         and `seek()`).
     :returns: The total length of the file.
     """
+    if not (hasattr(stream, 'seek') and hasattr(stream, 'tell')):
+        raise TypeError('Cannot get size of non-stream {}'.format(type(stream)))
+
+    # If it's a real file, no problem!
     if hasattr(stream, 'name'):
         if os.path.isfile(stream.name):
             return os.path.getsize(stream.name)
 
-    if not (hasattr(stream, 'seek') and hasattr(stream, 'tell')):
-        raise TypeError('Cannot get size of non-stream {}'.format(type(stream)))
-
     originalPos = stream.tell()
+
+    # Grab chunks until less is read than requested.
     thisRead = CHUNK_SIZE
     while thisRead == CHUNK_SIZE:
         thisRead = len(stream.read(CHUNK_SIZE))
@@ -229,7 +232,10 @@ def _getLastSync(stream, length=None):
     Retrieve the offset of the last `Sync` element with data after it in
     an IDE.
 
-    :param doc: The opened IDE `idelib.dataset.Dataset`
+    :param stream: A file stream or file-like object (must implement `tell()`
+        and `seek()`).
+    :param length: The length of the file, if already known. The length
+        will be calculated if `None`.
     :return: The offset of the last EBML `Sync` element in the file
     """
 

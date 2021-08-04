@@ -1,6 +1,7 @@
 import os.path
 import tempfile
 
+from ebmlite import loadSchema
 import pytest  # type: ignore
 
 from idelib import importer
@@ -91,6 +92,59 @@ class TestExtractTime:
                                               endTime=self.extractionEnd,
                                               channels=[8, 36])
 
-        assert len(extracted.channels[8].getSession()) > 0
-        assert len(extracted.channels[36].getSession()) > 0
-        assert len(extracted.channels[32].getSession()) == 0
+        assert len(extracted.channels[8].getSession()) > 0, \
+            "Extracted file did not contain data for specified channel"
+        assert len(extracted.channels[36].getSession()) > 0, \
+            "Extracted file did not contain data for specified channel"
+        assert len(extracted.channels[32].getSession()) == 0, \
+            "Extracted file contain data from excluded channel"
+
+
+class TestGetLength:
+
+    @classmethod
+    def setup_class(cls):
+        cls.idefile = os.path.join(os.path.dirname(__file__), "SSX66115.IDE")
+        cls.dataset = importer.importFile(cls.idefile)
+
+
+    def test_getSize(self):
+        with open(self.idefile, 'rb') as fs:
+            assert util._getSize(fs) == os.path.getsize(self.idefile), \
+                    "_getSize() of file stream did not match actual size"
+
+            fs.seek(100)
+            assert util._getSize(fs) == os.path.getsize(self.idefile), \
+                    "_getSize() of file stream (tell > 0) did not match actual size"
+            assert fs.tell() == 100, \
+                    "_getSize() did not restore file position"
+
+
+        with makeStreamLike('./testing/SSX66115.IDE') as fs:
+            assert util._getSize(fs) == os.path.getsize(self.idefile), \
+                   "_getSize() of non-file stream did not match actual size"
+
+
+    def test_getLastSync(self):
+        # get all SyncElement offsets, since _getLastSync() doesn't get the
+        # actual last sync, just one with data following it.
+        syncs = [el.offset for el in self.dataset.ebmldoc if el.name == "Sync"]
+
+        with open(self.idefile, 'rb') as fs:
+            assert util._getLastSync(fs) in syncs, \
+                "_getLastSync() did not find SyncElement"
+
+
+    def test_getLength(self):
+        first, last = util.getLength(self.dataset)
+
+        assert self.dataset.lastSession.firstTime == first, \
+            "getLength() starting time did not match Dataset"
+        assert self.dataset.lastSession.lastTime == last, \
+            "getLength() ending time did not match Dataset"
+
+
+    def test_getExitCondition(self):
+        # Exit condition read when the file is fully imported.
+        assert self.dataset.exitCondition == util.getExitCondition(self.idefile), \
+            "getExitCondition() did not match Document.exitCondition"
