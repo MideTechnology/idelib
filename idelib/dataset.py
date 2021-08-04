@@ -1158,19 +1158,6 @@ class SubChannel(Channel):
 #
 #===============================================================================
 
-def retryUntilReturn(func, max_tries, delay=0, on_fail=(lambda: None),
-                     default=None):
-    """ Repeats a function call until a non-None value is returned, and
-        returns that value.
-    """
-    for _ in range(max_tries):
-        value = func()
-        if value is not None:
-            return value
-        on_fail()
-        sleep(delay)
-    return default
-
 
 class EventArray(Transformable):
     """ A list-like object containing discrete time/value pairs. Data is 
@@ -1497,33 +1484,17 @@ class EventArray(Transformable):
             """ Creates a structured array of event data for a given set of
                 event times and values. (Used in event iteration methods.)
             """
-            values = retryUntilReturn(
-                partial(xform.inplace, values, timestamp=times, session=session,
-                        noBivariates=self.noBivariates),
-                max_tries=2, delay=0.001,
-                on_fail=partial(logger.info,
-                                "%s: bad transform @%s"
-                                % (parent.name, times)),
-            )
-            # values = np.asarray(values)
+            values = xform.inplace(values,
+                                   timestamp=times,
+                                   session=session,
+                                   noBivariates=self.noBivariates)
 
             # Note: _getBlockRollingMean returns None if removeMean==False
             if removeMean:
-                offset = retryUntilReturn(
-                    partial(_getBlockRollingMean, blockIdx),
-                    max_tries=2, delay=0.001,
-                    on_fail=partial(logger.info,
-                                    "%s: bad offset (1) @%s"
-                                    % (parent.name, block.startTime)),
-                )
-                offset = retryUntilReturn(
-                    partial(xform.inplace, offset, timestamp=block.startTime, session=session,
-                            noBivariates=self.noBivariates),
-                    max_tries=2, delay=0.001, default=(None, offset),
-                    on_fail=partial(logger.info,
-                                    "%s: bad offset (2) @%s"
-                                    % (parent.name, block.startTime)),
-                )
+                offset = xform.inplace(_getBlockRollingMean(blockIdx),
+                                       timestamp=block.startTime,
+                                       session=session,
+                                       noBivariates=self.noBivariates)
 
                 if offset is not None:
                     values -= np.array(offset)[..., np.newaxis]
