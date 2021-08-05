@@ -390,6 +390,10 @@ def getExitCondition(recording):
     """
     result = None
 
+    if hasattr(recording, 'filename'):
+        # A `Dataset` or `ebmlite.Document`
+        recording = recording.filename
+
     if isinstance(recording, str):
         with open(recording, "rb") as fs:
             return getExitCondition(fs)

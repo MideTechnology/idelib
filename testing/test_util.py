@@ -100,7 +100,15 @@ class TestExtractTime:
             "Extracted file contain data from excluded channel"
 
 
+# ==============================================================================
+#
+# ==============================================================================
+
 class TestGetLength:
+    """
+    Test `util.getLength()` and associated `util` functions. Also tests
+    `util.getExitCondition()`, since it uses some of the same functions.
+    """
 
     @classmethod
     def setup_class(cls):
@@ -145,9 +153,17 @@ class TestGetLength:
             lastSync = util._getLastSync(fs)
 
             assert lastSync in syncs, \
-                "_getLastSync() did not find SyncElement"
+                "_getLastSync(file) did not find SyncElement"
             assert lastSync < lastData.offset, \
-                "_getLastSync() returned a SyncElement after all data"
+                "_getLastSync(file) returned a SyncElement after all data"
+
+        with makeStreamLike('./testing/SSX66115.IDE') as fs:
+            lastSync = util._getLastSync(fs)
+
+            assert lastSync in syncs, \
+                "_getLastSync(stream) did not find SyncElement"
+            assert lastSync < lastData.offset, \
+                "_getLastSync(stream) returned a SyncElement after all data"
 
 
     def test_getBlockSize(self):
@@ -166,14 +182,30 @@ class TestGetLength:
         first, last = util.getLength(self.dataset)
 
         assert self.dataset.lastSession.firstTime == first, \
-            "getLength() starting time did not match Dataset"
+            "getLength(Dataset) starting time did not match Dataset"
         assert self.dataset.lastSession.lastTime == last, \
-            "getLength() ending time did not match Dataset"
+            "getLength(Dataset) ending time did not match Dataset"
+
+        with makeStreamLike('./testing/SSX66115.IDE') as fs:
+            first, last = util.getLength(fs)
+
+            assert self.dataset.lastSession.firstTime == first, \
+                "getLength(stream) starting time did not match Dataset"
+            assert self.dataset.lastSession.lastTime == last, \
+                "getLength(stream) ending time did not match Dataset"
 
 
     def test_getExitCondition(self):
         # Exit condition read when the file is fully imported.
         assert self.dataset.exitCondition == util.getExitCondition(self.idefile), \
-            "getExitCondition() did not match Document.exitCondition"
+            "getExitCondition(filename) did not match Dataset.exitCondition"
 
+        with makeStreamLike('./testing/SSX66115.IDE') as fs:
+            assert self.dataset.exitCondition == util.getExitCondition(fs), \
+                "getExitCondition(stream) did not match Dataset.exitCondition"
 
+        assert self.dataset.exitCondition == util.getExitCondition(self.dataset), \
+            "getExitCondition(Dataset) did not match Dataset.exitCondition"
+
+        assert self.dataset.exitCondition == util.getExitCondition(self.dataset.ebmldoc), \
+            "getExitCondition(ebmlite.Document) did not match Dataset.exitCondition"
