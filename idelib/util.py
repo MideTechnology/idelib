@@ -386,7 +386,8 @@ def getExitCondition(recording):
         * 128: I/O error (can occur if disk is full or 4GB FAT32 size limit
           reached.
 
-        :param recording: The IDE file, either a filename or a file-like object.
+    :param recording: The IDE filename, an `idelib.dataset.Dataset`, an
+        `ebmlite.core.Dataset`, or stream containing IDE data.
     """
     result = None
 
@@ -397,6 +398,9 @@ def getExitCondition(recording):
     if isinstance(recording, str):
         with open(recording, "rb") as fs:
             return getExitCondition(fs)
+
+    if not (hasattr(recording, 'seek') and hasattr(recording, 'tell')):
+        raise TypeError("IDE file had bad stream type ({})".format(type(recording)))
 
     offset = recording.tell()
 

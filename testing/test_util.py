@@ -100,6 +100,11 @@ class TestExtractTime:
             "Extracted file contain data from excluded channel"
 
 
+    def test_extractTime_error(self):
+        with pytest.raises(TypeError):
+            util.extractTime(self.dataset, None)
+
+
 # ==============================================================================
 #
 # ==============================================================================
@@ -132,10 +137,12 @@ class TestGetLength:
             assert fs.tell() == 100, \
                     "_getSize() did not restore file position"
 
-
         with makeStreamLike('./testing/SSX66115.IDE') as fs:
             assert util._getSize(fs) == os.path.getsize(self.idefile), \
                    "_getSize() of non-file stream did not match actual size"
+
+        with pytest.raises(TypeError):
+            util._getSize("not a stream")
 
 
     def test_getLastSync(self):
@@ -164,6 +171,9 @@ class TestGetLength:
                 "_getLastSync(stream) did not find SyncElement"
             assert lastSync < lastData.offset, \
                 "_getLastSync(stream) returned a SyncElement after all data"
+
+        with pytest.raises(TypeError):
+            util._getLastSync("not a stream")
 
 
     def test_getBlockSize(self):
@@ -194,6 +204,9 @@ class TestGetLength:
             assert self.dataset.lastSession.lastTime == last, \
                 "getLength(stream) ending time did not match Dataset"
 
+        with pytest.raises(TypeError):
+            util.getLength(None)
+
 
     def test_getExitCondition(self):
         # Exit condition read when the file is fully imported.
@@ -209,3 +222,6 @@ class TestGetLength:
 
         assert self.dataset.exitCondition == util.getExitCondition(self.dataset.ebmldoc), \
             "getExitCondition(ebmlite.Document) did not match Dataset.exitCondition"
+
+        with pytest.raises(TypeError):
+            util.getExitCondition(None)
