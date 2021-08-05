@@ -224,7 +224,7 @@ class Dataset(Cascading):
             for adjusting/calibrating sensor data.
     """
 
-    def __init__(self, stream, name=None, quiet=True):
+    def __init__(self, stream, name=None, quiet=True, attributes=None):
         """ Constructor. Typically, these objects will be instantiated by
             functions in the `importer` module.
         
@@ -233,6 +233,9 @@ class Dataset(Cascading):
                 base name of the file (if applicable).
             :keyword quiet: If `True`, non-fatal errors (e.g. schema/file
                 version mismatches) are suppressed. 
+            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+                ``Attribute`` elements parsed from the file. Typically
+                used for diagnostic data.
         """
         self.lastUtcTime = None
         self.sessions = []
@@ -246,7 +249,7 @@ class Dataset(Cascading):
         self.recorderInfo = {}
         self.recorderConfig = None
 
-        self.attributes = {}
+        self.attributes = attributes if attributes else {}
 
         # For keeping track of element parsers in import.
         self._parsers = None
