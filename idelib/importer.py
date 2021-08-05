@@ -8,6 +8,7 @@ import sys
 from time import time as time_time
 from time import sleep
 
+import numpy as np
 import struct
 
 from . import transforms
@@ -21,7 +22,7 @@ from . import parsers
 # from dataset import __DEBUG__
 
 import logging
-logger = logging.getLogger('idelib-archive')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 
@@ -427,18 +428,17 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     
     timeOffset = 0
     maxPause = getattr(updater, "maxPause", maxPause)
-    
+
     # Actual importing ---------------------------------------------------------
     if source is None:
         source = doc
     try:    
         # This just skips 'header' elements. It could be more efficient, but
         # the size of the header isn't significantly large; savings are minimal.
+
         for r in source.ebmldoc:
             
             r_name = r.name
-            if r_name == "ChannelDataBlock":
-                r_name = "ChannelDataArrayBlock"
             
             doc.loadCancelled = getattr(updater, "cancelled", False)
             if doc.loadCancelled:
@@ -459,7 +459,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
                 continue
             
             # HACK: Not the best implementation. Should be moved somewhere.
-            if onlyChannel is not None and (r_name == "ChannelDataArrayBlock"):
+            if onlyChannel is not None and (r_name == "ChannelDataBlock"):
                 if r.value[0].value != onlyChannel:
                     continue 
             
@@ -489,7 +489,7 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:
                 # Update progress bar
                 updater(count=eventsRead+samplesRead,
-                        percent=(thisOffset-firstDataPos+0.0)/dataSize)
+                        percent=(1/3) + (2/3)*(thisOffset-firstDataPos)/dataSize)
                 nextUpdatePos = thisOffset + ticSize
                 nextUpdateTime = thisTime + updateInterval
             
@@ -505,6 +505,8 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         # This can occur if there is a bad element in the data
         # (typically the last)
         doc.fileDamaged = True
+
+    doc.fillCaches()
 
     doc.loading = False
     updater(done=True)
