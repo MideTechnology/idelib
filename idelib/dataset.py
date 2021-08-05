@@ -1164,8 +1164,8 @@ class EventArray(Transformable):
         dynamically read from the underlying EBML file. 
     """
 
-    # Default 5 second rolling mean
-    DEFAULT_MEAN_SPAN = 5000000
+    # Width of rolling mean (microseconds), or -1 for total mean removal.
+    DEFAULT_MEAN_SPAN = -1
 
     def __init__(self, parentChannel, session=None, parentList=None):
         """ Constructor. This should almost always be done indirectly via
