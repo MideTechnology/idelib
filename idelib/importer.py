@@ -2,18 +2,19 @@
 
 """
 
+from collections import Counter
 from datetime import datetime
 import os.path
 import sys
 from time import time as time_time
 from time import sleep
 
-import numpy as np
 import struct
 
 from . import transforms
 from .dataset import Dataset
 from . import parsers
+
 
 #===============================================================================
 # 
@@ -205,12 +206,20 @@ def instantiateParsers(doc, parserTypes=elementParserTypes):
 # Updater callbacks
 #===============================================================================
 
-def nullUpdater(*args, **kwargs):
+def _functionlike(cls):
+    """ Decorator for a singleton callable class. """
+    return cls()
+
+
+@_functionlike
+class NullUpdater:
     """ A progress updater stand-in that does nothing. """
-    if kwargs.get('error',None) is not None:
-        raise kwargs['error']
-nullUpdater.cancelled = False
-nullUpdater.paused = False
+    cancelled = False
+    paused = False
+
+    def __call__(self, *args, **kwargs):
+        if kwargs.get('error', None) is not None:
+            raise kwargs['error']
 
 
 class SimpleUpdater(object):
@@ -266,32 +275,36 @@ class SimpleUpdater(object):
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
 
-def importFile(filename='', updater=nullUpdater, numUpdates=500,
-               updateInterval=1.0, parserTypes=elementParserTypes, 
-               defaults=DEFAULTS, name=None, quiet=False):
+def importFile(filename='', startTime=None, endTime=None, channels=None,
+               updater=None, numUpdates=500, updateInterval=1.0,
+               parserTypes=elementParserTypes, defaults=None, name=None,
+               quiet=False):
     """ Create a new Dataset object and import the data from a MIDE file. 
         Primarily for testing purposes. The GUI does the file creation and 
         data loading in two discrete steps, as it will need a reference to 
         the new document before the loading starts.
         :see: `readData()`
     """
+    updater = updater or NullUpdater
+    defaults = defaults or DEFAULTS
+
     stream = open(filename, "rb")
     doc = openFile(stream, updater=updater, name=name, parserTypes=parserTypes,
                    defaults=defaults, quiet=quiet)
-    readData(doc, updater=updater, numUpdates=numUpdates, 
-             updateInterval=updateInterval, parserTypes=parserTypes, 
-             defaults=defaults)
+    readData(doc, startTime=startTime, endTime=endTime, channels=channels,
+             updater=updater, numUpdates=numUpdates, updateInterval=updateInterval,
+             parserTypes=parserTypes, defaults=defaults)
     return doc
 
 
-def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,  
-             defaults=DEFAULTS, name=None, quiet=False, getExitCond=True):
+def openFile(stream, updater=None, parserTypes=elementParserTypes,
+             defaults=None, name=None, quiet=False, getExitCond=True):
     """ Create a `Dataset` instance and read the header data (i.e. non-sample-
         data). When called by a GUI, this function should be considered 'modal,' 
         in that it shouldn't run in a background thread, unlike `readData()`. 
         
         :param stream: The file or file-like object containing the EBML data.
-        :keyword updater: A function (or function-like object) to notify as 
+        :keyword updater: A function (or function-like object) to notify as
             work is done. It should take four keyword arguments: `count` (the 
             current line number), `total` (the total number of samples), `error` 
             (an unexpected exception, if raised during the import), and `done` 
@@ -308,6 +321,9 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
             version mismatches) are suppressed. 
         :return: The opened (but still 'empty') `dataset.Dataset`
     """
+    updater = updater or NullUpdater
+    defaults = defaults or DEFAULTS
+
     if isinstance(stream, str):
         stream = open(stream, 'rb')
     
@@ -359,14 +375,126 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
     return doc
 
 
-def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterval=.1,
+def filterTime(doc, startTime=0, endTime=None, channels=None):
+    """ Efficiently read data within a certain interval from an IDE file.
+        Note that due to the way data is stored in an IDE, the exported
+        interval will be slightly wider than the specified start and end
+        times; this ensures the data is copied verbatim and without loss.
+
+        :param doc: An opened (but not yet fully imported) `Dataset`.
+        :param startTime: The start of the extraction range, relative to the
+            recording's start.
+        :param endTime: The end of the extraction range, relative to the
+            recording's end.
+        :yields: Elements from the `Dataset`'s EBML file, excluding
+            `ChannelDataBlock`s outside of the specified time range, or
+            `None`.
+    """
+    if startTime == endTime:
+        raise ValueError('startTime and endTime must differ')
+
+    startTime, endTime = sorted((startTime or 0,
+                                 endTime or float('infinity')))
+
+    # Dictionaries (and similar) for tracking progress of each ChannelDataBlock
+    # element handled. All keyed by channel ID (ChannelIDRef).
+    lastBlocks = {}  # Previous element w/ its start and end times
+    channelsWritten = Counter()  # Number of elements extracted per channel
+    finished = {}  # Channels that have completed extraction
+
+    try:
+        timeScalars = doc._parsers['ChannelDataBlock'].timeScalars
+
+        for el in doc.ebmldoc:
+            if el.name == 'ChannelDataBlock':
+                # Get ChannelIDRef, StartTimeCodeAbs, and EndTimeCodeAbs;
+                # usually the 1st three, in order, but don't assume!
+                chId = blockStart = blockEnd = None
+                for subEl in el:
+                    if subEl.name == "ChannelIDRef":
+                        chId = subEl.value
+                    elif subEl.name == "StartTimeCodeAbs":
+                        blockStart = subEl.value
+                    elif subEl.name == "EndTimeCodeAbs":
+                        blockEnd = subEl.value
+
+                blockEnd = blockEnd or blockStart
+                if chId is None:
+                    logger.warning("Extractor: {} missing <ChannelIDRef> subelement, skipping.".format(el))
+                    continue
+                if blockStart is None:
+                    logger.warning("Extractor: {} missing <StartTimeCodeAbs> subelement, skipping.".format(el))
+                    continue
+
+                if finished.setdefault(chId, False):
+                    yield None
+                    continue
+
+                if channels and chId not in channels:
+                    yield None
+                    continue
+
+                # TODO: Modulus correction, if still needed.
+                scalar = timeScalars.get(chId, 1)
+                blockStart *= scalar
+                blockEnd *= scalar
+
+                writeCurrent = True
+                writePrev = False  # write previous block, if current one starts late
+
+                if blockEnd < startTime:
+                    # Entirely before extraction interval. Yield nothing.
+                    writeCurrent = False
+                elif blockStart <= startTime:
+                    # Block overlaps start of interval. Yield block.
+                    # Mark channel finished if block also includes end of interval.
+                    writePrev = False
+                    finished[chId] = blockEnd >= endTime
+                elif blockEnd <= endTime:
+                    # Block within interval. Write block (w/ prev. if needed).
+                    writePrev = channelsWritten[chId] == 0
+                else:
+                    # Block overlaps end of interval. Yield block (w/ prev. if needed).
+                    # Mark channel finished.
+                    finished[chId] = True
+                    writePrev = channelsWritten[chId] == 0
+
+                if writePrev:
+                    # Yield the previous block, which is before the extraction interval.
+                    # This is to ensure that initial data is not left out.
+                    prev = lastBlocks.get(chId, None)
+                    if prev:
+                        channelsWritten[chId] += 1
+                        yield prev[0]
+
+                lastBlocks[chId] = (el, blockStart, blockEnd)
+
+                if writeCurrent:
+                    channelsWritten[chId] += 1
+                    yield el
+                else:
+                    yield None
+
+            else:
+                yield el
+
+    except (StopIteration, KeyboardInterrupt):
+        pass
+
+
+def readData(doc, source=None, startTime=None, endTime=None,
+             updater=None, numUpdates=500, updateInterval=.1,
              total=None, bytesRead=0, samplesRead=0, parserTypes=elementParserTypes,
-             sessionId=0, onlyChannel=None, maxPause=None, **kwargs):
+             sessionId=0, channels=None, maxPause=None, **kwargs):
     """ Import the data from a file into a Dataset.
     
         :param doc: The Dataset document into which to import the data.
         :param source: An alternate Dataset to merge into the main one.
-        :keyword updater: A function (or function-like object) to notify as 
+        :param startTime: The start of the extraction range, relative to the
+            recording's start.
+        :param endTime: The end of the extraction range, relative to the
+            recording's end.
+        :keyword updater: A function (or function-like object) to notify as
             work is done. It should take four keyword arguments: `count` (the 
             current line number), `total` (the total number of samples), `error` 
             (an unexpected exception, if raised during the import), and `done` 
@@ -391,12 +519,14 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         :keyword sessionId: The Session number to import. For future use; it
             currently does nothing, and SSX files currently do not contain
             multiple sessions.
-        :keyword onlyChannel: If supplied, only import data from one channel.
+        :keyword channels: A list of channel IDs to import. If `None` (the
+            default), all channels are imported.
         :keyword maxPause: If the updater's `paused` attribute is `True`, the
             import will pause. This is the maximum pause length.
         :return: The total number of samples read.
     """
-    
+    updater = updater or NullUpdater
+
     if doc._parsers is None:
         doc._parsers = instantiateParsers(doc, parserTypes)
     
@@ -407,6 +537,9 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     
     # Progress display stuff
     if total is None:
+        # XXX: TODO: Change this to prevent `ebmldoc.size` from calculating.
+        #  Don't use if there is no updater, and/or use the faster size
+        #  calculations in PR #68
         total = doc.ebmldoc.size + bytesRead
         
     dataSize = total
@@ -432,13 +565,17 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     # Actual importing ---------------------------------------------------------
     if source is None:
         source = doc
-    try:    
+
+    try:
+        if startTime is not None or endTime is not None:
+            iterator = filterTime(doc, startTime, endTime, channels=channels)
+        else:
+            iterator = iter(source.ebmldoc)
+
         # This just skips 'header' elements. It could be more efficient, but
         # the size of the header isn't significantly large; savings are minimal.
 
-        for r in source.ebmldoc:
-            
-            r_name = r.name
+        for r in iterator:
             
             doc.loadCancelled = getattr(updater, "cancelled", False)
             if doc.loadCancelled:
@@ -446,23 +583,24 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             
             if updater.paused:
                 # Pause or throttle import.
+                # XXX: This seems like a bad idea. Remove?
                 pauseTime = time_time()
                 while updater.paused:
                     sleep(0.125)
                     if maxPause and time_time() - pauseTime > maxPause:
                         break
-            
+
+            if r is None:
+                continue
+
+            r_name = r.name
+
             if r_name not in elementParsers:
                 # Unknown block type, but probably okay.
-                logger.info("unknown block %r (ID 0x%02x) @%d" % \
+                logger.info("unknown block %r (ID 0x%02x) @%d" %
                             (r_name, r.id, r.offset))
                 continue
-            
-            # HACK: Not the best implementation. Should be moved somewhere.
-            if onlyChannel is not None and (r_name == "ChannelDataBlock"):
-                if r.value[0].value != onlyChannel:
-                    continue 
-            
+
             if source != doc and r_name == "TimeBaseUTC":
                 timeOffset = (r.value - doc.lastSession.utcStartTime) * 1000000.0
                 continue

@@ -10,7 +10,7 @@ import sys
 
 from ebmlite import loadSchema
 
-from .importer import openFile
+from .importer import filterTime, openFile
 
 # ==============================================================================
 #
@@ -73,16 +73,10 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
     if endTime is None:
         endTime = float('infinity')
 
-    # Dictionaries (and similar) for tracking progress of each ChannelDataBlock
-    # element handled. All keyed by channel ID (ChannelIDRef).
-    lastBlocks = {}  # Previous element w/ its start and end times
-    channelsWritten = Counter()  # Number of elements extracted per channel
-    finished = {}  # Channels that have completed extraction
-
     copiedBytes = 0
 
     # Updater stuff
-    totalElements = len(doc.ebmldoc)
+    totalElements = len(doc.ebmldoc)  # TODO: Change this, so the EBML document doesn't get crawled to count elements. Use file size and `tell()`?
     increment = int(totalElements / 20)
 
     if isinstance(out, (str, Path)):
@@ -94,9 +88,7 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
                         "or stream, got {} ".format(type(out)))
 
     try:
-        timeScalars = doc._parsers['ChannelDataBlock'].timeScalars
-
-        for n, el in enumerate(doc.ebmldoc, 1):
+        for n, el in enumerate(filterTime(doc, startTime, endTime, channels=channels), 1):
             if updater:
                 if updater.cancelled:
                     break
@@ -104,77 +96,10 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
                 if n % increment == 0:
                     updater(count=n, total=totalElements)
 
-            if el.name == 'ChannelDataBlock':
-                # Get ChannelIDRef, StartTimeCodeAbs, and EndTimeCodeAbs;
-                # usually the 1st three, in order, but don't assume!
-                chId = blockStart = blockEnd = None
-                for subEl in el:
-                    if subEl.name == "ChannelIDRef":
-                        chId = subEl.value
-                    elif subEl.name == "StartTimeCodeAbs":
-                        blockStart = subEl.value
-                    elif subEl.name == "EndTimeCodeAbs":
-                        blockEnd = subEl.value
-
-                blockEnd = blockEnd or blockStart
-                if chId is None:
-                    logger.warning("Extractor: {} missing <ChannelIDRef> subelement, skipping.".format(el))
-                    continue
-                if blockStart is None:
-                    logger.warning("Extractor: {} missing <StartTimeCodeAbs> subelement, skipping.".format(el))
-                    continue
-
-                if channels and chId not in channels:
-                    continue
-                if finished.setdefault(chId, False):
-                    continue
-
-                # TODO: Modulus correction, if still needed.
-                scalar = timeScalars.get(chId, 1)
-                blockStart *= scalar
-                blockEnd *= scalar
-
-                writeCurrent = True
-                writePrev = False  # write previous block, if current one starts late
-
-                if blockEnd < startTime:
-                    # Entirely before extraction interval. Write nothing.
-                    writeCurrent = False
-                elif blockStart <= startTime:
-                    # Block overlaps start of interval. Write block.
-                    # Mark channel finished if block also includes end of interval.
-                    writePrev = False
-                    finished[chId] = blockEnd >= endTime
-                elif blockEnd <= endTime:
-                    # Block within interval. Write block (w/ prev. if needed).
-                    writePrev = channelsWritten[chId] == 0
-                else:
-                    # Block overlaps end of interval. Write block (w/ prev. if needed).
-                    # Mark channel finished.
-                    finished[chId] = True
-                    writePrev = channelsWritten[chId] == 0
-
-                if writePrev:
-                    # Write the previous block, which is before the extraction interval.
-                    # This is to ensure that initial data is not left out.
-                    prev = lastBlocks.get(chId, None)
-                    if prev:
-                        data = prev[0].getRaw()
-                        fs.write(data)
-                        copiedBytes += len(data)
-                        channelsWritten[chId] += 1
-
-                lastBlocks[chId] = (el, blockStart, blockEnd)
-
-                if writeCurrent:
-                    channelsWritten[chId] += 1
-                else:
-                    # Skip to next element without writing anything.
-                    continue
-
-            data = el.getRaw()
-            fs.write(data)
-            copiedBytes += len(data)
+            if el is not None:
+                data = el.getRaw()
+                fs.write(data)
+                copiedBytes += len(data)
 
     except (StopIteration, KeyboardInterrupt):
         pass
@@ -186,4 +111,4 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
     if updater:
         updater(done=True)
 
-    return copiedBytes, sum(channelsWritten.values())
+    return copiedBytes
