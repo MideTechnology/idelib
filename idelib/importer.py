@@ -285,7 +285,7 @@ def importFile(filename='', updater=nullUpdater, numUpdates=500,
 
 
 def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,  
-             defaults=DEFAULTS, name=None, quiet=False, getExitCond=True):
+             defaults=DEFAULTS, name=None, quiet=False):
     """ Create a `Dataset` instance and read the header data (i.e. non-sample-
         data). When called by a GUI, this function should be considered 'modal,' 
         in that it shouldn't run in a background thread, unlike `readData()`. 
@@ -311,12 +311,7 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
     if isinstance(stream, str):
         stream = open(stream, 'rb')
     
-    if getExitCond:
-        exitCond = getExitCondition(stream)
-    else:
-        exitCond = None
-   
-    doc = Dataset(stream, name=name, exitCondition=exitCond, quiet=quiet)
+    doc = Dataset(stream, name=name, quiet=quiet)
     doc.addSession()
 
     if doc._parsers is None:
@@ -512,100 +507,3 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
     updater(done=True)
     return eventsRead
 
-
-#===============================================================================
-# 
-#===============================================================================
-
-def estimateLength(filename, numSamples=50000, parserTypes=elementParserTypes, 
-                   defaults=DEFAULTS):
-    """ Open and read enough of a file to get a rough estimate of its complete
-        time range. 
-        
-        :param filename: The IDE file to open.
-        :keyword numSamples: The number of samples to read before generating
-            an estimated size.
-        :keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        :keyword defaults: Default Slam Stick description data, for use with
-            old SSX recordings.
-        :return: A 3-element tuple: 
-    """
-    
-    # Fake updater that just quits after some number of samples.
-    class DummyUpdater(object):
-        cancelled = False
-        paused = False
-        def __init__(self, n):
-            self.numSamples = n
-        def __call__(self, count=0, **kwargs):
-            self.cancelled = count > self.numSamples
-                
-    updater = DummyUpdater(numSamples)
-    
-    with open(filename, "rb") as stream:
-        doc = openFile(stream, parserTypes=parserTypes,
-                       defaults=defaults, quiet=True)
-        dataStart = stream.tell()
-        totalSize = os.path.getsize(filename) - dataStart
-        
-        # read a portion of the recording
-        readData(doc, updater=updater, parserTypes=parserTypes, 
-                 defaults=defaults)
-        chunkSize = stream.tell() - dataStart
-        
-        start = sys.maxsize
-        end = -1
-        numEvents = 0.0
-        for ch in doc.channels.values():
-            events = ch.getSession()
-            if len(events) > 0:
-                start = min(start, events[0][0])
-                end = max(end, events[-1][0])
-                numEvents += (len(events) * len(ch.subchannels))
-        
-        chunkTime = end - start
-        
-    return start, start + (totalSize / chunkSize * chunkTime), numEvents/chunkTime
-    
-
-#===============================================================================
-# 
-#===============================================================================
-
-    
-def getExitCondition(recording, bytesRead=1000):
-    """ Get the ``ExitCond`` Attribute from the end of a recording, if present.
-        The result will be an integer:
-        
-        * 1: Button press
-        * 2: USB connection
-        * 3: Recording time limit reached
-        * 4: Low battery
-        * 5: File size limit reached
-        * 128: I/O error (can occur if disk is full or 4GB FAT32 size limit
-          reached.
-        
-        :param recording: The IDE file, either a filename or a file-like object.
-        :keyword bytesRead: The number of bytes to read from the end of the
-            recording file.
-    """
-    result = None
-    
-    if isinstance(recording, str):
-        with open(recording, "rb") as fs:
-            return getExitCondition(fs)
-
-    filename = recording.name
-    offset = recording.tell()
-   
-    recording.seek(os.path.getsize(filename) - bytesRead)
-    data = recording.read()
-    try:
-        idx = data.index(b"ExitCond") + 11
-        if idx <= len(data):
-            result = data[idx]
-    except (IOError, IndexError, ValueError) as e:
-        logger.warning(e)
-
-    recording.seek(offset)
-    return result        
