@@ -555,6 +555,18 @@ class Session(object):
                and self.utcStartTime == other.utcStartTime \
                and self.firstTime == other.firstTime \
                and self.lastTime == other.lastTime
+
+
+    def __hash__(self):
+        return hash((
+            self.dataset,
+            self.startTime,
+            self.endTime,
+            self.sessionId,
+            self.utcStartTime,
+            self.firstTime,
+            self.lastTime,
+            ))
         
 #===============================================================================
 # 
@@ -641,6 +653,19 @@ class Sensor(Cascading):
                and self.traceData == other.traceData \
                and self.attributes == other.attributes \
                and self.bandwidthLimitId == other.bandwidthLimitId
+
+
+    def __hash__(self):
+        return hash((
+            self.name,
+            self.dataset,
+            self.parent,
+            self.id,
+            self.channels,
+            self.traceData,
+            self.attributes,
+            self.bandwidthLimitId,
+            ))
 
 
 #===============================================================================
@@ -924,7 +949,31 @@ class Channel(Transformable):
                and self.sessions == other.sessions \
                and self.subsampleCount == other.subsampleCount \
                and self._lastParsed == other._lastParsed \
-               and self.allowMeanRemoval == other.allowMeanRemoval        
+               and self.allowMeanRemoval == other.allowMeanRemoval
+
+
+    def __hash__(self):
+        return hash((
+            self.id,
+            self.sensor,
+            self.parser,
+            self.units,
+            self.dataset,
+            self.sampleRate,
+            self.attributes,
+            self.cache,
+            self.singleSample,
+            self.Name,
+            self.displayName,
+            self.types,
+            self.displayRange,
+            self.hasDisplayRange,
+            self.subchannels,
+            self.sessions,
+            self.subsampleCount,
+            self._lastParsed,
+            self.allowMeanRemoval,
+            ))
 
 
 #===============================================================================
@@ -1151,7 +1200,28 @@ class SubChannel(Channel):
                and self.displayRange == other.displayRange \
                and self.hasDisplayRange == other.hasDisplayRange \
                and self.sessions == other.sessions \
-               and self.allowMeanRemoval == other.allowMeanRemoval  
+               and self.allowMeanRemoval == other.allowMeanRemoval
+
+
+    def __hash__(self):
+        hash((
+            self.id,
+            self.sensor,
+            self.parser,
+            self.units,
+            self.dataset,
+            self.sampleRate,
+            self.attributes,
+            self.cache,
+            self.singleSample,
+            self.name,
+            self.displayName,
+            self.types,
+            self.displayRange,
+            self.hasDisplayRange,
+            self.sessions,
+            self.allowMeanRemoval,
+            ))
                
 
 #===============================================================================
@@ -1675,7 +1745,6 @@ class EventArray(Transformable):
                and self._blockIndices == other._blockIndices \
                and self.channelId == other.channelId \
                and self.subchannelId == other.subchannelId \
-               and self.channelId == other.channelId \
                and self._hasSubsamples == other._hasSubsamples \
                and self.hasDisplayRange == other.hasDisplayRange \
                and self.displayRange == other.displayRange \
@@ -1684,7 +1753,36 @@ class EventArray(Transformable):
                and self.rollingMeanSpan == other.rollingMeanSpan \
                and self.transform == other.transform \
                and self.useAllTransforms == other.useAllTransforms \
-               and self.allowMeanRemoval == other.allowMeanRemoval 
+               and self.allowMeanRemoval == other.allowMeanRemoval
+
+
+    def hash(self):
+        return hash((
+            self.parent,
+            self.session,
+            self._data,
+            self._length,
+            self.dataset,
+            self.hasSubchannels,
+            self._firstTime,
+            self._parentList,
+            self._childLists,
+            self.noBivariates,
+            self._singleSample,
+            self._blockTimes,
+            self._blockIndices,
+            self.channelId,
+            self.subchannelId,
+            self._hasSubsamples,
+            self.hasDisplayRange,
+            self.displayRange,
+            self.removeMean,
+            self.hasMinMeanMax,
+            self.rollingMeanSpan,
+            self.transform,
+            self.useAllTransforms,
+            self.allowMeanRemoval,
+            ))
 
 
     def itervalues(self, start=None, end=None, step=1, subchannels=True,
@@ -2931,6 +3029,19 @@ class WarningRange(object):
                and self.low == other.low \
                and self.attributes == other.attributes \
                and self._sessions == other._sessions
+
+
+    def hash(self):
+        return hash((
+            self.dataset,
+            self.id,
+            self.channelId,
+            self.subchannelId,
+            self.high,
+            self.low,
+            self.attributes,
+            self._sessions,
+            ))
     
     
     def getSessionSource(self, sessionId=None):
