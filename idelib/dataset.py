@@ -224,17 +224,18 @@ class Dataset(Cascading):
             for adjusting/calibrating sensor data.
     """
 
-    def __init__(self, stream, name=None, exitCondition=None, quiet=True):
+    def __init__(self, stream, name=None, quiet=True, attributes=None):
         """ Constructor. Typically, these objects will be instantiated by
             functions in the `importer` module.
         
             :param stream: A file-like stream object containing EBML data.
             :keyword name: An optional name for the Dataset. Defaults to the
                 base name of the file (if applicable).
-            :keyword exitCondition: The numeric code number for the condition
-                that stopped the recording. 
             :keyword quiet: If `True`, non-fatal errors (e.g. schema/file
                 version mismatches) are suppressed. 
+            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+                ``Attribute`` elements parsed from the file. Typically
+                used for diagnostic data.
         """
         self.lastUtcTime = None
         self.sessions = []
@@ -248,8 +249,8 @@ class Dataset(Cascading):
         self.recorderInfo = {}
         self.recorderConfig = None
 
-        self.exitCondition = exitCondition
-        
+        self.attributes = attributes if attributes else {}
+
         # For keeping track of element parsers in import.
         self._parsers = None
         
@@ -282,6 +283,12 @@ class Dataset(Cascading):
                     raise IOError("EBML schema version mismatch: file is %d, "
                                   "library is %d" % (self.ebmldoc.version,
                                                      self.schemaVersion))
+
+
+    @property
+    def exitCondition(self):
+        """ The numeric code number for the condition that stopped the recording. """
+        return self.attributes.get('ExitCond', [None])[0]
 
 
     @property
@@ -1164,8 +1171,8 @@ class EventArray(Transformable):
         dynamically read from the underlying EBML file. 
     """
 
-    # Default 5 second rolling mean
-    DEFAULT_MEAN_SPAN = 5000000
+    # Width of rolling mean (microseconds), or -1 for total mean removal.
+    DEFAULT_MEAN_SPAN = -1
 
     def __init__(self, parentChannel, session=None, parentList=None):
         """ Constructor. This should almost always be done indirectly via
