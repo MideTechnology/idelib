@@ -183,14 +183,15 @@ def createDefaultSensors(doc, defaults=DEFAULTS):
 # Parser importer. These are taken from the module by type. We may want to 
 # create the list of parser types 'manually' prior to release; it's marginally 
 # safer.
-elementParserTypes = parsers.getElementHandlers()
+ELEMENT_PARSER_TYPES = parsers.getElementHandlers()
 
 
-def instantiateParsers(doc, parserTypes=elementParserTypes):
+def instantiateParsers(doc, parserTypes=None):
     """ Create a dictionary of element parser objects keyed by the name of the
         element they handle. Handlers that handle multiple elements have
         individual keys for each element name.
     """
+    parserTypes = parserTypes or ELEMENT_PARSER_TYPES
     elementParsers = {}
     for t in parserTypes:
         p = t(doc)
@@ -272,12 +273,44 @@ class SimpleUpdater(object):
     
 
 #===============================================================================
+#
+#===============================================================================
+
+def _getSize(stream, chunkSize=512 * 1024):
+    """
+    Get the length of a stream from its data.
+
+    :param stream: A file stream or file-like object (must implement `tell()`
+        and `seek()`).
+    :returns: The total length of the file.
+    """
+    if not (hasattr(stream, 'seek') and hasattr(stream, 'tell')):
+        raise TypeError('Cannot get size of non-stream {}'.format(type(stream)))
+
+    # If it's a real file, no problem!
+    if hasattr(stream, 'name'):
+        if os.path.isfile(stream.name):
+            return os.path.getsize(stream.name)
+
+    originalPos = stream.tell()
+
+    # Grab chunks until less is read than requested.
+    thisRead = chunkSize
+    while thisRead == chunkSize:
+        thisRead = len(stream.read(chunkSize))
+
+    eof = stream.tell()
+    stream.seek(originalPos)
+    return eof
+
+
+#===============================================================================
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
 
 def importFile(filename='', startTime=None, endTime=None, channels=None,
                updater=None, numUpdates=500, updateInterval=1.0,
-               parserTypes=elementParserTypes, defaults=None, name=None,
+               parserTypes=ELEMENT_PARSER_TYPES, defaults=None, name=None,
                quiet=False):
     """ Create a new Dataset object and import the data from a MIDE file. 
         Primarily for testing purposes. The GUI does the file creation and 
@@ -285,7 +318,6 @@ def importFile(filename='', startTime=None, endTime=None, channels=None,
         the new document before the loading starts.
         :see: `readData()`
     """
-    updater = updater or NullUpdater
     defaults = defaults or DEFAULTS
 
     stream = open(filename, "rb")
@@ -297,8 +329,8 @@ def importFile(filename='', startTime=None, endTime=None, channels=None,
     return doc
 
 
-def openFile(stream, updater=None, parserTypes=elementParserTypes,
-             defaults=None, name=None, quiet=False):
+def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
+             quiet=False):
     """ Create a `Dataset` instance and read the header data (i.e. non-sample-
         data). When called by a GUI, this function should be considered 'modal,' 
         in that it shouldn't run in a background thread, unlike `readData()`. 
@@ -321,8 +353,8 @@ def openFile(stream, updater=None, parserTypes=elementParserTypes,
             version mismatches) are suppressed. 
         :return: The opened (but still 'empty') `dataset.Dataset`
     """
-    updater = updater or NullUpdater
     defaults = defaults or DEFAULTS
+    parserTypes = parserTypes or ELEMENT_PARSER_TYPES
 
     if isinstance(stream, str):
         stream = open(stream, 'rb')
@@ -352,7 +384,7 @@ def openFile(stream, updater=None, parserTypes=elementParserTypes,
             # The EBML library raises an empty IOError if it hits EOF.
             # TODO: Handle other cases of empty IOError (lots in python-ebml)
             doc.fileDamaged = True
-        else:
+        elif updater:
             updater(error=e)
 
     except TypeError as e:
@@ -381,11 +413,13 @@ def filterTime(doc, startTime=0, endTime=None, channels=None):
             recording's start.
         :param endTime: The end of the extraction range, relative to the
             recording's end.
+        :param channels: A list of channel IDs to process. If `None` (the
+            default), all channels are processed.
         :yields: Elements from the `Dataset`'s EBML file, excluding
             `ChannelDataBlock`s outside of the specified time range, or
             `None`.
     """
-    if startTime == endTime:
+    if startTime == endTime and startTime is not None:
         raise ValueError('startTime and endTime must differ')
 
     startTime, endTime = sorted((startTime or 0,
@@ -477,10 +511,9 @@ def filterTime(doc, startTime=0, endTime=None, channels=None):
         pass
 
 
-def readData(doc, source=None, startTime=None, endTime=None,
-             updater=None, numUpdates=500, updateInterval=.1,
-             total=None, bytesRead=0, samplesRead=0, parserTypes=elementParserTypes,
-             sessionId=0, channels=None, maxPause=None, **kwargs):
+def readData(doc, source=None, startTime=None, endTime=None, channels=None,
+             updater=None, total=None, bytesRead=0, samplesRead=0,
+             parserTypes=None, **kwargs):
     """ Import the data from a file into a Dataset.
     
         :param doc: The Dataset document into which to import the data.
@@ -489,149 +522,103 @@ def readData(doc, source=None, startTime=None, endTime=None,
             recording's start.
         :param endTime: The end of the extraction range, relative to the
             recording's end.
-        :keyword updater: A function (or function-like object) to notify as
+        :param channels: A list of channel IDs to import. If `None` (the
+            default), all channels are imported.
+        :param updater: A function (or function-like object) to notify as
             work is done. It should take four keyword arguments: `count` (the 
             current line number), `total` (the total number of samples), `error` 
             (an unexpected exception, if raised during the import), and `done` 
             (will be `True` when the export is complete). If the updater object 
             has a `cancelled` attribute that is `True`, the import will be 
             aborted. The default callback is `None` (nothing will be notified).
-        :keyword numUpdates: The minimum number of calls to the updater to be
-            made. More updates will be made if the updates take longer than
-            than the specified `updateInterval`. 
-        :keyword updateInterval: The maximum number of seconds between calls to 
-            the updater. More updates will be made if indicated by the specified
-            `numUpdates`.
-        :keyword total: The total number of bytes in the file(s) being imported.
+        :param total: The total number of bytes in the file(s) being imported.
             Defaults to the size of the current file, but can be used to
             display an overall progress when merging multiple recordings. For
             display purposes.
-        :keyword bytesRead: The number of bytes already imported. Mainly for
+        :param bytesRead: The number of bytes already imported. Mainly for
             merging multiple recordings. For display purposes.
-        :keyword samplesRead: The total number of samples imported. Mainly for
+        :param samplesRead: The total number of samples imported. Mainly for
             merging multiple recordings.
-        :keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        :keyword sessionId: The Session number to import. For future use; it
-            currently does nothing, and SSX files currently do not contain
-            multiple sessions.
-        :keyword channels: A list of channel IDs to import. If `None` (the
-            default), all channels are imported.
-        :keyword maxPause: If the updater's `paused` attribute is `True`, the
-            import will pause. This is the maximum pause length.
+        :param parserTypes: A collection of `parsers.ElementHandler` classes.
         :return: The total number of samples read.
     """
-    updater = updater or NullUpdater
-
+    parserTypes = parserTypes or ELEMENT_PARSER_TYPES
     if doc._parsers is None:
+        # ???: Is `doc._parsers` ever `None` at this point?
         doc._parsers = instantiateParsers(doc, parserTypes)
     
     elementParsers = doc._parsers
 
     elementCount = 0
-    eventsRead = 0
-    
-    # Progress display stuff
-    if total is None:
-        # XXX: TODO: Change this to prevent `ebmldoc.size` from calculating.
-        #  Don't use if there is no updater, and/or use the faster size
-        #  calculations in PR #68
-        total = doc.ebmldoc.size + bytesRead
-        
-    dataSize = total
-    
-    if numUpdates > 0:
-        ticSize = total / numUpdates 
-    else:
-        # An unreachable file position effectively disables the updates.
-        ticSize = total+1
-    
-    if updateInterval > 0:
-        nextUpdateTime = time_time() + updateInterval
-    else:
-        # An update time 24 hours in the future should mean no updates.
-        nextUpdateTime = time_time() + 5184000
-    
-    firstDataPos = 0
-    nextUpdatePos = bytesRead + ticSize
-    
+    numSamples = 0  # Number of samples imported from this file
+
+    # Progress display setup
+    if updater and total is None:
+        total = _getSize(doc.ebmldoc.stream) + bytesRead
+
+    increment = 50  # Number of elements per updater. FUTURE: Base this on total size?
     timeOffset = 0
-    maxPause = getattr(updater, "maxPause", maxPause)
 
     # Actual importing ---------------------------------------------------------
     if source is None:
         source = doc
 
     try:
-        if startTime is not None or endTime is not None:
+        if startTime is not None or endTime is not None or channels:
             iterator = filterTime(doc, startTime, endTime, channels=channels)
         else:
             iterator = iter(source.ebmldoc)
 
-        # This just skips 'header' elements. It could be more efficient, but
-        # the size of the header isn't significantly large; savings are minimal.
+        for n, el in enumerate(iterator):
+            # Progress display stuff -------------------------------------
+            if updater:
+                loadCancelled = getattr(updater, "cancelled", False)
+                if loadCancelled:
+                    doc.loadCancelled = loadCancelled
+                    break
 
-        for r in iterator:
-            
-            doc.loadCancelled = getattr(updater, "cancelled", False)
-            if doc.loadCancelled:
-                break
-            
-            if updater.paused:
-                # Pause or throttle import.
-                # XXX: This seems like a bad idea. Remove?
-                pauseTime = time_time()
-                while updater.paused:
-                    sleep(0.125)
-                    if maxPause and time_time() - pauseTime > maxPause:
-                        break
+                thisOffset = el.offset + bytesRead
+                if n % increment == 0:
+                    updater(count=numSamples + samplesRead,
+                            percent=thisOffset / total)
 
-            if r is None:
+            if el is None:
                 continue
 
-            r_name = r.name
+            el_name = el.name
 
-            if r_name not in elementParsers:
-                # Unknown block type, but probably okay.
-                logger.info("unknown block %r (ID 0x%02x) @%d" %
-                            (r_name, r.id, r.offset))
+            if el_name not in elementParsers:
+                # Unknown block type; probably okay to skip.
+                logger.info("unknown block {!r} (ID 0x{:02x}) @{}".format(
+                        el_name, el.id, el.offset))
                 continue
 
-            if source != doc and r_name == "TimeBaseUTC":
-                timeOffset = (r.value - doc.lastSession.utcStartTime) * 1000000.0
+            if source != doc and el_name == "TimeBaseUTC":
+                timeOffset = (el.value - doc.lastSession.utcStartTime) * 1000000.0
                 continue
                 
             try:
-                parser = elementParsers[r_name]
-                if not parser.isHeader or r_name == "Attribute":
-                    added = parser.parse(r, timeOffset=timeOffset)
+                parser = elementParsers[el_name]
+
+                # "Header" elements were loaded by `openFile()`; don't duplicate.
+                if not parser.isHeader or el_name == "Attribute":
+                    added = parser.parse(el, timeOffset=timeOffset)
                     if isinstance(added, int):
-                        eventsRead += added
+                        numSamples += added
                     
             except parsers.ParsingError as err:
-                # TODO: Error messages
+                # TODO: Error messages?
                 logger.error("Parsing error during import: %s" % err)
                 continue
 
             elementCount += 1
-            
-            # More progress display stuff -------------------------------------
-            # FUTURE: Possibly do the update check every nth elements; that
-            # would have slightly less work per cycle.
-            thisOffset = r.offset + bytesRead
-            thisTime = time_time()
-            if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:
-                # Update progress bar
-                updater(count=eventsRead+samplesRead,
-                        percent=(1/3) + (2/3)*(thisOffset-firstDataPos)/dataSize)
-                nextUpdatePos = thisOffset + ticSize
-                nextUpdateTime = thisTime + updateInterval
-            
+
     except IOError as e:
         if e.errno is None:
             # The EBML library raises an empty IOError if it hits EOF.
-            # TODO: Handle other cases of empty IOError (lots in python-ebml)
+            # TODO: Verify that this still does anything (leftover from old EBML library)
             doc.fileDamaged = True
-        else:
+        elif updater:
             updater(error=e, done=True)
         
     except TypeError:
@@ -640,8 +627,10 @@ def readData(doc, source=None, startTime=None, endTime=None,
         doc.fileDamaged = True
 
     doc.fillCaches()
-
     doc.loading = False
-    updater(done=True)
-    return eventsRead
+
+    if updater:
+        updater(done=True)
+
+    return numSamples
 

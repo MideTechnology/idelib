@@ -9,7 +9,7 @@ from pathlib import Path
 
 from ebmlite import loadSchema
 
-from .importer import filterTime, openFile
+from .importer import filterTime, openFile, _getSize
 from .dataset import Dataset
 
 # ==============================================================================
@@ -76,8 +76,11 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
     copiedBytes = 0
 
     # Updater stuff
-    totalElements = len(doc.ebmldoc)  # TODO: Change this, so the EBML document doesn't get crawled to count elements. Use file size and `tell()`?
-    increment = int(totalElements / 20)
+    totalSize = 1
+    increment = 50
+    if updater:
+        totalSize = _getSize(doc.ebmldoc)
+        # FUTURE: Set `increment` based on `totalSize`?
 
     if isinstance(out, (str, Path)):
         fs = open(out, 'wb')
@@ -94,7 +97,7 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
                     break
 
                 if n % increment == 0:
-                    updater(count=n, total=totalElements)
+                    updater(percent=el.offset/totalSize)
 
             if el is not None:
                 data = el.getRaw()
@@ -120,34 +123,6 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
 
 CHUNK_SIZE = 512 * 1024  # Size of chunks when looking for last sync
 SYNC = b'\xfa\x84ZZZZ'  # The raw EBML of a Sync element
-
-
-def _getSize(stream):
-    """
-    Get the length of a stream from its data.
-
-    :param stream: A file stream or file-like object (must implement `tell()`
-        and `seek()`).
-    :returns: The total length of the file.
-    """
-    if not (hasattr(stream, 'seek') and hasattr(stream, 'tell')):
-        raise TypeError('Cannot get size of non-stream {}'.format(type(stream)))
-
-    # If it's a real file, no problem!
-    if hasattr(stream, 'name'):
-        if os.path.isfile(stream.name):
-            return os.path.getsize(stream.name)
-
-    originalPos = stream.tell()
-
-    # Grab chunks until less is read than requested.
-    thisRead = CHUNK_SIZE
-    while thisRead == CHUNK_SIZE:
-        thisRead = len(stream.read(CHUNK_SIZE))
-
-    eof = stream.tell()
-    stream.seek(originalPos)
-    return eof
 
 
 def _getLastSync(stream, length=None):
@@ -253,7 +228,7 @@ def _getLength(doc):
 
     # Use the cached EBML document size if the IDE was already fully imported,
     # otherwise use `None` so `_getLastSync()` will calculate it (faster than
-    # getting uncached `soc.ebmldoc.size`)
+    # getting uncached `doc.ebmldoc.size`)
     streamLength = None if doc.loading else doc.ebmldoc.size
     stream.seek(_getLastSync(stream, streamLength))
     temp_ebml = doc.ebmldoc.schema.load(stream)
