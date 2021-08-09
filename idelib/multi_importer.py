@@ -1,15 +1,14 @@
-'''
-Functions for opening multiple IDE files as one. 
+"""
+Functions for opening multiple IDE files as one.
 
 :todo: Consider moving the rest of this into the normal `importer` module.
 
-'''
+"""
 
 import fnmatch
 import os.path
 
 from .importer import openFile, readData
-from .importer import NullUpdater
 
 
 #===============================================================================
@@ -26,7 +25,6 @@ if __DEBUG__:
     logger.setLevel(logging.INFO)
 else:
     logger.setLevel(logging.ERROR)
-
 
 
 #===============================================================================
@@ -94,8 +92,8 @@ def multiOpen(streams, updater=None, **kwargs):
         :keyword quiet: If `True`, non-fatal errors (e.g. schema/file
             version mismatches) are suppressed. 
     """
-    updater = updater or NullUpdater
-    updater(0)
+    if updater:
+        updater(0)
     
     docs = [openFile(f, **kwargs) for f in streams]
     docs.sort(key=lambda x: x.lastSession.utcStartTime)
@@ -129,8 +127,6 @@ def multiRead(doc, updater=None, **kwargs):
             of sensors, channels, and subchannels. These will only be used if
             the dataset contains no sensor/channel/subchannel definitions. 
     """
-    updater = updater or NullUpdater
-
     kwargs['numUpdates'] = kwargs.get('numUpdates', 500) / (len(doc.subsets)+1)
     totalSize = sum([x.ebmldoc.size for x in doc.subsets])
     bytesRead = doc.ebmldoc.size
@@ -143,10 +139,12 @@ def multiRead(doc, updater=None, **kwargs):
                                     bytesRead=bytesRead, samplesRead=samplesRead, 
                                     **kwargs)
             bytesRead += f.ebmldoc.size
-            updater(count=bytesRead, total=totalSize, 
-                    percent=bytesRead/(totalSize+0.0))
-        
-    updater(done=True, total=samplesRead)
+            if updater:
+                updater(count=bytesRead, total=totalSize,
+                        percent=bytesRead/(totalSize+0.0))
+
+    if updater:
+        updater(done=True, total=samplesRead)
     return doc
     
 

@@ -1,3 +1,6 @@
+"""
+Tests for special features of the importing functions.
+"""
 import os.path
 
 import pytest  # type: ignore
@@ -10,17 +13,35 @@ from testing.file_streams import makeStreamLike
 #
 # ==============================================================================
 
-class TestImport:
+def _functionlike(cls):
+    """ Decorator for a singleton callable class. """
+    return cls()
+
+
+@_functionlike
+class NullUpdater:
+    """ A progress updater stand-in that does nothing. """
+    cancelled = False
+    paused = False
+
+    def __call__(self, *args, **kwargs):
+        if kwargs.get('error', None) is not None:
+            raise kwargs['error']
+
+
+# ==============================================================================
+#
+# ==============================================================================
+
+class TestImportRange:
 
     def test_import_updater(self):
         """
         Test importing with an updater
         """
         doc = importer.openFile(makeStreamLike("./testing/SSX66115.IDE"))
-        importer.readData(doc, updater=importer.NullUpdater)
+        importer.readData(doc, updater=NullUpdater)
 
-
-class TestImportRange:
 
     @classmethod
     def setup_class(cls):

@@ -100,41 +100,42 @@ DEFAULTS = {
 }
 
 
-if False: #__DEBUG__:
-    logger.info("Adding low g channels to defaults")
-    DEFAULTS['sensors'][0x02] = {
-         'name': "Low-G Accelerometer"
-    }
-    DEFAULTS['channels'].update({
-        0x02: {'name': "Low-G Accelerometer XYZ",
-               'parser': struct.Struct(">hhh"),
-               "subchannels":{0: {"name": "Low-g Z", 
-                                  "units":('Acceleration','g'),
-                                  "sensorId": 2,
-                                 },
-                              1: {"name": "Low-g Y", 
-                                  "units":('Acceleration','g'),
-                                  "sensorId": 2,
-                                  },
-                              2: {"name": "Low-g X", 
-                                  "units":('Acceleration','g'),
-                                  "sensorId": 2,
-                                  },
-                            },
-               },
-#         0x43: {"name": "DEBUG Crystal Drift",
-#                "parser": struct.Struct(">II")},
-#         0x45: {"name": "DEBUG Gain/Offset",
-#                "parser": struct.Struct("<i")},
-    })
+# if False: #__DEBUG__:
+#     logger.info("Adding low g channels to defaults")
+#     DEFAULTS['sensors'][0x02] = {
+#          'name': "Low-G Accelerometer"
+#     }
+#     DEFAULTS['channels'].update({
+#         0x02: {'name': "Low-G Accelerometer XYZ",
+#                'parser': struct.Struct(">hhh"),
+#                "subchannels":{0: {"name": "Low-g Z",
+#                                   "units":('Acceleration','g'),
+#                                   "sensorId": 2,
+#                                  },
+#                               1: {"name": "Low-g Y",
+#                                   "units":('Acceleration','g'),
+#                                   "sensorId": 2,
+#                                   },
+#                               2: {"name": "Low-g X",
+#                                   "units":('Acceleration','g'),
+#                                   "sensorId": 2,
+#                                   },
+#                             },
+#                },
+# #         0x43: {"name": "DEBUG Crystal Drift",
+# #                "parser": struct.Struct(">II")},
+# #         0x45: {"name": "DEBUG Gain/Offset",
+# #                "parser": struct.Struct("<i")},
+#     })
 
 
-def createDefaultSensors(doc, defaults=DEFAULTS):
+def createDefaultSensors(doc, defaults=None):
     """ Given a nested set of dictionaries containing the definition of one or
         more sensors, instantiate those sensors and add them to the dataset
         document.
     """
 #     logger.info("creating default sensors")
+    defaults = defaults or DEFAULTS
     sensors = defaults['sensors'].copy()
     channels = defaults['channels'].copy()
     warnings = defaults['warnings']
@@ -206,22 +207,6 @@ def instantiateParsers(doc, parserTypes=None):
 #===============================================================================
 # Updater callbacks
 #===============================================================================
-
-def _functionlike(cls):
-    """ Decorator for a singleton callable class. """
-    return cls()
-
-
-@_functionlike
-class NullUpdater:
-    """ A progress updater stand-in that does nothing. """
-    cancelled = False
-    paused = False
-
-    def __call__(self, *args, **kwargs):
-        if kwargs.get('error', None) is not None:
-            raise kwargs['error']
-
 
 class SimpleUpdater(object):
     """ A simple text-based progress updater.
@@ -309,9 +294,8 @@ def _getSize(stream, chunkSize=512 * 1024):
 #===============================================================================
 
 def importFile(filename='', startTime=None, endTime=None, channels=None,
-               updater=None, numUpdates=500, updateInterval=1.0,
-               parserTypes=ELEMENT_PARSER_TYPES, defaults=None, name=None,
-               quiet=False):
+               updater=None, parserTypes=ELEMENT_PARSER_TYPES, defaults=None,
+               name=None, quiet=False):
     """ Create a new Dataset object and import the data from a MIDE file. 
         Primarily for testing purposes. The GUI does the file creation and 
         data loading in two discrete steps, as it will need a reference to 
@@ -324,8 +308,7 @@ def importFile(filename='', startTime=None, endTime=None, channels=None,
     doc = openFile(stream, updater=updater, name=name, parserTypes=parserTypes,
                    defaults=defaults, quiet=quiet)
     readData(doc, startTime=startTime, endTime=endTime, channels=channels,
-             updater=updater, numUpdates=numUpdates, updateInterval=updateInterval,
-             parserTypes=parserTypes, defaults=defaults)
+             updater=updater, parserTypes=parserTypes, defaults=defaults)
     return doc
 
 
@@ -336,21 +319,22 @@ def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
         in that it shouldn't run in a background thread, unlike `readData()`. 
         
         :param stream: The file or file-like object containing the EBML data.
-        :keyword updater: A function (or function-like object) to notify as
-            work is done. It should take four keyword arguments: `count` (the 
-            current line number), `total` (the total number of samples), `error` 
-            (an unexpected exception, if raised during the import), and `done` 
-            (will be `True` when the export is complete). If the updater object 
-            has a `cancelled` attribute that is `True`, the import will be 
-            aborted. The default callback is `None` (nothing will be notified).
-        :keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        :keyword defaults: A nested dictionary containing a default set 
-            of sensors, channels, and subchannels. These will only be used if
+        :param updater: A function (or function-like object) to notify as
+            work is done. It should take four keyword arguments: `count`
+            (the current line number), `total` (the total number of samples),
+            `error` (an unexpected exception, if raised during the import),
+            and `done` (will be `True` when the export is complete). If the
+            updater object has a `cancelled` attribute that is `True`, the
+            import will be aborted. The default callback is `None` (nothing
+            will be notified).
+        :param parserTypes: A collection of `parsers.ElementHandler` classes.
+        :param defaults: A nested dictionary containing a default set of
+            sensors, channels, and subchannels. These will only be used if
             the dataset contains no sensor/channel/subchannel definitions. 
-        :keyword name: An optional name for the Dataset. Defaults to the
+        :param name: An optional name for the Dataset. Defaults to the
             base name of the file (if applicable).
-        :keyword quiet: If `True`, non-fatal errors (e.g. schema/file
-            version mismatches) are suppressed. 
+        :param quiet: If `True`, non-fatal errors (e.g. schema/file version
+            mismatches) are suppressed.
         :return: The opened (but still 'empty') `dataset.Dataset`
     """
     defaults = defaults or DEFAULTS
