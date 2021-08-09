@@ -9,7 +9,7 @@ import string
 import struct
 
 import logging
-logger = logging.getLogger('idelib')
+logger = logging.getLogger('idelib-archive')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 # NOTE: 64 bit Scipy is unstable; avoid using it for now (v0.13.2, 12/2014).
@@ -185,7 +185,7 @@ class MatStream(object):
         """ Constructor. Create a new .MAT file.
         
             :param filename: The name of the new file, or `None`.
-            :keyword doc: The `idelib.dataset.Dataset` from which to export.
+            :keyword doc: The `idelib-archive.dataset.Dataset` from which to export.
             :keyword msg: The message string to appear at the start of the
                 MAT file. The first 4 bytes must be non-zero.
             :keyword serialize: If `True`, start the first file with a 

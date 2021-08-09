@@ -19,7 +19,7 @@ from .importer import nullUpdater
 from .dataset import __DEBUG__
 
 import logging
-logger = logging.getLogger('idelib')
+logger = logging.getLogger('idelib-archive')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 if __DEBUG__:

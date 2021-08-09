@@ -32,7 +32,7 @@ __copyright__ = 'Copyright 2020, Mide Technology Corp'
 __credits__ = ['Connor Flanigan']
 
 # Loading an ide file is very simple, the supporting files are defined by
-# default in idelib.  This function returns a Document object which contains
+# default in idelib-archive.  This function returns a Document object which contains
 # the data for the given file
 doc = idelib.importFile('../test.ide')
 

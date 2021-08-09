@@ -1,6 +1,5 @@
 import setuptools
 
-
 with open('README.md', 'r', encoding='utf-8') as fh:
     long_description = fh.read()
 
@@ -13,7 +12,6 @@ TEST_REQUIRES = [
     'pytest>=4.6',
     'mock',
     'pytest-cov',
-    'sphinx',
     ]
 
 EXAMPLE_REQUIRES = [
@@ -22,7 +20,7 @@ EXAMPLE_REQUIRES = [
 
 setuptools.setup(
         name='idelib',
-        version='3.2.0a0',
+        version='3.1.0',
         author='Mide Technology',
         author_email='help@mide.com',
         description='Python API for accessing IDE data recordings',

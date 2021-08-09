@@ -49,7 +49,7 @@ from . import transforms
 from .util import decode_attributes
 
 import logging
-logger = logging.getLogger('idelib')
+logger = logging.getLogger('idelib-archive')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 #===============================================================================
@@ -262,7 +262,7 @@ def getElementHandlers(module=None, subElements=False):
         are identified by being subclasses of `ElementHandler`.
     
         :keyword module: The module from which to get the handlers. Defaults to
-            the current module (i.e. `idelib.parsers`).
+            the current module (i.e. `idelib-archive.parsers`).
         :keyword subElements: `True` if the set of handlers should also
             include non-root elements (e.g. the sub-elements of a
             `RecordingProperties` or `ChannelDataBlock`).
@@ -508,6 +508,78 @@ class BaseDataBlock(object):
 
     def __repr__(self):
         return "<%s Channel: %d>" % (self.__class__.__name__, self.getHeader()[1])
+
+
+    def parseWith(self, parser, start=None, end=None, step=1, subchannel=None):
+        """ Parse an element's payload. Use this instead of directly using
+            `parser.parse()` for consistency's sake.
+            
+            :param parser: The DataParser to use
+            :keyword start: First subsample index to parse 
+            :keyword end: Last subsample index to parse
+            :keyword step: The number of samples to skip, if the start and end
+                cover more than one sample.
+            :keyword subchannel: The subchannel to get, if specified.
+        """
+        # SimpleChannelDataBlock payloads contain header info; skip it.
+        data = self.payload
+        start, end, step = slice(start, end, step).indices(self.payloadSize // parser.size)
+
+        start = (start*parser.size)
+        end = (end*parser.size)
+        
+        parser_unpack_from = parser.unpack_from
+        if subchannel is not None:
+            for i in range(start,end,parser.size*step):
+                yield parser_unpack_from(data, i)[subchannel]
+        else:
+            for i in range(start,end,parser.size*step):
+                yield parser_unpack_from(data, i)
+
+
+    def parseByIndexWith(self, parser, indices, subchannel=None):
+        """ Parse an element's payload and get a specific set of samples. Used
+            primarily for resampling tricks.
+            
+            :param parser: The DataParser to use
+            :param indices: A list of indices into the block's data. 
+            :keyword subchannel: The subchannel to get, if specified.
+        """
+        # SimpleChannelDataBlock payloads contain header info; skip it.
+        data = self.payload
+        parser_unpack_from = parser.unpack_from
+        parser_size = parser.size
+        for i in indices:
+            if i >= self.numSamples:
+                continue
+            idx = (i*parser_size)
+            if subchannel is not None:
+                yield parser_unpack_from(data, idx)[subchannel]
+            else:
+                yield parser_unpack_from(data, idx)
+
+
+    def parseMinMeanMax(self, parser):
+        
+
+        if self.minMeanMax is None:
+            return None
+        try:
+            # NOTE: Because the SSX Z axis is inverted, the min/max need correction
+            # This may create a performance hit. Optimize?
+            self.min = parser.unpack_from(self.minMeanMax)
+            self.mean = parser.unpack_from(self.minMeanMax, parser.size)
+            self.max = parser.unpack_from(self.minMeanMax, parser.size*2)
+
+            self.min, self.max = list(zip(
+                *(sorted(minmax) for minmax in zip(self.min, self.max))
+            ))
+
+            return self.min, self.mean, self.max
+        except struct.error:
+            # Bad min/mean/max data: too short. Ignore it.
+            self.minMeanMax = None
+            return None
 
 
     def getNumSamples(self, parser):
@@ -778,7 +850,35 @@ class ChannelDataBlock(BaseDataBlock):
         # the end timestamp; if it's missing, duplicate the starting time.
         if self.endTime is None:
             self.endTime = self.startTime
+    
+    
+    @property
+    def payload(self):
+        return self._payloadEl.value
+    
+    
+    @property
+    def minMeanMax(self):
+        if self._minMeanMaxEl is None:
+            return self._minMeanMax
+        return self._minMeanMaxEl.value
+    
+    
+    @minMeanMax.setter
+    def minMeanMax(self, v):
+        # Explicitly set (done when block contains a single sample)
+        self._minMeanMax = v
+    
+    
+    def getHeader(self):
+        """ Extract the block's header info (timestamp and channel ID).
+        """
+        return self._timestamp, self.channel
 
+
+class ChannelDataArrayBlock(ChannelDataBlock):
+    def __init__(self, element):
+        super(ChannelDataArrayBlock, self).__init__(element)
         self._payload = None
 
         self._parser = None
@@ -820,37 +920,133 @@ class ChannelDataBlock(BaseDataBlock):
         # 'P': '',
     }
 
-    @property
-    def minMeanMax(self):
-        if self._minMeanMaxEl is None:
-            return self._minMeanMax
-        return self._minMeanMaxEl.value
-    
-    
-    @minMeanMax.setter
-    def minMeanMax(self, v):
-        # Explicitly set (done when block contains a single sample)
-        self._minMeanMax = v
-    
-    
-    def getHeader(self):
-        """ Extract the block's header info (timestamp and channel ID).
+    def parseWith(self, parser, start=None, end=None, step=1, subchannel=None):
+        """ Parse an element's payload. Use this instead of directly using
+            `parser.parse()` for consistency's sake.
+
+            :param parser: The DataParser to use
+            :keyword start: First subsample index to parse
+            :keyword end: Last subsample index to parse
+            :keyword step: The number of samples to skip, if the start and end
+                cover more than one sample.
+            :keyword subchannel: The subchannel to get, if specified.
         """
-        return self._timestamp, self.channel
+
+        # All numpy-compatible data streams use `struct.Struct` parsers
+        isNumpyCompatibleFormat = isinstance(parser, struct.Struct)
+
+        if not isNumpyCompatibleFormat:
+            # No parser format -> assume that data is from an old .ide file
+            #   & should be handled safely using the parser object
+            blocks = list(ChannelDataBlock.parseWith(
+                self, parser, start, end, step, subchannel
+            ))
+            return np.array(blocks, dtype=np.float64).T
+
+        if parser is self._parser:
+            streamDtype = self._streamDtype
+            commonDtype = self._commonDtype
+        else:
+            parser_format = parser.format
+            if isinstance(parser_format, (bytes, bytearray)):
+                parser_format = parser_format.decode()
+            if parser_format[0] in ['<', '>']:
+                endian = parser_format[0]
+                parser_format = parser_format[1:]
+            else:
+                endian = '>'
+
+            streamDtype = np.dtype(','.join([
+                endian + self.TO_NP_TYPESTR[typeId] for typeId in parser_format
+            ]))
+
+            isHomogeneous = len(set(parser_format)) == 1
+            if isHomogeneous:
+                commonDtype = np.dtype(endian + self.TO_NP_TYPESTR[parser_format[0]])
+            else:
+                commonDtype = None
+
+            self._parser = parser
+            self._streamDtype = streamDtype
+            self._commonDtype = commonDtype
+
+        if commonDtype is not None:
+            rawData = np.frombuffer(self.payload, dtype=commonDtype)
+            rawData = rawData.reshape(-1, len(streamDtype) or 1)[start:end:step].T
+
+            if len(streamDtype) > 0 and subchannel is not None:
+                return rawData[[subchannel]]
+            return rawData
+
+        rawData = np.frombuffer(self.payload, dtype=streamDtype)[start:end:step]
+
+        # Special cases for single-channel outputs
+        if subchannel is not None:
+            return rawData[streamDtype.names[subchannel]][np.newaxis]
+
+        data = np.empty((len(streamDtype),) + rawData.shape,
+                        dtype=np.float64)
+        for i, chName in enumerate(streamDtype.names):
+            data[i] = rawData[chName]
+
+        return data
+
+    def parseByIndexWith(self, parser, indices, subchannel=None):
+        """ Parse an element's payload and get a specific set of samples. Used
+            primarily for resampling tricks.
+
+            :param parser: The DataParser to use
+            :param indices: A list of indices into the block's data.
+            :keyword subchannel: The subchannel to get, if specified.
+        """
+        # SimpleChannelDataBlock payloads contain header info; skip it.
+        return self.parseWith(parser, subchannel=subchannel)[:, indices]
+
+    def parseMinMeanMax(self, parser):
+        if self.minMeanMax is None:
+            return None
+        try:
+            stats = np.array([
+                parser.unpack_from(self.minMeanMax, parser.size*i)
+                for i in range(3)
+            ])
+            # NOTE: Because the SSX Z axis is inverted, the min/max need correction
+            # This may create a performance hit. Optimize?
+            idx = (stats[0] > stats[2])
+            stats[[0, 2]][..., idx] = stats[[2, 0]][..., idx]
+
+            self.min, self.mean, self.max = [i.copy() for i in stats]
+            return stats
+        except struct.error:
+            # Bad min/mean/max data: too short. Ignore it.
+            self.minMeanMax = None
+            return None
 
 
 class ChannelDataBlockParser(SimpleChannelDataBlockParser):
-    """ Factory for ChannelDataBlock elements.  Instantiated once per
+    """ 'Factory' for ChannelDataBlock elements. Instantiated once per 
+        session (or maybe channel, depending). It handles the modulus
+        correction of the block's timestamps.
+        
+        :cvar elementName: The name of the element parsed by this parser
+        :cvar product: The class of object generated by the parser
+    """
+    product = ChannelDataBlock
+    elementName = product.__name__
+
+    timeScalar = 1000000.0 / 2**15
+
+
+class ChannelDataArrayBlockParser(ChannelDataBlockParser):
+    """ Factory for ChannelDataArrayBlock elements.  Instantiated once per
         session/channel, handles modulus correction for the blocks' timestamps.
         Unlike the ChannelDataBlockParser, this returns blocks which store
         (cache?) data as numpy arrays.
 
         :cvar product: The class of object generated by the parser
     """
-    product = ChannelDataBlock
-    elementName = product.__name__
-
-    timeScalar = 1e6 / 2**15
+    product = ChannelDataArrayBlock
+    elementName = product.__name__ # product.__name__
 
 
 ################################################################################

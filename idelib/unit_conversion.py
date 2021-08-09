@@ -9,11 +9,10 @@ Data type conversion. Each class contains two special attributes:
 :author: dstokes
 """
 import math
-import weakref
 
 import numpy as np
 
-from .transforms import ComplexTransform, Transform, Univariate
+from .transforms import Univariate
 from .dataset import Channel
 
 # ==============================================================================
@@ -35,21 +34,17 @@ def registerConverter(cls):
 # 
 # ==============================================================================
 
-class UnitConverter(Transform):
+class UnitConverter(Univariate):
     """ Mix-in class for unit conversion transforms.
     """
     modifiesValue = True
     modifiesTime = False
     parameters = None
-
-    def convert(self, v):
-        """ Convert a value to new units.  Aliases self.function() """
-        return self.function(v)
-
+    
     @classmethod
     def isApplicable(cls, obj):
         """ Is this converter applicable to the given object?
-
+         
             :param obj: A `Channel` or `EventList` (or a subclass of either).
                 Can also be a list or tuple of said objects. In the latter case,
                 the applicability of each item is tested, and `True` returned
@@ -72,16 +67,16 @@ class UnitConverter(Transform):
             return False
         units = (fromUnits[0] or sourceUnits[0], fromUnits[1] or sourceUnits[1])
         return units == sourceUnits
-
-
-class LinearUnitConverter(Univariate, UnitConverter):
-    """ Mix-in class for linear unit conversion transforms.
-    """
+    
+    def convert(self, v):
+        """ Convert a value to new units.  Aliases self.function() """
+        return self.function(v)
     
     def revert(self, v):
         """ Convert a value back to the original units. Primarily for display
             purposes.
         """
+        # TODO: Make this work on Univariates with more than 2 coefficients.
         # May never be needed.
         a, b = self.coefficients
         ref = self.references[0]
@@ -93,7 +88,7 @@ class LinearUnitConverter(Univariate, UnitConverter):
 
 
 @registerConverter
-class Celsius2Fahrenheit(LinearUnitConverter):
+class Celsius2Fahrenheit(UnitConverter):
     """ Convert degrees Celsius to Fahrenheit. 
     """
     convertsFrom = ('Temperature', '\xb0C')
@@ -107,7 +102,7 @@ class Celsius2Fahrenheit(LinearUnitConverter):
     
 
 @registerConverter
-class Celsius2Kelvin(LinearUnitConverter):
+class Celsius2Kelvin(UnitConverter):
     """ Convert degrees Celsius to Kelvin. 
     """
     convertsFrom = ('Temperature', '\xb0C')
@@ -121,7 +116,7 @@ class Celsius2Kelvin(LinearUnitConverter):
         
 
 @registerConverter
-class Gravity2MPerSec2(LinearUnitConverter):
+class Gravity2MPerSec2(UnitConverter):
     """ Convert acceleration from g to m/s^2.
     """
     convertsFrom = ('Acceleration', 'g')
@@ -133,7 +128,7 @@ class Gravity2MPerSec2(LinearUnitConverter):
 
 
 @registerConverter
-class Meters2Feet(LinearUnitConverter):
+class Meters2Feet(UnitConverter):
     """ Convert meters to feet.
     """
     convertsFrom = (None, 'm')
@@ -145,7 +140,7 @@ class Meters2Feet(LinearUnitConverter):
 
 
 @registerConverter
-class Pa2PSI(LinearUnitConverter):
+class Pa2PSI(UnitConverter):
     """ Convert air pressure from Pascals to pounds per square inch.
     """
     convertsFrom = ('Pressure', 'Pa')
@@ -157,7 +152,7 @@ class Pa2PSI(LinearUnitConverter):
 
 
 @registerConverter
-class Pa2atm(LinearUnitConverter):
+class Pa2atm(UnitConverter):
     """ Convert air pressure from Pascals to atmospheres.
     """
     convertsFrom = ('Pressure', 'Pa')
@@ -174,7 +169,7 @@ class Pa2atm(LinearUnitConverter):
 
 
 @registerConverter
-class Pressure2Meters(UnitConverter, ComplexTransform):
+class Pressure2Meters(UnitConverter):
     """ Convert pressure in Pascals to an altitude in meters.
     """
     convertsFrom = ('Pressure', 'Pa')
@@ -203,7 +198,6 @@ class Pressure2Meters(UnitConverter, ComplexTransform):
         self.id = calId
         self._lastSession = None
         self._timeOffset = 0
-        self._watchers = weakref.WeakSet()
         self._build()
 
     def __hash__(self):

@@ -112,6 +112,3 @@ venv.bak/
 
 # pycharm stuff
 .idea
-
-# Other
-.DS_Store
