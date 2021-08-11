@@ -116,19 +116,40 @@ For channels, this will be a (c+1)-by-n array, where n is the number of samples 
 Getting metadata
 ----------------
 
+.. testsetup:: *
+
+    import pathlib
+    import idelib
+
+    ds = idelib.importFile(pathlib.Path("testing/test3.IDE"))
+    ds.filename = '/home/enDAQ/recordings/test.IDE'
+
+    eventarray = ds.channels[80].subchannels[0].getSession()
+
 :class:`Dataset` makes available some basic metadata. Some useful pieces of information are stored directly as members:
 
->>> ds.filename
-'/home/enDAQ/recordings/SSX09546_019.IDE'
+.. doctest::
+    
+    >>> ds.filename
+    '/home/enDAQ/recordings/test.IDE'
 
 Other data is stored in the dict member ``recorderInfo``:
 
->>> ds.recorderInfo['RecorderSerial']
-9546
->>> ds.recorderInfo['PartNumber']
-'S3-E500D40'
+.. doctest::
+
+    >>> ds.recorderInfo['RecorderSerial']
+    10118
+    >>> ds.recorderInfo['PartNumber']
+    'W8-E100D40'
 
 :class:`EventArray` also stores some sample-specific metadata, like the data's units:
 
->>> eventarray.units
-('Acceleration', u'g')
+.. doctest::
+    
+    >>> eventarray.units
+    ('Acceleration', 'g')
+
+
+.. testcleanup::
+    
+    ds.close()
