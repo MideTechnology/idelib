@@ -8,6 +8,7 @@ import os.path
 import sys
 from time import time as time_time
 from time import sleep
+import warnings
 
 import struct
 
@@ -294,14 +295,20 @@ def _getSize(stream, chunkSize=512 * 1024):
 #===============================================================================
 
 def importFile(filename='', startTime=None, endTime=None, channels=None,
-               updater=None, parserTypes=ELEMENT_PARSER_TYPES, defaults=None,
-               name=None, quiet=False):
+               updater=None, parserTypes=None, defaults=None, name=None,
+               quiet=False, **kwargs):
     """ Create a new Dataset object and import the data from a MIDE file. 
         Primarily for testing purposes. The GUI does the file creation and 
         data loading in two discrete steps, as it will need a reference to 
         the new document before the loading starts.
         :see: `readData()`
     """
+    # FUTURE: Remove `kwargs` and this conditional warning.
+    if kwargs:
+        warnings.warn(DeprecationWarning(
+                'Some importFile() updater-related arguments have been deprecated. '
+                'Ignored arguments: {}'.format(', '.join(repr(k) for k in kwargs))))
+
     defaults = defaults or DEFAULTS
 
     stream = open(filename, "rb")
@@ -489,6 +496,10 @@ def filterTime(doc, startTime=0, endTime=None, channels=None):
                     yield None
 
             else:
+                # FUTURE: Omit `<Sync>` elements outside the interval and
+                #  'manually' create ones immediately before and after? Omit
+                #  certain time-specific `<Attribute>` elements as well
+                #  (if any)?
                 yield el
 
     except (StopIteration, KeyboardInterrupt):
@@ -526,9 +537,17 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
         :param parserTypes: A collection of `parsers.ElementHandler` classes.
         :return: The total number of samples read.
     """
+    kwargs.pop('sessionId', None)  # Unused; for Classic compatibility.
+
+    # FUTURE: Remove `kwargs` and this conditional warning.
+    if kwargs:
+        warnings.warn(DeprecationWarning(
+                'Some readData() updater-related arguments have been deprecated. '
+                'Ignored arguments: {}'.format(', '.join(repr(k) for k in kwargs))))
+
     parserTypes = parserTypes or ELEMENT_PARSER_TYPES
     if doc._parsers is None:
-        # ???: Is `doc._parsers` ever `None` at this point?
+        # Possibly redundant; is `doc._parsers` ever `None` at this point?
         doc._parsers = instantiateParsers(doc, parserTypes)
     
     elementParsers = doc._parsers
