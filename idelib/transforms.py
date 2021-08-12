@@ -36,7 +36,11 @@ class Transform(object):
     modifiesTime = False
     modifiesValue = False
     units = None
-    
+
+    convertsFrom = None
+    convertsTo = None
+
+
     def __init__(self, *args, **kwargs):
         self.id = None
         self._str = "x"
@@ -147,6 +151,36 @@ class Transform(object):
             polynomials which reference this one.
         """
         self._watchers.add(watcher)
+
+
+    @classmethod
+    def isApplicable(cls, obj):
+        """ Is this converter applicable to the given object?
+
+            :param obj: A `Channel` or `EventList` (or a subclass of either).
+                Can also be a list or tuple of said objects. In the latter case,
+                the applicability of each item is tested, and `True` returned
+                if they are all applicable.
+        """
+        if not cls.convertsFrom:
+            return True
+
+        if isinstance(obj, (list, tuple)):
+            if len(obj) == 0:
+                return False
+            return all(map(cls.isApplicable, obj))
+
+        sourceUnits = obj.units
+        fromUnits = cls.convertsFrom
+        if sourceUnits is None:
+            return False
+        elif sourceUnits == fromUnits:
+            return True
+        elif None not in cls.convertsFrom:
+            return False
+
+        units = (fromUnits[0] or sourceUnits[0], fromUnits[1] or sourceUnits[1])
+        return units == sourceUnits
 
     
     #===========================================================================

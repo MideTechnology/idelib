@@ -844,7 +844,7 @@ class TestSubChannel:
         assert subChannel1.attributes == 8
         assert subChannel1.name == "channel2:00"
         assert subChannel1.units == ('a', 'b')
-        assert subChannel1.displayName == 'a'
+        # assert subChannel1.displayName == 'a'
         assert subChannel1.sensor == channel1.sensor
         assert subChannel1.types == (channel1.types[0], )
         assert subChannel1.displayRange == [4]

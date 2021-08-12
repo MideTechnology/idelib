@@ -144,6 +144,7 @@ class Transformable(Cascading):
             value of `raw`, however; the new transform will not be applied
             unless it is `True`.
         """
+        self._displayName = None
         self.transform = transform
         if isinstance(transform, int):
             self.transformId = transform
@@ -195,6 +196,26 @@ class Transformable(Cascading):
             subchannelId = getattr(self, "id", None)
             self.parent.getTransforms(subchannelId, _tlist)
         return _tlist
+
+
+    @property
+    def units(self):
+        if isinstance(self.transform, int):
+            self._updateXformIds()
+
+        if self.transform and self.transform.convertsTo:
+            return self.transform.convertsTo
+        elif hasattr(self, '_units') and self._units:
+            return self._units
+        elif hasattr(self.parent, 'units') and self.parent.units:
+            return self.parent.units
+        return ('', '')
+
+
+    @units.setter
+    def units(self, units):
+        self._displayName = None
+        self._units = units
 
 
 #===============================================================================
@@ -696,7 +717,7 @@ class Channel(Transformable):
         self.id = channelId
         self.sensor = sensor
         self.parser = parser
-        self.units = units or ('', '')
+        self._units = units
         self.parent = sensor
         self.dataset = dataset
         self.sampleRate = sampleRate
@@ -980,6 +1001,7 @@ class SubChannel(Channel):
         self.attributes = attributes
         
         self._unitsStr = None
+        self._displayName = None
 
         if name is None:
             self.name = "%s:%02d" % (parent.name, subchannelId)
@@ -1000,19 +1022,7 @@ class SubChannel(Channel):
             self.name = "Control Pad Temperature"
 
         units = tuple(isinstance(s, (bytes, bytearray)) and s.decode() or s for s in units)
-        self.units = units
-
-        # Generate a 'display name' (e.g. for display in a plot legend)
-        # Combines the given name (if any) and the units (if any)
-        if self.units[0]:
-            if name is None: 
-                self.displayName = units[0]
-            elif units[0] in self.name:
-                self.displayName = self.name
-            else:
-                self.displayName = "%s: %s" % (units[0], self.name)
-        else:
-            self.displayName = self.name
+        self._units = units
 
         if isinstance(sensorId, int):
             self.sensor = self.dataset.sensors.get(sensorId, None)
@@ -1066,6 +1076,28 @@ class SubChannel(Channel):
     @property
     def children(self):
         return []
+
+
+    @property
+    def displayName(self):
+        # Generate a 'display name' (e.g. for display in a plot legend)
+        # Combines the given name (if any) and the units (if any)
+        # if self._displayName:
+        #     return self._displayName
+
+        units = self.units
+        units = units[0] if units else None
+        if units:
+            if self.name is None:
+                self._displayName = units
+            elif units in self.name:
+                self._displayName = self.name
+            else:
+                self._displayName = "{}: {}".format(units, self.name)
+        else:
+            self._displayName = self.name
+
+        return self._displayName
 
 
     @property
@@ -1146,20 +1178,20 @@ class SubChannel(Channel):
             return self.id == other.id \
                and self.sensor == other.sensor \
                and self.parser == other.parser \
-               and self.units == other.units \
                and self.dataset == other.dataset \
                and self.sampleRate == other.sampleRate \
                and self.attributes == other.attributes \
                and self.cache == other.cache \
                and self.singleSample == other.singleSample \
                and self.name == other.name \
-               and self.displayName == other.displayName \
                and self.types == other.types \
                and self.displayRange == other.displayRange \
                and self.hasDisplayRange == other.hasDisplayRange \
                and self.sessions == other.sessions \
-               and self.allowMeanRemoval == other.allowMeanRemoval  
-               
+               and self.allowMeanRemoval == other.allowMeanRemoval
+            # and self.units == other.units \
+            # and self.displayName == other.displayName \
+
 
 #===============================================================================
 #
@@ -1320,11 +1352,11 @@ class EventArray(Transformable):
             self._displayXform = self._parentList._displayXform
 
 
-    @property
-    def units(self):
-        if self.transform is not None:
-            return self.transform.units or self.parent.units
-        return self.parent.units
+    # @property
+    # def units(self):
+    #     if self.transform is not None:
+    #         return self.transform.units or self.parent.units
+    #     return self.parent.units
 
 
     def path(self):
@@ -2790,7 +2822,7 @@ class Plot(Transformable):
         self.session = source.session
         self.dataset = source.dataset
         self.name = source.path() if name is None else name
-        self.units = source.units if units is None else units
+        self._units = source.units if units is None else units
         self.attributes = attributes
         self.setTransform(transform, update=False)
     
