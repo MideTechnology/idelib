@@ -6,6 +6,7 @@ install:
 script:
   - python -m pytest ./testing/ --cov=idelib
   - sphinx-build -W -b html docs/source docs/html
+  - sphinx-build -W -b doctest docs/source docs/doctest
 after_success:
   - bash <(curl -s https://codecov.io/bash)
 
