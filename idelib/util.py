@@ -2,17 +2,15 @@
 Utility functions for doing low-level, general-purpose EBML reading and writing.
 """
 
-from collections import Counter
 from io import IOBase
 import logging
 import os.path
 from pathlib import Path
-import sys
 
 from ebmlite import loadSchema
 
+from .importer import filterTime, openFile, _getSize
 from .dataset import Dataset
-from .importer import openFile
 
 # ==============================================================================
 #
@@ -75,17 +73,14 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
     if endTime is None:
         endTime = float('infinity')
 
-    # Dictionaries (and similar) for tracking progress of each ChannelDataBlock
-    # element handled. All keyed by channel ID (ChannelIDRef).
-    lastBlocks = {}  # Previous element w/ its start and end times
-    channelsWritten = Counter()  # Number of elements extracted per channel
-    finished = {}  # Channels that have completed extraction
-
     copiedBytes = 0
 
     # Updater stuff
-    totalElements = len(doc.ebmldoc)
-    increment = int(totalElements / 20)
+    totalSize = 1
+    increment = 50
+    if updater:
+        totalSize = _getSize(doc.ebmldoc)
+        # FUTURE: Set `increment` based on `totalSize`?
 
     if isinstance(out, (str, Path)):
         fs = open(out, 'wb')
@@ -96,87 +91,18 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
                         "or stream, got {} ".format(type(out)))
 
     try:
-        timeScalars = doc._parsers['ChannelDataBlock'].timeScalars
-
-        for n, el in enumerate(doc.ebmldoc, 1):
+        for n, el in enumerate(filterTime(doc, startTime, endTime, channels=channels), 1):
             if updater:
                 if updater.cancelled:
                     break
 
                 if n % increment == 0:
-                    updater(count=n, total=totalElements)
+                    updater(percent=el.offset/totalSize)
 
-            if el.name == 'ChannelDataBlock':
-                # Get ChannelIDRef, StartTimeCodeAbs, and EndTimeCodeAbs;
-                # usually the 1st three, in order, but don't assume!
-                chId = blockStart = blockEnd = None
-                for subEl in el:
-                    if subEl.name == "ChannelIDRef":
-                        chId = subEl.value
-                    elif subEl.name == "StartTimeCodeAbs":
-                        blockStart = subEl.value
-                    elif subEl.name == "EndTimeCodeAbs":
-                        blockEnd = subEl.value
-
-                blockEnd = blockEnd or blockStart
-                if chId is None:
-                    logger.warning("Extractor: {} missing <ChannelIDRef> subelement, skipping.".format(el))
-                    continue
-                if blockStart is None:
-                    logger.warning("Extractor: {} missing <StartTimeCodeAbs> subelement, skipping.".format(el))
-                    continue
-
-                if channels and chId not in channels:
-                    continue
-                if finished.setdefault(chId, False):
-                    continue
-
-                # TODO: Modulus correction, if still needed.
-                scalar = timeScalars.get(chId, 1)
-                blockStart *= scalar
-                blockEnd *= scalar
-
-                writeCurrent = True
-                writePrev = False  # write previous block, if current one starts late
-
-                if blockEnd < startTime:
-                    # Entirely before extraction interval. Write nothing.
-                    writeCurrent = False
-                elif blockStart <= startTime:
-                    # Block overlaps start of interval. Write block.
-                    # Mark channel finished if block also includes end of interval.
-                    writePrev = False
-                    finished[chId] = blockEnd >= endTime
-                elif blockEnd <= endTime:
-                    # Block within interval. Write block (w/ prev. if needed).
-                    writePrev = channelsWritten[chId] == 0
-                else:
-                    # Block overlaps end of interval. Write block (w/ prev. if needed).
-                    # Mark channel finished.
-                    finished[chId] = True
-                    writePrev = channelsWritten[chId] == 0
-
-                if writePrev:
-                    # Write the previous block, which is before the extraction interval.
-                    # This is to ensure that initial data is not left out.
-                    prev = lastBlocks.get(chId, None)
-                    if prev:
-                        data = prev[0].getRaw()
-                        fs.write(data)
-                        copiedBytes += len(data)
-                        channelsWritten[chId] += 1
-
-                lastBlocks[chId] = (el, blockStart, blockEnd)
-
-                if writeCurrent:
-                    channelsWritten[chId] += 1
-                else:
-                    # Skip to next element without writing anything.
-                    continue
-
-            data = el.getRaw()
-            fs.write(data)
-            copiedBytes += len(data)
+            if el is not None:
+                data = el.getRaw()
+                fs.write(data)
+                copiedBytes += len(data)
 
     except (StopIteration, KeyboardInterrupt):
         pass
@@ -188,7 +114,7 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
     if updater:
         updater(done=True)
 
-    return copiedBytes, sum(channelsWritten.values())
+    return copiedBytes
 
 
 # ==============================================================================
@@ -197,34 +123,6 @@ def extractTime(doc, out, startTime=0, endTime=None, channels=None,
 
 CHUNK_SIZE = 512 * 1024  # Size of chunks when looking for last sync
 SYNC = b'\xfa\x84ZZZZ'  # The raw EBML of a Sync element
-
-
-def _getSize(stream):
-    """
-    Get the length of a stream from its data.
-
-    :param stream: A file stream or file-like object (must implement `tell()`
-        and `seek()`).
-    :returns: The total length of the file.
-    """
-    if not (hasattr(stream, 'seek') and hasattr(stream, 'tell')):
-        raise TypeError('Cannot get size of non-stream {}'.format(type(stream)))
-
-    # If it's a real file, no problem!
-    if hasattr(stream, 'name'):
-        if os.path.isfile(stream.name):
-            return os.path.getsize(stream.name)
-
-    originalPos = stream.tell()
-
-    # Grab chunks until less is read than requested.
-    thisRead = CHUNK_SIZE
-    while thisRead == CHUNK_SIZE:
-        thisRead = len(stream.read(CHUNK_SIZE))
-
-    eof = stream.tell()
-    stream.seek(originalPos)
-    return eof
 
 
 def _getLastSync(stream, length=None):
@@ -330,7 +228,7 @@ def _getLength(doc):
 
     # Use the cached EBML document size if the IDE was already fully imported,
     # otherwise use `None` so `_getLastSync()` will calculate it (faster than
-    # getting uncached `soc.ebmldoc.size`)
+    # getting uncached `doc.ebmldoc.size`)
     streamLength = None if doc.loading else doc.ebmldoc.size
     stream.seek(_getLastSync(stream, streamLength))
     temp_ebml = doc.ebmldoc.schema.load(stream)
