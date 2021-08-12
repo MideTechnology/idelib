@@ -101,35 +101,6 @@ DEFAULTS = {
 }
 
 
-# if False: #__DEBUG__:
-#     logger.info("Adding low g channels to defaults")
-#     DEFAULTS['sensors'][0x02] = {
-#          'name': "Low-G Accelerometer"
-#     }
-#     DEFAULTS['channels'].update({
-#         0x02: {'name': "Low-G Accelerometer XYZ",
-#                'parser': struct.Struct(">hhh"),
-#                "subchannels":{0: {"name": "Low-g Z",
-#                                   "units":('Acceleration','g'),
-#                                   "sensorId": 2,
-#                                  },
-#                               1: {"name": "Low-g Y",
-#                                   "units":('Acceleration','g'),
-#                                   "sensorId": 2,
-#                                   },
-#                               2: {"name": "Low-g X",
-#                                   "units":('Acceleration','g'),
-#                                   "sensorId": 2,
-#                                   },
-#                             },
-#                },
-# #         0x43: {"name": "DEBUG Crystal Drift",
-# #                "parser": struct.Struct(">II")},
-# #         0x45: {"name": "DEBUG Gain/Offset",
-# #                "parser": struct.Struct("<i")},
-#     })
-
-
 def createDefaultSensors(doc, defaults=None):
     """ Given a nested set of dictionaries containing the definition of one or
         more sensors, instantiate those sensors and add them to the dataset
