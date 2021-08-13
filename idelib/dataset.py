@@ -944,7 +944,6 @@ class Channel(Transformable):
                and self.cache == other.cache \
                and self.singleSample == other.singleSample \
                and self.name == other.name \
-               and self.displayName == other.displayName \
                and self.types == other.types \
                and self.displayRange == other.displayRange \
                and self.hasDisplayRange == other.hasDisplayRange \
@@ -952,7 +951,8 @@ class Channel(Transformable):
                and self.sessions == other.sessions \
                and self.subsampleCount == other.subsampleCount \
                and self._lastParsed == other._lastParsed \
-               and self.allowMeanRemoval == other.allowMeanRemoval        
+               and self.allowMeanRemoval == other.allowMeanRemoval
+               # and self.displayName == other.displayName
 
 
 #===============================================================================
@@ -963,7 +963,7 @@ class SubChannel(Channel):
         like a 'real' channel.
     """
     
-    def __init__(self, parent, subchannelId, name=None, units=('', ''),
+    def __init__(self, parent, subchannelId, name=None, units=None,
                  transform=None, displayRange=None, sensorId=None, 
                  warningId=None, axisName=None, attributes=None, color=None):
         """ Constructor. This should generally be done indirectly via
@@ -1021,7 +1021,8 @@ class SubChannel(Channel):
         elif self.name == "Control Pad T":
             self.name = "Control Pad Temperature"
 
-        units = tuple(isinstance(s, (bytes, bytearray)) and s.decode() or s for s in units)
+        if isinstance(units, (tuple, list)):
+            units = tuple(isinstance(s, (bytes, bytearray)) and s.decode() or s for s in units)
         self._units = units
 
         if isinstance(sensorId, int):
@@ -1082,8 +1083,8 @@ class SubChannel(Channel):
     def displayName(self):
         # Generate a 'display name' (e.g. for display in a plot legend)
         # Combines the given name (if any) and the units (if any)
-        # if self._displayName:
-        #     return self._displayName
+        if self._displayName:
+            return self._displayName
 
         units = self.units
         units = units[0] if units else None
