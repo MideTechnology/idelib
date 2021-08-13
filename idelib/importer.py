@@ -10,6 +10,10 @@ from time import sleep
 
 import numpy as np
 import struct
+try:
+    import tqdm
+except ModuleNotFoundError:
+    tqdm = None
 
 from . import transforms
 from .dataset import Dataset
@@ -260,6 +264,46 @@ class SimpleUpdater(object):
                 else:
                     self.dump(' '*25)
             sys.stdout.flush()
+
+
+if tqdm is not None:
+    class TQDMUpdater:
+
+        paused = False
+        cancelled = False
+
+        _size = 100
+
+        def __init__(self, fileLength=None):
+            self.fileLength = fileLength
+            pbarKwargs = {
+                'ncols': 150,
+                'unit_scale': 1,
+                'unit': 'B',
+                }
+            if fileLength is None:
+                self.pbar = tqdm.tqdm(total=self._size, **pbarKwargs)
+            else:
+                self.pbar = tqdm.tqdm(total=fileLength, **pbarKwargs)
+            self._lastUpdate = 0
+
+        def __call__(self, percent=0, **kwargs):
+            if self.fileLength is None:
+                self.pbar.update(int(percent*self._size) - self._lastUpdate)
+                self._lastUpdate = int(percent*self._size)
+            else:
+                filepos = kwargs.get('filepos', 1)
+                self.pbar.update(filepos - self._lastUpdate)
+                self._lastUpdate = kwargs.get('filepos')
+
+        def __del__(self):
+            self.pbar.close()
+
+
+else:
+    def TQDMUpdater():
+        warnings.warn('TQDM was not imported properly')
+        return nullUpdater()
     
 
 #===============================================================================
@@ -484,7 +528,8 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
             if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:
                 # Update progress bar
                 updater(count=eventsRead+samplesRead,
-                        percent=(1/3) + (2/3)*(thisOffset-firstDataPos)/dataSize)
+                        percent=(thisOffset-firstDataPos)/dataSize,
+                        filepos=doc.ebmldoc.stream.tell())
                 nextUpdatePos = thisOffset + ticSize
                 nextUpdateTime = thisTime + updateInterval
             
