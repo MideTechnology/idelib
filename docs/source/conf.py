@@ -37,6 +37,7 @@ release = u'.'.join([u'{}'.format(i) for i in idelib.__version__])
 # ones.
 extensions = [
     'sphinx.ext.autodoc',
+    'sphinx.ext.doctest',
     'sphinx.ext.intersphinx',
     'sphinx.ext.ifconfig',
     'sphinx.ext.githubpages',

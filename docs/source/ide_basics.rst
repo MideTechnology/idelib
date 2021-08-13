@@ -23,7 +23,10 @@ You can open an IDE file like so::
     with idelib.importFile(filename) as ds:
         print(type(ds))
 
-Note: a :class:`Dataset` object perfoms *lazy-loading*, meaning that it only loads information as is needed. As a result, it internally retains a handle to the source file which after use needs to be closed. This can be accomplished by either using :class:`Dataset` as a *context manager* (as seen above; this is the recommended method), or by using :class:`Dataset` as a normal value and calling the ``close()`` method manually::
+Note: a :class:`Dataset` object perfoms *lazy-loading*, meaning that it only loads information as is needed. As a result, it internally retains a handle to the source file which needs to be closed after use. This can be accomplished by either:
+
+* using :class:`Dataset` as a *context manager* (as seen above; this is the recommended method), or
+* by using :class:`Dataset` as a normal object and calling the ``close()`` method manually::
 
     filename = "/path/to/your/file.IDE"
     ds = idelib.importFile(filename)
@@ -45,47 +48,47 @@ Each :class:`Channel` object has a ``subchannels`` member, which is a list of :c
 
 The channels, channel ID numbers and subchannels that may appear in a given recording file depend on the physical sensors available on the recording device, which are indicated by the device's *product number*. Below are some product number abbreviations used herein:
 
-========================= ================================================================================= =======================
-(Abbreviated) Product No. Description                                                                       Example Product Nos.
-========================= ================================================================================= =======================
-S-D                       enDAQ S-series devices with single digital accelerometers                         S3-D16, S4-D40
-------------------------- --------------------------------------------------------------------------------- -----------------------
-S-DD                      enDAQ S-series devices with dual digital accelerometers                           S1-D100D40, S2-D25D16
-------------------------- --------------------------------------------------------------------------------- -----------------------
-S-ED                      enDAQ S-series devices with an analog electrocapacitive and digital accelerometer S5-E25D40, S4-E100D40
-------------------------- --------------------------------------------------------------------------------- -----------------------
-S-RD                      enDAQ S-series devices with an analog piezoresistive and digital accelerometer    S4-R500D40, S5-R2000D40
-------------------------- --------------------------------------------------------------------------------- -----------------------
-SSX                       Mide Slam Stick X data recorders                                                  SSX
-------------------------- --------------------------------------------------------------------------------- -----------------------
-SSC                       Mide Slam Stick C data recorders                                                  SSC
-------------------------- --------------------------------------------------------------------------------- -----------------------
-SSS                       Mide Slam Stick S data recorders                                                  SSS
-========================= ================================================================================= =======================
+========================= ============================================================================================== =======================
+(Abbreviated) Product No. Description                                                                                    Example Product Nos.
+========================= ============================================================================================== =======================
+S/W-D                     enDAQ S-series & W-series devices with a single digital accelerometer                          S3-D16, W5-D40
+------------------------- ---------------------------------------------------------------------------------------------- -----------------------
+S/W-DD                    enDAQ S-series & W-series devices with dual digital accelerometers                             S1-D100D40, S2-D25D16
+------------------------- ---------------------------------------------------------------------------------------------- -----------------------
+S/W-ED                    enDAQ S-series & W-series devices with an analog electrocapacitive and a digital accelerometer W8-E25D40, S4-E100D40
+------------------------- ---------------------------------------------------------------------------------------------- -----------------------
+S/W-RD                    enDAQ S-series & W-series devices with an analog piezoresistive and a digital accelerometer    S4-R500D40, W8-R2000D40
+------------------------- ---------------------------------------------------------------------------------------------- -----------------------
+SSX                       Mide Slam Stick X data recorders                                                               SSX
+------------------------- ---------------------------------------------------------------------------------------------- -----------------------
+SSC                       Mide Slam Stick C data recorders                                                               SSC
+------------------------- ---------------------------------------------------------------------------------------------- -----------------------
+SSS                       Mide Slam Stick S data recorders                                                               SSS
+========================= ============================================================================================== =======================
 
 The below table lists channel ID numbers used in a recording file based on the recording device's product number (device series numbers and accelerometer sensitivity ranges are omitted when applicable to all such devices):
 
-===================== ========== ================================== =====================================
-Sensor                Channel ID Valid Devices                      Subchannels
-===================== ========== ================================== =====================================
-Main Accelerometer    8          S-RD, S-ED, SSS, SSX               X-, Y-, Z-axis Acceleration
---------------------- ---------- ---------------------------------- -------------------------------------
-16/200g Accelerometer 32         S-DD, SSX, SSS, SSC, S-D16, S-D200 X-, Y-, Z-axis Acceleration
---------------------- ---------- ---------------------------------- -------------------------------------
-8/40g Accelerometer   80         S-RD, S-DD, S-ED, S-D40, S-D8      X-, Y-, Z-axis Acceleration
---------------------- ---------- ---------------------------------- -------------------------------------
-IMU Gyroscope         47         All [1]_                           X-, Y-, Z-axis Rotation
---------------------- ---------- ---------------------------------- -------------------------------------
-Absolute Orientation  65         All [1]_                           X-, Y-, Z-, W-axis Quaternion; Acc
---------------------- ---------- ---------------------------------- -------------------------------------
-Relative Orientation  70         All [1]_                           X-, Y-, Z-, W-axis Quaternion
---------------------- ---------- ---------------------------------- -------------------------------------
-MPL3115               36         All [1]_                           Pressure, Temperature [2]_
---------------------- ---------- ---------------------------------- -------------------------------------
-MS8607                59         All [1]_                           Pressure, Temperature, Humidity [3]_
---------------------- ---------- ---------------------------------- -------------------------------------
-SI1133                76         All [1]_                           Lux, UV
-===================== ========== ================================== =====================================
+===================== ========== ======================================== =====================================
+Sensor                Channel ID Valid Devices                            Subchannels
+===================== ========== ======================================== =====================================
+Main Accelerometer    8          S/W-RD, S/W-ED, SSS, SSX                 X-, Y-, Z-axis Acceleration
+--------------------- ---------- ---------------------------------------- -------------------------------------
+16/200g Accelerometer 32         S/W-DD, SSX, SSS, SSC, S/W-D16, S/W-D200 X-, Y-, Z-axis Acceleration
+--------------------- ---------- ---------------------------------------- -------------------------------------
+8/40g Accelerometer   80         S/W-RD, S/W-DD, S/W-ED, S/W-D40, S/W-D8  X-, Y-, Z-axis Acceleration
+--------------------- ---------- ---------------------------------------- -------------------------------------
+IMU Gyroscope         47         All [1]_                                 X-, Y-, Z-axis Rotation
+--------------------- ---------- ---------------------------------------- -------------------------------------
+Absolute Orientation  65         All [1]_                                 X-, Y-, Z-, W-axis Quaternion; Acc
+--------------------- ---------- ---------------------------------------- -------------------------------------
+Relative Orientation  70         All [1]_                                 X-, Y-, Z-, W-axis Quaternion
+--------------------- ---------- ---------------------------------------- -------------------------------------
+MPL3115               36         All [1]_                                 Pressure, Temperature [2]_
+--------------------- ---------- ---------------------------------------- -------------------------------------
+MS8607                59         All [1]_                                 Pressure, Temperature, Humidity [3]_
+--------------------- ---------- ---------------------------------------- -------------------------------------
+SI1133                76         All [1]_                                 Lux, UV
+===================== ========== ======================================== =====================================
 
 .. [1] excluding early SSC/SSS/SSX models
 .. [2] 1 Hz Internal Measurements
@@ -113,19 +116,40 @@ For channels, this will be a (c+1)-by-n array, where n is the number of samples 
 Getting metadata
 ----------------
 
+.. testsetup:: *
+
+    import pathlib
+    import idelib
+
+    ds = idelib.importFile(pathlib.Path("testing/test3.IDE"))
+    ds.filename = '/home/enDAQ/recordings/test.IDE'
+
+    eventarray = ds.channels[80].subchannels[0].getSession()
+
 :class:`Dataset` makes available some basic metadata. Some useful pieces of information are stored directly as members:
 
->>> ds.filename
-'/home/enDAQ/recordings/SSX09546_019.IDE'
+.. doctest::
+    
+    >>> ds.filename
+    '/home/enDAQ/recordings/test.IDE'
 
 Other data is stored in the dict member ``recorderInfo``:
 
->>> ds.recorderInfo['RecorderSerial']
-9546
->>> ds.recorderInfo['PartNumber']
-'S3-E500D40'
+.. doctest::
+
+    >>> ds.recorderInfo['RecorderSerial']
+    10118
+    >>> ds.recorderInfo['PartNumber']
+    'W8-E100D40'
 
 :class:`EventArray` also stores some sample-specific metadata, like the data's units:
 
->>> eventarray.units
-('Acceleration', u'g')
+.. doctest::
+    
+    >>> eventarray.units
+    ('Acceleration', 'g')
+
+
+.. testcleanup::
+    
+    ds.close()

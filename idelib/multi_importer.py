@@ -1,15 +1,14 @@
-'''
-Functions for opening multiple IDE files as one. 
+"""
+Functions for opening multiple IDE files as one.
 
 :todo: Consider moving the rest of this into the normal `importer` module.
 
-'''
+"""
 
 import fnmatch
 import os.path
 
 from .importer import openFile, readData
-from .importer import nullUpdater
 
 
 #===============================================================================
@@ -26,7 +25,6 @@ if __DEBUG__:
     logger.setLevel(logging.INFO)
 else:
     logger.setLevel(logging.ERROR)
-
 
 
 #===============================================================================
@@ -72,12 +70,19 @@ def crawlFiles(sources, pattern="*.ide", maxDepth=-1):
     return [x for x in results if os.path.isfile(x)]
 
 
-def multiOpen(streams, updater=nullUpdater, **kwargs):
+def multiOpen(streams, updater=None, **kwargs):
     """ Create a `Dataset` instance and read the header data (i.e. non-sample-
         data). When called by a GUI, this function should be considered 'modal,' 
         in that it shouldn't run in a background thread, unlike `readData()`. 
         
         :param streams: A set of file-like streams containing EBML recordings.
+        :param updater: A function (or function-like object) to notify as
+            work is done. It should take four keyword arguments: `count` (the
+            current line number), `total` (the total number of samples), `error`
+            (an unexpected exception, if raised during the import), and `done`
+            (will be `True` when the export is complete). If the updater object
+            has a `cancelled` attribute that is `True`, the import will be
+            aborted. The default callback is `None` (nothing will be notified).
         :keyword parserTypes: A collection of `parsers.ElementHandler` classes.
         :keyword defaultSensors: A nested dictionary containing a default set 
             of sensors, channels, and subchannels. These will only be used if
@@ -87,7 +92,8 @@ def multiOpen(streams, updater=nullUpdater, **kwargs):
         :keyword quiet: If `True`, non-fatal errors (e.g. schema/file
             version mismatches) are suppressed. 
     """
-    updater(0)
+    if updater:
+        updater(0)
     
     docs = [openFile(f, **kwargs) for f in streams]
     docs.sort(key=lambda x: x.lastSession.utcStartTime)
@@ -97,13 +103,13 @@ def multiOpen(streams, updater=nullUpdater, **kwargs):
     return mainDoc
 
 
-def multiRead(doc, updater=nullUpdater, **kwargs):
+def multiRead(doc, updater=None, **kwargs):
     """ Import the data from a file into a Dataset, including the data from 
         its subsets.
     
         :param doc: The Dataset document into which to import the data. It
             should have `subset` Datasets.
-        :keyword updater: A function (or function-like object) to notify as 
+        :param updater: A function (or function-like object) to notify as
             work is done. It should take four keyword arguments: `count` (the 
             current line number), `total` (the total number of samples), `error` 
             (an unexpected exception, if raised during the import), and `done` 
@@ -133,10 +139,12 @@ def multiRead(doc, updater=nullUpdater, **kwargs):
                                     bytesRead=bytesRead, samplesRead=samplesRead, 
                                     **kwargs)
             bytesRead += f.ebmldoc.size
-            updater(count=bytesRead, total=totalSize, 
-                    percent=bytesRead/(totalSize+0.0))
-        
-    updater(done=True, total=samplesRead)
+            if updater:
+                updater(count=bytesRead, total=totalSize,
+                        percent=bytesRead/(totalSize+0.0))
+
+    if updater:
+        updater(done=True, total=samplesRead)
     return doc
     
 
