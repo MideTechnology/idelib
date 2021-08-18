@@ -12,7 +12,7 @@ import warnings
 
 import struct
 try:
-    import tqdm
+    import tqdm.auto
 except ModuleNotFoundError:
     tqdm = None
 
@@ -244,16 +244,20 @@ if tqdm is not None:
         def __init__(self, fileLength=None):
             self.fileLength = fileLength
             pbarKwargs = {
-                'ncols': 150,
+                # 'ncols': 150,
                 'unit_scale': 1,
                 }
             if fileLength is None:
-                self.pbar = tqdm.tqdm(total=self._size, unit='%', **pbarKwargs)
+                self.pbar = tqdm.auto.tqdm(total=self._size, unit='%', **pbarKwargs)
             else:
-                self.pbar = tqdm.tqdm(total=fileLength, unit='B', **pbarKwargs)
+                self.pbar = tqdm.auto.tqdm(total=fileLength, unit='B', **pbarKwargs)
             self._lastUpdate = 0
 
-        def __call__(self, percent=0, **kwargs):
+        def __call__(self, percent=0, done=False, **kwargs):
+            if done:
+                self.pbar.update(self.pbar.total - self.pbar.n)
+                return
+
             if self.fileLength is None:
                 self.pbar.update(int(percent*self._size) - self._lastUpdate)
                 self._lastUpdate = int(percent*self._size)
