@@ -1,7 +1,7 @@
-name: Test on any push, with lots of OS support
+name: Unit test on push and PR
 
 
-on: push
+on: [push, pull_request]
 
 
 jobs:
@@ -29,3 +29,5 @@ jobs:
       - run: python -m pytest ./testing/ --cov=idelib
       - run: sphinx-build -W -b html docs/source docs/html
       - run: sphinx-build -W -b doctest docs/source docs/doctest
+
+      - run: bash <(curl -s https://codecov.io/bash)
