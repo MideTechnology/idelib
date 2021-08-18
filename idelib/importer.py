@@ -286,7 +286,7 @@ def importFile(filename='', startTime=None, endTime=None, channels=None,
     doc = openFile(stream, updater=updater, name=name, parserTypes=parserTypes,
                    defaults=defaults, quiet=quiet)
     readData(doc, startTime=startTime, endTime=endTime, channels=channels,
-             updater=updater, parserTypes=parserTypes, defaults=defaults)
+             updater=updater, parserTypes=parserTypes)
     return doc
 
 
