@@ -30,4 +30,4 @@ jobs:
       - run: sphinx-build -W -b html docs/source docs/html
       - run: sphinx-build -W -b doctest docs/source docs/doctest
 
-      - run: bash <(curl -s https://codecov.io/bash)
+      - uses: codecov/codecov-action@v2
