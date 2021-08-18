@@ -39,5 +39,5 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           env_vars: OS,PYTHON-VERSION
           files: .coverage
-          name: join([${{ matrix.os }}, ${{ matrix.python-version }}, ' ')
+          name: ${{ matrix.os }} ${{ matrix.python-version }}
           verbose: true
