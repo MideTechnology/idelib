@@ -246,12 +246,11 @@ if tqdm is not None:
             pbarKwargs = {
                 'ncols': 150,
                 'unit_scale': 1,
-                'unit': 'B',
                 }
             if fileLength is None:
-                self.pbar = tqdm.tqdm(total=self._size, **pbarKwargs)
+                self.pbar = tqdm.tqdm(total=self._size, unit='%', **pbarKwargs)
             else:
-                self.pbar = tqdm.tqdm(total=fileLength, **pbarKwargs)
+                self.pbar = tqdm.tqdm(total=fileLength, unit='B', **pbarKwargs)
             self._lastUpdate = 0
 
         def __call__(self, percent=0, **kwargs):
