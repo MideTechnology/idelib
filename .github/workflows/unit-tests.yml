@@ -29,7 +29,6 @@ jobs:
       - run: python -m pytest ./testing/ --cov=idelib
       - run: sphinx-build -W -b html docs/source docs/html
       - run: sphinx-build -W -b doctest docs/source docs/doctest
-      - run: ls -la ./.coverage/reports
 
       - uses: codecov/codecov-action@v2
         with:
