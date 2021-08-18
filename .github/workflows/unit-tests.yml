@@ -13,6 +13,10 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
         python-version: [3.6, 3.7, 3.8, 3.9]
 
+    env:
+      OS: ${{ matrix.os }}
+      PYTHON-VERSION: ${{ matrix.python-version }}
+
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -33,5 +37,7 @@ jobs:
       - uses: codecov/codecov-action@v2
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          env_vars: OS,PYTHON-VERSION
           files: .coverage
+          name: join([${{ matrix.os }}, ${{ matrix.python-version }}, ' ')
           verbose: true
