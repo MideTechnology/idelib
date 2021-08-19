@@ -5,7 +5,7 @@ import numpy as np
 
 from idelib import importer
 from idelib.dataset import Dataset
-from idelib.transforms import Transform, AccelTransform, Univariate, Bivariate
+from idelib.transforms import Transform, AccelTransform, Univariate, Bivariate, CombinedPoly
 from .file_streams import makeStreamLike
 
 
@@ -233,8 +233,32 @@ class TestBivariate:
 
 class TestCombinedPoly:
 
-    def testInplace(self):
-        pass
+    @pytest.mark.parametrize(
+            'poly, subpoly, coeffs',
+            [
+                (Univariate((1, 0)),                Univariate((1, 0)),                    ((0,  1),  0, (0,   1),   0)),
+                (None,                              Univariate((1, 0)),                    ((0,  1),  0, (0,   1),   0)),
+                (Univariate((1, 0)),                None,                                  ((0,  1),  0, (0,   1),   0)),
+                (None,                              None,                                  ((0,  1),  0, (0,   1),   0)),
+                (Univariate((10, -3), reference=2), Univariate((1.1, 300), reference=300), ((-3, 10), 2, (300, 1.1), 300)),
+            ],
+            )
+    def testInplaceUnivariate(self, poly, subpoly, coeffs):
+
+        vals = np.linspace(-10, 10, 100)
+
+        poly1 = np.polynomial.Polynomial(coeffs[0])
+        refPoly1 = np.polynomial.Polynomial([-coeffs[1], 1])
+        poly2 = np.polynomial.Polynomial(coeffs[2])
+        refPoly2 = np.polynomial.Polynomial([-coeffs[3], 1])
+        fullPoly = poly1(refPoly1)(poly2(refPoly2))
+        expected = fullPoly(vals)
+
+        cPoly = CombinedPoly(poly, x=subpoly)
+
+        actual = cPoly.inplace(vals)
+
+        np.testing.assert_array_almost_equal(actual, expected)
 
 
 class TestPolyPoly:
