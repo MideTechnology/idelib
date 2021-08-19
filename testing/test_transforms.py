@@ -244,6 +244,18 @@ class TestCombinedPoly:
             ],
             )
     def testInplaceUnivariate(self, poly, subpoly, coeffs):
+        """
+        This test is checking that combinedpolys correctly apply univariate polynomials.
+        The tests use numpy's Polynomial objects to ensure the polynomial algebra is done correctly.
+
+        :param poly: The primary polynomial for a combinedpoly object.
+        :param subpoly: The secondary polynomial for a combinedpoly object.
+        :param coeffs: A tuple of parameters for numpy.polynomial.Polynomial objects:
+                - Coefficients for the primary polynomial.
+                - Reference for the primary polynomial.
+                - Coefficients for the secondary polynomial.
+                - Reference for the secondary polynomial.
+        """
 
         vals = np.linspace(-10, 10, 100)
 

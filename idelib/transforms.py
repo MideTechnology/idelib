@@ -1086,7 +1086,9 @@ class CombinedPoly(Bivariate):
         scalar = np.isscalar(values)
 
         # Catches the case where the first subpoly is a `ComplexTransform`
-        if self.variables[0] in self.subpolys and isinstance(self.subpolys[self.variables[0]], ComplexTransform):
+        if self.variables and \
+                self.variables[0] in self.subpolys and \
+                isinstance(self.subpolys[self.variables[0]], ComplexTransform):
             values = self.subpolys[self.variables[0]].inplace(
                     values,
                     timestamp=timestamp,
@@ -1099,6 +1101,11 @@ class CombinedPoly(Bivariate):
         elif out is None:
             out = np.zeros_like(values, dtype=np.float64)
 
+        if self.variables is None:
+            if scalar:
+                return values
+            out[:] = values
+            return out
 
         try:
             if len(self.variables) == 1:
