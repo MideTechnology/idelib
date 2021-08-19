@@ -241,6 +241,7 @@ class TestCombinedPoly:
                 (Univariate((1, 0)),                None,                                  ((0,  1),  0, (0,   1),   0)),
                 (None,                              None,                                  ((0,  1),  0, (0,   1),   0)),
                 (Univariate((10, -3), reference=2), Univariate((1.1, 300), reference=300), ((-3, 10), 2, (300, 1.1), 300)),
+                (None,                              Univariate((1.1, 300), reference=300), ((0,  1),  0, (300, 1.1), 300)),
             ],
             )
     def testInplaceUnivariate(self, poly, subpoly, coeffs):
