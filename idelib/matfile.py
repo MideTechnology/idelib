@@ -1,6 +1,6 @@
-'''
+"""
 MATLAB .MAT file exporting.
-'''
+"""
 
 from datetime import datetime
 from glob import glob
@@ -11,6 +11,7 @@ import struct
 import logging
 logger = logging.getLogger('idelib-archive')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+
 
 # NOTE: 64 bit Scipy is unstable; avoid using it for now (v0.13.2, 12/2014).
 # from scipy.io.matlab import mio5_params as MP
@@ -117,9 +118,10 @@ def serialFilename(basename, numDigits=2, minNumber=1, inc=1, pad='_'):
 
 # MATLAB reserved words. 
 # TODO: Add standard functions as well
-RESERVED_WORDS = ('break', 'case', 'catch','continue', 'else', 'elseif', 'end',
+RESERVED_WORDS = ('break', 'case', 'catch', 'continue', 'else', 'elseif', 'end',
                   'for', 'function', 'global', 'if', 'otherwise', 'persistent',
                   'return', 'switch', 'try', 'while')
+
 
 def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_',
                  prefix="v", reservedWords=RESERVED_WORDS):
@@ -127,12 +129,13 @@ def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_',
     
         :keyword validChars: A string of all valid characters
     """
+    validChars = validChars.encode('ascii', 'replace')
     s = s.strip().encode('ascii', 'replace')
-    result = [c if c in validChars else '_' for c in s.strip()]
+    result = [chr(c) if c in validChars else '_' for c in s.strip()]
     result = ''.join(result).strip('_ ')
     if result[0].isdigit() or result in reservedWords:
         result = prefix + result.title()
-    return result.replace('__','_').replace('__','_').encode('utf8')
+    return result.replace('__', '_').replace('__', '_').encode('utf8')
 
 
 #===============================================================================
@@ -142,8 +145,8 @@ def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_',
 class MatStream(object):
     """
     """
-    MAX_LENGTH = (2**31)-9 # Accounts for data being rounded to the next x8.
-    MAX_SIZE = int(MAX_LENGTH * .95) # scale back by 5%, just to be certain
+    MAX_LENGTH = 2**31 - 9  # Accounts for data being rounded to the next x8.
+    MAX_SIZE = int(MAX_LENGTH * .95)  # scale back by 5%, just to be certain
     DEFAULT_HEADER = "MATLAB 5.0 MAT-file MIDE IDE to MAT"
     
     # Map MATLAB types to the struct formatting character
@@ -217,7 +220,7 @@ class MatStream(object):
         self.calChannels = calChannels
 
         # MATLAB identifies the file as level 4 if the first byte is 0.
-        if '\x00' in self.msg[:4]:
+        if b'\x00' in self.msg[:4]:
             self.msg = self.DEFAULT_HEADER
             
         self.maxFileSize = min(self.MAX_SIZE, self.next8(maxFileSize))
@@ -254,7 +257,7 @@ class MatStream(object):
         self._write = self.stream.write
         self._seek = self.stream.seek
 
-        self._write(struct.pack('116s II H 2s', self.msg, 0, 0, 0x0100, 'IM'))
+        self._write(struct.pack('116s II H 2s', self.msg, 0, 0, 0x0100, b'IM'))
         
         if self._writeInfo:
             self.writeRecorderInfo(self.doc.recorderInfo)
@@ -323,7 +326,7 @@ class MatStream(object):
         """
         dataSize = struct.calcsize(fmt)
         result = struct.pack('II'+fmt, dtype, dataSize, *args)
-        self._write(result.ljust(self.next8(len(result)),'\0'))
+        self._write(result.ljust(self.next8(len(result)), b'\0'))
         return self.next8(dataSize + 8)
 
     
@@ -331,7 +334,7 @@ class MatStream(object):
         """ Write a string to the file, proceeded by type and size info, aligned
             to 64 bits. Used internally.
         """
-        s = s[:maxlen].encode('utf8')
+        s = s[:maxlen]
         n = self.next8(len(s))
         fmt = 'II %ds' % n
         self._write(struct.pack(fmt, MP.miINT8, len(s), s))
@@ -406,7 +409,7 @@ class MatStream(object):
         self._inArray = True
         self.arrayNumber = arrayNumber
         self.numRows = 0
-        self.expectedRows = rows
+        self.expectedRows = rows = int(rows)
         self.arrayMType = mtype
         self.arrayDType = dtype
         self.arrayFlags = flags
@@ -433,7 +436,7 @@ class MatStream(object):
         self.rowFormatter = struct.Struct(fchar)
         
         # Start of matrix element, initial size of 0 (rewritten at end)
-        self._write(struct.pack("II", MP.miMATRIX, 0)) # Start
+        self._write(struct.pack("II", MP.miMATRIX, 0))  # Start
         self.dataStartPos = self.stream.tell()
         
         # Write flags and matrix type
@@ -465,19 +468,19 @@ class MatStream(object):
         """
         textSize = max([len(s) for s in strings])
         strings = [n.ljust(textSize) for n in strings]
-        payload = ''.join([''.join(x) for x in zip(*strings)])
+        payload = ''.join([''.join(x) for x in zip(*strings)]).encode('utf-8')
         
         totalSize = self.getStringArraySize(title, strings)
         
         # Ensure that this won't exceed the max file size before writing
         self.checkFileSize(totalSize)
         
-        self._write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
+        self._write(struct.pack("II", MP.miMATRIX, totalSize))  # Start
         self.pack('BBBBBBBB', (0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))
         self.pack('II', (len(strings), textSize), dtype=MP.miINT32)
         self.packStr(sanitizeName(title))
         self._write(struct.pack("II", MP.miUTF8, textSize*len(strings)))
-        self._write(payload.ljust(self.next8(len(payload)), '\0'))
+        self._write(payload.ljust(self.next8(len(payload)), b'\0'))
         
     
     def getNamesSize(self, names, title="channel_names", noTimes=False):
@@ -523,7 +526,7 @@ class MatStream(object):
         """ Get the total size of a value as written.
         """
         name = sanitizeName(name)
-        fchar = self.typeFormatChars.get(dtype,'d')
+        fchar = self.typeFormatChars.get(dtype, 'd')
         dsize = struct.calcsize(fchar)
         return 40 + self.next8(len(name)) + 8 + self.next8(dsize)
         
@@ -533,14 +536,14 @@ class MatStream(object):
         """
         name = sanitizeName(name)
         mtype = self.classTypes.get(dtype, MP.mxDOUBLE_CLASS)
-        fchar = self.typeFormatChars.get(dtype,'d')
+        fchar = self.typeFormatChars.get(dtype, 'd')
         totalSize = self.getValueSize(name, val, dtype)
         
         self.checkFileSize(totalSize)
         
-        self._write(struct.pack("II", MP.miMATRIX, totalSize)) # Start
-        self.pack('BBBBBBBB', (mtype, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)) #flags
-        self.pack('II', (1, 1), dtype=MP.miINT32) # dimensions
+        self._write(struct.pack("II", MP.miMATRIX, totalSize))  # Start
+        self.pack('BBBBBBBB', (mtype, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00))  # flags
+        self.pack('II', (1, 1), dtype=MP.miINT32)  # dimensions
         self.packStr(name)
         self.pack(fchar, (val,), dtype=dtype)
 
@@ -561,7 +564,7 @@ class MatStream(object):
             return
         vals = cal.references + cal.coefficients
         self.startArray(name, len(vals), dtype=MP.miDOUBLE, noTimes=True, hasTimes=False)
-        self.writeRow((0,vals))
+        self.writeRow((0, vals))
         self.endArray()
 
 
@@ -629,7 +632,7 @@ class MatStream(object):
 def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
               callback=None, callbackInterval=0.01, timeScalar=1,
               raiseExceptions=False, useUtcTime=False, headers=True, 
-              removeMean=None, meanSpan=None, display=False, matArgs={},
+              removeMean=None, meanSpan=None, display=False, matArgs=None,
               noBivariates=False, **kwargs):
     """ Export a `dataset.EventList` as a Matlab .MAT file. Works in a manner
         similar to the standard `EventList.exportCsv()` method.
@@ -667,7 +670,7 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
             `MatStream` constructor.
         :return: Tuple: The number of rows exported and the elapsed time.
     """
-    noCallback = callback is None
+    matArgs = matArgs or {}
     events = events.copy()
     
     events.noBivariates = noBivariates
@@ -678,11 +681,8 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     
     start = (1 + start + len(events)) if start < 0 else start
     stop = (1 + stop + len(events)) if stop < 0 else stop
-    totalLines = (stop - start) / (step + 0.0)
+    totalLines = (stop - start) / step
     updateInt = int(totalLines * callbackInterval)
-    
-    # Catch all or no exceptions
-    ex = None if raiseExceptions or noCallback else Exception
     
     t0 = datetime.now()
     
@@ -708,8 +708,8 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
         else:
             numCols = len(subchannels)
             # Create a function instead of chewing the subchannels every time
-            formatter = eval("lambda x: (%s,)" % \
-                       ",".join([("x[%d]" % c) for c in subchannels]))
+            formatter = eval("lambda x: (%s,)" %
+                             ",".join([("x[%d]" % c) for c in subchannels]))
             names = [events.parent.subchannels[x].name for x in subchannels]
     else:
         numCols = 1
@@ -726,7 +726,8 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     
     matfile.startArray(events.parent.name, numCols, rows=totalLines, 
                        colNames=names, noTimes=False)
-    
+
+    num = 0
     try:
         for num, evt in enumerate(events.iterSlice(start, stop, step, display)):
             t, v = evt[0], evt[1:]
@@ -742,13 +743,16 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
                 if updateInt == 0 or num % updateInt == 0:
                     callback(num*numCols, total=totalSamples, 
                              filename=matfile.filename)
-                    
+
         if callback:
             callback(done=True)
             
-    except ex as e:
-        callback(error=e)
-        
+    except Exception as e:
+        if callback:
+            callback(error=e)
+        if raiseExceptions:
+            raise
+
     matfile.close()
     
     return num+1, datetime.now() - t0
@@ -756,4 +760,3 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
 #===============================================================================
 # 
 #===============================================================================
-
