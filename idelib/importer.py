@@ -276,9 +276,12 @@ def importFile(filename='', startTime=None, endTime=None, channels=None,
     """
     # FUTURE: Remove `kwargs` and this conditional warning.
     if kwargs:
-        warnings.warn(DeprecationWarning(
-                'Some importFile() updater-related arguments have been deprecated. '
-                'Ignored arguments: {}'.format(', '.join(repr(k) for k in kwargs))))
+        warnings.warn(
+            'Some importFile() updater-related arguments have been deprecated.'
+            ' Ignored arguments: {}'.format(', '.join(kwargs)),
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     defaults = defaults or DEFAULTS
 
@@ -286,7 +289,7 @@ def importFile(filename='', startTime=None, endTime=None, channels=None,
     doc = openFile(stream, updater=updater, name=name, parserTypes=parserTypes,
                    defaults=defaults, quiet=quiet)
     readData(doc, startTime=startTime, endTime=endTime, channels=channels,
-             updater=updater, parserTypes=parserTypes, defaults=defaults)
+             updater=updater, parserTypes=parserTypes)
     return doc
 
 
@@ -512,9 +515,12 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
 
     # FUTURE: Remove `kwargs` and this conditional warning.
     if kwargs:
-        warnings.warn(DeprecationWarning(
-                'Some readData() updater-related arguments have been deprecated. '
-                'Ignored arguments: {}'.format(', '.join(repr(k) for k in kwargs))))
+        warnings.warn(
+            'Some importFile() updater-related arguments have been deprecated.'
+            ' Ignored arguments: {}'.format(', '.join(kwargs)),
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     parserTypes = parserTypes or ELEMENT_PARSER_TYPES
     if doc._parsers is None:
