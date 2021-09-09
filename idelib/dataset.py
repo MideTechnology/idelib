@@ -1998,7 +1998,70 @@ class EventList(Transformable):
             else:
                 yield tuple(result)
 
-    
+
+    def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
+                        times=True, display=False, iterator=iter):
+        """ Get the minimum, mean, and maximum values for blocks within a
+            specified interval.
+
+            :todo: Remember what `padding` was for, and either implement or
+                remove it completely. Related to plotting; see `plots`.
+
+            :keyword startTime: The first time (in microseconds by default),
+                `None` to start at the beginning of the session.
+            :keyword endTime: The second time, or `None` to use the end of
+                the session.
+            :keyword times: If `True` (default), the results include the
+                block's starting time.
+            :keyword display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
+            :return: A structured array of data block statistics (min, mean,
+                and max, respectively).
+        """
+
+        startBlock, endBlock = self._getBlockRange(startTime, endTime)
+        shape = (3, max(1, len(self._npType)) + int(times), endBlock - startBlock)
+        scid = self.subchannelId
+        isSubchannel = isinstance(self.parent, SubChannel)
+
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        if isSubchannel:
+            xform = xform.polys[scid]
+
+        out = np.empty(shape)
+
+        for i, d in enumerate(self._data[startBlock:endBlock]):
+            t = d.startTime
+            if isSubchannel:
+                if times:
+                    out[:, 0, i] = t
+                    out[0, 1, i] = xform.inplace(d.min[scid], timestamp=t)
+                    out[1, 1, i] = xform.inplace(d.mean[scid], timestamp=t)
+                    out[2, 1, i] = xform.inplace(d.max[scid], timestamp=t)
+                else:
+                    out[0, 0, i] = xform.inplace(d.min[scid], timestamp=t)
+                    out[1, 0, i] = xform.inplace(d.mean[scid], timestamp=t)
+                    out[2, 0, i] = xform.inplace(d.max[scid], timestamp=t)
+            else:
+                if times:
+                    out[:, 0, i] = t
+                    out[0, 1:, i] = xform.inplace(d.min, timestamp=t)
+                    out[1, 1:, i] = xform.inplace(d.mean, timestamp=t)
+                    out[2, 1:, i] = xform.inplace(d.max, timestamp=t)
+                else:
+                    out[0, :, i] = xform.inplace(d.min, timestamp=t)
+                    out[1, :, i] = xform.inplace(d.mean, timestamp=t)
+                    out[2, :, i] = xform.inplace(d.max, timestamp=t)
+
+        return out
+
+
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
                       times=True, display=False, iterator=iter):
         """ Get the minimum, mean, and maximum values for blocks within a
@@ -3077,30 +3140,6 @@ class EventArray(EventList):
             else:
                 yield values
     '''
-
-    def arrayMinMeanMax(self, startTime=None, endTime=None, padding=0,
-                        times=True, display=False, iterator=iter):
-        """ Get the minimum, mean, and maximum values for blocks within a
-            specified interval.
-
-            :todo: Remember what `padding` was for, and either implement or
-                remove it completely. Related to plotting; see `plots`.
-
-            :keyword startTime: The first time (in microseconds by default),
-                `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
-                the session.
-            :keyword times: If `True` (default), the results include the
-                block's starting time.
-            :keyword display: If `True`, the final 'display' transform (e.g.
-                unit conversion) will be applied to the results.
-            :return: A structured array of data block statistics (min, mean,
-                and max, respectively).
-        """
-
-        return np.moveaxis([i for i in iterator(self.iterMinMeanMax(
-            startTime, endTime, padding, times, display
-        ))], 0, -1)
 
 
     def getMinMeanMax(self, startTime=None, endTime=None, padding=0,
