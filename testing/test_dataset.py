@@ -40,6 +40,7 @@ from .file_streams import makeStreamLike
 # 
 #===============================================================================
 
+
 class GenericObject(object):
     """ Provide a generic object to pass as an argument in order to mock 
         arbitrary objects.
@@ -2440,38 +2441,52 @@ class EventArrayTestCase(unittest.TestCase):
         """ Test arrayMinMeanMax. """
         # TODO test other hasSubchannels x times combos
 
-        # Stub data/methods
-        eventArray = mock.Mock(spec=EventArray)
-        eventArray.iterMinMeanMax = mock.Mock(spec=EventArray.iterMinMeanMax)
+        doc = importer.importFile('test.ide')
+        eventArray8 = doc.channels[8].getSession()
+        doc.transforms[9].coefficients = (2, 0)  # modify a transform to ensure it's being used
+        doc.updateTransforms()
 
-        statsStub = [((0., 3), (0., 4), (0., 5))]
-        eventArray.hasSubchannels = True
-        eventArray.iterMinMeanMax.return_value = iter(statsStub)
+        # issue with the test file, all blocks have the same minmeanmax.  Could be worse.
+        # (min, mean, max) x (t, sch1, sch2, sch3) x (time)
+        expected = np.empty((3, 4, 10))
+        # fill times
+        expected[:, 0] = 1e5*np.arange(10)
+        # mins are all 0
+        expected[0, 1:] = 0
+        # means: [499, 332, 666]
+        expected[1, 1:, :] = 2*np.array([499, 332, 666])[:, np.newaxis]
+        # maxes: [999, 998, 999]
+        expected[2, 1:, :] = 2*np.array([999, 998, 999])[:, np.newaxis]
+
+        result = eventArray8.arrayMinMeanMax()
 
         # Run tests
-        result = EventArray.arrayMinMeanMax(eventArray)
-        np.testing.assert_array_equal(result, np.moveaxis(statsStub, 0, -1))
+        np.testing.assert_array_equal(result, expected)
 
     def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
 
-        # Stub data/methods
-        eventArray = mock.Mock(spec=EventArray)
-        eventArray.arrayMinMeanMax = mock.Mock(
-            spec=EventArray.arrayMinMeanMax,
-            return_value=mock.sentinel.return_value
-        )
-        args = (mock.sentinel.startTime, mock.sentinel.endTime,
-                mock.sentinel.padding, mock.sentinel.times,
-                mock.sentinel.display, mock.sentinel.iterator)
+        doc = importer.importFile('test.ide')
+        eventArray8 = doc.channels[8].getSession()
+        doc.transforms[9].coefficients = (2, 0)  # modify a transform to ensure it's being used
+        doc.updateTransforms()
 
-        self.assertEqual(EventArray.getMinMeanMax(eventArray, *args),
-                         mock.sentinel.return_value)
-        self.assertEqual(eventArray.arrayMinMeanMax.call_args, (args,))
-        np.testing.assert_array_equal(
-            self.dataset.channels[32].getSession().getMinMeanMax(),
-            np.array([])
-        )
+        # issue with the test file, all blocks have the same minmeanmax.  Could be worse.
+        # (min, mean, max) x (t, sch1, sch2, sch3) x (time)
+        expected = np.empty((3, 4, 10))
+        # fill times
+        expected[:, 0] = 1e5*np.arange(10)
+        # mins are all 0
+        expected[0, 1:] = 0
+        # means: [499, 332, 666]
+        expected[1, 1:, :] = 2*np.array([499, 332, 666])[:, np.newaxis]
+        # maxes: [999, 998, 999]
+        expected[2, 1:, :] = 2*np.array([999, 998, 999])[:, np.newaxis]
+
+        result = eventArray8.getMinMeanMax()
+
+        # Run tests
+        np.testing.assert_array_equal(result, expected)
 
     def testGetRangeMinMeanMax(self):
         """ Test for getRangeMinMeanMax method. """
