@@ -62,7 +62,7 @@ from ebmlite.core import loadSchema
 import numpy as np
 
 from .transforms import Transform, CombinedPoly, PolyPoly
-from .parsers import getParserTypes, getParserRanges
+from .parsers import ChannelDataArrayBlock, getParserTypes, getParserRanges
 
 
 SCHEMA_FILE = 'mide_ide.xml'
@@ -2019,8 +2019,21 @@ class EventList(Transformable):
                 and max, respectively).
         """
 
+        _format = self.parent.parser.format
+
+        if isinstance(_format, bytes):
+            _format = _format.decode()
+
+        if _format[0] in ['<', '>', '=']:
+            endian = _format[0]
+            dtypes = [endian + ChannelDataArrayBlock.TO_NP_TYPESTR[x] for x in _format[1:]]
+        else:
+            dtypes = [ChannelDataArrayBlock.TO_NP_TYPESTR[x] for x in str(_format)]
+
+        _npType = np.dtype([(str(i), dtype) for i, dtype in enumerate(dtypes)])
+
         startBlock, endBlock = self._getBlockRange(startTime, endTime)
-        shape = (3, max(1, len(self._npType)) + int(times), endBlock - startBlock)
+        shape = (3, max(1, len(_npType)) + int(times), endBlock - startBlock)
         scid = self.subchannelId
         isSubchannel = isinstance(self.parent, SubChannel)
 
@@ -2041,23 +2054,23 @@ class EventList(Transformable):
             if isSubchannel:
                 if times:
                     out[:, 0, i] = t
-                    out[0, 1, i] = xform.inplace(d.min[scid], timestamp=t)
-                    out[1, 1, i] = xform.inplace(d.mean[scid], timestamp=t)
-                    out[2, 1, i] = xform.inplace(d.max[scid], timestamp=t)
+                    out[0, 1, i] = xform(t, d.min[scid])[1]
+                    out[1, 1, i] = xform(t, d.mean[scid])[1]
+                    out[2, 1, i] = xform(t, d.max[scid])[1]
                 else:
-                    out[0, 0, i] = xform.inplace(d.min[scid], timestamp=t)
-                    out[1, 0, i] = xform.inplace(d.mean[scid], timestamp=t)
-                    out[2, 0, i] = xform.inplace(d.max[scid], timestamp=t)
+                    out[0, 0, i] = xform(t, d.min[scid])[1]
+                    out[1, 0, i] = xform(t, d.mean[scid])[1]
+                    out[2, 0, i] = xform(t, d.max[scid])[1]
             else:
                 if times:
                     out[:, 0, i] = t
-                    out[0, 1:, i] = xform.inplace(d.min, timestamp=t)
-                    out[1, 1:, i] = xform.inplace(d.mean, timestamp=t)
-                    out[2, 1:, i] = xform.inplace(d.max, timestamp=t)
+                    out[0, 1:, i] = xform(t, d.min)[1]
+                    out[1, 1:, i] = xform(t, d.mean)[1]
+                    out[2, 1:, i] = xform(t, d.max)[1]
                 else:
-                    out[0, :, i] = xform.inplace(d.min, timestamp=t)
-                    out[1, :, i] = xform.inplace(d.mean, timestamp=t)
-                    out[2, :, i] = xform.inplace(d.max, timestamp=t)
+                    out[0, :, i] = xform(t, d.min)[1]
+                    out[1, :, i] = xform(t, d.mean)[1]
+                    out[2, :, i] = xform(t, d.max)[1]
 
         return out
 
