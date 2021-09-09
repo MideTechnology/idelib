@@ -2174,29 +2174,40 @@ class EventArray(Transformable):
         scid = self.subchannelId
         isSubchannel = isinstance(self.parent, SubChannel)
 
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
+        if isSubchannel:
+            xform = xform.polys[scid]
+
         out = np.empty(shape)
 
         for i, d in enumerate(self._data[startBlock:endBlock]):
+            t = d.startTime
             if isSubchannel:
                 if times:
-                    out[:, 0, i] = d.startTime
-                    out[0, 1, i] = d.min[scid]
-                    out[1, 1, i] = d.mean[scid]
-                    out[2, 1, i] = d.max[scid]
+                    out[:, 0, i] = t
+                    out[0, 1, i] = xform.inplace(d.min[scid], timestamp=t)
+                    out[1, 1, i] = xform.inplace(d.mean[scid], timestamp=t)
+                    out[2, 1, i] = xform.inplace(d.max[scid], timestamp=t)
                 else:
-                    out[0, 0, i] = d.min[scid]
-                    out[1, 0, i] = d.mean[scid]
-                    out[2, 0, i] = d.max[scid]
+                    out[0, 0, i] = xform.inplace(d.min[scid], timestamp=t)
+                    out[1, 0, i] = xform.inplace(d.mean[scid], timestamp=t)
+                    out[2, 0, i] = xform.inplace(d.max[scid], timestamp=t)
             else:
                 if times:
-                    out[:, 0, i] = d.startTime
-                    out[0, 1:, i] = d.min
-                    out[1, 1:, i] = d.mean
-                    out[2, 1:, i] = d.max
+                    out[:, 0, i] = t
+                    out[0, 1:, i] = xform.inplace(d.min, timestamp=t)
+                    out[1, 1:, i] = xform.inplace(d.mean, timestamp=t)
+                    out[2, 1:, i] = xform.inplace(d.max, timestamp=t)
                 else:
-                    out[0, :, i] = d.min
-                    out[1, :, i] = d.mean
-                    out[2, :, i] = d.max
+                    out[0, :, i] = xform.inplace(d.min, timestamp=t)
+                    out[1, :, i] = xform.inplace(d.mean, timestamp=t)
+                    out[2, :, i] = xform.inplace(d.max, timestamp=t)
 
         return out
 
