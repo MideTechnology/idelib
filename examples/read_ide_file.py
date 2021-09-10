@@ -33,8 +33,9 @@ __credits__ = ['Connor Flanigan']
 
 # Loading an ide file is very simple, the supporting files are defined by
 # default in idelib.  This function returns a Document object which contains
-# the data for the given file
-doc = idelib.importFile('../test.ide')
+# the data for the given file.  The TQDMUpdater object generates a progress bar
+# while the file is loading.
+doc = idelib.importFile('../test.ide', updater=idelib.importer.TQDMUpdater())
 
 
 # The channels in a document are contained in an easily accessed dictionary

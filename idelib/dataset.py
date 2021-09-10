@@ -2752,7 +2752,10 @@ class EventArray(Transformable):
             vals[startIdx:endIdx] *= samplePeriod
             vals[startIdx:endIdx] += arrayStart
 
-        out[:] = vals[start:end:step]
+        if out.shape == vals[start:end:step].shape:
+            out[:] = vals[start:end:step]
+        else:
+            out[:] = vals[start:end:step][:out.shape[0]]
 
         return out
 
