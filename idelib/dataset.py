@@ -2188,26 +2188,37 @@ class EventArray(Transformable):
 
         for i, d in enumerate(self._data[startBlock:endBlock]):
             t = d.startTime
-            if isSubchannel:
-                if times:
-                    out[:, 0, i] = t
-                    out[0, 1, i] = xform.inplace(d.min[scid], timestamp=t)
-                    out[1, 1, i] = xform.inplace(d.mean[scid], timestamp=t)
-                    out[2, 1, i] = xform.inplace(d.max[scid], timestamp=t)
-                else:
-                    out[0, 0, i] = xform.inplace(d.min[scid], timestamp=t)
-                    out[1, 0, i] = xform.inplace(d.mean[scid], timestamp=t)
-                    out[2, 0, i] = xform.inplace(d.max[scid], timestamp=t)
+
+            # grab time and define first subchannel index
+            if times:
+                out[:, 0, i] = t
+                idx = slice(1, None)
             else:
-                if times:
-                    out[:, 0, i] = t
-                    out[0, 1:, i] = xform.inplace(d.min, timestamp=t)
-                    out[1, 1:, i] = xform.inplace(d.mean, timestamp=t)
-                    out[2, 1:, i] = xform.inplace(d.max, timestamp=t)
+                idx = slice(None)
+
+            if isSubchannel:
+                _min = d.min[scid]
+                _mean = d.mean[scid]
+                _max = d.max[scid]
+            else:
+                _min = d.min
+                _mean = d.mean
+                _max = d.max
+
+            xform.inplace(_min, timestamp=t, out=out[0, idx, i])
+            xform.inplace(_mean, timestamp=t, out=out[1, idx, i])
+            xform.inplace(_max, timestamp=t, out=out[2, idx, i])
+
+        for i in range(1, shape[1]):
+            if i == 0 and time:
+                # we won't bother to flip on the time 'subchannel'
+                continue
+            flipArgs = out[0, i] > out[2, i]
+            if np.any(flipArgs):
+                if np.all(flipArgs):
+                    out[:, i] = out[::-1, i]
                 else:
-                    out[0, :, i] = xform.inplace(d.min, timestamp=t)
-                    out[1, :, i] = xform.inplace(d.mean, timestamp=t)
-                    out[2, :, i] = xform.inplace(d.max, timestamp=t)
+                    out[:, i, flipArgs] = out[::-1, i, flipArgs]
 
         return out
 
