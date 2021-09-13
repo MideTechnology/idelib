@@ -2205,9 +2205,9 @@ class EventArray(Transformable):
                 _mean = d.mean
                 _max = d.max
 
-            xform.inplace(_min, timestamp=t, out=out[0, idx, i])
-            xform.inplace(_mean, timestamp=t, out=out[1, idx, i])
-            xform.inplace(_max, timestamp=t, out=out[2, idx, i])
+            out[0, idx, i] = xform.inplace(_min, timestamp=t)
+            out[1, idx, i] = xform.inplace(_mean, timestamp=t)
+            out[2, idx, i] = xform.inplace(_max, timestamp=t)
 
         for i in range(1, shape[1]):
             if i == 0 and time:
