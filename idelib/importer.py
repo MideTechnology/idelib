@@ -2,17 +2,20 @@
 
 """
 
+from collections import Counter
 from datetime import datetime
 import os.path
 import sys
 from time import time as time_time
 from time import sleep
+import warnings
 
 import struct
 
 from . import transforms
 from .dataset import Dataset
 from . import parsers
+
 
 #===============================================================================
 # 
@@ -21,7 +24,7 @@ from . import parsers
 # from dataset import __DEBUG__
 
 import logging
-logger = logging.getLogger('idelib-archive')
+logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 
@@ -98,41 +101,13 @@ DEFAULTS = {
 }
 
 
-if False: #__DEBUG__:
-    logger.info("Adding low g channels to defaults")
-    DEFAULTS['sensors'][0x02] = {
-         'name': "Low-G Accelerometer"
-    }
-    DEFAULTS['channels'].update({
-        0x02: {'name': "Low-G Accelerometer XYZ",
-               'parser': struct.Struct(">hhh"),
-               "subchannels":{0: {"name": "Low-g Z", 
-                                  "units":('Acceleration','g'),
-                                  "sensorId": 2,
-                                 },
-                              1: {"name": "Low-g Y", 
-                                  "units":('Acceleration','g'),
-                                  "sensorId": 2,
-                                  },
-                              2: {"name": "Low-g X", 
-                                  "units":('Acceleration','g'),
-                                  "sensorId": 2,
-                                  },
-                            },
-               },
-#         0x43: {"name": "DEBUG Crystal Drift",
-#                "parser": struct.Struct(">II")},
-#         0x45: {"name": "DEBUG Gain/Offset",
-#                "parser": struct.Struct("<i")},
-    })
-
-
-def createDefaultSensors(doc, defaults=DEFAULTS):
+def createDefaultSensors(doc, defaults=None):
     """ Given a nested set of dictionaries containing the definition of one or
         more sensors, instantiate those sensors and add them to the dataset
         document.
     """
 #     logger.info("creating default sensors")
+    defaults = defaults or DEFAULTS
     sensors = defaults['sensors'].copy()
     channels = defaults['channels'].copy()
     warnings = defaults['warnings']
@@ -181,14 +156,15 @@ def createDefaultSensors(doc, defaults=DEFAULTS):
 # Parser importer. These are taken from the module by type. We may want to 
 # create the list of parser types 'manually' prior to release; it's marginally 
 # safer.
-elementParserTypes = parsers.getElementHandlers()
+ELEMENT_PARSER_TYPES = parsers.getElementHandlers()
 
 
-def instantiateParsers(doc, parserTypes=elementParserTypes):
+def instantiateParsers(doc, parserTypes=None):
     """ Create a dictionary of element parser objects keyed by the name of the
         element they handle. Handlers that handle multiple elements have
         individual keys for each element name.
     """
+    parserTypes = parserTypes or ELEMENT_PARSER_TYPES
     elementParsers = {}
     for t in parserTypes:
         p = t(doc)
@@ -203,14 +179,6 @@ def instantiateParsers(doc, parserTypes=elementParserTypes):
 #===============================================================================
 # Updater callbacks
 #===============================================================================
-
-def nullUpdater(*args, **kwargs):
-    """ A progress updater stand-in that does nothing. """
-    if kwargs.get('error',None) is not None:
-        raise kwargs['error']
-nullUpdater.cancelled = False
-nullUpdater.paused = False
-
 
 class SimpleUpdater(object):
     """ A simple text-based progress updater.
@@ -262,60 +230,98 @@ class SimpleUpdater(object):
     
 
 #===============================================================================
+#
+#===============================================================================
+
+def _getSize(stream, chunkSize=512 * 1024):
+    """
+    Get the length of a stream from its data.
+
+    :param stream: A file stream or file-like object (must implement `tell()`
+        and `seek()`).
+    :returns: The total length of the file.
+    """
+    if not (hasattr(stream, 'seek') and hasattr(stream, 'tell')):
+        raise TypeError('Cannot get size of non-stream {}'.format(type(stream)))
+
+    # If it's a real file, no problem!
+    if hasattr(stream, 'name'):
+        if os.path.isfile(stream.name):
+            return os.path.getsize(stream.name)
+
+    originalPos = stream.tell()
+
+    # Grab chunks until less is read than requested.
+    thisRead = chunkSize
+    while thisRead == chunkSize:
+        thisRead = len(stream.read(chunkSize))
+
+    eof = stream.tell()
+    stream.seek(originalPos)
+    return eof
+
+
+#===============================================================================
 # ACTUAL FILE READING HAPPENS BELOW
 #===============================================================================
 
-def importFile(filename='', updater=nullUpdater, numUpdates=500,
-               updateInterval=1.0, parserTypes=elementParserTypes, 
-               defaults=DEFAULTS, name=None, quiet=False):
+def importFile(filename='', startTime=None, endTime=None, channels=None,
+               updater=None, parserTypes=None, defaults=None, name=None,
+               quiet=False, **kwargs):
     """ Create a new Dataset object and import the data from a MIDE file. 
         Primarily for testing purposes. The GUI does the file creation and 
         data loading in two discrete steps, as it will need a reference to 
         the new document before the loading starts.
         :see: `readData()`
     """
+    # FUTURE: Remove `kwargs` and this conditional warning.
+    if kwargs:
+        warnings.warn(DeprecationWarning(
+                'Some importFile() updater-related arguments have been deprecated. '
+                'Ignored arguments: {}'.format(', '.join(repr(k) for k in kwargs))))
+
+    defaults = defaults or DEFAULTS
+
     stream = open(filename, "rb")
     doc = openFile(stream, updater=updater, name=name, parserTypes=parserTypes,
                    defaults=defaults, quiet=quiet)
-    readData(doc, updater=updater, numUpdates=numUpdates, 
-             updateInterval=updateInterval, parserTypes=parserTypes, 
-             defaults=defaults)
+    readData(doc, startTime=startTime, endTime=endTime, channels=channels,
+             updater=updater, parserTypes=parserTypes, defaults=defaults)
     return doc
 
 
-def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,  
-             defaults=DEFAULTS, name=None, quiet=False, getExitCond=True):
+def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
+             quiet=False):
     """ Create a `Dataset` instance and read the header data (i.e. non-sample-
         data). When called by a GUI, this function should be considered 'modal,' 
         in that it shouldn't run in a background thread, unlike `readData()`. 
         
         :param stream: The file or file-like object containing the EBML data.
-        :keyword updater: A function (or function-like object) to notify as 
-            work is done. It should take four keyword arguments: `count` (the 
-            current line number), `total` (the total number of samples), `error` 
-            (an unexpected exception, if raised during the import), and `done` 
-            (will be `True` when the export is complete). If the updater object 
-            has a `cancelled` attribute that is `True`, the import will be 
-            aborted. The default callback is `None` (nothing will be notified).
-        :keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        :keyword defaults: A nested dictionary containing a default set 
-            of sensors, channels, and subchannels. These will only be used if
+        :param updater: A function (or function-like object) to notify as
+            work is done. It should take four keyword arguments: `count`
+            (the current line number), `total` (the total number of samples),
+            `error` (an unexpected exception, if raised during the import),
+            and `done` (will be `True` when the export is complete). If the
+            updater object has a `cancelled` attribute that is `True`, the
+            import will be aborted. The default callback is `None` (nothing
+            will be notified).
+        :param parserTypes: A collection of `parsers.ElementHandler` classes.
+        :param defaults: A nested dictionary containing a default set of
+            sensors, channels, and subchannels. These will only be used if
             the dataset contains no sensor/channel/subchannel definitions. 
-        :keyword name: An optional name for the Dataset. Defaults to the
+        :param name: An optional name for the Dataset. Defaults to the
             base name of the file (if applicable).
-        :keyword quiet: If `True`, non-fatal errors (e.g. schema/file
-            version mismatches) are suppressed. 
+        :param quiet: If `True`, non-fatal errors (e.g. schema/file version
+            mismatches) are suppressed.
         :return: The opened (but still 'empty') `dataset.Dataset`
     """
+    defaults = defaults or DEFAULTS
+    parserTypes = parserTypes or ELEMENT_PARSER_TYPES
+
     if isinstance(stream, str):
         stream = open(stream, 'rb')
     
-    if getExitCond:
-        exitCond = getExitCondition(stream)
-    else:
-        exitCond = None
-   
-    doc = Dataset(stream, name=name, exitCondition=exitCond, quiet=quiet)
+    doc = Dataset(stream, name=name, quiet=quiet)
     doc.addSession()
 
     if doc._parsers is None:
@@ -340,7 +346,7 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
             # The EBML library raises an empty IOError if it hits EOF.
             # TODO: Handle other cases of empty IOError (lots in python-ebml)
             doc.fileDamaged = True
-        else:
+        elif updater:
             updater(error=e)
 
     except TypeError as e:
@@ -358,147 +364,235 @@ def openFile(stream, updater=nullUpdater, parserTypes=elementParserTypes,
     return doc
 
 
-def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterval=.1,
-             total=None, bytesRead=0, samplesRead=0, parserTypes=elementParserTypes,
-             sessionId=0, onlyChannel=None, maxPause=None, **kwargs):
+def filterTime(doc, startTime=0, endTime=None, channels=None):
+    """ Efficiently read data within a certain interval from an IDE file.
+        Note that due to the way data is stored in an IDE, the exported
+        interval will be slightly wider than the specified start and end
+        times; this ensures the data is copied verbatim and without loss.
+
+        :param doc: An opened (but not yet fully imported) `Dataset`.
+        :param startTime: The start of the extraction range, relative to the
+            recording's start.
+        :param endTime: The end of the extraction range, relative to the
+            recording's end.
+        :param channels: A list of channel IDs to process. If `None` (the
+            default), all channels are processed.
+        :yields: Elements from the `Dataset`'s EBML file, excluding
+            `ChannelDataBlock`s outside of the specified time range, or
+            `None`.
+    """
+    if startTime == endTime and startTime is not None:
+        raise ValueError('startTime and endTime must differ')
+
+    startTime, endTime = sorted((startTime or 0,
+                                 endTime or float('infinity')))
+
+    # Dictionaries (and similar) for tracking progress of each ChannelDataBlock
+    # element handled. All keyed by channel ID (ChannelIDRef).
+    lastBlocks = {}  # Previous element w/ its start and end times
+    channelsWritten = Counter()  # Number of elements extracted per channel
+    finished = {}  # Channels that have completed extraction
+
+    try:
+        timeScalars = doc._parsers['ChannelDataBlock'].timeScalars
+
+        for el in doc.ebmldoc:
+            if el.name == 'ChannelDataBlock':
+                # Get ChannelIDRef, StartTimeCodeAbs, and EndTimeCodeAbs;
+                # usually the 1st three, in order, but don't assume!
+                chId = blockStart = blockEnd = None
+                for subEl in el:
+                    if subEl.name == "ChannelIDRef":
+                        chId = subEl.value
+                    elif subEl.name == "StartTimeCodeAbs":
+                        blockStart = subEl.value
+                    elif subEl.name == "EndTimeCodeAbs":
+                        blockEnd = subEl.value
+
+                blockEnd = blockEnd or blockStart
+                if chId is None:
+                    logger.warning("Extractor: {} missing <ChannelIDRef> subelement, skipping.".format(el))
+                    continue
+                if blockStart is None:
+                    logger.warning("Extractor: {} missing <StartTimeCodeAbs> subelement, skipping.".format(el))
+                    continue
+
+                if finished.setdefault(chId, False):
+                    yield None
+                    continue
+
+                if channels and chId not in channels:
+                    yield None
+                    continue
+
+                # TODO: Modulus correction, if still needed.
+                scalar = timeScalars.get(chId, 1)
+                blockStart *= scalar
+                blockEnd *= scalar
+
+                writeCurrent = True
+                writePrev = False  # write previous block, if current one starts late
+
+                if blockEnd < startTime:
+                    # Entirely before extraction interval. Yield nothing.
+                    writeCurrent = False
+                elif blockStart <= startTime:
+                    # Block overlaps start of interval. Yield block.
+                    # Mark channel finished if block also includes end of interval.
+                    writePrev = False
+                    finished[chId] = blockEnd >= endTime
+                elif blockEnd <= endTime:
+                    # Block within interval. Write block (w/ prev. if needed).
+                    writePrev = channelsWritten[chId] == 0
+                else:
+                    # Block overlaps end of interval. Yield block (w/ prev. if needed).
+                    # Mark channel finished.
+                    finished[chId] = True
+                    writePrev = channelsWritten[chId] == 0
+
+                if writePrev:
+                    # Yield the previous block, which is before the extraction interval.
+                    # This is to ensure that initial data is not left out.
+                    prev = lastBlocks.get(chId, None)
+                    if prev:
+                        channelsWritten[chId] += 1
+                        yield prev[0]
+
+                lastBlocks[chId] = (el, blockStart, blockEnd)
+
+                if writeCurrent:
+                    channelsWritten[chId] += 1
+                    yield el
+                else:
+                    yield None
+
+            else:
+                # FUTURE: Omit `<Sync>` elements outside the interval and
+                #  'manually' create ones immediately before and after? Omit
+                #  certain time-specific `<Attribute>` elements as well
+                #  (if any)?
+                yield el
+
+    except (StopIteration, KeyboardInterrupt):
+        pass
+
+
+def readData(doc, source=None, startTime=None, endTime=None, channels=None,
+             updater=None, total=None, bytesRead=0, samplesRead=0,
+             parserTypes=None, **kwargs):
     """ Import the data from a file into a Dataset.
     
         :param doc: The Dataset document into which to import the data.
         :param source: An alternate Dataset to merge into the main one.
-        :keyword updater: A function (or function-like object) to notify as 
+        :param startTime: The start of the extraction range, relative to the
+            recording's start.
+        :param endTime: The end of the extraction range, relative to the
+            recording's end.
+        :param channels: A list of channel IDs to import. If `None` (the
+            default), all channels are imported.
+        :param updater: A function (or function-like object) to notify as
             work is done. It should take four keyword arguments: `count` (the 
             current line number), `total` (the total number of samples), `error` 
             (an unexpected exception, if raised during the import), and `done` 
             (will be `True` when the export is complete). If the updater object 
             has a `cancelled` attribute that is `True`, the import will be 
             aborted. The default callback is `None` (nothing will be notified).
-        :keyword numUpdates: The minimum number of calls to the updater to be
-            made. More updates will be made if the updates take longer than
-            than the specified `updateInterval`. 
-        :keyword updateInterval: The maximum number of seconds between calls to 
-            the updater. More updates will be made if indicated by the specified
-            `numUpdates`.
-        :keyword total: The total number of bytes in the file(s) being imported.
+        :param total: The total number of bytes in the file(s) being imported.
             Defaults to the size of the current file, but can be used to
             display an overall progress when merging multiple recordings. For
             display purposes.
-        :keyword bytesRead: The number of bytes already imported. Mainly for
+        :param bytesRead: The number of bytes already imported. Mainly for
             merging multiple recordings. For display purposes.
-        :keyword samplesRead: The total number of samples imported. Mainly for
+        :param samplesRead: The total number of samples imported. Mainly for
             merging multiple recordings.
-        :keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        :keyword sessionId: The Session number to import. For future use; it
-            currently does nothing, and SSX files currently do not contain
-            multiple sessions.
-        :keyword onlyChannel: If supplied, only import data from one channel.
-        :keyword maxPause: If the updater's `paused` attribute is `True`, the
-            import will pause. This is the maximum pause length.
+        :param parserTypes: A collection of `parsers.ElementHandler` classes.
         :return: The total number of samples read.
     """
-    
+    kwargs.pop('sessionId', None)  # Unused; for Classic compatibility.
+
+    # FUTURE: Remove `kwargs` and this conditional warning.
+    if kwargs:
+        warnings.warn(DeprecationWarning(
+                'Some readData() updater-related arguments have been deprecated. '
+                'Ignored arguments: {}'.format(', '.join(repr(k) for k in kwargs))))
+
+    parserTypes = parserTypes or ELEMENT_PARSER_TYPES
     if doc._parsers is None:
+        # Possibly redundant; is `doc._parsers` ever `None` at this point?
         doc._parsers = instantiateParsers(doc, parserTypes)
     
     elementParsers = doc._parsers
 
     elementCount = 0
-    eventsRead = 0
-    
-    # Progress display stuff
-    if total is None:
-        total = doc.ebmldoc.size + bytesRead
-        
-    dataSize = total
-    
-    if numUpdates > 0:
-        ticSize = total / numUpdates 
-    else:
-        # An unreachable file position effectively disables the updates.
-        ticSize = total+1
-    
-    if updateInterval > 0:
-        nextUpdateTime = time_time() + updateInterval
-    else:
-        # An update time 24 hours in the future should mean no updates.
-        nextUpdateTime = time_time() + 5184000
-    
-    firstDataPos = 0
-    nextUpdatePos = bytesRead + ticSize
-    
+    numSamples = 0  # Number of samples imported from this file
+
+    # Progress display setup
+    if updater and total is None:
+        total = _getSize(doc.ebmldoc.stream) + bytesRead
+
+    increment = 50  # Number of elements per updater. FUTURE: Base this on total size?
     timeOffset = 0
-    maxPause = getattr(updater, "maxPause", maxPause)
-    
+
     # Actual importing ---------------------------------------------------------
     if source is None:
         source = doc
-    try:    
-        # This just skips 'header' elements. It could be more efficient, but
-        # the size of the header isn't significantly large; savings are minimal.
-        for r in source.ebmldoc:
-            
-            r_name = r.name
-            if r_name == "ChannelDataBlock":
-                r_name = "ChannelDataArrayBlock"
-            
-            doc.loadCancelled = getattr(updater, "cancelled", False)
-            if doc.loadCancelled:
-                break
-            
-            if updater.paused:
-                # Pause or throttle import.
-                pauseTime = time_time()
-                while updater.paused:
-                    sleep(0.125)
-                    if maxPause and time_time() - pauseTime > maxPause:
-                        break
-            
-            if r_name not in elementParsers:
-                # Unknown block type, but probably okay.
-                logger.info("unknown block %r (ID 0x%02x) @%d" % \
-                            (r_name, r.id, r.offset))
+
+    try:
+        if startTime is not None or endTime is not None or channels:
+            iterator = filterTime(doc, startTime, endTime, channels=channels)
+        else:
+            iterator = iter(source.ebmldoc)
+
+        for n, el in enumerate(iterator):
+            # Progress display stuff -------------------------------------
+            if updater:
+                loadCancelled = getattr(updater, "cancelled", False)
+                if loadCancelled:
+                    doc.loadCancelled = loadCancelled
+                    break
+
+                thisOffset = el.offset + bytesRead
+                if n % increment == 0:
+                    updater(count=numSamples + samplesRead,
+                            percent=thisOffset / total)
+
+            if el is None:
                 continue
-            
-            # HACK: Not the best implementation. Should be moved somewhere.
-            if onlyChannel is not None and (r_name == "ChannelDataArrayBlock"):
-                if r.value[0].value != onlyChannel:
-                    continue 
-            
-            if source != doc and r_name == "TimeBaseUTC":
-                timeOffset = (r.value - doc.lastSession.utcStartTime) * 1000000.0
+
+            el_name = el.name
+
+            if el_name not in elementParsers:
+                # Unknown block type; probably okay to skip.
+                logger.info("unknown block {!r} (ID 0x{:02x}) @{}".format(
+                        el_name, el.id, el.offset))
+                continue
+
+            if source != doc and el_name == "TimeBaseUTC":
+                timeOffset = (el.value - doc.lastSession.utcStartTime) * 1000000.0
                 continue
                 
             try:
-                parser = elementParsers[r_name]
-                if not parser.isHeader or r_name == "Attribute":
-                    added = parser.parse(r, timeOffset=timeOffset)
+                parser = elementParsers[el_name]
+
+                # "Header" elements were loaded by `openFile()`; don't duplicate.
+                if not parser.isHeader or el_name == "Attribute":
+                    added = parser.parse(el, timeOffset=timeOffset)
                     if isinstance(added, int):
-                        eventsRead += added
+                        numSamples += added
                     
             except parsers.ParsingError as err:
-                # TODO: Error messages
+                # TODO: Error messages?
                 logger.error("Parsing error during import: %s" % err)
                 continue
 
             elementCount += 1
-            
-            # More progress display stuff -------------------------------------
-            # FUTURE: Possibly do the update check every nth elements; that
-            # would have slightly less work per cycle.
-            thisOffset = r.offset + bytesRead
-            thisTime = time_time()
-            if thisTime > nextUpdateTime or thisOffset > nextUpdatePos:
-                # Update progress bar
-                updater(count=eventsRead+samplesRead,
-                        percent=(thisOffset-firstDataPos+0.0)/dataSize)
-                nextUpdatePos = thisOffset + ticSize
-                nextUpdateTime = thisTime + updateInterval
-            
+
     except IOError as e:
         if e.errno is None:
             # The EBML library raises an empty IOError if it hits EOF.
-            # TODO: Handle other cases of empty IOError (lots in python-ebml)
+            # TODO: Verify that this still does anything (leftover from old EBML library)
             doc.fileDamaged = True
-        else:
+        elif updater:
             updater(error=e, done=True)
         
     except TypeError:
@@ -506,104 +600,11 @@ def readData(doc, source=None, updater=nullUpdater, numUpdates=500, updateInterv
         # (typically the last)
         doc.fileDamaged = True
 
+    doc.fillCaches()
     doc.loading = False
-    updater(done=True)
-    return eventsRead
 
+    if updater:
+        updater(done=True)
 
-#===============================================================================
-# 
-#===============================================================================
+    return numSamples
 
-def estimateLength(filename, numSamples=50000, parserTypes=elementParserTypes, 
-                   defaults=DEFAULTS):
-    """ Open and read enough of a file to get a rough estimate of its complete
-        time range. 
-        
-        :param filename: The IDE file to open.
-        :keyword numSamples: The number of samples to read before generating
-            an estimated size.
-        :keyword parserTypes: A collection of `parsers.ElementHandler` classes.
-        :keyword defaults: Default Slam Stick description data, for use with
-            old SSX recordings.
-        :return: A 3-element tuple: 
-    """
-    
-    # Fake updater that just quits after some number of samples.
-    class DummyUpdater(object):
-        cancelled = False
-        paused = False
-        def __init__(self, n):
-            self.numSamples = n
-        def __call__(self, count=0, **kwargs):
-            self.cancelled = count > self.numSamples
-                
-    updater = DummyUpdater(numSamples)
-    
-    with open(filename, "rb") as stream:
-        doc = openFile(stream, parserTypes=parserTypes,
-                       defaults=defaults, quiet=True)
-        dataStart = stream.tell()
-        totalSize = os.path.getsize(filename) - dataStart
-        
-        # read a portion of the recording
-        readData(doc, updater=updater, parserTypes=parserTypes, 
-                 defaults=defaults)
-        chunkSize = stream.tell() - dataStart
-        
-        start = sys.maxsize
-        end = -1
-        numEvents = 0.0
-        for ch in doc.channels.values():
-            events = ch.getSession()
-            if len(events) > 0:
-                start = min(start, events[0][0])
-                end = max(end, events[-1][0])
-                numEvents += (len(events) * len(ch.subchannels))
-        
-        chunkTime = end - start
-        
-    return start, start + (totalSize / chunkSize * chunkTime), numEvents/chunkTime
-    
-
-#===============================================================================
-# 
-#===============================================================================
-
-    
-def getExitCondition(recording, bytesRead=1000):
-    """ Get the ``ExitCond`` Attribute from the end of a recording, if present.
-        The result will be an integer:
-        
-        * 1: Button press
-        * 2: USB connection
-        * 3: Recording time limit reached
-        * 4: Low battery
-        * 5: File size limit reached
-        * 128: I/O error (can occur if disk is full or 4GB FAT32 size limit
-          reached.
-        
-        :param recording: The IDE file, either a filename or a file-like object.
-        :keyword bytesRead: The number of bytes to read from the end of the
-            recording file.
-    """
-    result = None
-    
-    if isinstance(recording, str):
-        with open(recording, "rb") as fs:
-            return getExitCondition(fs)
-
-    filename = recording.name
-    offset = recording.tell()
-   
-    recording.seek(os.path.getsize(filename) - bytesRead)
-    data = recording.read()
-    try:
-        idx = data.index(b"ExitCond") + 11
-        if idx <= len(data):
-            result = data[idx]
-    except (IOError, IndexError, ValueError) as e:
-        logger.warning(e)
-
-    recording.seek(offset)
-    return result        
