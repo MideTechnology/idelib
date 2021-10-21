@@ -2174,6 +2174,13 @@ class EventArray(Transformable):
         scid = self.subchannelId
         isSubchannel = isinstance(self.parent, SubChannel)
 
+        if self.useAllTransforms:
+            xform = self._fullXform
+            if display:
+                xform = self._displayXform or xform
+        else:
+            xform = self._comboXform
+
         out = np.empty(shape)
 
         for i, d in enumerate(self._data[startBlock:endBlock]):
@@ -2197,6 +2204,22 @@ class EventArray(Transformable):
                     out[0, :, i] = d.min
                     out[1, :, i] = d.mean
                     out[2, :, i] = d.max
+
+        if isSubchannel:
+            xform = xform.polys[self.subchannelId]
+            if times:
+                for m in range(3):
+                    xform.inplace(out[m, 1, :], out=out[m, 1, :])
+            else:
+                for m in range(3):
+                    xform.inplace(out[m, 0, :], out=out[m, 0, :])
+        else:
+            if times:
+                for m in range(3):
+                    xform.inplace(out[m, 1:, :], out=out[m, 1:, :])
+            else:
+                for m in range(3):
+                    xform.inplace(out[m, :, :], out=out[m, :, :])
 
         return out
 
