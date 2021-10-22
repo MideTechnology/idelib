@@ -11,6 +11,10 @@ from time import sleep
 import warnings
 
 import struct
+try:
+    import tqdm.auto
+except ModuleNotFoundError:
+    tqdm = None
 
 from . import transforms
 from .dataset import Dataset
@@ -227,6 +231,49 @@ class SimpleUpdater(object):
                 else:
                     self.dump(' '*25)
             sys.stdout.flush()
+
+
+if tqdm is not None:
+    class TQDMUpdater:
+
+        paused = False
+        cancelled = False
+
+        _size = 100
+
+        def __init__(self, fileLength=None):
+            self.fileLength = fileLength
+            pbarKwargs = {
+                # 'ncols': 150,
+                'unit_scale': 1,
+                }
+            if fileLength is None:
+                self.pbar = tqdm.auto.tqdm(total=self._size, unit='%', **pbarKwargs)
+            else:
+                self.pbar = tqdm.auto.tqdm(total=fileLength, unit='B', **pbarKwargs)
+            self._lastUpdate = 0
+
+        def __call__(self, percent=0, done=False, **kwargs):
+            if done:
+                self.pbar.update(self.pbar.total - self.pbar.n)
+                return
+
+            if self.fileLength is None:
+                self.pbar.update(int(percent*self._size) - self._lastUpdate)
+                self._lastUpdate = int(percent*self._size)
+            else:
+                filepos = kwargs.get('filepos', 1)
+                self.pbar.update(filepos - self._lastUpdate)
+                self._lastUpdate = kwargs.get('filepos')
+
+        def __del__(self):
+            self.pbar.close()
+
+
+else:
+    def TQDMUpdater():
+        warnings.warn('TQDM was not imported properly')
+        return nullUpdater()
     
 
 #===============================================================================
@@ -276,9 +323,12 @@ def importFile(filename='', startTime=None, endTime=None, channels=None,
     """
     # FUTURE: Remove `kwargs` and this conditional warning.
     if kwargs:
-        warnings.warn(DeprecationWarning(
-                'Some importFile() updater-related arguments have been deprecated. '
-                'Ignored arguments: {}'.format(', '.join(repr(k) for k in kwargs))))
+        warnings.warn(
+            'Some importFile() updater-related arguments have been deprecated.'
+            ' Ignored arguments: {}'.format(', '.join(kwargs)),
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     defaults = defaults or DEFAULTS
 
@@ -286,7 +336,7 @@ def importFile(filename='', startTime=None, endTime=None, channels=None,
     doc = openFile(stream, updater=updater, name=name, parserTypes=parserTypes,
                    defaults=defaults, quiet=quiet)
     readData(doc, startTime=startTime, endTime=endTime, channels=channels,
-             updater=updater, parserTypes=parserTypes, defaults=defaults)
+             updater=updater, parserTypes=parserTypes)
     return doc
 
 
@@ -512,9 +562,12 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
 
     # FUTURE: Remove `kwargs` and this conditional warning.
     if kwargs:
-        warnings.warn(DeprecationWarning(
-                'Some readData() updater-related arguments have been deprecated. '
-                'Ignored arguments: {}'.format(', '.join(repr(k) for k in kwargs))))
+        warnings.warn(
+            'Some importFile() updater-related arguments have been deprecated.'
+            ' Ignored arguments: {}'.format(', '.join(kwargs)),
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     parserTypes = parserTypes or ELEMENT_PARSER_TYPES
     if doc._parsers is None:
