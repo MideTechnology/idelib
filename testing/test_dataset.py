@@ -80,6 +80,7 @@ def SSX_DataIDE():
 # 
 #===============================================================================
 
+
 class GenericObject(object):
     """ Provide a generic object to pass as an argument in order to mock 
         arbitrary objects.
@@ -1398,39 +1399,56 @@ class TestEventArray:
         print(result[:, 0, :])
         np.testing.assert_array_equal(result, expected)
 
-    def testArrayMinMeanMax(self, eventArray):
+    def testArrayMinMeanMax(self):
         """ Test arrayMinMeanMax. """
+        # TODO test other hasSubchannels x times combos
 
-        eventArray.parent.dataset.transforms[9].coefficients = (2., 0.)
-        eventArray.parent.dataset.updateTransforms()
+        doc = importer.importFile('test.ide')
+        eventArray8 = doc.channels[8].getSession()
+        doc.transforms[9].coefficients = (2, 0)  # modify a transform to ensure it's being used
+        doc.updateTransforms()
 
-        expected = np.zeros((3, 4, 10))
-        expected[:, 0, :] = np.linspace(0, 900000, 10)
-        expected[1, 1, :] = 499*2
-        expected[1, 2, :] = 332*2
-        expected[1, 3, :] = 666*2
-        expected[2, 1, :] = 999*2
-        expected[2, 2, :] = 998*2
-        expected[2, 3, :] = 999*2
+        # issue with the test file, all blocks have the same minmeanmax.  Could be worse.
+        # (min, mean, max) x (t, sch1, sch2, sch3) x (time)
+        expected = np.empty((3, 4, 10))
+        # fill times
+        expected[:, 0] = 1e5*np.arange(10)
+        # mins are all 0
+        expected[0, 1:] = 0
+        # means: [499, 332, 666]
+        expected[1, 1:, :] = 2*np.array([499, 332, 666])[:, np.newaxis]
+        # maxes: [999, 998, 999]
+        expected[2, 1:, :] = 2*np.array([999, 998, 999])[:, np.newaxis]
+
+        result = eventArray8.arrayMinMeanMax()
 
         # Run tests
-        result = eventArray.arrayMinMeanMax()
         np.testing.assert_array_equal(result, expected)
 
-    def testGetMinMeanMax(self, testIDE):
+    def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
 
-        eventArray = testIDE.channels[8].getSession()
-        eventArray.hasMinMeanMax = False
+        doc = importer.importFile('test.ide')
+        eventArray8 = doc.channels[8].getSession()
+        doc.transforms[9].coefficients = (2, 0)  # modify a transform to ensure it's being used
+        doc.updateTransforms()
 
-        mins_ = [np.concatenate(((d.startTime,), d.min)) for d in eventArray._data]
-        means = [np.concatenate(((d.startTime,), d.mean)) for d in eventArray._data]
-        maxes = [np.concatenate(((d.startTime,), d.max)) for d in eventArray._data]
+        # issue with the test file, all blocks have the same minmeanmax.  Could be worse.
+        # (min, mean, max) x (t, sch1, sch2, sch3) x (time)
+        expected = np.empty((3, 4, 10))
+        # fill times
+        expected[:, 0] = 1e5*np.arange(10)
+        # mins are all 0
+        expected[0, 1:] = 0
+        # means: [499, 332, 666]
+        expected[1, 1:, :] = 2*np.array([499, 332, 666])[:, np.newaxis]
+        # maxes: [999, 998, 999]
+        expected[2, 1:, :] = 2*np.array([999, 998, 999])[:, np.newaxis]
 
-        np.testing.assert_array_equal(
-                np.stack(eventArray.getMinMeanMax()),
-                np.moveaxis(np.stack([mins_, means, maxes]), 1, -1),
-                )
+        result = eventArray8.getMinMeanMax()
+
+        # Run tests
+        np.testing.assert_array_equal(result, expected)
 
     def testGetRangeMinMeanMax(self, testIDE):
         """ Test for getRangeMinMeanMax method. """
