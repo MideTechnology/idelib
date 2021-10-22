@@ -37,6 +37,7 @@ setuptools.setup(
                      'Programming Language :: Python :: 3.7',
                      'Programming Language :: Python :: 3.8',
                      'Programming Language :: Python :: 3.9',
+                     'Programming Language :: Python :: 3.10',
                      'Topic :: Scientific/Engineering',
                      ],
         keywords='ebml binary ide mide',
@@ -46,6 +47,7 @@ setuptools.setup(
             'idelib': ['schemata/*'],
         },
         test_suite='./testing',
+        python_requires='>=3.6, <=3.10',
         install_requires=INSTALL_REQUIRES,
         extras_require={
             'test': INSTALL_REQUIRES + TEST_REQUIRES,
