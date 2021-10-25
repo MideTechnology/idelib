@@ -13,6 +13,7 @@ TEST_REQUIRES = [
     'mock',
     'pytest-cov',
     'sphinx',
+    'scipy',
     ]
 
 EXAMPLE_REQUIRES = [
