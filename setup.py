@@ -10,6 +10,7 @@ INSTALL_REQUIRES = [
 
 TEST_REQUIRES = [
     'pytest>=4.6',
+    'pytest-xdist',
     'mock',
     'pytest-cov',
     'sphinx',
