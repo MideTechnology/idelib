@@ -5,10 +5,15 @@ import unittest
 import mock
 import os
 
+
 import pytest
 
 import numpy as np  # type: ignore
-import scipy.io
+try:
+    import scipy.io
+except ImportError as e:
+    print('scipy not found')
+    print(e)
 
 from idelib.dataset import (Cascading,
                             Channel,
@@ -69,6 +74,10 @@ def SSX_DataIDE():
     return doc
 
 
+@pytest.mark.skipif(
+        sys.version_info >= (3, 10),
+        reason='requires python 3.9 or lower',
+        )
 def testMatExport(SSX70065IDE):
     matName = './testing/SSX70065.mat'
     mat = matfile.exportMat(SSX70065IDE.channels[32].getSession(), matName)
