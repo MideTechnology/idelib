@@ -88,7 +88,7 @@ def testMatExport(SSX70065IDE):
 
     realMatName = matfiles[0]
 
-    scimat = scipy.io.loadmat(f'./testing/{realMatName}')
+    scimat = scipy.io.loadmat('./testing/{0}'.format(realMatName))
 
     np.testing.assert_equal(
             scimat['Acceleration'],
