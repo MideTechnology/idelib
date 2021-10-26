@@ -48,7 +48,7 @@ setuptools.setup(
             'idelib': ['schemata/*'],
         },
         test_suite='./testing',
-        python_requires='>=3.6, <=3.10',
+        python_requires='>=3.5, <=3.10',
         install_requires=INSTALL_REQUIRES,
         extras_require={
             'test': INSTALL_REQUIRES + TEST_REQUIRES,
