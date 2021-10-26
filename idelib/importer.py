@@ -11,7 +11,7 @@ from time import sleep
 import warnings
 
 import struct
-if sys.hexversion < 0x3060000:
+if sys.version_info < (3, 6):
     try:
         import tqdm.auto
     except ImportError:
