@@ -14,6 +14,7 @@ TEST_REQUIRES = [
     'mock',
     'pytest-cov',
     'sphinx',
+    'scipy;python_version<"3.10"',
     ]
 
 EXAMPLE_REQUIRES = [

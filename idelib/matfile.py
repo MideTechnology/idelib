@@ -128,11 +128,11 @@ def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_',
         :keyword validChars: A string of all valid characters
     """
     s = s.strip().encode('ascii', 'replace')
-    result = [c if c in validChars else '_' for c in s.strip()]
+    result = [c if c in validChars else '_' for c in (chr(x) for x in s.strip())]
     result = ''.join(result).strip('_ ')
     if result[0].isdigit() or result in reservedWords:
         result = prefix + result.title()
-    return result.replace('__','_').replace('__','_').encode('utf8')
+    return result.replace('__', '_').replace('__', '_')
 
 
 #===============================================================================
@@ -217,7 +217,7 @@ class MatStream(object):
         self.calChannels = calChannels
 
         # MATLAB identifies the file as level 4 if the first byte is 0.
-        if '\x00' in self.msg[:4]:
+        if b'\x00' in self.msg[:4]:
             self.msg = self.DEFAULT_HEADER
             
         self.maxFileSize = min(self.MAX_SIZE, self.next8(maxFileSize))
@@ -254,7 +254,7 @@ class MatStream(object):
         self._write = self.stream.write
         self._seek = self.stream.seek
 
-        self._write(struct.pack('116s II H 2s', self.msg, 0, 0, 0x0100, 'IM'))
+        self._write(struct.pack(b'116s II H 2s', self.msg, 0, 0, 0x0100, b'IM'))
         
         if self._writeInfo:
             self.writeRecorderInfo(self.doc.recorderInfo)
@@ -323,7 +323,7 @@ class MatStream(object):
         """
         dataSize = struct.calcsize(fmt)
         result = struct.pack('II'+fmt, dtype, dataSize, *args)
-        self._write(result.ljust(self.next8(len(result)),'\0'))
+        self._write(result.ljust(self.next8(len(result)), b'\0'))
         return self.next8(dataSize + 8)
 
     
@@ -477,7 +477,7 @@ class MatStream(object):
         self.pack('II', (len(strings), textSize), dtype=MP.miINT32)
         self.packStr(sanitizeName(title))
         self._write(struct.pack("II", MP.miUTF8, textSize*len(strings)))
-        self._write(payload.ljust(self.next8(len(payload)), '\0'))
+        self._write(payload.ljust(self.next8(len(payload)), '\0').encode('utf8'))
         
     
     def getNamesSize(self, names, title="channel_names", noTimes=False):
@@ -513,7 +513,7 @@ class MatStream(object):
                 data = self.rowFormatter.pack(event[0]*self.timeScalar, *event[1:])
         except struct.error as err:
             logger.exception("ERROR: %s, formatter=%r, event=%r" % (self.arrayBaseName, self.rowFormatter.format, event))
-            raise err
+            raise
             
         self._write(data)
         self.numRows += 1
@@ -678,7 +678,7 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     
     start = (1 + start + len(events)) if start < 0 else start
     stop = (1 + stop + len(events)) if stop < 0 else stop
-    totalLines = (stop - start) / (step + 0.0)
+    totalLines = int((stop - start) / (step + 0.0))
     updateInt = int(totalLines * callbackInterval)
     
     # Catch all or no exceptions
@@ -724,12 +724,12 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     matfile = MatStream(filename, events.dataset, comments, 
                         timeScalar=timeScalar, **matArgs)
     
-    matfile.startArray(events.parent.name, numCols, rows=totalLines, 
+    matfile.startArray(events.parent.name, numCols, rows=totalLines,
                        colNames=names, noTimes=False)
     
     try:
         for num, evt in enumerate(events.iterSlice(start, stop, step, display)):
-            t, v = evt[0], evt[1:]
+            t, v = evt[0], tuple(evt[1:])
             if formatter is not None:
                 v = formatter(v)
 
@@ -746,12 +746,14 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
         if callback:
             callback(done=True)
             
-    except ex as e:
+    except Exception as e:
+        if raiseExceptions or noCallback:
+            raise
         callback(error=e)
         
     matfile.close()
     
-    return num+1, datetime.now() - t0
+    return num + 1, datetime.now() - t0
 
 #===============================================================================
 # 
