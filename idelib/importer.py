@@ -11,10 +11,16 @@ from time import sleep
 import warnings
 
 import struct
-try:
-    import tqdm.auto
-except ModuleNotFoundError:
-    tqdm = None
+if sys.hexversion < 0x3060000:
+    try:
+        import tqdm.auto
+    except ImportError:
+        tqdm = None
+else:
+    try:
+        import tqdm.auto
+    except ModuleNotFoundError:
+        tqdm = None
 
 from . import transforms
 from .dataset import Dataset
