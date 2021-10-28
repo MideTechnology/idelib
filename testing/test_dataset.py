@@ -1378,20 +1378,26 @@ class TestEventArray:
                 eventArray.arraySlice(),
                 )
 
-    @unittest.skip('failing, poorly formed')
-    def testIterMinMeanMax(self, eventArray1):
+    def testIterMinMeanMax(self, eventArray):
         """ Test for iterMinMeanMax method. """
-        self.mockData()
-        eventArray1._data[0].minMeanMax = 1
-        eventArray1._data[0].blockIndex = 2
-        eventArray1._data[0].min = [3]
-        eventArray1._data[0].mean = [4]
-        eventArray1._data[0].max = [5]
 
-        self.assertListEqual(
-            [x for x in eventArray1.iterMinMeanMax()],
-            [((0, 3), (0, 4), (0, 5))]
-        )
+        # modify transform to ensure that transforms are being applied properly
+        eventArray.parent.dataset.transforms[9].coefficients = (2., 0.)
+        eventArray.parent.dataset.updateTransforms()
+
+        expected = np.zeros((3, 4, 10))
+        expected[:, 0, :] = np.linspace(0, 900000, 10)
+        expected[1, 1, :] = 499*2
+        expected[1, 2, :] = 332*2
+        expected[1, 3, :] = 666*2
+        expected[2, 1, :] = 999*2
+        expected[2, 2, :] = 998*2
+        expected[2, 3, :] = 999*2
+
+        # Run tests
+        result = eventArray.arrayMinMeanMax()
+        print(result[:, 0, :])
+        np.testing.assert_array_equal(result, expected)
 
     def testArrayMinMeanMax(self):
         """ Test arrayMinMeanMax. """

@@ -1376,7 +1376,10 @@ class PolyPoly(CombinedPoly):
             if self._noY is False:
                 if noBivariates:
                     for i, poly in enumerate(self.polys):
-                        poly.inplace(values[i], y=0, out=out[i])
+                        if np.isscalar(out[i]):
+                            out[i] = poly.inplace(values[i], y=0)
+                        else:
+                            poly.inplace(values[i], y=0, out=out[i])
                     return out
 
                 session = self.dataset.lastSession if session is None else session
@@ -1398,12 +1401,18 @@ class PolyPoly(CombinedPoly):
                     y = self._eventlist.getMean()
 
                 for i, poly in enumerate(self.polys):
-                    poly.inplace(values[i], y=y, out=out[i])
+                    if np.isscalar(out[i]):
+                        out[i] = poly.inplace(values[i], y=y)
+                    else:
+                        poly.inplace(values[i], y=y, out=out[i])
                 return out
 
             else:
                 for i, poly in enumerate(self.polys):
-                    poly.inplace(values[i], out=out[i])
+                    if np.isscalar(out[i]):
+                        out[i] = poly.inplace(values[i])
+                    else:
+                        poly.inplace(values[i], out=out[i])
                 return out
 
         except (TypeError, IndexError, ZeroDivisionError) as err:

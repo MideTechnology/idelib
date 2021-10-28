@@ -276,7 +276,9 @@ class Dataset(Cascading):
             schema = loadSchema(SCHEMA_FILE)
             self.schemaVersion = schema.version
             self.ebmldoc = schema.load(stream, 'MideDocument', headers=True)
-            if not quiet:
+            if self.ebmldoc.version is None:
+                logger.info('IDE has no EBML header data, older schema version being assumed.')
+            elif not quiet:
                 # It is currently assumed future versions will be backwards
                 # compatible. Change if/when not, or if certain old versions aren't.
                 if self.schemaVersion < self.ebmldoc.version:
@@ -2767,7 +2769,10 @@ class EventArray(Transformable):
             arrayStart = d.startTime
             arrayEnd = d.endTime
             startIdx, endIdx = d.indexRange
-            samplePeriod = (arrayEnd - arrayStart)/(d.numSamples - 1)
+            if d.numSamples > 1:
+                samplePeriod = (arrayEnd - arrayStart)/(d.numSamples - 1)
+            else:
+                samplePeriod = arrayEnd - arrayStart
 
             # out = samplePeriod*(step*out + start) + arrayStart
             # out = out*(samplePeriod*step) + (samplePeriod*start + arrayStart)
@@ -2775,7 +2780,10 @@ class EventArray(Transformable):
             vals[startIdx:endIdx] *= samplePeriod
             vals[startIdx:endIdx] += arrayStart
 
-        out[:] = vals[start:end:step]
+        if out.shape == vals[start:end:step].shape:
+            out[:] = vals[start:end:step]
+        else:
+            out[:] = vals[start:end:step][:out.shape[0]]
 
         return out
 
@@ -2788,7 +2796,10 @@ class EventArray(Transformable):
         arrayStart = float(self._data[0].startTime)
         arrayEnd = float(self._data[-1].endTime)
         nSamples = len(self)
-        samplePeriod = (arrayEnd - arrayStart)/(nSamples - 1)
+        if nSamples > 1:
+            samplePeriod = (arrayEnd - arrayStart) / (nSamples - 1)
+        else:
+            samplePeriod = arrayEnd - arrayStart
 
         out *= samplePeriod
         out += arrayStart

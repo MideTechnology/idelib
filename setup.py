@@ -5,14 +5,16 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 
 INSTALL_REQUIRES = [
     'numpy',
-    'ebmlite>=3.0.0'
+    'ebmlite>=3.1.0'
     ]
 
 TEST_REQUIRES = [
     'pytest>=4.6',
+    'pytest-xdist[psutil]',
     'mock',
     'pytest-cov',
     'sphinx',
+    'scipy;python_version<"3.10"',
     ]
 
 EXAMPLE_REQUIRES = [
@@ -21,7 +23,7 @@ EXAMPLE_REQUIRES = [
 
 setuptools.setup(
         name='idelib',
-        version='3.2.2',
+        version='3.2.3',
         author='Mide Technology',
         author_email='help@mide.com',
         description='Python API for accessing IDE data recordings',
@@ -37,6 +39,7 @@ setuptools.setup(
                      'Programming Language :: Python :: 3.7',
                      'Programming Language :: Python :: 3.8',
                      'Programming Language :: Python :: 3.9',
+                     'Programming Language :: Python :: 3.10',
                      'Topic :: Scientific/Engineering',
                      ],
         keywords='ebml binary ide mide',
@@ -46,6 +49,7 @@ setuptools.setup(
             'idelib': ['schemata/*'],
         },
         test_suite='./testing',
+        python_requires='>=3.5, <=3.10',
         install_requires=INSTALL_REQUIRES,
         extras_require={
             'test': INSTALL_REQUIRES + TEST_REQUIRES,
