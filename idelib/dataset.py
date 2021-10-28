@@ -270,8 +270,10 @@ class Dataset(Cascading):
         if stream is not None:
             schema = loadSchema(SCHEMA_FILE)
             self.schemaVersion = schema.version
-            self.ebmldoc = schema.load(stream, 'MideDocument')
-            if not quiet:
+            self.ebmldoc = schema.load(stream, 'MideDocument', headers=True)
+            if self.ebmldoc.version is None:
+                logger.info('IDE has no EBML header data, older schema version being assumed.')
+            elif not quiet:
                 # It is currently assumed future versions will be backwards
                 # compatible. Change if/when not, or if certain old versions aren't.
                 if self.schemaVersion < self.ebmldoc.version:
@@ -944,7 +946,10 @@ class SubChannel(Channel):
                 name = name.decode()
             self.name = name
             if axisName is None:
-                self.axisName = self.name.split()[0]
+                if self.name:
+                    self.axisName = self.name.split()[0]
+                else:
+                    self.axisName = name
         
         # XXX: HACK HACK HACK REMOVE ME REMOVE ME
         if self.name == "Control Pad P":
