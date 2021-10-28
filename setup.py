@@ -5,7 +5,7 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 
 INSTALL_REQUIRES = [
     'numpy',
-    'ebmlite>=3.0.0'
+    'ebmlite>=3.1.0'
     ]
 
 TEST_REQUIRES = [

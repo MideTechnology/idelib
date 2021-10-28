@@ -1,2 +1,8 @@
 numpy>=1.16.6
-ebmlite>=3.0.0
+ebmlite>=3.1.0
+pytest>=4.6
+pytest-xdist[psutil]
+mock
+pytest-cov
+sphinx
+scipy;python_version<"3.10"
