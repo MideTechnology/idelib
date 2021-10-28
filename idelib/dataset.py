@@ -2767,7 +2767,10 @@ class EventArray(Transformable):
             arrayStart = d.startTime
             arrayEnd = d.endTime
             startIdx, endIdx = d.indexRange
-            samplePeriod = (arrayEnd - arrayStart)/(d.numSamples - 1)
+            if d.numSamples > 1:
+                samplePeriod = (arrayEnd - arrayStart)/(d.numSamples - 1)
+            else:
+                samplePeriod = arrayEnd - arrayStart
 
             # out = samplePeriod*(step*out + start) + arrayStart
             # out = out*(samplePeriod*step) + (samplePeriod*start + arrayStart)
@@ -2791,7 +2794,10 @@ class EventArray(Transformable):
         arrayStart = float(self._data[0].startTime)
         arrayEnd = float(self._data[-1].endTime)
         nSamples = len(self)
-        samplePeriod = (arrayEnd - arrayStart)/(nSamples - 1)
+        if nSamples > 1:
+            samplePeriod = (arrayEnd - arrayStart) / (nSamples - 1)
+        else:
+            samplePeriod = arrayEnd - arrayStart
 
         out *= samplePeriod
         out += arrayStart
