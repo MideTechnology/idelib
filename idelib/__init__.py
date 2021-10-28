@@ -5,7 +5,7 @@ files.
 """
 
 __author__ = "David Randall Stokes"
-__copyright__ = "Copyright (c) 2021 Mid\xe9 Technology"
+__copyright__ = "Copyright (c) 2021 Midé Technology"
 
 __maintainer__ = "Mide Technology"
 __email__ = "help@mide.com"
