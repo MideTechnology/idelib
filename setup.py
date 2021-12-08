@@ -53,6 +53,11 @@ setuptools.setup(
         package_data={
             'idelib': ['schemata/*'],
         },
+        project_urls={
+            "Bug Tracker": "https://github.com/MideTechnology/idelib/issues",
+            "Documentation": "https://mide-technology-idelib.readthedocs-hosted.com/en/latest/",
+            "Source Code": "https://github.com/MideTechnology/idelib",
+            },
         test_suite='./testing',
         python_requires='>=3.5, <3.11',
         install_requires=INSTALL_REQUIRES,
