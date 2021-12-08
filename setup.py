@@ -17,6 +17,11 @@ TEST_REQUIRES = [
     'scipy;python_version<"3.10"',
     ]
 
+DOCS_REQUIRES = [
+    "sphinx",
+    "pydata-sphinx-theme",
+    ]
+
 EXAMPLE_REQUIRES = [
     'matplotlib'
     ]
@@ -53,6 +58,7 @@ setuptools.setup(
         install_requires=INSTALL_REQUIRES,
         extras_require={
             'test': INSTALL_REQUIRES + TEST_REQUIRES,
+            'docs': INSTALL_REQUIRES + DOCS_REQUIRES,
             'example': INSTALL_REQUIRES + EXAMPLE_REQUIRES,
             },
 )
