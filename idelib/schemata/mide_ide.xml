@@ -32,7 +32,7 @@
   <IntegerElement name="ElementTag" global="1" id="0xFC" minver="1">Arbitrary tag. Allow for separate opening and closing tags without knowing the length of the enclosed data in advance. I.e. instead of [tag len value=[subtag len... /]/], [tag len=0][subtags and contents][/tag]. Positive value corresponds to the corresponding ElementID as an opening tag; the corresponding negative value as the closing tag. Value -int_max for any int size is reserved.</IntegerElement>
 
   <!--
-	VR gen3 (Slam Stick) tags
+	VR gen3 (Slam Stick / WVR) tags
 	===============================
 
 	Quick n dirty ElementID convention:
@@ -151,6 +151,9 @@
                     <!-- Elements unique to Plot -->
                     <StringElement name="SubChannelAxisName" id="0x5302" multiple="0" minver="2">Text name of the axis(?).</StringElement>
                     <UIntegerElement name="SubChannelAxisXRef" id="0x5303" multiple="0" minver="2">Reference to an Axis.</UIntegerElement>
+                    <StringElement name="SubChannelUnitsName" id="0x5304" multiple="0" minver="2">Text name of the sensor output units.</StringElement>
+                    <UIntegerElement name="SubChannelUnitsXRef" id="0x5305" multiple="0" minver="2">Reference to a numbered, standardized SI unit.</UIntegerElement>
+
                     <MasterElement name="PlotSource" id="0x5320" multiple="1" minver="2">List of channels/subchannels used by this Plot
                         <IntegerElement name="PlotChannelRef" id="0x5221" multiple="0" minver="2">SubChannelID</IntegerElement>
                         <IntegerElement name="PlotSubChannelRef" id="0x5222" multiple="0" minver="2">SubChannelID</IntegerElement>
@@ -231,6 +234,12 @@
             <UIntegerElement name="CalID" id="0x4B03" mandatory="1" multiple="0" minver="1">ID of this entry, referenced by SensorList.</UIntegerElement>
             <FloatElement name="CalReferenceValue" id="0x4B04" multiple="0" minver="1">Reference value for this channel</FloatElement>
             <FloatElement name="PolynomialCoef" id="0x4B08" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</FloatElement>
+            <UnicodeElement name="PolynomialOutputUnits" id="0x4B30" multiple="0">Text name of the transform output units.</UnicodeElement>
+            <UnicodeElement name="PolynomialOutputUnitsName" id="0x4B31" multiple="0">Text name of the engineering unit (e.g. "g") output by this transform.</UnicodeElement>
+            <UIntegerElement name="PolynomialOutputUnitsXRef" id="0x4B32" multiple="0">Reference to a numbered, standardized SI unit.</UIntegerElement>
+            <UnicodeElement name="PolynomialInputUnits" id="0x4B40" multiple="0">Text name of the transform input units.</UnicodeElement>
+            <UnicodeElement name="PolynomialInputUnitsName" id="0x4B41" multiple="0">Text name of the engineering unit (e.g. "g") input to this transform.</UnicodeElement>
+            <UIntegerElement name="PolynomialInputUnitsXRef" id="0x4B42" multiple="0">Reference to a numbered, standardized SI unit.</UIntegerElement>
         </MasterElement>
         <MasterElement name="BivariatePolynomial" id="0x4B02" multiple="1" minver="1">Master element for a bivariate (2-variable) calibration entry
             <UIntegerElement name="CalID" id="0x4B03" mandatory="1" multiple="0" minver="1">ID of this entry, referenced by SensorList.</UIntegerElement>
@@ -239,6 +248,12 @@
             <UIntegerElement name="BivariateChannelIDRef" id="0x4B06" multiple="0" minver="1">Channel ID of the channel to be used as the 2nd parameter for bivariate compensation</UIntegerElement>
             <UIntegerElement name="BivariateSubChannelIDRef" id="0x4B07" multiple="0" minver="1">SubChannel ID of the subchannel to be used as the 2nd parameter for bivariate compensation</UIntegerElement>
             <FloatElement name="PolynomialCoef" id="0x4B08" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</FloatElement>
+            <UnicodeElement name="PolynomialOutputUnits" id="0x4B30" multiple="0"/>
+            <UnicodeElement name="PolynomialOutputUnitsName" id="0x4B31" multiple="0"/>
+            <UIntegerElement name="PolynomialOutputUnitsXRef" id="0x4B32" multiple="0"/>
+            <UnicodeElement name="PolynomialInputUnits" id="0x4B40" multiple="0"/>
+            <UnicodeElement name="PolynomialInputUnitsName" id="0x4B41" multiple="0"/>
+            <UIntegerElement name="PolynomialInputUnitsXRef" id="0x4B42" multiple="0"/>
         </MasterElement>
 		<UIntegerElement name="CalibrationDate" id="0x4B20" multiple="0" minver="1">Date of factory calibration, in UTC seconds</UIntegerElement>
 		<UIntegerElement name="CalibrationExpiry" id="0x4B22" multiple="0" minver="1">Date of factory calibration expiration, in UTC seconds</UIntegerElement>
@@ -279,9 +294,10 @@
         </MasterElement>
     </MasterElement>
 
-    <!-- New configuration data: pairs of config IDs and values. Duplicated from the config_ui.xml schema,
-    rather than attempting to parse one element with a different schema.. -->
     <MasterElement name="RecorderConfigurationList" id="0x18436668" global="1" multiple="0" mandatory="0">
+        New configuration data: pairs of config IDs and values. Duplicated from
+        the config_ui.xml schema, rather than attempting to parse one element
+        with a different schema.
         <MasterElement name="RecorderConfigurationItem" id="0x5008" multiple="1">
             <UIntegerElement name="ConfigID" id="0x5001" multiple="0"></UIntegerElement>
             <UIntegerElement name="BooleanValue" id="0x5100" multiple="0"></UIntegerElement>
@@ -293,6 +309,18 @@
         </MasterElement>
     </MasterElement>
 
+    <!-- Exported configuration data. Also not part of an IDE, but here for convenience. -->
+    <MasterElement name="ExportedConfigurationData" id="0x18436669" multiple="0" mandatory="0">
+        Exported configuration data. Also contains device information and
+        CONFIG.UI for compatibility.
+        <MasterElement name="RecorderConfigurationList" />
+        <MasterElement name="RecordingProperties" />
+        <BinaryElement name="ConfigUI" id="0x7777" mandatory="0" multiple="0">
+            Actually from the CONFIG.UI schema. Read as binary in this schema,
+            then parsed with the other one.
+        </BinaryElement>
+        <MasterElement name="Attribute" />
+    </MasterElement>
 
   <!-- Elements of the actual recording(s) (Session branch(es) of the file) -->
 
@@ -305,7 +333,7 @@
 
 		 Timecoding is vitally important to most data acquisition, so it's OK if these proliferate a bit...
 		 TimecodeScales should be set *per channel*, and may use the default value ONLY if none declared for the channel!
-		 For Slam Stick we'll use TimeBaseUTC, TimeCodeAbs, TimeCodeAbsMod. Any other timecode formats effectively don't exist until we need them...
+		 For WVR / Slam Stick we'll use TimeBaseUTC, TimeCodeAbs, TimeCodeAbsMod. Any other timecode formats effectively don't exist until we need them...
 		 TimeBase: A base time (Unix time stamp in seconds) applied in the Session. All future session timecodes are an offset from the last known TimeBase. Most likely a file will contain only a single TimeBase element at the start of the session.
 		 TimeCode: Offset from the TimeBase; its scale is defined by a TimeCodeScale element on a per-channel basis (with 32768 ticks/sec as a default). The possible permutations are...
 		     Start/End: The TimeCode may correspond to the first sample in the block (start) or the last sample in the block (end).
