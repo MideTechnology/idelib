@@ -5,12 +5,12 @@ files.
 """
 
 __author__ = "David Randall Stokes"
-__copyright__ = "Copyright (c) 2020 Mid\xe9 Technology"
+__copyright__ = "Copyright (c) 2021 Midé Technology"
 
-__maintainer__ = "David Randall Stokes"
-__email__ = "dstokes@mide.com"
+__maintainer__ = "Mide Technology"
+__email__ = "help@mide.com"
 
-__version__ = (3, 0, 0)
-__status__ = "Development"
+__version__ = (3, 2, 3)
+__status__ = "Production/Stable"
 
 from .importer import importFile

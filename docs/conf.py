@@ -13,18 +13,20 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 
+import pkg_resources
+
 import idelib
 
 # -- Project information -----------------------------------------------------
 
-project = u'idelib'
-copyright = u'2021, Mide Technology Corp.'
-author = u''
+project = 'idelib'
+copyright = '2021, Mide Technology Corp.'
+author = 'David Randall Stokes'
 
 # The short X.Y version
-version = u'.'.join([str(i) for i in idelib.__version__[:2]])
+version = '.'.join([str(i) for i in idelib.__version__[:2]])
 # The full version, including alpha/beta/rc tags
-release = u'.'.join([u'{}'.format(i) for i in idelib.__version__])
+release = '.'.join(['{}'.format(i) for i in idelib.__version__])
 
 
 # -- General configuration ---------------------------------------------------
@@ -38,7 +40,6 @@ release = u'.'.join([u'{}'.format(i) for i in idelib.__version__])
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
-    'sphinx.ext.intersphinx',
     'sphinx.ext.ifconfig',
     'sphinx.ext.githubpages',
 ]
@@ -72,6 +73,8 @@ pygments_style = None
 
 
 autoclass_content = "both"
+autodoc_typehints = "description"
+autodoc_typehints_description_target = "documented"
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -79,18 +82,33 @@ autoclass_content = "both"
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'alabaster'
+html_theme = 'pydata_sphinx_theme'
+
+html_logo = '_static/endaq-logo-300x121.svg'
+
+html_favicon = '_static/endaq-favicon.ico'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
 # documentation.
 #
-# html_theme_options = {}
+html_theme_options = {
+    "logo_link": "index",
+    "github_url": "https://github.com/MideTechnology/idelib",
+    "twitter_url": "https://twitter.com/enDAQ_sensors",
+    "collapse_navigation": True,
+    "google_analytics_id": "G-E9QXH4H5LP",
+}
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = []
+html_static_path = ['_static']
+
+# Appends custom .css file
+# https://docs.readthedocs.io/en/stable/guides/adding-custom-css.html#overriding-or-replacing-a-theme-s-stylesheet
+#html_style = "endaq-style.css"
+html_style = "https://info.endaq.com/hubfs/docs/css/endaq-docs-style.css"
 
 # Custom sidebar templates, must be a dictionary that maps document names
 # to template names.
@@ -106,7 +124,7 @@ html_static_path = []
 # -- Options for HTMLHelp output ---------------------------------------------
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'enDAQ-Lab-docs'
+htmlhelp_basename = 'idelib-docs'
 
 
 # -- Options for LaTeX output ------------------------------------------------
@@ -133,8 +151,8 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'enDAQLab.tex', u'enDAQ Lab Documentation',
-     u'David Randall Stokes', 'manual'),
+    (master_doc, 'idelib.tex', u'idelib Documentation',
+     author, 'manual'),
 ]
 
 
@@ -143,7 +161,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'endaqlab', u'enDAQ Lab Documentation',
+    (master_doc, 'idelib', u'idelib Documentation',
      [author], 1)
 ]
 
@@ -154,8 +172,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'enDAQ-Lab', u'enDAQ Lab Documentation',
-     author, 'enDAQ-Lab', 'One line description of project.',
+    (master_doc, 'idelib', u'idelib Documentation',
+     author, 'idelib', 'One line description of project.',
      'Miscellaneous'),
 ]
 
