@@ -184,6 +184,15 @@ def instantiateParsers(doc, parserTypes=None):
 # Updater callbacks
 #===============================================================================
 
+
+def nullUpdater(*args, **kwargs):
+    """ A progress updater stand-in that does nothing. """
+    if kwargs.get('error',None) is not None:
+        raise kwargs['error']
+nullUpdater.cancelled = False
+nullUpdater.paused = False
+
+
 class SimpleUpdater(object):
     """ A simple text-based progress updater.
         :ivar cancelled: If set to `True`, the job using the updater will abort. 
