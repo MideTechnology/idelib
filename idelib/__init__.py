@@ -10,7 +10,7 @@ __copyright__ = "Copyright (c) 2021 Midé Technology"
 __maintainer__ = "Mide Technology"
 __email__ = "help@mide.com"
 
-__version__ = (3, 2, 3)
+__version__ = (3, 2, 4)
 __status__ = "Production/Stable"
 
 from .importer import importFile
