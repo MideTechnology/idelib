@@ -1051,7 +1051,7 @@ class ChannelParser(ElementHandler):
         channelId = data['channelId']
         
         # Parsing. Either a regular struct.Struct, or a custom parser.
-        if 'parser' in data:
+        if 'parser' in data and data['parser'] in DATA_PARSERS:
             # A named parser; use the special-case parser function.
             data.pop('format', None)
             data['parser'] = DATA_PARSERS[data['parser']]()
