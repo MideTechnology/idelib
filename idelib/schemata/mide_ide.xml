@@ -92,6 +92,8 @@
             <StringElement name="McuType" id="0x521E" multiple="0" minver="1">Code indicating the type of CPU.</StringElement>
             <StringElement name="BootloaderRevStr" id="0x521F" multiple="0" minver="1">Bootloader revision string.</StringElement>
             <UIntegerElement name="BootloaderRev" id="0x5220" multiple="0" minver="1">Incrementing bootloader revision level</UIntegerElement>
+            <MasterElement name="HasEsp32" id="0x4D70" multiple="0" minver="1">If present, the device has an ESP32 installed</MasterElement>
+            <UIntegerElement name="KeyRev" id="0x5231" multiple="0" minver="1">Indicates the version of the key table, 0 if not present</UIntegerElement>
             <MasterElement name="SerialCommandInterface" id="0x5230" multiple="0" minver="2" mandatory="0">Present in the device's DEVINFO if it supports control via serial</MasterElement>
         </MasterElement>
         <!-- SensorList and PlotList are optional; there are defaults that will be used. The use of defaults is all-or-nothing; the file should define all sensors or have no SensorList at all. -->
