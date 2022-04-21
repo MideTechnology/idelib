@@ -311,6 +311,18 @@
         </MasterElement>
     </MasterElement>
 
+    <!-- Exported configuration data. Also not part of an IDE, but here for convenience. -->
+    <MasterElement name="ExportedConfigurationData" id="0x18436669" multiple="0" mandatory="0">
+        Exported configuration data. Also contains device information and
+        CONFIG.UI for compatibility.
+        <MasterElement name="RecorderConfigurationList" />
+        <MasterElement name="RecordingProperties" />
+        <BinaryElement name="ConfigUI" id="0x7777" mandatory="0" multiple="0">
+            Actually from the CONFIG.UI schema, where it is a MasterElement.
+            Read as binary in this schema, then parsed with the other one.
+        </BinaryElement>
+        <MasterElement name="Attribute" />
+    </MasterElement>
 
   <!-- Elements of the actual recording(s) (Session branch(es) of the file) -->
 
