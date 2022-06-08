@@ -53,13 +53,13 @@ logger = logging.getLogger('idelib-archive')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 DATA_PARSERS = {}
 
 def dataParser(cls):
-    """ Decorator. Used to register classes as parsers of data payloads. 
+    """ Decorator. Used to register classes as parsers of data payloads.
     """
     global DATA_PARSERS
     DATA_PARSERS[cls.__name__] = cls
@@ -68,14 +68,14 @@ def dataParser(cls):
 
 #===============================================================================
 # Utility Functions
-#===============================================================================            
-    
+#===============================================================================
+
 def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
                mergeAttributes=True):
     """ Create a new dictionary from and old one, using different keys. Used
         primarily for converting EBML element names to function keyword
         arguments.
-    
+
         :param d: The source dictionary
         :param renamed: A dictionary of new names keyed by old names
         :keyword exclude: If `True`, only keys appearing in `renamed` are
@@ -96,12 +96,12 @@ def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
         return [renameKeys(i, renamed, exclude, recurse, ordered, mergeAttributes) for i in d]
     elif not isinstance(d, dict):
         return d
-    
+
     if ordered:
         result = OrderedDict()
     else:
         result = {}
-        
+
     for oldname,v in d.items():
         if oldname == "Attribute":
             if mergeAttributes:
@@ -109,17 +109,17 @@ def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
             else:
                 result['Attribute'] = decode_attributes(v)
             continue
-        
+
         if oldname not in renamed and exclude:
             continue
-        
+
         newname = renamed.get(oldname, oldname)
-        
+
         if recurse:
             result[newname] = renameKeys(v, renamed, exclude, recurse)
         else:
             result[newname] = v
-            
+
     return result
 
 
@@ -133,14 +133,14 @@ def valEval(value, allowedChars='+-/*01234567890abcdefx.,() ;\t\n_'):
         value = value.decode()
     value = value.strip()
     val = value.lower().replace('math.', '')
-    
+
     # Allow functions from the math module. Replace them with a placeholder
     # character (128+). Do in reverse order of length to prevent partial
     # replacement (e.g. 'e' in 'exp', 'tan' in 'atan2'
     funcs = sorted([x for x in dir(math) if not x.startswith('_')],
                    key=lambda x: len(x), reverse=True)
     # funcs = tuple(enumerate(funcs, 128))
-    
+
     for n, f in enumerate(funcs, 128):
         allowedChars = "%s%s" % (allowedChars, chr(n))
         if f in val:
@@ -148,50 +148,50 @@ def valEval(value, allowedChars='+-/*01234567890abcdefx.,() ;\t\n_'):
             continue
 
     allowedChars = set(allowedChars)
-        
-    if len(set(val).difference(allowedChars)) > 0: 
+
+    if len(set(val).difference(allowedChars)) > 0:
         raise TypeError("valEval(): Invalid/Unsafe character in %r" % value)
-    
+
     # Put the math functions back, with module reference
     if len(val) < len(value):
         for n, f in enumerate(funcs, 128):
             val = val.replace(chr(n), 'math.%s' % f)
-    
+
     return eval(val)
-    
-    
+
+
 def parseAttribute(obj, element, multiple=True):
-    """ Utility function to parse an `Attribute` element's data into a 
+    """ Utility function to parse an `Attribute` element's data into a
         key/value pair and apply it to an object's `attribute` attribute
         (a dictionary).
-        
+
         :param element: The `Attribute` element to parse.
         :keyword multiple: An object may have more than one Attribute element
             with the same name. If `True`, the value corresponding to the name
             is a list which is appended to. If `False`, the value is that of
-            the last `Attribute` element parsed. 
+            the last `Attribute` element parsed.
     """
     if not hasattr(obj, 'attributes'):
         obj.attributes = OrderedDict()
-        
+
     k = v = None
     for ch in element.value:
         if ch.name == "AttributeName":
             k = ch.value
         else:
             v = ch.value
-            
+
     if k is not None:
         if multiple:
             obj.attributes.setdefault(k, []).append(v)
         else:
             obj.attributes[k] = v
-        
+
     return k, v
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 # The minimum and maximum values for data parsed out of data blocks.
@@ -221,7 +221,7 @@ def getParserTypes(parser):
     """ Get the Python types produced by a parser. If the parser doesn't
         explicitly define them in a `types` attribute, the types are
         derived from what the parser generates.
-        
+
         :param parser: A `struct.Struct`-like parser.
         :return: A tuple of Python types.
     """
@@ -232,10 +232,10 @@ def getParserTypes(parser):
 
 def getParserRanges(parser, useDefaults=True):
     """ Get the range of values created by a parser. If the parser doesn't
-        explicitly define them in a `ranges` attribute, the theoretical 
+        explicitly define them in a `ranges` attribute, the theoretical
         minimum and maximum values of the resulting data type are returned.
         Note that floating point values are typically reported as (-1.0,1.0).
-        
+
         :param parser: A `struct.Struct`-like parser.
         :return: A tuple of (min, max) tuples. Non-numeric values will
             have a reported range of `None`.
@@ -251,16 +251,16 @@ def getParserRanges(parser, useDefaults=True):
         if c in RANGES:
             ranges.append(RANGES[c])
     return tuple(ranges)
-    
+
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 def getElementHandlers(module=None, subElements=False):
     """ Retrieve all EBML element handlers (parsers) from a module. Handlers
         are identified by being subclasses of `ElementHandler`.
-    
+
         :keyword module: The module from which to get the handlers. Defaults to
             the current module (i.e. `idelib-archive.parsers`).
         :keyword subElements: `True` if the set of handlers should also
@@ -300,27 +300,27 @@ class ParsingError(IOError):
 
 @dataParser
 class MPL3115PressureTempParser(object):
-    """ A special-case channel parser for the native raw data generated by 
+    """ A special-case channel parser for the native raw data generated by
         the MPL3115 Pressure/Temperature sensor. See module docs for more
         information on custom parsers.
 
         Data format is 5 bytes in total:
-            Pressure (3 bytes): 
+            Pressure (3 bytes):
                 Bits [23..6] whole-number value (signed)
                 Bits [5..4] fractional value (unsigned)
                 Bits [3..0] (ignored)
-            Temperature (2 bytes): 
+            Temperature (2 bytes):
                 Bits [15..8] whole-number value (signed)
                 Bits [7..4] fractional value (unsigned)
                 Bits [3..0] (ignored)
-        
-        :todo: Make sure the unsigned fraction part is correct for negative 
+
+        :todo: Make sure the unsigned fraction part is correct for negative
             whole values. This currently assumes -1 and .5 is -0.5, not -1.5
 
         :deprecated: Used only for really old recordings without recorder
-            description data. Later firmware writes the data padded to a more 
+            description data. Later firmware writes the data padded to a more
             easily handled form.
-            
+
         :cvar size: The size (in bytes) of one parsed sample. Always `5`.
         :cvar format: For compatibility with `struct.Struct`. Always `None`
         :cvar ranges: A tuple containing the absolute min and max values.
@@ -328,7 +328,7 @@ class MPL3115PressureTempParser(object):
     """
 
     # Custom parsers need to provide a subset of a struct.Struct's methods
-    # and attributes: 
+    # and attributes:
     size = 5
     format = None
 
@@ -336,16 +336,16 @@ class MPL3115PressureTempParser(object):
     # must be implemented. Normal `struct.Struct` objects get this computed
     # from their formatting string.
     ranges = ((0.0,120000.0), (-40.0,80.0))
-    
-    # The types of data parsed from each channel, returned via 
-    # `getParserTypes()`. If this doesn't exist, the types are computed. 
+
+    # The types of data parsed from each channel, returned via
+    # `getParserTypes()`. If this doesn't exist, the types are computed.
     types = (float, float)
-    
+
     # This is weirdly formed data. Using two parsers over the same data is
     # cheaper than using one plus extra bit manipulation.
     _pressureParser = struct.Struct(">i")
     _parser = struct.Struct(">xxBbB")
-        
+
     def unpack_from(self, data, offset=0):
         """ Special-case parsing of a temperature data block.
         """
@@ -355,15 +355,15 @@ class MPL3115PressureTempParser(object):
         fractemp = (fractemp >> 4) * 0.0625
 
         return (rawpressure + fracpressure, rawtemp + fractemp)
-            
+
 
 @dataParser
 class AccelerometerParser(object):
     """ Parser for the accelerometer data. Accelerometer values are recorded
         as uint16 but represent values -(max) to (max) G, with 'max' being
-        a property of the specific accelerometer part number. This parser 
+        a property of the specific accelerometer part number. This parser
         performs the conversion on the fly.
-        
+
         :deprecated: Used only for really old recordings without recorder
             description data.
         :cvar size: The size (in bytes) of one parsed sample.
@@ -382,7 +382,7 @@ class AccelerometerParser(object):
         # inverted 'z' axis.
         z, y, x = self.parser.unpack_from(data, offset)
         return 32768-z, y-32768, x-32768
-    
+
 
 ################################################################################
 #===============================================================================
@@ -394,7 +394,7 @@ class ElementHandler(object):
     """ Base class for all element handlers (i.e. parsers). ElementHandlers are
         instantiated after a `Dataset` has been created, and their `parse()`
         methods add data to (or modify) that Dataset.
-        
+
         :cvar product: The class of object generated by the handler (if any).
             Used by data block parsers.
         :cvar elementName: The name of the EBML element handled.
@@ -408,10 +408,10 @@ class ElementHandler(object):
     isSubElement = False
     isHeader = False
     children = None
-    
+
     def __init__(self, doc, **kwargs):
         self.doc = doc
-        
+
         # Initialize the sub-element handlers
         if self.children is not None:
             self.childHandlers = {}
@@ -424,13 +424,13 @@ class ElementHandler(object):
                 else:
                     for n in parser.elementName:
                         self.childHandlers[n] = p
-                
-        
+
+
     def parse(self, element, **kwargs):
         """ Process an EBML element's contents. Handlers that generate data
             blocks should return the number of samples read. Other element
             types can return whatever their role requires.
-        """ 
+        """
         # Apply the sub-element handlers (if any) to the element's payload
         if self.children is not None:
             result = []
@@ -440,7 +440,7 @@ class ElementHandler(object):
                     result.append(handler.parse(el, **kwargs))
             return result
 
-    
+
     def getElementName(self, element):
         """ Generate a string with an element's name, ID, and file position
             for debugging/error reporting.
@@ -471,17 +471,17 @@ class ElementHandler(object):
 class BaseDataBlock(object):
     """ Base class for all data-containing elements. Created by the
         appropriate ElementHandler for the given EBML element type.
-        
+
         :cvar maxTimestamp: The modulus of the data's timestamp
         :cvar timeScalar: The scaling factor to convert native units (i.e.
             clock ticks) to microseconds.
     """
-    maxTimestamp = 2**24 
+    maxTimestamp = 2**24
     timeScalar = 1000000.0 / 2**15
-    
+
     def __init__(self, element, maxTimestamp=maxTimestamp, timeScalar=timeScalar):
         self.element = element
-        
+
         # This stuff will vary based on parser:
         self.blockIndex = -1
         self.startTime = None
@@ -493,7 +493,7 @@ class BaseDataBlock(object):
 #         self._len = None
         self.payloadSize = None
         self.cache = False
-        
+
         self.minMeanMax = None
         self.min = None
         self.mean = None
@@ -501,10 +501,10 @@ class BaseDataBlock(object):
         self._rollingMean = None
         self._rollingMeanSpan = 5000000
         self._rollingMeanLen = None  # length of set at last rolling mean
-        
+
         self.maxTimestamp = maxTimestamp
         self.timeScalar = timeScalar
-        
+
 
     def __repr__(self):
         return "<%s Channel: %d>" % (self.__class__.__name__, self.getHeader()[1])
@@ -595,14 +595,14 @@ class BaseDataBlock(object):
     def isValidLength(self, parser):
         """ Check if an element's payload data is evenly divisible by into
             a set of channels.
-        
+
             :param n: The size of the data in bytes.
             :return: `True` if the number of bytes can be evenly
                 distributed into subsamples.
         """
         return self.payloadSize > 0 and self.payloadSize % parser.size == 0
 
-    
+
     @property
     def payload(self):
         return self.element.value
@@ -616,7 +616,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
     """ Wrapper for SimpleChannelDataBlock elements, which consist of only a
         binary payload of raw data prefixed with a 16b timestamp and an 8b
         channel ID. Also keeps track of some metadata used by its Channel.
-        
+
         :cvar headerSize: The size of the header information stored in the
             element's payload, if any.
     """
@@ -629,21 +629,21 @@ class SimpleChannelDataBlock(BaseDataBlock):
         self.element = element
         self.startTime, self.channel = self.getHeader()
         self.payloadSize = element.size - self.headerSize
-   
-    
+
+
     def __len__(self):
         """ x.__len__() <==> len(x)
             This returns the length of the payload.
         """
         return self.numSamples
-    
-    
+
+
     def getHeader(self):
         """ Extract the block's header info. In SimpleChannelDataBlocks,
             this is part of the payload.
         """
         return self.headerParser.unpack_from(self.payload)
-    
+
 
     @property
     def timestamp(self):
@@ -653,9 +653,9 @@ class SimpleChannelDataBlock(BaseDataBlock):
     def parseWith(self, parser, start=None, end=None, step=1, subchannel=None):
         """ Parse an element's payload. Use this instead of directly using
             `parser.parse()` for consistency's sake.
-            
+
             :param parser: The DataParser to use
-            :keyword start: First subsample index to parse 
+            :keyword start: First subsample index to parse
             :keyword end: Last subsample index to parse
             :keyword step: The number of samples to skip, if the start and end
                 cover more than one sample.
@@ -669,7 +669,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
 
         start = self.headerSize + (start*parser.size)
         end = self.headerSize + (end*parser.size)
-        
+
         parser_unpack_from = parser.unpack_from
         if subchannel is not None:
             for i in range(start, end, parser.size*step):
@@ -682,9 +682,9 @@ class SimpleChannelDataBlock(BaseDataBlock):
     def parseByIndexWith(self, parser, indices, subchannel=None):
         """ Parse an element's payload and get a specific set of samples. Used
             primarily for resampling tricks.
-            
+
             :param parser: The DataParser to use
-            :param indices: A list of indices into the block's data. 
+            :param indices: A list of indices into the block's data.
             :keyword subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
@@ -706,7 +706,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
     """ 'Factory' for SimpleChannelDataBlock elements. Instantiated once
         per session (or maybe channel, depending). It handles the modulus
         correction of the block's short timestamps.
-        
+
         :cvar elementName: The name of the element handled by this parser
         :cvar product: The class of object generated by the parser
     """
@@ -720,7 +720,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
     def __init__(self, doc, **kwargs):
         super(SimpleChannelDataBlockParser, self).__init__(doc, **kwargs)
 
-        # Timestamp conversion/correction is done per channel        
+        # Timestamp conversion/correction is done per channel
         self.timestampOffset = {}
         self.lastStamp = {}
         self.timeScalars = {}
@@ -732,11 +732,11 @@ class SimpleChannelDataBlockParser(ElementHandler):
         """
         # TODO: Identify blocks with non-modulo timestamps and just return the
         #    unmodified timestamp. Will be slightly more efficient.
-        
+
         channel = block.getHeader()[1]
         modulus = self.timeModulus.setdefault(channel, block.maxTimestamp)
         offset = self.timestampOffset.setdefault(channel, 0)
-        
+
         if timestamp > modulus:
             # Timestamp is (probably) not modulo; will occur in split files.
             offset = timestamp - (timestamp % modulus)
@@ -746,15 +746,15 @@ class SimpleChannelDataBlockParser(ElementHandler):
             # Modulo rollover (probably) occurred.
             offset += modulus
             self.timestampOffset[channel] = offset
-            
+
         self.lastStamp[channel] = timestamp
         timestamp += self.timestampOffset[channel]
         return timestamp * self.timeScalars.setdefault(channel, self.timeScalar)
-    
-   
+
+
     def parse(self, element, sessionId=None, timeOffset=0):
         """ Create a (Simple)ChannelDataBlock from the given EBML element.
-        
+
             :param element: A sample-carrying EBML element.
             :keyword sessionId: The session currently being read; defaults to
                 whatever the Dataset says is current.
@@ -771,8 +771,8 @@ class SimpleChannelDataBlockParser(ElementHandler):
             # TODO: Actually handle, instead of ignoring?
             logger.warning("XXX: bad attribute in element %s" % element)
             return 0
-            
-        
+
+
         block.startTime = timeOffset + int(self.fixOverflow(block, timestamp))
         if block.endTime is not None:
             block.endTime = timeOffset + int(self.fixOverflow(block, block.endTime))
@@ -806,10 +806,10 @@ class ChannelDataBlock(BaseDataBlock):
         super(ChannelDataBlock, self).__init__(element)
         self._payloadIdx = None
         self._payloadEl = None
-        
+
         self._minMeanMaxEl = None
         self._minMeanMax = None
-        
+
         self.element = element
         for el in element:
             # These are roughly in order of probability, optional and/or
@@ -843,14 +843,14 @@ class ChannelDataBlock(BaseDataBlock):
                 # FUTURE: Handle channel flag bits
                 continue
             # Add other child element handlers here.
-        
+
         element.gc(recurse=False)
-        
+
         # Single-sample blocks have a total time of 0. Old files did not write
         # the end timestamp; if it's missing, duplicate the starting time.
         if self.endTime is None:
             self.endTime = self.startTime
-    
+
     
     @property
     def payload(self):
@@ -1061,14 +1061,14 @@ class RecorderPropertyParser(ElementHandler):
     """
     isHeader = True
     isSubElement = True
-    
+
     def parse(self, element, **kwargs):
         if self.doc is not None:
             if element.name == 'Attribute':
                 parseAttribute(self.doc, element)
             else:
                 self.doc.recorderInfo[element.name] = element.value
-   
+
 
 #===============================================================================
 # RecordingProperties: Calibration
@@ -1081,7 +1081,7 @@ class PolynomialParser(ElementHandler):
     elementName = ("UnivariatePolynomial", "BivariatePolynomial")
     isSubElement = True
     isHeader = True
-    
+
     # Parameter names: mapping of element names to the keyword arguments used
     # to instantiate a polynomial object. Also used to remove unknown elements
     # (see `renameKeys`).
@@ -1100,14 +1100,14 @@ class PolynomialParser(ElementHandler):
         elName = self.getElementName(element)
         params = renameKeys(element.dump(), self.parameterNames)
         params['dataset'] = self.doc
-        
+
         coeffs = params.pop("coeffs", None)
         if coeffs is None:
             raise ParsingError("%s had no coefficients" % elName)
 
         if "calId" not in params:
             raise ParsingError("%s had no calibration ID" % elName)
-        
+
         if element.name == "BivariatePolynomial":
             # Bivariate polynomial. Do extra error checking.
             if "channelId" not in params or "subchannelId" not in params:
@@ -1116,19 +1116,19 @@ class PolynomialParser(ElementHandler):
                 raise ParsingError("%s supplied %d coefficients; 4 required" %
                                    (elName, len(coeffs)))
             cal = transforms.Bivariate(coeffs, **params)
-            
+
         elif element.name == "UnivariatePolynomial":
             cal = transforms.Univariate(coeffs, **params)
-            
+
         else:
-            # Unknown polynomial type. 
+            # Unknown polynomial type.
             raise ParsingError("%s: unknown polynomial type" % elName)
-        
-        # self.doc might (validly) be None if a configuration tool is 
-        # reading the device info file, rather than reading a recording file. 
+
+        # self.doc might (validly) be None if a configuration tool is
+        # reading the device info file, rather than reading a recording file.
         if self.doc is not None:
             self.doc.addTransform(cal)
-        
+
         return cal
 
 
@@ -1142,9 +1142,9 @@ class CalibrationElementParser(RecorderPropertyParser):
 class CalibrationListParser(ElementHandler):
     """ Root-level parser for calibration data. Handles parsing of the
         individual calibration elements (its children). Unlike (most) other
-        parsers, this one can be instantiated without a reference to a 
+        parsers, this one can be instantiated without a reference to a
         `dataset.Dataset`. It also keeps a copy of all the calibration items
-        in a `items` attribute (a list). 
+        in a `items` attribute (a list).
     """
     isHeader = True
     elementName = "CalibrationList"
@@ -1163,7 +1163,7 @@ class SensorListParser(ElementHandler):
     isSubElement = True
 
     # Parameter names: mapping of element names to the keyword arguments used
-    # to instantiate the various children of SensorListParser. Also used to 
+    # to instantiate the various children of SensorListParser. Also used to
     # remove unknown elements (see `renameKeys`).
     parameterNames = {
         "Sensor": "sensors",
@@ -1174,9 +1174,9 @@ class SensorListParser(ElementHandler):
         "Attribute": "attributes",
 #         "SensorBwLimitIDRef": "bandwidthLimitId" # FUTURE
     }
-    
+
     def parse(self, element, **kwargs):
-        """ Parse a SensorList 
+        """ Parse a SensorList
         """
 #         data = parse_ebml(element.value)
         data = element.dump()
@@ -1187,7 +1187,7 @@ class SensorListParser(ElementHandler):
         if "sensors" in data:
             for sensor in data['sensors']:
                 self.doc.addSensor(**sensor)
-    
+
 
 #===============================================================================
 # RecordingProperties: Channel and Subchannel parsers
@@ -1195,7 +1195,7 @@ class SensorListParser(ElementHandler):
 
 class ChannelParser(ElementHandler):
     """ Handle individual Channel elements. Separate from ChannelList so it can
-        be subclassed for Plots. 
+        be subclassed for Plots.
     """
     elementName = "Channel"
     isSubElement = True
@@ -1229,25 +1229,25 @@ class ChannelParser(ElementHandler):
         "SubChannelSensorRef": "sensorId",
         "SubChannelWarningRef": "warningId",
         "SubChannelPlotColor": "color",
-        
+
         # Generic attribute elements.
         "Attribute": "attributes"
     }
-    
-    
+
+
     def parse(self, element, **kwargs):
-        """ Create the `dataset.Channel` object and its `dataset.SubChannel` 
+        """ Create the `dataset.Channel` object and its `dataset.SubChannel`
             children elements from a `Channel` element of the `ChannelList`.
         """
         data = renameKeys(element.dump(), self.parameterNames)
-        
+
         # Pop off the subchannels; create them in a second pass.
         subchannels = data.pop('subchannels', None)
-        
+
         channelId = data['channelId']
-        
+
         # Parsing. Either a regular struct.Struct, or a custom parser.
-        if 'parser' in data:
+        if 'parser' in data and data['parser'] in DATA_PARSERS:
             # A named parser; use the special-case parser function.
             data.pop('format', None)
             data['parser'] = DATA_PARSERS[data['parser']]()
