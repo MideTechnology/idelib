@@ -285,7 +285,6 @@ class TestDataset(unittest.TestCase):
         self.assertEqual(self.dataset.plots, {})
         self.assertEqual(self.dataset.recorderConfig, None)
         self.assertEqual(self.dataset.recorderInfo, {})
-        self.assertEqual(self.dataset.schemaVersion, 2)
         self.assertEqual(self.dataset.sensors, {})
         self.assertEqual(self.dataset.sessions, [])
         self.assertEqual(self.dataset.subsets, [])
