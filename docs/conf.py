@@ -20,7 +20,7 @@ import idelib
 # -- Project information -----------------------------------------------------
 
 project = 'idelib'
-copyright = '2021, Mide Technology Corp.'
+copyright = '2022, Mide Technology Corp.'
 author = 'David Randall Stokes'
 
 # The short X.Y version
