@@ -4,5 +4,5 @@ pytest>=4.6
 pytest-xdist[psutil]
 mock
 pytest-cov
-sphinx
+sphinx==4.2.0
 scipy;python_version<"3.10"

@@ -13,13 +13,14 @@ TEST_REQUIRES = [
     'pytest-xdist[psutil]',
     'mock',
     'pytest-cov',
-    'sphinx',
+    'sphinx==4.2.0',
     'scipy;python_version<"3.10"',
     ]
 
 DOCS_REQUIRES = [
-    "sphinx",
-    "pydata-sphinx-theme",
+    "sphinx==4.2.0",
+    "pydata-sphinx-theme==0.7.2",
+    "nbsphinx",
     ]
 
 EXAMPLE_REQUIRES = [
@@ -28,7 +29,7 @@ EXAMPLE_REQUIRES = [
 
 setuptools.setup(
         name='idelib',
-        version='3.2.5',
+        version='3.2.6',
         author='Mide Technology',
         author_email='help@mide.com',
         description='Python API for accessing IDE data recordings',
