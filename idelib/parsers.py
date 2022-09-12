@@ -1041,8 +1041,6 @@ class ChannelParser(ElementHandler):
         # Parent `Channel parameters.
         "ChannelID": "channelId",
         "ChannelName": "name",
-        # "TimeCodeScale": "timeScale",
-        # "TimeCodeModulus": "timeModulus",
         "SampleRate": "sampleRate",
         "ChannelParser": "parser",
         "ChannelFormat": "format",
@@ -1082,16 +1080,19 @@ class ChannelParser(ElementHandler):
         
         channelId = data['channelId']
         
-        # Parsing. Either a regular struct.Struct, or a custom parser.
-        # Sets the value for the key 'parser', replacing
+        # Channel data parsing. Either a regular struct.Struct, or a custom
+        # parser. Changes the value for the key 'parser', removing the string
+        # or replacing it with a data parser instance.
         if 'parser' in data:
-            parser = DATA_PARSERS.get(data.pop('parser'), None)
+            pname = data.pop('parser', '')
+            parser = DATA_PARSERS.get(pname.upper(), None)
             if parser:
                 # A named parser; use the special-case parser function.
                 data['parser'] = parser()
             else:
-                warnings.warn('Unknown parser type for channel {}: {!r}'.format(channelId, data['parser']))
+                warnings.warn('Unknown parser type for channel {}: {!r}'.format(channelId, pname))
 
+        # No named parser, or the named parser was unknown
         if 'parser' not in data:
             if 'format' in data:
                 # build struct instead.
