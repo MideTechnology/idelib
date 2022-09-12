@@ -1085,7 +1085,7 @@ class ChannelParser(ElementHandler):
         # or replacing it with a data parser instance.
         if 'parser' in data:
             pname = data.pop('parser', '')
-            parser = DATA_PARSERS.get(pname.upper(), None)
+            parser = DATA_PARSERS.get(pname, DATA_PARSERS.get(pname.upper(), None))
             if parser:
                 # A named parser; use the special-case parser function.
                 data['parser'] = parser()
