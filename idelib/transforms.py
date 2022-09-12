@@ -9,18 +9,25 @@ being in how they are used.
 __all__ = ['Transform', 'Univariate', 'Bivariate', 'CombinedPoly', 'PolyPoly',
            'AccelTransform']
 
-import weakref
-from collections import OrderedDict
+import logging
 import math
+import sys
 from time import sleep
 import warnings
-
-import logging
+import weakref
 
 import numpy as np
 
+# Dictionaries in Python 3.7+ are explicitly insert-ordered in all
+# implementations. If older, continue to use `collections.OrderedDict`.
+if sys.hexversion < 0x03070000:
+    from collections import OrderedDict as Dict
+else:
+    Dict = dict
+
 logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+
 
 #===============================================================================
 # 
@@ -514,9 +521,9 @@ class Univariate(Transform):
         """ Dump the polynomial as a dictionary. Intended for use when
             generating EBML.
         """
-        return OrderedDict((('CalID', self.id),
-                            ('CalReferenceValue', self._references[0]),
-                            ('PolynomialCoef', self._coeffs)))
+        return Dict((('CalID', self.id),
+                     ('CalReferenceValue', self._references[0]),
+                     ('PolynomialCoef', self._coeffs)))
 
 
 #===============================================================================
