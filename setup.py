@@ -10,8 +10,17 @@ INSTALL_REQUIRES = [
 
 TEST_REQUIRES = [
     'pytest>=4.6',
+    'pytest-xdist[psutil]',
     'mock',
     'pytest-cov',
+    'sphinx==4.2.0',
+    'scipy;python_version<"3.10"',
+    ]
+
+DOCS_REQUIRES = [
+    "sphinx==4.2.0",
+    "pydata-sphinx-theme==0.7.2",
+    "nbsphinx",
     ]
 
 EXAMPLE_REQUIRES = [
@@ -36,6 +45,7 @@ setuptools.setup(
                      'Programming Language :: Python :: 3.7',
                      'Programming Language :: Python :: 3.8',
                      'Programming Language :: Python :: 3.9',
+                     'Programming Language :: Python :: 3.10',
                      'Topic :: Scientific/Engineering',
                      ],
         keywords='ebml binary ide mide',
@@ -44,10 +54,17 @@ setuptools.setup(
         package_data={
             'idelib': ['schemata/*'],
         },
+        project_urls={
+            "Bug Tracker": "https://github.com/MideTechnology/idelib/issues",
+            "Documentation": "https://mide-technology-idelib.readthedocs-hosted.com/en/latest/",
+            "Source Code": "https://github.com/MideTechnology/idelib",
+            },
         test_suite='./testing',
+        python_requires='>=3.5, <3.11',
         install_requires=INSTALL_REQUIRES,
         extras_require={
             'test': INSTALL_REQUIRES + TEST_REQUIRES,
+            'docs': INSTALL_REQUIRES + DOCS_REQUIRES,
             'example': INSTALL_REQUIRES + EXAMPLE_REQUIRES,
             },
 )
