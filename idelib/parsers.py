@@ -36,17 +36,23 @@ Created on Sep 26, 2013
 :author: dstokes
 """
 
-from collections import OrderedDict
 from collections.abc import Sequence
 import math
 import struct
 import sys
-import types
+import warnings
 
 import numpy as np  
 
 from . import transforms
 from .attributes import decode_attributes
+
+# Dictionaries in Python 3.7+ are explicitly insert-ordered in all
+# implementations. If older, continue to use `collections.OrderedDict`.
+if sys.hexversion < 0x03070000:
+    from collections import OrderedDict as Dict
+else:
+    Dict = dict
 
 import logging
 logger = logging.getLogger('idelib')
@@ -58,11 +64,18 @@ logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 DATA_PARSERS = {}
 
+
 def dataParser(cls):
-    """ Decorator. Used to register classes as parsers of data payloads. 
+    """ Decorator. Used to register classes as parsers of `ChannelDataPayload`
+        contents.
+
+        Data parser classes should resemble `struct.Struct` objects, defining
+        `format` and `size`, and implementing `unpack_from()`. They should
+        also provide a `ranges` tuple, and (optionally) a `NAME` attribute,
+        which is how it will be referenced in a channel's `ChannelParser`.
     """
     global DATA_PARSERS
-    DATA_PARSERS[cls.__name__] = cls
+    DATA_PARSERS[getattr(cls, 'NAME', cls.__name__)] = cls
     return cls
 
 
@@ -70,7 +83,7 @@ def dataParser(cls):
 # Utility Functions
 #===============================================================================            
     
-def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
+def renameKeys(d, renamed, exclude=True, recurse=True,
                mergeAttributes=True):
     """ Create a new dictionary from and old one, using different keys. Used
         primarily for converting EBML element names to function keyword
@@ -82,8 +95,6 @@ def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
             copied to the new dictionary.
         :keyword recurse: If `True`, the renaming operates over all nested
             dictionaries.
-        :keyword ordered: If `True`, the results are returned as an
-            `OrderedDict` rather than a standard dictionary.
         :keyword mergeAttributes: If `True`, any `Attribute` elements are
             processed into a standard key/values and merged into the main
             dictionary.
@@ -93,16 +104,13 @@ def renameKeys(d, renamed, exclude=True, recurse=True, ordered=False,
     if isinstance(d, (str, bytes, bytearray)):
         return d
     elif isinstance(d, Sequence):
-        return [renameKeys(i, renamed, exclude, recurse, ordered, mergeAttributes) for i in d]
+        return [renameKeys(i, renamed, exclude, recurse, mergeAttributes) for i in d]
     elif not isinstance(d, dict):
         return d
     
-    if ordered:
-        result = OrderedDict()
-    else:
-        result = {}
-        
-    for oldname,v in d.items():
+    result = Dict()
+
+    for oldname, v in d.items():
         if oldname == "Attribute":
             if mergeAttributes:
                 result.update(decode_attributes(v))
@@ -128,19 +136,19 @@ def valEval(value, allowedChars='+-/*01234567890abcdefx.,() ;\t\n_'):
         expressions. Only permits math stuff.
     """
     # XXX: This is a hideous Rube Goldberg machine of a function. Could probably
-    # be accomplished better with a suitably complex regular expression.
+    #  be accomplished better with a suitably complex regular expression.
     if isinstance(value, (bytes, bytearray)):
         value = value.decode()
     value = value.strip()
     val = value.lower().replace('math.', '')
-    
+
     # Allow functions from the math module. Replace them with a placeholder
     # character (128+). Do in reverse order of length to prevent partial
     # replacement (e.g. 'e' in 'exp', 'tan' in 'atan2'
     funcs = sorted([x for x in dir(math) if not x.startswith('_')],
                    key=lambda x: len(x), reverse=True)
     # funcs = tuple(enumerate(funcs, 128))
-    
+
     for n, f in enumerate(funcs, 128):
         allowedChars = "%s%s" % (allowedChars, chr(n))
         if f in val:
@@ -148,17 +156,17 @@ def valEval(value, allowedChars='+-/*01234567890abcdefx.,() ;\t\n_'):
             continue
 
     allowedChars = set(allowedChars)
-        
-    if len(set(val).difference(allowedChars)) > 0: 
+
+    if len(set(val).difference(allowedChars)) > 0:
         raise TypeError("valEval(): Invalid/Unsafe character in %r" % value)
-    
+
     # Put the math functions back, with module reference
     if len(val) < len(value):
         for n, f in enumerate(funcs, 128):
             val = val.replace(chr(n), 'math.%s' % f)
-    
+
     return eval(val)
-    
+
     
 def parseAttribute(obj, element, multiple=True):
     """ Utility function to parse an `Attribute` element's data into a 
@@ -172,7 +180,7 @@ def parseAttribute(obj, element, multiple=True):
             the last `Attribute` element parsed. 
     """
     if not hasattr(obj, 'attributes'):
-        obj.attributes = OrderedDict()
+        obj.attributes = Dict()
         
     k = v = None
     for ch in element.value:
@@ -198,9 +206,9 @@ def parseAttribute(obj, element, multiple=True):
 # Used to provide an initial range, which is later corrected for actual
 # values. Note that floats default to the normalized range of (-1.0, 1.0).
 RANGES = {'c': None,
-          'b': (-128,127),
-          'B': (0,255),
-          '?': (0,1),
+          'b': (-128, 127),
+          'B': (0, 255),
+          '?': (0, 1),
           'h': (-(2**(8*2))/2, (2**(8*2))/2-1),
           'H': (0, 2**(8*2)-1),
           'i': (-(2**(8*4))/2, (2**(8*4))/2-1),
@@ -213,8 +221,7 @@ RANGES = {'c': None,
           'd': (-1.0, 1.0),
           'p': None,
           'P': None,
-          's': None
-}
+          's': None}
 
 
 def getParserTypes(parser):
@@ -296,12 +303,44 @@ class ParsingError(IOError):
 
 #===============================================================================
 #--- SENSOR DATA PARSING
+#    Data parser classes should resemble `struct.Struct` objects, defining
+#    `format` and `size`, and implementing `unpack_from()`. They should
+#    also provide a `ranges` tuple, and (optionally) a `NAME` attribute,
+#    which is how it will be referenced in a channel's `ChannelParser`.
+#    `NAME` will default to the name of the class if not provided.
+#    Every `dataset.Document` will have its own instances of the parsers it
+#    uses.
 #===============================================================================
+
+
+@dataParser
+class NMEAParser:
+    """ Special-case NMEA data parser. This is currently a dummy, and will
+        eventually be replaced with a 'real' parser.
+
+        Note: NMEA data is unlike sample data; it consists of a series of
+        'sentences' which cross data block boundries, so block timestamps
+        aren't (easily) applicable. NMEA channels will not generate
+        `EventArray` objects.
+    """
+    NAME = "NMEA"
+
+    def __init__(self):
+        self.parser = struct.Struct('b')
+        self.format = self.parser.format
+        self.size = self.parser.size
+        self.ranges = (-128, 127)
+
+    def unpack_from(self, data, offset=0):
+        """ Special-case parsing of an NMEA data block.
+        """
+        return self.parser.unpack_from(data, offset=offset)
+
 
 @dataParser
 class MPL3115PressureTempParser(object):
-    """ A special-case channel parser for the native raw data generated by 
-        the MPL3115 Pressure/Temperature sensor. See module docs for more
+    """ A special-case legacy channel parser for the native raw data generated
+        by the MPL3115 Pressure/Temperature sensor. See module docs for more
         information on custom parsers.
 
         Data format is 5 bytes in total:
@@ -314,9 +353,6 @@ class MPL3115PressureTempParser(object):
                 Bits [7..4] fractional value (unsigned)
                 Bits [3..0] (ignored)
         
-        :todo: Make sure the unsigned fraction part is correct for negative 
-            whole values. This currently assumes -1 and .5 is -0.5, not -1.5
-
         :deprecated: Used only for really old recordings without recorder
             description data. Later firmware writes the data padded to a more 
             easily handled form.
@@ -326,6 +362,7 @@ class MPL3115PressureTempParser(object):
         :cvar ranges: A tuple containing the absolute min and max values.
         :cvar types: A tuple containing the types of data parsed.
     """
+    NAME = "MPL3115"
 
     # Custom parsers need to provide a subset of a struct.Struct's methods
     # and attributes: 
@@ -335,7 +372,7 @@ class MPL3115PressureTempParser(object):
     # The absolute min and max values, returned via `getParserRanges()`. This
     # must be implemented. Normal `struct.Struct` objects get this computed
     # from their formatting string.
-    ranges = ((0.0,120000.0), (-40.0,80.0))
+    ranges = ((0.0, 120000.0), (-40.0, 80.0))
     
     # The types of data parsed from each channel, returned via 
     # `getParserTypes()`. If this doesn't exist, the types are computed. 
@@ -359,7 +396,7 @@ class MPL3115PressureTempParser(object):
 
 @dataParser
 class AccelerometerParser(object):
-    """ Parser for the accelerometer data. Accelerometer values are recorded
+    """ Parser for legacy accelerometer data. Accelerometer values are recorded
         as uint16 but represent values -(max) to (max) G, with 'max' being
         a property of the specific accelerometer part number. This parser 
         performs the conversion on the fly.
@@ -370,6 +407,7 @@ class AccelerometerParser(object):
         :cvar format: The `struct.Struct` parsing format string used to parse.
         :cvar ranges: A tuple containing the absolute min and max values.
     """
+    NAME = "LegacyAccelerometer"
 
     def __init__(self, formatting="<HHH"):
         self.parser = struct.Struct(formatting)
@@ -445,14 +483,8 @@ class ElementHandler(object):
         """ Generate a string with an element's name, ID, and file position
             for debugging/error reporting.
         """
-        try:
-            return "%r (0x%x) @%r" % (element.name, element.id,
-                                      element.offset)
-        except AttributeError:
-            # Possibly an old python-ebml element
-            # TODO: Remove legacy code
-            return "%r (0x%x) @%r" % (element.name, element.id,
-                                      element.stream.offset)
+        return "%r (0x%x) @%r" % (element.name, element.id,
+                                  element.offset)
 
 
     def makesData(self):
@@ -726,7 +758,7 @@ class ChannelDataBlock(BaseDataBlock):
     """ Wrapper for ChannelDataBlock elements, which features additional data
         excluded from the simple version. ChannelDataBlock elements are 'master'
         elements with several child elements, such as full timestamps and
-        and sample minimum/mean/maximum.
+        sample minimum/mean/maximum.
     """
     maxTimestamp = 2**24
 
@@ -1009,8 +1041,6 @@ class ChannelParser(ElementHandler):
         # Parent `Channel parameters.
         "ChannelID": "channelId",
         "ChannelName": "name",
-        # "TimeCodeScale": "timeScale",
-        # "TimeCodeModulus": "timeModulus",
         "SampleRate": "sampleRate",
         "ChannelParser": "parser",
         "ChannelFormat": "format",
@@ -1019,7 +1049,7 @@ class ChannelParser(ElementHandler):
         "TimeCodeModulus": "timeMod",
         "cache": "cache",
         "singleSample": "singleSample",
-        "SubChannel": "subchannels", # Multiple, so it will parse into a list
+        "SubChannel": "subchannels",  # Multiple, so it will parse into a list
 
         # Child SubChannel parameters; `renameKeys` operates recursively.
         "SubChannelID": "subchannelId",
@@ -1050,15 +1080,27 @@ class ChannelParser(ElementHandler):
         
         channelId = data['channelId']
         
-        # Parsing. Either a regular struct.Struct, or a custom parser.
-        if 'parser' in data and data['parser'] in DATA_PARSERS:
-            # A named parser; use the special-case parser function.
-            data.pop('format', None)
-            data['parser'] = DATA_PARSERS[data['parser']]()
-        elif 'format' in data:
-            # build struct instead.
-            # TODO (future): Handle special (non-standard) format characters
-            data['parser'] = struct.Struct(data.pop('format'))
+        # Channel data parsing. Either a regular struct.Struct, or a custom
+        # parser. Changes the value for the key 'parser', removing the string
+        # or replacing it with a data parser instance.
+        if 'parser' in data:
+            pname = data.pop('parser', '')
+            parser = DATA_PARSERS.get(pname, DATA_PARSERS.get(pname.upper(), None))
+            if parser:
+                # A named parser; use the special-case parser function.
+                data['parser'] = parser()
+            else:
+                warnings.warn('Unknown parser type for channel {}: {!r}'.format(channelId, pname))
+
+        # No named parser, or the named parser was unknown
+        if 'parser' not in data:
+            if 'format' in data:
+                # build struct instead.
+                # future: Handle special (non-standard) format characters (TBD)
+                data['parser'] = struct.Struct(data.pop('format'))
+            else:
+                warnings.warn('Missing format definition for channel {}'.format(channelId))
+                data['parser'] = struct.Struct('b')
 
         # sampleRate is stored as a string to avoid floats on the recorder.
         if 'sampleRate' in data:
@@ -1123,7 +1165,7 @@ class ChannelListParser(ElementHandler):
     elementName = "ChannelList"
     isSubElement = True
     isHeader = True
-    children = (ChannelParser,) #PlotListParser)
+    children = (ChannelParser,)  # PlotListParser)
 
 
 #===============================================================================

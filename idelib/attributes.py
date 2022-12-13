@@ -4,12 +4,18 @@ used in IDE and other Mide/enDAQ files, typically for diagnostic and
 debugging purposes.
 """
 
-from collections import OrderedDict
 import datetime
+import sys
 import time
 
 from ebmlite import loadSchema
 
+# Dictionaries in Python 3.7+ are explicitly insert-ordered in all
+# implementations. If older, continue to use `collections.OrderedDict`.
+if sys.hexversion < 0x03070000:
+    from collections import OrderedDict as Dict
+else:
+    Dict = dict
 
 # ==============================================================================
 # 
@@ -21,7 +27,7 @@ def decode_attributes(data, withTypes=False):
         `FloatAttribute`, etc.) to a proper dictionary. Attributes are tagged
         as 'multiple,' so they become lists when the EBML is parsed.
     """
-    result = OrderedDict()
+    result = Dict()
     for atts in data:
         k = atts.pop('AttributeName', None)
         if k is None:
