@@ -1430,9 +1430,9 @@ class EventArray(Transformable):
                 #  in _computeMinMeanMax(). Causes issues with pressure for some
                 #  reason - it starts removing mean and won't plot.
                 vals = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
-                block.min = vals.min(axis=-1)
-                block.mean = vals.mean(axis=-1)
-                block.max = vals.max(axis=-1)
+                block.min = vals.min(axis=-2)
+                block.mean = vals.mean(axis=-2)
+                block.max = vals.max(axis=-2)
                 self.hasMinMeanMax = True
 
             # Cache the index range for faster searching
