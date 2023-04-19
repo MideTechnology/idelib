@@ -47,6 +47,10 @@ _fileStrings = {}
 testMMMArrs = {}
 s5e25d40MMMArrs = {}
 
+# shape should stay same as og MMMShapes
+transformedTestMMMArrs = {}
+transformeds5e25d40MMMArrs = {}
+
 testMMMShapes = {8: (3, 4, 10),
                  36: (3, 3, 1000)}
 s5e25d40MMMShapes = {8: (3, 4, 13),
@@ -56,16 +60,45 @@ s5e25d40MMMShapes = {8: (3, 4, 13),
                      20: (3, 3, 1),
                      76: (3, 3, 1)}
 
+testBlock0s = {8: np.array([[0., 0., 0.],
+                          [499., 332., 666.],
+                          [999., 998., 999.]]),
+               36: np.array([[16777216., 0.],
+                          [16777216., 0.],
+                          [16777216., 0.]])}
+s5e25d40Block0s = {80: np.array([[-0.09842208,  0.14094889,  0.96651977],
+                                 [-0.10790818,  0.13264169,  0.9772698],
+                                 [-0.15965163,  0.11309824,  1.0927378]]),
+                   8:  np.array([[-12.50562205, -10.50334992, 13.81181221],
+                                [-12.500164, -10.49513803, 13.82100047],
+                                [-12.49197692, -10.48692615, 13.83223056]]),
+                   20: np.array([[1.01241998e+05, 2.54599991e+01],
+                                [1.01248029e+05, 2.57615623e+01],
+                                [1.01258002e+05, 2.58299999e+01]])}
+def fillMMMsByDoc(ide: str, globVarName: str="", changeIDs: tuple=()):
 
-def fillMMMs(varName: str) -> dict:
-    idefile = f"{varName}.ide"
-    doc = importer.importFile(idefile)
+    doc = importer.importFile(ide)
+    if changeIDs:
+        doc = flipGains(doc, changeIDs)
+
+    MMMArrs = {}
     for chID, ch in doc.channels.items():
-        globals()[varName + "MMMArrs"][chID] = ch.getSession().arrayMinMeanMax()
+        MMMArrs[chID] = ch.getSession().arrayMinMeanMax()
+    if globVarName:
+        globals()[globVarName] = MMMArrs
+    return MMMArrs
 
-    return globals()[varName + "MMMArrs"]
-
-
+def flipGains(doc: Dataset, idChanges: tuple):
+    for id in idChanges:
+        currentCoeffs = doc.transforms[id].coefficients
+        # flipping only the gain - univariate or bivariate
+        if len(currentCoeffs) == 2:
+            adjustedCoeffs = (-currentCoeffs[0], currentCoeffs[1])
+        else:
+            adjustedCoeffs = (currentCoeffs[0], -currentCoeffs[1], currentCoeffs[2], currentCoeffs[3])
+        doc.transforms[id].coefficients = adjustedCoeffs
+    doc.updateTransforms()
+    return doc
 
 def _load_file(filePath):
     if filePath not in _fileStrings:
@@ -75,6 +108,21 @@ def _load_file(filePath):
     out.name = filePath
     return out
 
+@pytest.fixture()
+def s5e25d40():
+    doc = importer.openFile(_load_file('./s5e25d40.IDE'))
+    importer.readData(doc)
+    return doc
+
+@pytest.fixture()
+def transformeds5e25d40(self):
+    #TODO: use bivariates for the subchannels - flip the second
+    doc = s5e25d40
+    currentCoeffs = doc.transforms[9].coefficients
+    adjustedCoeffs = (-currentCoeffs[0], currentCoeffs[1])
+    doc.transforms[9].coefficients = adjustedCoeffs
+    doc.updateTransforms()
+    return doc  # TODO: work on determining how to place the MMMarrs for this & the fn to call these & check them in the same way
 
 @pytest.fixture
 def testIDE():
@@ -1445,49 +1493,65 @@ class TestEventArray:
         # Run tests
         np.testing.assert_array_equal(result, expected)
 
-    @pytest.mark.parametrize('MMMArrs, expMMMShapes, ideStarter',
-                             [(s5e25d40MMMArrs, s5e25d40MMMShapes, 's5e25d40'),
-                              (testMMMArrs, testMMMShapes, 'test')])
-    def testMMMShape(self, MMMArrs: dict, expMMMShapes: dict, ideStarter: str):
+    @pytest.mark.parametrize('strMMMs, expMMMShapes, ideFile',
+                             [('s5e25d40MMMArrs', s5e25d40MMMShapes, 's5e25d40.IDE'),
+                              ('testMMMArrs', testMMMShapes, 'test.ide')])
+    def testMMMShape(self, strMMMs: str, expMMMShapes: dict, ideFile: str):
+        MMMArrs = globals()[strMMMs]
         if not MMMArrs:
-            MMMArrs = fillMMMs(ideStarter)
+            MMMArrs = fillMMMsByDoc(ideFile, strMMMs)
 
         accMMMShapes = {chID: np.shape(MMMArr) for chID, MMMArr in MMMArrs.items()}
         assert accMMMShapes == expMMMShapes
 
-    @pytest.mark.xfail
-    @pytest.mark.parametrize('MMMArrs, ideStarter',
-                             [
-                              (s5e25d40MMMArrs, 's5e25d40')])
-    def testMMMComparisons(self, MMMArrs: dict, ideStarter: str):
+    @pytest.mark.parametrize('strMMMs, ideFile',
+                             [pytest.param('s5e25d40MMMArrs', 's5e25d40.IDE', marks=pytest.mark.xfail(strict=True)),
+                              ('testMMMArrs', 'test.ide')])  # test.ide fails bc ch36 has the same values everywhere
+    def testMMMComparisons(self, strMMMs: str, ideFile: str):
+        MMMArrs = globals()[strMMMs]
         if not MMMArrs:
-            MMMArrs = fillMMMs(ideStarter)
+            MMMArrs = fillMMMsByDoc(ideFile, strMMMs)
 
+        failedAsserts = []
         for chID, MMMArr in MMMArrs.items():
-            assert np.less(MMMArr[0][1:], MMMArr[2][1:]).all(), f"Channel {chID} failed min < max"
-            assert np.less(MMMArr[1][1:], MMMArr[2][1:]).all(), f"Channel {chID} failed mean < max"
-            assert np.less(MMMArr[0][1:], MMMArr[1][1:]).all(), f"Channel {chID} failed min < mean"
+            if np.greater(MMMArr[0][1:], MMMArr[2][1:]).any():
+                failedAsserts.append(f"CH{chID} FAILED MIN < MAX\nMIN:\n{MMMArr[0][1:]}\nMAX:\n{MMMArr[2][1:]}")
+            if np.greater(MMMArr[1][1:], MMMArr[2][1:]).any():
+                failedAsserts.append(f"CH{chID} FAILED MEAN < MAX\nMEAN:\n{MMMArr[1][1:]}\nMAX:\n{MMMArr[2][1:]}")
+            if np.greater(MMMArr[0][1:], MMMArr[1][1:]).any():
+                failedAsserts.append(f"CH{chID} FAILED MIN < MEAN\nMIN:\n{MMMArr[0][1:]}\nMEAN:\n{MMMArr[1][1:]}")
 
-    @pytest.mark.xfail  # min and Max of s5 subchannel z of ch 8 are swapped
-    @pytest.mark.parametrize('MMMarrs, expBlock0, channel, ideStarter',  # determined from to_pandas, order of MMM needs to change
-                             [(s5e25d40MMMArrs, np.array([[-12.50562205, -10.50334992,  13.81181221],
-                                                          [-12.500164, -10.49513803, 13.82100047],
-                                                          [-12.49197692, -10.48692615,  13.83223056]]), 8, 's5e25d40'),
-                              (s5e25d40MMMArrs, np.array([[1.01241998e+05, 2.54599991e+01],
-                                                          [1.01248029e+05, 2.57615623e+01],
-                                                          [1.01258002e+05, 2.58299999e+01]]), 20, 's5e25d40'),
-                              (testMMMArrs, np.array([[0., 0., 0.],
-                                                      [499., 332., 666.],
-                                                      [999., 998., 999.]]), 8, 'test'),
-                              (testMMMArrs, np.array([[16777216., 0.],
-                                                      [16777216., 0.],
-                                                      [16777216., 0.]]), 36, 'test')])
-    def testArrayMMM2(self, MMMarrs: dict, expBlock0: np.array, channel: int, ideStarter: str):
+        if failedAsserts:
+            pytest.fail("\n".join(failedAsserts))
+
+    @pytest.mark.parametrize('strMMMs, expBlock0s, docFixture, gainFlipChannels',
+                             [pytest.param('s5e25d40MMMArrs', s5e25d40Block0s, 's5e25d40.IDE', (),
+                                           marks=pytest.mark.xfail(strict=True)),  # ch8Z min+max swapped bc of xform
+                              ('testMMMArrs', testBlock0s, 'test.ide', ())])
+    def testArrayMMM2(self, strMMMs: str, expBlock0s: dict, docFixture: str, gainFlipChannels: tuple):
         """ Test values in arrayMinMeanMax """
-        if not MMMarrs:
-            MMMarrs = fillMMMs(ideStarter)
-        MMMarr = MMMarrs[channel]
-        assert np.allclose(MMMarr[:, 1:, 0], expBlock0)
+        MMMArrs = globals()[strMMMs]
+        if not MMMArrs:
+            MMMArrs = fillMMMsByDoc(docFixture, strMMMs, gainFlipChannels)
+
+        failedAsserts = []
+        for ch, MMMArr in expBlock0s.items():
+            accBlock0 = MMMArrs[ch][:, 1:, 0]
+            if np.not_equal(accBlock0, expBlock0s[ch]).any():
+                failedAsserts.append(f"Channel {ch} Expected:\n{expBlock0s[ch]}\nGot:\n{accBlock0}")
+        if failedAsserts:
+            pytest.fail("\n".join(failedAsserts))
+    @pytest.mark.xfail
+    @pytest.mark.parametrize('ideFile, strMMMs, gainFlipChannels, expBlock0s',
+                             [('test.ide', 'transformedTestMMMArrs', (1, 2, 3, 36, 38), testBlock0s),
+                              ('s5e25d40.IDE', 'transformeds5e25d40MMMArrs', (1, 2, 3, 81, 82, 83, 21, 22), s5e25d40Block0s)])
+    def testMMMXformInPlace(self, ideFile: str, strMMMs: str, gainFlipChannels: tuple, expBlock0s: dict):
+        expFlippedBlock0s = {}
+        for channel, expBlock0 in expBlock0s.items():
+            expFlippedBlock0s[channel] = np.flip(expBlock0, axis=0) * -1  # BAD: not all will flip about the y axis!!!
+            # TODO: change this to just check that mins are less than maxes
+
+        self.testArrayMMM2(strMMMs, expFlippedBlock0s, ideFile, gainFlipChannels)
 
     def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
