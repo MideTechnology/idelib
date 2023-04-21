@@ -46,12 +46,12 @@ from .file_streams import makeStreamLike
 _fileStrings = {}
 
 # MMM global variables reserved for MinMeanMax tests (testMMMs)
-# Expected shape of MMM arrays
+# Expected shape of MMM arrays of test.ide & XS5E25D40.ide (changed to only have positive gains)
 testMMMShapes = {8: (3, 4, 10),
                  36: (3, 3, 1000)}
-S5E25D40MMMShapes = {8: (3, 4, 13),
-                     80: (3, 4, 14),
-                     84: (3, 4, 13),
+S5E25D40MMMShapes = {8: (3, 4, 6),
+                     80: (3, 4, 7),
+                     84: (3, 4, 6),
                      59: (3, 4, 1),
                      20: (3, 3, 1),
                      76: (3, 3, 1)}
@@ -63,25 +63,25 @@ testMMMBlock0s = {8: np.array([[0., 0., 0.],
                36: np.array([[16777216., 0.],
                             [16777216., 0.],
                             [16777216., 0.]])}
-S5E25D40MMMBlock0s = {80: np.array([[-0.15965162610952727,  0.11309823511113984, 0.9665197677842978],
-                                [-0.10790817923374309, 0.13264169452177552, 0.9772697989168759],
-                                [-0.09842208056994574, 0.1409488914950587, 1.0927378035987019]]),
-                   8:  np.array([[-12.505622054747757, -10.503349916483689, 13.811812212586403],
-                                 [-12.500164000337886, -10.495138033187523, 13.821000467479557],
-                                 [-12.491976918723083, -10.486926149891357, 13.832230556793405]]),
-                   20: np.array([[101241.99829101562, 25.459999084472656],
-                                 [101248.02856445312, 25.76156234741211],
-                                 [101258.00170898438, 25.829999923706055]])}
+S5E25D40MMMBlock0s = {80: np.array([[-0.08140442447167624, 0.030588803898888246, 0.9691399523949171],
+                                     [-0.0719850778533001, 0.0387078153564799, 0.9768253581441608],
+                                     [-0.024634808792385235, 0.05523737946861323, 1.095283125791875]]),
+                       8:  np.array([[-12.637846860537504, -10.553908103208101, -11.177535620699224],
+                                    [-12.632327454464878, -10.54744928909388, -11.17038782667181],
+                                    [-12.623128444343838, -10.540067787249058, -11.160176692346933]]),
+                       20: np.array([[102150.0, 21.780000686645508],
+                                 [102153.13110351562, 22.036001205444336],
+                                 [102157.00073242188, 22.1299991607666]])}
 XformtestMMMBlock0s = {key: np.flipud(MMM) * -1 for key, MMM in testMMMBlock0s.items()}
-XformS5E25D40MMMBlock0s = {8: np.array([[9.65991068632722, 12.066091283390165, -11.361211950520188],
-                                     [9.66819136900808, 12.074397051304441, -11.349853470116434],
-                                     [9.673711824128652, 12.082702819218717, -11.340560167967906]]),
-                        80: np.array([[-0.03839255853090849, 0.02582291617543689, -1.0892022152901617],
-                                      [-0.028906459867111142, 0.034130113148720095, -0.9737342106083354],
-                                      [0.022836987008673038, 0.05367357255935575, -0.9629841794757573]]),
-                        20: np.array([[-101258.00170898438, -25.829999923706055],
-                                      [-101248.02856445312, -25.76156234741211],
-                                      [-101241.99829101562, -25.459999084472656]])}
+XformS5E25D40MMMBlock0s = {8: np.array([[9.543397173413723, 11.867961374296353, 13.912108941026776],
+                                        [9.552495679176754, 11.875262229083035, 13.92243287008154],
+                                        [9.557954782634571, 11.881650477021381, 13.929659620419873]]),
+                        80: np.array([[-0.112179830308469, 0.11153442820188236, -1.0917475374833345],
+                                      [-0.06482956124755412, 0.1280639923140157, -0.9732897698356204],
+                                      [-0.05541021462917799, 0.13618300377160736, -0.9656043640863767]]),
+                        20: np.array([[-102157.00073242188, -22.1299991607666],
+                                      [-102153.13110351562, -22.036001205444336],
+                                      [-102150.0, -21.780000686645508]])}
 
 def _load_file(filePath):
     if filePath not in _fileStrings:
@@ -1518,21 +1518,21 @@ class TestEventArray:
         for ch, MMMArr in expBlock0s.items():
             accBlock0 = MMMArrs[ch][:, 1:, 0]
             if np.not_equal(accBlock0, expBlock0s[ch]).any():
-                failedAsserts.append(f"Channel {ch} Expected:\n{expBlock0s[ch]}\nGot:\n{accBlock0}")
+                failedAsserts.append(f"Channel {ch} MMM Block 0 Expected:\n{expBlock0s[ch]}\nGot:\n{accBlock0}")
 
         return failedAsserts
 
     @pytest.mark.xfail
     @pytest.mark.parametrize('ideFile, channels, gainFlipChannels, expShapes, expBlock0s',
                              [('test.ide', (8, 36), (), testMMMShapes, testMMMBlock0s),
-                              ('s5e25d40.IDE', (8, 80), (), S5E25D40MMMShapes, S5E25D40MMMBlock0s),
-                              ('s5e25d40.IDE', (84, 59, 20, 76), (), S5E25D40MMMShapes, S5E25D40MMMBlock0s),
+                              ('XS5E25D40.IDE', (8, 80), (), S5E25D40MMMShapes, S5E25D40MMMBlock0s),
+                              ('XS5E25D40.IDE', (84, 59, 20, 76), (), S5E25D40MMMShapes, S5E25D40MMMBlock0s),
                               ('test.ide', (8, 36), (1, 2, 3, 36, 38), testMMMShapes, XformtestMMMBlock0s),
-                              ('s5e25d40.IDE', (8, 80), (1, 2, 3, 81, 82, 83), S5E25D40MMMShapes, XformS5E25D40MMMBlock0s),
-                              ('s5e25d40.IDE', (84, 59, 20, 76), (21, 22, 60, 61, 62, 77, 78, 85, 86, 87), S5E25D40MMMShapes, XformS5E25D40MMMBlock0s)],
-                             ids=['Test-Encoded, Original', 's5e25d40-Encoded, Original',
-                                  's5e25d40-NonEncoded, Original', 'Test-Encoded, XFormed',
-                                  's5e25d40-Encoded, XFormed', 's5e25d40-NonEncoded, XFormed'])
+                              ('XS5E25D40.IDE', (8, 80), (1, 2, 3, 81, 82, 83), S5E25D40MMMShapes, XformS5E25D40MMMBlock0s),
+                              ('XS5E25D40.IDE', (84, 59, 20, 76), (21, 22, 60, 61, 62, 77, 78, 85, 86, 87), S5E25D40MMMShapes, XformS5E25D40MMMBlock0s)],
+                             ids=['Test-OG, MMM Encoded Channels', 's5e25d40-OG, MMM Encoded Channels',
+                                  's5e25d40-OG, NonEncoded Channels', 'Test-XFormed, MMM Encoded Channels',
+                                  's5e25d40-XFormed, MMM Encoded Channels', 's5e25d40-XFormed, NonEncoded Channels'])
     def testMMMs(self, ideFile: str, channels: tuple, gainFlipChannels: tuple, expShapes: dict, expBlock0s: dict):
         """ Check that the arrayMinMeanMax has the correct shape, correct values, and meets min<mean<max"""
         MMMs = self.getMMMs(ideFile, channels, gainFlipChannels)  # contains the necessary MMMs
