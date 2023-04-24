@@ -45,18 +45,72 @@ from .file_streams import makeStreamLike
 
 _fileStrings = {}
 
-# MMM global variables reserved for MinMeanMax tests (testMMMs)
-# Expected shape of MMM arrays of test.ide & XS5E25D40.ide (changed to only have positive gains)
+def _load_file(filePath):
+    if filePath not in _fileStrings:
+        with open(filePath, 'rb') as f:
+            _fileStrings[filePath] = f.read()
+    out = BytesIO(_fileStrings[filePath])
+    out.name = filePath
+    return out
 
-S5E25D40MMMShapes = {8: (3, 4, 6),
-                     80: (3, 4, 7),
-                     84: (3, 4, 6),
-                     59: (3, 4, 1),
-                     20: (3, 3, 1),
-                     76: (3, 3, 1)}
 
-# Expected values for arrayMinMeanMax of the first block
-S5E25D40MMMBlock0s = {80: np.array([[-0.08140442447167624, 0.030588803898888246, 0.9691399523949171],
+def flipGains(doc: Dataset, idChanges: tuple):
+    """ Utility method to flip the gains of requested calibration IDs """
+
+    for id in idChanges:
+        currentCoeffs = doc.transforms[id].coefficients
+        # flipping only the gain - univariate or bivariate
+        if len(currentCoeffs) == 2:
+            adjustedCoeffs = (-currentCoeffs[0], currentCoeffs[1])
+        else:
+            adjustedCoeffs = (currentCoeffs[0], -currentCoeffs[1], currentCoeffs[2], currentCoeffs[3])
+        doc.transforms[id].coefficients = adjustedCoeffs
+    doc.updateTransforms()
+    return doc
+
+
+@pytest.fixture(scope="session")
+def S5E25D40IDE():
+    return importer.importFile('XS5E25D40.IDE')
+
+
+@pytest.fixture(scope="session")
+def S5E25D40Shapes():
+    # expected shapes of the MMM arrays of XS5E25D40.IDE
+    return {8: (3, 4, 6),
+         80: (3, 4, 7),
+         84: (3, 4, 6),
+         59: (3, 4, 1),
+         20: (3, 3, 1),
+         76: (3, 3, 1)}
+
+
+@pytest.fixture(scope="session")
+def S5E25D40MMMs(S5E25D40IDE):
+    MMMArrs = {}
+    # dictionary of MMM for each channel
+    for chID, ch in S5E25D40IDE.channels.items():
+        MMMArrs[chID] = ch.getSession().arrayMinMeanMax()
+
+    return MMMArrs
+
+
+@pytest.fixture(scope="session")
+def XformS5E25D40MMMs(S5E25D40IDE):
+    # ch 20 not included; not appropriately affecting bivariate transformations
+    doc = flipGains(S5E25D40IDE, (1, 2, 3, 81, 82, 83, 85, 86, 87, 60, 61, 62, 77, 78))
+    MMMArrs = {}
+    # dictionary of MMM for each channel after transformation
+    for chID, ch in doc.channels.items():
+        MMMArrs[chID] = ch.getSession().arrayMinMeanMax()
+
+    return MMMArrs
+
+
+@pytest.fixture(scope="session")
+def S5E25D40Block0s():
+    # the expected values of the first block of each channel's MMM
+    return {80: np.array([[-0.08140442447167624, 0.030588803898888246, 0.9691399523949171],
                          [-0.0719850778533001, 0.0387078153564799, 0.9768253581441608],
                          [-0.024634808792385235, 0.05523737946861323, 1.095283125791875]]),
             8:  np.array([[-12.637846860537504, -10.553908103208101, -11.177535620699224],
@@ -75,7 +129,11 @@ S5E25D40MMMBlock0s = {80: np.array([[-0.08140442447167624, 0.030588803898888246,
                           [778.0501098632812, 0.5733642578125],
                           [820.87060546875, 0.75]])}
 
-XformS5E25D40MMMBlock0s = {8: np.array([[9.543397173413723, 11.867961374296353, 13.912108941026776],
+
+@pytest.fixture(scope="session")
+def XformS5E25D40Block0s():
+    # the expected values of the first block of each transformed channel's MMM
+    return {8: np.array([[9.543397173413723, 11.867961374296353, 13.912108941026776],
                         [9.552495679176754, 11.875262229083035, 13.92243287008154],
                         [9.557954782634571, 11.881650477021381, 13.929659620419873]]),
             80: np.array([[-0.112179830308469, 0.11153442820188236, -1.0917475374833345],
@@ -90,16 +148,6 @@ XformS5E25D40MMMBlock0s = {8: np.array([[9.543397173413723, 11.867961374296353, 
             76: np.array([[-820.87060546875, -0.75],
                           [-778.0501098632812, -0.5733642578125],
                           [-651.83837890625, -0.470458984375]])}
-
-def _load_file(filePath):
-    if filePath not in _fileStrings:
-        with open(filePath, 'rb') as f:
-            _fileStrings[filePath] = f.read()
-    out = BytesIO(_fileStrings[filePath])
-    out.name = filePath
-    return out
-
-
 @pytest.fixture
 def testIDE():
     doc = importer.openFile(_load_file('./test.ide'))
@@ -1469,34 +1517,6 @@ class TestEventArray:
         # Run tests
         np.testing.assert_array_equal(result, expected)
 
-    def flipGains(self, doc: Dataset, idChanges: tuple):
-        """ Utility method to flip the gains of requested calibration IDs """
-
-        for id in idChanges:
-            currentCoeffs = doc.transforms[id].coefficients
-            # flipping only the gain - univariate or bivariate
-            if len(currentCoeffs) == 2:
-                adjustedCoeffs = (-currentCoeffs[0], currentCoeffs[1])
-            else:
-                adjustedCoeffs = (currentCoeffs[0], -currentCoeffs[1], currentCoeffs[2], currentCoeffs[3])
-            doc.transforms[id].coefficients = adjustedCoeffs
-        doc.updateTransforms()
-        return doc
-
-    def getMMMs(self, ide: str,  needIDs: tuple, changeIDs: tuple = ()):
-        """ Utility method to get the all the ArrayMinMeanMaxs of the needed channels """
-
-        doc = importer.importFile(ide)
-        if changeIDs:
-            doc = self.flipGains(doc, changeIDs)
-
-        MMMArrs = {}
-        for chID in needIDs:
-            MMMArrs[chID] = doc.channels[chID].getSession().arrayMinMeanMax()
-
-        # returns a dict in format {channelID# : np.array of MMM Arrays}
-        return MMMArrs
-
     def checkMMMShape(self, MMMArrs: dict, expMMMShapes: dict):
         """ Utility method to check that the given dict of MMMs has the right shape """
         accMMMShapes = {chID: np.shape(MMMArr) for chID, MMMArr in MMMArrs.items()}
@@ -1510,15 +1530,14 @@ class TestEventArray:
         """ Utility method to check that mins < means < maxes """
         failedAsserts = []
         for chID, MMMArr in MMMArrs.items():
-            if np.greater(MMMArr[0][1:], MMMArr[2][1:]).any():
-                failedAsserts.append(f"CH{chID} FAILED MIN < MAX\nMIN:\n{MMMArr[0][1:]}\nMAX:\n{MMMArr[2][1:]}")
-            if np.greater(MMMArr[1][1:], MMMArr[2][1:]).any():
-                failedAsserts.append(f"CH{chID} FAILED MEAN < MAX\nMEAN:\n{MMMArr[1][1:]}\nMAX:\n{MMMArr[2][1:]}")
             if np.greater(MMMArr[0][1:], MMMArr[1][1:]).any():
                 failedAsserts.append(f"CH{chID} FAILED MIN < MEAN\nMIN:\n{MMMArr[0][1:]}\nMEAN:\n{MMMArr[1][1:]}")
+            if np.greater(MMMArr[0][1:], MMMArr[2][1:]).any():
+                failedAsserts.append(f"CH{chID} FAILED MEAN < MAX\nMEAN:\n{MMMArr[1][1:]}\nMAX:\n{MMMArr[2][1:]}")
 
         return failedAsserts
 
+    @pytest.mark.parametrize()
     def checkValues(self, MMMArrs: dict, expBlock0s: dict):
         """ Utility method to check the first block's values in all provided arrayMinMeanMaxes """
 
@@ -1530,33 +1549,33 @@ class TestEventArray:
 
         return failedAsserts
 
-    @pytest.mark.xfail
-    @pytest.mark.parametrize('ideFile, channels, gainFlipChannels, expShapes, expBlock0s',
-                             [('XS5E25D40.IDE', (8, 80), (), S5E25D40MMMShapes, S5E25D40MMMBlock0s),
-                              ('XS5E25D40.IDE', (84, 59, 20, 76), (), S5E25D40MMMShapes, S5E25D40MMMBlock0s),
-                              ('XS5E25D40.IDE', (8, 80), (1, 2, 3, 81, 82, 83), S5E25D40MMMShapes, XformS5E25D40MMMBlock0s),
-                              ('XS5E25D40.IDE', (84, 59, 20, 76), (85, 86, 87, 60, 61, 62, 77, 78), S5E25D40MMMShapes, XformS5E25D40MMMBlock0s)],
-                             ids=['s5e25d40-OG, MMM Encoded Channels', 's5e25d40-OG, NonEncoded Channels',
-                                  's5e25d40-XFormed, MMM Encoded Channels', 's5e25d40-XFormed, NonEncoded Channels'])
-    def testMMMs(self, ideFile: str, channels: tuple, gainFlipChannels: tuple, expShapes: dict, expBlock0s: dict):
-        """ Check that the arrayMinMeanMax has the correct shape, correct values, and meets min<mean<max"""
-        MMMs = self.getMMMs(ideFile, channels, gainFlipChannels)  # contains the necessary MMMs
-
-        # using list of failures so that all inner tests may run
-        failedAsserts = []
-
-        # keep only the expShapes of the channels that are in MMMs/being tested
-        expShapes = {channel: expShape for channel, expShape in expShapes.items() if channel in channels}
-        failedAsserts.extend(self.checkMMMShape(MMMs, expShapes))
-
-        failedAsserts.extend(self.checkMMMComparisons(MMMs))
+    @pytest.mark.parametrize('channels', [(8, 80), (84, 20, 59, 76)], ids=['Original MMM Encoded', 'Original Non-encoded'])
+    def testS5E25D40MMM(self, S5E25D40IDE, S5E25D40MMMs, S5E25D40Shapes, S5E25D40Block0s, channels):
+        MMMs = {chID: MMM for chID, MMM in S5E25D40MMMs.items() if chID in channels}
+        failedAsserts = self.checkMMMComparisons(MMMs)
+        failedAsserts += self.checkMMMShape(S5E25D40MMMs, S5E25D40Shapes)
+        assert not failedAsserts, "\n".join(failedAsserts)
 
         # keep only the first block values for the channels that are in MMMs/being tested
-        block0s = {channel: block0 for channel, block0 in expBlock0s.items() if channel in channels}
-        failedAsserts.extend(self.checkValues(MMMs, block0s))
+        block0s = {channel: block0 for channel, block0 in S5E25D40Block0s.items() if channel in channels}
+        failedAsserts += self.checkValues(S5E25D40MMMs, block0s)
 
-        if failedAsserts:  # raise one big failure to show all inner failures
-            pytest.fail("\n".join(failedAsserts))
+        # raise one big failure to show all inner failures
+        assert not failedAsserts, "\n".join(failedAsserts)
+
+    @pytest.mark.xfail
+    @pytest.mark.parametrize('channels', [(8, 80), (84, 59, 76)], ids=['XFormed MMM Encoded', 'XFormed Non-encoded'])
+    def testXformS5E25D40MMM(self, XformS5E25D40MMMs, S5E25D40Shapes, XformS5E25D40Block0s, channels):
+        MMMs = {chID: MMM for chID, MMM in XformS5E25D40MMMs.items() if chID in channels}
+        failedAsserts = self.checkMMMComparisons(MMMs)
+        failedAsserts += self.checkMMMShape(XformS5E25D40MMMs, S5E25D40Shapes)
+
+        # keep only the first block values for the channels that are in MMMs/being tested
+        block0s = {channel: block0 for channel, block0 in XformS5E25D40Block0s.items() if channel in channels}
+        failedAsserts += self.checkValues(XformS5E25D40MMMs, block0s)
+
+        # raise one big failure to show all inner failures
+        assert not failedAsserts, "\n".join(failedAsserts)
 
     def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
