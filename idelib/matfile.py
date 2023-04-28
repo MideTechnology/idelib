@@ -8,6 +8,8 @@ import os.path
 import string
 import struct
 
+import numpy as np
+
 import logging
 logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
@@ -122,14 +124,15 @@ RESERVED_WORDS = ('break', 'case', 'catch', 'continue', 'else', 'elseif', 'end',
                   'return', 'switch', 'try', 'while')
 
 
-def sanitizeName(s, validChars=string.ascii_letters+string.digits+'_',
+def sanitizeName(s, validChars=string.ascii_letters + string.digits + '_',
                  prefix="v", reservedWords=RESERVED_WORDS):
     """ Convert an arbitrary string into a valid MATLAB variable name.
-    
+
         :keyword validChars: A string of all valid characters
     """
     validChars = validChars.encode('ascii', 'replace')
-    s = s.strip().encode('ascii', 'replace')
+    if isinstance(s, str):
+        s = s.encode('ascii', 'replace')
     result = [chr(c) if c in validChars else '_' for c in s.strip()]
     result = ''.join(result).strip('_ ')
     if result[0].isdigit() or result in reservedWords:
@@ -450,7 +453,8 @@ class MatStream(object):
         self.packStr(sanitizeName(name))
         
         # Write the start of the 'PR' element; the size will be filled in later.
-        self._write(struct.pack('II', self.arrayDType, self.rowFormatter.size * rows))
+        size = min(self.rowFormatter.size * rows, 2**32-1)
+        self._write(struct.pack('II', self.arrayDType, size))
         self.prSize = self.stream.tell() - 4
         
 
