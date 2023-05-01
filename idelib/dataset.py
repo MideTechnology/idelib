@@ -2212,25 +2212,20 @@ class EventArray(Transformable):
             if times:
                 for m in range(3):
                     xform.inplace(out[m, 1, :], out=out[m, 1, :])
-                    if out[0, 1, 0] > out[2, 1, 0]:
-                        out = np.flipud(out)
             else:
                 for m in range(3):
                     xform.inplace(out[m, 0, :], out=out[m, 0, :])
-                    if out[0, 0, 0] > out[2, 0, 0]:
-                        out = np.flipud(out)
         else:
             if times:
                 for m in range(3):
                     xform.inplace(out[m, 1:, :], out=out[m, 1:, :])
-                if out[0, 1, 0] > out[2, 1, 0]:
-                    out = np.flipud(out)
-
             else:
                 for m in range(3):
                     xform.inplace(out[m, :, :], out=out[m, :, :])
-                if out[0, 0, 0] > out[2, 0, 0]:
-                    out = np.flipud(out)
+
+        for i in range(len(out[0])):
+            if out[0, i, 0] > out[2, i, 0]:
+                out[:, i] = np.flipud(out[:, i])
 
         return out
 
