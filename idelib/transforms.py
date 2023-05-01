@@ -183,7 +183,7 @@ class ComplexTransform(Transform):
         if scalar:
             values = float(values)
         elif out is None:
-            out = np.empty_like(values, dtype=np.float64)
+            out = np.zeros_like(values, dtype=np.float64)
 
         if len(self._variables) == 1:
 
@@ -461,7 +461,7 @@ class Univariate(Transform):
         if scalar:
             values = float(values)
         elif out is None:
-            out = np.empty_like(values, dtype=np.float64)
+            out = np.zeros_like(values, dtype=np.float64)
 
         if len(self._fastCoeffs) == 1:
             if scalar:
@@ -747,7 +747,7 @@ class Bivariate(Univariate):
         if scalar:
             values = float(values)
         elif out is None:
-            out = np.empty_like(values, dtype=np.float64)
+            out = np.zeros_like(values, dtype=np.float64)
 
         session = self.dataset.lastSession if session is None else session
         sessionId = None if session is None else session.sessionId
@@ -1106,7 +1106,7 @@ class CombinedPoly(Bivariate):
         if scalar:
             values = float(values)
         elif out is None:
-            out = np.empty_like(values, dtype=np.float64)
+            out = np.zeros_like(values, dtype=np.float64)
 
         if self.variables is None:
             if scalar:
@@ -1376,7 +1376,7 @@ class PolyPoly(CombinedPoly):
             its member polynomials.
         """
         if out is None:
-            out = np.empty_like(values, dtype=np.float64)
+            out = np.zeros_like(values, dtype=np.float64)
 
         try:
             # Optimization: don't check the other channel if Y is unused
