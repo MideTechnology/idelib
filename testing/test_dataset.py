@@ -1563,7 +1563,6 @@ class TestEventArray:
         # raise one big failure to show all inner failures
         assert not failedAsserts, "\n".join(failedAsserts)
 
-    @pytest.mark.xfail
     @pytest.mark.parametrize('channels', [(8, 80), (84, 59, 76)], ids=['XFormed MMM Encoded', 'XFormed Non-encoded'])
     def testXformS5E25D40MMM(self, XformS5E25D40MMMs, S5E25D40Shapes, XformS5E25D40Block0s, channels):
         MMMs = {chID: MMM for chID, MMM in XformS5E25D40MMMs.items() if chID in channels}
