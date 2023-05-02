@@ -1517,64 +1517,56 @@ class TestEventArray:
         # Run tests
         np.testing.assert_array_equal(result, expected)
 
-    def checkMMMShape(self, MMMArrs: dict, expMMMShapes: dict):
+    @pytest.mark.parametrize('xform',
+                             [False, True],
+                             ids=['Original Values', 'XFormed Values'])
+    def testArrayMMMShape(self, S5E25D40Shapes, S5E25D40MMMs, XformS5E25D40MMMs, xform):
         """ Utility method to check that the given dict of MMMs has the right shape """
-        accMMMShapes = {chID: np.shape(MMMArr) for chID, MMMArr in MMMArrs.items()}
-        try:
-            assert accMMMShapes == expMMMShapes
-        except AssertionError as e:
-            return [str(e)]
-        return []
+        accShapes = {chID: np.shape(MMMArr) for chID, MMMArr in (XformS5E25D40MMMs if xform else S5E25D40MMMs).items()}
+        assert accShapes == S5E25D40Shapes
 
-    def checkMMMComparisons(self, MMMArrs: dict):
+    @pytest.mark.parametrize('channels, xform',
+                             [((8, 80), False),
+                              ((84, 20, 59, 76), False),
+                              ((8, 80), True),
+                              ((84, 59, 76), True)],
+                             ids=['Original MMM Encoded', 'Original Non-Encoded',
+                                  'XFormed MMM Encoded', 'XFormed Non-Encoded'])
+    def testArrayMMMComparisons(self, S5E25D40MMMs, XformS5E25D40MMMs, channels, xform):
         """ Utility method to check that mins < means < maxes """
+
+        MMMs = {chID: MMM for chID, MMM in (XformS5E25D40MMMs if xform else S5E25D40MMMs).items() if chID in channels}
+
         failedAsserts = []
-        for chID, MMMArr in MMMArrs.items():
+        for chID, MMMArr in MMMs.items():
             if np.greater(MMMArr[0][1:], MMMArr[1][1:]).any():
                 failedAsserts.append(f"CH{chID} FAILED MIN < MEAN\nMIN:\n{MMMArr[0][1:]}\nMEAN:\n{MMMArr[1][1:]}")
             if np.greater(MMMArr[0][1:], MMMArr[2][1:]).any():
                 failedAsserts.append(f"CH{chID} FAILED MEAN < MAX\nMEAN:\n{MMMArr[1][1:]}\nMAX:\n{MMMArr[2][1:]}")
 
-        return failedAsserts
+        assert not failedAsserts, "\n".join(failedAsserts)
 
-    @pytest.mark.parametrize()
-    def checkValues(self, MMMArrs: dict, expBlock0s: dict):
+    @pytest.mark.parametrize('channels, xform',
+                             [((8, 80), False),
+                              ((84, 20, 59, 76), False),
+                              ((8, 80), True),
+                              ((84, 59, 76), True)],
+                             ids=['Original MMM Encoded', 'Original Non-Encoded',
+                                  'XFormed MMM Encoded', 'XFormed Non-Encoded'])
+    def testArrayMMMValues(self, S5E25D40MMMs, S5E25D40Block0s, XformS5E25D40MMMs, XformS5E25D40Block0s, channels, xform):
         """ Utility method to check the first block's values in all provided arrayMinMeanMaxes """
+        expBlock0s = {channel: block0 for channel, block0 in
+                      (XformS5E25D40Block0s if xform else S5E25D40Block0s).items() if channel in channels}
+        MMMArrs = XformS5E25D40MMMs if xform else S5E25D40MMMs
 
         failedAsserts = []
-        for ch, MMMArr in expBlock0s.items():
+        for ch, expMMM in expBlock0s.items():
             accBlock0 = MMMArrs[ch][:, 1:, 0]
-            if np.not_equal(accBlock0, expBlock0s[ch]).any():
+            if np.not_equal(accBlock0, expMMM).any():
                 failedAsserts.append(f"Channel {ch} MMM Block 0 Expected:\n{expBlock0s[ch]}\nGot:\n{accBlock0}")
 
-        return failedAsserts
-
-    @pytest.mark.parametrize('channels', [(8, 80), (84, 20, 59, 76)], ids=['Original MMM Encoded', 'Original Non-encoded'])
-    def testS5E25D40MMM(self, S5E25D40IDE, S5E25D40MMMs, S5E25D40Shapes, S5E25D40Block0s, channels):
-        MMMs = {chID: MMM for chID, MMM in S5E25D40MMMs.items() if chID in channels}
-        failedAsserts = self.checkMMMComparisons(MMMs)
-        failedAsserts += self.checkMMMShape(S5E25D40MMMs, S5E25D40Shapes)
         assert not failedAsserts, "\n".join(failedAsserts)
 
-        # keep only the first block values for the channels that are in MMMs/being tested
-        block0s = {channel: block0 for channel, block0 in S5E25D40Block0s.items() if channel in channels}
-        failedAsserts += self.checkValues(S5E25D40MMMs, block0s)
-
-        # raise one big failure to show all inner failures
-        assert not failedAsserts, "\n".join(failedAsserts)
-
-    @pytest.mark.parametrize('channels', [(8, 80), (84, 59, 76)], ids=['XFormed MMM Encoded', 'XFormed Non-encoded'])
-    def testXformS5E25D40MMM(self, XformS5E25D40MMMs, S5E25D40Shapes, XformS5E25D40Block0s, channels):
-        MMMs = {chID: MMM for chID, MMM in XformS5E25D40MMMs.items() if chID in channels}
-        failedAsserts = self.checkMMMComparisons(MMMs)
-        failedAsserts += self.checkMMMShape(XformS5E25D40MMMs, S5E25D40Shapes)
-
-        # keep only the first block values for the channels that are in MMMs/being tested
-        block0s = {channel: block0 for channel, block0 in XformS5E25D40Block0s.items() if channel in channels}
-        failedAsserts += self.checkValues(XformS5E25D40MMMs, block0s)
-
-        # raise one big failure to show all inner failures
-        assert not failedAsserts, "\n".join(failedAsserts)
 
     def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
