@@ -2223,7 +2223,9 @@ class EventArray(Transformable):
                 for m in range(3):
                     xform.inplace(out[m, :, :], out=out[m, :, :])
 
-        for i in range(len(out[0])):
+        # iterate through the arrayMinMeanMaxes specific to each subchannel
+        for i in range(int(times), out.shape[1]):
+            # swap mins and maxes if a (negative) transform has made min > max
             if out[0, i, 0] > out[2, i, 0]:
                 out[:, i] = np.flipud(out[:, i])
 
