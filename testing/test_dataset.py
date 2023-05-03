@@ -1520,22 +1520,22 @@ class TestEventArray:
     @pytest.mark.parametrize('xform',
                              [False, True],
                              ids=['Original Values', 'XFormed Values'])
-    def testArrayMMMShape(self, S5E25D40Shapes, S5E25D40MMMs, XformS5E25D40MMMs, xform):
+    def testArrayMMMShape(self, S5E25D40Shapes, S5E25D40MMMs, XformS5E25D40MMMs, xform: bool):
         """ Test that the Xformed or Original dict of arrayMinMeanMax returns has the right shape """
 
         accShapes = {chID: np.shape(MMMArr) for chID, MMMArr in (XformS5E25D40MMMs if xform else S5E25D40MMMs).items()}
         assert accShapes == S5E25D40Shapes
 
     @pytest.mark.parametrize('channel, xform',
-                             [(8, False), (80, False),
-                              (84, False), (20, False), (59, False), (76, False),
+                             [(8, False), (80, False),  # 8, 80 - CDBs are minMeanMax encoded by MCU
+                              (84, False), (20, False), (59, False), (76, False),  # 84, 20, 59, 76 - Not MMM encoded
                               (8, True), (80, True),
                               (84, True), (59, True), (76, True)],
                              ids=['Original Ch8', 'Original Ch80',
                                   'Original Ch84', 'Original Ch20', 'Original 59', 'Orginal 76',
                                   'Xformed Ch8', 'Xformed Ch80',
                                   'Xformed Ch84', 'Xformed Ch59', 'Orginal Ch76'])
-    def testArrayMMMComparisons(self, S5E25D40MMMs, XformS5E25D40MMMs, channel, xform):
+    def testArrayMMMComparisons(self, S5E25D40MMMs, XformS5E25D40MMMs, channel: int, xform: bool):
         """ Test that mins < means < maxes from arrayMinMeanMax """
 
         MMMArr = (XformS5E25D40MMMs if xform else S5E25D40MMMs)[channel]
@@ -1546,15 +1546,16 @@ class TestEventArray:
             f"CH{channel} MEAN > MAX: mean={MMMArr[1][1:]}, max={MMMArr[2][1:]}"
 
     @pytest.mark.parametrize('channel, xform',
-                             [(8, False), (80, False),
-                              (84, False), (20, False), (59, False), (76, False),
+                             [(8, False), (80, False),  # 8, 80 - CDBs are minMeanMax encoded by MCU
+                              (84, False), (20, False), (59, False), (76, False),  # 84, 20, 59, 76 - Not MMM encoded
                               (8, True), (80, True),
                               (84, True), (59, True), (76, True)],
                              ids=['Original Ch8', 'Original Ch80',
                                   'Original Ch84', 'Original Ch20', 'Original 59', 'Orginal 76',
                                   'Xformed Ch8', 'Xformed Ch80',
                                   'Xformed Ch84', 'Xformed Ch59', 'Orginal Ch76'])
-    def testArrayMMMValues(self, S5E25D40MMMs, S5E25D40Block0s, XformS5E25D40MMMs, XformS5E25D40Block0s, channel, xform):
+    def testArrayMMMValues(self, S5E25D40MMMs, S5E25D40Block0s, XformS5E25D40MMMs, XformS5E25D40Block0s, 
+                           channel: int, xform: bool):
         """ Test the first block's values in a specific channel's arrayMinMeanMax """
         expBlock0 = (XformS5E25D40Block0s if xform else S5E25D40Block0s)[channel]
         accBlock0 = (XformS5E25D40MMMs if xform else S5E25D40MMMs)[channel][:, 1:, 0]
