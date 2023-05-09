@@ -597,7 +597,7 @@ class MatStream(object):
 #===============================================================================
 
     @classmethod
-    def makeHeader(cls, doc, session=-1, prefix="MATLAB 5.0 MAT-file"):
+    def makeHeader(cls, doc, session=None, prefix="MATLAB 5.0 MAT-file"):
         """ Generate MAT file header text from a `Dataset` document.
         """
         if not isinstance(prefix, (str, bytes, bytearray)):
@@ -606,8 +606,12 @@ class MatStream(object):
             prefix += ' '
             
         msg = "%sGenerated from %s" % (prefix, os.path.basename(doc.filename))
-    
-        s = doc.sessions[session]
+
+        if session is None:
+            s = doc.currentSession
+        else:
+            s = doc.sessions[session]
+
         if s.utcStartTime:
             createTime = s.utcStartTime
         else:

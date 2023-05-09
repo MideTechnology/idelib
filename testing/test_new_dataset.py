@@ -122,7 +122,7 @@ def channel_36_eventarray(load_test_dataset):
 @pytest.fixture()
 def new_event_array(load_test_dataset):
     yield dataset.EventArray(load_test_dataset.channels[8],
-                            session=load_test_dataset.addSession(0, 1))
+                            session=load_test_dataset.addSession(startTime=0, endTime=1))
 
 class TestEventArray:
 

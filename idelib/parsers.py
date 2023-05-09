@@ -91,11 +91,11 @@ def renameKeys(d, renamed, exclude=True, recurse=True,
     
         :param d: The source dictionary
         :param renamed: A dictionary of new names keyed by old names
-        :keyword exclude: If `True`, only keys appearing in `renamed` are
+        :param exclude: If `True`, only keys appearing in `renamed` are
             copied to the new dictionary.
-        :keyword recurse: If `True`, the renaming operates over all nested
+        :param recurse: If `True`, the renaming operates over all nested
             dictionaries.
-        :keyword mergeAttributes: If `True`, any `Attribute` elements are
+        :param mergeAttributes: If `True`, any `Attribute` elements are
             processed into a standard key/values and merged into the main
             dictionary.
         :return: A new dictionary, a deep copy of the original, with different
@@ -172,9 +172,10 @@ def parseAttribute(obj, element, multiple=True):
     """ Utility function to parse an `Attribute` element's data into a 
         key/value pair and apply it to an object's `attribute` attribute
         (a dictionary).
-        
+
+        :param obj: The object to which the attribute applies.
         :param element: The `Attribute` element to parse.
-        :keyword multiple: An object may have more than one Attribute element
+        :param multiple: An object may have more than one Attribute element
             with the same name. If `True`, the value corresponding to the name
             is a list which is appended to. If `False`, the value is that of
             the last `Attribute` element parsed. 
@@ -268,9 +269,9 @@ def getElementHandlers(module=None, subElements=False):
     """ Retrieve all EBML element handlers (parsers) from a module. Handlers
         are identified by being subclasses of `ElementHandler`.
     
-        :keyword module: The module from which to get the handlers. Defaults to
+        :param module: The module from which to get the handlers. Defaults to
             the current module (i.e. `idelib.parsers`).
-        :keyword subElements: `True` if the set of handlers should also
+        :param subElements: `True` if the set of handlers should also
             include non-root elements (e.g. the sub-elements of a
             `RecordingProperties` or `ChannelDataBlock`).
         :return: A list of element handler classes.
@@ -615,11 +616,11 @@ class SimpleChannelDataBlock(BaseDataBlock):
             `parser.parse()` for consistency's sake.
             
             :param parser: The DataParser to use
-            :keyword start: First subsample index to parse 
-            :keyword end: Last subsample index to parse
-            :keyword step: The number of samples to skip, if the start and end
+            :param start: First subsample index to parse
+            :param end: Last subsample index to parse
+            :param step: The number of samples to skip, if the start and end
                 cover more than one sample.
-            :keyword subchannel: The subchannel to get, if specified.
+            :param subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
@@ -645,7 +646,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
             
             :param parser: The DataParser to use
             :param indices: A list of indices into the block's data. 
-            :keyword subchannel: The subchannel to get, if specified.
+            :param subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
@@ -716,7 +717,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
         """ Create a (Simple)ChannelDataBlock from the given EBML element.
         
             :param element: A sample-carrying EBML element.
-            :keyword sessionId: The session currently being read; defaults to
+            :param sessionId: The session currently being read; defaults to
                 whatever the Dataset says is current.
             :return: The number of subsamples read from the element's payload.
         """
@@ -883,6 +884,27 @@ class ChannelDataBlockParser(SimpleChannelDataBlockParser):
     elementName = product.__name__
 
     timeScalar = 1e6 / 2**15
+
+
+#===============================================================================
+#
+#===============================================================================
+
+class SessionParser(ElementHandler):
+    """ Handle `Session` elements, indicating the start of a interval of
+        recording within one file.
+    """
+
+    elementName = "Session"
+    isSubElement = False
+    isHeader = False
+
+    def parse(self, element, **kwargs):
+        """ Parse a `Session` element. Since it is parsed along with the data
+        """
+        session = self.doc.addSession()
+        logger.debug('Adding Session ({})'.format(session))
+        return 0
 
 
 ################################################################################
@@ -1339,7 +1361,7 @@ class AttributeParser(ElementHandler):
         parseAttribute(self.doc, element)
         return 0
 
-    
+
 #===============================================================================
 # 
 #===============================================================================

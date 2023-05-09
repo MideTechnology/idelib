@@ -379,7 +379,7 @@ class TestDataset(unittest.TestCase):
         self.assertEqual(self.dataset.recorderConfig, None)
         self.assertEqual(self.dataset.recorderInfo, {})
         self.assertEqual(self.dataset.sensors, {})
-        self.assertEqual(self.dataset.sessions, [])
+        self.assertEqual(self.dataset.sessions, {})
         self.assertEqual(self.dataset.subsets, [])
         self.assertEqual(self.dataset.transforms, {})
         self.assertEqual(self.dataset.warningRanges, {})
@@ -415,12 +415,12 @@ class TestDataset(unittest.TestCase):
                            utcStartTime=0)
 
         # Add a new session, assert that it's the current session
-        self.dataset.addSession(1, 2)
+        self.dataset.addSession(sessionId=0, startTime=1, endTime=2)
         self.assertEqual(self.dataset.sessions[0], session1)
         self.assertEqual(self.dataset.currentSession, session1)
 
         # Add a new session, assert that it's replaced the previous session
-        self.dataset.addSession(3, 4)
+        self.dataset.addSession(sessionId=1, startTime=3, endTime=4)
         self.assertEqual(self.dataset.sessions[1], session2)
         self.assertEqual(self.dataset.currentSession, session2)
         self.assertEqual(self.dataset.sessions[1], self.dataset.lastSession)
@@ -428,7 +428,7 @@ class TestDataset(unittest.TestCase):
 
     def testEndSession(self):
         """ Test that ending the current session ends the current session. """
-        self.dataset.addSession(1, 2)
+        self.dataset.addSession(startTime=1, endTime=2)
         self.dataset.endSession()
         self.assertFalse(self.dataset.currentSession)
 
@@ -507,7 +507,7 @@ class TestDataset(unittest.TestCase):
 
     def testLastSession(self):
         """ Test the lastSession property. """
-        self.dataset.addSession(0, 1, 2)
+        self.dataset.addSession(sessionId=0, startTime=0, endTime=1, utcStartTime=2)
         self.assertEqual(
             self.dataset.lastSession,
             Session(self.dataset,
@@ -516,7 +516,7 @@ class TestDataset(unittest.TestCase):
                     endTime=1,
                     utcStartTime=2))
 
-        self.dataset.addSession(4, 5, 6)
+        self.dataset.addSession(startTime=4, endTime=5, utcStartTime=6)
         self.assertEqual(
             self.dataset.lastSession,
             Session(self.dataset,
@@ -528,7 +528,7 @@ class TestDataset(unittest.TestCase):
 
     def testHasSession(self):
         """ Test the hasSession method. """
-        self.dataset.addSession(0, 1, 2)
+        self.dataset.addSession(startTime=0, endTime=1, utcStartTime=2)
         self.assertTrue(self.dataset.hasSession(None))
         self.assertTrue(self.dataset.hasSession(0))
         self.assertFalse(self.dataset.hasSession(1))
@@ -793,11 +793,11 @@ class TestChannel(unittest.TestCase):
 
     def testGetSession(self):
         """ Test the getSession method. """
-        self.dataset.addSession(0, 1, 2)
-        eventArray = EventArray(self.channel1, self.dataset.lastSession)
+        s = self.dataset.addSession(startTime=0, endTime=1, utcStartTime=2)
+        eventArray = EventArray(self.channel1, s)
         self.assertEqual(self.channel1.getSession(), eventArray)
         self.assertEqual(self.channel1.getSession(),
-                         self.channel1.getSession(1))
+                         self.channel1.getSession(s.sessionId))
         self.assertRaises(KeyError, self.channel1.getSession, 5)
 
 
@@ -996,10 +996,10 @@ class TestSubChannel:
     def testGetSession(self, dataset, channel2, subChannel1):
         """ Test the getSession method. """
         # set up test
-        subChannel1.dataset.addSession(0, 1, 2)
+        subChannel1.dataset.addSession(startTime=0, endTime=1, utcStartTime=2)
         channel2.subchannels = [GenericObject()]
         parentList = dataset.channels[32].getSession()
-        parentList.dataset.addSession(0, 1, 2)
+        parentList.dataset.addSession(startTime=0, endTime=1, utcStartTime=2)
         eventArray = EventArray(
             subChannel1,
             session=dataset.lastSession,
@@ -1030,7 +1030,7 @@ class TestEventArray:
 
     @pytest.fixture
     def dataset(self, SSX70065IDE):
-        SSX70065IDE.addSession(0, 1, 2)
+        SSX70065IDE.addSession(startTime=0, endTime=1, utcStartTime=2)
         SSX70065IDE.addSensor(0)
 
         return SSX70065IDE

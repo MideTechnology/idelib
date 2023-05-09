@@ -238,7 +238,7 @@ class Dataset(Cascading):
                 used for diagnostic data.
         """
         self.lastUtcTime = None
-        self.sessions = []
+        self.sessions = {}
         self.sensors = {}
         self._channels = {}
         self.warningRanges = {}
@@ -246,6 +246,7 @@ class Dataset(Cascading):
         self.transforms = {}
         self.parent = None
         self.currentSession = None
+        self.lastSession = None
         self.recorderInfo = {}
         self.recorderConfig = None
 
@@ -332,18 +333,25 @@ class Dataset(Cascading):
         self.close()
 
 
-    def addSession(self, startTime=None, endTime=None, utcStartTime=None):
+    def addSession(self, sessionId=None, startTime=None, endTime=None, utcStartTime=None):
         """ Create a new session, add it to the Dataset, and return it.
             Part of the import process.
         """
         self.endSession()
+        if sessionId is None:
+            if len(self.sessions) == 0:
+                sessionId = 0
+            else:
+                sessionId = sorted(self.sessions)[-1] + 1
+
         utcStartTime = self.lastUtcTime if utcStartTime is None else utcStartTime
         self.currentSession = Session(self, 
-                                      sessionId=len(self.sessions), 
+                                      sessionId=sessionId,
                                       startTime=startTime, 
                                       endTime=endTime,
                                       utcStartTime=utcStartTime)
-        self.sessions.append(self.currentSession)
+        self.lastSession = self.currentSession
+        self.sessions[sessionId] = self.currentSession
         return self.currentSession
 
 
@@ -453,26 +461,16 @@ class Dataset(Cascading):
         # Dataset is the root.
         return self.name
     
-    
-    @property
-    def lastSession(self):
-        """ Retrieve the latest Session.
-        """
-        if len(self.sessions) == 0:
-            return None
-        return self.sessions[-1]
-    
-    
+
     def hasSession(self, sessionId):
-        """ Does the Dataset contain a specific session number?
+        """ Does the Dataset contain a specific session number? `None` will
+            return `True` if any sessions exist.
         """
         if len(self.sessions) == 0:
             return False
-        if sessionId is None:
-            return True
-        return sessionId >= 0 and sessionId < len(self.sessions)
-        
-    
+        return sessionId in self.sessions or sessionId is None
+
+
     def getPlots(self, subchannels=True, plots=True, debug=True, sort=True):
         """ Get all plotable data sources: sensor SubChannels and/or Plots.
         
