@@ -770,7 +770,9 @@ class ChannelDataBlock(BaseDataBlock):
         
         self._minMeanMaxEl = None
         self._minMeanMax = None
-        
+
+        self.flags = 0
+
         self.element = element
         for el in element:
             # These are roughly in order of probability, optional and/or
@@ -801,8 +803,7 @@ class ChannelDataBlock(BaseDataBlock):
                 # TODO: store indicator that the end timestamp is non-modulo?
                 self.endTime = el.value
             elif el.name == "ChannelFlags":
-                # FUTURE: Handle channel flag bits
-                continue
+                self.flags = el.value
             # Add other child element handlers here.
         
         element.gc(recurse=False)

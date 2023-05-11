@@ -46,7 +46,7 @@ Created on Sep 26, 2013
 __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
            'SubChannel', 'WarningRange', 'Cascading', 'Transformable']
 
-from bisect import bisect_right
+from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from threading import Lock
@@ -1186,7 +1186,9 @@ class EventArray(Transformable):
         self.hasSubchannels = not isinstance(self.parent, SubChannel)
         self._parentList = parentList
         self._childLists = []
-        
+
+        self._flags = None
+
         self.noBivariates = False
 
         if self._parentList is not None:
@@ -1264,6 +1266,23 @@ class EventArray(Transformable):
         self._cacheBlockStart = None
         self._cacheBlockEnd = None
         self._cacheLen = 0
+
+
+    def _getFlags(self):
+        """ Collect all the `ChannelDataBlock`s with `ChannelFlags` bits set.
+            Return a dictionary containing lists of blocks keyed by flag bit.
+            Blocks will appear in multiple lists if they have multiple flags.
+        """
+        if self._flags is None:
+            flags = defaultdict(list)
+            for block in self._data:
+                i = 1
+                while i <= block.flags:
+                    if block.flags & i:
+                        flags[block.flags & i] = block
+                    i *= 2
+            self._flags = dict(flags)
+        return self._flags
 
 
     @property
