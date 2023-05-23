@@ -46,15 +46,12 @@ Created on Sep 26, 2013
 __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
            'SubChannel', 'WarningRange', 'Cascading', 'Transformable']
 
-from bisect import bisect_right
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from threading import Lock
 import warnings
 
-from functools import partial
 import os.path
-import random
 import struct
 import sys
 from time import sleep
@@ -70,15 +67,12 @@ from .parsers import getParserTypes, getParserRanges, ChannelDataBlock
 SCHEMA_FILE = 'mide_ide.xml'
 
 #===============================================================================
-# DEBUGGING: XXX: Remove later!
+#
 #===============================================================================
 
 import logging
 logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
-
-
-# __DEBUG__ = False
 
 __DEBUG__ = str(os.environ.get('MIDE_DEV', 0)) == '1'
     
@@ -1990,15 +1984,23 @@ class EventArray(Transformable):
             return startIdx, endIdx
             
         if startTime is None or startTime <= self._data[0].startTime:
-            startIdx = startBlockIdx = 0
-            startBlock = self._data[0]
+            startIdx = 0
         else:
             startBlockIdx = self._getBlockIndexWithTime(startTime)
             startBlock = self._data[startBlockIdx]
-            startIdx = int(startBlock.indexRange[0] + \
-                           ((startTime - startBlock.startTime) / \
-                            self._getBlockSampleTime(startBlockIdx)) + 1)
-            
+
+            if startTime < startBlock.endTime:
+                # Start time is within a block (the usual case)
+                startIdx = int((startBlock.indexRange[0] +
+                               ((startTime - startBlock.startTime) /
+                                self._getBlockSampleTime(startBlockIdx)) + 1))
+            else:
+                # Start time falls within a gap between blocks
+                try:
+                    startIdx = self._data[startBlockIdx + 1].indexRange[0]
+                except IndexError:
+                    startIdx = startBlock.indexRange[1]
+
         if endTime is None:
             endIdx = self._data[-1].indexRange[1]
         elif endTime <= self._data[0].startTime:
