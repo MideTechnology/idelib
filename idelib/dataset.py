@@ -85,6 +85,13 @@ else:
 # logger.info("Loaded python-ebml from %s" % os.path.abspath(ebml.__file__))
 
 
+def mapRange(x, in_min, in_max, out_min, out_max):
+    """ Given a value `x` between `in_min` and `in_max`, get the equivalent
+        value relative to `out_min` and `out_max`.
+    """
+    return ((x - in_min + 0.0) * (out_max - out_min) /
+            (in_max - in_min) + out_min)
+
 #===============================================================================
 # Mix-In Classes
 #===============================================================================
@@ -1942,8 +1949,15 @@ class EventArray(Transformable):
             block = self._data[blockIdx]
         except IndexError:
             block = self._data[-1]
-        return int(block.indexRange[0] + \
-                   ((t - block.startTime) / self._getBlockSampleTime(blockIdx)))
+
+        if t > block.endTime:
+            # Time falls within a gap between blocks
+            return block.indexRange[-1]
+
+        return int(mapRange(t, block.startTime, block.endTime, *block.indexRange))
+
+        # return int((block.indexRange[0] +
+        #            ((t - block.startTime) / self._getBlockSampleTime(blockIdx))))
         
  
     def getEventIndexNear(self, t):
