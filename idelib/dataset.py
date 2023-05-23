@@ -1187,7 +1187,7 @@ class EventArray(Transformable):
         self._parentList = parentList
         self._childLists = []
 
-        self._flags = None
+        self._flags = defaultdict(list)
 
         self.noBivariates = False
 
@@ -1266,23 +1266,6 @@ class EventArray(Transformable):
         self._cacheBlockStart = None
         self._cacheBlockEnd = None
         self._cacheLen = 0
-
-
-    def _getFlags(self):
-        """ Collect all the `ChannelDataBlock`s with `ChannelFlags` bits set.
-            Return a dictionary containing lists of blocks keyed by flag bit.
-            Blocks will appear in multiple lists if they have multiple flags.
-        """
-        if self._flags is None:
-            flags = defaultdict(list)
-            for block in self._data:
-                i = 1
-                while i <= block.flags:
-                    if block.flags & i:
-                        flags[block.flags & i] = block
-                    i *= 2
-            self._flags = dict(flags)
-        return self._flags
 
 
     @property
@@ -1376,6 +1359,7 @@ class EventArray(Transformable):
         newList._cacheEnd = self._cacheEnd
         newList._cacheBlockStart = self._cacheBlockStart
         newList._cacheBlockEnd = self._cacheBlockEnd
+        newList._flags = self._flags
         return newList
     
 
@@ -1393,15 +1377,11 @@ class EventArray(Transformable):
 
             # Set the session first/last times if they aren't already set.
             # Possibly redundant if all sessions are 'closed.'
-            if self.session.firstTime is None:
-                self.session.firstTime = block.startTime
-            else:
-                self.session.firstTime = min(self.session.firstTime, block.startTime)
-
-            if self.session.lastTime is None:
-                self.session.lastTime = block.endTime
-            else:
-                self.session.lastTime = max(self.session.lastTime, block.endTime)
+            session = self.session
+            session.firstTime = (block.startTime if session.firstTime is None
+                                 else min(session.firstTime, block.startTime))
+            session.lastTime = (block.endTime if session.lastTime is None
+                                else max(session.lastTime, block.endTime))
 
             # Check that the block actually contains at least one sample.
             if block.numSamples < 1:
@@ -1428,6 +1408,8 @@ class EventArray(Transformable):
                 if self.parent.parent is not None:
                     self.parent.parent.singleSample = self._singleSample
 
+            self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
+
             # HACK (somewhat): Single-sample-per-block channels get min/mean/max
             # which is just the same as the value of the sample. Set the values,
             # but don't set hasMinMeanMax.
@@ -1452,15 +1434,19 @@ class EventArray(Transformable):
                 block.max = vals.max(axis=0)
                 self.hasMinMeanMax = True
 
-            # Cache the index range for faster searching
-            self._blockIndices.append(oldLength)
-            self._blockTimes.append(block.startTime)
-
-            self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
+            if block.flags:
+                i = 1
+                while i <= block.flags:
+                    if block.flags & i:
+                        self._flags[block.flags & i].append(block)
+                    i *= 2
 
             self._data.append(block)
             self._length += block.numSamples
 
+            # Cache the index range for faster searching
+            self._blockIndices.append(oldLength)
+            self._blockTimes.append(block.startTime)
             block._payload = np.frombuffer(block._payloadEl.dump(), dtype=self._npType)
 
 
