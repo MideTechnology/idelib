@@ -2010,10 +2010,7 @@ class EventArray(Transformable):
                                 self._getBlockSampleTime(startBlockIdx)) + 1))
             else:
                 # Start time falls within a gap between blocks
-                try:
-                    startIdx = self._data[startBlockIdx + 1].indexRange[0]
-                except IndexError:
-                    startIdx = startBlock.indexRange[1]
+                startIdx = startBlock.indexRange[1]
 
         if endTime is None:
             endIdx = self._data[-1].indexRange[1]
