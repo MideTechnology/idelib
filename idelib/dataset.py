@@ -1954,7 +1954,9 @@ class EventArray(Transformable):
             # Time falls within a gap between blocks
             return block.indexRange[-1]
 
-        return int(mapRange(t, block.startTime, block.endTime, *block.indexRange))
+        return int(mapRange(t,
+                            block.startTime, block.endTime,
+                            block.indexRange[0], block.indexRange[1]-1))
 
         # return int((block.indexRange[0] +
         #            ((t - block.startTime) / self._getBlockSampleTime(blockIdx))))
