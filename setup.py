@@ -5,7 +5,7 @@ with open('README.md', 'r', encoding='utf-8') as fh:
 
 INSTALL_REQUIRES = [
     'numpy',
-    'ebmlite>=3.1.0'
+    'ebmlite>=3.3.0'
     ]
 
 TEST_REQUIRES = [
@@ -29,7 +29,7 @@ EXAMPLE_REQUIRES = [
 
 setuptools.setup(
         name='idelib',
-        version='3.2.7',
+        version='3.2.8',
         author='Mide Technology',
         author_email='help@mide.com',
         description='Python API for accessing IDE data recordings',
