@@ -2185,6 +2185,8 @@ class EventArray(Transformable):
             :return: A structured array of data block statistics (min, mean,
                 and max, respectively).
         """
+        if not self._data:
+            return None
 
         startBlock, endBlock = self._getBlockRange(startTime, endTime)
         shape = (3, max(1, len(self._npType)) + int(times), endBlock - startBlock)
@@ -2239,10 +2241,14 @@ class EventArray(Transformable):
                     xform.inplace(out[m, :, :], out=out[m, :, :])
 
         # iterate through the arrayMinMeanMaxes specific to each subchannel
-        for i in range(int(times), out.shape[1]):
-            # swap mins and maxes if a (negative) transform has made min > max
-            if out[0, i, 0] > out[2, i, 0]:
-                out[:, i] = np.flipud(out[:, i])
+        try:
+            for i in range(int(times), out.shape[1]):
+                # swap mins and maxes if a (negative) transform has made min > max
+                if out[0, i, 0] > out[2, i, 0]:
+                    out[:, i] = np.flipud(out[:, i])
+        except IndexError:
+            logger.warning('Channel contains no data')
+            return None
 
         return out
 
@@ -2291,7 +2297,7 @@ class EventArray(Transformable):
         stats = self.arrayMinMeanMax(startTime, endTime, times=False,
                                      display=display, iterator=iterator)
 
-        if stats.size == 0:
+        if stats is None or stats.size == 0:
             return None
         if self.hasSubchannels and subchannel is not None:
             return (
@@ -2535,6 +2541,9 @@ class EventArray(Transformable):
 
         means = self.arrayMinMeanMax(startTime, endTime, times=False,
                                      display=display, iterator=iterator)[1]
+
+        if means is None:
+            return None
 
         mean = np.mean(np.average(means, weights=[d.numSamples for d in self._data], axis=-1))
 
