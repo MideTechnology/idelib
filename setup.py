@@ -1,4 +1,21 @@
+import codecs
+import os
 import setuptools
+
+def read(rel_path):
+    here = os.path.abspath(os.path.dirname(__file__))
+    with codecs.open(os.path.join(here, rel_path), 'r') as fp:
+        return fp.read()
+
+
+def get_version(rel_path):
+    for line in read(rel_path).splitlines():
+        if line.startswith('__version__'):
+            delim = '"' if '"' in line else "'"
+            return line.split(delim)[1]
+    else:
+        raise RuntimeError("Unable to find version string.")
+
 
 with open('README.md', 'r', encoding='utf-8') as fh:
     long_description = fh.read()
@@ -29,11 +46,11 @@ EXAMPLE_REQUIRES = [
 
 setuptools.setup(
         name='idelib',
-        version='3.2.8',
+        version=get_version('idelib/__init__.py'),
         author='Mide Technology',
         author_email='help@mide.com',
         description='Python API for accessing IDE data recordings',
-        long_description=long_description,
+        long_description=read('README.md'),
         long_description_content_type='text/markdown',
         url='https://github.com/MideTechnology/idelib',
         license='MIT',
