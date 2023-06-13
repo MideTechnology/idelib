@@ -1,7 +1,7 @@
 """
 Basic IDE library unit tests.
 
-@todo: Remove `Cascading` and `Transformable` unit tests? Those base/mix-in 
+@todo: Remove `Cascading` and `Transformable` unit tests? Those base/mix-in
     classes were intended to be used internally, and may be factored out
     eventually.
 @todo: Remove references to deprecated `parsers.AccelerometerParser` and
@@ -45,7 +45,6 @@ from .file_streams import makeStreamLike
 
 _fileStrings = {}
 
-
 def _load_file(filePath):
     if filePath not in _fileStrings:
         with open(filePath, 'rb') as f:
@@ -55,6 +54,100 @@ def _load_file(filePath):
     return out
 
 
+def flipGains(doc: Dataset, idChanges: tuple):
+    """ Utility method to flip the gains of requested calibration IDs """
+
+    for id in idChanges:
+        currentCoeffs = doc.transforms[id].coefficients
+        # flipping only the gain - univariate or bivariate
+        if len(currentCoeffs) == 2:
+            adjustedCoeffs = (-currentCoeffs[0], currentCoeffs[1])
+        else:
+            adjustedCoeffs = (currentCoeffs[0], -currentCoeffs[1], currentCoeffs[2], currentCoeffs[3])
+        doc.transforms[id].coefficients = adjustedCoeffs
+    doc.updateTransforms()
+    return doc
+
+
+@pytest.fixture(scope="session")
+def S5E25D40IDE():
+    return importer.importFile('XS5E25D40.IDE')
+
+
+@pytest.fixture(scope="session")
+def S5E25D40Shapes():
+    # expected shapes of the MMM arrays of XS5E25D40.IDE
+    return {8: (3, 4, 6),
+         80: (3, 4, 7),
+         84: (3, 4, 6),
+         59: (3, 4, 1),
+         20: (3, 3, 1),
+         76: (3, 3, 1)}
+
+
+@pytest.fixture(scope="session")
+def S5E25D40MMMs(S5E25D40IDE):
+    MMMArrs = {}
+    # dictionary of MMM for each channel
+    for chID, ch in S5E25D40IDE.channels.items():
+        MMMArrs[chID] = ch.getSession().arrayMinMeanMax()
+
+    return MMMArrs
+
+
+@pytest.fixture(scope="session")
+def XformS5E25D40MMMs(S5E25D40IDE):
+    # ch 20 not included; not appropriately affecting bivariate transformations
+    doc = flipGains(S5E25D40IDE, (1, 2, 3, 81, 83, 85, 86, 87, 60, 61, 62, 77, 78))
+    MMMArrs = {}
+    # dictionary of MMM for each channel after transformation
+    for chID, ch in doc.channels.items():
+        MMMArrs[chID] = ch.getSession().arrayMinMeanMax()
+
+    return MMMArrs
+
+
+@pytest.fixture(scope="session")
+def S5E25D40Block0s():
+    # the expected values of the first block of each channel's MMM
+    return {80: np.array([[-0.08140442447167624, 0.030588803898888246, 0.9691399523949171],
+                         [-0.0719850778533001, 0.0387078153564799, 0.9768253581441608],
+                         [-0.024634808792385235, 0.05523737946861323, 1.095283125791875]]),
+            8:  np.array([[-12.637846860537504, -10.553908103208101, -11.177535620699224],
+                        [-12.632327454464878, -10.54744928909388, -11.17038782667181],
+                        [-12.623128444343838, -10.540067787249058, -11.160176692346933]]),
+            20: np.array([[102150.0, 21.780000686645508],
+                          [102153.13110351562, 22.036001205444336],
+                          [102157.00073242188, 22.1299991607666]]),
+            59: np.array([[102159.99755859375, 21.93000030517578, 24.344589233398438],
+                          [102161.4013671875, 22.184663772583008, 24.365360260009766],
+                          [102164.00146484375, 22.270000457763672, 24.378623962402344]]),
+            84: np.array([[-0.183, -0.427, 0.122],
+                          [0.10279629629629629, -0.15137037037037035, 0.37673148148148144],
+                          [0.366, 0.122, 0.61]]),
+            76: np.array([[651.83837890625, 0.470458984375],
+                          [778.0501098632812, 0.5733642578125],
+                          [820.87060546875, 0.75]])}
+
+
+@pytest.fixture(scope="session")
+def XformS5E25D40Block0s():
+    # the expected values of the first block of each transformed channel's MMM
+    return {8: np.array([[9.543397173413723, 11.867961374296353, 13.912108941026776],
+                        [9.552495679176754, 11.875262229083035, 13.92243287008154],
+                        [9.557954782634571, 11.881650477021381, 13.929659620419873]]),
+            80: np.array([[-0.112179830308469, 0.030588803898888246, -1.0917475374833345],
+                          [-0.06482956124755412,  0.0387078153564799, -0.9732897698356204],
+                          [-0.05541021462917799, 0.05523737946861323, -0.9656043640863767]]),
+            59: np.array([[-102164.00146484375, -22.270000457763672, -24.378623962402344],
+                          [-102161.4013671875, -22.184663772583008, -24.365360260009766],
+                          [-102159.99755859375, -21.93000030517578, -24.344589233398438]]),
+            84: np.array([[-0.366, -0.122, -0.61],
+                          [-0.10279629629629629, 0.15137037037037035, -0.37673148148148144],
+                          [0.183, 0.427, -0.122]]),
+            76: np.array([[-820.87060546875, -0.75],
+                          [-778.0501098632812, -0.5733642578125],
+                          [-651.83837890625, -0.470458984375]])}
 @pytest.fixture
 def testIDE():
     doc = importer.openFile(_load_file('./test.ide'))
@@ -77,12 +170,12 @@ def SSX_DataIDE():
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 
 class GenericObject(object):
-    """ Provide a generic object to pass as an argument in order to mock 
+    """ Provide a generic object to pass as an argument in order to mock
         arbitrary objects.
     """
     def __init__(self):
@@ -118,7 +211,7 @@ class GenericObject(object):
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class TestCascading(unittest.TestCase):
@@ -156,7 +249,7 @@ class TestCascading(unittest.TestCase):
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class TestTransformable(unittest.TestCase):
@@ -229,7 +322,7 @@ class TestTransformable(unittest.TestCase):
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class TestDataset(unittest.TestCase):
@@ -356,7 +449,7 @@ class TestDataset(unittest.TestCase):
 
     def testAddChannel(self):
         """ Test that each channel is being added to the dataset correctly, and
-            that when refering to channel, a dict is returned containing each 
+            that when refering to channel, a dict is returned containing each
             channel.
         """
         parser = self.channels[0]['parser']
@@ -467,7 +560,7 @@ class TestDataset(unittest.TestCase):
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class TestSession(unittest.TestCase):
@@ -500,7 +593,7 @@ class TestSession(unittest.TestCase):
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class TestSensor(unittest.TestCase):
@@ -569,7 +662,7 @@ class TestSensor(unittest.TestCase):
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class TestChannel(unittest.TestCase):
@@ -739,7 +832,7 @@ class TestChannel(unittest.TestCase):
 
 
 #===============================================================================
-# 
+#
 #===============================================================================
 
 class TestSubChannel:
@@ -1424,6 +1517,50 @@ class TestEventArray:
         # Run tests
         np.testing.assert_array_equal(result, expected)
 
+    @pytest.mark.parametrize('xform',
+                             [False, True],
+                             ids=['Original Values', 'XFormed Values'])
+    def testArrayMMMShape(self, S5E25D40Shapes, S5E25D40MMMs, XformS5E25D40MMMs, xform: bool):
+        """ Test that the Xformed or Original dict of arrayMinMeanMax returns has the right shape """
+
+        accShapes = {chID: np.shape(MMMArr) for chID, MMMArr in (XformS5E25D40MMMs if xform else S5E25D40MMMs).items()}
+        assert accShapes == S5E25D40Shapes
+
+    @pytest.mark.parametrize('channel, xform',
+                             [(8, False), (80, False),  # 8, 80 - CDBs are minMeanMax encoded by MCU
+                              (84, False), (20, False), (59, False), (76, False),  # 84, 20, 59, 76 - Not MMM encoded
+                              (8, True), (80, True),
+                              (84, True), (59, True), (76, True)],
+                             ids=['Original Ch8', 'Original Ch80',
+                                  'Original Ch84', 'Original Ch20', 'Original 59', 'Orginal 76',
+                                  'Xformed Ch8', 'Xformed Ch80',
+                                  'Xformed Ch84', 'Xformed Ch59', 'Orginal Ch76'])
+    def testArrayMMMComparisons(self, S5E25D40MMMs, XformS5E25D40MMMs, channel: int, xform: bool):
+        """ Test that mins < means < maxes from arrayMinMeanMax """
+
+        MMMArr = (XformS5E25D40MMMs if xform else S5E25D40MMMs)[channel]
+
+        assert not np.greater(MMMArr[0][1:], MMMArr[1][1:]).any(), \
+            f"CH{channel} MIN > MEAN: min={MMMArr[0][1:]}, mean={MMMArr[1][1:]}"
+        assert not np.greater(MMMArr[1][1:], MMMArr[2][1:]).any(), \
+            f"CH{channel} MEAN > MAX: mean={MMMArr[1][1:]}, max={MMMArr[2][1:]}"
+
+    @pytest.mark.parametrize('channel, xform',
+                             [(8, False), (80, False),  # 8, 80 - CDBs are minMeanMax encoded by MCU
+                              (84, False), (20, False), (59, False), (76, False),  # 84, 20, 59, 76 - Not MMM encoded
+                              (8, True), (80, True),
+                              (84, True), (59, True), (76, True)],
+                             ids=['Original Ch8', 'Original Ch80',
+                                  'Original Ch84', 'Original Ch20', 'Original 59', 'Orginal 76',
+                                  'Xformed Ch8', 'Xformed Ch80',
+                                  'Xformed Ch84', 'Xformed Ch59', 'Orginal Ch76'])
+    def testArrayMMMValues(self, S5E25D40MMMs, S5E25D40Block0s, XformS5E25D40MMMs, XformS5E25D40Block0s, 
+                           channel: int, xform: bool):
+        """ Test the first block's values in a specific channel's arrayMinMeanMax """
+        expBlock0 = (XformS5E25D40Block0s if xform else S5E25D40Block0s)[channel]
+        accBlock0 = (XformS5E25D40MMMs if xform else S5E25D40MMMs)[channel][:, 1:, 0]
+        assert not np.not_equal(expBlock0, accBlock0).any()
+
     def testGetMinMeanMax(self):
         """ Test getMinMeanMax. """
 
@@ -1722,7 +1859,7 @@ class TestData:
         Exports were generated using the library as of the release of 1.8.0.
 
         Tests are done within a threshold of 0.0015g to account for rounding
-        errors. 
+        errors.
     """
 
     @pytest.fixture
@@ -1856,7 +1993,7 @@ class TestData:
 
 
 # ===============================================================================
-# 
+#
 # ==============================================================================
 
 DEFAULTS = {

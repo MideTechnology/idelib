@@ -1430,9 +1430,9 @@ class EventArray(Transformable):
                 #  in _computeMinMeanMax(). Causes issues with pressure for some
                 #  reason - it starts removing mean and won't plot.
                 vals = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
-                block.min = vals.min(axis=-1)
-                block.mean = vals.mean(axis=-1)
-                block.max = vals.max(axis=-1)
+                block.min = vals.min(axis=0)
+                block.mean = vals.mean(axis=0)
+                block.max = vals.max(axis=0)
                 self.hasMinMeanMax = True
 
             # Cache the index range for faster searching
@@ -2222,6 +2222,12 @@ class EventArray(Transformable):
             else:
                 for m in range(3):
                     xform.inplace(out[m, :, :], out=out[m, :, :])
+
+        # iterate through the arrayMinMeanMaxes specific to each subchannel
+        for i in range(int(times), out.shape[1]):
+            # swap mins and maxes if a (negative) transform has made min > max
+            if out[0, i, 0] > out[2, i, 0]:
+                out[:, i] = np.flipud(out[:, i])
 
         return out
 
