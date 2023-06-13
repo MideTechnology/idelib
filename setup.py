@@ -29,7 +29,7 @@ EXAMPLE_REQUIRES = [
 
 setuptools.setup(
         name='idelib',
-        version='3.2.7',
+        version='3.2.8',
         author='Mide Technology',
         author_email='help@mide.com',
         description='Python API for accessing IDE data recordings',
@@ -40,7 +40,6 @@ setuptools.setup(
         classifiers=['Development Status :: 5 - Production/Stable',
                      'License :: OSI Approved :: MIT License',
                      'Natural Language :: English',
-                     'Programming Language :: Python :: 3.5',
                      'Programming Language :: Python :: 3.6',
                      'Programming Language :: Python :: 3.7',
                      'Programming Language :: Python :: 3.8',
