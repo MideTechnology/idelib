@@ -1418,7 +1418,7 @@ class TestEventArray:
         assert testIDE.channels[8].getSession().getEventIndexNear(t) == expected
 
     @pytest.mark.parametrize(
-            'indices, expected, isSingleSample',
+            'interval, expected, isSingleSample',
             [
                 ((1,    1500), (1, 2),    False),
                 ((None, 1),    (0, 1),    False),
@@ -1428,12 +1428,12 @@ class TestEventArray:
                 ((2,    None), (0, 1000), True)
                 ],
             )
-    def testGetRangeIndices(self, testIDE, indices, expected, isSingleSample):
+    def testGetRangeIndices(self, testIDE, interval, expected, isSingleSample):
         """ Test for getRangeIndices method. """
         testIDE.channels[8].singleSample = isSingleSample
         eventArray = testIDE.channels[8].getSession()
 
-        assert eventArray.getRangeIndices(*indices) == expected
+        assert eventArray.getRangeIndices(*interval) == expected
 
 
     @pytest.mark.parametrize('interval, expected',
