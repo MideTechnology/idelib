@@ -17,9 +17,6 @@ def get_version(rel_path):
         raise RuntimeError("Unable to find version string.")
 
 
-with open('README.md', 'r', encoding='utf-8') as fh:
-    long_description = fh.read()
-
 INSTALL_REQUIRES = [
     'numpy',
     'ebmlite>=3.1.0'
