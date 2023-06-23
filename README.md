@@ -99,8 +99,8 @@ sensitivity ranges are omitted when applicable to all such devices):
 |         MS8607 Internal | 20      | All<sup>1</sup> after Mid-2023          | Pressure, Temperature, Humidity    |
 |      MS8607 Control Pad | 59      | All<sup>1</sup>                         | Pressure, Temperature, Humidity    |
 |                  SI1133 | 76      | All<sup>1</sup>                         | Lux, UV                            |
-| BMI270/BMG250 Gyroscope | 76      | All<sup>1</sup> after Mid-2023          | X-, Y-, Z-axis Rotation            |
-|             CAM-M8Q GPS | 76      | W-D, W-ED, W-RD                         | Latitude, Longitude, Time, Speed   |
+| BMI270/BMG250 Gyroscope | 84      | All<sup>1</sup> after Mid-2023          | X-, Y-, Z-axis Rotation            |
+|             CAM-M8Q GPS | 88      | W-D, W-ED, W-RD                         | Latitude, Longitude, Time, Speed   |
 
 <sup>1</sup> excluding early SSC/SSS/SSX models
 
