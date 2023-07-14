@@ -10,7 +10,7 @@ __copyright__ = "Copyright (c) 2023 Midé Technology"
 __maintainer__ = "Midé Technology"
 __email__ = "help@mide.com"
 
-__version__ = '3.2.8'
+__version__ = '3.2.9'
 
 __status__ = "Production/Stable"
 
