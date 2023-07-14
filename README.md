@@ -70,31 +70,37 @@ Each `Channel` object has a `subchannels` member, which is a list of
 
 The below table lists current conventions for channels across all enDAQ sensors:
 
-| (Abbreviated) Product No. | Description                                                                       | Example Product Nos.    |
-|--------------------------:|-----------------------------------------------------------------------------------|-------------------------|
-| S-D                       | enDAQ S-series devices with single digital accelerometers                         | S3-D16, S4-D40          |
-| S-DD                      | enDAQ S-series devices with dual digital accelerometers                           | S1-D100D40, S2-D25D16   |
-| S-ED                      | enDAQ S-series devices with an analog electrocapacitive and digital accelerometer | S5-E25D40, S4-E100D40   |
-| S-RD                      | enDAQ S-series devices with an analog piezoresistive and digital accelerometer    | S4-R500D40, S5-R2000D40 |
-| SSX                       | Midé Slam Stick X data recorders                                                  | SSX                     |
-| SSC                       | Midé Slam Stick C data recorders                                                  | SSC                     |
-| SSS                       | Midé Slam Stick S data recorders                                                  | SSS                     |
+| (Abbreviated) Product No. | Description                                                                    | Example Product Nos.    |
+|--------------------------:|--------------------------------------------------------------------------------|-------------------------|
+|                       S-D | enDAQ S-series devices with a single digital accelerometer                     | S3-D16, S4-D40          |
+|                      S-DD | enDAQ S-series devices with dual digital accelerometers                        | S1-D100D40, S2-D25D16   |
+|                      S-ED | enDAQ S-series devices with an analog piezoelectric and digital accelerometer  | S5-E25D40, S4-E100D40   |
+|                      S-RD | enDAQ S-series devices with an analog piezoresistive and digital accelerometer | S4-R500D40, S5-R2000D40 |
+|                       W-D | enDAQ W-series devices with a single digital accelerometer                     | W5-D40                  |
+|                      W-ED | enDAQ W-series devices with an analog piezoelectric and digital accelerometer  | W8-E100D40, W8-E2000D40 |
+|                      W-RD | enDAQ W-series devices with an analog piezoresistive and digital accelerometer | W8-R500D40, W8-R2000D40 |
+|                       SSX | Midé Slam Stick X data recorders                                               | SSX                     |
+|                       SSC | Midé Slam Stick C data recorders                                               | SSC                     |
+|                       SSS | Midé Slam Stick S data recorders                                               | SSS                     |
 
 The below table lists channel ID numbers used in a recording file based on the 
 recording device’s product number (device series numbers and accelerometer 
 sensitivity ranges are omitted when applicable to all such devices):
 
-| Sensor                | Channel | Valid Devices                      | Suchannels                                   |
-|----------------------:|:--------|------------------------------------|----------------------------------------------|
-| Main Accelerometer    | 8       | S-RD, S-ED, SSS, SSX               | X-, Y-, Z-axis Acceleration                  |
-| 16/200g Accelerometer | 32      | S-DD, SSX, SSS, SSC, S-D16, S-D200 | X-, Y-, Z-axis Acceleration                  |
-| 8/40g Accelerometer   | 80      | S-RD, S-DD, S-ED, S-D40, S-D8      | X-, Y-, Z-axis Acceleration                  |
-| IMU Gyroscope         | 47      | All<sup>1</sup>                    | X-, Y-, Z-axis Rotation                      |
-| Absolute Orientation  | 65      | All<sup>1</sup>                    | X-, Y-, Z-, W-axis Quaternion; Acc           |
-| Relative Orientation  | 70      | All<sup>1</sup>                    | X-, Y-, Z-, W-axis Quaternion                |
-| MPL3115               | 36      | All<sup>1</sup>                    | Pressure, Temperature <sup>2</sup>           |
-| MS8607                | 59      | All<sup>1</sup>                    | Pressure, Temperature, Humidity <sup>3</sup> |
-| SI1133                | 76      | All<sup>1</sup>                    | Lux, UV                                      |
+|                  Sensor | Channel | Valid Devices                           | Suchannels                         |
+|------------------------:|:--------|-----------------------------------------|------------------------------------|
+|      Main Accelerometer | 8       | S-RD, S-ED, SSS, SSX                    | X-, Y-, Z-axis Acceleration        |
+|   16/200g Accelerometer | 32      | S-DD, SSX, SSS, SSC, S-D16, S-D200      | X-, Y-, Z-axis Acceleration        |
+|     8/40g Accelerometer | 80      | S-RD, S-DD, S-ED, S-D40, S-D8           | X-, Y-, Z-axis Acceleration        |
+|           IMU Gyroscope | 47      | All<sup>1</sup>                         | X-, Y-, Z-axis Rotation            |
+|    Absolute Orientation | 65      | All<sup>1</sup>                         | X-, Y-, Z-, W-axis Quaternion; Acc |
+|    Relative Orientation | 70      | All<sup>1</sup>                         | X-, Y-, Z-, W-axis Quaternion      |
+|                 MPL3115 | 36      | S-D16, All<sup>1</sup> before Mid-2023  | Pressure, Temperature <sup>2</sup> |
+|         MS8607 Internal | 20      | All<sup>1</sup> after Mid-2023          | Pressure, Temperature, Humidity    |
+|      MS8607 Control Pad | 59      | All<sup>1</sup>                         | Pressure, Temperature, Humidity    |
+|                  SI1133 | 76      | All<sup>1</sup>                         | Lux, UV                            |
+| BMI270/BMG250 Gyroscope | 84      | All<sup>1</sup> after Mid-2023          | X-, Y-, Z-axis Rotation            |
+|             CAM-M8Q GPS | 88      | W-D, W-ED, W-RD                         | Latitude, Longitude, Time, Speed   |
 
 <sup>1</sup> excluding early SSC/SSS/SSX models
 
@@ -126,7 +132,7 @@ For channels, this will be a (c+1)-by-n array, where n is the number of samples
 recorded and c is the number of subchannels; `eventarray[1:]` indexes the 
 samples, `eventarray[0]` indexes the respective timestamps.
 
-### Getting metadta
+### Getting metadata
 
 `Dataset` makes available some basic metadata. Some useful pieces of information 
 are stored directly as members:

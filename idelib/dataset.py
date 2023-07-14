@@ -46,15 +46,12 @@ Created on Sep 26, 2013
 __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
            'SubChannel', 'WarningRange', 'Cascading', 'Transformable']
 
-from bisect import bisect_right
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from threading import Lock
 import warnings
 
-from functools import partial
 import os.path
-import random
 import struct
 import sys
 from time import sleep
@@ -70,15 +67,12 @@ from .parsers import getParserTypes, getParserRanges, ChannelDataBlock
 SCHEMA_FILE = 'mide_ide.xml'
 
 #===============================================================================
-# DEBUGGING: XXX: Remove later!
+#
 #===============================================================================
 
 import logging
 logger = logging.getLogger('idelib')
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
-
-
-# __DEBUG__ = False
 
 __DEBUG__ = str(os.environ.get('MIDE_DEV', 0)) == '1'
     
@@ -90,6 +84,13 @@ else:
 # import ebml
 # logger.info("Loaded python-ebml from %s" % os.path.abspath(ebml.__file__))
 
+
+def mapRange(x, in_min, in_max, out_min, out_max):
+    """ Given a value `x` between `in_min` and `in_max`, get the equivalent
+        value relative to `out_min` and `out_max`.
+    """
+    return ((x - in_min + 0.0) * (out_max - out_min) /
+            (in_max - in_min) + out_min)
 
 #===============================================================================
 # Mix-In Classes
@@ -1948,8 +1949,17 @@ class EventArray(Transformable):
             block = self._data[blockIdx]
         except IndexError:
             block = self._data[-1]
-        return int(block.indexRange[0] + \
-                   ((t - block.startTime) / self._getBlockSampleTime(blockIdx)))
+
+        if t > block.endTime:
+            # Time falls within a gap between blocks
+            return block.indexRange[-1]
+
+        return int(mapRange(t,
+                            block.startTime, block.endTime,
+                            block.indexRange[0], block.indexRange[1]-1))
+
+        # return int((block.indexRange[0] +
+        #            ((t - block.startTime) / self._getBlockSampleTime(blockIdx))))
         
  
     def getEventIndexNear(self, t):
@@ -1990,15 +2000,20 @@ class EventArray(Transformable):
             return startIdx, endIdx
             
         if startTime is None or startTime <= self._data[0].startTime:
-            startIdx = startBlockIdx = 0
-            startBlock = self._data[0]
+            startIdx = 0
         else:
             startBlockIdx = self._getBlockIndexWithTime(startTime)
             startBlock = self._data[startBlockIdx]
-            startIdx = int(startBlock.indexRange[0] + \
-                           ((startTime - startBlock.startTime) / \
-                            self._getBlockSampleTime(startBlockIdx)) + 1)
-            
+
+            if startTime < startBlock.endTime:
+                # Start time is within a block (the usual case)
+                startIdx = int((startBlock.indexRange[0] +
+                               ((startTime - startBlock.startTime) /
+                                self._getBlockSampleTime(startBlockIdx)) + 1))
+            else:
+                # Start time falls within a gap between blocks
+                startIdx = startBlock.indexRange[1]
+
         if endTime is None:
             endIdx = self._data[-1].indexRange[1]
         elif endTime <= self._data[0].startTime:
@@ -2170,6 +2185,8 @@ class EventArray(Transformable):
             :return: A structured array of data block statistics (min, mean,
                 and max, respectively).
         """
+        if not self._data:
+            return None
 
         startBlock, endBlock = self._getBlockRange(startTime, endTime)
         shape = (3, max(1, len(self._npType)) + int(times), endBlock - startBlock)
@@ -2224,10 +2241,14 @@ class EventArray(Transformable):
                     xform.inplace(out[m, :, :], out=out[m, :, :])
 
         # iterate through the arrayMinMeanMaxes specific to each subchannel
-        for i in range(int(times), out.shape[1]):
-            # swap mins and maxes if a (negative) transform has made min > max
-            if out[0, i, 0] > out[2, i, 0]:
-                out[:, i] = np.flipud(out[:, i])
+        try:
+            for i in range(int(times), out.shape[1]):
+                # swap mins and maxes if a (negative) transform has made min > max
+                if out[0, i, 0] > out[2, i, 0]:
+                    out[:, i] = np.flipud(out[:, i])
+        except IndexError:
+            logger.warning('Channel contains no data')
+            return None
 
         return out
 
@@ -2276,7 +2297,7 @@ class EventArray(Transformable):
         stats = self.arrayMinMeanMax(startTime, endTime, times=False,
                                      display=display, iterator=iterator)
 
-        if stats.size == 0:
+        if stats is None or stats.size == 0:
             return None
         if self.hasSubchannels and subchannel is not None:
             return (
@@ -2520,6 +2541,9 @@ class EventArray(Transformable):
 
         means = self.arrayMinMeanMax(startTime, endTime, times=False,
                                      display=display, iterator=iterator)[1]
+
+        if means is None:
+            return None
 
         mean = np.mean(np.average(means, weights=[d.numSamples for d in self._data], axis=-1))
 
