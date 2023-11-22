@@ -94,6 +94,8 @@
             <StringElement name="BootloaderRevStr" id="0x521F" multiple="0" minver="1">Bootloader revision string.</StringElement>
             <UIntegerElement name="BootloaderRev" id="0x5220" multiple="0" minver="1">Incrementing bootloader revision level</UIntegerElement>
             <MasterElement name="HasEsp32" id="0x4D70" multiple="0" minver="1">If present, the device has an ESP32 installed</MasterElement>
+            <UIntegerElement name="WispiApiLevel" id="0x4D71" multiple="0" minver="1">WiSpi API Level for network co-processor</UIntegerElement>
+            <StringElement name="NcpAppFwVer" id="0x4D72" multiple="0" minver="1">Network Co-Processor Application Firmware Version</StringElement>
             <UIntegerElement name="KeyRev" id="0x5231" multiple="0" minver="1">Indicates the version of the key table, 0 if not present</UIntegerElement>
             <MasterElement name="SerialCommandInterface" id="0x5230" multiple="0" minver="2" mandatory="0">Present in the device's DEVINFO if it supports control via serial</MasterElement>
             <UIntegerElement name="FileCommandInterface" id="0x5233" multiple="0" minver="2" mandatory="0">Element in the device's DEVINFO indicating it supports control via the COMMAND and RESPONSE files. 0 is unsupported, 1 is supported; assumed to be 1 if not present.</UIntegerElement>
