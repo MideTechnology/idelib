@@ -169,6 +169,11 @@ def SSX_DataIDE():
     return doc
 
 
+@pytest.fixture(scope="session")
+def DiscontinuitiesIDE():
+    return importer.importFile('./testing/Discontinuities.IDE')
+
+
 #===============================================================================
 #
 #===============================================================================
@@ -1413,7 +1418,7 @@ class TestEventArray:
         assert testIDE.channels[8].getSession().getEventIndexNear(t) == expected
 
     @pytest.mark.parametrize(
-            'indices, expected, isSingleSample',
+            'interval, expected, isSingleSample',
             [
                 ((1,    1500), (1, 2),    False),
                 ((None, 1),    (0, 1),    False),
@@ -1423,12 +1428,39 @@ class TestEventArray:
                 ((2,    None), (0, 1000), True)
                 ],
             )
-    def testGetRangeIndices(self, testIDE, indices, expected, isSingleSample):
+    def testGetRangeIndices(self, testIDE, interval, expected, isSingleSample):
         """ Test for getRangeIndices method. """
         testIDE.channels[8].singleSample = isSingleSample
         eventArray = testIDE.channels[8].getSession()
 
-        assert eventArray.getRangeIndices(*indices) == expected
+        assert eventArray.getRangeIndices(*interval) == expected
+
+
+    @pytest.mark.parametrize('interval, expected',
+                             [pytest.param((240, 245), (5538, 11864), id="startsBefore1"),
+                              pytest.param((243, 245), (5538, 11864), id="startsBefore2"),
+                              pytest.param((240, 255), (5538, 31203), id="startsBefore3"),
+                              pytest.param((245, 248), (11864, 24879), id="endsAfter1"),
+                              pytest.param((245, 250), (11864, 24879), id="endsAfter2"),
+                              pytest.param((245, 260), (11864, 45071), id="endsAfter3"),
+                              pytest.param((240, 248), (5538, 24879), id="startsBeforeEndsAfter1"),
+                              pytest.param((243, 250), (5538, 24879), id="startsBeforeEndsAfter2"),
+                              pytest.param((240, 260), (5538, 45071), id="startsBeforeEndsAfter3"),
+                              pytest.param((248, 250), (24878, 24879), id="allInGap")
+                              ])
+    def testGetRangeIndicesDiscontinuities(self, DiscontinuitiesIDE, interval, expected):
+        """ Additional test of `getRangeIndices()`, using a file with major
+            discontinuities (spans of time between clusters of
+            `ChanelDataBlock` elements).
+
+            @param DiscontinuitiesIDE: Fixture providing the test Dataset.
+            @param interval: The time range, in seconds
+            @param expected: The expected indices
+        """
+        start, end = interval[0] * 10**6, interval[1] * 10**6
+        eventArray = DiscontinuitiesIDE.channels[8][2].getSession()
+        assert eventArray.getRangeIndices(start, end) == expected
+
 
     @pytest.mark.parametrize(
             'args, kwargs, expectedIdx',
@@ -1793,6 +1825,9 @@ class TestEventArray:
         removedData = eventArray[:]
 
         np.testing.assert_array_equal(removedData, unremovedData)
+
+
+
 
 #===============================================================================
 #

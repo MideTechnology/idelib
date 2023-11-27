@@ -449,7 +449,8 @@ class MatStream(object):
         self.packStr(sanitizeName(name))
         
         # Write the start of the 'PR' element; the size will be filled in later.
-        self._write(struct.pack('II', self.arrayDType, self.rowFormatter.size * rows))
+        size = min(self.rowFormatter.size * rows, 2 ** 32 - 1)
+        self._write(struct.pack('II', self.arrayDType, size))
         self.prSize = self.stream.tell() - 4
         
 
