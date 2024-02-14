@@ -84,7 +84,7 @@ def dataParser(cls):
 #===============================================================================            
     
 def renameKeys(d, renamed, exclude=True, recurse=True,
-               mergeAttributes=True):
+               mergeAttributes=True) -> dict:
     """ Create a new dictionary from and old one, using different keys. Used
         primarily for converting EBML element names to function keyword
         arguments.

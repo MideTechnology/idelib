@@ -56,6 +56,7 @@ import os.path
 import struct
 import sys
 from time import sleep
+from typing import List, Optional
 
 from ebmlite.core import loadSchema
 import numpy as np
@@ -140,6 +141,8 @@ class Transformable(Cascading):
             Note: The object's `transform` attribute will not change; it will
             just be ignored.
     """
+    dataset: "Dataset"
+    children: list
 
     def setTransform(self, transform, update=True):
         """ Set the transforming function/object. This does not change the
@@ -187,7 +190,7 @@ class Transformable(Cascading):
         """
         _tlist = [] if _tlist is None else _tlist
         if getattr(self, "_transform", None) is not None:
-            if isinstance(self._transform, Iterable) and id_ is not None:
+            if isinstance(self._transform, Sequence) and id_ is not None:
                 x = self._transform[id_]
             else:
                 x = self._transform
@@ -707,7 +710,7 @@ class Channel(Transformable):
         self._unitsStr = None
 
         self.cache = bool(cache)
-        self.singleSample = singleSample
+        self.singleSample: Optional[bool] = singleSample
 
         if isinstance(sensor, int):
             sensor = self.dataset.sensors.get(sensor, None)
@@ -1042,7 +1045,7 @@ class SubChannel(Channel):
         
         self.allowMeanRemoval = parent.allowMeanRemoval
         self.removeMean = False
-        self.singleSample = parent.singleSample
+        self.singleSample: Optional[bool] = parent.singleSample
         
         # Is `color` a set of R/G/B values? Check for `__getitem__` instead of
         # using `instance`, since various things (bytearray, wx.Colour, etc.)
@@ -1619,16 +1622,7 @@ class EventArray(Transformable):
                 pairs.
         """
         # TODO: Cache this; a Channel's SubChannels will often be used together.
-        if not self.useAllTransforms:
-            xform = self._comboXform
-        elif display:
-            xform = self._displayXform or self._fullXform
-        else:
-            xform = self._fullXform
-
         if isinstance(idx, (int, np.integer)):
-
-
             if idx >= len(self):
                 raise IndexError("EventArray index out of range")
 
@@ -2651,13 +2645,13 @@ class EventArray(Transformable):
         """ Export events as CSV to a stream (e.g. a file).
         
             :param stream: The stream object to which to write CSV data.
-            :keyword start: The first event index to export.
-            :keyword stop: The last event index to export.
-            :keyword step: The number of events between exported lines.
-            :keyword subchannels: A sequence of individual subchannel numbers
+            :param start: The first event index to export.
+            :param stop: The last event index to export.
+            :param step: The number of events between exported lines.
+            :param subchannels: A sequence of individual subchannel numbers
                 to export. Only applicable to objects with subchannels.
                 `True` (default) exports them all.
-            :keyword callback: A function (or function-like object) to notify
+            :param callback: A function (or function-like object) to notify
                 as work is done. It should take four keyword arguments:
                 `count` (the current line number), `total` (the total number
                 of lines), `error` (an exception, if raised during the
@@ -2665,25 +2659,25 @@ class EventArray(Transformable):
                 complete). If the callback object has a `cancelled`
                 attribute that is `True`, the CSV export will be aborted.
                 The default callback is `None` (nothing will be notified).
-            :keyword callbackInterval: The frequency of update, as a
+            :param callbackInterval: The frequency of update, as a
                 normalized percent of the total lines to export.
-            :keyword timeScalar: A scaling factor for the event times.
+            :param timeScalar: A scaling factor for the event times.
                 The default is 1 (microseconds).
-            :keyword raiseExceptions: 
-            :keyword dataFormat: The number of decimal places to use for the
+            :param raiseExceptions:
+            :param dataFormat: The number of decimal places to use for the
                 data. This is the same format as used when formatting floats.
-            :keyword useUtcTime: If `True`, times are written as the UTC
+            :param useUtcTime: If `True`, times are written as the UTC
                 timestamp. If `False`, times are relative to the recording.
-            :keyword useIsoFormat: If `True`, the time column is written as
+            :param useIsoFormat: If `True`, the time column is written as
                 the standard ISO date/time string. Only applies if `useUtcTime`
                 is `True`.
-            :keyword headers: If `True`, the first line of the CSV will contain
+            :param headers: If `True`, the first line of the CSV will contain
                 the names of each column.
-            :keyword removeMean: Overrides the EventArray's mean removal for the
+            :param removeMean: Overrides the EventArray's mean removal for the
                 export.
-            :keyword meanSpan: The span of the mean removal for the export. 
+            :param meanSpan: The span of the mean removal for the export.
                 -1 removes the total mean.
-            :keyword display: If `True`, export using the EventArray's 'display'
+            :param display: If `True`, export using the EventArray's 'display'
                 transform (e.g. unit conversion).
             :return: Tuple: The number of rows exported and the elapsed time.
         """
