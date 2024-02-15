@@ -27,7 +27,7 @@ TEST_REQUIRES = [
     'pytest-xdist[psutil]',
     'mock',
     'pytest-cov',
-    'sphinx==4.2.0',
+    "sphinx==5.0.2",
     'scipy;python_version<"3.10"',
     ]
 
