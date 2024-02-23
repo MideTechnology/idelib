@@ -404,4 +404,25 @@
         <BinaryElement name="ChannelDataMinMeanMax" id="0xBC" multiple="0" minver="1" precache="1">Statistical data for this block's payload consisting of 3 datapoints (min, mean, max) per subchannel. They are organized as [[sc0min] [sc1min] [sc2min] ...] [[sc0mean] [sc1mean] [sc2mean] ...] [[sc0max] [sc1max] [sc2max] ...]. The format and representation of the stat data exactly matches that of the input samples; that is, if the input samples are uint16_t, each stat entry is also a uint16_t.</BinaryElement>
         <UIntegerElement name="MediaWriteLatency" id="0xBE" multiple="0" minver="2" precache="0">Super-optional diagnostic element indicating the latency between data acquisition and transfer to the output media. The exact meaning of this value is device-dependent, but may serve as a general indicator of excess activity load, retransmission or congestion (for transmission media) or media wear (for recording media).</UIntegerElement>
     </MasterElement>
+
+    <!-- User-supplied metadata -->
+    <MasterElement name="UserData" id="0x10200000" multiple="0" mandatory="0">
+        <IntegerElement name="TimebaseOffset" id="0x10200010" multiple="0" mandatory="0" />
+        <BinaryElement name="WindowLayout" id="0x10200011" multiple="0" mandatory="0" />
+        <MasterElement name="AnnotationList" id="0x10200020" multiple="0" mandatory="0">
+            <MasterElement name="Annotation" id="0x10200021" multiple="1" mandatory="0">
+                <UnicodeElement name="AnnotationText" id="0x10200022" multiple="0" mandatory="1" />
+                <IntegerElement name="AnnotationStartTime" id="0x10200023" multiple="0" mandatory="1" />
+                <IntegerElement name="AnnotationEndTime" id="0x10200024" multiple="0" mandatory="0" />
+                <BinaryElement name="AnnotationStyle" id="0x10200025" multiple="0" mandatory="0" />
+            </MasterElement>
+        </MasterElement>
+
+        <!-- (reused existing elements) -->
+        <MasterElement name="CalibrationList" id="0x4B00" />
+        <MasterElement name="WarningList" id="0x5360" />
+        <MasterElement name="ChannelList" id="0x5270" />
+    </MasterElement>
+
+    <UIntegerElement name="UserDataOffset" id="0x10200001" multiple="0" mandatory="0">Position of the beginning of the user-defined metadata. This should be the last element in the file.</UIntegerElement>
 </Schema>
