@@ -6,7 +6,7 @@ the display of the `Dataset`.
 
 import os.path
 import logging
-from typing import Any, BinaryIO, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 from .dataset import Dataset
 
