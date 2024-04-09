@@ -487,18 +487,21 @@ class Dataset(Cascading):
                 sources (typically internally-used data) are 1; and sources
                 greater than 1 generally contain data for diagnostic purposes.
         """
-        result = []
-        test = lambda x: debug or not x.name.startswith("DEBUG")
+        def test(x):
+            return debug or not x.name.startswith("DEBUG")
+
         if plots:
             result = [x for x in self.plots.values() if test(x)]
+        else:
+            result = []
+
         if subchannels:
             for c in self._channels.values():
                 for i in range(len(c.subchannels)):
                     subc = c.getSubChannel(i)
-                    if subc.visibility > visibility:
+                    if not test(subc) or subc.visibility > visibility:
                         continue
-                    if debug or not str(subc.name).startswith("DEBUG"):
-                        result.append(subc)
+                    result.append(subc)
         if sort:
             result.sort(key=lambda x: x.displayName)
         return result
