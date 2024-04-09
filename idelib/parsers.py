@@ -1063,6 +1063,7 @@ class ChannelParser(ElementHandler):
         "SubChannelSensorRef": "sensorId",
         "SubChannelWarningRef": "warningId",
         "SubChannelPlotColor": "color",
+        "SubChannelVisibility": "visibility",
         
         # Generic attribute elements.
         "Attribute": "attributes"

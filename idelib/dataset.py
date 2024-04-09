@@ -471,16 +471,21 @@ class Dataset(Cascading):
             return False
         if sessionId is None:
             return True
-        return sessionId >= 0 and sessionId < len(self.sessions)
-        
-    
-    def getPlots(self, subchannels=True, plots=True, debug=True, sort=True):
+        return 0 <= sessionId < len(self.sessions)
+
+
+    def getPlots(self, subchannels=True, plots=True, debug=True, sort=True,
+                 visibility=0):
         """ Get all plotable data sources: sensor SubChannels and/or Plots.
         
             :keyword subchannels: Include subchannels if `True`.
             :keyword plots: Include Plots if `True`.
             :keyword debug: If `False`, exclude debugging/diagnostic channels.
-            :keyword sort: Sort the plots by name if `True`. 
+            :keyword sort: Sort the plots by name if `True`.
+            :keyword visibility: The plots' maximum level of visibility,
+                for display purposes. Standard data sources are 0; optional
+                sources (typically internally-used data) are 1; and sources
+                greater than 1 generally contain data for diagnostic purposes.
         """
         result = []
         test = lambda x: debug or not x.name.startswith("DEBUG")
@@ -490,7 +495,9 @@ class Dataset(Cascading):
             for c in self._channels.values():
                 for i in range(len(c.subchannels)):
                     subc = c.getSubChannel(i)
-                    if test(subc):
+                    if subc.visibility > visibility:
+                        continue
+                    if debug or not str(subc.name).startswith("DEBUG"):
                         result.append(subc)
         if sort:
             result.sort(key=lambda x: x.displayName)
@@ -704,7 +711,7 @@ class Channel(Transformable):
         self.dataset = dataset
         self.sampleRate = sampleRate
         self.attributes = attributes
-       
+
         self._unitsStr = None
 
         self.cache = bool(cache)
@@ -947,12 +954,13 @@ class SubChannel(Channel):
     
     def __init__(self, parent, subchannelId, name=None, units=('', ''),
                  transform=None, displayRange=None, sensorId=None, 
-                 warningId=None, axisName=None, attributes=None, color=None):
+                 warningId=None, axisName=None, attributes=None, color=None,
+                 visibility=0):
         """ Constructor. This should generally be done indirectly via
             `Channel.addSubChannel()`.
         
             :param sensor: The parent sensor.
-            :param channelId: The channel's ID, unique within the file.
+            :param subchannelId: The channel's ID, unique within the file.
             :param parser: The channel's payload data parser.
             :keyword name: A custom name for this channel.
             :keyword units: The units measured in this channel, used if units
@@ -973,6 +981,13 @@ class SubChannel(Channel):
                 name is "Accelerometer X (low-g)").
             :keyword attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file.
+            :keyword visibility: The subchannel's level of visibility, for
+                display purposes. The lower the value, the more 'visible' the
+                subchannel. Standard data subchannels are 0 (visible by
+                default); subchannels containing data that is primarily used
+                internally (e.g., GPS time sync) are 1 (can be displayed, but
+                are not by default); and subchannels with visibility values
+                greater than 1 are typically diagnostic data and never viewed.
         """
         self.id = subchannelId
         self.parent = parent
@@ -981,6 +996,7 @@ class SubChannel(Channel):
         self.dataset = parent.dataset
         self.axisName = axisName
         self.attributes = attributes
+        self.visibility = visibility
         
         self._unitsStr = None
 
