@@ -2,7 +2,9 @@ from io import BytesIO, StringIO
 
 FILES = [('./testing/SSX70065.IDE', 'rb'),
          ('./testing/SSX66115.IDE', 'rb'),
-         ('./test.ide', 'rb')]
+         ('./test.ide', 'rb'),
+         ('./testing/SSX_Data.IDE', 'rb'),
+         ('./testing/with_userdata.IDE', 'rb')]
 FILE_DICT = {}
 
 for fName, mode in FILES:

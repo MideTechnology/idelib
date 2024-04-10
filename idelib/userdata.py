@@ -4,6 +4,7 @@ of IDE files. This data is intended primarily to retain user preferences for
 the display of the `Dataset`.
 """
 
+import errno
 import os.path
 import logging
 from typing import Any, Dict, Optional, Tuple, Union
@@ -124,8 +125,9 @@ def writeUserData(dataset: Dataset,
         :param dataset: The `Dataset` from which to read the user data.
         :param userdata: A dictionary of user data, or `None` to remove
             existing user data. Note that the file will not get smaller if
-            the user data is removed (or the new user data is smaller);
-            it is just overwritten with null data (an EBML `Void` element).
+            the user data is removed or the new set of user data is smaller
+            than existing user data); it is just overwritten with null data
+            (an EBML `Void` element).
         :param refresh: If `True`, ignore any cached values and find the
             position in the file to which to write.
     """
@@ -145,6 +147,7 @@ def writeUserData(dataset: Dataset,
                                             lengthSize=8)
         else:
             # No new userdata, just write 'Void' over any existing userdata
+            # (or do nothing if there is no existing userdata)
             dataset._userdata = userdata
             if not hasdata:
                 return
@@ -154,18 +157,27 @@ def writeUserData(dataset: Dataset,
 
         userblob = dataBin + voidBin + offsetBin
 
-        if '+' not in fs.mode and 'w' not in fs.mode:
+        try:
+            writable = fs.writable()
+        except AttributeError:
+            # In case file-like stream doesn't implement `writable()`
+            # (e.g., older `ebmlite.threaded_file.ThreadAwareFile`)
+            mode = getattr(fs, 'mode', '')
+            writable = '+' in mode or 'w' in mode
+
+        if not writable:
             # File/stream is read-only; attempt to create a new file stream.
             if not getattr(fs, 'name', None):
-                logger.debug(f'(userdata) Dataset stream read only (mode {fs.mode!r}) '
-                             'and has no name, not writing user data')
-                return
+                raise IOError(errno.EACCES,
+                              f'Could not write user data; '
+                              f'Dataset stream not writable and has no filename')
 
             with open(fs.name, 'br+') as newfs:
                 logger.debug(f'(userdata) Dataset stream read only (mode {fs.mode!r}), '
                              'using new stream')
                 newfs.seek(offset, os.SEEK_SET)
                 newfs.write(userblob)
+
         else:
             fs.seek(offset, os.SEEK_SET)
             fs.write(userblob)
