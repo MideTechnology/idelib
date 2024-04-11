@@ -49,6 +49,7 @@ __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from threading import Lock
+from typing import Any, Dict, Optional
 import warnings
 
 import os.path
@@ -259,6 +260,11 @@ class Dataset(Cascading):
         self.loadCancelled = False
         self.loading = True
         self.filename = getattr(stream, "name", None)
+
+        # For keeping user-defined data
+        self._userdata: Optional[Dict[str, Any]] = None
+        self._userdataOffset: Optional[int] = None
+        self._filesize: Optional[int] = None
 
         self._channelDataLock = Lock()
         
