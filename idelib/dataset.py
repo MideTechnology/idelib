@@ -484,13 +484,12 @@ class Dataset(Cascading):
             :keyword sort: Sort the plots by name if `True`.
             :keyword visibility: The plots' maximum level of visibility,
                 for display purposes. Standard visibility ranges:
-
-                0: Standard data sources. Always visible by default.
-                10: Optionally visible, of interest but only in certain situations.
-                20: Hidden by default, but possibly of use to the user.
-                30: Hidden by default, channel used indirectly (but human readable).
-                40: Hidden by default, channel used indirectly (not very human readable).
-                50: Diagnostic, always hide. Accessible via the idelib API.
+                * 0: Standard data sources. Always visible by default.
+                * 10: Optionally visible, of interest but only in certain situations.
+                * 20: Hidden by default, but possibly of use to the user.
+                * 30: Hidden by default, channel used indirectly (but human readable).
+                * 40: Hidden by default, channel used indirectly (not very human readable).
+                * 50: Diagnostic, always hide. Accessible via the idelib API.
         """
         def test(x):
             return debug or (x.visibility <= visibility
@@ -995,12 +994,12 @@ class SubChannel(Channel):
             :keyword visibility: The subchannel's level of visibility, for
                 display purposes. The lower the value, the more 'visible' the
                 subchannel. Standard visibility ranges:
-                    0: Standard data sources. Always visible by default.
-                    10: Optionally visible, of interest but only in certain situations.
-                    20: Hidden by default, but possibly of use to the user.
-                    30: Hidden by default, channel used indirectly (but human readable).
-                    40: Hidden by default, channel used indirectly (not very human readable).
-                    50: Diagnostic, always hide. Accessible via the idelib API.
+                * 0: Standard data sources. Always visible by default.
+                * 10: Optionally visible, of interest but only in certain situations.
+                * 20: Hidden by default, but possibly of use to the user.
+                * 30: Hidden by default, channel used indirectly (but human readable).
+                * 40: Hidden by default, channel used indirectly (not very human readable).
+                * 50: Diagnostic, always hide. Accessible via the idelib API.
         """
         self.id = subchannelId
         self.parent = parent
