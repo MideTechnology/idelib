@@ -969,9 +969,8 @@ class SubChannel(Channel):
         """ Constructor. This should generally be done indirectly via
             `Channel.addSubChannel()`.
         
-            :param sensor: The parent sensor.
+            :param parent: The parent sensor.
             :param subchannelId: The channel's ID, unique within the file.
-            :param parser: The channel's payload data parser.
             :keyword name: A custom name for this channel.
             :keyword units: The units measured in this channel, used if units
                 are not explicitly indicated in the Channel's SubChannels. A
@@ -993,13 +992,7 @@ class SubChannel(Channel):
                 ``Attribute`` elements parsed from the file.
             :keyword visibility: The subchannel's level of visibility, for
                 display purposes. The lower the value, the more 'visible' the
-                subchannel. Standard visibility ranges:
-                * 0: Standard data sources. Always visible by default.
-                * 10: Optionally visible, of interest but only in certain situations.
-                * 20: Hidden by default, but possibly of use to the user.
-                * 30: Hidden by default, channel used indirectly (but human readable).
-                * 40: Hidden by default, channel used indirectly (not very human readable).
-                * 50: Diagnostic, always hide. Accessible via the idelib API.
+                subchannel.
         """
         self.id = subchannelId
         self.parent = parent
