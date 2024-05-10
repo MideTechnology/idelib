@@ -13,8 +13,6 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 
-import pkg_resources
-
 import idelib
 
 # -- Project information -----------------------------------------------------
