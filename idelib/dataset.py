@@ -1269,10 +1269,10 @@ class EventArray(Transformable):
         self._mean = None
 
         _format = self.parent.parser.format
-        if isinstance(self.parent, SubChannel):
-            self._npType = self.parent.parent.getSession()._npType[self.subchannelId]
-        elif len(_format) == 0:
+        if not _format:
             self._npType = np.uint8
+        elif isinstance(self.parent, SubChannel):
+            self._npType = self.parent.parent.getSession()._npType[self.subchannelId]
         else:
             if isinstance(_format, bytes):
                 _format = _format.decode()
