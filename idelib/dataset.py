@@ -1981,9 +1981,13 @@ class EventArray(Transformable):
             # Time falls within a gap between blocks
             return block.indexRange[-1]
 
-        return int(mapRange(t,
-                            block.startTime, block.endTime,
-                            block.indexRange[0], block.indexRange[1]-1))
+        try:
+            return int(mapRange(t,
+                                block.startTime, block.endTime,
+                                block.indexRange[0], block.indexRange[1]-1))
+        except (ValueError, ZeroDivisionError):
+            # Probably division by zero (block start/end times and/or indices the same)
+            return block.indexRange[0]
 
         # return int((block.indexRange[0] +
         #            ((t - block.startTime) / self._getBlockSampleTime(blockIdx))))
@@ -2813,6 +2817,10 @@ class EventArray(Transformable):
                 return self._cacheArray[start:end:step]
 
     def _inplaceTime(self, start, end, step, out=None):
+        """ Generate a series of timestamps between `start` and `end`,
+            inserted into an existing array (if provided). If `out`
+            is `None`, a new array is created.
+        """
         if out is None:
             out = np.empty((int(np.ceil((end - start)/step)),))
 
