@@ -1269,10 +1269,10 @@ class EventArray(Transformable):
         self._mean = None
 
         _format = self.parent.parser.format
-        if isinstance(self.parent, SubChannel):
-            self._npType = self.parent.parent.getSession()._npType[self.subchannelId]
-        elif len(_format) == 0:
+        if not _format:
             self._npType = np.uint8
+        elif isinstance(self.parent, SubChannel):
+            self._npType = self.parent.parent.getSession()._npType[self.subchannelId]
         else:
             if isinstance(_format, bytes):
                 _format = _format.decode()
@@ -1977,13 +1977,23 @@ class EventArray(Transformable):
         except IndexError:
             block = self._data[-1]
 
-        if t > block.endTime:
+        if block.numSamples < 2 or t == block.startTime:
+            return block.indexRange[0]
+
+        elif t > block.endTime:
             # Time falls within a gap between blocks
             return block.indexRange[-1]
 
-        return int(mapRange(t,
-                            block.startTime, block.endTime,
-                            block.indexRange[0], block.indexRange[1]-1))
+        try:
+            return int(mapRange(t,
+                                block.startTime, block.endTime,
+                                block.indexRange[0], block.indexRange[1]-1))
+        except (ValueError, ZeroDivisionError) as err:
+            # Probably division by zero (block start/end times and/or indices the same)
+            # Unlikely if block has >1 samples, but catch it anyway.
+            logger.debug(f'ignoring {type(err).__name__} in getEventIndexBefore() '
+                         f'(probably okay): {err}')
+            return block.indexRange[0]
 
         # return int((block.indexRange[0] +
         #            ((t - block.startTime) / self._getBlockSampleTime(blockIdx))))
@@ -2813,6 +2823,10 @@ class EventArray(Transformable):
                 return self._cacheArray[start:end:step]
 
     def _inplaceTime(self, start, end, step, out=None):
+        """ Generate a series of timestamps between `start` and `end`,
+            inserted into an existing array (if provided). If `out`
+            is `None`, a new array is created.
+        """
         if out is None:
             out = np.empty((int(np.ceil((end - start)/step)),))
 
