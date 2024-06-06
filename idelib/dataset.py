@@ -1977,7 +1977,10 @@ class EventArray(Transformable):
         except IndexError:
             block = self._data[-1]
 
-        if t > block.endTime:
+        if block.numSamples < 2 or t == block.startTime:
+            return block.indexRange[0]
+
+        elif t > block.endTime:
             # Time falls within a gap between blocks
             return block.indexRange[-1]
 
@@ -1985,8 +1988,11 @@ class EventArray(Transformable):
             return int(mapRange(t,
                                 block.startTime, block.endTime,
                                 block.indexRange[0], block.indexRange[1]-1))
-        except (ValueError, ZeroDivisionError):
+        except (ValueError, ZeroDivisionError) as err:
             # Probably division by zero (block start/end times and/or indices the same)
+            # Unlikely if block has >1 samples, but catch it anyway.
+            logger.debug(f'ignoring {type(err).__name__} in getEventIndexBefore() '
+                         f'(probably okay): {err}')
             return block.indexRange[0]
 
         # return int((block.indexRange[0] +
