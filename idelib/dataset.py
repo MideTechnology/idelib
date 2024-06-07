@@ -1782,9 +1782,9 @@ class EventArray(Transformable):
             out = np.empty((len(rawData.dtype), len(rawData)))
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out)
+            xform.polys[self.subchannelId].inplace(rawData, out=out, noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out)
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out, noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -1848,9 +1848,9 @@ class EventArray(Transformable):
         self._inplaceTime(start, end, step, out=out[0])
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0])
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out[1:], timestamp=out[0])
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out[1:], timestamp=out[0], noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -1949,10 +1949,10 @@ class EventArray(Transformable):
         self._inplaceTimeFromIndices(indices, out=out[0])
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0])
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=self.noBivariates)
         else:
             for i, (k, _) in enumerate(rawData.dtype.descr):
-                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0])
+                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0], noBivariates=self.noBivariates)
 
         return out
 
@@ -2265,17 +2265,17 @@ class EventArray(Transformable):
             xform = xform.polys[self.subchannelId]
             if times:
                 for m in range(3):
-                    xform.inplace(out[m, 1, :], out=out[m, 1, :])
+                    xform.inplace(out[m, 1, :], out=out[m, 1, :], noBivariates=self.noBivariates)
             else:
                 for m in range(3):
-                    xform.inplace(out[m, 0, :], out=out[m, 0, :])
+                    xform.inplace(out[m, 0, :], out=out[m, 0, :], noBivariates=self.noBivariates)
         else:
             if times:
                 for m in range(3):
-                    xform.inplace(out[m, 1:, :], out=out[m, 1:, :])
+                    xform.inplace(out[m, 1:, :], out=out[m, 1:, :], noBivariates=self.noBivariates)
             else:
                 for m in range(3):
-                    xform.inplace(out[m, :, :], out=out[m, :, :])
+                    xform.inplace(out[m, :, :], out=out[m, :, :], noBivariates=self.noBivariates)
 
         # iterate through the arrayMinMeanMaxes specific to each subchannel
         try:
@@ -2577,12 +2577,12 @@ class EventArray(Transformable):
                 return self._mean
 
         means = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                     display=display, iterator=iterator)[1]
+                                     display=display, iterator=iterator)
 
         if means is None:
             return None
 
-        mean = np.mean(np.average(means, weights=[d.numSamples for d in self._data], axis=-1))
+        mean = np.mean(np.average(means[1], weights=[d.numSamples for d in self._data], axis=-1))
 
         if startTime is None and endTime is None:
             self._mean = mean

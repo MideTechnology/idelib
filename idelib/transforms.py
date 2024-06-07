@@ -877,7 +877,7 @@ class Bivariate(Univariate):
                 channel = self.dataset.channels[self.channelId][self.subchannelId]
                 self._eventlist = channel.getSession(session.sessionId)
                 self._sessionId = session.sessionId
-            if len(self._eventlist) == 0:
+            if not self._eventlist or len(self._eventlist) == 0:
                 return False
             
         except:
@@ -1019,7 +1019,8 @@ class CombinedPoly(Bivariate):
             if x is not None:
                 x.addWatcher(self)
 
-    def inplace(self, values, y=None, timestamp=None, session=None, noBivariates=False, out=None):
+    def inplace(self, values, y=None, timestamp=None, session=None,
+                noBivariates=False, out=None):
         """ In-place transform for the `CombinedPoly` transform.  It reduces the
             number of array allocations/operations compared to the normal
             `__call__` method.  The user can supply an `out` argument to save
@@ -1118,7 +1119,8 @@ class CombinedPoly(Bivariate):
             if len(self.variables) == 1:
                 if isinstance(self.poly, ComplexTransform):
 
-                    if self.variables[0] in self.subpolys and not isinstance(self.subpolys[self.variables[0]], ComplexTransform):
+                    if (self.variables[0] in self.subpolys
+                            and not isinstance(self.subpolys[self.variables[0]], ComplexTransform)):
                         values = self.subpolys[self.variables[0]].inplace(
                                 values,
                                 timestamp=timestamp,
@@ -1160,7 +1162,8 @@ class CombinedPoly(Bivariate):
                              timestamp), dtype=np.float64)
 
                 # Catches the case where the secondary subpoly is a `ComplexTransform`
-                if self.variables[1] in self.subpolys and isinstance(self.subpolys[self.variables[1]], ComplexTransform):
+                if (self.variables[1] in self.subpolys
+                        and isinstance(self.subpolys[self.variables[1]], ComplexTransform)):
                     y = self.subpolys[self.variables[1]].inplace(
                             y,
                             timestamp=timestamp,
@@ -1171,7 +1174,8 @@ class CombinedPoly(Bivariate):
                 # in this instance, basically give up on efficiency
                 if isinstance(self.poly, ComplexTransform):
 
-                    if self.variables[0] in self.subpolys and not isinstance(self.subpolys[self.variables[0]], ComplexTransform):
+                    if (self.variables[0] in self.subpolys
+                            and not isinstance(self.subpolys[self.variables[0]], ComplexTransform)):
                         values = self.subpolys[self.variables[0]].inplace(
                                 values,
                                 timestamp=timestamp,
@@ -1179,7 +1183,8 @@ class CombinedPoly(Bivariate):
                                 noBivariates=noBivariates,
                                 )
 
-                    if self.variables[1] in self.subpolys and not isinstance(self.subpolys[self.variables[1]], ComplexTransform):
+                    if (self.variables[1] in self.subpolys
+                            and not isinstance(self.subpolys[self.variables[1]], ComplexTransform)):
                         y = self.subpolys[self.variables[1]].inplace(
                                 y,
                                 timestamp=timestamp,
@@ -1215,17 +1220,17 @@ class CombinedPoly(Bivariate):
                             out = values
                         else:
                             out[:] = values
-                        a3 = self._fastCoeffs[0]*y + self._fastCoeffs[1]
-                        b3 = self._fastCoeffs[2]*y + self._fastCoeffs[3]
+                        a3 = self._fastCoeffs[0] * y + self._fastCoeffs[1]
+                        b3 = self._fastCoeffs[2] * y + self._fastCoeffs[3]
                         out *= a3
                         out += b3
                     else:
-                        if np.scalar:
-                            out = values*y*self._fastCoeffs[0]
+                        if scalar:
+                            out = values * y * self._fastCoeffs[0]
                         else:
-                            out[:] = values*y*self._fastCoeffs[0]
-                        out += values*self._fastCoeffs[1]
-                        out += y*self._fastCoeffs[2]
+                            out[:] = values * y * self._fastCoeffs[0]
+                        out += values * self._fastCoeffs[1]
+                        out += y * self._fastCoeffs[2]
                         out += self._fastCoeffs[3]
 
             return out
@@ -1384,9 +1389,9 @@ class PolyPoly(CombinedPoly):
                 if noBivariates:
                     for i, poly in enumerate(self.polys):
                         if np.isscalar(out[i]):
-                            out[i] = poly.inplace(values[i], y=0)
+                            out[i] = poly.inplace(values[i], y=0, noBivariates=noBivariates)
                         else:
-                            poly.inplace(values[i], y=0, out=out[i])
+                            poly.inplace(values[i], y=0, out=out[i], noBivariates=noBivariates)
                     return out
 
                 session = self.dataset.lastSession if session is None else session
@@ -1409,17 +1414,17 @@ class PolyPoly(CombinedPoly):
 
                 for i, poly in enumerate(self.polys):
                     if np.isscalar(out[i]):
-                        out[i] = poly.inplace(values[i], y=y)
+                        out[i] = poly.inplace(values[i], y=y, noBivariates=noBivariates)
                     else:
-                        poly.inplace(values[i], y=y, out=out[i])
+                        poly.inplace(values[i], y=y, out=out[i], noBivariates=noBivariates)
                 return out
 
             else:
                 for i, poly in enumerate(self.polys):
                     if np.isscalar(out[i]):
-                        out[i] = poly.inplace(values[i])
+                        out[i] = poly.inplace(values[i], noBivariates=noBivariates)
                     else:
-                        poly.inplace(values[i], out=out[i])
+                        poly.inplace(values[i], out=out[i], noBivariates=noBivariates)
                 return out
 
         except (TypeError, IndexError, ZeroDivisionError) as err:
