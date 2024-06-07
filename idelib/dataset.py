@@ -2237,6 +2237,8 @@ class EventArray(Transformable):
         else:
             xform = self._comboXform
 
+        noBivariates= self.noBivariates
+
         out = np.empty(shape)
 
         for i, d in enumerate(self._data[startBlock:endBlock]):
@@ -2265,17 +2267,17 @@ class EventArray(Transformable):
             xform = xform.polys[self.subchannelId]
             if times:
                 for m in range(3):
-                    xform.inplace(out[m, 1, :], out=out[m, 1, :], noBivariates=self.noBivariates)
+                    xform.inplace(out[m, 1, :], out=out[m, 1, :], noBivariates=noBivariates)
             else:
                 for m in range(3):
-                    xform.inplace(out[m, 0, :], out=out[m, 0, :], noBivariates=self.noBivariates)
+                    xform.inplace(out[m, 0, :], out=out[m, 0, :], noBivariates=noBivariates)
         else:
             if times:
                 for m in range(3):
-                    xform.inplace(out[m, 1:, :], out=out[m, 1:, :], noBivariates=self.noBivariates)
+                    xform.inplace(out[m, 1:, :], out=out[m, 1:, :], noBivariates=noBivariates)
             else:
                 for m in range(3):
-                    xform.inplace(out[m, :, :], out=out[m, :, :], noBivariates=self.noBivariates)
+                    xform.inplace(out[m, :, :], out=out[m, :, :], noBivariates=noBivariates)
 
         # iterate through the arrayMinMeanMaxes specific to each subchannel
         try:

@@ -877,13 +877,14 @@ class Bivariate(Univariate):
                 channel = self.dataset.channels[self.channelId][self.subchannelId]
                 self._eventlist = channel.getSession(session.sessionId)
                 self._sessionId = session.sessionId
-            if not self._eventlist or len(self._eventlist) == 0:
-                return False
+            return self._eventlist and len(self._eventlist)
             
-        except:
+        except Exception as err:
             # HACK: In multithreaded environments, there's a rare race 
             # condition in which the main channel can be accessed before the
             # calibration channel has loaded. Retry isValid() a few times.
+            logger.debug(f'{type(self).__name__}.isValid(): {err!r}')
+
             if _retries == 0:
                 return False
             
