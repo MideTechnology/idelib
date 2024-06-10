@@ -48,6 +48,7 @@ __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
 
 from collections.abc import Iterable, Sequence
 from datetime import datetime
+from math import ceil
 from threading import Lock
 from typing import Any, Dict, Optional
 import warnings
@@ -82,9 +83,6 @@ if __DEBUG__:
 else:
     logger.setLevel(logging.ERROR)
     
-# import ebml
-# logger.info("Loaded python-ebml from %s" % os.path.abspath(ebml.__file__))
-
 
 def mapRange(x, in_min, in_max, out_min, out_max):
     """ Given a value `x` between `in_min` and `in_max`, get the equivalent
@@ -1782,9 +1780,9 @@ class EventArray(Transformable):
             out = np.empty((len(rawData.dtype), len(rawData)))
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out)
+            xform.polys[self.subchannelId].inplace(rawData, out=out, noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out)
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out, noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -1848,9 +1846,9 @@ class EventArray(Transformable):
         self._inplaceTime(start, end, step, out=out[0])
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0])
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out[1:], timestamp=out[0])
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out[1:], timestamp=out[0], noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -1948,11 +1946,12 @@ class EventArray(Transformable):
         # now times
         self._inplaceTimeFromIndices(indices, out=out[0])
 
+        noBivariates = self.noBivariates
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0])
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=noBivariates)
         else:
             for i, (k, _) in enumerate(rawData.dtype.descr):
-                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0])
+                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0], noBivariates=noBivariates)
 
         return out
 
@@ -2109,9 +2108,6 @@ class EventArray(Transformable):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
 
-            :todo: Remember what `padding` was for, and either implement or
-                remove it completely. Related to plotting; see `plots`.
-            
             :keyword startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
             :keyword endTime: The second time, or `None` to use the end of
@@ -2123,7 +2119,8 @@ class EventArray(Transformable):
             :return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
         """
-
+        # TODO: Remember what `padding` was for, and either implement or
+        #  remove it completely. Related to plotting; see `plots`.
         warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
@@ -2208,9 +2205,6 @@ class EventArray(Transformable):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
 
-            :todo: Remember what `padding` was for, and either implement or
-                remove it completely. Related to plotting; see `plots`.
-
             :keyword startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
             :keyword endTime: The second time, or `None` to use the end of
@@ -2222,6 +2216,9 @@ class EventArray(Transformable):
             :return: A structured array of data block statistics (min, mean,
                 and max, respectively).
         """
+        # TODO: Remember what `padding` was for, and either implement or
+        #   remove it completely. Related to plotting; see `plots`.
+        # TODO: Use `iterator`? It may have been removed accidentally.
         if not self._data:
             return None
 
@@ -2236,6 +2233,8 @@ class EventArray(Transformable):
                 xform = self._displayXform or xform
         else:
             xform = self._comboXform
+
+        noBivariates= self.noBivariates
 
         out = np.empty(shape)
 
@@ -2265,17 +2264,17 @@ class EventArray(Transformable):
             xform = xform.polys[self.subchannelId]
             if times:
                 for m in range(3):
-                    xform.inplace(out[m, 1, :], out=out[m, 1, :])
+                    xform.inplace(out[m, 1, :], out=out[m, 1, :], noBivariates=noBivariates)
             else:
                 for m in range(3):
-                    xform.inplace(out[m, 0, :], out=out[m, 0, :])
+                    xform.inplace(out[m, 0, :], out=out[m, 0, :], noBivariates=noBivariates)
         else:
             if times:
                 for m in range(3):
-                    xform.inplace(out[m, 1:, :], out=out[m, 1:, :])
+                    xform.inplace(out[m, 1:, :], out=out[m, 1:, :], noBivariates=noBivariates)
             else:
                 for m in range(3):
-                    xform.inplace(out[m, :, :], out=out[m, :, :])
+                    xform.inplace(out[m, :, :], out=out[m, :, :], noBivariates=noBivariates)
 
         # iterate through the arrayMinMeanMaxes specific to each subchannel
         try:
@@ -2294,9 +2293,6 @@ class EventArray(Transformable):
                       times=True, display=False, iterator=iter):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval. (Currently an alias of `arrayMinMeanMax`.)
-
-            :todo: Remember what `padding` was for, and either implement or
-                remove it completely. Related to plotting; see `plots`.
 
             :keyword startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
@@ -2522,14 +2518,13 @@ class EventArray(Transformable):
     def getValueAt(self, at, outOfRange=False, display=False):
         """ Retrieve the value at a specific time, interpolating between
             existing events.
-            
-            :todo: Optimize. This creates a bottleneck in the calibration.
-            
+
             :param at: The time at which to take the sample.
             :keyword outOfRange: If `False`, times before the first sample
                 or after the last will raise an `IndexError`. If `True`, the
                 first or last time, respectively, is returned.
         """
+        # TODO: Optimize. This creates a bottleneck in the calibration.
         startIdx = self.getEventIndexBefore(at)
         if startIdx < 0:
             first = self.__getitem__(0, display=display)
@@ -2577,12 +2572,12 @@ class EventArray(Transformable):
                 return self._mean
 
         means = self.arrayMinMeanMax(startTime, endTime, times=False,
-                                     display=display, iterator=iterator)[1]
+                                     display=display, iterator=iterator)
 
         if means is None:
             return None
 
-        mean = np.mean(np.average(means, weights=[d.numSamples for d in self._data], axis=-1))
+        mean = np.mean(np.average(means[1], weights=[d.numSamples for d in self._data], axis=-1))
 
         if startTime is None and endTime is None:
             self._mean = mean
@@ -2633,11 +2628,9 @@ class EventArray(Transformable):
         """ Retrieve the events occurring within a given interval,
             undersampled as to not exceed a given length (e.g. the size of
             the data viewer's screen width).
-        
-            :todo: Optimize iterResampledRange(); not very efficient,
-                particularly not with single-sample blocks.
         """
-
+        # TODO: Optimize iterResampledRange(); not very efficient,
+        #  particularly not with single-sample blocks.
         warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
@@ -2658,11 +2651,9 @@ class EventArray(Transformable):
         """ Retrieve the events occurring within a given interval,
             undersampled as to not exceed a given length (e.g. the size of
             the data viewer's screen width).
-
-            :todo: Optimize iterResampledRange(); not very efficient,
-                particularly not with single-sample blocks.
         """
-        from math import ceil
+        # TODO: Optimize iterResampledRange(); not very efficient,
+        #  particularly not with single-sample blocks.
 
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
         startIdx = max(startIdx-padding, 0)
@@ -2680,7 +2671,7 @@ class EventArray(Transformable):
                   raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
                   useUtcTime=False, useIsoFormat=False, headers=False, 
                   removeMean=None, meanSpan=None, display=False,
-                  noBivariates=False):
+                  noBivariates=None):
         """ Export events as CSV to a stream (e.g. a file).
         
             :param stream: The stream object to which to write CSV data.
@@ -2723,6 +2714,9 @@ class EventArray(Transformable):
         noCallback = callback is None
         _self = self.copy()
 
+        if noBivariates is not None:
+            _self.noBivariates = noBivariates
+
         # Create a function for formatting the event time.        
         if useUtcTime and _self.session.utcStartTime:
             if useIsoFormat:
@@ -2753,7 +2747,7 @@ class EventArray(Transformable):
         if meanSpan is not None:
             _self.rollingMeanSpan = meanSpan
         
-        start, stop, step = slice(start, stop, step).indices(len(self))
+        start, stop, step = slice(start, stop, step).indices(len(_self))
 
         totalLines = len(range(start, stop, step))
         numChannels = len(names)
