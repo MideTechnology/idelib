@@ -2671,7 +2671,7 @@ class EventArray(Transformable):
                   raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
                   useUtcTime=False, useIsoFormat=False, headers=False, 
                   removeMean=None, meanSpan=None, display=False,
-                  noBivariates=False):
+                  noBivariates=None):
         """ Export events as CSV to a stream (e.g. a file).
         
             :param stream: The stream object to which to write CSV data.
@@ -2714,6 +2714,9 @@ class EventArray(Transformable):
         noCallback = callback is None
         _self = self.copy()
 
+        if noBivariates is not None:
+            _self.noBivariates = noBivariates
+
         # Create a function for formatting the event time.        
         if useUtcTime and _self.session.utcStartTime:
             if useIsoFormat:
@@ -2744,7 +2747,7 @@ class EventArray(Transformable):
         if meanSpan is not None:
             _self.rollingMeanSpan = meanSpan
         
-        start, stop, step = slice(start, stop, step).indices(len(self))
+        start, stop, step = slice(start, stop, step).indices(len(_self))
 
         totalLines = len(range(start, stop, step))
         numChannels = len(names)
