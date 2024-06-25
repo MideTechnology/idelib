@@ -27,12 +27,13 @@ TEST_REQUIRES = [
     'pytest-xdist[psutil]',
     'mock',
     'pytest-cov',
-    'sphinx==4.2.0',
+    "sphinx>=5.0.2",
     'scipy;python_version<"3.10"',
+    "setuptools"
     ]
 
 DOCS_REQUIRES = [
-    "sphinx==4.2.0",
+    "sphinx>=5.0.2",
     "pydata-sphinx-theme==0.7.2",
     "nbsphinx",
     ]
@@ -54,8 +55,6 @@ setuptools.setup(
         classifiers=['Development Status :: 5 - Production/Stable',
                      'License :: OSI Approved :: MIT License',
                      'Natural Language :: English',
-                     'Programming Language :: Python :: 3.6',
-                     'Programming Language :: Python :: 3.7',
                      'Programming Language :: Python :: 3.8',
                      'Programming Language :: Python :: 3.9',
                      'Programming Language :: Python :: 3.10',

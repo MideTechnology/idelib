@@ -289,7 +289,7 @@ else:
 #
 #===============================================================================
 
-def _getSize(stream, chunkSize=512 * 1024):
+def _getSize(stream):
     """
     Get the length of a stream from its data.
 
@@ -306,13 +306,7 @@ def _getSize(stream, chunkSize=512 * 1024):
             return os.path.getsize(stream.name)
 
     originalPos = stream.tell()
-
-    # Grab chunks until less is read than requested.
-    thisRead = chunkSize
-    while thisRead == chunkSize:
-        thisRead = len(stream.read(chunkSize))
-
-    eof = stream.tell()
+    eof = stream.seek(0, os.SEEK_END)
     stream.seek(originalPos)
     return eof
 
