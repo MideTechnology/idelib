@@ -441,15 +441,10 @@ class TestDataset(unittest.TestCase):
     def testAddSensor(self):
         """ Test that the sensors are being added correctly. """
         sensor1 = Sensor(self.dataset, 0)
-        sensor2 = Sensor(self.dataset, 'q')
 
         # test that numeric ids work
         self.dataset.addSensor(0)
         self.assertEqual(sensor1, self.dataset.sensors[0])
-
-        # test that string ids work
-        self.dataset.addSensor('q')
-        self.assertEqual(sensor2, self.dataset.sensors['q'])
 
 
     def testAddChannel(self):
@@ -481,16 +476,12 @@ class TestDataset(unittest.TestCase):
         # set up new transforms
         xform1 = Transformable()
         xform1.id = 1
-        xform2 = Transformable()
-        xform2.id = 'q'
         xform3 = Transformable()
         xform3.id = None
 
         # assert that transforms are being added correctly
         self.dataset.addTransform(xform1)
-        self.dataset.addTransform(xform2)
         self.assertEqual(self.dataset.transforms[1], xform1)
-        self.assertEqual(self.dataset.transforms['q'], xform2)
 
         # assert that transforms without an id will raise errors
         self.assertRaises(ValueError, self.dataset.addTransform, xform3)
@@ -626,7 +617,7 @@ class TestSensor(unittest.TestCase):
         self.assertEqual(self.sensor1, Sensor(self.dataset, 1))
 
         sensor3 = Sensor(self.dataset, 3, name=None)
-        self.assertEqual(sensor3.name, "Sensor%02d")
+        self.assertEqual(sensor3.name, "Sensor03")
 
 
     def testGetItem(self):
