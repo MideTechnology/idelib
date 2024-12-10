@@ -1008,7 +1008,10 @@ class SensorListParser(ElementHandler):
         "TraceabilityData": "traceData",
         "SensorSerialNumber": "serialNum",
         "Attribute": "attributes",
-#         "SensorBwLimitIDRef": "bandwidthLimitId" # FUTURE
+        "SourceName": "sourceName",
+        "SourceIdentifier": "sourceId",
+        "IsRelative": "relative",
+        "SensorBwLimitIDRef": "bandwidthLimitId"
     }
     
     def parse(self, element, **kwargs):

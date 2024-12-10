@@ -596,30 +596,49 @@ class Sensor(Cascading):
     """
     
     def __init__(self, dataset, sensorId, name=None, transform=None,
-                  traceData=None, attributes=None, bandwidthLimitId=None):
+                 traceData=None, attributes=None, bandwidthLimitId=None,
+                 sourceName=None, sourceId=None, relative=False):
         """ Constructor. This should generally be done indirectly via
             `Dataset.addSensor()`.
         
             :param dataset: The parent `Dataset`.
             :param sensorId: The ID of the new sensor.
-            :keyword name: The new sensor's name.
-            :keyword transform: A sensor-level data pre-processing function.
-            :keyword traceData: Sensor traceability data.
-            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+            :param name: The new sensor's name.
+            :param transform: A sensor-level data pre-processing function.
+            :param traceData: Sensor traceability data.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file.
+            :param bandwidthLimitId: The ID of the bandwidth limit (defined
+                in the ``BwLimitList`` (not currently used).
+            :param sourceName: Human-friendly source (authority, network, or
+                other source-of-truth) name for generic/virtual sensor types,
+                particularly 'time' sensors.
+            :param sourceId: Machine-readable, uniquely identifying hash
+                identifying source equivalency for comparing relative
+                sources, particularly 'time' sensors.
+            :param relative: `False` if sensor values are Absolute (default),
+                `True` 1 if values are Relative (have an unknown offset),
+                e.g., AC-coupled measurements or time values with an unknown
+                Epoch.
         """
         if isinstance(name, bytes):
             name.decode()
-        self.name = "Sensor%02d" if name is None else name
+        self.name = f"Sensor{sensorId:02d}" if name is None else name
         self.dataset = dataset
         self.parent = dataset
         self.id = sensorId
         self.channels = {}
         self.traceData = traceData
         self.attributes = attributes
+        self.sourceName = sourceName
+        self.sourceId = sourceId
+        self.relative = bool(relative)
+
+        # Not currently used:
         self.bandwidthLimitId = bandwidthLimitId
         self._bandwidthCutoff = None
         self._bandwidthRolloff = None
+        self._transform = transform
 
 
     def __getitem__(self, idx):
@@ -1648,7 +1667,6 @@ class EventArray(Transformable):
             xform = self._fullXform
 
         if isinstance(idx, (int, np.integer)):
-
 
             if idx >= len(self):
                 raise IndexError("EventArray index out of range")
