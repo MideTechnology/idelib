@@ -50,7 +50,7 @@ from collections.abc import Iterable, Sequence
 from datetime import datetime
 from math import ceil
 from threading import Lock
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Union, Type
 import warnings
 
 import os.path
@@ -95,6 +95,7 @@ def mapRange(x, in_min, in_max, out_min, out_max):
 # Mix-In Classes
 #===============================================================================
 
+
 class Cascading(object):
     """ A base/mix-in class for objects in a hierarchy. 
     """
@@ -134,10 +135,10 @@ class Transformable(Cascading):
         etc.), making it easy to turn the transformation on or off.
         
         :ivar transform: The transformation function/object
-        :ivar raw: If `False`, the transform will not be applied to data.
-            Note: The object's `transform` attribute will not change; it will
-            just be ignored.
     """
+
+    dataset: "Dataset" = None
+    children: List["Transformable"] = None
 
     def setTransform(self, transform, update=True):
         """ Set the transforming function/object. This does not change the
@@ -217,7 +218,6 @@ class Dataset(Cascading):
             A valid file will have at least one, even if there are no 
             `Session` elements in the data.
         :ivar sensors: A dictionary of Sensors.
-        :ivar channels: A dictionary of individual Sensor channels.
         :ivar plots: A dictionary of individual Plots, the modified output of
             a Channel (or even another plot).
         :ivar transforms: A dictionary of functions (or function-like objects)
@@ -248,6 +248,7 @@ class Dataset(Cascading):
         self.currentSession = None
         self.recorderInfo = {}
         self.recorderConfig = None
+        self.bandwidthLimits = {}  # For future use
 
         self.attributes = attributes if attributes else {}
 
@@ -366,9 +367,17 @@ class Dataset(Cascading):
             self.currentSession = None
         
     
-    def addSensor(self, sensorId=None, name=None, sensorClass=None, 
-                  traceData=None, transform=None, attributes=None,
-                  bandwidthLimitId=None):
+    def addSensor(self,
+                  sensorId: Optional[int] = None,
+                  name: Optional[str] = None,
+                  sensorClass: Optional[Type] = None,
+                  sourceName: Optional[str] = None,
+                  sourceId: Optional[str] = None,
+                  relative: bool = False,
+                  traceData: Optional[Dict[str, Any]] = None,
+                  transform: Union[int, Transform, None] = None,
+                  attributes: Optional[Dict[str, Any]] = None,
+                  bandwidthLimitId: Optional[int] = None):
         """ Create a new Sensor object, and add it to the dataset, and return
             it. If the given sensor ID already exists, the existing sensor is 
             returned instead. To modify a sensor or add a sensor object created 
@@ -377,9 +386,26 @@ class Dataset(Cascading):
             Note that the `sensorId` keyword argument is *not* optional.
             
             :param sensorId: The ID of the new sensor.
-            :keyword name: The new sensor's name
-            :keyword sensorClass: An alternate (sub)class of sensor. Defaults
+            :param name: The new sensor's name
+            :param sensorClass: An alternate (sub)class of sensor. Defaults
                 to `None`, which creates a `Sensor`.
+            :param sourceName: Human-friendly source (authority, network, or
+                other source-of-truth) name for generic/virtual sensor types,
+                particularly 'time' sensors.
+            :param sourceId: Machine-readable, uniquely identifying hash
+                identifying source equivalency for comparing relative
+                sources, particularly 'time' sensors.
+            :param relative: `False` if sensor values are Absolute (default),
+                `True` if values are Relative (have an unknown offset, e.g.,
+                AC-coupled measurements or time values with an unknown
+                Epoch).
+            :param transform: A sensor-level data pre-processing function.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
+                ``Attribute`` elements parsed from the file.
+            :param traceData: An optional dictionary of traceability data,
+                such as sensor serial number, etc.
+            :param bandwidthLimitId: The ID of the bandwidth limit (defined
+                in the ``BwLimitList`` (not currently used).
             :return: The new sensor.
         """
         # `sensorId` is mandatory; it's a keyword argument to streamline import.
@@ -391,8 +417,10 @@ class Dataset(Cascading):
             return self.sensors[sensorId]
         
         sensorClass = Sensor if sensorClass is None else sensorClass
-        sensor = sensorClass(self,sensorId,name=name, transform=transform,
-                             traceData=traceData, attributes=attributes,
+        sensor = sensorClass(self, sensorId, name=name,
+                             sourceName=sourceName, sourceId=sourceId,
+                             relative=relative, traceData=traceData,
+                             transform=transform, attributes=attributes,
                              bandwidthLimitId=bandwidthLimitId)
         self.sensors[sensorId] = sensor
         return sensor
@@ -591,25 +619,27 @@ class Session(object):
 # 
 #===============================================================================
 
+
 class Sensor(Cascading):
     """ One Sensor object. A Dataset contains at least one.
     """
     
-    def __init__(self, dataset, sensorId, name=None, transform=None,
-                 traceData=None, attributes=None, bandwidthLimitId=None,
-                 sourceName=None, sourceId=None, relative=False):
+    def __init__(self,
+                 dataset: Dataset,
+                 sensorId: Optional[int] = None,
+                 name: Optional[str] = None,
+                 sourceName: Optional[str] = None,
+                 sourceId: Optional[str] = None,
+                 relative: bool = False,
+                 traceData: Optional[Dict[str, Any]] = None,
+                 transform: Union[int, Transform, None] = None,
+                 attributes: Optional[Dict[str, Any]] = None,
+                 bandwidthLimitId: Optional[int] = None):
         """ Constructor. This should generally be done indirectly via
             `Dataset.addSensor()`.
         
-            :param dataset: The parent `Dataset`.
             :param sensorId: The ID of the new sensor.
-            :param name: The new sensor's name.
-            :param transform: A sensor-level data pre-processing function.
-            :param traceData: Sensor traceability data.
-            :param attributes: A dictionary of arbitrary attributes, e.g.
-                ``Attribute`` elements parsed from the file.
-            :param bandwidthLimitId: The ID of the bandwidth limit (defined
-                in the ``BwLimitList`` (not currently used).
+            :param name: The new sensor's name
             :param sourceName: Human-friendly source (authority, network, or
                 other source-of-truth) name for generic/virtual sensor types,
                 particularly 'time' sensors.
@@ -617,9 +647,17 @@ class Sensor(Cascading):
                 identifying source equivalency for comparing relative
                 sources, particularly 'time' sensors.
             :param relative: `False` if sensor values are Absolute (default),
-                `True` 1 if values are Relative (have an unknown offset),
+                `True` if values are Relative (have an unknown offset),
                 e.g., AC-coupled measurements or time values with an unknown
                 Epoch.
+            :param transform: A sensor-level data pre-processing function.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
+                ``Attribute`` elements parsed from the file.
+            :param traceData: An optional dictionary of traceability data,
+                such as sensor serial number, etc.
+            :param bandwidthLimitId: The ID of the bandwidth limit (defined
+                in the ``BwLimitList`` (not currently used).
+            :return: The new sensor.
         """
         if isinstance(name, bytes):
             name.decode()
@@ -627,7 +665,7 @@ class Sensor(Cascading):
         self.dataset = dataset
         self.parent = dataset
         self.id = sensorId
-        self.channels = {}
+        self.channels = {}  # For future use
         self.traceData = traceData
         self.attributes = attributes
         self.sourceName = sourceName
@@ -691,6 +729,17 @@ class Sensor(Cascading):
                and self.traceData == other.traceData \
                and self.attributes == other.attributes \
                and self.bandwidthLimitId == other.bandwidthLimitId
+
+
+    def getChannels(self) -> List['Channel']:
+        """ Get all the `SubChannel` objects that reference this `Sensor`.
+        """
+        channels = []
+        for ch in self.dataset.channels.values():
+            for subc in ch.subchannels:
+                if subc.sensor == self or subc.sensor == self.id:
+                    channels.append(subc)
+        return channels
 
 
 #===============================================================================
@@ -772,7 +821,7 @@ class Channel(Transformable):
         self.hasDisplayRange = displayRange is not None
         
         # Channels have 1 or more subchannels
-        self.subchannels = [None] * len(self.types)
+        self.subchannels: List['SubChannel'] = [None] * len(self.types)
         
         # A set of session EventLists. Populated dynamically with
         # each call to getSession(). 
@@ -791,7 +840,7 @@ class Channel(Transformable):
 
 
     @property
-    def children(self):
+    def children(self) -> List['SubChannel']:
         return list(iter(self))
 
 
@@ -1061,16 +1110,12 @@ class SubChannel(Channel):
         else:
             self.displayName = self.name
 
-        if isinstance(sensorId, int):
-            self.sensor = self.dataset.sensors.get(sensorId, None)
-        elif sensorId is None:
-            if isinstance(parent.sensor, int):
-                self.sensor = self.dataset.sensors.get(parent.sensor, None)
-            else:
-                self.sensor = parent.sensor
-        else:
+        try:
+            sensorId = parent.sensor if sensorId is None else sensorId
+            self.sensor = self.dataset.sensors.get(sensorId, sensorId)
+        except TypeError:
             self.sensor = sensorId
-        
+
         self.types = (parent.types[subchannelId], )
         
         self._sessions = None
@@ -2152,8 +2197,7 @@ class EventArray(Transformable):
         session = self.session
         removeMean = self.removeMean and self.allowMeanRemoval
         _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
-            parent_id = self.subchannelId
+        parent_id = None if self.hasSubchannels else self.subchannelId
 
         if self.useAllTransforms:
             xform = self._fullXform
@@ -2550,14 +2594,14 @@ class EventArray(Transformable):
                 return first
             if outOfRange:
                 return first
-            raise IndexError("Specified time occurs before first event (%d)" % first[0])
+            raise IndexError("Specified time occurs before first event (%s)" % first[0])
         elif startIdx >= len(self) - 1:
             last = self.__getitem__(-1, display=display)
             if last[0] == at:
                 return last
             if outOfRange:
                 return last
-            raise IndexError("Specified time occurs after last event (%d)" % last[0])
+            raise IndexError("Specified time occurs after last event (%s)" % last[0])
         
         startEvt = self.__getitem__(startIdx, display=display)
         endEvt = self.__getitem__(startIdx+1, display=display)
