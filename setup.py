@@ -2,6 +2,7 @@ import codecs
 import os
 import setuptools
 
+
 def read(rel_path):
     here = os.path.abspath(os.path.dirname(__file__))
     with codecs.open(os.path.join(here, rel_path), 'r') as fp:
@@ -67,6 +68,9 @@ setuptools.setup(
         package_data={
             'idelib': ['schemata/*'],
         },
+        entry_points={'console_scripts': [
+            'ide2csv=idelib.tools.ide2csv:main',
+        ]},
         project_urls={
             "Bug Tracker": "https://github.com/MideTechnology/idelib/issues",
             "Documentation": "https://mide-technology-idelib.readthedocs-hosted.com/en/latest/",

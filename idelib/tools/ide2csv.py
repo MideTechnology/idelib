@@ -27,12 +27,12 @@ Updater = importer.SimpleUpdater
 # ===========================================================================
 
 def sanitizeFilename(filename):
-    """ A blunt instrument for coercing filenames into validity.
+    """ A blunt instrument for coercing filenames into validity. It replaces
+        commonly disallowed characters with underscores.
 
         :param filename: The filename to sanitize.
         :returns: The sanitized filename.
     """
-
     for c in """*?!;&$/\\:"', <>|""":
         filename = filename.replace(c, '_')
 
@@ -52,6 +52,7 @@ def showIdeInfo(dataset: Dataset,
         :param extra: A dictionary of extra data to display (i.e. export
             settings).
     """
+    # Serial number formats for different part numbers.
     snFormats = (('W*-*D*', "W{:07d}"),
                  ('S*-*D*', "S{:07d}"),
                  ('H*-*D*', "H{:07d}"),
@@ -250,8 +251,9 @@ def ideExport(ideFilename: str,
         if len(events) == 0:
             continue
 
-        if removeMean and ch.allowMeanRemoval:
-            events.removeMean = True
+        print(f'remove mean from {ch}')
+        if ch.allowMeanRemoval:
+            events.removeMean = removeMean
 
         num, _dt = exporter(events, outName,
                             callback=updater,
@@ -293,7 +295,11 @@ def batchExport(sources: list[str],
             updater(starting=True)
 
         print(f'Converting {source} ({n}/{len(sources)})...', file=out)
-        totalSamples += ideExport(source, out=out, updater=updater, **kwargs)
+
+        try:
+            totalSamples += ideExport(source, out=out, updater=updater, **kwargs)
+        except IOError as err:
+            print(f'Error: {err}', file=out)
 
     return datetime.datetime.now() - t0, totalSamples
 
@@ -314,7 +320,7 @@ def batchInfo(sources: list[str],
 #
 # ===========================================================================
 
-if __name__ == '__main__':
+def main():
     import argparse
     from glob import glob
     import locale
@@ -355,7 +361,7 @@ if __name__ == '__main__':
 
     argparser.add_argument('-i', '--info', action='store_true',
         help="Show information about the file(s) and exit.")
-    argparser.add_argument('source', nargs="+",
+    argparser.add_argument('source', nargs="+", metavar="FILENAME.IDE",
         help="The source .IDE file(s) to convert. Wildcards permitted.")
 
     args = argparser.parse_args()
@@ -397,3 +403,7 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         print("\n*** Conversion canceled!")
         sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()
