@@ -2,56 +2,57 @@
 Batch .IDE Conversion Utility
 """
 
-from datetime import datetime
+import datetime
 from fnmatch import fnmatch
-import locale
 import os
 import sys
-from typing import Optional
+from typing import Any, Callable, IO, Optional
 
 from idelib import __version__, __copyright__
-from idelib.dataset import EventArray
+from idelib.dataset import Dataset, EventArray
 from idelib import importer
 from idelib.matfile import exportMat
+
+# try:
+#     import tqdm.auto
+#     Updater = importer.TQDMUpdater
+# except ModuleNotFoundError:
+#     Updater = importer.SimpleUpdater
+
+Updater = importer.SimpleUpdater
 
 
 # ===========================================================================
 #
 # ===========================================================================
 
-def sanitizeFilename(filename, keepPaths=True):
+def sanitizeFilename(filename):
     """ A blunt instrument for coercing filenames into validity.
 
         :param filename: The filename to sanitize.
-        :param keepPaths: If `True`, only the base filename will be sanitized.
-            If `False`, the file's path will also be sanitized.
         :returns: The sanitized filename.
     """
-    if keepPaths:
-        path, name = os.path.split(filename)
-    else:
-        path, name = "", filename
 
     for c in """*?!;&$/\\:"', <>|""":
-        name = name.replace(c, '_')
+        filename = filename.replace(c, '_')
 
-    while '__' in name:
-        name = name.replace('__', '_')
+    while '__' in filename:
+        filename = filename.replace('__', '_')
 
-    return os.path.join(path, name)
+    return filename
 
 
-def showIdeInfo(dataset, out=sys.stdout, extra=None, **kwargs):
+def showIdeInfo(dataset: Dataset,
+                out: Optional[IO] = None,
+                extra: Optional[dict[str, Any]] = None):
     """ Show information about an IDE file.
 
         :param dataset: The IDE file to show.
         :param out: A filename or stream to which to write.
         :param extra: A dictionary of extra data to display (i.e. export
             settings).
-
-        Other keyword arguments are passed to `importer.openFile`.
     """
-    snFormats = (('W*-*D*', "W{:07d"),
+    snFormats = (('W*-*D*', "W{:07d}"),
                  ('S*-*D*', "S{:07d}"),
                  ('H*-*D*', "H{:07d}"),
                  ("SF-DR4-0[24]*", "S{:07d}"),
@@ -65,16 +66,16 @@ def showIdeInfo(dataset, out=sys.stdout, extra=None, **kwargs):
 
     if isinstance(out, str):
         with open(out, 'wt') as f:
-            return showIdeInfo(dataset, out=f, extra=extra, **kwargs)
+            return showIdeInfo(dataset, out=f, extra=extra)
 
     print(dataset.filename, file=out)
     print("=" * 70, file=out)
     if len(dataset.sessions) > 0:
         st = dataset.sessions[0].utcStartTime
         if st:
-            print(f'Start time: {datetime.utcfromtimestamp(st)} (UTC)', file=out)
+            print(f'Start time: {datetime.datetime.fromtimestamp(st, datetime.UTC)} (UTC)', file=out)
     info = dataset.recorderInfo
-    prodName = info.get('ProductName', 'Unknown Prduct Name')
+    prodName = info.get('ProductName', 'Unknown Product Name')
     partNum = info.get('PartNumber', 'Unknown Part Number')
     sn = info.get('RecorderSerial') or 'Unknown'
     username = info.get('RecorderName')
@@ -144,10 +145,10 @@ def exportCsv(events: EventArray,
 def ideExport(ideFilename: str,
               outFilename: Optional[str] = None,
               channels: Optional[list[int]] = None,
-              visibility: int = 0,
+              visibility: int = 10,
               startTime: Optional[int] = None,
               endTime: Optional[int] = None,
-              out=None,
+              out: Optional[IO] = None,
               outputType: str = ".csv",
               delimiter: str = ', ',
               headers: bool = False,
@@ -156,7 +157,7 @@ def ideExport(ideFilename: str,
               useIsoFormat: bool = False,
               noBivariates: bool = False,
               useNames: bool = False,
-              updater=None,
+              updater: Optional[Callable] = None,
               timeScalar: float = 1.0,
               saveInfo: bool = True) -> int:
     """ The main function that handles generating text files from an IDE file.
@@ -210,16 +211,18 @@ def ideExport(ideFilename: str,
                                            'useUtcTime': useUtcTime,
                                            'useIsoFormat': useIsoFormat})
 
-    if channels is None:
+    if not channels:
         channels = [c.id for c in doc.channels.values()
                     if any(sc.visibility < visibility for sc in c.subchannels)]
 
-    if 8 in channels and 32 not in channels:
-        channels.append(8)
+    loadedChannels = channels[:]
+
+    if 8 in channels and 20 not in channels:
+        loadedChannels.append(20)
 
     importer.readData(doc,
-                      channels=channels,
-                      starTime=startTime,
+                      channels=loadedChannels,
+                      startTime=startTime,
                       endTime=endTime,
                       updater=updater)
 
@@ -237,31 +240,30 @@ def ideExport(ideFilename: str,
     for ch in exportChannels:
         outName = f'{outFilename}_Ch{ch.id:02d}'
         if useNames:
-            outName = f'{outName}_{ch.displayName}'
-        outName = f"{outName}_.{outputType}"
+            outName = f'{outName}_{sanitizeFilename(ch.displayName)}'
+        outName = f"{outName}.{outputType}"
 
         print(f"  Exporting channel {ch.id} ({ch.name}) to {outName}...",
                file=out, flush=(out is not None))
 
-        try:
-            events = ch.getSession()
-            if len(events) == 0:
-                continue
+        events = ch.getSession()
+        if len(events) == 0:
+            continue
 
-            num, _dt = exporter(events, outName,
-                                callback=updater,
-                                timeScalar=timeScalar,
-                                headers=headers,
-                                removeMean=removeMean,
-                                useUtcTime=useUtcTime,
-                                delimiter=delimiter,
-                                useIsoFormat=useIsoFormat,
-                                noBivariates=noBivariates)
+        if removeMean and ch.allowMeanRemoval:
+            events.removeMean = True
 
-            numSamples += num * len(ch.children)
+        num, _dt = exporter(events, outName,
+                            callback=updater,
+                            timeScalar=timeScalar,
+                            headers=headers,
+                            removeMean=removeMean,
+                            useUtcTime=useUtcTime,
+                            delimiter=delimiter,
+                            useIsoFormat=useIsoFormat,
+                            noBivariates=noBivariates)
 
-        except None:
-            pass
+        numSamples += num * len(ch.children)
 
     doc.close()
     return numSamples
@@ -271,45 +273,90 @@ def ideExport(ideFilename: str,
 #
 # ===========================================================================
 
+def batchExport(sources: list[str],
+                out=None,
+                updater=None,
+                **kwargs) -> tuple[datetime.timedelta, int]:
+    """ Batch export a collection of IDE files. See `ideExport()` for
+        all keyword arguments.
+
+        :param sources: A list of IDE files to export.
+        :param out: The output stream for messages, etc.
+        :param updater: Optional 'updater' object; see `idelib.importer`.
+    """
+
+    totalSamples = 0
+    t0 = datetime.datetime.now()
+
+    for n, source in enumerate(sources, 1):
+        if updater:
+            updater(starting=True)
+
+        print(f'Converting {source} ({n}/{len(sources)})...', file=out)
+        totalSamples += ideExport(source, out=out, updater=updater, **kwargs)
+
+    return datetime.datetime.now() - t0, totalSamples
+
+
+def batchInfo(sources: list[str],
+              out: Optional[IO] = None):
+    """ Show information about a collection of IDE files.
+
+        :param sources: A list of IDE files to view.
+        :param out: A filename or stream to which to write. Defaults to `stdout`.
+    """
+    for source in sources:
+        with importer.openFile(source) as doc:
+            showIdeInfo(doc, out=out)
+
+
+# ===========================================================================
+#
+# ===========================================================================
+
 if __name__ == '__main__':
     import argparse
     from glob import glob
+    import locale
+
+    locale.setlocale(locale.LC_ALL, '')
 
     delimiters = {'comma': ', ',
                   'tab': '\t',
                   'pipe': ' | '}
 
+    types = ('csv', 'mat', 'txt')
+
     argparser = argparse.ArgumentParser(
         description=f"Mide Batch .IDE Converter {__version__} - {__copyright__}")
 
     argparser.add_argument('-o', '--output',
-                           help=("The output path to which to save the exported files. "
-                                 "Defaults to the same as the source file."))
-    argparser.add_argument('-t', '--type', choices=('csv', 'mat', 'txt'), default="csv",
-                           help="The type of file to export.")
+        help="The output path to which to save the exported files. Defaults to the same "
+             "location as the source file.")
+    argparser.add_argument('-t', '--type', choices=types, default="csv",
+        help="The type of file to export.")
     argparser.add_argument('-c', '--channel', action='append', type=int,
-                           help=("Export the specific channel. Can be used multiple times. "
-                                 "If not used, all channels will export."))
+        help="Export the specific channel. Can be used multiple times. If not used, "
+             "all channels will export.")
     argparser.add_argument('-m', '--removemean', action='store_true',
-                           help="Remove the mean from accelerometer data.")
+        help="Remove the mean from accelerometer data.")
     argparser.add_argument('-u', '--utc', action='store_true',
-                           help="Write timestamps as UTC 'Unix epoch' time.")
+        help="Write timestamps as UTC 'Unix epoch' time.")
     argparser.add_argument('-n', '--names', action='store_true',
-                           help="Include channel names in exported filenames.")
+        help="Include channel names in exported filenames.")
 
     txtargs = argparser.add_argument_group("Text Export Options (CSV, TXT, etc.)")
     txtargs.add_argument('-r', '--headers', action='store_true',
-                         help=("Write 'header' information (column names) as the first row "
-                               "of text-based export."))
+        help="Write 'header' information (column names) as the first row of text-based export.")
     txtargs.add_argument('-d', '--delimiter', choices=list(delimiters), default="comma",
-                         help="The delimiting character.")
+        help="The delimiting character, for exporting non-CSV text-based files.")
     txtargs.add_argument('-f', '--isoformat', action='store_true',
-                         help="Write timestamps as ISO-formatted UTC.")
+        help="Write timestamps as ISO-formatted UTC.")
 
-    # argparser.add_argument('-i', '--info', action='store_true',
-    #                        help="Show information about the file and exit.")
+    argparser.add_argument('-i', '--info', action='store_true',
+        help="Show information about the file(s) and exit.")
     argparser.add_argument('source', nargs="+",
-                           help="The source .IDE file(s) to convert.")
+        help="The source .IDE file(s) to convert. Wildcards permitted.")
 
     args = argparser.parse_args()
 
@@ -321,35 +368,32 @@ if __name__ == '__main__':
         print("No source files found.", file=sys.stderr, flush=True)
         exit(1)
 
+    if args.info:
+        batchInfo(sources)
+        exit(0)
+
     try:
-        print(f'Converting {len(sources)} file(s)...')
-        totalSamples = 0
-        t0 = datetime.now()
-        updater = importer.SimpleUpdater()
+        delimiter = delimiters.get(args.delimiter, ', ')
+        updater = None  # Updater()
+        tt, ts = batchExport(sources,
+                             outFilename=args.output,
+                             channels=args.channel,
+                             outputType=args.type,
+                             delimiter=delimiter,
+                             headers=args.names,
+                             removeMean=args.removemean,
+                             useUtcTime=args.utc,
+                             useIsoFormat=args.isoformat,
+                             useNames=args.names,
+                             updater=updater)
 
-        for source in sources:
-            updater.precision = max(0, min(2, (len(str(os.path.getsize(source))) / 2) - 1))
-            updater(starting=True)
-
-            print(f'Converting {source}...')
-            totalSamples += ideExport(source,
-                                      outFilename=args.output,
-                                      channels=args.channel,
-                                      outputType=args.type,
-                                      delimiter=delimiters.get(args.delimiter, ', '),
-                                      updater=updater,
-                                      headers=args.names,
-                                      removeMean=args.removemean,
-                                      useUtcTime=args.utc,
-                                      useIsoFormat=args.isoformat,
-                                      useNames=args.names)
-
-        totalTime = datetime.now() - t0
-        tstr = str(totalTime).rstrip('0.')
-        sampSec = locale.format_string("%d", totalSamples/totalTime.total_seconds(), grouping=True)
-        totSamp = locale.format_string("%d", totalSamples, grouping=True)
-        print(f"Conversion complete! Exported {totSamp} samples in {tstr} ({sampSec} samples/sec.)")
+        numfiles = f'{len(sources)} file' + ('s' if len(sources) > 1 else '')
+        tstr = str(tt).rstrip('0.')
+        sampSec = locale.format_string("%d", ts//tt.total_seconds(), grouping=True)
+        totSamp = locale.format_string("%d", ts, grouping=True)
+        print(f"Conversion complete! Exported {totSamp} samples from {numfiles} "
+              f"in {tstr} ({sampSec} samples/sec.)")
 
     except KeyboardInterrupt:
-        print("\n*** Conversion canceled! Export of may be incomplete.")
+        print("\n*** Conversion canceled!")
         sys.exit(0)
