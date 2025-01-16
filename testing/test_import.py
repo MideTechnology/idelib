@@ -1,8 +1,6 @@
 """
 Tests for special features of the importing functions.
 """
-import os.path
-
 import pytest  # type: ignore
 
 from idelib import importer
@@ -32,6 +30,14 @@ class NullUpdater:
 # ==============================================================================
 #
 # ==============================================================================
+
+def test_bad_import():
+    """
+    Basic test that trying to import a non-IDE fails early in the process.
+    """
+    with pytest.raises(IOError, match="Not an IDE file"):
+        _doc = importer.openFile(__file__)
+
 
 class TestImportRange:
 
