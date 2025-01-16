@@ -1,6 +1,8 @@
 """
 Tests for special features of the importing functions.
 """
+from io import BytesIO
+
 import pytest  # type: ignore
 
 from idelib import importer
@@ -35,8 +37,16 @@ def test_bad_import():
     """
     Basic test that trying to import a non-IDE fails early in the process.
     """
+    # Test importing file
     with pytest.raises(IOError, match="Not an IDE file"):
         _doc = importer.openFile(__file__)
+
+    # Test importing from a non-file stream (w/o filename)
+    with pytest.raises(IOError, match="Not an IDE file"):
+        with open(__file__, 'rb') as f:
+            stream = BytesIO(f.read())
+            stream.seek(0)
+            _doc = importer.openFile(stream)
 
 
 class TestImportRange:
