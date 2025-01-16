@@ -1,17 +1,17 @@
 """
-Batch .IDE Conversion Utility
+Batch .IDE Conversion Utility: Export IDE files in various formats.
 """
 
 import datetime
-from fnmatch import fnmatch
 import os
 import sys
-from typing import Any, Callable, IO, Optional
+from typing import Callable, IO, Optional
 
 from idelib import __version__, __copyright__
-from idelib.dataset import Dataset, EventArray
+from idelib.dataset import EventArray
 from idelib import importer
 from idelib.matfile import exportMat
+from idelib.tools.ideinfo import showIdeInfo
 
 # try:
 #     import tqdm.auto
@@ -40,91 +40,6 @@ def sanitizeFilename(filename):
         filename = filename.replace('__', '_')
 
     return filename
-
-
-def showIdeInfo(dataset: Dataset,
-                out: Optional[IO] = None,
-                extra: Optional[dict[str, Any]] = None):
-    """ Show information about an IDE file.
-
-        :param dataset: The IDE file to show.
-        :param out: A filename or stream to which to write.
-        :param extra: A dictionary of extra data to display (i.e. export
-            settings).
-    """
-    # Serial number formats for different part numbers.
-    snFormats = (('W*-*D*', "W{:07d}"),
-                 ('S*-*D*', "S{:07d}"),
-                 ('H*-*D*', "H{:07d}"),
-                 ("SF-DR4-0[24]*", "S{:07d}"),
-                 ("SF-DR4-0[13]*", "W{:07d}"),
-                 ('LOG-0002*', "SSX{:07d}"),
-                 ('LOG-0003*', "SSC{:07d}"),
-                 ('LOG-0004*', "SSS{:07d}"),
-                 ("*", "{07d}"))
-
-    sep = '-' * 40
-
-    if isinstance(out, str):
-        with open(out, 'wt') as f:
-            return showIdeInfo(dataset, out=f, extra=extra)
-
-    print(f'{"=" * 70}\n{dataset.filename}\n{"-" * 70}', file=out)
-    if len(dataset.sessions) > 0:
-        st = dataset.sessions[0].utcStartTime
-        if st:
-            print(f'Start time: {datetime.datetime.fromtimestamp(st, datetime.UTC)} (UTC)', file=out)
-    info = dataset.recorderInfo
-    prodName = info.get('ProductName', 'Unknown Product Name')
-    partNum = info.get('PartNumber', 'Unknown Part Number')
-    sn = info.get('RecorderSerial') or 'Unknown'
-    username = info.get('RecorderName')
-    userdesc = info.get('RecorderDescription')
-
-    if isinstance(sn, int):
-        for match, fmt in snFormats:
-            if fnmatch(partNum, match):
-                sn = fmt.format(sn)
-                break
-
-    if prodName != partNum:
-        prodName = f'{prodName} ({partNum})'
-    print(f'Recorder: {prodName}, serial number {sn}', file=out)
-
-    if username:
-        print(f'Device name: {username}', file=out)
-    if userdesc:
-        print(f'Device description: {userdesc}', file=out)
-
-    print("\nSensors\n" + sep, file=out)
-    for s in sorted(dataset.sensors.values(), key=lambda x: x.id):
-        print(f"  Sensor {s.id}: {s.name}", file=out)
-        if s.traceData:
-            for k, v in s.traceData.items():
-                print(f"    {k}: {v}", file=out)
-
-    print("\nChannels\n" + sep, file=out)
-    for c in sorted(dataset.channels.values(), key=lambda x: x.id):
-        print(f"  Channel {c.id}: {c.displayName}", file=out)
-        for sc in c.subchannels:
-            print(f"    Subchannel {c.id}.{sc.id}: {sc.displayName}", file=out)
-
-    if extra:
-        print("\nExport Options\n" + sep, file=out)
-        if extra.get('headers'):
-            print('  * Column headers', file=out)
-        if extra.get('removeMean'):
-            print('  * Total mean removed from analog channels', file=out)
-        else:
-            print('  * No mean removal from analog channels', file=out)
-
-        if extra.get('useUtcTime'):
-            if extra.get('useIsoFormat'):
-                print('  * Timestamps in ISO format (yyyy-mm-ddThh:mm:ss.s', file=out)
-            else:
-                print("  * Timestamps in absolute UTC 'Unix' time", file=out)
-
-    print("=" * 70, file=out, flush=True)
 
 
 def exportCsv(events: EventArray,
@@ -207,9 +122,9 @@ def ideExport(ideFilename: str,
     if saveInfo:
         with open(f'{outFilename}_info.txt', 'wt') as f:
             showIdeInfo(doc, out=f, extra={'headers': headers,
-                                           'removeMean': removeMean,
-                                           'useUtcTime': useUtcTime,
-                                           'useIsoFormat': useIsoFormat})
+                                            'removeMean': removeMean,
+                                            'useUtcTime': useUtcTime,
+                                            'useIsoFormat': useIsoFormat})
 
     if not channels:
         channels = [c.id for c in doc.channels.values()
@@ -250,7 +165,6 @@ def ideExport(ideFilename: str,
         if len(events) == 0:
             continue
 
-        print(f'remove mean from {ch}')
         if ch.allowMeanRemoval:
             events.removeMean = removeMean
 
@@ -303,21 +217,6 @@ def batchExport(sources: list[str],
     return datetime.datetime.now() - t0, totalSamples
 
 
-def batchInfo(sources: list[str],
-              out: Optional[IO] = None):
-    """ Show information about a collection of IDE files.
-
-        :param sources: A list of IDE files to view.
-        :param out: A filename or stream to which to write. Defaults to `stdout`.
-    """
-    for source in sources:
-        try:
-            with importer.openFile(source) as doc:
-                showIdeInfo(doc, out=out)
-        except IOError as err:
-            print(f'Error: {err}', file=out)
-
-
 # ===========================================================================
 #
 # ===========================================================================
@@ -336,7 +235,7 @@ def main():
     types = ('csv', 'mat', 'txt')
 
     argparser = argparse.ArgumentParser(
-        description=f"Mide Batch .IDE Converter {__version__} - {__copyright__}")
+        description=f"Batch IDE Conversion Utility v{__version__} - {__copyright__}")
 
     argparser.add_argument('-o', '--output',
         help="The output path to which to save the exported files. Defaults to the same "
@@ -361,8 +260,6 @@ def main():
     txtargs.add_argument('-f', '--isoformat', action='store_true',
         help="Write timestamps as ISO-formatted UTC.")
 
-    argparser.add_argument('-i', '--info', action='store_true',
-        help="Show information about the file(s) and exit.")
     argparser.add_argument('source', nargs="+", metavar="FILENAME.IDE",
         help="The source .IDE file(s) to convert. Wildcards permitted.")
 
@@ -375,10 +272,6 @@ def main():
     if not sources:
         print("No source files found.", file=sys.stderr, flush=True)
         exit(1)
-
-    if args.info:
-        batchInfo(sources)
-        exit(0)
 
     try:
         delimiter = delimiters.get(args.delimiter, ', ')

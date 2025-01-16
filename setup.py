@@ -70,6 +70,7 @@ setuptools.setup(
         },
         entry_points={'console_scripts': [
             'ide2csv=idelib.tools.ide2csv:main',
+            'ideinfo=idelib.tools.ideinfo:main',
         ]},
         project_urls={
             "Bug Tracker": "https://github.com/MideTechnology/idelib/issues",
