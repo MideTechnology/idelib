@@ -69,8 +69,7 @@ def showIdeInfo(dataset: Dataset,
         with open(out, 'wt') as f:
             return showIdeInfo(dataset, out=f, extra=extra)
 
-    print(dataset.filename, file=out)
-    print("=" * 70, file=out)
+    print(f'{"=" * 70}\n{dataset.filename}\n{"-" * 70}', file=out)
     if len(dataset.sessions) > 0:
         st = dataset.sessions[0].utcStartTime
         if st:
@@ -150,7 +149,7 @@ def ideExport(ideFilename: str,
               startTime: Optional[int] = None,
               endTime: Optional[int] = None,
               out: Optional[IO] = None,
-              outputType: str = ".csv",
+              outputType: str = "csv",
               delimiter: str = ', ',
               headers: bool = False,
               removeMean: bool = True,
@@ -312,8 +311,11 @@ def batchInfo(sources: list[str],
         :param out: A filename or stream to which to write. Defaults to `stdout`.
     """
     for source in sources:
-        with importer.openFile(source) as doc:
-            showIdeInfo(doc, out=out)
+        try:
+            with importer.openFile(source) as doc:
+                showIdeInfo(doc, out=out)
+        except IOError as err:
+            print(f'Error: {err}', file=out)
 
 
 # ===========================================================================
@@ -368,7 +370,7 @@ def main():
 
     sources = []
     for source in args.source:
-        sources.extend(glob(source))
+        sources.extend([s for s in glob(source) if os.path.isfile(s)])
 
     if not sources:
         print("No source files found.", file=sys.stderr, flush=True)
