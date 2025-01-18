@@ -588,11 +588,48 @@ class Session(object):
         self.endTime = endTime
         self.sessionId = sessionId
         self.utcStartTime = utcStartTime or dataset.lastUtcTime
-        
+
+        self._data = None
+        self._offset = 0
+        self._startTimeOriginal = startTime
+        self._endTimeOriginal = endTime
+        self._utcStartTimeOriginal = utcStartTime
+
         # firstTime and lastTime are the actual last event time. These will
         # typically be the same as startTime and endTime, but not necessarily
         # so.
         self.firstTime = self.lastTime = None
+
+
+    @property
+    def data(self):
+        """ All the Channel-level `EventList` instances in this `Session`,
+            keyed by channel ID.
+        """
+        if not self._data or self.dataset.loading:
+            self._data = {}
+            for chid, ch in self.dataset.channels.items():
+                if self.sessionId in ch.sessions:
+                    self._data[chid] = ch.sessions[self.sessionId]
+        return self._data
+
+
+    @property
+    def offset(self):
+        return self._offset
+
+
+    @offset.setter
+    def offset(self, offset):
+        """ A time offset (in microseconds) for all events, across all
+            Channels, in this `Session`.
+        """
+        self._offset = offset
+        self.startTime = self._startTimeOriginal + offset
+        self.endTime = self._endTimeOriginal + offset
+        self.utcStartTime = self._utcStartTimeOriginal + offset
+        for d in self.data.values():
+            d._setOffset(offset)
 
 
     def __repr__(self):
@@ -1358,6 +1395,18 @@ class EventArray(Transformable):
         self._cacheLen = 0
 
 
+    def _setOffset(self, offset):
+        """ Apply an offset to the `EventArray` timestamps. Do not use
+            directly; use `Session.offset`.
+        """
+        for d in self._data:
+            d.startTime = d.startTimeOriginal + offset
+            d.endTime = d.endTimeOriginal + offset
+
+        # XXX: Can probably skip this if the dataset is loading
+        self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + offset
+
+
     @property
     def rollingMeanSpan(self):
         return self._rollingMeanSpan
@@ -1389,7 +1438,7 @@ class EventArray(Transformable):
                 sessionId = self.session.sessionId if self.session is not None else None
                 children = []
                 dispX = []
-                for x,sc in zip(xs,self.parent.subchannels):
+                for x, sc in zip(xs, self.parent.subchannels):
                     if sessionId in sc.sessions:
                         cl = sc.sessions[sessionId]
                         if cl.transform is None:
@@ -1467,14 +1516,18 @@ class EventArray(Transformable):
             # Set the session first/last times if they aren't already set.
             # Possibly redundant if all sessions are 'closed.'
             if self.session.firstTime is None:
-                self.session.firstTime = block.startTime
+                self.session.firstTimeOriginal = block.startTime
+                self.session.firstTime = block.startTime + self.session._offset
             else:
-                self.session.firstTime = min(self.session.firstTime, block.startTime)
+                self.session.firstTimeOriginal = min(self.session.firstTimeOriginal, block.startTime)
+                self.session.firstTime = self.session.firstTimeOriginal + self.session._offset
 
             if self.session.lastTime is None:
-                self.session.lastTime = block.endTime
+                self.session.lastTimeOriginal = block.endTime
+                self.session.lastTime = block.endTime + self.session._offset
             else:
-                self.session.lastTime = max(self.session.lastTime, block.endTime)
+                self.session.lastTimeOriginal = max(self.session.lastTimeOriginal, block.endTime)
+                self.session.lastTime = self.session.lastTimeOriginal + self.session._offset
 
             # Check that the block actually contains at least one sample.
             if block.numSamples < 1:
@@ -1603,7 +1656,7 @@ class EventArray(Transformable):
         return blockIdx
         '''
         if len(self._blockTimesArray) != len(self._blockTimes):
-            self._blockTimesArray = np.array(self._blockTimes)
+            self._blockTimesArray = np.array(self._blockTimes) + self.session._offset
 
         idxOffset = max(start, 1)
         return idxOffset-1 + np.searchsorted(
@@ -1628,8 +1681,8 @@ class EventArray(Transformable):
         span = self.rollingMeanSpan
         
         if (block._rollingMean is not None 
-            and block._rollingMeanSpan == span 
-            and block._rollingMeanLen == len(self._data)):
+                and block._rollingMeanSpan == span
+                and block._rollingMeanLen == len(self._data)):
             return block._rollingMean
 
         self._computeMinMeanMax()
@@ -2773,7 +2826,6 @@ class EventArray(Transformable):
                 transform (e.g. unit conversion).
             :return: Tuple: The number of rows exported and the elapsed time.
         """
-        noCallback = callback is None
         _self = self.copy()
 
         if noBivariates is not None:

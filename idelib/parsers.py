@@ -793,11 +793,11 @@ class ChannelDataBlock(BaseDataBlock):
                 parseAttribute(self, el)
                 el.gc()
             elif el.name == "StartTimeCodeAbs":
-                # TODO: store indicator that the start timestamp is non-modulo?
+                # FUTURE: store indicator that the start timestamp is non-modulo?
                 self.startTime = el.value
                 self._timestamp = el.value
             elif el.name == "EndTimeCodeAbs":
-                # TODO: store indicator that the end timestamp is non-modulo?
+                # FUTURE: store indicator that the end timestamp is non-modulo?
                 self.endTime = el.value
             elif el.name == "ChannelFlags":
                 # FUTURE: Handle channel flag bits
@@ -805,17 +805,23 @@ class ChannelDataBlock(BaseDataBlock):
             # Add other child element handlers here.
         
         element.gc(recurse=False)
-        
+
         # Single-sample blocks have a total time of 0. Old files did not write
         # the end timestamp; if it's missing, duplicate the starting time.
         if self.endTime is None:
             self.endTime = self.startTime
 
-        self._payload = None
+        # Original start/end times, so `startTime`/`endTime` can be modified
+        # for syncing and reverted. Also, some functions need the originals.
+        self.startTimeOriginal = self.startTime
+        self.endTimeOriginal = self.endTime
 
+        self._payload = None
         self._parser = None
-        self._streamDtype = None
-        self._commonDtype = None
+
+        # TODO: These don't seem to be used. Remove?
+        # self._streamDtype = None
+        # self._commonDtype = None
 
     @property
     def payload(self):
