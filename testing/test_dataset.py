@@ -620,20 +620,6 @@ class TestSensor(unittest.TestCase):
         self.assertEqual(sensor3.name, "Sensor03")
 
 
-    def testGetItem(self):
-        """ Test for the __getitem__ method. """
-        self.sensor1.channels = {'a': 2, 'b': 3, 'e': 4, 'test': 5}
-        for x in self.sensor1.channels:
-            self.assertEqual(self.sensor1[x], self.sensor1.channels[x])
-
-
-    def testChildren(self):
-        """ Test the children property. """
-        self.sensor1.channels = {1: "1"}
-        self.assertEqual(self.sensor1.children, ["1"])
-        self.assertEqual(self.sensor2.children, [])
-
-
     @unittest.skip('Test not properly implemented; needs to be rewritten.')
     def testBandwidthCutoff(self):
         """ Test the bandwidthCutoff property. """

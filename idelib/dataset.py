@@ -702,12 +702,13 @@ class Sensor(Cascading):
         self.dataset = dataset
         self.parent = dataset
         self.id = sensorId
-        self.channels = {}  # For future use
         self.traceData = traceData
         self.attributes = attributes
         self.sourceName = sourceName
         self.sourceId = sourceId
         self.relative = bool(relative)
+
+        self._channels = None
 
         # Not currently used:
         self.bandwidthLimitId = bandwidthLimitId
@@ -716,15 +717,6 @@ class Sensor(Cascading):
         self._transform = transform
 
 
-    def __getitem__(self, idx):
-        return self.channels[idx]
-
-
-    @property
-    def children(self):
-        return list(self.channels.values())
-
-    
     @property
     def bandwidthCutoff(self):
         if self._bandwidthCutoff is None:
@@ -762,21 +754,22 @@ class Sensor(Cascading):
                and self.dataset == other.dataset \
                and self.parent == other.parent \
                and self.id == other.id \
-               and self.channels == other.channels \
                and self.traceData == other.traceData \
                and self.attributes == other.attributes \
                and self.bandwidthLimitId == other.bandwidthLimitId
 
 
-    def getChannels(self) -> List['Channel']:
+    def getReferers(self) -> List['SubChannel']:
         """ Get all the `SubChannel` objects that reference this `Sensor`.
         """
-        channels = []
-        for ch in self.dataset.channels.values():
-            for subc in ch.subchannels:
-                if subc.sensor == self or subc.sensor == self.id:
-                    channels.append(subc)
-        return channels
+        if not self._channels or self.dataset.loading:
+            channels = []
+            for ch in self.dataset.channels.values():
+                for subc in ch.subchannels:
+                    if subc.sensor == self or subc.sensor == self.id:
+                        channels.append(subc)
+            self._channels = channels
+        return self._channels
 
 
 #===============================================================================
@@ -839,7 +832,6 @@ class Channel(Transformable):
         if isinstance(sensor, int):
             sensor = self.dataset.sensors.get(sensor, None)
         if sensor is not None:
-            sensor.channels[channelId] = self
             sensorname = sensor.name
         
         if name is None:
@@ -1645,7 +1637,8 @@ class EventArray(Transformable):
             :keyword start: The first block index to search
             :keyword stop: The last block index to search
         """
-        # TODO: profile & determine if this change is beneficial
+        # TODO: profile & determine if this change is beneficial. I'm not
+        #  sure the new version was ever actually profiled vs. the old.
         '''
         if stop:
             blockIdx = bisect_right(self._blockTimes, t, start, stop)
@@ -1657,6 +1650,11 @@ class EventArray(Transformable):
         '''
         if len(self._blockTimesArray) != len(self._blockTimes):
             self._blockTimesArray = np.array(self._blockTimes) + self.session._offset
+
+        if t is None or t < self._blockTimesArray[0]:
+            return 0
+        elif t > self._blockTimesArray[-1]:
+            return len(self._blockTimesArray)
 
         idxOffset = max(start, 1)
         return idxOffset-1 + np.searchsorted(
