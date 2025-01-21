@@ -359,11 +359,6 @@ class Dataset(Cascading):
         """
         cs = self.currentSession
         if cs is not None:
-            if cs.startTime is None:
-                cs.startTime = cs.firstTime
-            if cs.endTime is None:
-                cs.endTime = cs.lastTime
-                
             self.currentSession = None
         
     
@@ -571,7 +566,7 @@ class Session(object):
     def __init__(self, dataset, sessionId=0, startTime=None, endTime=None,
                  utcStartTime=None):
         """ Constructor. This should generally be done indirectly via
-            `Dataset.addSession()`.
+            `Dataset.addSession()` as part of the import process.
             
             :param dataset: The parent `Dataset`
             :keyword sessionId: The Session's numeric ID. Typically
@@ -584,21 +579,50 @@ class Session(object):
                 POSIX/epoch timestamp.
         """
         self.dataset = dataset
-        self.startTime = startTime
-        self.endTime = endTime
         self.sessionId = sessionId
-        self.utcStartTime = utcStartTime or dataset.lastUtcTime
+        self.utcStartTimeOriginal = utcStartTime or dataset.lastUtcTime
+        self.utcStartTime = self.utcStartTimeOriginal
 
         self._data = None
         self._offset = 0
-        self._startTimeOriginal = startTime
-        self._endTimeOriginal = endTime
-        self._utcStartTimeOriginal = utcStartTime
 
         # firstTime and lastTime are the actual last event time. These will
         # typically be the same as startTime and endTime, but not necessarily
         # so.
-        self.firstTime = self.lastTime = None
+        self.firstTimeOriginal = self.firstTime = startTime
+        self.lastTimeOriginal = self.lastTime = endTime
+
+
+    @property
+    def startTime(self):
+        warnings.warn('Session.startTime is deprecated, and will be removed in the'
+                      'near future. Use Session.firstTime instead. ',
+                      PendingDeprecationWarning)
+        return self.firstTime
+
+
+    @startTime.setter
+    def startTime(self, val):
+        warnings.warn('Session.startTime is deprecated, and will be removed in the'
+                      'near future. Use Session.firstTime instead. ',
+                      PendingDeprecationWarning)
+        self.firstTime = val
+
+
+    @property
+    def endTime(self):
+        warnings.warn('Session.endTime is deprecated, and will be removed in the'
+                      'near future. Use Session.lastTime instead. ',
+                      PendingDeprecationWarning)
+        return self.lastTime
+
+
+    @endTime.setter
+    def endTime(self, val):
+        warnings.warn('Session.endTime is deprecated, and will be removed in the'
+                      'near future. Use Session.lastTime instead. ',
+                      PendingDeprecationWarning)
+        self.lastTime = val
 
 
     @property
@@ -625,9 +649,9 @@ class Session(object):
             Channels, in this `Session`.
         """
         self._offset = offset
-        self.startTime = self._startTimeOriginal + offset
-        self.endTime = self._endTimeOriginal + offset
-        self.utcStartTime = self._utcStartTimeOriginal + offset
+        self.firstTime = self.firstTimeOriginal + offset
+        self.lastTime = self.lastTimeOriginal + offset
+        self.utcStartTime = self.utcStartTimeOriginal + offset / 10 ** 6
         for d in self.data.values():
             d._setOffset(offset)
 
@@ -645,8 +669,6 @@ class Session(object):
             return False
         else:
             return self.dataset == other.dataset \
-               and self.startTime == other.startTime \
-               and self.endTime == other.endTime \
                and self.sessionId == other.sessionId \
                and self.utcStartTime == other.utcStartTime \
                and self.firstTime == other.firstTime \
@@ -1306,7 +1328,7 @@ class EventArray(Transformable):
         self.dataset = parentChannel.dataset
         self.hasSubchannels = not isinstance(self.parent, SubChannel)
         self._parentList = parentList
-        self._childLists = []
+        self._childLists = []  # TODO: Remove _childLists (seems deprecated)
         
         self.noBivariates = False
 
@@ -1319,26 +1341,33 @@ class EventArray(Transformable):
             # Cache of block start times and sample indices for faster search
             self._blockTimes = []
             self._blockIndices = []
+            self._blockIndicesArray = np.array([], dtype=np.float64)
+            self._blockTimesArray = np.array([], dtype=np.float64)
         else:
             s = self.session.sessionId if session is not None else None
             ps = parentChannel.parent.getSession(s)
             self._blockTimes = ps._blockTimes
             self._blockIndices = ps._blockIndices
+            self._blockIndicesArray = ps._blockIndicesArray
+            self._blockTimesArray = ps._blockTimesArray
 
             self.noBivariates = ps.noBivariates
-        
+
         if self.hasSubchannels:
             self.channelId = self.parent.id
             self.subchannelId = None
+            self.parseBlock = self.parent.parseBlock
         else:
             self.channelId = self.parent.parent.id
             self.subchannelId = self.parent.id
-        
+            self.parseBlock = self.parent.parent.parseBlock
+
         self._hasSubsamples = False
         
         self.hasDisplayRange = self.parent.hasDisplayRange
         self.displayRange = self.parent.displayRange
 
+        self._mean = None
         self.removeMean = False
         self.hasMinMeanMax = True
         self._rollingMeanSpan = None
@@ -1349,16 +1378,22 @@ class EventArray(Transformable):
         self.updateTransforms(recurse=False)
         self.allowMeanRemoval = parentChannel.allowMeanRemoval    
 
-        if self.hasSubchannels:
-            self.parseBlock = self.parent.parseBlock
-        else:
-            self.parseBlock = self.parent.parent.parseBlock
+        self._npType = np.uint8
+        self._makeDType()
 
-        self._blockIndicesArray = np.array([], dtype=np.float64)
-        self._blockTimesArray = np.array([], dtype=np.float64)
+        self._channelDataLock = parentChannel.dataset._channelDataLock
+        self._cacheArray = None
+        self._cacheBytes = None
+        self._fullyCached = False
+        self._cacheStart = None
+        self._cacheEnd = None
+        self._cacheBlockStart = None
+        self._cacheBlockEnd = None
+        self._cacheLen = 0
 
-        self._mean = None
 
+    def _makeDType(self):
+        """ Construct the Numpy type for the channel's payload. """
         _format = self.parent.parser.format
         if not _format:
             self._npType = np.uint8
@@ -1375,16 +1410,6 @@ class EventArray(Transformable):
                 dtypes = [ChannelDataBlock.TO_NP_TYPESTR[x] for x in str(_format)]
 
             self._npType = np.dtype([(str(i), dtype) for i, dtype in enumerate(dtypes)])
-
-        self._channelDataLock = parentChannel.dataset._channelDataLock
-        self._cacheArray = None
-        self._cacheBytes = None
-        self._fullyCached = False
-        self._cacheStart = None
-        self._cacheEnd = None
-        self._cacheBlockStart = None
-        self._cacheBlockEnd = None
-        self._cacheLen = 0
 
 
     def _setOffset(self, offset):
@@ -1520,6 +1545,7 @@ class EventArray(Transformable):
             else:
                 self.session.lastTimeOriginal = max(self.session.lastTimeOriginal, block.endTime)
                 self.session.lastTime = self.session.lastTimeOriginal + self.session._offset
+
 
             # Check that the block actually contains at least one sample.
             if block.numSamples < 1:

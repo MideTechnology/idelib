@@ -60,7 +60,7 @@ def getSyncTimeZero(data: Union[Dataset, EventArray],
         sources = getSyncSources(data)
         if not sources:
             raise ValueError('Dataset does not contain any sync sources')
-        return getSyncTimeZero(sources[0])
+        return getSyncTimeZero(sources[0], startTime, endTime)
 
     if startTime is None and endTime is None:
         timestamp, synctime = data[0]

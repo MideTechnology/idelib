@@ -1289,6 +1289,7 @@ class TimeBaseUTCParser(ElementHandler):
         val = element.value
         self.doc.lastUtcTime = val
         self.doc.lastSession.utcStartTime = val
+        self.doc.lastSession.utcStartTimeOriginal = val
 
 
 class RecorderUserDataParser(ElementHandler):
