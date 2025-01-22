@@ -592,6 +592,8 @@ class Session(object):
         self.firstTimeOriginal = self.firstTime = startTime
         self.lastTimeOriginal = self.lastTime = endTime
 
+        self.syncZero = None
+
 
     @property
     def startTime(self):
@@ -651,7 +653,7 @@ class Session(object):
         self._offset = offset
         self.firstTime = self.firstTimeOriginal + offset
         self.lastTime = self.lastTimeOriginal + offset
-        self.utcStartTime = self.utcStartTimeOriginal + offset / 10 ** 6
+        # self.utcStartTime = self.utcStartTimeOriginal + offset / 10 ** 6
         for d in self.data.values():
             d._setOffset(offset)
 
@@ -670,9 +672,9 @@ class Session(object):
         else:
             return self.dataset == other.dataset \
                and self.sessionId == other.sessionId \
-               and self.utcStartTime == other.utcStartTime \
-               and self.firstTime == other.firstTime \
-               and self.lastTime == other.lastTime
+               and self.utcStartTimeOriginal == other.utcStartTimeOriginal \
+               and self.firstTimeOriginal == other.firstTimeOriginal \
+               and self.lastTimeOriginal == other.lastTimeOriginal
         
 #===============================================================================
 # 
@@ -740,6 +742,10 @@ class Sensor(Cascading):
         self._transform = transform
 
 
+    def __repr__(self):
+        return f"<{type(self).__name__} {self.id} '{self.path()}' at 0x{id(self):08x}>"
+
+
     @property
     def bandwidthCutoff(self):
         if self._bandwidthCutoff is None:
@@ -791,7 +797,7 @@ class Sensor(Cascading):
                and self.bandwidthLimitId == other.bandwidthLimitId
 
 
-    def getReferers(self) -> List['SubChannel']:
+    def getReferrers(self) -> List['SubChannel']:
         """ Get all the `SubChannel` objects that reference this `Sensor`.
         """
         if not self._channels or self.dataset.loading:
