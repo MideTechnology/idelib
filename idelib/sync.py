@@ -4,7 +4,7 @@ Functions to assist in syncing one file to another.
 
 from typing import List, Optional, Union
 
-from idelib.dataset import Dataset, EventArray, Sensor, Session, SubChannel
+from idelib.dataset import Dataset, EventArray, Sensor, SubChannel
 
 
 # ===========================================================================
@@ -68,3 +68,12 @@ def getSyncTimeZero(data: Union[Dataset, EventArray],
         timestamp, synctime = data.getRange(startTime, endTime).mean(axis=1)
 
     return synctime - timestamp
+
+
+def canSync(dataset1: Dataset, dataset2: Dataset) -> bool:
+    sources1 = set((s.id, s.sourceId) for s in getSyncSensors(dataset1))
+    sources2 = set((s.id, s.sourceId) for s in getSyncSensors(dataset2))
+    if not sources1.difference(sources2):
+        return False
+    # TODO: Check compatible times?
+    return True

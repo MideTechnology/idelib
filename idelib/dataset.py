@@ -731,6 +731,7 @@ class Sensor(Cascading):
         self.relative = bool(relative)
 
         self._channels = None
+        self._hash = None
 
         # Not currently used:
         self.bandwidthLimitId = bandwidthLimitId
@@ -766,6 +767,15 @@ class Sensor(Cascading):
         return self._bandwidthRolloff
 
 
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash((self.name, self.id,
+                               self.sourceName, self.sourceId,
+                               repr(self.traceData), repr(self.attributes),
+                               self.bandwidthLimitId))
+        return self._hash
+
+
     def __eq__(self, other):
         if other is self:
             return True
@@ -773,10 +783,10 @@ class Sensor(Cascading):
             return False
         else:
             return self.name == other.name \
-               and self.dataset == other.dataset \
-               and self.parent == other.parent \
                and self.id == other.id \
                and self.traceData == other.traceData \
+               and self.sourceId == other.sourceId \
+               and self.sourceName == other.sourceName \
                and self.attributes == other.attributes \
                and self.bandwidthLimitId == other.bandwidthLimitId
 
