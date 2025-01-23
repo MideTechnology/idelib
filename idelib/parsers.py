@@ -731,15 +731,18 @@ class SimpleChannelDataBlockParser(ElementHandler):
             # TODO: Actually handle, instead of ignoring?
             logger.warning("XXX: bad attribute in element %s" % element)
             return 0
-            
-        
+
         block.startTime = timeOffset + int(self.fixOverflow(block, timestamp))
         if block.endTime is not None:
             block.endTime = timeOffset + int(self.fixOverflow(block, block.endTime))
 
+        block.startTimeOriginal = block.startTime
+        block.endTimeOriginal = block.endTime
+
         if channel not in self.doc.channels:
             # Unknown channel; could be debugging info, so that might be okay.
             # FUTURE: Better handling of unknown channel types. Low priority.
+            logger.debug(f'Got ChannelDataBlock for unknown channel ID: {channel}')
             return 0
 
         try:

@@ -642,6 +642,9 @@ class Session(object):
 
     @property
     def offset(self):
+        """ A time offset (in microseconds) for all events, across all
+            Channels, in this `Session`.
+        """
         return self._offset
 
 
@@ -653,12 +656,13 @@ class Session(object):
         self._offset = offset
         self.firstTime = self.firstTimeOriginal + offset
         self.lastTime = self.lastTimeOriginal + offset
-        # self.utcStartTime = self.utcStartTimeOriginal + offset / 10 ** 6
         for d in self.data.values():
+            # TODO: Exclude time sync channel?
             d._setOffset(offset)
 
 
     def __repr__(self):
+        """ Return repr(self). """
         return "<%s (id=%s) at 0x%08X>" % (self.__class__.__name__, 
                                            self.sessionId, id(self))
     
@@ -1405,7 +1409,7 @@ class EventArray(Transformable):
         self._cacheEnd = None
         self._cacheBlockStart = None
         self._cacheBlockEnd = None
-        self._cacheLen = 0
+        # self._cacheLen = 0
 
 
     def _makeDType(self):
@@ -1419,7 +1423,7 @@ class EventArray(Transformable):
             if isinstance(_format, bytes):
                 _format = _format.decode()
 
-            if _format[0] in ['<', '>', '=']:
+            if _format[0] in '<>=':
                 endian = _format[0]
                 dtypes = [endian + ChannelDataBlock.TO_NP_TYPESTR[x] for x in _format[1:]]
             else:
@@ -1591,7 +1595,7 @@ class EventArray(Transformable):
             # HACK (somewhat): Single-sample-per-block channels get min/mean/max
             # which is just the same as the value of the sample. Set the values,
             # but don't set hasMinMeanMax.
-            if self._singleSample is True:# and not self.hasMinMeanMax:
+            if self._singleSample is True:  # and not self.hasMinMeanMax:
                 block.minMeanMax = np.tile(block.payload, 3)
                 mmmArr = np_recfunctions.structured_to_unstructured(
                         block._minMeanMax.view(self._npType))
@@ -1936,9 +1940,11 @@ class EventArray(Transformable):
             out = np.empty((len(rawData.dtype), len(rawData)))
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out, noBivariates=self.noBivariates)
+            xform.polys[self.subchannelId].inplace(rawData, out=out,
+                                                   noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out, noBivariates=self.noBivariates)
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T,
+                          out=out, noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -2002,9 +2008,11 @@ class EventArray(Transformable):
         self._inplaceTime(start, end, step, out=out[0])
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=self.noBivariates)
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0],
+                                                   noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out[1:], timestamp=out[0], noBivariates=self.noBivariates)
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T,
+                          out=out[1:], timestamp=out[0], noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -2032,7 +2040,8 @@ class EventArray(Transformable):
 
         self._computeMinMeanMax()
 
-        data = self.arrayJitterySlice(start=start, end=end, step=step, jitter=jitter, display=display)
+        data = self.arrayJitterySlice(start=start, end=end, step=step,
+                                      jitter=jitter, display=display)
 
         yield from data.T
         
@@ -2104,10 +2113,12 @@ class EventArray(Transformable):
 
         noBivariates = self.noBivariates
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=noBivariates)
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0],
+                                                   noBivariates=noBivariates)
         else:
             for i, (k, _) in enumerate(rawData.dtype.descr):
-                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0], noBivariates=noBivariates)
+                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0],
+                                       noBivariates=noBivariates)
 
         return out
 
