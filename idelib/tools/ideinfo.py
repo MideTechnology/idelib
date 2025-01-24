@@ -60,7 +60,7 @@ def showIdeInfo(dataset: Dataset,
     if len(dataset.sessions) > 0:
         st = dataset.sessions[0].utcStartTime
         if st:
-            print(f'Start time: {datetime.datetime.fromtimestamp(st, datetime.UTC)} (UTC)', file=out)
+            print(f'Start time: {datetime.datetime.utcfromtimestamp(st)} (UTC)', file=out)
         if filename:
             start, end = util.getLength(dataset)
             print(f'Duration: {datetime.timedelta(microseconds=end - start)}', file=out)
