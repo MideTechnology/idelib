@@ -221,7 +221,7 @@ def batchExport(sources: list[str],
 #
 # ===========================================================================
 
-def main():
+def main(argv=None):
     import argparse
     from glob import glob
     import locale
@@ -263,7 +263,7 @@ def main():
     argparser.add_argument('source', nargs="+", metavar="FILENAME.IDE",
         help="The source .IDE file(s) to convert. Wildcards permitted.")
 
-    args = argparser.parse_args()
+    args = argparser.parse_args(argv)
 
     sources = []
     for source in args.source:

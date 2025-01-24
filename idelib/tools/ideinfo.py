@@ -147,7 +147,7 @@ def batchInfo(sources: list[str],
 #
 # ===========================================================================
 
-def main():
+def main(argv=None):
     import argparse
     from glob import glob
 
@@ -159,7 +159,7 @@ def main():
     argparser.add_argument('source', nargs="+", metavar="FILENAME.IDE",
         help="The source .IDE file(s) to convert. Wildcards permitted.")
 
-    args = argparser.parse_args()
+    args = argparser.parse_args(argv)
 
     sources = []
     for source in args.source:
@@ -173,8 +173,6 @@ def main():
         batchInfo(sources, out=args.output)
     except KeyboardInterrupt:
         pass
-
-    exit(0)
 
 
 if __name__ == '__main__':
