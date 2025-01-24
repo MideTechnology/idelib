@@ -59,7 +59,7 @@ def exportCsv(events: EventArray,
 
 def ideExport(ideFilename: str,
               outFilename: Optional[str] = None,
-              channels: Optional[list[int]] = None,
+              channels: Optional[List[int]] = None,
               visibility: int = 10,
               startTime: Optional[int] = None,
               endTime: Optional[int] = None,
