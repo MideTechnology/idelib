@@ -47,7 +47,7 @@ __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
            'SubChannel', 'WarningRange', 'Cascading', 'Transformable']
 
 from collections.abc import Iterable, Sequence
-import datetime
+from datetime import datetime
 from math import ceil
 from threading import Lock
 from typing import Any, Dict, List, Optional, Union, Type
@@ -665,7 +665,7 @@ class Session(object):
         """ Return repr(self). """
         return "<%s %s (%s)>" % (self.__class__.__name__,
                                     self.sessionId,
-                                    datetime.datetime.fromtimestamp(self.utcStartTime, datetime.UTC))
+                                    datetime.utcfromtimestamp(self.utcStartTime))
     
     
     def __eq__(self, other):
@@ -2886,7 +2886,7 @@ class EventArray(Transformable):
         # Create a function for formatting the event time.        
         if useUtcTime and _self.session.utcStartTime:
             if useIsoFormat:
-                timeFormatter = lambda x: datetime.datetime.fromtimestamp(x[0] * timeScalar + _self.session.utcStartTime, datetime.UTC).isoformat()
+                timeFormatter = lambda x: datetime.utcfromtimestamp(x[0] * timeScalar + _self.session.utcStartTime).isoformat()
             else:
                 timeFormatter = lambda x: dataFormat % (x[0] * timeScalar + _self.session.utcStartTime)
         else:
@@ -2920,7 +2920,7 @@ class EventArray(Transformable):
         totalSamples = totalLines * numChannels
         updateInt = int(totalLines * callbackInterval)
         
-        t0 = datetime.datetime.now()
+        t0 = datetime.now()
         if headers:
             stream.write('"Time"%s%s\n' % 
                          (delimiter, delimiter.join(['"%s"' % n for n in names])))
@@ -2951,7 +2951,7 @@ class EventArray(Transformable):
             elif callback is not None:
                 callback(error=e)
 
-        return num+1, datetime.datetime.now() - t0
+        return num+1, datetime.now() - t0
 
     def fillCache(self):
         with self.dataset._channelDataLock:
