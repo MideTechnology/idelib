@@ -1,5 +1,8 @@
 """
 Functions to assist in syncing one file to another.
+
+NOTE: This is currently a proof of concept. Some functionality may eventually
+be rolled directly into classes in `idelib.dataset`.
 """
 
 from typing import List, Optional, Union
@@ -42,23 +45,25 @@ def getSyncSources(doc: Dataset) -> List[SubChannel]:
 # ===========================================================================
 
 def getSyncTimeZero(data: Union[Dataset, EventArray],
-                    startTime: Optional[int] = None,
-                    endTime: Optional[int] = None) -> int:
-    """ Get the sync reference time corresponding to the recording's
-        relative timestamp zero. Note: if both `startTime` and `endTime`
-        are `None`, the recording's first sync timestamp in the recording
-        is used. In some cases, single values may be off, and a mean
-        over some interval of time used instead.
+                    start: Optional[int] = None,
+                    end: Optional[int] = None) -> int:
+    """ Get the sync reference's time corresponding to the recording's
+        relative timestamp zero.
+
+        Note: if both `start` and `end` are `None`, the recording's first
+        reference timestamp is used. However, in some cases, individual
+        values may vary, and a mean of multiple time reference values is
+        more accurate. To use the mean of all reference values, use
+        `start=0` and no `end`.
 
         :param data: The data from which to get the reference time. It can
             be either a `Dataset` (in which case it uses the first sync
-            source found) or an `EventArray` (to use a specific subchannel).
-        :param startTime: The start of a time range (relative to the
-            recording's timestamps) from which to average the sync
-            zero offset. For use with noisy sync times.
-        :param endTime: The end of a time range (relative to the
-            recording's timestamps) from which to average the sync
-            zero offset. For use with noisy sync times.
+            source found) or an `EventArray` (to use a specific subchannel
+            as the time reference).
+        :param start: The starting index into the time reference data. For
+            use with noisy sync times.
+        :param end: The ending index into the time reference data. For
+            use with noisy sync times.
         :returns: The sync reference time (in microseconds) corresponding to
             the recording's relative timestamp zero.
     """
@@ -73,15 +78,14 @@ def getSyncTimeZero(data: Union[Dataset, EventArray],
         sync = data
 
     if len(sync) == 0:
-        raise SyncError(f'No sync reference data in {data}')
+        raise SyncError(f'No sync reference data in {data} - was it not fully imported?')
 
-    if startTime is None and endTime is None:
+    if start is None and end is None:
         timestamp, synctime = sync[0]
     else:
-        timestamp, synctime = sync.getRange(startTime, endTime).mean(axis=1)
+        timestamp, synctime = sync.arraySlice(start, end).mean(axis=1)
 
     return synctime - timestamp
-
 
 
 def getCommonSensorIds(*datasets: Dataset) -> List[int]:
@@ -106,19 +110,29 @@ def getCommonSensorIds(*datasets: Dataset) -> List[int]:
     return [s.id for s in sources]
 
 
-def sync(reference: Dataset, *datasets: Dataset):
+# ===========================================================================
+#
+# ===========================================================================
+
+def sync(reference: Dataset, *datasets: Dataset,
+         start: Optional[int] = None,
+         end: Optional[int] = None):
     """ Synchronize one or more recordings with a canonical 'reference'
-        recording. The 'reference' is not modified.
+        recording. The 'reference' is not modified. Synched recordings
+        will have their timestamps and UTC start time offset to match
+        the reference.
     """
+    if len(datasets) < 1:
+        raise SyncError('At least one dataset to sync is required')
+
     # NOTE: This assumes there is only one session, only one reference time
     #  sensor, and only one subchannel for the reference time.
-    alldata = (reference, *datasets)
-    sensorId = getCommonSensorIds(*alldata)[0]
+    sensorId = getCommonSensorIds(reference, *datasets)[0]
 
     for ds in (reference, *datasets):
         ch = ds.sensors[sensorId].getReferrers()[0]
         ref = ch.getSession()
-        ds.currentSession.syncZero = getSyncTimeZero(ref)
+        ds.currentSession.syncZero = getSyncTimeZero(ref, start=start, end=end)
 
     refzero = reference.currentSession.syncZero
     refutc = reference.currentSession.utcStartTime
@@ -127,5 +141,3 @@ def sync(reference: Dataset, *datasets: Dataset):
         offset = ds.currentSession.syncZero - refzero
         ds.currentSession.offset = offset
         ds.currentSession.utcStartTime = refutc
-
-

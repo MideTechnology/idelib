@@ -564,6 +564,7 @@ class TestSession(unittest.TestCase):
 
     def testInitAndEQ(self):
         self.dataset = importer.importFile('./testing/SSX70065.IDE')
+        # TODO: Change these Sessions, they aren't realistic.
         session1 = Session(
             self.dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
         session2 = Session(
@@ -573,19 +574,20 @@ class TestSession(unittest.TestCase):
         self.assertNotEqual(session1, GenericObject())
 
         self.assertEqual(session1.dataset, self.dataset)
-        self.assertEqual(session1.endTime, 3)
         self.assertEqual(session1.sessionId, 1)
-        self.assertEqual(session1.startTime, 2)
+        self.assertEqual(session1.firstTime, 2)
+        self.assertEqual(session1.lastTime, 3)
         self.assertEqual(session1.utcStartTime, 4)
 
 
     def testRepr(self):
         """ Test that __repr__ is creating the correct string. """
+        # TODO: Not realistic. Redo or remove this test.
         fileStream = makeStreamLike('./testing/SSX70065.IDE')
         dataset = Dataset(fileStream)
         session1 = Session(
             dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
-        self.assertIn("<Session (id=1) at", repr(session1))
+        self.assertIn("<Session 1 (", repr(session1))
 
 
 #===============================================================================

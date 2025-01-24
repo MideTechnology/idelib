@@ -47,7 +47,7 @@ __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
            'SubChannel', 'WarningRange', 'Cascading', 'Transformable']
 
 from collections.abc import Iterable, Sequence
-from datetime import datetime
+import datetime
 from math import ceil
 from threading import Lock
 from typing import Any, Dict, List, Optional, Union, Type
@@ -663,8 +663,9 @@ class Session(object):
 
     def __repr__(self):
         """ Return repr(self). """
-        return "<%s (id=%s) at 0x%08X>" % (self.__class__.__name__, 
-                                           self.sessionId, id(self))
+        return "<%s %s (%s)>" % (self.__class__.__name__,
+                                    self.sessionId,
+                                    datetime.datetime.fromtimestamp(self.utcStartTime, datetime.UTC))
     
     
     def __eq__(self, other):
@@ -1361,7 +1362,7 @@ class EventArray(Transformable):
             # Cache of block start times and sample indices for faster search
             self._blockTimes = []
             self._blockIndices = []
-            self._blockIndicesArray = np.array([], dtype=np.float64)
+            self._blockIndicesArray = np.array([], dtype=np.int64)
             self._blockTimesArray = np.array([], dtype=np.float64)
         else:
             s = self.session.sessionId if session is not None else None
@@ -1668,7 +1669,7 @@ class EventArray(Transformable):
 
         '''
         if len(self._blockIndicesArray) != len(self._blockIndices):
-            self._blockIndicesArray = np.array(self._blockIndices)
+            self._blockIndicesArray = np.array(self._blockIndices, dtype=np.int64)
 
         idxOffset = max(start, 1)
         return idxOffset-1 + np.searchsorted(
@@ -1695,7 +1696,7 @@ class EventArray(Transformable):
         return blockIdx
         '''
         if len(self._blockTimesArray) != len(self._blockTimes):
-            self._blockTimesArray = np.array(self._blockTimes) + self.session._offset
+            self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + self.session._offset
 
         if t is None or t < self._blockTimesArray[0]:
             return 0
@@ -2885,7 +2886,7 @@ class EventArray(Transformable):
         # Create a function for formatting the event time.        
         if useUtcTime and _self.session.utcStartTime:
             if useIsoFormat:
-                timeFormatter = lambda x: datetime.utcfromtimestamp(x[0] * timeScalar + _self.session.utcStartTime).isoformat()
+                timeFormatter = lambda x: datetime.datetime.fromtimestamp(x[0] * timeScalar + _self.session.utcStartTime, datetime.UTC).isoformat()
             else:
                 timeFormatter = lambda x: dataFormat % (x[0] * timeScalar + _self.session.utcStartTime)
         else:
@@ -2919,7 +2920,7 @@ class EventArray(Transformable):
         totalSamples = totalLines * numChannels
         updateInt = int(totalLines * callbackInterval)
         
-        t0 = datetime.now()
+        t0 = datetime.datetime.now()
         if headers:
             stream.write('"Time"%s%s\n' % 
                          (delimiter, delimiter.join(['"%s"' % n for n in names])))
@@ -2950,7 +2951,7 @@ class EventArray(Transformable):
             elif callback is not None:
                 callback(error=e)
 
-        return num+1, datetime.now() - t0
+        return num+1, datetime.datetime.now() - t0
 
     def fillCache(self):
         with self.dataset._channelDataLock:
@@ -3020,8 +3021,8 @@ class EventArray(Transformable):
     def _inplaceTimeFromIndices(self, indices, out=None):
         if out is None:
             out = indices.astype(np.float64)
-
-        out[:] = indices
+        else:
+            out[:] = indices
 
         arrayStart = float(self._data[0].startTime)
         arrayEnd = float(self._data[-1].endTime)
