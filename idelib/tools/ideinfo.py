@@ -7,7 +7,7 @@ import datetime
 from fnmatch import fnmatch
 import os
 import sys
-from typing import Any, IO, Optional, Union
+from typing import Any, Dict, IO, List, Optional, Union
 
 from idelib import __version__, __copyright__
 from idelib.dataset import Dataset
@@ -20,7 +20,7 @@ __all__ = ('showIdeInfo', 'batchInfo')
 
 def showIdeInfo(dataset: Dataset,
                 out: Optional[Union[str, IO]] = None,
-                extra: Optional[dict[str, Any]] = None):
+                extra: Optional[Dict[str, Any]] = None):
     """ Show information about an IDE file.
 
         :param dataset: The IDE file to show.
@@ -128,7 +128,7 @@ def showIdeInfo(dataset: Dataset,
     print("=" * 70, file=out, flush=True)
 
 
-def batchInfo(sources: list[str],
+def batchInfo(sources: List[str],
               out: Optional[IO] = None):
     """ Show information about a collection of IDE files.
 

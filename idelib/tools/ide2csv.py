@@ -5,7 +5,7 @@ Batch .IDE Conversion Utility: Export IDE files in various formats.
 import datetime
 import os
 import sys
-from typing import Callable, IO, Optional
+from typing import Callable, IO, List, Optional
 
 from idelib import __version__, __copyright__
 from idelib.dataset import EventArray
@@ -188,7 +188,7 @@ def ideExport(ideFilename: str,
 #
 # ===========================================================================
 
-def batchExport(sources: list[str],
+def batchExport(sources: List[str],
                 out=None,
                 updater=None,
                 **kwargs) -> tuple[datetime.timedelta, int]:
