@@ -559,14 +559,19 @@ class Dataset(Cascading):
 #===============================================================================
 
 class Session(object):
-    """ A collection of data within a dataset, e.g. one test run. A Dataset is
-        expected to contain one or more Sessions.
+    """
+    Information about a collection of data within a `Dataset`, e.g. one test run.
+    A `Dataset` is expected to contain at least one `Session`.
     """
     
     def __init__(self, dataset, sessionId=0, startTime=None, endTime=None,
                  utcStartTime=None):
-        """ Constructor. This should generally be done indirectly via
-            `Dataset.addSession()` as part of the import process.
+        """ Information about a collection of data within a `Dataset`, e.g.
+            one test run. A `Dataset` is expected to contain at least one
+            `Session`.
+
+            Instantiating a `Session` should generally be done indirectly
+            via `Dataset.addSession()` as part of the import process.
             
             :param dataset: The parent `Dataset`
             :keyword sessionId: The Session's numeric ID. Typically
@@ -578,58 +583,60 @@ class Session(object):
             :keyword utcStartTime: The session's start time, as an absolute
                 POSIX/epoch timestamp.
         """
-        self.dataset = dataset
-        self.sessionId = sessionId
-        self.utcStartTimeOriginal = utcStartTime or dataset.lastUtcTime
-        self.utcStartTime = self.utcStartTimeOriginal
+        self.dataset: Dataset = dataset
+        self.sessionId: int = sessionId
+        self.utcStartTimeOriginal: int = utcStartTime or dataset.lastUtcTime
+        self.utcStartTime: int = self.utcStartTimeOriginal
 
-        self._data = None
-        self._offset = 0
+        self._data: dict[int, 'EventArray'] = None
+        self._offset: float = 0
 
         # firstTime and lastTime are the actual last event time. These will
         # typically be the same as startTime and endTime, but not necessarily
         # so.
-        self.firstTimeOriginal = self.firstTime = startTime
-        self.lastTimeOriginal = self.lastTime = endTime
+        self.firstTimeOriginal: float = startTime
+        self.firstTime: float = startTime
+        self.lastTimeOriginal: float = endTime
+        self.lastTime: float = endTime
 
-        self.syncZero = None
+        self.syncZero: float = None
 
 
     @property
-    def startTime(self):
-        warnings.warn('Session.startTime is deprecated, and will be removed in the'
-                      'near future. Use Session.firstTime instead. ',
+    def startTime(self) -> float:
+        warnings.warn('Session.startTime is deprecated, and will be removed '
+                      'in the near future. Use Session.firstTime instead. ',
                       PendingDeprecationWarning)
         return self.firstTime
 
 
     @startTime.setter
-    def startTime(self, val):
-        warnings.warn('Session.startTime is deprecated, and will be removed in the'
-                      'near future. Use Session.firstTime instead. ',
+    def startTime(self, val: float):
+        warnings.warn('Session.startTime is deprecated, and will be removed '
+                      'in the near future. Use Session.firstTime instead. ',
                       PendingDeprecationWarning)
         self.firstTime = val
 
 
     @property
-    def endTime(self):
-        warnings.warn('Session.endTime is deprecated, and will be removed in the'
-                      'near future. Use Session.lastTime instead. ',
+    def endTime(self) -> float:
+        warnings.warn('Session.endTime is deprecated, and will be removed '
+                      'in the future. Use Session.lastTime instead. ',
                       PendingDeprecationWarning)
         return self.lastTime
 
 
     @endTime.setter
-    def endTime(self, val):
-        warnings.warn('Session.endTime is deprecated, and will be removed in the'
-                      'near future. Use Session.lastTime instead. ',
+    def endTime(self, val: float):
+        warnings.warn('Session.endTime is deprecated, and will be removed '
+                      'in the future. Use Session.lastTime instead. ',
                       PendingDeprecationWarning)
         self.lastTime = val
 
 
     @property
-    def data(self):
-        """ All the Channel-level `EventList` instances in this `Session`,
+    def data(self) -> Dict[int, 'EventArray']:
+        """ All the Channel-level `EventArray` instances in this `Session`,
             keyed by channel ID.
         """
         if not self._data or self.dataset.loading:
@@ -641,7 +648,7 @@ class Session(object):
 
 
     @property
-    def offset(self):
+    def offset(self) -> float:
         """ A time offset (in microseconds) for all events, across all
             Channels, in this `Session`.
         """
@@ -649,7 +656,7 @@ class Session(object):
 
 
     @offset.setter
-    def offset(self, offset):
+    def offset(self, offset: float):
         """ A time offset (in microseconds) for all events, across all
             Channels, in this `Session`.
         """
@@ -664,9 +671,9 @@ class Session(object):
     def __repr__(self):
         """ Return repr(self). """
         return "<%s %s (%s)>" % (self.__class__.__name__,
-                                    self.sessionId,
-                                    datetime.utcfromtimestamp(self.utcStartTime))
-    
+                                 self.sessionId,
+                                 datetime.utcfromtimestamp(self.utcStartTime))
+
     
     def __eq__(self, other):
         """ x.__eq__(y) <==> x==y """
@@ -1359,7 +1366,8 @@ class EventArray(Transformable):
             self._singleSample = parentChannel.singleSample
 
         if self.hasSubchannels or not isinstance(parentChannel.parent, Channel):
-            # Cache of block start times and sample indices for faster search
+            # Cache of block start times and sample indices for faster search.
+            # Note: _blockTimes is not changed if a time offset is applied.
             self._blockTimes = []
             self._blockIndices = []
             self._blockIndicesArray = np.array([], dtype=np.int64)
@@ -1405,12 +1413,14 @@ class EventArray(Transformable):
         self._channelDataLock = parentChannel.dataset._channelDataLock
         self._cacheArray = None
         self._cacheBytes = None
-        self._fullyCached = False
-        self._cacheStart = None
-        self._cacheEnd = None
-        self._cacheBlockStart = None
-        self._cacheBlockEnd = None
-        # self._cacheLen = 0
+
+        # TODO: These seem to be unused; remove?
+        # self._fullyCached = False
+        # self._cacheStart = None
+        # self._cacheEnd = None
+        # self._cacheBlockStart = None
+        # self._cacheBlockEnd = None
+        # # self._cacheLen = 0
 
 
     def _makeDType(self):
@@ -1531,11 +1541,11 @@ class EventArray(Transformable):
         newList._channelDataLock = self._channelDataLock
         newList._cacheArray = self._cacheArray
         newList._cacheBytes = self._cacheBytes
-        newList._fullyCached = self._fullyCached
-        newList._cacheStart = self._cacheStart
-        newList._cacheEnd = self._cacheEnd
-        newList._cacheBlockStart = self._cacheBlockStart
-        newList._cacheBlockEnd = self._cacheBlockEnd
+        # newList._fullyCached = self._fullyCached
+        # newList._cacheStart = self._cacheStart
+        # newList._cacheEnd = self._cacheEnd
+        # newList._cacheBlockStart = self._cacheBlockStart
+        # newList._cacheBlockEnd = self._cacheBlockEnd
         return newList
     
 
@@ -1611,7 +1621,7 @@ class EventArray(Transformable):
                 # XXX: Attempt to calculate min/mean/max here instead of
                 #  in _computeMinMeanMax(). Causes issues with pressure for some
                 #  reason - it starts removing mean and won't plot.
-                vals = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
+                vals: np.array = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
                 block.min = vals.min(axis=0)
                 block.mean = vals.mean(axis=0)
                 block.max = vals.max(axis=0)
