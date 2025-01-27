@@ -69,7 +69,7 @@ setuptools.setup(
             'idelib': ['schemata/*'],
         },
         entry_points={'console_scripts': [
-            'ide2csv=idelib.tools.ide2csv:main',
+            'ideexport=idelib.tools.ideexport:main',
             'ideinfo=idelib.tools.ideinfo:main',
         ]},
         project_urls={

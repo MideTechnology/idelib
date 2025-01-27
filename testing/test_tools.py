@@ -2,18 +2,18 @@ from glob import glob
 import os.path
 
 from idelib import importer
-from idelib.tools import ide2csv, ideinfo
+from idelib.tools import ideexport, ideinfo
 
 
-def test_ide2csv_basic(tmpdir_factory):
-    """ Basic ide2csv test, verify the correct number of files are created.
+def test_ideexport_basic(tmpdir_factory):
+    """ Basic ideexport test, verify the correct number of files are created.
     """
     filename = './testing/test3.IDE'
     basename = os.path.splitext(os.path.basename(filename))[0]
 
-    path = tmpdir_factory.mktemp('test_ide2csv')
-    ide2csv.main(['--output', str(path), filename])
-    ide2csv.main(['--output', str(path), '-t', 'mat', filename])
+    path = tmpdir_factory.mktemp('test_ideexport')
+    ideexport.main(['--output', str(path), filename])
+    ideexport.main(['--output', str(path), '-t', 'mat', filename])
 
     doc = importer.openFile(filename)
     csvs = glob(str(path / '*.csv'))
@@ -23,16 +23,16 @@ def test_ide2csv_basic(tmpdir_factory):
     assert os.path.exists(path / f'{basename}_info.txt')
 
 
-def test_ide2csv_csv(tmpdir_factory):
+def test_ideexport_csv(tmpdir_factory):
     """ Verify the number of exported rows matches the number of events in
         the original IDE.
     """
     filename = './testing/test3.IDE'
     basename = os.path.splitext(os.path.basename(filename))[0]
-    path = tmpdir_factory.mktemp('test_ide2csv')
+    path = tmpdir_factory.mktemp('test_ideexport')
 
     with importer.importFile(filename) as doc:
-        ide2csv.main(['--output', str(path), filename])
+        ideexport.main(['--output', str(path), filename])
         for ch in doc.channels.values():
             events = ch.getSession()
             csvname = f'{path}/{basename}_Ch{ch.id:02d}.csv'
