@@ -664,7 +664,7 @@ class Session(object):
         self.firstTime = self.firstTimeOriginal + offset
         self.lastTime = self.lastTimeOriginal + offset
         for d in self.data.values():
-            # TODO: Exclude time sync channel?
+            # TODO: Exclude non-relative time channels?
             d._setOffset(offset)
 
 

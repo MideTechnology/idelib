@@ -46,7 +46,8 @@ def getSyncSources(doc: Dataset) -> List[SubChannel]:
 
 def getSyncTimeZero(data: Union[Dataset, EventArray],
                     start: Optional[int] = None,
-                    end: Optional[int] = None) -> int:
+                    end: Optional[int] = None,
+                    sensorId: Optional[int] = None) -> int:
     """ Get the sync reference's time corresponding to the recording's
         relative timestamp zero.
 
@@ -64,6 +65,9 @@ def getSyncTimeZero(data: Union[Dataset, EventArray],
             use with noisy sync times.
         :param end: The ending index into the time reference data. For
             use with noisy sync times.
+        :param sensorId: The ID of a specific time reference sensor. Only
+            used if `data` is a `Dataset`. If `None`, the first time
+            reference sensor found is used.
         :returns: The sync reference time (in microseconds) corresponding to
             the recording's relative timestamp zero.
     """
@@ -72,7 +76,11 @@ def getSyncTimeZero(data: Union[Dataset, EventArray],
     if isinstance(data, Dataset):
         sources = getSyncSources(data)
         if not sources:
-            raise ValueError('Dataset does not contain any sync sources')
+            raise SyncError('Dataset does not contain any sync sources')
+        if sensorId is not None:
+            sources = [s for s in sources if s.sensor.id == sensorId]
+            if not sources:
+                raise SyncError(f'Dataset does not contain time reference sensor ID {sensorId}')
         sync = sources[0]
     else:
         sync = data
@@ -116,28 +124,62 @@ def getCommonSensorIds(*datasets: Dataset) -> List[int]:
 
 def sync(reference: Dataset, *datasets: Dataset,
          start: Optional[int] = None,
-         end: Optional[int] = None):
+         end: Optional[int] = None,
+         sensorId: Optional[int] = None):
     """ Synchronize one or more recordings with a canonical 'reference'
         recording. The 'reference' is not modified. Synched recordings
         will have their timestamps and UTC start time offset to match
         the reference.
+
+        :param reference: The reference `Dataset` to which to synchronize
+            the others.
+        :param datasets: One or more `Dataset` objects to synchronize.
+        :param start: The starting index into the time reference data of
+            each recording. For use with noisy sync times.
+        :param end: The ending index into the time reference data. For
+            use with noisy sync times.
+        :param sensorId: The time reference's sensor ID. If `None`, the
+            first common time reference sensor detected is used. Use if
+            the recordings have multiple time references in common.
     """
+    # NOTE: This function assumes there is only one session, only one
+    #  reference time sensor, and only one subchannel for the reference time.
+
     if len(datasets) < 1:
         raise SyncError('At least one dataset to sync is required')
 
-    # NOTE: This assumes there is only one session, only one reference time
-    #  sensor, and only one subchannel for the reference time.
-    sensorId = getCommonSensorIds(reference, *datasets)[0]
+    if sensorId is None:
+        ids = tuple(getCommonSensorIds(reference, *datasets))
+        if len(ids) > 1:
+            raise SyncError(f'Recordings share multiple time references {ids}, '
+                            'use sensorId parameter to select one')
+        sensorId = ids[0]
+    elif not all(sensorId in ds.sensors for ds in (reference, *datasets)):
+        raise SyncError(f'Not all recordings contain sensor ID {sensorId}')
 
-    for ds in (reference, *datasets):
-        ch = ds.sensors[sensorId].getReferrers()[0]
-        ref = ch.getSession()
-        ds.currentSession.syncZero = getSyncTimeZero(ref, start=start, end=end)
+    # Backup offsets/zero times, in case of failure
+    origOffsets = [ds.currentSession.offset for ds in datasets]
+    origZeros = [ds.currentSession.syncZero for ds in datasets]
 
-    refzero = reference.currentSession.syncZero
-    refutc = reference.currentSession.utcStartTime
+    try:
+        for ds in (reference, *datasets):
+            ch = ds.sensors[sensorId].getReferrers()[0]
+            ref = ch.getSession()
+            ds.currentSession.offset = 0
+            ds.currentSession.syncZero = getSyncTimeZero(ref, start=start, end=end)
 
-    for ds in datasets:
-        offset = ds.currentSession.syncZero - refzero
-        ds.currentSession.offset = offset
-        ds.currentSession.utcStartTime = refutc
+        refzero = reference.currentSession.syncZero
+        refutc = reference.currentSession.utcStartTime
+
+        for ds in datasets:
+            offset = ds.currentSession.syncZero - refzero
+            ds.currentSession.offset = offset
+            ds.currentSession.utcStartTime = refutc
+
+    except Exception:
+        # Failure: Restore original pre-sync values.
+        for ds, offset, zero in zip(datasets, origOffsets, origZeros):
+            ds.currentSession.syncZero = zero
+            ds.currentSession.offset = offset
+            ds.currentSession.utcStartTime = ds.currentSession.utcStartTimeOriginal
+        raise
