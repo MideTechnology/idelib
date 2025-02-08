@@ -49,7 +49,7 @@ __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from math import ceil
-from threading import Lock
+from threading import RLock
 from typing import Any, Dict, List, Optional, Union, Type
 import warnings
 
@@ -265,7 +265,7 @@ class Dataset(Cascading):
         self._userdataOffset: Optional[int] = None
         self._filesize: Optional[int] = None
 
-        self._channelDataLock = Lock()
+        self._channelDataLock = RLock()
         
         # Subsets: used when importing multiple files into the same dataset.
         self.subsets = []
@@ -600,6 +600,7 @@ class Session(object):
         self.lastTime: float = endTime
 
         self.syncZero: float = None
+        self.syncInfo: Optional[Dict[str, Any]] = None
 
 
     @property

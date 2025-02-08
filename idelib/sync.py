@@ -5,9 +5,10 @@ NOTE: This is currently a proof of concept. Some functionality may eventually
 be rolled directly into classes in `idelib.dataset`.
 """
 
-from typing import List, Optional, Union
+from typing import List, Optional, Union, TYPE_CHECKING
 
-from idelib.dataset import Dataset, EventArray, Sensor, SubChannel
+if TYPE_CHECKING:
+    from idelib.dataset import Dataset, EventArray, Sensor, SubChannel
 
 
 # ===========================================================================
@@ -22,13 +23,13 @@ class SyncError(ValueError):
 #
 # ===========================================================================
 
-def getSyncSensors(doc: Dataset) -> List[Sensor]:
+def getSyncSensors(doc: "Dataset") -> List["Sensor"]:
     """ Get the 'sensors' that can be used for time synchronization.
     """
     return [s for s in doc.sensors.values() if s.name and 'Time' in s.name]
 
 
-def getSyncSources(doc: Dataset) -> List[SubChannel]:
+def getSyncSources(doc: "Dataset") -> List["SubChannel"]:
     """ Get the `SubChannel`s that can be used for time synchronization.
 
         :param doc: The `Dataset` from which to get the sources.
@@ -44,7 +45,7 @@ def getSyncSources(doc: Dataset) -> List[SubChannel]:
 #
 # ===========================================================================
 
-def getSyncTimeZero(data: Union[Dataset, EventArray],
+def getSyncTimeZero(data: Union["Dataset", "EventArray"],
                     start: Optional[int] = None,
                     end: Optional[int] = None,
                     sensorId: Optional[int] = None) -> int:
@@ -73,7 +74,9 @@ def getSyncTimeZero(data: Union[Dataset, EventArray],
     """
     # TODO: Once this PoC is proven, this can be made a method of `Dataset`
     #  and/or `EventArray` with no arguments (or different ones).
-    if isinstance(data, Dataset):
+
+    # HACK: An indirect means of detecting a `Dataset`, avoiding circular imports.
+    if hasattr(data, 'filename'):  # isinstance(data, Dataset):
         sources = getSyncSources(data)
         if not sources:
             raise SyncError('Dataset does not contain any sync sources')
@@ -88,15 +91,16 @@ def getSyncTimeZero(data: Union[Dataset, EventArray],
     if len(sync) == 0:
         raise SyncError(f'No sync reference data in {data} - was it not fully imported?')
 
-    if start is None and end is None:
-        timestamp, synctime = sync[0]
-    else:
-        timestamp, synctime = sync.arraySlice(start, end).mean(axis=1)
+    with sync.dataset._channelDataLock:
+        if start is None and end is None:
+            timestamp, synctime = sync[0]
+        else:
+            timestamp, synctime = sync.arraySlice(start, end).mean(axis=1)
 
     return synctime - timestamp
 
 
-def getCommonSensorIds(*datasets: Dataset) -> List[int]:
+def getCommonSensorIds(*datasets: "Dataset") -> List[int]:
     """ Get the Sensor ID of the time reference shared by two or more
         recordings. This does *not* verify that any time data has been
         recorded from it, only that the sensor exists.
@@ -122,7 +126,7 @@ def getCommonSensorIds(*datasets: Dataset) -> List[int]:
 #
 # ===========================================================================
 
-def sync(reference: Dataset, *datasets: Dataset,
+def sync(reference: "Dataset", *datasets: "Dataset",
          start: Optional[int] = None,
          end: Optional[int] = None,
          sensorId: Optional[int] = None):
@@ -160,6 +164,7 @@ def sync(reference: Dataset, *datasets: Dataset,
     # Backup offsets/zero times, in case of failure
     origOffsets = [ds.currentSession.offset for ds in datasets]
     origZeros = [ds.currentSession.syncZero for ds in datasets]
+    origInfo = [ds.currentSession.syncInfo for ds in datasets]
 
     try:
         for ds in (reference, *datasets):
@@ -172,14 +177,31 @@ def sync(reference: Dataset, *datasets: Dataset,
         refutc = reference.currentSession.utcStartTime
 
         for ds in datasets:
-            offset = ds.currentSession.syncZero - refzero
-            ds.currentSession.offset = offset
-            ds.currentSession.utcStartTime = refutc
+            with ds._channelDataLock:
+                offset = ds.currentSession.syncZero - refzero
+                ds.currentSession.offset = offset
+                ds.currentSession.utcStartTime = refutc
+
+                sensor = ds.sensors[sensorId]
+                ch = sensor.getReferrers()[0]
+                ds.currentSession.syncInfo = {
+                    'SyncActive': True,
+                    'SyncChannelIDRef': ch.parent.id,
+                    'SyncSubChannelIDRef': ch.id,
+                    'SyncSourceName': sensor.sourceName,
+                    'SyncSourceIdentifier': sensor.sourceId,
+                    'SyncZero': ds.currentSession.syncZero,
+                    'SyncReferenceZero': refzero,
+                    'SyncReferenceFilename': reference.filename,
+                    'TimeBaseUTC': refutc
+                }
 
     except Exception:
         # Failure: Restore original pre-sync values.
-        for ds, offset, zero in zip(datasets, origOffsets, origZeros):
-            ds.currentSession.syncZero = zero
-            ds.currentSession.offset = offset
-            ds.currentSession.utcStartTime = ds.currentSession.utcStartTimeOriginal
+        for ds, offset, zero, info in zip(datasets, origOffsets, origZeros, origInfo):
+            with ds._channelDataLock:
+                ds.currentSession.syncZero = zero
+                ds.currentSession.offset = offset
+                ds.currentSession.utcStartTime = ds.currentSession.utcStartTimeOriginal
+                ds.currentSession.syncInfo = info
         raise
