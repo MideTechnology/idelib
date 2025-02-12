@@ -157,3 +157,42 @@ Other data is stored in the dict member recorderInfo:
 >>> eventarray.units
 ('Acceleration', u'g')
 ```
+
+## Command-line Utilities
+
+`idelib` includes two command-line utilities for exporting and inspecting IDE data.
+These are installed as executable scripts as well as Python submodules. The latter 
+(the executable versions) may require modifying your computer's 'path' environment 
+variables(particularly in Microsoft Windows).
+
+### `ideexport`
+This utility converts one or more IDE files into formats directly usable by other software
+(`.MAT`, `.CSV`, `.TXT`, etc.). More information can be attained running the utility using 
+the `-h` or `--help` arguments.
+
+#### Usage
+##### Obtaining a list of command-line arguments:
+```shell
+ideexport --help
+```
+or directly from the Python submodule:
+```shell
+python -m idelib.tools.ideexport --help
+```
+Note that the first example (executing `ideexport`) may not work if you system paths are not
+set up to include the installed `ideexport` executable. 
+
+### `ideinfo`
+This utility displays basic information about IDE files: the device that recorded it, the date
+of recording, a list of data channels recorded, etc. More information can be attained running the utility using 
+the `-h` or `--help` arguments.
+
+#### Usage
+##### Obtaining a list of command-line arguments:
+```shell
+ideinfo --help
+```
+or directly from the Python submodule:
+```shell
+python -m idelib.tools.ideinfo --help
+```
