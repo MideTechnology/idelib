@@ -130,13 +130,15 @@ def ideExport(ideFilename: str,
         channels = [c.id for c in doc.channels.values()
                     if any(sc.visibility < visibility for sc in c.subchannels)]
 
-    loadedChannels = channels[:]
+    loadedChannels = set(channels)
 
-    if 8 in channels and 20 not in channels:
-        loadedChannels.append(20)
+    if 8 in channels:
+        # Analog sensor in export; make sure temperature included.
+        # FUTURE: Make this list based on bivariate polynomials.
+        loadedChannels.update([20, 36])
 
     importer.readData(doc,
-                      channels=loadedChannels,
+                      channels=sorted(loadedChannels),
                       startTime=startTime,
                       endTime=endTime,
                       updater=updater)
