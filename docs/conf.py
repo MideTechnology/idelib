@@ -92,11 +92,15 @@ html_favicon = '_static/endaq-favicon.ico'
 # documentation.
 #
 html_theme_options = {
-    "logo_link": "index",
+    "logo": {
+        "link": "index"
+    },
     "github_url": "https://github.com/MideTechnology/idelib",
     "twitter_url": "https://twitter.com/enDAQ_sensors",
     "collapse_navigation": True,
-    "google_analytics_id": "G-E9QXH4H5LP",
+    "analytics": {
+        "google_analytics_id": "G-E9QXH4H5LP",
+    }
 }
 
 # Add any paths that contain custom static files (such as style sheets) here,
