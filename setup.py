@@ -28,13 +28,13 @@ TEST_REQUIRES = [
     'pytest-xdist[psutil]',
     'mock',
     'pytest-cov',
-    "sphinx>=8.2.2",
+    "sphinx",
     'scipy;python_version<"3.10"',
     "setuptools"
     ]
 
 DOCS_REQUIRES = [
-    "sphinx>=8.2.2",
+    "sphinx",
     "pydata-sphinx-theme",
     "nbsphinx",
     ]
