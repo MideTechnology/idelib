@@ -35,7 +35,7 @@ TEST_REQUIRES = [
 
 DOCS_REQUIRES = [
     "sphinx>=8.2.2",
-    "pydata-sphinx-theme==0.7.2",
+    "pydata-sphinx-theme",
     "nbsphinx",
     ]
 
