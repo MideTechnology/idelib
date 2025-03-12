@@ -282,6 +282,12 @@ class Dataset(Cascading):
             schema = loadSchema(SCHEMA_FILE)
             self.schemaVersion = schema.version
             self.ebmldoc = schema.load(stream, 'MideDocument', headers=True)
+            if self.ebmldoc.type != 'mide':
+                if self.filename:
+                    raise IOError(f'Not an IDE file: "{self.filename}"')
+                else:
+                    raise IOError(f'Not an IDE file: {stream!r}')
+
             if self.ebmldoc.version is None:
                 logger.info('IDE has no EBML header data, older schema version being assumed.')
             elif not quiet:
