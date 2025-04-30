@@ -8,15 +8,15 @@ on:
 jobs:
   build-n-publish:
     name: Build and publish Python 🐍 distributions 📦 to PyPI
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@master
     
-    - name: Set up Python 3.8
+    - name: Set up Python 3.12
       uses: actions/setup-python@v3
       with:
-        python-version: 3.8
+        python-version: 3.12
     
     - name: Install pypa/build
       run: >-
