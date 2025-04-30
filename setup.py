@@ -2,6 +2,7 @@ import codecs
 import os
 import setuptools
 
+
 def read(rel_path):
     here = os.path.abspath(os.path.dirname(__file__))
     with codecs.open(os.path.join(here, rel_path), 'r') as fp:
@@ -27,14 +28,14 @@ TEST_REQUIRES = [
     'pytest-xdist[psutil]',
     'mock',
     'pytest-cov',
-    "sphinx>=5.0.2",
+    "sphinx",
     'scipy;python_version<"3.10"',
     "setuptools"
     ]
 
 DOCS_REQUIRES = [
-    "sphinx>=5.0.2",
-    "pydata-sphinx-theme==0.7.2",
+    "sphinx",
+    "pydata-sphinx-theme",
     "nbsphinx",
     ]
 
@@ -55,10 +56,10 @@ setuptools.setup(
         classifiers=['Development Status :: 5 - Production/Stable',
                      'License :: OSI Approved :: MIT License',
                      'Natural Language :: English',
-                     'Programming Language :: Python :: 3.8',
                      'Programming Language :: Python :: 3.9',
                      'Programming Language :: Python :: 3.10',
                      'Programming Language :: Python :: 3.11',
+                     'Programming Language :: Python :: 3.12',
                      'Topic :: Scientific/Engineering',
                      ],
         keywords='ebml binary ide mide',
@@ -67,6 +68,10 @@ setuptools.setup(
         package_data={
             'idelib': ['schemata/*'],
         },
+        entry_points={'console_scripts': [
+            'ideexport=idelib.tools.ideexport:main',
+            'ideinfo=idelib.tools.ideinfo:main',
+        ]},
         project_urls={
             "Bug Tracker": "https://github.com/MideTechnology/idelib/issues",
             "Documentation": "https://mide-technology-idelib.readthedocs-hosted.com/en/latest/",
