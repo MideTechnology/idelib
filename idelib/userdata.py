@@ -4,12 +4,14 @@ of IDE files. This data is intended primarily to retain user preferences for
 the display of the `Dataset`.
 """
 
+import copy
 import errno
 import os.path
 import logging
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Tuple, Union, TYPE_CHECKING
 
-from .dataset import Dataset
+if TYPE_CHECKING:
+    from .dataset import Dataset
 
 #===============================================================================
 #
@@ -17,13 +19,14 @@ from .dataset import Dataset
 
 MIN_VOID_SIZE = 9
 
-logger = logging.getLogger('idelib')
+logger = logging.getLogger(__name__)
+
 
 #===============================================================================
 #
 #===============================================================================
 
-def getUserDataPos(dataset: Dataset,
+def getUserDataPos(dataset: "Dataset",
                    refresh: bool = False) -> Tuple[bool, int, int]:
     """ Get the offset of the start of the user data.
 
@@ -69,8 +72,9 @@ def getUserDataPos(dataset: Dataset,
     finally:
         fs.seek(oldpos, os.SEEK_SET)
 
-    dataset._userdataOffset = offset
-    dataset._filesize = filesize
+        dataset._userdataOffset = offset
+        dataset._filesize = filesize
+
     return hasdata, offset, filesize
 
 
@@ -78,7 +82,7 @@ def getUserDataPos(dataset: Dataset,
 #
 #===============================================================================
 
-def readUserData(dataset: Dataset,
+def readUserData(dataset: "Dataset",
                  refresh: bool = False) -> Union[Dict[str, Any], None]:
     """ Read application-specific user data from the end of an IDE file.
 
@@ -107,17 +111,19 @@ def readUserData(dataset: Dataset,
         data, _next = doc.parseElement(fs)
         dump = data.dump()
         dataset._userdata = dump
-        return dump
 
     finally:
         fs.seek(oldpos, os.SEEK_SET)
+
+    dataset._userdataOriginal = copy.deepcopy(dataset._userdata)
+    return dataset._userdata
 
 
 #===============================================================================
 #
 #===============================================================================
 
-def writeUserData(dataset: Dataset,
+def writeUserData(dataset: "Dataset",
                   userdata: Dict[str, Any],
                   refresh: bool = False):
     """ Write user data to the end of an IDE file.
@@ -183,6 +189,7 @@ def writeUserData(dataset: Dataset,
             fs.write(userblob)
 
         dataset._userdata = userdata
+        dataset._userdataOriginal = copy.deepcopy(dataset._userdata)
         logger.debug(f'(userdata) Wrote {len(userblob)} bytes to {dataset} '
                      f'(file was {filesize}, now {newsize})')
 

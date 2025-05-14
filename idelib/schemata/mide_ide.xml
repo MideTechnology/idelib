@@ -427,20 +427,20 @@
                 <BinaryElement name="AnnotationStyle" id="0x10200026" multiple="0" mandatory="0" /> Application-specific data describing the visual representation of the annotation.
             </MasterElement>
         </MasterElement>
-        <MasterElement name="SyncInfoList" id="0x10200030" multiple="0" mandatory="0">
-            Information connecting this recording to others for the purpose of synchronizing data. More than one can exist, but only one is active at a time.
-            <MasterElement name="SyncInfo" id="0x10200031" multiple="1" mandatory="0">
-                <UIntegerElement name="SyncActive" id="10200032" multiple="0" mandatory="0" default="1"> 1 (or no element) if this sync is applied, 0 if inactive. Only one SyncInfo should be marked as active; If multiple SyncInfo are marked as active, only the first is applied. </UIntegerElement>
-                <UIntegerElement name="SyncChannelIDRef" id="10200033" multiple="0" mandatory="1"> The Channel ID of the time sync reference. </UIntegerElement>
-                <UIntegerElement name="SyncSubChannelIDRef" id="10200034" multiple="0" mandatory="1"> The SubChannel ID of the time sync reference. </UIntegerElement>
-				<UnicodeElement name="SyncSourceName" id="0x10200035" multiple="0"> Human-friendly source (authority, network, or other source-of-truth) name for generic/virtual 'time' sensors. </UnicodeElement>
-				<StringElement name="SyncSourceIdentifier" id="0x10200036" multiple="0" minver="4"> Machine-readable, uniquely identifying hash identifying source equivalency for comparing 'time' sensors. </StringElement>
-                <IntegerElement name="SyncReferenceZero" id="0x10200037" multiple="0" mandatory="0"> The time reference value corresponding to this file's timestamp zero. </IntegerElement>
-                <IntegerElement name="SyncZero" id="0x10200038" multiple="0" mandatory="0"> The time reference value corresponding to the reference file's timestamp zero. </IntegerElement>
-                <FloatElement name="SyncClockDrift" id="0x10200039" multiple="0" mandatory="0"> The rate, in microseconds per microsecond, that the enDAQ timestamps drift from the sync reference time. </FloatElement>
-                <UnicodeElement name="SyncReferenceFilename" id="0x1020003A" multiple="0" mandatory="0"> The file to which this file is synced. </UnicodeElement>
-                <UIntegerElement name="TimeBaseUTC"  id="0x5462" /> <!-- Reused. Synced files take on the UTC starting time of the reference file. -->
-            </MasterElement>
+        <MasterElement name="SyncInfo" id="0x10200031" multiple="0" mandatory="0">
+            Information connecting this recording to another for the purpose of synchronizing data.
+            <UIntegerElement name="SyncActive" id="0x10200032" multiple="0" mandatory="0" default="1"> 1 (or no element) if this sync is applied, 0 if inactive. Only one SyncInfo should be marked as active; If multiple SyncInfo are marked as active, only the first is applied. </UIntegerElement>
+            <UIntegerElement name="SyncChannelIDRef" id="0x10200033" multiple="0" mandatory="0"> The Channel ID of the time sync reference. </UIntegerElement>
+            <UIntegerElement name="SyncSubChannelIDRef" id="0x10200034" multiple="0" mandatory="0"> The SubChannel ID of the time sync reference. </UIntegerElement>
+            <UIntegerElement name="SyncSessionIDRef" id="0x1020003B" multiple="0" mandatory="0"> The SubChannel ID of the time sync reference. </UIntegerElement>
+            <UnicodeElement name="SyncSourceName" id="0x10200035" multiple="0"> Human-friendly source (authority, network, or other source-of-truth) name for generic/virtual 'time' sensors. </UnicodeElement>
+            <StringElement name="SyncSourceIdentifier" id="0x10200036" multiple="0" minver="4"> Machine-readable, uniquely identifying hash identifying source equivalency for comparing 'time' sensors. </StringElement>
+            <IntegerElement name="SyncReferenceZero" id="0x10200037" multiple="0" mandatory="0"> The time reference value corresponding to this file's timestamp zero. </IntegerElement>
+            <IntegerElement name="SyncZero" id="0x10200038" multiple="0" mandatory="0"> The time reference value corresponding to the reference file's timestamp zero. </IntegerElement>
+            <FloatElement name="SyncClockDrift" id="0x10200039" multiple="0" mandatory="0"> The rate, in microseconds per microsecond, that the enDAQ timestamps drift from the sync reference time. </FloatElement>
+            <UnicodeElement name="SyncReferenceFilename" id="0x1020003A" multiple="0" mandatory="0"> The file to which this file is synced. </UnicodeElement>
+            <UIntegerElement name="SyncTimeBaseUTC"  id="0x10205462"> The reference's UTC starting time, applied to the synched Dataset. </UIntegerElement>
+            <UIntegerElement name="TimeBaseUTC"  id="0x5462" /> <!-- Reused. The Dataset's original starting time, for transferring sync data. -->
         </MasterElement>
         <BinaryElement name="WindowLayout" id="0x10200011" multiple="0" mandatory="0"> Application-specific data describing GUI settings, etc. </BinaryElement>
 

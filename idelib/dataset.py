@@ -263,6 +263,7 @@ class Dataset(Cascading):
         # For keeping user-defined data
         self._userdata: Optional[Dict[str, Any]] = None
         self._userdataOffset: Optional[int] = None
+        self._userdataOriginal: Optional[Dict[str, Any]] = None
         self._filesize: Optional[int] = None
 
         self._channelDataLock = RLock()
@@ -598,15 +599,16 @@ class Session(object):
         self._offset: float = 0
 
         # firstTime and lastTime are the actual last event time. These will
-        # typically be the same as startTime and endTime, but not necessarily
-        # so.
+        # typically be the same as startTime and endTime, which are being
+        # deprecated.
         self.firstTimeOriginal: float = startTime
         self.firstTime: float = startTime
         self.lastTimeOriginal: float = endTime
         self.lastTime: float = endTime
 
-        self.syncZero: float = None
         self.syncInfo: Optional[Dict[str, Any]] = None
+        self.syncSensor: Optional[Sensor] = None
+        self.syncZero: float = None
 
 
     @property
@@ -617,6 +619,7 @@ class Session(object):
         return self.firstTime
 
 
+    # noinspection PyDeprecation
     @startTime.setter
     def startTime(self, val: float):
         warnings.warn('Session.startTime is deprecated, and will be removed '
@@ -633,6 +636,7 @@ class Session(object):
         return self.lastTime
 
 
+    # noinspection PyDeprecation
     @endTime.setter
     def endTime(self, val: float):
         warnings.warn('Session.endTime is deprecated, and will be removed '
@@ -667,6 +671,7 @@ class Session(object):
         """ A time offset (in microseconds) for all events, across all
             Channels, in this `Session`.
         """
+        offset = offset or 0.
         self._offset = offset
         self.firstTime = self.firstTimeOriginal + offset
         self.lastTime = self.lastTimeOriginal + offset
@@ -675,8 +680,11 @@ class Session(object):
             d._setOffset(offset)
 
 
+    # noinspection PyDeprecation
     def __repr__(self):
         """ Return repr(self). """
+        # TODO: change `utcfromtimestamp(t)` to `fromtimestamp(t, datetime.UTC)`
+        #   after Python 3.10 reaches EoL (2026-10)
         return "<%s %s (%s)>" % (self.__class__.__name__,
                                  self.sessionId,
                                  datetime.utcfromtimestamp(self.utcStartTime))
@@ -888,9 +896,7 @@ class Channel(Transformable):
 
         if isinstance(sensor, int):
             sensor = self.dataset.sensors.get(sensor, None)
-        if sensor is not None:
-            sensorname = sensor.name
-        
+
         if name is None:
             sensorname = sensor.name if sensor is not None else "Unknown Sensor"
             name = "%s:%02d" % (sensorname, channelId)
@@ -1114,6 +1120,8 @@ class Channel(Transformable):
 
 #===============================================================================
 
+
+# noinspection PyMethodOverriding
 class SubChannel(Channel):
     """ Output from a sensor, derived from a channel containing multiple
         pieces of data (e.g. the Y from an accelerometer's XYZ). Looks
@@ -2850,6 +2858,7 @@ class EventArray(Transformable):
         return self.arraySlice(startIdx, stopIdx, step, display=display)
 
 
+    # noinspection PyDeprecation
     def exportCsv(self, stream, start=None, stop=None, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
@@ -2895,6 +2904,8 @@ class EventArray(Transformable):
                 transform (e.g. unit conversion).
             :return: Tuple: The number of rows exported and the elapsed time.
         """
+        # TODO: change `utcfromtimestamp(t)` to `fromtimestamp(t, datetime.UTC)`
+        #   after Python 3.10 reaches EoL (2026-10)
         _self = self.copy()
 
         if noBivariates is not None:

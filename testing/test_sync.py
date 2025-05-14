@@ -1,7 +1,7 @@
 import os.path
 import pytest
 
-from idelib import importer, sync
+from idelib import importer, sync, userdata
 
 
 def test_offset():
@@ -33,6 +33,31 @@ def test_offset():
     assert accel1[-1][0] != last1
     assert accel1[0][0] == first1 - offset
     assert accel1[-1][0] == last1 - offset
+
+
+def test_get_source():
+    """ Test that get_source() returns the correct source.
+    """
+    cwd = os.path.dirname(__file__)
+    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
+    _sensor1 = sync.getSyncSensor(doc1, sourceId='F0:9C:E9:5F:93:14')
+    _sensor2 = sync.getSyncSensor(doc1, sourceName='MIDE-Corp')
+    _sensor3 = sync.getSyncSensor(doc1, sourceName='MIDE-Corp', sourceId='F0:9C:E9:5F:93:14')
+
+    with pytest.raises(sync.SyncError):
+        _ = sync.getSyncSensor(doc1, sourceId=None, sourceName=None)
+
+    with pytest.raises(sync.SyncError):
+        _ = sync.getSyncSensor(doc1, sourceId='bogus')
+
+    with pytest.raises(sync.SyncError):
+        _ = sync.getSyncSensor(doc1, sourceName='bogus')
+
+    with pytest.raises(sync.SyncError):
+        _ = sync.getSyncSensor(doc1, sourceId='bogus', sourceName='MIDE-Corp')
+
+    with pytest.raises(sync.SyncError):
+        _ = sync.getSyncSensor(doc1, sourceId='F0:9C:E9:5F:93:14', sourceName='bogus')
 
 
 def test_sync_basic():
@@ -94,7 +119,7 @@ def test_sync_failures():
     cwd = os.path.dirname(__file__)
     doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))  # Has sync reference
     doc2 = importer.importFile(os.path.join(cwd, 'test3.IDE'))  # No sync reference
-    doc3 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))  # Has sync reference
+    doc3 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))  # Has sync reference
 
     # Sanity check
     assert len(sync.getSyncSensors(doc1)) == 1
@@ -112,4 +137,29 @@ def test_sync_failures():
 
     with pytest.raises(sync.SyncError):
         sync.sync(doc1, doc2, sensorId=103)
+
+
+def test_sync_userdata():
+    """ Test reading/writing sync info from IDE user data.
+    """
+    cwd = os.path.dirname(__file__)
+    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
+    doc2 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))
+    sync.sync(doc1, doc2)
+
+    userdata.readUserData(doc2)
+    sync.updateUserdata(doc2)
+
+    ud = userdata.readUserData(doc2)
+    si = doc2.currentSession.syncInfo
+
+    assert 'SyncInfo' in ud
+    assert ud['SyncInfo'] == {k: v for k, v in si.items()
+                              if v is not None}
+
+    sync.removeSyncInfo(doc2)
+    sync.updateUserdata(doc2)
+
+    ud = userdata.readUserData(doc2)
+    assert 'SyncInfo' not in ud
 
