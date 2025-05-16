@@ -1,4 +1,6 @@
+import json
 import os.path
+
 import pytest
 
 from idelib import importer, sync, userdata
@@ -143,6 +145,39 @@ def test_sync_repeat():
     assert accel2.session.offset == offsetPostSync
 
 
+def test_sync_clear():
+    """ Test syncing with the clear flag set and unset.
+    """
+    cwd = os.path.dirname(__file__)
+    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
+    doc2 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))
+
+    # Set the syncInfo in doc1 as if it were synced to another recording
+    sync.getSyncTimeZero(doc1)
+    doc1.currentSession.syncInfo.update({
+        'SyncActive': True,
+        'SyncReferenceZero': doc1.currentSession.syncZero + 60,
+        'SyncReferenceFilename': 'bogus.ide',
+        'SyncTimeBaseUTC': doc1.currentSession.utcStartTime + 60,
+    })
+
+    # sync w/o clear: doc2 uses doc1's syncInfo (as if doc1 was synced to another)
+    sync.sync(doc1, doc2, clear=False)
+    assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime + 60
+    assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == 'bogus.ide'
+
+    # sync w/ clear: doc2 syncs to doc1
+    sync.sync(doc1, doc2, clear=True)
+    assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
+    assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == doc1.filename
+
+    # sync w/o clear, but doc1 has no syncInfo: same as clear
+    sync.removeSyncInfo(doc1)
+    sync.sync(doc1, doc2, clear=False)
+    assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
+    assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == doc1.filename
+
+
 def test_sync_failures():
     """ Check various failure cases with a file without a time sync reference
         sensor.
@@ -170,8 +205,40 @@ def test_sync_failures():
         sync.sync(doc1, doc2, sensorId=103)
 
 
+def test_apply_sync():
+    """ Test applying a dictionary of sync info. In this test, the info is
+        deserialized from JSON, as one use of applySyncInfo is for copying
+        between IDEs in enDAQ Lab. Copying will (probably) use JSON and the
+        clipboard (at least initially).
+    """
+    cwd = os.path.dirname(__file__)
+    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
+    doc2 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))
+
+    sync.sync(doc1, doc2, clear=True)
+    assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
+
+    info = json.loads(json.dumps(doc2.currentSession.syncInfo))
+    offset = doc2.currentSession.offset
+    sensor = doc2.currentSession.syncSensor
+
+    sync.removeSyncInfo(doc2)
+    assert not doc2.currentSession.syncInfo
+    assert doc2.currentSession.offset == 0
+    assert doc2.currentSession.utcStartTime != doc1.currentSession.utcStartTime
+    assert doc2.currentSession.syncSensor is None
+
+    sync.applySyncInfo(doc2, info)
+    assert doc2.currentSession.syncInfo == info
+    assert doc2.currentSession.offset == offset
+    assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
+    assert doc2.currentSession.syncSensor == sensor
+
+
 def test_sync_userdata():
-    """ Test reading/writing sync info from IDE user data.
+    """ Test reading/writing sync info from IDE user data. These tests
+        don't actually save the userdata to the file, only verify the
+        userdata (in memory) is updated.
     """
     cwd = os.path.dirname(__file__)
     doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
