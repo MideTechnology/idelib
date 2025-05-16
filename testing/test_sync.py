@@ -5,7 +5,8 @@ from idelib import importer, sync, userdata
 
 
 def test_offset():
-    """ Test that session timestamp offset works. """
+    """ Test that session timestamp offset works.
+    """
     filename1 = os.path.join(os.path.dirname(__file__), 'TSF1.IDE')
     doc1 = importer.importFile(filename1)
 
@@ -35,8 +36,8 @@ def test_offset():
     assert accel1[-1][0] == last1 - offset
 
 
-def test_get_source():
-    """ Test that get_source() returns the correct source.
+def test_getSyncSensor():
+    """ Test that getSyncSensor() returns the correct source.
     """
     cwd = os.path.dirname(__file__)
     doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
@@ -60,6 +61,35 @@ def test_get_source():
         _ = sync.getSyncSensor(doc1, sourceId='F0:9C:E9:5F:93:14', sourceName='bogus')
 
 
+def test_getCommonSensorIds():
+    cwd = os.path.dirname(__file__)
+    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
+    doc2 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))
+    doc3 = importer.importFile(os.path.join(cwd, 'test3.IDE'))  # No sync reference
+
+    assert len(sync.getCommonSensorIds(doc1, doc2)) == 1
+
+    with pytest.raises(sync.SyncError):
+        _ = sync.getCommonSensorIds(doc1, doc2, doc3)
+
+
+def test_getSyncSources():
+    """ Test getting sync reference sensor data.
+    """
+    cwd = os.path.dirname(__file__)
+    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))  # Has sync reference
+    doc2 = importer.importFile(os.path.join(cwd, 'test3.IDE'))  # No sync reference
+
+    sources1 = sync.getSyncSources(doc1)
+    assert len(sources1) > 0
+
+    sources2 = sync.getSyncSources(doc2)
+    assert len(sources2) == 0
+
+    sensor = sync.getSyncSensors(doc1)[0]
+    assert sources1[0].parent.sensor == sensor
+
+
 def test_sync_basic():
     """ Test that sync will modify the target file but not the reference.
     """
@@ -76,9 +106,10 @@ def test_sync_basic():
     utc1 = accel1.session.utcStartTime
     utc2 = accel2.session.utcStartTime
 
-    # Sanity check: initial offsets are zero
+    # Sanity check: initial offsets are zero, start times different
     assert accel1.session.offset == 0
     assert accel2.session.offset == 0
+    assert utc1 != utc2
 
     sync.sync(doc1, doc2)
     assert accel1.session.offset == 0  # doc1 (the reference) offset unchanged
@@ -162,4 +193,3 @@ def test_sync_userdata():
 
     ud = userdata.readUserData(doc2)
     assert 'SyncInfo' not in ud
-
