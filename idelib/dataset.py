@@ -266,6 +266,8 @@ class Dataset(Cascading):
         self._userdataOriginal: Optional[Dict[str, Any]] = None
         self._filesize: Optional[int] = None
 
+        self._fingerprint = None
+
         self._channelDataLock = RLock()
         
         # Subsets: used when importing multiple files into the same dataset.
@@ -311,7 +313,21 @@ class Dataset(Cascading):
         """ A dictionary of individual Sensor channels. """
         # Only return channels with subchannels. If all analog subchannels are
         # disabled, the recording properties will still show the parent channel.
-        return {k:v for k,v in self._channels.items() if v.subchannels}
+        return {k: v for k, v in self._channels.items() if v.subchannels}
+
+
+    @property
+    def fingerprint(self) -> Optional[str]:
+        """ A simple hash for identifying this `Dataset`, so it can be
+            referenced elsewhere, even if moved/renamed. The fingerprint
+            hash is generated from the recording's metadata, so modifying or
+            truncating the sensor data will not affect it. As such, the
+            fingerprint should not be used to verify file integrity.
+        """
+        try:
+            return self._fingerprint.hexdigest()
+        except AttributeError:
+            return None
 
 
     def close(self):

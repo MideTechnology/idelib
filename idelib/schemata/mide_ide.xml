@@ -439,6 +439,7 @@
             <IntegerElement name="SyncZero" id="0x10200038" multiple="0" mandatory="0"> The time reference value corresponding to the reference file's timestamp zero. </IntegerElement>
             <FloatElement name="SyncClockDrift" id="0x10200039" multiple="0" mandatory="0"> The rate, in microseconds per microsecond, that the enDAQ timestamps drift from the sync reference time. </FloatElement>
             <UnicodeElement name="SyncReferenceFilename" id="0x1020003A" multiple="0" mandatory="0"> The file to which this file is synced. </UnicodeElement>
+            <StringElement name="SyncReferenceFingerprint" id="0x1020003C" multiple="0" mandatory="0"> The fingerprint hash of the reference file to which this file is synced (a hex string). </StringElement>
             <UIntegerElement name="SyncTimeBaseUTC"  id="0x10205462"> The reference's UTC starting time, applied to the synched Dataset. </UIntegerElement>
             <UIntegerElement name="TimeBaseUTC"  id="0x5462" /> <!-- Reused. The Dataset's original starting time, for transferring sync data. -->
         </MasterElement>

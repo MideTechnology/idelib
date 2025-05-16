@@ -240,10 +240,12 @@ def sync(reference: "Dataset", *datasets: "Dataset",
             refzero = reference.currentSession.syncZero
             refutc = reference.currentSession.utcStartTime
             refFilename = reference.filename
+            refFingerprint = reference.fingerprint
         else:
             refzero = refInfo.get('SyncReferenceZero', reference.currentSession.syncZero)
             refutc = refInfo.get('SyncTimeBaseUTC', reference.currentSession.utcStartTime)
             refFilename = refInfo.get('SyncReferenceFilename')
+            refFingerprint = refInfo.get('SyncReferenceFingerprint')
 
         for ds in datasets:
             with ds._channelDataLock:
