@@ -89,15 +89,15 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
         relative timestamp zero.
 
         :param data: The data from which to get the reference time. It can
-            be either a `Dataset` (in which case it uses the first sync
-            source found) or an `EventArray` (to use a specific subchannel
-            as the time reference).
+            be either a `Dataset` (in which case it uses either the first sync
+            source found or the one indicated by `sensorId`) or an `EventArray`
+            (to use a specific subchannel as the time reference).
         :param start: The starting index into the time reference data, to use
             a limited range to compute the zero offset. For use with large
-            Datasets. Defaults to the beginning of the data.
+            and/or noisy Datasets. Defaults to the beginning of the data.
         :param end: The ending index into the time reference data, to use
             a limited range to compute the zero offset. For use with large
-            Datasets. Defaults to the end of the data.
+            and/or noisy Datasets. Defaults to the end of the data.
         :param sensorId: The ID of a specific time reference sensor. Only
             used if `data` is a `Dataset`. If `None`, the first time
             reference sensor found is used.
@@ -119,7 +119,7 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
     else:
         raise SyncError(f'Cannot get sync info from {data!r}')
 
-    if session.syncZero is not None and not clear:
+    if session.syncZero is not None and session.syncInfo and not clear:
         return session.syncZero
 
     # HACK: An indirect means of detecting a `Dataset`, avoiding circular imports.
@@ -144,7 +144,7 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
         session.syncZero = int(synctime - timestamp)
         session.syncSensor = sync.parent.sensor
 
-        if session.syncInfo is None:
+        if session.syncInfo is None or clear is True:
             session.syncInfo = {'SyncActive': False}
 
         session.syncInfo.update({
@@ -153,7 +153,9 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
             'SyncSourceName': sync.parent.sensor.sourceName,
             'SyncSourceIdentifier':  sync.parent.sensor.sourceId,
             'SyncZero': session.syncZero,
-            'TimeBaseUTC': session.utcStartTimeOriginal
+            'TimeBaseUTC': session.utcStartTimeOriginal,
+            'SyncFilename': dataset.filename,
+            'SyncFingerprint': dataset.fingerprint,
         })
 
     return session.syncZero
@@ -187,7 +189,7 @@ def getCommonSensorIds(*datasets: "Dataset") -> List[int]:
 
 def sync(reference: "Dataset", *datasets: "Dataset",
          sensorId: Optional[int] = None,
-         clear: bool = False):
+         inherit: bool = True):
     """ Synchronize one or more recordings with a canonical 'reference'
         recording. The 'reference' is not modified. Synched recordings
         will have their timestamps and UTC start time offset to match
@@ -199,10 +201,11 @@ def sync(reference: "Dataset", *datasets: "Dataset",
         :param sensorId: The time reference's sensor ID. If `None`, the
             first common time reference sensor detected is used. Use if the
             recordings have multiple time references in common.
-        :param clear: If `True`, clear existing sync info from the `reference`
-            and sync the `datasets` to the reference's zero time. If `False` and
-            `reference` is synced to another recording, sync `datasets` to
-            the same recording as the `reference` has been synced to.
+        :param inherit: If `True` and the `reference` Dataset has been synced
+            to another recording, sync the `datasets` to the same recording
+            `reference` has been synced to. If `False`, clear existing sync
+            info from the `reference` and sync the `datasets` to the
+            reference's zero time.
     """
     # NOTE: This function assumes there is only one session, only one
     #  reference time sensor, and only one subchannel for the reference time.
@@ -227,7 +230,7 @@ def sync(reference: "Dataset", *datasets: "Dataset",
     origInfo = [deepcopy(ds.currentSession.syncInfo) for ds in allDatasets]
 
     refInfo = reference.currentSession.syncInfo or {}
-    clear = clear or 'SyncReferenceZero' not in refInfo
+    clear = not inherit or 'SyncReferenceZero' not in refInfo
 
     try:
         for ds in allDatasets if clear else datasets:
@@ -258,6 +261,7 @@ def sync(reference: "Dataset", *datasets: "Dataset",
                     'SyncActive': True,
                     'SyncReferenceZero': refzero,
                     'SyncReferenceFilename': refFilename,
+                    'SyncReferenceFingerprint': refFingerprint,
                     'SyncTimeBaseUTC': refutc
                 })
 
@@ -273,7 +277,8 @@ def sync(reference: "Dataset", *datasets: "Dataset",
 
 
 # ===========================================================================
-#
+# Getting/applying sync info loaded from userdata and/or copied from another
+# recording.
 # ===========================================================================
 
 def validateSyncInfo(dataset: "Dataset",
@@ -288,6 +293,11 @@ def validateSyncInfo(dataset: "Dataset",
     if not info:
         return False
 
+    if info.get('SyncReferenceZero') is None:
+        raise SyncError('Sync info had no zero offset')
+    elif info.get('SyncTimeBaseUTC') is None:
+        raise SyncError('Sync info had no UTC time base')
+
     sourceName = info.get('SyncSourceName')
     sourceId = info.get('SyncSourceIdentifier')
 
@@ -296,6 +306,22 @@ def validateSyncInfo(dataset: "Dataset",
 
     # TODO: Additional validation (time range compatibility, etc.)?
     return True
+
+
+def makeSyncReferenceInfo(info: Dict[str, Any]) -> Dict[str, Any]:
+    """ Create a dictionary of sync 'reference' info from a dictionary of
+        sync 'target' info. For use with `applySyncInfo()` when applying
+        sync info copied from another recording, to sync to that recording.
+    """
+    info = deepcopy(info)
+    info.update({
+        'SyncActive': True,
+        'SyncReferenceZero': info.pop('SyncZero', None),
+        'SyncReferenceFilename': info.pop('SyncFilename', None),
+        'SyncReferenceFingerprint': info.pop('SyncFingerprint', None),
+        'SyncTimeBaseUTC': info.pop('TimeBaseUTC', None)
+    })
+    return info
 
 
 def applySyncInfo(dataset: "Dataset",
@@ -309,6 +335,11 @@ def applySyncInfo(dataset: "Dataset",
             ``mide_ide.xml`` EBML schema.
         :param validate: If `True`, validate the sync info before applying.
     """
+    if 'SyncReferenceZero' not in info:
+        info = makeSyncReferenceInfo(info)
+
+    info = {k: v for k, v in info.items() if v is not None}
+
     if validate:
         validateSyncInfo(dataset, info)
 
@@ -316,6 +347,7 @@ def applySyncInfo(dataset: "Dataset",
     session.syncSensor = getSyncSensor(dataset,
                                        sourceId=info.get('SyncSourceIdentifier'),
                                        sourceName=info.get('SyncSourceName'))
+    getSyncTimeZero(dataset, sensorId=session.syncSensor.id)
     session.syncInfo = info
 
     if not info.get('SyncActive', True):
@@ -323,6 +355,16 @@ def applySyncInfo(dataset: "Dataset",
 
     session.utcStartTime = info.get('SyncTimeBaseUTC', session.utcStartTimeOriginal)
     session.offset = session.syncZero - info.get('SyncReferenceZero', 0)
+
+
+def getSyncInfo(dataset: "Dataset") -> Dict[str, Any]:
+    """ Get a dictionary of sync info from a recording.
+    """
+    session = dataset.currentSession
+    getSyncTimeZero(dataset)
+
+    # Remove any `None` values
+    return {k: v for k, v in session.syncInfo.items() if v is not None}
 
 
 def removeSyncInfo(dataset: "Dataset"):
@@ -368,13 +410,8 @@ def updateUserdata(dataset: "Dataset"):
         data.pop('SyncInfo', None)
         return
 
-    info = deepcopy(session.syncInfo or {})
-    info['SyncZero'] = session.syncZero
-    info['SyncSourceIdentifier'] = session.syncSensor.sourceId
-    info['SyncSourceName'] = session.syncSensor.sourceName
+    info = getSyncInfo(dataset)
 
-    # Remove any `None` values
-    info = {k: v for k, v in info.items() if v is not None}
     if info:
         data['SyncInfo'] = info
     else:

@@ -145,8 +145,8 @@ def test_sync_repeat():
     assert accel2.session.offset == offsetPostSync
 
 
-def test_sync_clear():
-    """ Test syncing with the clear flag set and unset.
+def test_sync_inherit():
+    """ Test syncing with the 'inherit' flag set and unset.
     """
     cwd = os.path.dirname(__file__)
     doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
@@ -162,18 +162,18 @@ def test_sync_clear():
     })
 
     # sync w/o clear: doc2 uses doc1's syncInfo (as if doc1 was synced to another)
-    sync.sync(doc1, doc2, clear=False)
+    sync.sync(doc1, doc2, inherit=True)
     assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime + 60
     assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == 'bogus.ide'
 
     # sync w/ clear: doc2 syncs to doc1
-    sync.sync(doc1, doc2, clear=True)
+    sync.sync(doc1, doc2, inherit=False)
     assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
     assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == doc1.filename
 
     # sync w/o clear, but doc1 has no syncInfo: same as clear
     sync.removeSyncInfo(doc1)
-    sync.sync(doc1, doc2, clear=False)
+    sync.sync(doc1, doc2, inherit=True)
     assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
     assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == doc1.filename
 
@@ -215,7 +215,7 @@ def test_apply_sync():
     doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
     doc2 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))
 
-    sync.sync(doc1, doc2, clear=True)
+    sync.sync(doc1, doc2, inherit=False)
     assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
 
     info = json.loads(json.dumps(doc2.currentSession.syncInfo))
