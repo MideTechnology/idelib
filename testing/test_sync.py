@@ -72,6 +72,12 @@ def test_getCommonSensorIds():
     assert len(sync.getCommonSensorIds(doc1, doc2)) == 1
 
     with pytest.raises(sync.SyncError):
+        _ = sync.getCommonSensorIds(doc1)
+
+    with pytest.raises(sync.SyncError):
+        _ = sync.getCommonSensorIds(doc1, doc3)
+
+    with pytest.raises(sync.SyncError):
         _ = sync.getCommonSensorIds(doc1, doc2, doc3)
 
 
@@ -92,12 +98,43 @@ def test_getSyncSources():
     assert sources1[0].parent.sensor == sensor
 
 
+def test_getSyncTimeZero():
+    cwd = os.path.dirname(__file__)
+    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))  # Has sync reference
+    doc2 = importer.importFile(os.path.join(cwd, 'test3.IDE'))  # No sync reference
+    doc3 = importer.openFile(os.path.join(cwd, 'TSF2.IDE'))  # Has sync reference
+
+    with pytest.raises(sync.SyncError):
+        # Not a Dataset or EventArray
+        sync.getSyncTimeZero('an invalid object')
+
+    with pytest.raises(sync.SyncError):
+        # Bad sensor ID
+        sync.getSyncTimeZero(doc1, sensorId=254)
+
+    with pytest.raises(sync.SyncError):
+        # No sync reference
+        _ = sync.getSyncTimeZero(doc2)
+
+    with pytest.raises(sync.SyncError):
+        # Only header loaded, no reference data
+        sync.getSyncTimeZero(doc3)
+
+
 def test_sync_basic():
     """ Test that sync will modify the target file but not the reference.
     """
     cwd = os.path.dirname(__file__)
     doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
     doc2 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))
+    doc3 = importer.importFile(os.path.join(cwd, 'test3.IDE'))  # No sync reference
+
+    # Sanity check
+    assert len(sync.getSyncSensors(doc1)) == 1
+    assert len(sync.getSyncSensors(doc2)) == 1
+    assert len(sync.getSyncSensors(doc3)) == 0
+    assert sync.getSyncTimeZero(doc1) != 0
+    assert sync.getSyncTimeZero(doc2) != 0
 
     accel1 = doc1.channels[80].getSession()
     accel2 = doc2.channels[80].getSession()
@@ -123,6 +160,27 @@ def test_sync_basic():
 
     assert accel1.session.utcStartTime == utc1
     assert accel2.session.utcStartTime == utc1
+
+    # Get sync time zero again; value should have been cached
+    # (mainly for code coverage)
+    assert doc1.currentSession.syncZero is not None
+    sync.getSyncTimeZero(doc1)
+
+    with pytest.raises(sync.SyncError):
+        # At least 2 datasets needed (reference and another)
+        sync.sync(doc1)
+
+    with pytest.raises(sync.SyncError):
+        # No sync reference in doc3
+        sync.sync(doc1, doc3)
+
+    with pytest.raises(sync.SyncError):
+        # Sync reference in doc1 and doc2; no sync reference in doc3
+        sync.sync(doc1, doc2, doc3)
+
+    with pytest.raises(sync.SyncError):
+        sync.sync(doc1, doc3, sensorId=103)
+
 
 
 def test_sync_repeat():
@@ -176,33 +234,6 @@ def test_sync_inherit():
     sync.sync(doc1, doc2, inherit=True)
     assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
     assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == doc1.filename
-
-
-def test_sync_failures():
-    """ Check various failure cases with a file without a time sync reference
-        sensor.
-    """
-    cwd = os.path.dirname(__file__)
-    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))  # Has sync reference
-    doc2 = importer.importFile(os.path.join(cwd, 'test3.IDE'))  # No sync reference
-    doc3 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))  # Has sync reference
-
-    # Sanity check
-    assert len(sync.getSyncSensors(doc1)) == 1
-    assert len(sync.getSyncSensors(doc2)) == 0
-    assert sync.getSyncTimeZero(doc1) != 0
-
-    with pytest.raises(sync.SyncError):
-        _ = sync.getSyncTimeZero(doc2)
-
-    with pytest.raises(sync.SyncError):
-        sync.sync(doc1, doc2)
-
-    with pytest.raises(sync.SyncError):
-        sync.sync(doc1, doc2, doc3)
-
-    with pytest.raises(sync.SyncError):
-        sync.sync(doc1, doc2, sensorId=103)
 
 
 def test_apply_sync():
