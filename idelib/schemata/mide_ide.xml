@@ -264,7 +264,7 @@
             <FloatElement name="CalReferenceValue" id="0x4B04" multiple="0" minver="1">Reference value for this channel</FloatElement>
             <FloatElement name="BivariateCalReferenceValue" id="0x4B05" multiple="0" minver="1">Reference value for the 2nd channel when using bivariate calibration</FloatElement>
             <UIntegerElement name="BivariateChannelIDRef" id="0x4B06" multiple="0" minver="1">Channel ID of the channel to be used as the 2nd parameter for bivariate compensation</UIntegerElement>
-            <IntegerElement name="BivariateSubChannelIDRef" id="0x4B07" multiple="0" minver="1">SubChannel ID of the subchannel to be used as the 2nd parameter for bivariate compensation</IntegerElement>
+            <UIntegerElement name="BivariateSubChannelIDRef" id="0x4B07" multiple="0" minver="1">SubChannel ID of the subchannel to be used as the 2nd parameter for bivariate compensation</UIntegerElement>
             <FloatElement name="PolynomialCoef" id="0x4B08" multiple="1" minver="1">Univariate or bivariate polynomial coefficient in canonical order</FloatElement>
             <UnicodeElement name="PolynomialOutputUnits" id="0x4B30" multiple="0">Text name of the engineering unit (e.g. "g") output by this polynomial. Similar to `SubChannelUnits`, which it overrides. Unicode characters such as degree or Greek symbols are allowed and encouraged. For polynomials that convert between units, e.g., raw ADC values to 'g'.</UnicodeElement>
             <UnicodeElement name="PolynomialOutputUnitsName" id="0x4B31" multiple="0">Text name of the polynomial output units. Similar to `SubChannelUnitsName`, which it overrides.</UnicodeElement>
