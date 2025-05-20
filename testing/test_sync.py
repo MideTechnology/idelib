@@ -349,6 +349,7 @@ def test_sync_reference_info():
     # Test hasSyncReferenceInfo()
     assert sync.hasSyncReferenceInfo(SYNC_INFO) is True
     assert sync.hasSyncReferenceInfo(SYNC_INFO_NO_REFERENCE) is False
+    assert sync.hasSyncReferenceInfo({}) is False
 
     # Test makeSyncReferenceInfo()
     info = sync.makeSyncReferenceInfo(SYNC_INFO_NO_REFERENCE)
@@ -370,5 +371,15 @@ def test_file_sync_userdata(tmp_path):
         userdata.writeUserData(doc, doc._userdata)
 
     with importer.importFile(filename) as doc:
+        # Check saved info
         sync.loadSyncInfo(doc)
         assert info == sync.getSyncInfo(doc)
+
+        # Check removed info
+        sync.removeSyncInfo(doc)
+        sync.updateUserdata(doc)
+        assert 'SyncInfo' not in doc._userdata
+
+    # Check file without userdata
+    doc2 = importer.importFile(os.path.join(cwd, 'test3.IDE'))
+    assert sync.loadSyncInfo(doc2) is False
