@@ -1,9 +1,39 @@
 import json
 import os.path
+import shutil
 
 import pytest
 
 from idelib import importer, sync, userdata
+
+
+SYNC_INFO = {
+    'SyncActive': True,
+    'SyncChannelIDRef': 103,
+    'SyncSubChannelIDRef': 0,
+    'SyncSourceName': 'MIDE-Corp',
+    'SyncSourceIdentifier': 'F0:9C:E9:5F:93:14',
+    'SyncZero': 6234333139,
+    'TimeBaseUTC': [1737569556],
+    'SyncFilename': 'testing/TSF2.IDE',
+    'SyncFingerprint': '71f7501261809bfbbf9c659b5376e373',
+    'SyncReferenceZero': 6224001645,
+    'SyncReferenceFilename': 'testing/TSF1.IDE',
+    'SyncReferenceFingerprint': '6af87d674b94e1d1655a3492ac7bb690',
+    'SyncTimeBaseUTC': 1737569545
+}
+
+SYNC_INFO_NO_REFERENCE = {
+    'SyncActive': True,
+    'SyncChannelIDRef': 103,
+    'SyncSubChannelIDRef': 0,
+    'SyncSourceName': 'MIDE-Corp',
+    'SyncSourceIdentifier': 'F0:9C:E9:5F:93:14',
+    'SyncZero': 6234333139,
+    'TimeBaseUTC': [1737569556],
+    'SyncFilename': 'testing/TSF2.IDE',
+    'SyncFingerprint': '71f7501261809bfbbf9c659b5376e373'
+}
 
 
 def test_offset():
@@ -104,13 +134,16 @@ def test_getSyncTimeZero():
     doc2 = importer.importFile(os.path.join(cwd, 'test3.IDE'))  # No sync reference
     doc3 = importer.openFile(os.path.join(cwd, 'TSF2.IDE'))  # Has sync reference
 
+    sync.getSyncTimeZero(doc1)
+    assert doc1.currentSession.syncZero is not None
+
     with pytest.raises(sync.SyncError):
         # Not a Dataset or EventArray
         sync.getSyncTimeZero('an invalid object')
 
     with pytest.raises(sync.SyncError):
         # Bad sensor ID
-        sync.getSyncTimeZero(doc1, sensorId=254)
+        sync.getSyncTimeZero(doc1, sensorId=254, clear=True)
 
     with pytest.raises(sync.SyncError):
         # No sync reference
@@ -180,7 +213,6 @@ def test_sync_basic():
 
     with pytest.raises(sync.SyncError):
         sync.sync(doc1, doc3, sensorId=103)
-
 
 
 def test_sync_repeat():
@@ -291,3 +323,52 @@ def test_sync_userdata():
 
     ud = userdata.readUserData(doc2)
     assert 'SyncInfo' not in ud
+
+
+def test_validateSyncInfo():
+    """ Test validation of a sync info dictionary.
+    """
+    cwd = os.path.dirname(__file__)
+    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
+
+    assert sync.validateSyncInfo(doc1, SYNC_INFO) is True
+    assert sync.validateSyncInfo(doc1, {}) is False
+
+    with pytest.raises(sync.SyncError):
+        # Bad key
+        sync.validateSyncInfo(doc1, {'bogus': 1})
+
+    with pytest.raises(sync.SyncError):
+        # Real schema element, but bad key for SyncInfo
+        sync.validateSyncInfo(doc1, {'ChannelDataBlock': {}})
+
+
+def test_sync_reference_info():
+    """ Test a couple functions related to syc reference info.
+    """
+    # Test hasSyncReferenceInfo()
+    assert sync.hasSyncReferenceInfo(SYNC_INFO) is True
+    assert sync.hasSyncReferenceInfo(SYNC_INFO_NO_REFERENCE) is False
+
+    # Test makeSyncReferenceInfo()
+    info = sync.makeSyncReferenceInfo(SYNC_INFO_NO_REFERENCE)
+    assert sync.hasSyncReferenceInfo(info) is True
+
+
+def test_file_sync_userdata(tmp_path):
+    """ Test reading/writing sync info from a recording's userdata.
+    """
+    cwd = os.path.dirname(__file__)
+    sourcename = os.path.join(cwd, 'TSF1.IDE')
+    filename = tmp_path / os.path.basename(sourcename)
+    shutil.copyfile(sourcename, filename)
+
+    with importer.importFile(filename) as doc:
+        userdata.readUserData(doc)
+        info = sync.getSyncInfo(doc)
+        sync.updateUserdata(doc)
+        userdata.writeUserData(doc, doc._userdata)
+
+    with importer.importFile(filename) as doc:
+        sync.loadSyncInfo(doc)
+        assert info == sync.getSyncInfo(doc)

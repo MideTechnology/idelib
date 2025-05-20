@@ -84,7 +84,7 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
                     start: Optional[int] = None,
                     end: Optional[int] = None,
                     sensorId: Optional[int] = None,
-                    clear: bool = True) -> int:
+                    clear: bool = False) -> int:
     """ Get the sync reference's time corresponding to the recording's
         relative timestamp zero.
 
@@ -153,7 +153,7 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
             'SyncSourceName': sync.parent.sensor.sourceName,
             'SyncSourceIdentifier':  sync.parent.sensor.sourceId,
             'SyncZero': session.syncZero,
-            'TimeBaseUTC': session.utcStartTimeOriginal,
+            'TimeBaseUTC': [session.utcStartTimeOriginal],
             'SyncFilename': dataset.filename,
             'SyncFingerprint': dataset.fingerprint,
         })
@@ -293,19 +293,33 @@ def validateSyncInfo(dataset: "Dataset",
     if not info:
         return False
 
-    if info.get('SyncReferenceZero') is None:
-        raise SyncError('Sync info had no zero offset')
-    elif info.get('SyncTimeBaseUTC') is None:
-        raise SyncError('Sync info had no UTC time base')
+    schema = dataset.ebmldoc.schema
+    validElements = [schema[eid].name for eid in schema['SyncInfo'].children]
+    for key in info:
+        if key not in validElements:
+            raise SyncError(f'Invalid sync info key {key!r}')
 
-    sourceName = info.get('SyncSourceName')
-    sourceId = info.get('SyncSourceIdentifier')
-
-    # This will raise an exception if the source is not found.
-    getSyncSensor(dataset, sourceId=sourceId, sourceName=sourceName)
+    # Find the time source. This will raise an exception if the source is not found.
+    getSyncSensor(dataset,
+                  sourceId=info.get('SyncSourceIdentifier'),
+                  sourceName=info.get('SyncSourceName'))
 
     # TODO: Additional validation (time range compatibility, etc.)?
     return True
+
+
+def hasSyncReferenceInfo(info: Dict[str, Any]) -> bool:
+    """ Check if a dictionary of sync info contains the information
+        needed to sync to a reference recording (e.g., copied from a
+        recording that has already been synced).
+
+        :param info: The dictionary of synchronization info to check. The
+            keys match the names of ``SyncInfo`` child elements in the
+            ``mide_ide.xml`` EBML schema.
+    """
+    if 'SyncSourceName' not in info and 'SyncSourceIdentifier' not in info:
+        return False
+    return 'SyncReferenceZero' in info and 'SyncTimeBaseUTC' in info
 
 
 def makeSyncReferenceInfo(info: Dict[str, Any]) -> Dict[str, Any]:
@@ -319,7 +333,7 @@ def makeSyncReferenceInfo(info: Dict[str, Any]) -> Dict[str, Any]:
         'SyncReferenceZero': info.pop('SyncZero', None),
         'SyncReferenceFilename': info.pop('SyncFilename', None),
         'SyncReferenceFingerprint': info.pop('SyncFingerprint', None),
-        'SyncTimeBaseUTC': info.pop('TimeBaseUTC', None)
+        'SyncTimeBaseUTC': info.pop('TimeBaseUTC', [0])[0]
     })
     return info
 
@@ -335,9 +349,6 @@ def applySyncInfo(dataset: "Dataset",
             ``mide_ide.xml`` EBML schema.
         :param validate: If `True`, validate the sync info before applying.
     """
-    if 'SyncReferenceZero' not in info:
-        info = makeSyncReferenceInfo(info)
-
     info = {k: v for k, v in info.items() if v is not None}
 
     if validate:
@@ -360,8 +371,8 @@ def applySyncInfo(dataset: "Dataset",
 def getSyncInfo(dataset: "Dataset") -> Dict[str, Any]:
     """ Get a dictionary of sync info from a recording.
     """
-    session = dataset.currentSession
     getSyncTimeZero(dataset)
+    session = dataset.currentSession
 
     # Remove any `None` values
     return {k: v for k, v in session.syncInfo.items() if v is not None}
@@ -382,7 +393,7 @@ def removeSyncInfo(dataset: "Dataset"):
 
 def loadSyncInfo(dataset: "Dataset",
                  refresh: bool = False) -> bool:
-    """ Load and apply sync info from a file's userdata.
+    """ Read and apply sync info from a file's userdata.
 
         :param dataset: The `Dataset` from which to load the sync info.
         :param refresh: If `True`, ignore any cached user data and reload
@@ -392,7 +403,7 @@ def loadSyncInfo(dataset: "Dataset",
     """
     data = userdata.readUserData(dataset, refresh=refresh)
     if data and 'SyncInfo' in data:
-        applySyncInfo(dataset, data['SyncInfo'])
+        applySyncInfo(dataset, data['SyncInfo'], validate=False)
         return True
     return False
 
