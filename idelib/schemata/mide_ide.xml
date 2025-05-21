@@ -129,8 +129,8 @@
                 <UIntegerElement name="TimeCodeModulus" id="0x5278" multiple="0" minver="2">The modulus at which modulo timestamps for this channel roll over.</UIntegerElement>
                 <StringElement name="SampleRate" id="0x5279" multiple="0" minver="2">The samplerate for this channel, if known and fixed. String represents a valid numeric expression, such as integer, decimal or ratio, e.g. '32768/16262'. Element required if both starting and ending timecodes will ever be omitted for blocks in this channel.</StringElement>
                 <MasterElement name="SubChannel" id="0x52A0" multiple="1" minver="2">Master element for SensorSubChannels.
-                    <IntegerElement name="SubChannelID" id="0x52A1" multiple="0" minver="2">ID of this SubChannel. Currently, SubChannelIDs must be sequential, starting from 0, for use with Slam Stick Lab. A specific SubChannel's ID will change depending on what 'sibling' channels are enabled.</IntegerElement>
-                    <IntegerElement name="SubChannelCanonicalID" id="0x52B1" multiple="0" minver="2">ID of this SubChannel as reported in the DEVINFO, which shows all 'sibling' SubChannels. These numbers do not change if channels are enabled or disabled.</IntegerElement>
+                    <UIntegerElement name="SubChannelID" id="0x52A1" multiple="0" minver="2">ID of this SubChannel. Currently, SubChannelIDs must be sequential, starting from 0, for use with Slam Stick Lab. A specific SubChannel's ID will change depending on what 'sibling' channels are enabled.</UIntegerElement>
+                    <UIntegerElement name="SubChannelCanonicalID" id="0x52B1" multiple="0" minver="2">ID of this SubChannel as reported in the DEVINFO, which shows all 'sibling' SubChannels. These numbers do not change if channels are enabled or disabled.</UIntegerElement>
                     <StringElement name="SubChannelName" id="0x52A2" multiple="0" minver="2">Display name of the subchannel, typically the axis name for multiaxis measurements (e.g. "X", "Yaw", etc.). Typically omitted if no display name is needed beyond a measurement label and units.</StringElement>
                     <UIntegerElement name="SubChannelCalibrationIDRef" id="0x52A3" multiple="0" minver="2">Reference to a Calibration in CalibrationList.</UIntegerElement>
                     <UIntegerElement name="SubChannelBwLimitIDRef" id="0x52A4" multiple="0" minver="2">Reference to a BwLimitList entry. If present, this discloses any bandwidth limitations imposed for the acquisition channel, e.g. antialias or other filter settings. Note that the effective bandwidth is the lesser of the Sensor and SubChannel bandwidth!</UIntegerElement>
@@ -173,8 +173,8 @@
                     <StringElement name="SubChannelAxisName" id="0x5302" multiple="0" minver="2">Text name of the axis(?).</StringElement>
                     <UIntegerElement name="SubChannelAxisXRef" id="0x5303" multiple="0" minver="2">Reference to an Axis.</UIntegerElement>
                     <MasterElement name="PlotSource" id="0x5320" multiple="1" minver="2">List of channels/subchannels used by this Plot
-                        <IntegerElement name="PlotChannelRef" id="0x5221" multiple="0" minver="2">SubChannelID</IntegerElement>
-                        <IntegerElement name="PlotSubChannelRef" id="0x5222" multiple="0" minver="2">SubChannelID</IntegerElement>
+                        <UIntegerElement name="PlotChannelRef" id="0x5221" multiple="0" minver="2">ChannelID</UIntegerElement>
+                        <UIntegerElement name="PlotSubChannelRef" id="0x5222" multiple="0" minver="2">SubChannelID</UIntegerElement>
                     </MasterElement>
                 </MasterElement>
             </MasterElement>
@@ -182,9 +182,9 @@
 
         <MasterElement name="WarningList" id="0x5360" multiple="0" minver="2"> "Idiot Light" warnings for sensors that are inaccurate in certain conditions
             <MasterElement name="Warning" id="0x5361" multiple="1" minver="2">
-                <IntegerElement name="WarningID" id="0x5362" multiple="0" minver="2">Warning ID, referenced by Subchannels. </IntegerElement>
-                <IntegerElement name="WarningChannelRef" id="0x5363" multiple="0" minver="2">ChannelID</IntegerElement>
-                <IntegerElement name="WarningSubChannelRef" id="0x5364" multiple="0" minver="2">SubChannelID</IntegerElement>
+                <UIntegerElement name="WarningID" id="0x5362" multiple="0" minver="2">Warning ID, referenced by Subchannels. </UIntegerElement>
+                <UIntegerElement name="WarningChannelRef" id="0x5363" multiple="0" minver="2">ChannelID</UIntegerElement>
+                <UIntegerElement name="WarningSubChannelRef" id="0x5364" multiple="0" minver="2">SubChannelID</UIntegerElement>
                 <FloatElement name="WarningRangeMin" id="0x5365" multiple="0" minver="2">Minimum valid value. Note: this is in real, post-converted units, not raw channel units. </FloatElement>
                 <FloatElement name="WarningRangeMax" id="0x5366" multiple="0" minver="2">Maximum valid value. Note: this is in real, post-converted units, not raw channel units. </FloatElement>
             </MasterElement>
@@ -401,7 +401,7 @@
     <BinaryElement name="SimpleChannelDataBlock"  id="0xA0" multiple="1" minver="1">This element contains potentially-channelized instrumentation data in a minimalist format. Its mandatory, fixed-length header includes a 2-byte modulo timecode (scaled to the channel's TimecodeScale, default of 1/32768 sec) and a 1-byte integer ChannelID.</BinaryElement>
 
     <MasterElement name="ChannelDataBlock"  id="0xA1" multiple="1" minver="1">This element contains child elements including instrumentation data associated to a channel. This is used for e.g. binding a timestamp(s) and/or metadata to a specific multi-sample block of sensor data, which may be written asynchronously with respect to other channels' data (i.e. multiplexed).
-        <IntegerElement name="ChannelIDRef" id="0xB0" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</IntegerElement>
+        <UIntegerElement name="ChannelIDRef" id="0xB0" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</UIntegerElement>
         <UIntegerElement name="ChannelFlags" id="0xB1" multiple="0" minver="1">Child of ChannelDataBlock: optional flags to indicate datablock features such as discontinuity</UIntegerElement>
         <BinaryElement name="ChannelDataPayload" id="0xB2" multiple="0" minver="1">Child of ChannelDataBlock: the actual channel data samples. If there are multiple subchannels, for each sample point, the sample for each subchannel will be written consecutively (i.e. [sc0 sc1 sc2] [sc0 sc1 sc2]).</BinaryElement>
         <UIntegerElement name="StartTimeCodeAbs" id="0xB8" multiple="0" minver="1">Absolute timecode as an offset from the session TimeBase. The timecode resolution is given by the channel's TimeCodeScale.</UIntegerElement>
