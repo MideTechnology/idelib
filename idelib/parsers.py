@@ -47,15 +47,8 @@ import numpy as np
 from . import transforms
 from .attributes import decode_attributes
 
-# Dictionaries in Python 3.7+ are explicitly insert-ordered in all
-# implementations. If older, continue to use `collections.OrderedDict`.
-if sys.hexversion < 0x03070000:
-    from collections import OrderedDict as Dict
-else:
-    Dict = dict
-
 import logging
-logger = logging.getLogger('idelib')
+logger = logging.getLogger(__name__)
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 #===============================================================================
@@ -108,7 +101,7 @@ def renameKeys(d, renamed, exclude=True, recurse=True,
     elif not isinstance(d, dict):
         return d
     
-    result = Dict()
+    result = {}
 
     for oldname, v in d.items():
         if oldname == "Attribute":
@@ -180,7 +173,7 @@ def parseAttribute(obj, element, multiple=True):
             the last `Attribute` element parsed. 
     """
     if not hasattr(obj, 'attributes'):
-        obj.attributes = Dict()
+        obj.attributes = {}
         
     k = v = None
     for ch in element.value:

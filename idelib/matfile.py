@@ -9,8 +9,8 @@ import string
 import struct
 
 import logging
-logger = logging.getLogger('idelib')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
+
 
 # NOTE: 64 bit Scipy is unstable; avoid using it for now (v0.13.2, 12/2014).
 # from scipy.io.matlab import mio5_params as MP

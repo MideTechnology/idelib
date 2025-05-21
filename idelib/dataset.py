@@ -73,8 +73,7 @@ SCHEMA_FILE = 'mide_ide.xml'
 #===============================================================================
 
 import logging
-logger = logging.getLogger('idelib')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 __DEBUG__ = str(os.environ.get('MIDE_DEV', 0)) == '1'
     

@@ -11,6 +11,7 @@ import logging
 from typing import Any, Dict, Tuple, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
+    # codecov:ignore:next
     from .dataset import Dataset
 
 #===============================================================================

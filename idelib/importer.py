@@ -7,8 +7,6 @@ from datetime import datetime
 import hashlib
 import os.path
 import sys
-from time import time as time_time
-from time import sleep
 import warnings
 
 import struct
@@ -29,8 +27,7 @@ from . import parsers
 # from dataset import __DEBUG__
 
 import logging
-logger = logging.getLogger('idelib')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 #===============================================================================

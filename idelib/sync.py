@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
 from idelib import userdata
 
 if TYPE_CHECKING:
+    # codecov:ignore:next
     from idelib.dataset import Dataset, EventArray, Sensor
 
 
