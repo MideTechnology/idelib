@@ -268,6 +268,7 @@ def sync(reference: "Dataset", *datasets: "Dataset",
 
     except Exception:
         # Failure: Restore original pre-sync values.
+        # codecov:ignore:this
         for ds, offset, zero, info in zip(allDatasets, origOffsets, origZeros, origInfo):
             with ds._channelDataLock:
                 ds.currentSession.syncZero = zero
