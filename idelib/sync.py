@@ -1,8 +1,19 @@
 """
 Functions to assist in syncing one file to another.
 
-NOTE: This is currently a proof of concept. Some functionality may eventually
-be rolled directly into classes in `idelib.dataset`.
+Syncing modifies the start time and timestamps of one or more `Dataset`
+objects to match a 'reference' :py:class:`Dataset`. Syncing is non-destructuve;
+the sync can be repeatedly changed (i.e., a :py:class:`Dataset` can be synced to a
+different reference) or removed without any cumulative effect to the timing.
+
+Syncing can only be done with IDE files containing a common time reference
+channel; currently, only Wi-Fi enabled devices (i.e., the enDAQ W series)
+connected to the same Wi-Fi access point can create these. Note that the
+time sync reference channels are not shown in *enDAQ Lab*, but can be seen
+in :py:attr:`Dataset.channels`.
+
+While this module implements several functions, the primary one is
+:py:func:`idelib.sync.sync()`.
 """
 
 from copy import deepcopy
