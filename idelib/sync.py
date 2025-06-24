@@ -78,7 +78,7 @@ def getSyncSensor(dataset: "Dataset",
 
 
 def getSyncSources(dataset: "Dataset") -> List["EventArray"]:
-    """ Get the `SubChannel`s that can be used for time synchronization.
+    """ Get the `SubChannel` instances that can be used for time synchronization.
 
         :param dataset: The `Dataset` from which to get the sources.
     """
