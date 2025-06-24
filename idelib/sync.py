@@ -1,16 +1,17 @@
 """
 Functions to assist in syncing one file to another.
 
-Syncing modifies the start time and timestamps of one or more `Dataset`
-objects to match a 'reference' :py:class:`Dataset`. Syncing is non-destructuve;
-the sync can be repeatedly changed (i.e., a :py:class:`Dataset` can be synced to a
-different reference) or removed without any cumulative effect to the timing.
+Syncing modifies the start time and timestamps of one or more
+:py:class:`Dataset` objects' recording session to match a 'reference'
+:py:class:`Dataset`. Syncing is non-destructive; the sync can be repeatedly
+changed (i.e., a :py:class:`Dataset` can be synced to a different reference)
+or removed without any cumulative effect to the timing.
 
 Syncing can only be done with IDE files containing a common time reference
 channel; currently, only Wi-Fi enabled devices (i.e., the enDAQ W series)
-connected to the same Wi-Fi access point can create these. Note that the
-time sync reference channels are not shown in *enDAQ Lab*, but can be seen
-in :py:attr:`Dataset.channels`.
+connected to the same Wi-Fi access point can create these. Note that the time
+sync reference channels are not shown in *enDAQ Lab*, but can be seen in
+:py:attr:`Dataset.channels`.
 
 While this module implements several functions, the primary one is
 :py:func:`idelib.sync.sync()`.
@@ -117,9 +118,6 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
         :returns: The sync reference time (in microseconds) corresponding to
             the recording's relative timestamp zero.
     """
-    # TODO: Once this PoC is proven, this can be made a method of `Dataset`
-    #  and/or `EventArray` with no arguments (or different ones).
-
     if hasattr(data, 'channels'):
         # data is a Dataset
         session = data.currentSession
@@ -206,6 +204,9 @@ def sync(reference: "Dataset", *datasets: "Dataset",
         recording. The 'reference' is not modified. Synched recordings
         will have their timestamps and UTC start time offset to match
         the reference.
+
+        Note that this function runs synchronously, and can block/be blocked
+        by other functions affecting the contents of the :py:class:`Dataset`.
 
         :param reference: The reference `Dataset` to which to synchronize
             the others.
@@ -356,6 +357,9 @@ def applySyncInfo(dataset: "Dataset",
                   validate: bool = True):
     """ Apply a dictionary of sync info to a dataset.
 
+        Note that this function runs synchronously, and can block/be blocked
+        by other functions affecting the contents of the :py:class:`Dataset`.
+
         :param dataset: The `Dataset` to which the sync info will be applied.
         :param info: The dictionary of synchronization info to validate. The
             keys match the names of ``SyncInfo`` child elements in the
@@ -377,8 +381,9 @@ def applySyncInfo(dataset: "Dataset",
     if not info.get('SyncActive', True):
         return
 
-    session.utcStartTime = info.get('SyncTimeBaseUTC', session.utcStartTimeOriginal)
-    session.offset = session.syncZero - info.get('SyncReferenceZero', 0)
+    with dataset._channelDataLock:
+        session.utcStartTime = info.get('SyncTimeBaseUTC', session.utcStartTimeOriginal)
+        session.offset = session.syncZero - info.get('SyncReferenceZero', 0)
 
 
 def getSyncInfo(dataset: "Dataset") -> Dict[str, Any]:
@@ -392,7 +397,12 @@ def getSyncInfo(dataset: "Dataset") -> Dict[str, Any]:
 
 
 def removeSyncInfo(dataset: "Dataset"):
-    """ Remove sync info from a Dataset.
+    """ Remove sync info from a :py:class:`Dataset` recording session. The
+        UTC start time and timestamp offsets will revert to those
+        originally in the file.
+
+        Note that this function runs synchronously, and can block/be blocked
+        by other functions affecting the contents of the :py:class:`Dataset`.
     """
     with dataset._channelDataLock:
         session = dataset.currentSession
@@ -423,8 +433,8 @@ def loadSyncInfo(dataset: "Dataset",
 
 def updateUserdata(dataset: "Dataset"):
     """ Create or update sync info in a Dataset's userdata. Note that this does
-        not save the user data to the file; `idelib.userdata.writeUserData()`
-        must be called explicitly.
+        not save the updated user data to the file; the function
+        :py:func:`idelib.userdata.writeUserData()` must be called explicitly.
 
         :param dataset: The `Dataset` to update.
     """

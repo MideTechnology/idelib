@@ -588,12 +588,12 @@ class Session(object):
     
     def __init__(self, dataset, sessionId=0, startTime=None, endTime=None,
                  utcStartTime=None):
-        """ Information about a collection of data within a `Dataset`, e.g.
-            one test run. A `Dataset` is expected to contain at least one
-            `Session`.
+        """ Information about a collection of data within a :py:class:`Dataset`,
+            i.e., one run of a recorder. A :py:class:`Dataset` loaded from an
+            IDE file contains one `Session`.
 
             Instantiating a `Session` should generally be done indirectly
-            via `Dataset.addSession()` as part of the import process.
+            via :py:meth:`Dataset.addSession()` as part of the import process.
             
             :param dataset: The parent `Dataset`
             :keyword sessionId: The Session's numeric ID. Typically
