@@ -25,8 +25,7 @@ if sys.hexversion < 0x03070000:
 else:
     Dict = dict
 
-logger = logging.getLogger('idelib')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 #===============================================================================
