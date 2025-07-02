@@ -729,9 +729,6 @@ class SimpleChannelDataBlockParser(ElementHandler):
         if block.endTime is not None:
             block.endTime = timeOffset + int(self.fixOverflow(block, block.endTime))
 
-        block.startTimeOriginal = block.startTime
-        block.endTimeOriginal = block.endTime
-
         if channel not in self.doc.channels:
             # Unknown channel; could be debugging info, so that might be okay.
             # FUTURE: Better handling of unknown channel types. Low priority.
@@ -806,11 +803,6 @@ class ChannelDataBlock(BaseDataBlock):
         # the end timestamp; if it's missing, duplicate the starting time.
         if self.endTime is None:
             self.endTime = self.startTime
-
-        # Original start/end times, so `startTime`/`endTime` can be modified
-        # for syncing and reverted. Also, some functions need the originals.
-        self.startTimeOriginal = self.startTime
-        self.endTimeOriginal = self.endTime
 
         self._payload = None
         self._parser = None
