@@ -6,3 +6,5 @@
    :caption: Contents:
 
    idelib/dataset
+   idelib/importer
+   idelib/util

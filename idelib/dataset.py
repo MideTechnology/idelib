@@ -49,8 +49,8 @@ __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
 from collections.abc import Iterable, Sequence
 from datetime import datetime
 from math import ceil
-from threading import Lock
-from typing import Any, Dict, Optional
+from threading import RLock
+from typing import Any, Dict, List, Optional, Union, Type
 import warnings
 
 import os.path
@@ -73,8 +73,7 @@ SCHEMA_FILE = 'mide_ide.xml'
 #===============================================================================
 
 import logging
-logger = logging.getLogger('idelib')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 __DEBUG__ = str(os.environ.get('MIDE_DEV', 0)) == '1'
     
@@ -94,6 +93,7 @@ def mapRange(x, in_min, in_max, out_min, out_max):
 #===============================================================================
 # Mix-In Classes
 #===============================================================================
+
 
 class Cascading(object):
     """ A base/mix-in class for objects in a hierarchy. 
@@ -134,10 +134,10 @@ class Transformable(Cascading):
         etc.), making it easy to turn the transformation on or off.
         
         :ivar transform: The transformation function/object
-        :ivar raw: If `False`, the transform will not be applied to data.
-            Note: The object's `transform` attribute will not change; it will
-            just be ignored.
     """
+
+    dataset: "Dataset" = None
+    children: List["Transformable"] = None
 
     def setTransform(self, transform, update=True):
         """ Set the transforming function/object. This does not change the
@@ -217,7 +217,6 @@ class Dataset(Cascading):
             A valid file will have at least one, even if there are no 
             `Session` elements in the data.
         :ivar sensors: A dictionary of Sensors.
-        :ivar channels: A dictionary of individual Sensor channels.
         :ivar plots: A dictionary of individual Plots, the modified output of
             a Channel (or even another plot).
         :ivar transforms: A dictionary of functions (or function-like objects)
@@ -248,6 +247,7 @@ class Dataset(Cascading):
         self.currentSession = None
         self.recorderInfo = {}
         self.recorderConfig = None
+        self.bandwidthLimits = {}  # For future use
 
         self.attributes = attributes if attributes else {}
 
@@ -262,9 +262,12 @@ class Dataset(Cascading):
         # For keeping user-defined data
         self._userdata: Optional[Dict[str, Any]] = None
         self._userdataOffset: Optional[int] = None
+        self._userdataOriginal: Optional[Dict[str, Any]] = None
         self._filesize: Optional[int] = None
 
-        self._channelDataLock = Lock()
+        self._fingerprint = None
+
+        self._channelDataLock = RLock()
         
         # Subsets: used when importing multiple files into the same dataset.
         self.subsets = []
@@ -309,7 +312,21 @@ class Dataset(Cascading):
         """ A dictionary of individual Sensor channels. """
         # Only return channels with subchannels. If all analog subchannels are
         # disabled, the recording properties will still show the parent channel.
-        return {k:v for k,v in self._channels.items() if v.subchannels}
+        return {k: v for k, v in self._channels.items() if v.subchannels}
+
+
+    @property
+    def fingerprint(self) -> Optional[str]:
+        """ A simple hash for identifying this `Dataset`, so it can be
+            referenced elsewhere, even if moved/renamed. The fingerprint
+            hash is generated from the recording's metadata, so modifying or
+            truncating the sensor data will not affect it. As such, the
+            fingerprint should not be used to verify file integrity.
+        """
+        try:
+            return self._fingerprint.hexdigest()
+        except AttributeError:
+            return None
 
 
     def close(self):
@@ -364,17 +381,20 @@ class Dataset(Cascading):
         """
         cs = self.currentSession
         if cs is not None:
-            if cs.startTime is None:
-                cs.startTime = cs.firstTime
-            if cs.endTime is None:
-                cs.endTime = cs.lastTime
-                
             self.currentSession = None
         
     
-    def addSensor(self, sensorId=None, name=None, sensorClass=None, 
-                  traceData=None, transform=None, attributes=None,
-                  bandwidthLimitId=None):
+    def addSensor(self,
+                  sensorId: Optional[int] = None,
+                  name: Optional[str] = None,
+                  sensorClass: Optional[Type] = None,
+                  sourceName: Optional[str] = None,
+                  sourceId: Optional[str] = None,
+                  relative: bool = False,
+                  traceData: Optional[Dict[str, Any]] = None,
+                  transform: Union[int, Transform, None] = None,
+                  attributes: Optional[Dict[str, Any]] = None,
+                  bandwidthLimitId: Optional[int] = None):
         """ Create a new Sensor object, and add it to the dataset, and return
             it. If the given sensor ID already exists, the existing sensor is 
             returned instead. To modify a sensor or add a sensor object created 
@@ -383,9 +403,26 @@ class Dataset(Cascading):
             Note that the `sensorId` keyword argument is *not* optional.
             
             :param sensorId: The ID of the new sensor.
-            :keyword name: The new sensor's name
-            :keyword sensorClass: An alternate (sub)class of sensor. Defaults
+            :param name: The new sensor's name
+            :param sensorClass: An alternate (sub)class of sensor. Defaults
                 to `None`, which creates a `Sensor`.
+            :param sourceName: Human-friendly source (authority, network, or
+                other source-of-truth) name for generic/virtual sensor types,
+                particularly 'time' sensors.
+            :param sourceId: Machine-readable, uniquely identifying hash
+                identifying source equivalency for comparing relative
+                sources, particularly 'time' sensors.
+            :param relative: `False` if sensor values are Absolute (default),
+                `True` if values are Relative (have an unknown offset, e.g.,
+                AC-coupled measurements or time values with an unknown
+                Epoch).
+            :param transform: A sensor-level data pre-processing function.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
+                ``Attribute`` elements parsed from the file.
+            :param traceData: An optional dictionary of traceability data,
+                such as sensor serial number, etc.
+            :param bandwidthLimitId: The ID of the bandwidth limit (defined
+                in the ``BwLimitList`` (not currently used).
             :return: The new sensor.
         """
         # `sensorId` is mandatory; it's a keyword argument to streamline import.
@@ -397,8 +434,10 @@ class Dataset(Cascading):
             return self.sensors[sensorId]
         
         sensorClass = Sensor if sensorClass is None else sensorClass
-        sensor = sensorClass(self,sensorId,name=name, transform=transform,
-                             traceData=traceData, attributes=attributes,
+        sensor = sensorClass(self, sensorId, name=name,
+                             sourceName=sourceName, sourceId=sourceId,
+                             relative=relative, traceData=traceData,
+                             transform=transform, attributes=attributes,
                              bandwidthLimitId=bandwidthLimitId)
         self.sensors[sensorId] = sensor
         return sensor
@@ -542,14 +581,19 @@ class Dataset(Cascading):
 #===============================================================================
 
 class Session(object):
-    """ A collection of data within a dataset, e.g. one test run. A Dataset is
-        expected to contain one or more Sessions.
+    """
+    Information about a collection of data within a `Dataset`, e.g. one test run.
+    A `Dataset` is expected to contain at least one `Session`.
     """
     
     def __init__(self, dataset, sessionId=0, startTime=None, endTime=None,
                  utcStartTime=None):
-        """ Constructor. This should generally be done indirectly via
-            `Dataset.addSession()`.
+        """ Information about a collection of data within a :py:class:`Dataset`,
+            i.e., one run of a recorder. A :py:class:`Dataset` loaded from an
+            IDE file contains one `Session`.
+
+            Instantiating a `Session` should generally be done indirectly
+            via :py:meth:`Dataset.addSession()` as part of the import process.
             
             :param dataset: The parent `Dataset`
             :keyword sessionId: The Session's numeric ID. Typically
@@ -561,22 +605,105 @@ class Session(object):
             :keyword utcStartTime: The session's start time, as an absolute
                 POSIX/epoch timestamp.
         """
-        self.dataset = dataset
-        self.startTime = startTime
-        self.endTime = endTime
-        self.sessionId = sessionId
-        self.utcStartTime = utcStartTime or dataset.lastUtcTime
-        
+        self.dataset: Dataset = dataset
+        self.sessionId: int = sessionId
+        self.utcStartTimeOriginal: int = utcStartTime or dataset.lastUtcTime
+        self.utcStartTime: int = self.utcStartTimeOriginal
+
+        self._data: dict[int, 'EventArray'] = None
+        self._offset: float = 0
+
         # firstTime and lastTime are the actual last event time. These will
-        # typically be the same as startTime and endTime, but not necessarily
-        # so.
-        self.firstTime = self.lastTime = None
+        # typically be the same as startTime and endTime, which are being
+        # deprecated.
+        self.firstTimeOriginal: float = startTime
+        self.firstTime: float = startTime
+        self.lastTimeOriginal: float = endTime
+        self.lastTime: float = endTime
+
+        self.syncInfo: Optional[Dict[str, Any]] = None
+        self.syncSensor: Optional[Sensor] = None
+        self.syncZero: float = None
 
 
+    @property
+    def startTime(self) -> float:
+        warnings.warn('Session.startTime is deprecated, and will be removed '
+                      'in the near future. Use Session.firstTime instead. ',
+                      PendingDeprecationWarning)
+        return self.firstTime
+
+
+    # noinspection PyDeprecation
+    @startTime.setter
+    def startTime(self, val: float):
+        warnings.warn('Session.startTime is deprecated, and will be removed '
+                      'in the near future. Use Session.firstTime instead. ',
+                      PendingDeprecationWarning)
+        self.firstTime = val
+
+
+    @property
+    def endTime(self) -> float:
+        warnings.warn('Session.endTime is deprecated, and will be removed '
+                      'in the future. Use Session.lastTime instead. ',
+                      PendingDeprecationWarning)
+        return self.lastTime
+
+
+    # noinspection PyDeprecation
+    @endTime.setter
+    def endTime(self, val: float):
+        warnings.warn('Session.endTime is deprecated, and will be removed '
+                      'in the future. Use Session.lastTime instead. ',
+                      PendingDeprecationWarning)
+        self.lastTime = val
+
+
+    @property
+    def data(self) -> Dict[int, 'EventArray']:
+        """ All the Channel-level `EventArray` instances in this `Session`,
+            keyed by channel ID.
+        """
+        if not self._data or self.dataset.loading:
+            self._data = {}
+            for chid, ch in self.dataset.channels.items():
+                if self.sessionId in ch.sessions:
+                    self._data[chid] = ch.sessions[self.sessionId]
+        return self._data
+
+
+    @property
+    def offset(self) -> float:
+        """ A time offset (in microseconds) for all events, across all
+            Channels, in this `Session`.
+        """
+        return self._offset
+
+
+    @offset.setter
+    def offset(self, offset: float):
+        """ A time offset (in microseconds) for all events, across all
+            Channels, in this `Session`.
+        """
+        offset = offset or 0.
+        self._offset = offset
+        self.firstTime = self.firstTimeOriginal + offset
+        self.lastTime = self.lastTimeOriginal + offset
+        for d in self.data.values():
+            # TODO: Exclude non-relative time channels?
+            d._setOffset(offset)
+
+
+    # noinspection PyDeprecation
     def __repr__(self):
-        return "<%s (id=%s) at 0x%08X>" % (self.__class__.__name__, 
-                                           self.sessionId, id(self))
-    
+        """ Return repr(self). """
+        # TODO: change `utcfromtimestamp(t)` to `fromtimestamp(t, datetime.UTC)`
+        #   after Python 3.10 reaches EoL (2026-10)
+        return "<%s %s (%s)>" % (self.__class__.__name__,
+                                 self.sessionId,
+                                 datetime.utcfromtimestamp(self.utcStartTime))
+
     
     def __eq__(self, other):
         """ x.__eq__(y) <==> x==y """
@@ -586,57 +713,81 @@ class Session(object):
             return False
         else:
             return self.dataset == other.dataset \
-               and self.startTime == other.startTime \
-               and self.endTime == other.endTime \
                and self.sessionId == other.sessionId \
-               and self.utcStartTime == other.utcStartTime \
-               and self.firstTime == other.firstTime \
-               and self.lastTime == other.lastTime
+               and self.utcStartTimeOriginal == other.utcStartTimeOriginal \
+               and self.firstTimeOriginal == other.firstTimeOriginal \
+               and self.lastTimeOriginal == other.lastTimeOriginal
         
 #===============================================================================
 # 
 #===============================================================================
 
+
 class Sensor(Cascading):
     """ One Sensor object. A Dataset contains at least one.
     """
     
-    def __init__(self, dataset, sensorId, name=None, transform=None,
-                  traceData=None, attributes=None, bandwidthLimitId=None):
+    def __init__(self,
+                 dataset: Dataset,
+                 sensorId: Optional[int] = None,
+                 name: Optional[str] = None,
+                 sourceName: Optional[str] = None,
+                 sourceId: Optional[str] = None,
+                 relative: bool = False,
+                 traceData: Optional[Dict[str, Any]] = None,
+                 transform: Union[int, Transform, None] = None,
+                 attributes: Optional[Dict[str, Any]] = None,
+                 bandwidthLimitId: Optional[int] = None):
         """ Constructor. This should generally be done indirectly via
             `Dataset.addSensor()`.
         
-            :param dataset: The parent `Dataset`.
             :param sensorId: The ID of the new sensor.
-            :keyword name: The new sensor's name.
-            :keyword transform: A sensor-level data pre-processing function.
-            :keyword traceData: Sensor traceability data.
-            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+            :param name: The new sensor's name
+            :param sourceName: Human-friendly source (authority, network, or
+                other source-of-truth) name for generic/virtual sensor types,
+                particularly 'time' sensors.
+            :param sourceId: Machine-readable, uniquely identifying hash
+                identifying source equivalency for comparing relative
+                sources, particularly 'time' sensors.
+            :param relative: `False` if sensor values are Absolute (default),
+                `True` if values are Relative (have an unknown offset),
+                e.g., AC-coupled measurements or time values with an unknown
+                Epoch.
+            :param transform: A sensor-level data pre-processing function.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file.
+            :param traceData: An optional dictionary of traceability data,
+                such as sensor serial number, etc.
+            :param bandwidthLimitId: The ID of the bandwidth limit (defined
+                in the ``BwLimitList`` (not currently used).
+            :return: The new sensor.
         """
         if isinstance(name, bytes):
             name.decode()
-        self.name = "Sensor%02d" if name is None else name
+        self.name = f"Sensor{sensorId:02d}" if name is None else name
         self.dataset = dataset
         self.parent = dataset
         self.id = sensorId
-        self.channels = {}
         self.traceData = traceData
         self.attributes = attributes
+        self.sourceName = sourceName
+        self.sourceId = sourceId
+        self.relative = bool(relative)
+
+        self._channels = None
+        self._hash = None
+
+        # Not currently used:
         self.bandwidthLimitId = bandwidthLimitId
         self._bandwidthCutoff = None
         self._bandwidthRolloff = None
+        self._transform = transform
 
 
-    def __getitem__(self, idx):
-        return self.channels[idx]
+    def __repr__(self):
+        return f"<{type(self).__name__} {self.id} '{self.path()}' at 0x{id(self):08x}>"
 
 
-    @property
-    def children(self):
-        return list(self.channels.values())
-
-    
     @property
     def bandwidthCutoff(self):
         if self._bandwidthCutoff is None:
@@ -664,6 +815,15 @@ class Sensor(Cascading):
         return self._bandwidthRolloff
 
 
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash((self.name, self.id,
+                               self.sourceName, self.sourceId,
+                               repr(self.traceData), repr(self.attributes),
+                               self.bandwidthLimitId))
+        return self._hash
+
+
     def __eq__(self, other):
         if other is self:
             return True
@@ -671,13 +831,25 @@ class Sensor(Cascading):
             return False
         else:
             return self.name == other.name \
-               and self.dataset == other.dataset \
-               and self.parent == other.parent \
                and self.id == other.id \
-               and self.channels == other.channels \
                and self.traceData == other.traceData \
+               and self.sourceId == other.sourceId \
+               and self.sourceName == other.sourceName \
                and self.attributes == other.attributes \
                and self.bandwidthLimitId == other.bandwidthLimitId
+
+
+    def getReferrers(self) -> List['SubChannel']:
+        """ Get all the `SubChannel` objects that reference this `Sensor`.
+        """
+        if not self._channels or self.dataset.loading:
+            channels = []
+            for ch in self.dataset.channels.values():
+                for subc in ch.subchannels:
+                    if subc.sensor == self or subc.sensor == self.id:
+                        channels.append(subc)
+            self._channels = channels
+        return self._channels
 
 
 #===============================================================================
@@ -739,10 +911,7 @@ class Channel(Transformable):
 
         if isinstance(sensor, int):
             sensor = self.dataset.sensors.get(sensor, None)
-        if sensor is not None:
-            sensor.channels[channelId] = self
-            sensorname = sensor.name
-        
+
         if name is None:
             sensorname = sensor.name if sensor is not None else "Unknown Sensor"
             name = "%s:%02d" % (sensorname, channelId)
@@ -759,7 +928,7 @@ class Channel(Transformable):
         self.hasDisplayRange = displayRange is not None
         
         # Channels have 1 or more subchannels
-        self.subchannels = [None] * len(self.types)
+        self.subchannels: List['SubChannel'] = [None] * len(self.types)
         
         # A set of session EventLists. Populated dynamically with
         # each call to getSession(). 
@@ -778,7 +947,7 @@ class Channel(Transformable):
 
 
     @property
-    def children(self):
+    def children(self) -> List['SubChannel']:
         return list(iter(self))
 
 
@@ -966,6 +1135,8 @@ class Channel(Transformable):
 
 #===============================================================================
 
+
+# noinspection PyMethodOverriding
 class SubChannel(Channel):
     """ Output from a sensor, derived from a channel containing multiple
         pieces of data (e.g. the Y from an accelerometer's XYZ). Looks
@@ -1048,16 +1219,12 @@ class SubChannel(Channel):
         else:
             self.displayName = self.name
 
-        if isinstance(sensorId, int):
-            self.sensor = self.dataset.sensors.get(sensorId, None)
-        elif sensorId is None:
-            if isinstance(parent.sensor, int):
-                self.sensor = self.dataset.sensors.get(parent.sensor, None)
-            else:
-                self.sensor = parent.sensor
-        else:
+        try:
+            sensorId = parent.sensor if sensorId is None else sensorId
+            self.sensor = self.dataset.sensors.get(sensorId, sensorId)
+        except TypeError:
             self.sensor = sensorId
-        
+
         self.types = (parent.types[subchannelId], )
         
         self._sessions = None
@@ -1219,7 +1386,7 @@ class EventArray(Transformable):
         self.dataset = parentChannel.dataset
         self.hasSubchannels = not isinstance(self.parent, SubChannel)
         self._parentList = parentList
-        self._childLists = []
+        self._childLists = []  # TODO: Remove _childLists (seems deprecated)
         
         self.noBivariates = False
 
@@ -1229,29 +1396,37 @@ class EventArray(Transformable):
             self._singleSample = parentChannel.singleSample
 
         if self.hasSubchannels or not isinstance(parentChannel.parent, Channel):
-            # Cache of block start times and sample indices for faster search
+            # Cache of block start times and sample indices for faster search.
+            # Note: _blockTimes is not changed if a time offset is applied.
             self._blockTimes = []
             self._blockIndices = []
+            self._blockIndicesArray = np.array([], dtype=np.int64)
+            self._blockTimesArray = np.array([], dtype=np.float64)
         else:
             s = self.session.sessionId if session is not None else None
             ps = parentChannel.parent.getSession(s)
             self._blockTimes = ps._blockTimes
             self._blockIndices = ps._blockIndices
+            self._blockIndicesArray = ps._blockIndicesArray
+            self._blockTimesArray = ps._blockTimesArray
 
             self.noBivariates = ps.noBivariates
-        
+
         if self.hasSubchannels:
             self.channelId = self.parent.id
             self.subchannelId = None
+            self.parseBlock = self.parent.parseBlock
         else:
             self.channelId = self.parent.parent.id
             self.subchannelId = self.parent.id
-        
+            self.parseBlock = self.parent.parent.parseBlock
+
         self._hasSubsamples = False
         
         self.hasDisplayRange = self.parent.hasDisplayRange
         self.displayRange = self.parent.displayRange
 
+        self._mean = None
         self.removeMean = False
         self.hasMinMeanMax = True
         self._rollingMeanSpan = None
@@ -1262,16 +1437,24 @@ class EventArray(Transformable):
         self.updateTransforms(recurse=False)
         self.allowMeanRemoval = parentChannel.allowMeanRemoval    
 
-        if self.hasSubchannels:
-            self.parseBlock = self.parent.parseBlock
-        else:
-            self.parseBlock = self.parent.parent.parseBlock
+        self._npType = np.uint8
+        self._makeDType()
 
-        self._blockIndicesArray = np.array([], dtype=np.float64)
-        self._blockTimesArray = np.array([], dtype=np.float64)
+        self._channelDataLock = parentChannel.dataset._channelDataLock
+        self._cacheArray = None
+        self._cacheBytes = None
 
-        self._mean = None
+        # TODO: These seem to be unused; remove?
+        # self._fullyCached = False
+        # self._cacheStart = None
+        # self._cacheEnd = None
+        # self._cacheBlockStart = None
+        # self._cacheBlockEnd = None
+        # # self._cacheLen = 0
 
+
+    def _makeDType(self):
+        """ Construct the Numpy type for the channel's payload. """
         _format = self.parent.parser.format
         if not _format:
             self._npType = np.uint8
@@ -1281,7 +1464,7 @@ class EventArray(Transformable):
             if isinstance(_format, bytes):
                 _format = _format.decode()
 
-            if _format[0] in ['<', '>', '=']:
+            if _format[0] in '<>=':
                 endian = _format[0]
                 dtypes = [endian + ChannelDataBlock.TO_NP_TYPESTR[x] for x in _format[1:]]
             else:
@@ -1289,15 +1472,17 @@ class EventArray(Transformable):
 
             self._npType = np.dtype([(str(i), dtype) for i, dtype in enumerate(dtypes)])
 
-        self._channelDataLock = parentChannel.dataset._channelDataLock
-        self._cacheArray = None
-        self._cacheBytes = None
-        self._fullyCached = False
-        self._cacheStart = None
-        self._cacheEnd = None
-        self._cacheBlockStart = None
-        self._cacheBlockEnd = None
-        self._cacheLen = 0
+
+    def _setOffset(self, offset):
+        """ Apply an offset to the `EventArray` timestamps. Do not use
+            directly; use `Session.offset`.
+        """
+        for d in self._data:
+            d.startTime = d.startTimeOriginal + offset
+            d.endTime = d.endTimeOriginal + offset
+
+        # XXX: Can probably skip this if the dataset is loading
+        self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + offset
 
 
     @property
@@ -1331,7 +1516,7 @@ class EventArray(Transformable):
                 sessionId = self.session.sessionId if self.session is not None else None
                 children = []
                 dispX = []
-                for x,sc in zip(xs,self.parent.subchannels):
+                for x, sc in zip(xs, self.parent.subchannels):
                     if sessionId in sc.sessions:
                         cl = sc.sessions[sessionId]
                         if cl.transform is None:
@@ -1386,11 +1571,11 @@ class EventArray(Transformable):
         newList._channelDataLock = self._channelDataLock
         newList._cacheArray = self._cacheArray
         newList._cacheBytes = self._cacheBytes
-        newList._fullyCached = self._fullyCached
-        newList._cacheStart = self._cacheStart
-        newList._cacheEnd = self._cacheEnd
-        newList._cacheBlockStart = self._cacheBlockStart
-        newList._cacheBlockEnd = self._cacheBlockEnd
+        # newList._fullyCached = self._fullyCached
+        # newList._cacheStart = self._cacheStart
+        # newList._cacheEnd = self._cacheEnd
+        # newList._cacheBlockStart = self._cacheBlockStart
+        # newList._cacheBlockEnd = self._cacheBlockEnd
         return newList
     
 
@@ -1409,14 +1594,19 @@ class EventArray(Transformable):
             # Set the session first/last times if they aren't already set.
             # Possibly redundant if all sessions are 'closed.'
             if self.session.firstTime is None:
-                self.session.firstTime = block.startTime
+                self.session.firstTimeOriginal = block.startTime
+                self.session.firstTime = block.startTime + self.session._offset
             else:
-                self.session.firstTime = min(self.session.firstTime, block.startTime)
+                self.session.firstTimeOriginal = min(self.session.firstTimeOriginal, block.startTime)
+                self.session.firstTime = self.session.firstTimeOriginal + self.session._offset
 
             if self.session.lastTime is None:
-                self.session.lastTime = block.endTime
+                self.session.lastTimeOriginal = block.endTime
+                self.session.lastTime = block.endTime + self.session._offset
             else:
-                self.session.lastTime = max(self.session.lastTime, block.endTime)
+                self.session.lastTimeOriginal = max(self.session.lastTimeOriginal, block.endTime)
+                self.session.lastTime = self.session.lastTimeOriginal + self.session._offset
+
 
             # Check that the block actually contains at least one sample.
             if block.numSamples < 1:
@@ -1446,7 +1636,7 @@ class EventArray(Transformable):
             # HACK (somewhat): Single-sample-per-block channels get min/mean/max
             # which is just the same as the value of the sample. Set the values,
             # but don't set hasMinMeanMax.
-            if self._singleSample is True:# and not self.hasMinMeanMax:
+            if self._singleSample is True:  # and not self.hasMinMeanMax:
                 block.minMeanMax = np.tile(block.payload, 3)
                 mmmArr = np_recfunctions.structured_to_unstructured(
                         block._minMeanMax.view(self._npType))
@@ -1461,7 +1651,7 @@ class EventArray(Transformable):
                 # XXX: Attempt to calculate min/mean/max here instead of
                 #  in _computeMinMeanMax(). Causes issues with pressure for some
                 #  reason - it starts removing mean and won't plot.
-                vals = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
+                vals: np.array = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
                 block.min = vals.min(axis=0)
                 block.mean = vals.mean(axis=0)
                 block.max = vals.max(axis=0)
@@ -1519,7 +1709,7 @@ class EventArray(Transformable):
 
         '''
         if len(self._blockIndicesArray) != len(self._blockIndices):
-            self._blockIndicesArray = np.array(self._blockIndices)
+            self._blockIndicesArray = np.array(self._blockIndices, dtype=np.int64)
 
         idxOffset = max(start, 1)
         return idxOffset-1 + np.searchsorted(
@@ -1534,7 +1724,8 @@ class EventArray(Transformable):
             :keyword start: The first block index to search
             :keyword stop: The last block index to search
         """
-        # TODO: profile & determine if this change is beneficial
+        # TODO: profile & determine if this change is beneficial. I'm not
+        #  sure the new version was ever actually profiled vs. the old.
         '''
         if stop:
             blockIdx = bisect_right(self._blockTimes, t, start, stop)
@@ -1545,7 +1736,12 @@ class EventArray(Transformable):
         return blockIdx
         '''
         if len(self._blockTimesArray) != len(self._blockTimes):
-            self._blockTimesArray = np.array(self._blockTimes)
+            self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + self.session._offset
+
+        if t is None or t < self._blockTimesArray[0]:
+            return 0
+        elif t > self._blockTimesArray[-1]:
+            return len(self._blockTimesArray)
 
         idxOffset = max(start, 1)
         return idxOffset-1 + np.searchsorted(
@@ -1570,8 +1766,8 @@ class EventArray(Transformable):
         span = self.rollingMeanSpan
         
         if (block._rollingMean is not None 
-            and block._rollingMeanSpan == span 
-            and block._rollingMeanLen == len(self._data)):
+                and block._rollingMeanSpan == span
+                and block._rollingMeanLen == len(self._data)):
             return block._rollingMean
 
         self._computeMinMeanMax()
@@ -1654,7 +1850,6 @@ class EventArray(Transformable):
             xform = self._fullXform
 
         if isinstance(idx, (int, np.integer)):
-
 
             if idx >= len(self):
                 raise IndexError("EventArray index out of range")
@@ -1786,9 +1981,11 @@ class EventArray(Transformable):
             out = np.empty((len(rawData.dtype), len(rawData)))
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out, noBivariates=self.noBivariates)
+            xform.polys[self.subchannelId].inplace(rawData, out=out,
+                                                   noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out, noBivariates=self.noBivariates)
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T,
+                          out=out, noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -1852,9 +2049,11 @@ class EventArray(Transformable):
         self._inplaceTime(start, end, step, out=out[0])
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=self.noBivariates)
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0],
+                                                   noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out[1:], timestamp=out[0], noBivariates=self.noBivariates)
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T,
+                          out=out[1:], timestamp=out[0], noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -1882,7 +2081,8 @@ class EventArray(Transformable):
 
         self._computeMinMeanMax()
 
-        data = self.arrayJitterySlice(start=start, end=end, step=step, jitter=jitter, display=display)
+        data = self.arrayJitterySlice(start=start, end=end, step=step,
+                                      jitter=jitter, display=display)
 
         yield from data.T
         
@@ -1954,10 +2154,12 @@ class EventArray(Transformable):
 
         noBivariates = self.noBivariates
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=noBivariates)
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0],
+                                                   noBivariates=noBivariates)
         else:
             for i, (k, _) in enumerate(rawData.dtype.descr):
-                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0], noBivariates=noBivariates)
+                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0],
+                                       noBivariates=noBivariates)
 
         return out
 
@@ -2140,8 +2342,7 @@ class EventArray(Transformable):
         session = self.session
         removeMean = self.removeMean and self.allowMeanRemoval
         _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
-            parent_id = self.subchannelId
+        parent_id = None if self.hasSubchannels else self.subchannelId
 
         if self.useAllTransforms:
             xform = self._fullXform
@@ -2538,14 +2739,14 @@ class EventArray(Transformable):
                 return first
             if outOfRange:
                 return first
-            raise IndexError("Specified time occurs before first event (%d)" % first[0])
+            raise IndexError("Specified time occurs before first event (%s)" % first[0])
         elif startIdx >= len(self) - 1:
             last = self.__getitem__(-1, display=display)
             if last[0] == at:
                 return last
             if outOfRange:
                 return last
-            raise IndexError("Specified time occurs after last event (%d)" % last[0])
+            raise IndexError("Specified time occurs after last event (%s)" % last[0])
         
         startEvt = self.__getitem__(startIdx, display=display)
         endEvt = self.__getitem__(startIdx+1, display=display)
@@ -2672,6 +2873,7 @@ class EventArray(Transformable):
         return self.arraySlice(startIdx, stopIdx, step, display=display)
 
 
+    # noinspection PyDeprecation
     def exportCsv(self, stream, start=None, stop=None, step=1, subchannels=True,
                   callback=None, callbackInterval=0.01, timeScalar=1,
                   raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
@@ -2717,7 +2919,8 @@ class EventArray(Transformable):
                 transform (e.g. unit conversion).
             :return: Tuple: The number of rows exported and the elapsed time.
         """
-        noCallback = callback is None
+        # TODO: change `utcfromtimestamp(t)` to `fromtimestamp(t, datetime.UTC)`
+        #   after Python 3.10 reaches EoL (2026-10)
         _self = self.copy()
 
         if noBivariates is not None:
@@ -2861,8 +3064,8 @@ class EventArray(Transformable):
     def _inplaceTimeFromIndices(self, indices, out=None):
         if out is None:
             out = indices.astype(np.float64)
-
-        out[:] = indices
+        else:
+            out[:] = indices
 
         arrayStart = float(self._data[0].startTime)
         arrayEnd = float(self._data[-1].endTime)
