@@ -3,7 +3,10 @@
 
 # _idelib_ README
 
-_idelib_ is the lower-level Python API for accessing the contents of [enDAQ](http://endaq.com) ``.IDE`` recording files.
+_idelib_ is the core Python API for accessing the contents of [enDAQ](http://endaq.com) ``.IDE`` recording files.
+It provides a means of easily accessing time series sensor data, with all necessary calibration applied, as
+well as recording metadata.
+
 The package also contains the command-line utilities ``ideexport`` and ``ideinfo`` for use outside of Python.
 
 
