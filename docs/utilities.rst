@@ -1,12 +1,15 @@
-IDE File Utilities
-==================
+IDE File Command-Line Utilities
+===============================
 
 ``idelib`` provides some useful command-line utilities for converting IDE data to other formats,
 and for viewing general information about an IDE file. These are automatically installed when
 installing the ``idelib`` package.
 
+Getting Started
+---------------
+
 Installing
-----------
+''''''''''
 
 The utilities are part of the ``idelib`` package, so they are installed along with it. The common
 way to install is via ``pip`` (which is typically bundled with Python)::
@@ -15,12 +18,12 @@ way to install is via ``pip`` (which is typically bundled with Python)::
 
 
 Running the scripts
--------------------
+'''''''''''''''''''
 
 These utilities can be run in two ways: via an executable script, or as a Python module.
 
 Running as a Python module
-''''''''''''''''''''''''''
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You can run the utilities by running Python with the ``-m`` argument, followed by the name of the
 submodule and any arguments, e.g.:
@@ -31,7 +34,7 @@ submodule and any arguments, e.g.:
 While verbose, this is the most reliable way to run the utilities.
 
 Running the executable
-''''''''''''''''''''''
+~~~~~~~~~~~~~~~~~~~~~~
 
 When ``idelib`` is installed, it will create an executable file for each utility. The location
 of the scripts varies by operating system (Linux/Windows/MacOS/etc.) and by Python environment (e.g., standard Python from
@@ -46,11 +49,9 @@ with this. Most commonly, the executables are somewhere outside of your 'path' a
 or security/authorization issues prevented the executables' creation. In either case, the result is
 the standard 'not found' error for your OS.
 
-The utilities
--------------
 
 ``ideexport``
-'''''''''''''
+-------------
 
 ``ideexport`` converts one or more IDE files into text (CSV, etc.) or Matlab MAT v5 files.
 
@@ -83,7 +84,7 @@ The utilities
       -f, --isoformat       Write timestamps as ISO-formatted UTC.
 
 ``ideinfo``
-'''''''''''
+-----------
 
 ``ideinfo`` gathers information about an IDE file, and either displays the text on the console or
 writes it to a file.

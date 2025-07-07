@@ -10,6 +10,7 @@
 
    ide_basics
    api_ref
+   utilities
 
 
 Indices and tables
