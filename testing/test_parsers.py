@@ -15,7 +15,7 @@ class TestChannelDataBlockParser(unittest.TestCase):
 
     def setUp(self):
         self.doc = openFile(makeStreamLike('./testing/SSX70065.IDE'))
-        chDatBlockEl = self.doc.ebmldoc.children[161]
+        chDatBlockEl = self.doc.ebmldoc.schema.elementsByName['ChannelDataBlock']
         self.element = [x for x in self.doc.ebmldoc.value if type(x) is chDatBlockEl and x[0].value == 32][0]
         self.block = ChannelDataBlock(self.element)
 
@@ -63,7 +63,7 @@ class TestChannelDataBlock(unittest.TestCase):
         self.ebmldoc = self.doc.ebmldoc
 
         def chFilter(x):
-            return type(x) is self.ebmldoc.children[161] and x[0].value == 32
+            return type(x) is self.ebmldoc.schema.elementsByName['ChannelDataBlock'] and x[0].value == 32
 
         self.element = [x for x in self.ebmldoc.value if chFilter(x)][0]
         self.block = ChannelDataBlock(self.element)
@@ -121,7 +121,6 @@ class TestChannelDataBlock(unittest.TestCase):
 
 
 def tuplify(arr):
-
     out = []
     for i in range(len(arr.T)):
         out.append(tuple(arr[:, i]))
