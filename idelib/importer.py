@@ -4,10 +4,9 @@
 
 from collections import Counter
 from datetime import datetime
+import hashlib
 import os.path
 import sys
-from time import time as time_time
-from time import sleep
 import warnings
 
 import struct
@@ -28,8 +27,7 @@ from . import parsers
 # from dataset import __DEBUG__
 
 import logging
-logger = logging.getLogger('idelib')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 
 #===============================================================================
@@ -379,7 +377,8 @@ def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
 
     if doc._parsers is None:
         doc._parsers = instantiateParsers(doc, parserTypes)
-    
+
+    fingerprint = hashlib.md5()
     elementParsers = doc._parsers
     
     try:
@@ -392,6 +391,7 @@ def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
             parser = elementParsers[r.name]
             if parser.makesData():
                 break
+            fingerprint.update(r.getRaw())
             parser.parse(r) 
             
     except IOError as e:
@@ -412,7 +412,8 @@ def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
         # Got data before the recording props; use defaults.
         if defaults is not None:
             createDefaultSensors(doc, defaults)
-            
+
+    doc._fingerprint = fingerprint
     doc.updateTransforms()
     return doc
 

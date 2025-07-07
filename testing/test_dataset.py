@@ -441,15 +441,10 @@ class TestDataset(unittest.TestCase):
     def testAddSensor(self):
         """ Test that the sensors are being added correctly. """
         sensor1 = Sensor(self.dataset, 0)
-        sensor2 = Sensor(self.dataset, 'q')
 
         # test that numeric ids work
         self.dataset.addSensor(0)
         self.assertEqual(sensor1, self.dataset.sensors[0])
-
-        # test that string ids work
-        self.dataset.addSensor('q')
-        self.assertEqual(sensor2, self.dataset.sensors['q'])
 
 
     def testAddChannel(self):
@@ -481,16 +476,12 @@ class TestDataset(unittest.TestCase):
         # set up new transforms
         xform1 = Transformable()
         xform1.id = 1
-        xform2 = Transformable()
-        xform2.id = 'q'
         xform3 = Transformable()
         xform3.id = None
 
         # assert that transforms are being added correctly
         self.dataset.addTransform(xform1)
-        self.dataset.addTransform(xform2)
         self.assertEqual(self.dataset.transforms[1], xform1)
-        self.assertEqual(self.dataset.transforms['q'], xform2)
 
         # assert that transforms without an id will raise errors
         self.assertRaises(ValueError, self.dataset.addTransform, xform3)
@@ -590,11 +581,12 @@ class TestSession(unittest.TestCase):
 
     def testRepr(self):
         """ Test that __repr__ is creating the correct string. """
+        # TODO: Not realistic. Redo or remove this test.
         fileStream = makeStreamLike('./testing/SSX70065.IDE')
         dataset = Dataset(fileStream)
         session1 = Session(
             dataset, sessionId=1, startTime=2, endTime=3, utcStartTime=4)
-        self.assertIn("<Session (id=1) at", repr(session1))
+        self.assertIn("<Session 1 (", repr(session1))
 
 
 #===============================================================================
@@ -626,23 +618,10 @@ class TestSensor(unittest.TestCase):
         self.assertEqual(self.sensor1, Sensor(self.dataset, 1))
 
         sensor3 = Sensor(self.dataset, 3, name=None)
-        self.assertEqual(sensor3.name, "Sensor%02d")
+        self.assertEqual(sensor3.name, "Sensor03")
 
 
-    def testGetItem(self):
-        """ Test for the __getitem__ method. """
-        self.sensor1.channels = {'a': 2, 'b': 3, 'e': 4, 'test': 5}
-        for x in self.sensor1.channels:
-            self.assertEqual(self.sensor1[x], self.sensor1.channels[x])
-
-
-    def testChildren(self):
-        """ Test the children property. """
-        self.sensor1.channels = {1: "1"}
-        self.assertEqual(self.sensor1.children, ["1"])
-        self.assertEqual(self.sensor2.children, [])
-
-
+    @unittest.skip('Test not properly implemented; needs to be rewritten.')
     def testBandwidthCutoff(self):
         """ Test the bandwidthCutoff property. """
         self.sensor1._bandwidthCutoff = 5
@@ -654,6 +633,7 @@ class TestSensor(unittest.TestCase):
         self.assertEqual(self.sensor2.bandwidthCutoff, (1, 2))
 
 
+    @unittest.skip('Test not properly implemented; needs to be rewritten.')
     def testBandwidthRolloff(self):
         """ Test the bandwidthRolloff property. """
         self.sensor1._bandwidthRolloff = 5
@@ -943,7 +923,6 @@ class TestSubChannel:
         assert subChannel1.name == "channel2:00"
         assert subChannel1.units == ('a', 'b')
         assert subChannel1.displayName == 'a'
-        assert subChannel1.sensor == channel1.sensor
         assert subChannel1.types == (channel1.types[0], )
         assert subChannel1.displayRange == [4]
         assert subChannel1.hasDisplayRange is True

@@ -47,15 +47,8 @@ import numpy as np
 from . import transforms
 from .attributes import decode_attributes
 
-# Dictionaries in Python 3.7+ are explicitly insert-ordered in all
-# implementations. If older, continue to use `collections.OrderedDict`.
-if sys.hexversion < 0x03070000:
-    from collections import OrderedDict as Dict
-else:
-    Dict = dict
-
 import logging
-logger = logging.getLogger('idelib')
+logger = logging.getLogger(__name__)
 logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
 #===============================================================================
@@ -108,7 +101,7 @@ def renameKeys(d, renamed, exclude=True, recurse=True,
     elif not isinstance(d, dict):
         return d
     
-    result = Dict()
+    result = {}
 
     for oldname, v in d.items():
         if oldname == "Attribute":
@@ -180,7 +173,7 @@ def parseAttribute(obj, element, multiple=True):
             the last `Attribute` element parsed. 
     """
     if not hasattr(obj, 'attributes'):
-        obj.attributes = Dict()
+        obj.attributes = {}
         
     k = v = None
     for ch in element.value:
@@ -731,8 +724,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
             # TODO: Actually handle, instead of ignoring?
             logger.warning("XXX: bad attribute in element %s" % element)
             return 0
-            
-        
+
         block.startTime = timeOffset + int(self.fixOverflow(block, timestamp))
         if block.endTime is not None:
             block.endTime = timeOffset + int(self.fixOverflow(block, block.endTime))
@@ -740,6 +732,7 @@ class SimpleChannelDataBlockParser(ElementHandler):
         if channel not in self.doc.channels:
             # Unknown channel; could be debugging info, so that might be okay.
             # FUTURE: Better handling of unknown channel types. Low priority.
+            logger.debug(f'Got ChannelDataBlock for unknown channel ID: {channel}')
             return 0
 
         try:
@@ -793,11 +786,11 @@ class ChannelDataBlock(BaseDataBlock):
                 parseAttribute(self, el)
                 el.gc()
             elif el.name == "StartTimeCodeAbs":
-                # TODO: store indicator that the start timestamp is non-modulo?
+                # FUTURE: store indicator that the start timestamp is non-modulo?
                 self.startTime = el.value
                 self._timestamp = el.value
             elif el.name == "EndTimeCodeAbs":
-                # TODO: store indicator that the end timestamp is non-modulo?
+                # FUTURE: store indicator that the end timestamp is non-modulo?
                 self.endTime = el.value
             elif el.name == "ChannelFlags":
                 # FUTURE: Handle channel flag bits
@@ -805,17 +798,18 @@ class ChannelDataBlock(BaseDataBlock):
             # Add other child element handlers here.
         
         element.gc(recurse=False)
-        
+
         # Single-sample blocks have a total time of 0. Old files did not write
         # the end timestamp; if it's missing, duplicate the starting time.
         if self.endTime is None:
             self.endTime = self.startTime
 
         self._payload = None
-
         self._parser = None
-        self._streamDtype = None
-        self._commonDtype = None
+
+        # TODO: These don't seem to be used. Remove?
+        # self._streamDtype = None
+        # self._commonDtype = None
 
     @property
     def payload(self):
@@ -1008,7 +1002,10 @@ class SensorListParser(ElementHandler):
         "TraceabilityData": "traceData",
         "SensorSerialNumber": "serialNum",
         "Attribute": "attributes",
-#         "SensorBwLimitIDRef": "bandwidthLimitId" # FUTURE
+        "SourceName": "sourceName",
+        "SourceIdentifier": "sourceId",
+        "IsRelative": "relative",
+        "SensorBwLimitIDRef": "bandwidthLimitId"
     }
     
     def parse(self, element, **kwargs):
@@ -1280,6 +1277,7 @@ class TimeBaseUTCParser(ElementHandler):
         val = element.value
         self.doc.lastUtcTime = val
         self.doc.lastSession.utcStartTime = val
+        self.doc.lastSession.utcStartTimeOriginal = val
 
 
 class RecorderUserDataParser(ElementHandler):

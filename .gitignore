@@ -70,6 +70,7 @@ docs/_build/
 docs/html/
 docs/latex/
 docs/doctest/
+docs/doctrees/
 
 # PyBuilder
 target/

@@ -4,7 +4,6 @@ Utility functions for doing low-level, general-purpose EBML reading and writing.
 
 from io import IOBase
 import logging
-import os.path
 from pathlib import Path
 
 from ebmlite import loadSchema
@@ -16,7 +15,7 @@ from .dataset import Dataset
 #
 # ==============================================================================
 
-logger = logging.getLogger('idelib')
+logger = logging.getLogger(__name__)
 
 
 # ==============================================================================

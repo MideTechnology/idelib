@@ -130,3 +130,22 @@ class TestImportRange:
             "Imported file did not contain data for specified channel"
         assert len(doc.channels[32].getSession()) == 0, \
             "Imported file contains data from excluded channel"
+
+
+def test_fingerprint():
+    """ Test that fingerprints are generated correctly when a Dataset is
+        opened, and aren't affected by additional file reads.
+    """
+    doc1 = importer.openFile(makeStreamLike("./testing/SSX66115.IDE"))
+    doc2 = importer.openFile(makeStreamLike("./testing/SSX70065.IDE"))
+
+    fingerprint1 = doc1.fingerprint
+    fingerprint2 = doc2.fingerprint
+
+    assert fingerprint1 is not None
+    assert fingerprint2 is not None
+    assert fingerprint1 != fingerprint2
+
+    doc3 = importer.openFile(makeStreamLike("./testing/SSX66115.IDE"))
+    importer.readData(doc3)
+    assert doc3.fingerprint == fingerprint1

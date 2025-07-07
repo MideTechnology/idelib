@@ -1,5 +1,5 @@
-dataset.py
-============
+``idelib.dataset``
+==================
 
 .. automodule:: idelib.dataset
 
