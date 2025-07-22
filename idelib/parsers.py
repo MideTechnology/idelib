@@ -84,11 +84,11 @@ def renameKeys(d, renamed, exclude=True, recurse=True,
     
         :param d: The source dictionary
         :param renamed: A dictionary of new names keyed by old names
-        :keyword exclude: If `True`, only keys appearing in `renamed` are
+        :param exclude: If `True`, only keys appearing in `renamed` are
             copied to the new dictionary.
-        :keyword recurse: If `True`, the renaming operates over all nested
+        :param recurse: If `True`, the renaming operates over all nested
             dictionaries.
-        :keyword mergeAttributes: If `True`, any `Attribute` elements are
+        :param mergeAttributes: If `True`, any `Attribute` elements are
             processed into a standard key/values and merged into the main
             dictionary.
         :return: A new dictionary, a deep copy of the original, with different
@@ -165,9 +165,10 @@ def parseAttribute(obj, element, multiple=True):
     """ Utility function to parse an `Attribute` element's data into a 
         key/value pair and apply it to an object's `attribute` attribute
         (a dictionary).
-        
+
+        :param obj: The object to which the attributes apply.
         :param element: The `Attribute` element to parse.
-        :keyword multiple: An object may have more than one Attribute element
+        :param multiple: An object may have more than one Attribute element
             with the same name. If `True`, the value corresponding to the name
             is a list which is appended to. If `False`, the value is that of
             the last `Attribute` element parsed. 
@@ -237,6 +238,8 @@ def getParserRanges(parser, useDefaults=True):
         Note that floating point values are typically reported as (-1.0,1.0).
         
         :param parser: A `struct.Struct`-like parser.
+        :param useDefaults: If `True`, use the data type min/max if no ranges
+            have been explicitly defined.
         :return: A tuple of (min, max) tuples. Non-numeric values will
             have a reported range of `None`.
     """
@@ -261,9 +264,9 @@ def getElementHandlers(module=None, subElements=False):
     """ Retrieve all EBML element handlers (parsers) from a module. Handlers
         are identified by being subclasses of `ElementHandler`.
     
-        :keyword module: The module from which to get the handlers. Defaults to
+        :param module: The module from which to get the handlers. Defaults to
             the current module (i.e. `idelib.parsers`).
-        :keyword subElements: `True` if the set of handlers should also
+        :param subElements: `True` if the set of handlers should also
             include non-root elements (e.g. the sub-elements of a
             `RecordingProperties` or `ChannelDataBlock`).
         :return: A list of element handler classes.
@@ -396,9 +399,9 @@ class AccelerometerParser(object):
         
         :deprecated: Used only for really old recordings without recorder
             description data.
-        :cvar size: The size (in bytes) of one parsed sample.
-        :cvar format: The `struct.Struct` parsing format string used to parse.
-        :cvar ranges: A tuple containing the absolute min and max values.
+        :var size: The size (in bytes) of one parsed sample.
+        :var format: The `struct.Struct` parsing format string used to parse.
+        :var ranges: A tuple containing the absolute min and max values.
     """
     NAME = "LegacyAccelerometer"
 
@@ -470,6 +473,7 @@ class ElementHandler(object):
                     handler = self.childHandlers[el.name]
                     result.append(handler.parse(el, **kwargs))
             return result
+        return None
 
     
     def getElementName(self, element):
@@ -549,7 +553,7 @@ class BaseDataBlock(object):
         """ Check if an element's payload data is evenly divisible by into
             a set of channels.
         
-            :param n: The size of the data in bytes.
+            :param parser: The block's parsing struct.
             :return: `True` if the number of bytes can be evenly
                 distributed into subsamples.
         """
@@ -608,11 +612,11 @@ class SimpleChannelDataBlock(BaseDataBlock):
             `parser.parse()` for consistency's sake.
             
             :param parser: The DataParser to use
-            :keyword start: First subsample index to parse 
-            :keyword end: Last subsample index to parse
-            :keyword step: The number of samples to skip, if the start and end
+            :param start: First subsample index to parse
+            :param end: Last subsample index to parse
+            :param step: The number of samples to skip, if the start and end
                 cover more than one sample.
-            :keyword subchannel: The subchannel to get, if specified.
+            :param subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
@@ -638,7 +642,7 @@ class SimpleChannelDataBlock(BaseDataBlock):
             
             :param parser: The DataParser to use
             :param indices: A list of indices into the block's data. 
-            :keyword subchannel: The subchannel to get, if specified.
+            :param subchannel: The subchannel to get, if specified.
         """
         # SimpleChannelDataBlock payloads contain header info; skip it.
         data = self.payload
@@ -709,8 +713,9 @@ class SimpleChannelDataBlockParser(ElementHandler):
         """ Create a (Simple)ChannelDataBlock from the given EBML element.
         
             :param element: A sample-carrying EBML element.
-            :keyword sessionId: The session currently being read; defaults to
+            :param sessionId: The session currently being read; defaults to
                 whatever the Dataset says is current.
+            :param timeOffset: A timestamp offset, in microseconds.
             :return: The number of subsamples read from the element's payload.
         """
         try:
@@ -1143,7 +1148,9 @@ class PlotListParser(ChannelParser):
         'PlotChannelRef': 'channelId',
         'PlotSubChannelRef': 'subchannelId'
     }
-    
+
+
+    # noinspection PyMissingConstructor
     def __init__(self, *args, **kwargs):
         pnames = super(PlotListParser, self).parameterNames.copy()
         self.parameterNames.update(pnames)
