@@ -7,4 +7,5 @@
 
    idelib/dataset
    idelib/importer
+   idelib/sync
    idelib/util
