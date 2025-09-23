@@ -187,8 +187,6 @@
                 <UIntegerElement name="WarningSubChannelRef" id="0x5364" multiple="0" minver="2">SubChannelID</UIntegerElement>
                 <FloatElement name="WarningRangeMin" id="0x5365" multiple="0" minver="2">Minimum valid value. Note: this is in real, post-converted units, not raw channel units. </FloatElement>
                 <FloatElement name="WarningRangeMax" id="0x5366" multiple="0" minver="2">Maximum valid value. Note: this is in real, post-converted units, not raw channel units. </FloatElement>
-                <UnicodeElement name="WarningText" id="0x536E" multiple="0" mandatory="0">A name or description of the warning. Primarily intended for use in `UserData`.</UnicodeElement>
-                <BinaryElement name="WarningStyle" id="0x536F" multiple="0" mandatory="0"> Application-specific data describing the visual representation of the warning. Primarily intended for use in `UserData`.</BinaryElement>
             </MasterElement>
         </MasterElement>
 
@@ -417,7 +415,6 @@
     <!-- User-supplied metadata -->
     <MasterElement name="UserData" id="0x10200000" multiple="0" mandatory="0">
         A block of user-supplied data, appended to a file after recording, used primarily to keep information about the recording's display.
-        <UnicodeElement name="UserNotes" id="0x10200002" multiple="0" mandatory="0"> User-added notes attached to the recording. </UnicodeElement>
         <IntegerElement name="TimebaseOffset" id="0x10200010" multiple="0" mandatory="0"> An offset (in microseconds) for all sample times. </IntegerElement>
 
         <!-- Not currently in use by idelib or enDAQ Lab -->
