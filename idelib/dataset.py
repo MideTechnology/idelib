@@ -606,15 +606,93 @@ class Session(object):
                 POSIX/epoch timestamp.
         """
         self.dataset: Dataset = dataset
-        self.startTime = startTime
-        self.endTime = endTime
         self.sessionId: int = sessionId
-        self.utcStartTime: int = utcStartTime or dataset.lastUtcTime
+        self.utcStartTimeOriginal: int = utcStartTime or dataset.lastUtcTime
+        self.utcStartTime: int = self.utcStartTimeOriginal
+
+        self._data: dict[int, 'EventArray'] = None
+        self._offset: float = 0
 
         # firstTime and lastTime are the actual last event time. These will
-        # typically be the same as startTime and endTime, but not necessarily
-        # so.
-        self.firstTime = self.lastTime = None
+        # typically be the same as startTime and endTime, which are being
+        # deprecated.
+        self.firstTimeOriginal: float = startTime
+        self.firstTime: float = startTime
+        self.lastTimeOriginal: float = endTime
+        self.lastTime: float = endTime
+
+        self.syncInfo: Optional[Dict[str, Any]] = None
+        self.syncSensor: Optional[Sensor] = None
+        self.syncZero: float = None
+
+
+    @property
+    def startTime(self) -> float:
+        warnings.warn('Session.startTime is deprecated, and will be removed '
+                      'in the near future. Use Session.firstTime instead. ',
+                      PendingDeprecationWarning)
+        return self.firstTime
+
+
+    # noinspection PyDeprecation
+    @startTime.setter
+    def startTime(self, val: float):
+        warnings.warn('Session.startTime is deprecated, and will be removed '
+                      'in the near future. Use Session.firstTime instead. ',
+                      PendingDeprecationWarning)
+        self.firstTime = val
+
+
+    @property
+    def endTime(self) -> float:
+        warnings.warn('Session.endTime is deprecated, and will be removed '
+                      'in the future. Use Session.lastTime instead. ',
+                      PendingDeprecationWarning)
+        return self.lastTime
+
+
+    # noinspection PyDeprecation
+    @endTime.setter
+    def endTime(self, val: float):
+        warnings.warn('Session.endTime is deprecated, and will be removed '
+                      'in the future. Use Session.lastTime instead. ',
+                      PendingDeprecationWarning)
+        self.lastTime = val
+
+
+    @property
+    def data(self) -> Dict[int, 'EventArray']:
+        """ All the Channel-level `EventArray` instances in this `Session`,
+            keyed by channel ID.
+        """
+        if not self._data or self.dataset.loading:
+            self._data = {}
+            for chid, ch in self.dataset.channels.items():
+                if self.sessionId in ch.sessions:
+                    self._data[chid] = ch.sessions[self.sessionId]
+        return self._data
+
+
+    @property
+    def offset(self) -> float:
+        """ A time offset (in microseconds) for all events, across all
+            Channels, in this `Session`.
+        """
+        return self._offset
+
+
+    @offset.setter
+    def offset(self, offset: float):
+        """ A time offset (in microseconds) for all events, across all
+            Channels, in this `Session`.
+        """
+        offset = offset or 0.
+        self._offset = offset
+        self.firstTime = self.firstTimeOriginal + offset
+        self.lastTime = self.lastTimeOriginal + offset
+        for d in self.data.values():
+            # TODO: Exclude non-relative time channels?
+            d._setOffset(offset)
 
 
     # noinspection PyDeprecation
@@ -626,7 +704,7 @@ class Session(object):
                                  self.sessionId,
                                  datetime.utcfromtimestamp(self.utcStartTime))
 
-
+    
     def __eq__(self, other):
         """ x.__eq__(y) <==> x==y """
         if other is self:
@@ -635,14 +713,11 @@ class Session(object):
             return False
         else:
             return self.dataset == other.dataset \
-                and self.startTime == other.startTime \
-                and self.endTime == other.endTime \
-                and self.sessionId == other.sessionId \
-                and self.utcStartTime == other.utcStartTime \
-                and self.firstTime == other.firstTime \
-                and self.lastTime == other.lastTime
-
-
+               and self.sessionId == other.sessionId \
+               and self.utcStartTimeOriginal == other.utcStartTimeOriginal \
+               and self.firstTimeOriginal == other.firstTimeOriginal \
+               and self.lastTimeOriginal == other.lastTimeOriginal
+        
 #===============================================================================
 # 
 #===============================================================================
@@ -1399,6 +1474,18 @@ class EventArray(Transformable):
             self._npType = np.dtype([(str(i), dtype) for i, dtype in enumerate(dtypes)])
 
 
+    def _setOffset(self, offset):
+        """ Apply an offset to the `EventArray` timestamps. Do not use
+            directly; use `Session.offset`.
+        """
+        for d in self._data:
+            d.startTime = d.startTimeOriginal + offset
+            d.endTime = d.endTimeOriginal + offset
+
+        # XXX: Can probably skip this if the dataset is loading
+        self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + offset
+
+
     @property
     def rollingMeanSpan(self):
         return self._rollingMeanSpan
@@ -1491,14 +1578,14 @@ class EventArray(Transformable):
         # newList._cacheBlockStart = self._cacheBlockStart
         # newList._cacheBlockEnd = self._cacheBlockEnd
         return newList
-
+    
 
     def append(self, block):
         """ Add one data block's contents to the Channel's list of data.
             Note that this doesn't double-check the channel ID specified in
             the data, but it is inadvisable to include data from different
             channels.
-
+            
             :attention: Added elements must be in chronological order!
         """
         with self._channelDataLock:
@@ -1508,14 +1595,19 @@ class EventArray(Transformable):
             # Set the session first/last times if they aren't already set.
             # Possibly redundant if all sessions are 'closed.'
             if self.session.firstTime is None:
-                self.session.firstTime = block.startTime
+                self.session.firstTimeOriginal = block.startTime
+                self.session.firstTime = block.startTime + self.session._offset
             else:
-                self.session.firstTime = min(self.session.firstTime, block.startTime)
+                self.session.firstTimeOriginal = min(self.session.firstTimeOriginal, block.startTime)
+                self.session.firstTime = self.session.firstTimeOriginal + self.session._offset
 
             if self.session.lastTime is None:
-                self.session.lastTime = block.endTime
+                self.session.lastTimeOriginal = block.endTime
+                self.session.lastTime = block.endTime + self.session._offset
             else:
-                self.session.lastTime = max(self.session.lastTime, block.endTime)
+                self.session.lastTimeOriginal = max(self.session.lastTimeOriginal, block.endTime)
+                self.session.lastTime = self.session.lastTimeOriginal + self.session._offset
+
 
             # Check that the block actually contains at least one sample.
             if block.numSamples < 1:
@@ -1553,14 +1645,14 @@ class EventArray(Transformable):
                 self.hasMinMeanMax = False
             elif block.minMeanMax is not None:
                 mmmArr = np_recfunctions.structured_to_unstructured(
-                        np.frombuffer(block.minMeanMax, self._npType))
+                    np.frombuffer(block.minMeanMax, self._npType))
                 block.min, block.mean, block.max = mmmArr
                 self.hasMinMeanMax = True
             else:
                 # XXX: Attempt to calculate min/mean/max here instead of
                 #  in _computeMinMeanMax(). Causes issues with pressure for some
                 #  reason - it starts removing mean and won't plot.
-                vals = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
+                vals: np.array = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
                 block.min = vals.min(axis=0)
                 block.mean = vals.mean(axis=0)
                 block.max = vals.max(axis=0)
@@ -1633,7 +1725,8 @@ class EventArray(Transformable):
             :param start: The first block index to search
             :param stop: The last block index to search
         """
-        # TODO: profile & determine if this change is beneficial
+        # TODO: profile & determine if this change is beneficial. I'm not
+        #  sure the new version was ever actually profiled vs. the old.
         '''
         if stop:
             blockIdx = bisect_right(self._blockTimes, t, start, stop)
@@ -1644,12 +1737,18 @@ class EventArray(Transformable):
         return blockIdx
         '''
         if len(self._blockTimesArray) != len(self._blockTimes):
-            self._blockTimesArray = np.array(self._blockTimes)
+            self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + self.session._offset
+
+        if t is None or t < self._blockTimesArray[0]:
+            return 0
+        elif t > self._blockTimesArray[-1]:
+            return len(self._blockTimesArray)
 
         idxOffset = max(start, 1)
         return idxOffset-1 + np.searchsorted(
             self._blockTimesArray[idxOffset:stop], t, side='right'
         )
+
 
     def _getBlockRollingMean_old(self, blockIdx, force=False):
         """ Get the mean of a block and its neighbors within a given time span.
