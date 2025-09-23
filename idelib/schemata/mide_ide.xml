@@ -416,15 +416,17 @@
     <MasterElement name="UserData" id="0x10200000" multiple="0" mandatory="0">
         A block of user-supplied data, appended to a file after recording, used primarily to keep information about the recording's display.
         <IntegerElement name="TimebaseOffset" id="0x10200010" multiple="0" mandatory="0"> An offset (in microseconds) for all sample times. </IntegerElement>
+
+        <!-- Not currently in use by idelib or enDAQ Lab -->
         <MasterElement name="AnnotationList" id="0x10200020" multiple="0" mandatory="0">
             User-created highlights, marking particular spans and points in time
             <MasterElement name="Annotation" id="0x10200021" multiple="1" mandatory="0">
                 One user-created marker, indicating a point or range in time.
-                <UIntegerElement name="AnnotationID" id="0x10200022" multiple="0" mandatory="1" /> The annotation's ID, arbitrary but unique to the file.
-                <UnicodeElement name="AnnotationText" id="0x10200023" multiple="0" mandatory="0" /> A name and/or notes about the annotation.
-                <IntegerElement name="AnnotationStartTime" id="0x10200024" multiple="0" mandatory="1" /> Annotation start time.
-                <IntegerElement name="AnnotationEndTime" id="0x10200025" multiple="0" mandatory="0" /> Annotation end time. If present, the annotation will cover a time span.
-                <BinaryElement name="AnnotationStyle" id="0x10200026" multiple="0" mandatory="0" /> Application-specific data describing the visual representation of the annotation.
+                <UIntegerElement name="AnnotationID" id="0x10200022" multiple="0" mandatory="1"> The annotation's ID, arbitrary but unique to the file. </UIntegerElement>
+                <UnicodeElement name="AnnotationText" id="0x10200023" multiple="0" mandatory="0"> A name and/or notes about the annotation. </UnicodeElement>
+                <IntegerElement name="AnnotationStartTime" id="0x10200024" multiple="0" mandatory="1"> Annotation start time.</IntegerElement>
+                <IntegerElement name="AnnotationEndTime" id="0x10200025" multiple="0" mandatory="0"> Annotation end time. If present, the annotation will cover a time span.</IntegerElement>
+                <BinaryElement name="AnnotationStyle" id="0x10200026" multiple="0" mandatory="0"> Application-specific data describing the visual representation of the annotation.</BinaryElement>
             </MasterElement>
         </MasterElement>
         <MasterElement name="SyncInfo" id="0x10200031" multiple="0" mandatory="0">
@@ -447,7 +449,7 @@
         </MasterElement>
         <BinaryElement name="WindowLayout" id="0x10200011" multiple="0" mandatory="0"> Application-specific data describing GUI settings, etc. </BinaryElement>
 
-        <!-- Reused existing elements, which override those in the RecordingProperties, etc. -->
+        <!-- Reused existing elements, which override/extend those in the RecordingProperties, etc. -->
         <!-- Not currently in use by idelib or enDAQ Lab -->
         <UIntegerElement name="TimeBaseUTC"  id="0x5462" />
         <MasterElement name="CalibrationList" id="0x4B00" />

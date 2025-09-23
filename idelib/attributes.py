@@ -5,7 +5,6 @@ debugging purposes.
 """
 
 import datetime
-import sys
 import time
 
 from ebmlite import loadSchema

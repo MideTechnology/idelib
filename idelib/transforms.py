@@ -1432,7 +1432,7 @@ class PolyPoly(CombinedPoly):
             # in which the main channel can be accessed before the calibration
             # channel has loaded. This should fix it.
             if getattr(self.dataset, 'loading', False):
-                logger.warning("%s occurred in combined polynomial %r"%
+                logger.warning("%s occurred in combined polynomial %r" %
                                (err.__class__.__name__, self))
                 return None
             raise

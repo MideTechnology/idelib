@@ -228,11 +228,11 @@ class Dataset(Cascading):
             functions in the `importer` module.
         
             :param stream: A file-like stream object containing EBML data.
-            :keyword name: An optional name for the Dataset. Defaults to the
+            :param name: An optional name for the Dataset. Defaults to the
                 base name of the file (if applicable).
-            :keyword quiet: If `True`, non-fatal errors (e.g. schema/file
+            :param quiet: If `True`, non-fatal errors (e.g. schema/file
                 version mismatches) are suppressed. 
-            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file. Typically
                 used for diagnostic data.
         """
@@ -448,9 +448,9 @@ class Dataset(Cascading):
         """ Add a Channel to a Sensor. Note that the `channelId` and `parser`
             keyword arguments are *not* optional.
         
-            :keyword channelId: An unique ID number for the channel.
-            :keyword parser: The Channel's data parser
-            :keyword channelClass: An alternate (sub)class of channel.
+            :param channelId: An unique ID number for the channel.
+            :param parser: The Channel's data parser
+            :param channelClass: An alternate (sub)class of channel.
                 Defaults to `None`, which creates a standard `Channel`.
         """
         if channelId is None or parser is None:
@@ -483,11 +483,11 @@ class Dataset(Cascading):
         """ Add a `WarningRange` to the dataset, which indicates when a sensor
             is reporting values outside of a given range.
         
-            :keyword warningId: A unique numeric ID for the `WarningRange`.
-            :keyword channelId: The channel ID of the source being monitored.
-            :keyword subchannelId: The monitored source's subchannel ID.
-            :keyword low: The minimum value of the acceptable range.
-            :keyword high: The maximum value of the acceptable range.
+            :param warningId: A unique numeric ID for the `WarningRange`.
+            :param channelId: The channel ID of the source being monitored.
+            :param subchannelId: The monitored source's subchannel ID.
+            :param low: The minimum value of the acceptable range.
+            :param high: The maximum value of the acceptable range.
             :return: The new `WarningRange` instance.
         """
         w = WarningRange(self, warningId=warningId, channelId=channelId, 
@@ -527,11 +527,11 @@ class Dataset(Cascading):
                  visibility=0):
         """ Get all plotable data sources: sensor SubChannels and/or Plots.
         
-            :keyword subchannels: Include subchannels if `True`.
-            :keyword plots: Include Plots if `True`.
-            :keyword debug: If `False`, exclude debugging/diagnostic channels.
-            :keyword sort: Sort the plots by name if `True`.
-            :keyword visibility: The plots' maximum level of visibility,
+            :param subchannels: Include subchannels if `True`.
+            :param plots: Include Plots if `True`.
+            :param debug: If `False`, exclude debugging/diagnostic channels.
+            :param sort: Sort the plots by name if `True`.
+            :param visibility: The plots' maximum level of visibility,
                 for display purposes. Standard visibility ranges:
                 * 0: Standard data sources. Always visible by default.
                 * 10: Optionally visible, of interest but only in certain situations.
@@ -596,13 +596,13 @@ class Session(object):
             via :py:meth:`Dataset.addSession()` as part of the import process.
             
             :param dataset: The parent `Dataset`
-            :keyword sessionId: The Session's numeric ID. Typically
+            :param sessionId: The Session's numeric ID. Typically
                 sequential, starting at 0.
-            :keyword startTime: The session's start time, in microseconds,
+            :param startTime: The session's start time, in microseconds,
                 relative to the start of the recording.
-            :keyword endTime: The session's end time, in microseconds,
+            :param endTime: The session's end time, in microseconds,
                 relative to the end of the recording.
-            :keyword utcStartTime: The session's start time, as an absolute
+            :param utcStartTime: The session's start time, as an absolute
                 POSIX/epoch timestamp.
         """
         self.dataset: Dataset = dataset
@@ -879,20 +879,20 @@ class Channel(Transformable):
                 data from a single sensor.
             :param channelId: The channel's ID, unique within the file.
             :param parser: The channel's EBML data parser.
-            :keyword name: A custom name for this channel.
-            :keyword units: The units measured in this channel, used if units
+            :param name: A custom name for this channel.
+            :param units: The units measured in this channel, used if units
                 are not explicitly indicated in the Channel's SubChannels.
-            :keyword transform: A Transform object for adjusting sensor
+            :param transform: A Transform object for adjusting sensor
                 readings at the Channel level. 
-            :keyword displayRange: A 'hint' to the minimum and maximum values
+            :param displayRange: A 'hint' to the minimum and maximum values
                 of data in this channel.
-            :keyword cache: If `True`, this channel's data will be kept in
+            :param cache: If `True`, this channel's data will be kept in
                 memory rather than lazy-loaded.
-            :keyword singleSample: A 'hint' that the data blocks for this
+            :param singleSample: A 'hint' that the data blocks for this
                 channel each contain only a single sample (e.g. temperature/
                 pressure on an SSX). If `None`, this will be determined from
                 the sample data.
-            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file.
         """
         self.id = channelId
@@ -934,7 +934,7 @@ class Channel(Transformable):
         # each call to getSession(). 
         self.sessions = {}
         
-        self.subsampleCount = [0,sys.maxsize]
+        self.subsampleCount = [0, sys.maxsize]
 
         self.setTransform(transform, update=False)
         
@@ -1001,8 +1001,7 @@ class Channel(Transformable):
         
         if subchannelId >= len(self.subchannels):
             raise IndexError(
-                "Channel's parser only generates %d subchannels" %
-                 len(self.subchannels))
+                f"Channel's parser only generates {len(self.subchannels)} subchannels")
         else:
             channelClass = channelClass or SubChannel
             sc = self.subchannels[subchannelId]
@@ -1033,7 +1032,7 @@ class Channel(Transformable):
     def getSession(self, sessionId=None):
         """ Retrieve data recorded in a Session. 
             
-            :keyword sessionId: The ID of the session to retrieve.
+            :param sessionId: The ID of the session to retrieve.
             :return: The recorded data.
             :rtype: `EventArray`
         """
@@ -1055,10 +1054,10 @@ class Channel(Transformable):
         """ Parse subsamples out of a data block. Used internally.
         
             :param block: The data block from which to parse subsamples.
-            :keyword start: The first block index to retrieve.
-            :keyword end: The last block index to retrieve.
-            :keyword step: The number of steps between samples.
-            :keyword subchannel: If supplied, return only the values for a 
+            :param start: The first block index to retrieve.
+            :param end: The last block index to retrieve.
+            :param step: The number of steps between samples.
+            :param subchannel: If supplied, return only the values for a
                 specific subchannel (i.e. the method is being called by a
                 SubChannel).
             :return: A list of tuples, one for each subsample.
@@ -1085,7 +1084,7 @@ class Channel(Transformable):
             
             :param block: The data block element to parse.
             :param indices: A list of sample index numbers to retrieve.
-            :keyword subchannel: If supplied, return only the values for a 
+            :param subchannel: If supplied, return only the values for a
                 specific subchannel
             :return: A list of tuples, one for each subsample.
         """
@@ -1142,7 +1141,9 @@ class SubChannel(Channel):
         pieces of data (e.g. the Y from an accelerometer's XYZ). Looks
         like a 'real' channel.
     """
-    
+
+
+    # noinspection PyMissingConstructor
     def __init__(self, parent, subchannelId, name=None, units=('', ''),
                  transform=None, displayRange=None, sensorId=None, 
                  warningId=None, axisName=None, attributes=None, color=None,
@@ -1152,26 +1153,26 @@ class SubChannel(Channel):
         
             :param parent: The parent sensor.
             :param subchannelId: The channel's ID, unique within the file.
-            :keyword name: A custom name for this channel.
-            :keyword units: The units measured in this channel, used if units
+            :param name: A custom name for this channel.
+            :param units: The units measured in this channel, used if units
                 are not explicitly indicated in the Channel's SubChannels. A
                 tuple containing the 'axis name' (e.g. 'Acceleration') and the
                 unit symbol ('g').
-            :keyword transform: A Transform object for adjusting sensor
+            :param transform: A Transform object for adjusting sensor
                 readings at the Channel level. 
-            :keyword displayRange: A 'hint' to the minimum and maximum values
+            :param displayRange: A 'hint' to the minimum and maximum values
                 of data in this channel.
-            :keyword sensorId: The ID of the sensor that generates this
+            :param sensorId: The ID of the sensor that generates this
                 SubChannel's data.
-            :keyword warningId: The ID of the `WarningRange` that indicates
+            :param warningId: The ID of the `WarningRange` that indicates
                 conditions that may adversely affect data recorded in this
                 SubChannel.
-            :keyword axisName: The name of the axis this SubChannel represents.
+            :param axisName: The name of the axis this SubChannel represents.
                 Use if the `name` contains additional text (e.g. "X" if the 
                 name is "Accelerometer X (low-g)").
-            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file.
-            :keyword visibility: The subchannel's level of visibility, for
+            :param visibility: The subchannel's level of visibility, for
                 display purposes. The lower the value, the more 'visible' the
                 subchannel.
         """
@@ -1296,9 +1297,9 @@ class SubChannel(Channel):
         """ Parse subsamples out of a data block. Used internally.
         
             :param block: The data block from which to parse subsamples.
-            :keyword start: The first block index to retrieve.
-            :keyword end: The last block index to retrieve.
-            :keyword step: The number of steps between samples.
+            :param start: The first block index to retrieve.
+            :param end: The last block index to retrieve.
+            :param step: The number of steps between samples.
         """
         return self.parent.parseBlock(block, start, end, step=step) 
 
@@ -1694,8 +1695,8 @@ class EventArray(Transformable):
             index.
 
             :param idx: The event index to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
+            :param start: The first block index to search
+            :param stop: The last block index to search
         """
         # TODO: profile & determine if this change is beneficial
         '''
@@ -1721,8 +1722,8 @@ class EventArray(Transformable):
         """ Get the index of a raw data block in which the given time occurs.
 
             :param t: The time to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
+            :param start: The first block index to search
+            :param stop: The last block index to search
         """
         # TODO: profile & determine if this change is beneficial. I'm not
         #  sure the new version was ever actually profiled vs. the old.
@@ -1927,13 +1928,13 @@ class EventArray(Transformable):
                    display=False):
         """ Iterate all values in the given index range (w/o times).
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword subchannels: A list of subchannel IDs or Boolean. `True`
+            :param step: The step increment. Not used if `start` is a slice.
+            :param subchannels: A list of subchannel IDs or Boolean. `True`
                 will return all subchannels in native order.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: an iterable of structured array value blocks in the
                 specified index range.
@@ -1951,13 +1952,13 @@ class EventArray(Transformable):
                     display=False):
         """ Get all values in the given index range (w/o times).
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword subchannels: A list of subchannel IDs or Boolean. `True`
+            :param step: The step increment. Not used if `start` is a slice.
+            :param subchannels: A list of subchannel IDs or Boolean. `True`
                 will return all subchannels in native order.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: a structured array of values in the specified index range.
         """
@@ -1999,11 +2000,11 @@ class EventArray(Transformable):
     def iterSlice(self, start=None, end=None, step=1, display=False):
         """ Create an iterator producing events for a range of indices.
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param step: The step increment. Not used if `start` is a slice.
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: an iterable of events in the specified index range.
         """
@@ -2019,11 +2020,11 @@ class EventArray(Transformable):
     def arraySlice(self, start=None, end=None, step=1, display=False):
         """ Create an array of events within a range of indices.
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param step: The step increment. Not used if `start` is a slice.
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
@@ -2065,13 +2066,13 @@ class EventArray(Transformable):
                          display=False):
         """ Create an iterator producing events for a range of indices.
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword jitter: The amount by which to vary the sample time, as a
+            :param step: The step increment. Not used if `start` is a slice.
+            :param jitter: The amount by which to vary the sample time, as a
                 normalized percentage of the regular time between samples.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: an iterable of events in the specified index range.
         """
@@ -2092,13 +2093,13 @@ class EventArray(Transformable):
                           display=False):
         """ Create an array of events within a range of indices.
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword jitter: The amount by which to vary the sample time, as a
+            :param step: The step increment. Not used if `start` is a slice.
+            :param jitter: The amount by which to vary the sample time, as a
                 normalized percentage of the regular time between samples.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
@@ -2230,9 +2231,9 @@ class EventArray(Transformable):
         """ Get the first and last event indices that fall within the 
             specified interval.
             
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
         """
         if self.parent.singleSample:
@@ -2270,26 +2271,32 @@ class EventArray(Transformable):
     def iterRange(self, startTime=None, endTime=None, step=1, display=False):
         """ Get a set of data occurring in a given interval.
         
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
+            :param step: The number of steps between samples.
+            :param display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
         """
 
         warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
-        return self.iterSlice(startIdx,endIdx,step,display=display)        
+        return self.iterSlice(startIdx, endIdx, step, display=display)
 
 
     def arrayRange(self, startTime=None, endTime=None, step=1, display=False):
         """ Get a set of data occurring in a given time interval.
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
+            :param step: The number of steps between samples.
+            :param display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
             :return: a structured array of events in the specified time
                 interval.
         """
@@ -2302,10 +2309,12 @@ class EventArray(Transformable):
         """ Get a set of data occurring in a given time interval. (Currently
             an alias of `arrayRange`.)
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
+            :param display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
             :return: a collection of events in the specified time interval.
         """
         return self.arrayRange(startTime, endTime, display=display)
@@ -2316,13 +2325,13 @@ class EventArray(Transformable):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
-            :keyword times: If `True` (default), the results include the 
+            :param times: If `True` (default), the results include the
                 block's starting time. 
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results. 
             :return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
@@ -2412,14 +2421,17 @@ class EventArray(Transformable):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
-            :keyword times: If `True` (default), the results include the
+            :param times: If `True` (default), the results include the
                 block's starting time.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: A structured array of data block statistics (min, mean,
                 and max, respectively).
         """
@@ -2441,7 +2453,7 @@ class EventArray(Transformable):
         else:
             xform = self._comboXform
 
-        noBivariates= self.noBivariates
+        noBivariates = self.noBivariates
 
         out = np.empty(shape)
 
@@ -2501,14 +2513,17 @@ class EventArray(Transformable):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval. (Currently an alias of `arrayMinMeanMax`.)
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
-            :keyword times: If `True` (default), the results include the
+            :param times: If `True` (default), the results include the
                 block's starting time.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: A structured array of data block statistics (min, mean,
                 and max, respectively).
         """
@@ -2523,14 +2538,17 @@ class EventArray(Transformable):
             specifying a subchannel number can produce meaningless data if the
             channels use different units or are on different scales.
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
-            :keyword subchannel: The subchannel ID to retrieve, if the
+            :param subchannel: The subchannel ID to retrieve, if the
                 EventArray's parent has subchannels.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: A namedtuple of aggregated event statistics (min, mean,
                 and max, respectively).
         """
@@ -2577,10 +2595,13 @@ class EventArray(Transformable):
             time range. For Channels, returns the maximum among all
             Subchannels.
 
-            :keyword startTime: The starting time. Defaults to the start.
-            :keyword endTime: The ending time. Defaults to the end.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param startTime: The starting time. Defaults to the start.
+            :param endTime: The ending time. Defaults to the end.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: The event with the maximum value.
         """
         maxs = self.arrayMinMeanMax(startTime, endTime, times=False,
@@ -2599,10 +2620,13 @@ class EventArray(Transformable):
             time range. For Channels, returns the minimum among all
             Subchannels.
 
-            :keyword startTime: The starting time. Defaults to the start.
-            :keyword endTime: The ending time. Defaults to the end.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param startTime: The starting time. Defaults to the start.
+            :param endTime: The ending time. Defaults to the end.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: The event with the minimum value.
         """
         if not self.hasMinMeanMax:
@@ -2622,7 +2646,7 @@ class EventArray(Transformable):
     def _getBlockSampleTime(self, blockIdx=0):
         """ Get the time between samples within a given data block.
             
-            :keyword blockIdx: The index of the block to measure. Times
+            :param blockIdx: The index of the block to measure. Times
                 within the same block are expected to be consistent, but can
                 possibly vary from block to block.
             :return: The sample rate, as samples per second
@@ -2672,7 +2696,7 @@ class EventArray(Transformable):
             the channel definition or calculated from the actual data and
             cached.
             
-            :keyword blockIdx: The block to check. Optional, because in an
+            :param blockIdx: The block to check. Optional, because in an
                 ideal world, all blocks would be the same.
             :return: The sample rate, as samples per second (float)
         """
@@ -2689,7 +2713,7 @@ class EventArray(Transformable):
     def getSampleTime(self, idx=None):
         """ Get the time between samples.
             
-            :keyword idx: Because it is possible for sample rates to vary
+            :param idx: Because it is possible for sample rates to vary
                 within a channel, an event index can be specified; the time
                 between samples for that event and its siblings will be 
                 returned.
@@ -2709,7 +2733,7 @@ class EventArray(Transformable):
             the channel definition or calculated from the actual data and
             cached.
             
-            :keyword idx: Because it is possible for sample rates to vary
+            :param idx: Because it is possible for sample rates to vary
                 within a channel, an event index can be specified; the sample
                 rate for that event and its siblings will be returned.
             :return: The sample rate, as samples per second (float)
@@ -2727,9 +2751,11 @@ class EventArray(Transformable):
             existing events.
 
             :param at: The time at which to take the sample.
-            :keyword outOfRange: If `False`, times before the first sample
+            :param outOfRange: If `False`, times before the first sample
                 or after the last will raise an `IndexError`. If `True`, the
                 first or last time, respectively, is returned.
+            :param display: If `True`, export using the EventArray's 'display'
+                transform (e.g. unit conversion).
         """
         # TODO: Optimize. This creates a bottleneck in the calibration.
         startIdx = self.getEventIndexBefore(at)
@@ -2765,10 +2791,13 @@ class EventArray(Transformable):
             time range. For Channels, returns the mean among all
             Subchannels.
 
-            :keyword startTime: The starting time. Defaults to the start.
-            :keyword endTime: The ending time. Defaults to the end.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param startTime: The starting time. Defaults to the start.
+            :param endTime: The ending time. Defaults to the end.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: The event with the minimum value.
         """
         if not self.hasMinMeanMax:
@@ -2883,13 +2912,13 @@ class EventArray(Transformable):
         """ Export events as CSV to a stream (e.g. a file).
         
             :param stream: The stream object to which to write CSV data.
-            :keyword start: The first event index to export.
-            :keyword stop: The last event index to export.
-            :keyword step: The number of events between exported lines.
-            :keyword subchannels: A sequence of individual subchannel numbers
+            :param start: The first event index to export.
+            :param stop: The last event index to export.
+            :param step: The number of events between exported lines.
+            :param subchannels: A sequence of individual subchannel numbers
                 to export. Only applicable to objects with subchannels.
                 `True` (default) exports them all.
-            :keyword callback: A function (or function-like object) to notify
+            :param callback: A function (or function-like object) to notify
                 as work is done. It should take four keyword arguments:
                 `count` (the current line number), `total` (the total number
                 of lines), `error` (an exception, if raised during the
@@ -2897,26 +2926,30 @@ class EventArray(Transformable):
                 complete). If the callback object has a `cancelled`
                 attribute that is `True`, the CSV export will be aborted.
                 The default callback is `None` (nothing will be notified).
-            :keyword callbackInterval: The frequency of update, as a
+            :param callbackInterval: The frequency of update, as a
                 normalized percent of the total lines to export.
-            :keyword timeScalar: A scaling factor for the event times.
+            :param timeScalar: A scaling factor for the event times.
                 The default is 1 (microseconds).
-            :keyword raiseExceptions: 
-            :keyword dataFormat: The number of decimal places to use for the
+            :param raiseExceptions:
+            :param dataFormat: The number of decimal places to use for the
                 data. This is the same format as used when formatting floats.
-            :keyword useUtcTime: If `True`, times are written as the UTC
+            :param delimiter: The characters separating columns in the output.
+            :param useUtcTime: If `True`, times are written as the UTC
                 timestamp. If `False`, times are relative to the recording.
-            :keyword useIsoFormat: If `True`, the time column is written as
+            :param useIsoFormat: If `True`, the time column is written as
                 the standard ISO date/time string. Only applies if `useUtcTime`
                 is `True`.
-            :keyword headers: If `True`, the first line of the CSV will contain
+            :param headers: If `True`, the first line of the CSV will contain
                 the names of each column.
-            :keyword removeMean: Overrides the EventArray's mean removal for the
+            :param removeMean: Overrides the EventArray's mean removal for the
                 export.
-            :keyword meanSpan: The span of the mean removal for the export. 
+            :param meanSpan: The span of the mean removal for the export.
                 -1 removes the total mean.
-            :keyword display: If `True`, export using the EventArray's 'display'
+            :param display: If `True`, export using the EventArray's 'display'
                 transform (e.g. unit conversion).
+            :param noBivariates: If `True`, do not apply the second value
+                in bivariate calibration polynomials (e.g., temperature
+                compensation).
             :return: Tuple: The number of rows exported and the elapsed time.
         """
         # TODO: change `utcfromtimestamp(t)` to `fromtimestamp(t, datetime.UTC)`
@@ -3228,8 +3261,8 @@ class WarningRange(object):
         elif high is None:
             self.valid = lambda x: x > low
         else:
-            self.valid = lambda x: x > low and x < high
-        
+            self.valid = lambda x: low < x < high
+
         self._displayName = None
         
         
