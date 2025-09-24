@@ -137,7 +137,7 @@ def test_getSyncTimeZero():
     sync.getSyncTimeZero(doc1)
     assert doc1.currentSession.syncZero is not None
 
-    with pytest.raises(sync.SyncError):
+    with pytest.raises(TypeError):
         # Not a Dataset or EventArray
         sync.getSyncTimeZero('an invalid object')
 
