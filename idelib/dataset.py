@@ -94,19 +94,13 @@ def mapRange(x, in_min, in_max, out_min, out_max):
 def greater(v1, v2):
     """ Return the greater of two values. Faster than `max()` with only two.
     """
-    try:
-        return v1 if v1 > v2 else v2
-    except TypeError:
-        return v1 or v2
+    return v1 if v1 > v2 else v2
 
 
 def lesser(v1, v2):
     """ Return the lesser of two values. Faster than `min()` with only two.
     """
-    try:
-        return v1 if v1 < v2 else v2
-    except TypeError:
-        return v1 or v2
+    return v1 if v1 < v2 else v2
 
 
 #===============================================================================
@@ -1615,19 +1609,27 @@ class EventArray(Transformable):
 
             # Set the session first/last times if they aren't already set.
             # Possibly redundant if all sessions are 'closed.'
-            if self.session.firstTime is None:
+            try:
+                self.session.firstTimeOriginal = lesser(self.session.firstTimeOriginal,
+                                                        block.startTimeOriginal)
+                self.session.firstTime = self.session.firstTimeOriginal + self.session._offset
+            except TypeError:
+                # session.firstTimeOriginal probably None
+                if self.session.firstTimeOriginal is not None:
+                    raise
                 self.session.firstTimeOriginal = block.startTimeOriginal
                 self.session.firstTime = block.startTime
-            else:
-                self.session.firstTimeOriginal = lesser(self.session.firstTimeOriginal, block.startTimeOriginal)
-                self.session.firstTime = self.session.firstTimeOriginal + self.session._offset
 
-            if self.session.lastTime is None:
+            try:
+                self.session.lastTimeOriginal = greater(self.session.lastTimeOriginal,
+                                                        block.endTimeOriginal)
+                self.session.lastTime = self.session.lastTimeOriginal + self.session._offset
+            except TypeError:
+                # session.lastTimeOriginal probably None
+                if self.session.lastTimeOriginal is not None:
+                    raise
                 self.session.lastTimeOriginal = block.endTimeOriginal
                 self.session.lastTime = block.endTime
-            else:
-                self.session.lastTimeOriginal = greater(self.session.lastTimeOriginal, block.endTimeOriginal)
-                self.session.lastTime = self.session.lastTimeOriginal + self.session._offset
 
 
             # Check that the block actually contains at least one sample.
