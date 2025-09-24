@@ -127,7 +127,7 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
         session = data.session
         dataset = data.dataset
     else:
-        raise SyncError(f'Cannot get sync info from {data!r}')
+        raise TypeError(f'Cannot get sync info from {type(data).__name__!r} object')
 
     if session.syncZero is not None and session.syncInfo and not clear:
         return session.syncZero
@@ -163,7 +163,7 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
             'SyncSourceName': sync.parent.sensor.sourceName,
             'SyncSourceIdentifier':  sync.parent.sensor.sourceId,
             'SyncZero': session.syncZero,
-            'TimeBaseUTC': [session.utcStartTimeOriginal],
+            'TimeBaseUTCFine': [session.utcStartTimeOriginal],
             'SyncFilename': dataset.filename,
             'SyncFingerprint': dataset.fingerprint,
         })
@@ -259,7 +259,7 @@ def sync(reference: "Dataset", *datasets: "Dataset",
             refFingerprint = reference.fingerprint
         else:
             refzero = refInfo.get('SyncReferenceZero', reference.currentSession.syncZero)
-            refutc = refInfo.get('SyncTimeBaseUTC', reference.currentSession.utcStartTime)
+            refutc = refInfo.get('SyncTimeBaseUTCFine', reference.currentSession.utcStartTime)
             refFilename = refInfo.get('SyncReferenceFilename')
             refFingerprint = refInfo.get('SyncReferenceFingerprint')
 
@@ -275,7 +275,7 @@ def sync(reference: "Dataset", *datasets: "Dataset",
                     'SyncReferenceZero': refzero,
                     'SyncReferenceFilename': refFilename,
                     'SyncReferenceFingerprint': refFingerprint,
-                    'SyncTimeBaseUTC': refutc
+                    'SyncTimeBaseUTCFine': refutc
                 })
 
     except Exception:
@@ -288,6 +288,48 @@ def sync(reference: "Dataset", *datasets: "Dataset",
                 ds.currentSession.utcStartTime = ds.currentSession.utcStartTimeOriginal
                 ds.currentSession.syncInfo = info
         raise
+
+
+# ===========================================================================
+#
+# ===========================================================================
+
+def getGNSSTimebase(data: Union["Dataset", "EventArray"]) -> float:
+    """ Get the recording's fine-grained UTC start time from its GPS/GNSS
+        data.
+
+        :param data: The data from which to get the timebase. It can be
+            either a `Dataset` (in which case it uses the first GNSS time
+            source found) or an `EventArray` (to get the timebase from a
+            specific subchannel).
+        :returns: The recording's updated UTC start time with fractional
+            seconds.
+    """
+    events = None
+    if hasattr(data, 'channels'):
+        # data is a Dataset
+        timechannel = None
+        for ch in data.channels.values():
+            if ch.name == 'GNSS Time':
+                timechannel = ch
+                events = ch.getSession()
+                break
+
+        if timechannel is None:
+            raise SyncError(f'No GNSS time channel found in {data!r}')
+
+    elif hasattr(data, 'session'):
+        # data is an EventArray
+        events = data
+
+    else:
+        raise TypeError(f'Cannot get GNSS time from {type(data).__name__!r} object')
+
+    try:
+        times = events[0]
+        return times[1] - times[0] / 10 ** 6
+    except (IndexError, TypeError):
+        raise SyncError(f'No GNSS time data in {data!r} - was it not fully imported?')
 
 
 # ===========================================================================
@@ -333,7 +375,7 @@ def hasSyncReferenceInfo(info: Dict[str, Any]) -> bool:
     """
     if 'SyncSourceName' not in info and 'SyncSourceIdentifier' not in info:
         return False
-    return 'SyncReferenceZero' in info and 'SyncTimeBaseUTC' in info
+    return 'SyncReferenceZero' in info and 'SyncTimeBaseUTCFine' in info
 
 
 def makeSyncReferenceInfo(info: Dict[str, Any]) -> Dict[str, Any]:
@@ -347,7 +389,7 @@ def makeSyncReferenceInfo(info: Dict[str, Any]) -> Dict[str, Any]:
         'SyncReferenceZero': info.pop('SyncZero', None),
         'SyncReferenceFilename': info.pop('SyncFilename', None),
         'SyncReferenceFingerprint': info.pop('SyncFingerprint', None),
-        'SyncTimeBaseUTC': info.pop('TimeBaseUTC', [0])[0]
+        'SyncTimeBaseUTCFine': info.pop('TimeBaseUTCFine', [0])[0]
     })
     return info
 
@@ -382,7 +424,7 @@ def applySyncInfo(dataset: "Dataset",
         return
 
     with dataset._channelDataLock:
-        session.utcStartTime = info.get('SyncTimeBaseUTC', session.utcStartTimeOriginal)
+        session.utcStartTime = info.get('SyncTimeBaseUTCFine', session.utcStartTimeOriginal)
         session.offset = session.syncZero - info.get('SyncReferenceZero', 0)
 
 

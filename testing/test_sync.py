@@ -14,13 +14,13 @@ SYNC_INFO = {
     'SyncSourceName': 'MIDE-Corp',
     'SyncSourceIdentifier': 'F0:9C:E9:5F:93:14',
     'SyncZero': 6234333139,
-    'TimeBaseUTC': [1737569556],
+    'TimeBaseUTCFine': [1737569556.123],
     'SyncFilename': 'testing/TSF2.IDE',
     'SyncFingerprint': '71f7501261809bfbbf9c659b5376e373',
     'SyncReferenceZero': 6224001645,
     'SyncReferenceFilename': 'testing/TSF1.IDE',
     'SyncReferenceFingerprint': '6af87d674b94e1d1655a3492ac7bb690',
-    'SyncTimeBaseUTC': 1737569545
+    'SyncTimeBaseUTCFine': 1737569545.123
 }
 
 SYNC_INFO_NO_REFERENCE = {
@@ -30,7 +30,7 @@ SYNC_INFO_NO_REFERENCE = {
     'SyncSourceName': 'MIDE-Corp',
     'SyncSourceIdentifier': 'F0:9C:E9:5F:93:14',
     'SyncZero': 6234333139,
-    'TimeBaseUTC': [1737569556],
+    'TimeBaseUTCFine': [1737569556.123],
     'SyncFilename': 'testing/TSF2.IDE',
     'SyncFingerprint': '71f7501261809bfbbf9c659b5376e373'
 }
@@ -248,7 +248,7 @@ def test_sync_inherit():
         'SyncActive': True,
         'SyncReferenceZero': doc1.currentSession.syncZero + 60,
         'SyncReferenceFilename': 'bogus.ide',
-        'SyncTimeBaseUTC': doc1.currentSession.utcStartTime + 60,
+        'SyncTimeBaseUTCFine': doc1.currentSession.utcStartTime + 60,
     })
 
     # sync w/o clear: doc2 uses doc1's syncInfo (as if doc1 was synced to another)
