@@ -197,7 +197,7 @@ class Transformable(Cascading):
         """
         _tlist = [] if _tlist is None else _tlist
         if getattr(self, "_transform", None) is not None:
-            if isinstance(self._transform, Iterable) and id_ is not None:
+            if isinstance(self._transform, (list, tuple, dict)) and id_ is not None:
                 x = self._transform[id_]
             else:
                 x = self._transform
@@ -282,6 +282,7 @@ class Dataset(Cascading):
         self._channelDataLock = RLock()
         
         # Subsets: used when importing multiple files into the same dataset.
+        # Currently an experimental feature; see `idelib.multi_importer`
         self.subsets = []
 
         if name is None:
@@ -1457,14 +1458,6 @@ class EventArray(Transformable):
         self._cacheArray = None
         self._cacheBytes = None
 
-        # TODO: These seem to be unused; remove?
-        # self._fullyCached = False
-        # self._cacheStart = None
-        # self._cacheEnd = None
-        # self._cacheBlockStart = None
-        # self._cacheBlockEnd = None
-        # # self._cacheLen = 0
-
 
     def _makeDType(self):
         """ Construct the Numpy type for the channel's payload. """
@@ -1494,8 +1487,9 @@ class EventArray(Transformable):
             d.startTime = d.startTimeOriginal + offset
             d.endTime = d.endTimeOriginal + offset
 
-        # XXX: Can probably skip this if the dataset is loading
-        self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + offset
+        # skip if the dataset is loading (blockTimes still getting built)
+        if not self.dataset.loading:
+            self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + offset
 
 
     @property
@@ -1584,11 +1578,6 @@ class EventArray(Transformable):
         newList._channelDataLock = self._channelDataLock
         newList._cacheArray = self._cacheArray
         newList._cacheBytes = self._cacheBytes
-        # newList._fullyCached = self._fullyCached
-        # newList._cacheStart = self._cacheStart
-        # newList._cacheEnd = self._cacheEnd
-        # newList._cacheBlockStart = self._cacheBlockStart
-        # newList._cacheBlockEnd = self._cacheBlockEnd
         return newList
     
 
@@ -2463,10 +2452,10 @@ class EventArray(Transformable):
         """
         # TODO: Remember what `padding` was for, and either implement or
         #   remove it completely. Related to plotting; see `plots`.
-        # TODO: Use `iterator`? It may have been removed accidentally.
         if not self._data:
             return None
 
+        iterator = iterator or iter
         startBlock, endBlock = self._getBlockRange(startTime, endTime)
         shape = (3, greater(1, len(self._npType)) + int(times), endBlock - startBlock)
         scid = self.subchannelId
@@ -2483,7 +2472,7 @@ class EventArray(Transformable):
 
         out = np.empty(shape)
 
-        for i, d in enumerate(self._data[startBlock:endBlock]):
+        for i, d in enumerate(iterator(self._data[startBlock:endBlock])):
             if isSubchannel:
                 if times:
                     out[:, 0, i] = d.startTime

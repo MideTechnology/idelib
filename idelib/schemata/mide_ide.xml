@@ -397,6 +397,7 @@
 	-->
 
     <UIntegerElement name="TimeBaseUTC"  id="0x5462" multiple="1" minver="1">Session time base value in Unix Time. If present, used as the base for all future timecodes in the session.</UIntegerElement>
+    <FloatElement name="TimeBaseUTCFine"  id="0x5463" multiple="1" minver="1">Session time base value in Unix Time, using fractional seconds. If present, used as the base for all future timecodes in the session.</FloatElement>
 
     <BinaryElement name="SimpleChannelDataBlock"  id="0xA0" multiple="1" minver="1">This element contains potentially-channelized instrumentation data in a minimalist format. Its mandatory, fixed-length header includes a 2-byte modulo timecode (scaled to the channel's TimecodeScale, default of 1/32768 sec) and a 1-byte integer ChannelID.</BinaryElement>
 
@@ -444,14 +445,17 @@
             <StringElement name="SyncReferenceFingerprint" id="0x1020003C" multiple="0" mandatory="0"> The fingerprint hash of the reference file to which this file is synced (a hex string). </StringElement>
             <UnicodeElement name="SyncFilename" id="0x1020003D" multiple="0" mandatory="0"> This file's original name. Used when transferring sync data. </UnicodeElement>
             <StringElement name="SyncFingerprint" id="0x1020003E" multiple="0" mandatory="0"> This file's fingerprint hash (a hex string). Used when transferring sync data. </StringElement>
-            <UIntegerElement name="SyncTimeBaseUTC"  id="0x10205462"> The reference's UTC starting time, applied to the synched Dataset. </UIntegerElement>
-            <UIntegerElement name="TimeBaseUTC"  id="0x5462" /> <!-- Reused. The Dataset's original starting time, for transferring sync data. -->
+            <UIntegerElement name="SyncTimeBaseUTC" id="0x10205462" multiple="0" mandatory="0"> The reference's UTC starting time (whole seconds), applied to the synched Dataset. </UIntegerElement>
+            <FloatElement name="SyncTimeBaseUTCFine" id="0x10205463" multiple="0" mandatory="0"> The reference's UTC starting time (fractional seconds), applied to the synched Dataset. </FloatElement>
+            <UIntegerElement name="TimeBaseUTC" id="0x5462" /> <!-- Reused. The Dataset's original starting time, for transferring sync data. Note: this element is marked 'multiple' -->
+            <FloatElement name="TimeBaseUTCFine" id="0x5463" /> <!-- Reused. The Dataset's original starting time, derived from an external source. Note: this element is marked 'multiple' -->
         </MasterElement>
         <BinaryElement name="WindowLayout" id="0x10200011" multiple="0" mandatory="0"> Application-specific data describing GUI settings, etc. </BinaryElement>
 
         <!-- Reused existing elements, which override/extend those in the RecordingProperties, etc. -->
         <!-- Not currently in use by idelib or enDAQ Lab -->
-        <UIntegerElement name="TimeBaseUTC"  id="0x5462" />
+        <UIntegerElement name="TimeBaseUTC" id="0x5462" />
+        <FloatElement name="TimeBaseUTCFine" id="0x5463" /> <!-- Reused. The Dataset's starting time, derived from an external absolute source (e.g., GPS/GNSS). Note: this element is marked 'multiple' -->
         <MasterElement name="CalibrationList" id="0x4B00" />
         <MasterElement name="WarningList" id="0x5360" />
         <MasterElement name="ChannelList" id="0x5270" />
