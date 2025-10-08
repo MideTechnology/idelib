@@ -448,7 +448,7 @@
             <StringElement name="SyncReferenceFingerprint" id="0x1020003C" multiple="0" mandatory="0"> The fingerprint hash of the reference file to which this file is synced (a hex string). </StringElement>
             <UnicodeElement name="SyncFilename" id="0x1020003D" multiple="0" mandatory="0"> This file's original name. Used when transferring sync data. </UnicodeElement>
             <StringElement name="SyncFingerprint" id="0x1020003E" multiple="0" mandatory="0"> This file's fingerprint hash (a hex string). Used when transferring sync data. </StringElement>
-            <FloatElement name="SyncTimeBaseUTCFine" id="0x10205463" multiple="0" mandatory="0"> The reference's UTC starting time (fractional seconds), applied to the synched Dataset. </FloatElement>
+            <FloatElement name="SyncReferenceTimeBase" id="0x10205463" multiple="0" mandatory="0"> The reference's UTC starting time (fractional seconds), applied to the synced Dataset. </FloatElement>
             <FloatElement name="TimeBaseUTCFine" id="0x5463" /> <!-- Reused. The Dataset's original starting time, derived from an external source. Note: this element is marked 'multiple' -->
         </MasterElement>
         <BinaryElement name="WindowLayout" id="0x10200011" multiple="0" mandatory="0"> Application-specific data describing GUI settings, etc. </BinaryElement>

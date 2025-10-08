@@ -20,7 +20,7 @@ SYNC_INFO = {
     'SyncReferenceZero': 6224001645,
     'SyncReferenceFilename': 'testing/TSF1.IDE',
     'SyncReferenceFingerprint': '6af87d674b94e1d1655a3492ac7bb690',
-    'SyncTimeBaseUTCFine': 1737569545.123
+    'SyncReferenceTimeBase': 1737569545.123
 }
 
 SYNC_INFO_NO_REFERENCE = {
@@ -242,27 +242,31 @@ def test_sync_inherit():
     doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
     doc2 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))
 
+    doc1_startTimeOriginal = doc1.currentSession.utcStartTime
+
+
     # Set the syncInfo in doc1 as if it were synced to another recording
     sync.getSyncTimeZero(doc1)
+
     doc1.currentSession.syncInfo.update({
         'SyncActive': True,
-        'SyncReferenceZero': doc1.currentSession.syncZero + 60,
+        'SyncReferenceZero': doc1.currentSession.syncZero + 6000,
         'SyncReferenceFilename': 'bogus.ide',
-        'SyncTimeBaseUTCFine': doc1.currentSession.utcStartTime + 60,
+        'SyncReferenceTimeBase': doc1.currentSession.utcStartTime + 60.,
     })
 
     # sync w/o clear: doc2 uses doc1's syncInfo (as if doc1 was synced to another)
     sync.sync(doc1, doc2, inherit=True)
-    assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime + 60
+    assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTimeOriginal + 60.
     assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == 'bogus.ide'
 
     # sync w/ clear: doc2 syncs to doc1
     sync.sync(doc1, doc2, inherit=False)
-    assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
+    assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTimeOriginal
     assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == doc1.filename
 
     # sync w/o clear, but doc1 has no syncInfo: same as clear
-    sync.removeSyncInfo(doc1)
+    sync.removeSync(doc1, clean=True)
     sync.sync(doc1, doc2, inherit=True)
     assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
     assert doc2.currentSession.syncInfo['SyncReferenceFilename'] == doc1.filename
@@ -285,7 +289,7 @@ def test_apply_sync():
     offset = doc2.currentSession.offset
     sensor = doc2.currentSession.syncSensor
 
-    sync.removeSyncInfo(doc2)
+    sync.removeSync(doc2, clean=True)
     assert not doc2.currentSession.syncInfo
     assert doc2.currentSession.offset == 0
     assert doc2.currentSession.utcStartTime != doc1.currentSession.utcStartTime
@@ -318,7 +322,7 @@ def test_sync_userdata():
     assert ud['SyncInfo'] == {k: v for k, v in si.items()
                               if v is not None}
 
-    sync.removeSyncInfo(doc2)
+    sync.removeSync(doc2, clean=True)
     sync.updateUserdata(doc2)
 
     ud = userdata.readUserData(doc2)
@@ -376,10 +380,47 @@ def test_file_sync_userdata(tmp_path):
         assert info == sync.getSyncInfo(doc)
 
         # Check removed info
-        sync.removeSyncInfo(doc)
+        sync.removeSync(doc, clean=True)
         sync.updateUserdata(doc)
         assert 'SyncInfo' not in doc._userdata
 
     # Check file without userdata
     doc2 = importer.importFile(os.path.join(cwd, 'test3.IDE'))
     assert sync.loadSyncInfo(doc2) is False
+
+
+# ===========================================================================
+#
+# ===========================================================================
+
+def test_gnss_sync():
+    """ Basic test: add and remove GPS/GNSS time base modification.
+    """
+    cwd = os.path.dirname(__file__)
+    filename = os.path.join(cwd, 'GNSS1.IDE')
+
+    with importer.importFile(filename) as doc:
+        oldTime = doc.currentSession.utcStartTime
+        sync.applyGNSSTime(doc)
+        assert doc.currentSession.utcStartTime != oldTime
+
+        sync.removeSync(doc)
+        assert doc.currentSession.utcStartTime == oldTime
+
+
+def test_gnss_sync_nodata(tmp_path):
+    """ Test failing to get/apply GNSS time base.
+    """
+    cwd = os.path.dirname(__file__)
+
+    # File has no GNSS Time channel, obvious fail
+    filename = os.path.join(cwd, 'test3.IDE')
+    with importer.importFile(filename) as doc:
+        with pytest.raises(sync.SyncError):
+            sync.applyGNSSTime(doc)
+
+    # File has a GNSS Time channel, but it has no data
+    filename = os.path.join(cwd, 'TSF1.IDE')
+    with importer.importFile(filename) as doc:
+        with pytest.raises(sync.SyncError):
+            sync.applyGNSSTime(doc)

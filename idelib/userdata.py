@@ -88,7 +88,7 @@ def readUserData(dataset: "Dataset",
     """ Read application-specific user data from the end of an IDE file.
 
         :param dataset: The `Dataset` from which to read the user data.
-        :param refresh:: If `True`, ignore any cached values and re-read
+        :param refresh: If `True`, ignore any cached values and re-read
             from the file.
         :return: A dictionary of user data, or `None` if no user data
             could be read from the file (e.g., none exists).
