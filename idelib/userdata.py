@@ -127,7 +127,7 @@ def readUserData(dataset: "Dataset",
 def writeUserData(dataset: "Dataset",
                   userdata: Dict[str, Any],
                   refresh: bool = False):
-    """ Write user data to the end of an IDE file.
+    """ Write arbitrary data to the end of an IDE file.
 
         :param dataset: The `Dataset` from which to read the user data.
         :param userdata: A dictionary of user data, or `None` to remove
@@ -196,3 +196,13 @@ def writeUserData(dataset: "Dataset",
 
     finally:
         fs.seek(oldpos, os.SEEK_SET)
+
+
+def saveUserData(dataset: "Dataset", refresh: bool = False):
+    """ Save the user data attached to a `Dataset`.
+
+        :param dataset: The `Dataset` from which to write the user data.
+        :param refresh: If `True`, ignore any cached values and find the
+            position in the file to which to write.
+    """
+    writeUserData(dataset, dataset._userdata, refresh=refresh)

@@ -364,7 +364,7 @@ def getGNSSTimebase(data: Union["Dataset", "EventArray"]) -> float:
             source found) or an `EventArray` (to get the timebase from a
             specific subchannel).
         :returns: The recording's updated UTC start time with fractional
-            seconds.
+            seconds (UNIX epoch).
     """
     events = None
     if hasattr(data, 'channels'):
@@ -393,7 +393,7 @@ def getGNSSTimebase(data: Union["Dataset", "EventArray"]) -> float:
         raise SyncError(f'No GNSS time data in {data!r} - was it not fully imported?')
 
 
-def applyGNSSTime(data: "Dataset", clear=False):
+def applyGNSSTime(data: "Dataset", clear=False) -> Tuple[float, float]:
     """ Modify the recording's UTC start time using GPS/GNSS time data. Note
         that recordings with GPS/GNSS time bases cannot be synchronized to
         another recording; they should be the 'reference' recording to which
@@ -403,6 +403,8 @@ def applyGNSSTime(data: "Dataset", clear=False):
         :param clear: If `True`, remove any previous synchronization before
             updating the recording's timebase. If `False` and the recording
             has been synced to another, a `SyncError` will be raised.
+        :returns: The recording's original initial starting time and the new
+            GNSS-corrected time (UNIX epoch seconds).
     """
     if isSynced(data):
         if clear:
@@ -418,6 +420,8 @@ def applyGNSSTime(data: "Dataset", clear=False):
     session.utcStartTime = timebase
     session.syncInfo = session.syncInfo or {}
     session.syncInfo['TimeBaseUTCFine'] = [timebase]
+
+    return session.utcStartTimeOriginal, session.utcStartTime
 
 
 def removeGNSSTime(data: Union["Dataset", "EventArray", "Session"]):
@@ -584,7 +588,11 @@ def updateUserdata(dataset: "Dataset"):
         data.pop('SyncInfo', None)
 
         if session.syncInfo:
-            info = getSyncInfo(dataset)
+            try:
+                info = getSyncInfo(dataset)
+            except SyncError:
+                # No sync source (i.e., TSF data)
+                info = None
 
             if info:
                 data['SyncInfo'] = info
