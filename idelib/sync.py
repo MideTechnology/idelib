@@ -268,7 +268,7 @@ def sync(reference: "Dataset", *datasets: "Dataset",
 
         if clear:
             refzero = reference.currentSession.syncZero
-            refutc = reference.currentSession.utcStartTime
+            refutc = float(reference.currentSession.utcStartTime)
             refFilename = reference.filename
             refFingerprint = reference.fingerprint
         else:
@@ -312,7 +312,15 @@ def removeSync(data: Union["Dataset", "EventArray", "Session"],
 
         Note that this function runs synchronously, and can block/be blocked
         by other functions affecting the contents of the :py:class:`Dataset`.
+
+        :param data: The data from which to remove the sync info.
+        :param clean: If `False`, the information syncing this recording to
+            another is removed, but metadata about the file itself is kept.
+            If `True`, all sync-related info is completely removed.
     """
+    if not isSynced(data) and not clean:
+        raise SyncError('Data is not synced')
+
     dataset, session = _getSession(data)
     with dataset._channelDataLock:
         if clean:
@@ -544,11 +552,15 @@ def loadSyncInfo(dataset: "Dataset",
     data = userdata.readUserData(dataset, refresh=refresh)
     if not data:
         return False
+    sync = data.get('SyncInfo', None)
+    if sync:
+        applySyncInfo(dataset, sync, validate=False)
+        changed = True
+        if 'SyncReferenceTimeBase' in sync:
+            # Recording synced to another, ignore other time base adjustment
+            return changed
     if 'TimeBaseUTCFine' in data:
         dataset.currentSession.utcStartTime = data['TimeBaseUTCFine'][0]
-        changed = True
-    if 'SyncInfo' in data:
-        applySyncInfo(dataset, data['SyncInfo'], validate=False)
         changed = True
     return changed
 
@@ -560,22 +572,26 @@ def updateUserdata(dataset: "Dataset"):
 
         :param dataset: The `Dataset` to update.
     """
-    data = userdata.readUserData(dataset) or {}
-    session = dataset.currentSession
+    try:
+        data = userdata.readUserData(dataset) or {}
+        session = dataset.currentSession
 
-    if session.utcStartTimeOriginal != session.utcStartTime:
-        data['TimeBaseUTCFine'] = float(session.utcStartTime)
+        if session.utcStartTimeOriginal != session.utcStartTime:
+            data['TimeBaseUTCFine'] = float(session.utcStartTime)
+        else:
+            data.pop('TimeBaseUTCFine', None)
 
-    if not session.syncInfo:
-        data.pop('SyncInfo', None)
-        return
-
-    info = getSyncInfo(dataset)
-
-    if info:
-        data['SyncInfo'] = info
-    else:
         data.pop('SyncInfo', None)
 
-    if data is not dataset._userdata:
-        dataset._userdata = data
+        if session.syncInfo:
+            info = getSyncInfo(dataset)
+
+            if info:
+                data['SyncInfo'] = info
+
+        if data is not dataset._userdata:
+            dataset._userdata = data
+
+    except Exception:
+        dataset._userdata = deepcopy(dataset._userdataOriginal)
+        raise

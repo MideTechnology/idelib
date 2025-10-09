@@ -282,7 +282,16 @@ def test_apply_sync():
     doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
     doc2 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))
 
+    # Files start with no sync info
+    assert not sync.isSynced(doc1)
+    assert not sync.isSynced(doc2)
+
     sync.sync(doc1, doc2, inherit=False)
+
+    # The timing of the reference recording (1st IDE) not change, but the 2nd
+    # recording should be synced to the 1st.
+    assert not sync.isSynced(doc1)
+    assert sync.isSynced(doc2)
     assert doc2.currentSession.utcStartTime == doc1.currentSession.utcStartTime
 
     info = json.loads(json.dumps(doc2.currentSession.syncInfo))
@@ -290,7 +299,7 @@ def test_apply_sync():
     sensor = doc2.currentSession.syncSensor
 
     sync.removeSync(doc2, clean=True)
-    assert not doc2.currentSession.syncInfo
+    assert not sync.isSynced(doc2)
     assert doc2.currentSession.offset == 0
     assert doc2.currentSession.utcStartTime != doc1.currentSession.utcStartTime
     assert doc2.currentSession.syncSensor is None
@@ -310,10 +319,15 @@ def test_sync_userdata():
     cwd = os.path.dirname(__file__)
     doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
     doc2 = importer.importFile(os.path.join(cwd, 'TSF2.IDE'))
+
     sync.sync(doc1, doc2)
+
+    assert not sync.isSynced(doc1)
+    assert sync.isSynced(doc2)
 
     userdata.readUserData(doc2)
     sync.updateUserdata(doc2)
+    assert sync.isSynced(doc2)
 
     ud = userdata.readUserData(doc2)
     si = doc2.currentSession.syncInfo
@@ -323,9 +337,11 @@ def test_sync_userdata():
                               if v is not None}
 
     sync.removeSync(doc2, clean=True)
+    assert not sync.isSynced(doc2)
+
     sync.updateUserdata(doc2)
 
-    ud = userdata.readUserData(doc2)
+    ud = userdata.readUserData(doc2)  # Note: this will return the cached copy
     assert 'SyncInfo' not in ud
 
 
@@ -404,7 +420,7 @@ def test_gnss_sync():
         sync.applyGNSSTime(doc)
         assert doc.currentSession.utcStartTime != oldTime
 
-        sync.removeSync(doc)
+        sync.removeGNSSTime(doc)
         assert doc.currentSession.utcStartTime == oldTime
 
 
