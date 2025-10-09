@@ -1,3 +1,10 @@
+"""
+Batch .IDE Synchronization Utility: Add sync info to IDE files.
+
+Note: This utility modifies the files its synchronizes, adding or changing
+existing userdata appended to the end of the recordings.
+"""
+
 import datetime
 import os
 from pathlib import Path
@@ -32,7 +39,10 @@ def syncFiles(reference: Union[str, Path], *recordings:  Union[str, Path],
             written to the reference file's user data.
     """
     with importer.importFile(reference) as ref:
+        userdata.readUserData(ref)
         if gps:
+            if inherit:
+                raise ValueError('Arguments gps and inherit are mutually exclusive')
             try:
                 old, new = sync.applyGNSSTime(ref, clear=True)
                 sync.updateUserdata(ref)
@@ -45,6 +55,7 @@ def syncFiles(reference: Union[str, Path], *recordings:  Union[str, Path],
         for filename in recordings:
             with importer.importFile(filename) as doc:
                 try:
+                    userdata.readUserData(doc)
                     sync.sync(ref, doc, inherit=inherit)
                     sync.updateUserdata(doc)
                     userdata.saveUserData(doc)
