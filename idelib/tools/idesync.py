@@ -9,7 +9,7 @@ import datetime
 import os
 from pathlib import Path
 import sys
-from typing import Union
+from typing import List, Tuple, Union
 
 from idelib import __version__, __copyright__
 from idelib import importer
@@ -22,27 +22,30 @@ from idelib import userdata
 # ===========================================================================
 
 def syncFiles(reference: Union[str, Path], *recordings:  Union[str, Path],
-              inherit: bool = True,
-              gps: bool = True):
+              inherit: bool = False,
+              gps: bool = True) -> Tuple[List[str], List[str]]:
     """ Synchronize recording files, writing the sync info in their userdata
         for later use.
 
-        :param reference: The 'reference' IDE file, to which the others will
-            be synchronized.
-        :param recordings: The IDE files to sync to the reference. These are
-            optionl if `gps` is `True`.
+        :param reference: The 'reference' IDE filename, to which the other
+            recordings will be synchronized.
+        :param recordings: The IDE filenames to sync to the reference. These
+            are optionl if `gps` is `True`.
         :param inherit: If `True`, information in the reference syncing it
             to another recording will be used to sync the other files, as
             opposed to syncing them to the reference itself.
         :param gps: If `True`, update the reference file's starting time
             using the GPS/GNSS it contains. The new time base will be
             written to the reference file's user data.
+        :returns: A tuple of two lists of filenames: successfully synced
+            and failures. Note that the utility doesn't really use the
+            return values; they're primarily for testing.
     """
     with importer.importFile(reference) as ref:
-        userdata.readUserData(ref)
+        sync.loadSyncInfo(ref)
         if gps:
             if inherit:
-                raise ValueError('Arguments gps and inherit are mutually exclusive')
+                raise sync.SyncError('Arguments gps and inherit are mutually exclusive')
             try:
                 old, new = sync.applyGNSSTime(ref, clear=True)
                 sync.updateUserdata(ref)
@@ -51,17 +54,27 @@ def syncFiles(reference: Union[str, Path], *recordings:  Union[str, Path],
                       f'now {datetime.datetime.fromtimestamp(new, datetime.UTC).isoformat()} (UTC)')
             except sync.SyncError:
                 raise sync.SyncError(f'No GPS/GNSS data found in {reference}')
+        elif inherit:
+            info = sync.getSyncInfo(ref)
+            if not sync.hasSyncReferenceInfo(info):
+                raise sync.SyncError('Reference file has no sync info to inherit')
+
+        successes, failures = [], []
 
         for filename in recordings:
             with importer.importFile(filename) as doc:
                 try:
-                    userdata.readUserData(doc)
+                    sync.loadSyncInfo(doc)
                     sync.sync(ref, doc, inherit=inherit)
                     sync.updateUserdata(doc)
                     userdata.saveUserData(doc)
+                    successes.append(filename)
                     print(f'Synced {filename} to {reference}')
                 except (IOError, sync.SyncError) as err:
+                    failures.append(filename)
                     print(f'Could not sync {filename}: {err}', file=sys.stderr, flush=True)
+
+        return successes, failures
 
 
 # ===========================================================================

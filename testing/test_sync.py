@@ -5,6 +5,7 @@ import shutil
 import pytest
 
 from idelib import importer, sync, userdata
+from idelib.tools import idesync
 
 
 SYNC_INFO = {
@@ -440,3 +441,41 @@ def test_gnss_sync_nodata(tmp_path):
     with importer.importFile(filename) as doc:
         with pytest.raises(sync.SyncError):
             sync.applyGNSSTime(doc)
+
+
+# ===========================================================================
+# Utility tests
+# ===========================================================================
+
+def test_idesync_basics(tmp_path):
+    filenames = []
+    cwd = os.path.dirname(__file__)
+    for f in ('GNSS1.IDE', 'TSF1.IDE', 'TSF2.IDE'):
+        shutil.copy2(os.path.join(cwd, f), tmp_path / f)
+        filenames.append(str(tmp_path / f))  # Filenames will be strings when run from the CLI
+
+    # One file: just set GPS/GNSS time base
+    idesync.syncFiles(filenames[0], gps=True)
+    with importer.importFile(filenames[0]) as doc:
+        userdata.readUserData(doc)
+        assert doc._userdata['TimeBaseUTCFine'] != doc.currentSession.utcStartTimeOriginal
+
+
+def test_idesync_fail(tmp_path):
+    filenames = []
+    cwd = os.path.dirname(__file__)
+    for f in ('GNSS1.IDE', 'TSF1.IDE', 'TSF2.IDE', 'test3.IDE'):
+        shutil.copy2(os.path.join(cwd, f), tmp_path / f)
+        filenames.append(str(tmp_path / f))  # Filenames will be strings when run from the CLI
+
+    # Fail: can't use `gps` and `inherit` together
+    with pytest.raises(sync.SyncError, match=r'.*mutually exclusive.*'):
+        idesync.syncFiles(filenames[1], filenames[2], gps=True, inherit=True)
+
+    # Fail: No GPS/GNSS time data
+    with pytest.raises(sync.SyncError, match=r'No GPS/GNSS data.*'):
+        idesync.syncFiles(filenames[1], filenames[2], gps=True, inherit=False)
+
+    successes, failures = idesync.syncFiles(filenames[0], filenames[1], filenames[2], gps=False)
+    assert len(successes) == 0
+    assert len(failures) == 2
