@@ -50,8 +50,9 @@ def syncFiles(reference: Union[str, Path], *recordings:  Union[str, Path],
                 old, new = sync.applyGNSSTime(ref, clear=True)
                 sync.updateUserdata(ref)
                 userdata.saveUserData(ref)
+                newdt = datetime.datetime.fromtimestamp(new, datetime.timezone.utc)
                 print(f'GPS/GNSS time base applied to reference file {reference}; '
-                      f'now {datetime.datetime.fromtimestamp(new, datetime.UTC).isoformat()} (UTC)')
+                      f'now {newdt.isoformat()} (UTC)')
             except sync.SyncError:
                 raise sync.SyncError(f'No GPS/GNSS data found in {reference}')
         elif inherit:
