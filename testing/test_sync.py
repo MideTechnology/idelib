@@ -443,6 +443,34 @@ def test_gnss_sync_nodata(tmp_path):
             sync.applyGNSSTime(doc)
 
 
+def test_gnss_sync_userdata(tmp_path):
+    """ Test reading/writing GPS/GNSS time base info from a recording's
+        userdata.
+    """
+    cwd = os.path.dirname(__file__)
+    sourcename = os.path.join(cwd, 'GNSS1.IDE')
+    filename = tmp_path / os.path.basename(sourcename)
+    shutil.copyfile(sourcename, filename)
+
+    with importer.importFile(filename) as doc:
+        # Write GNSS timebase to userdata
+        sync.applyGNSSTime(doc)
+        sync.updateUserdata(doc)
+        gnsstime = doc.currentSession.utcStartTime
+        assert doc._userdata['TimeBaseUTCFine'] == gnsstime
+        userdata.writeUserData(doc, doc._userdata)
+
+    with importer.importFile(filename) as doc:
+        # Check saved info
+        assert 'TimeBaseUTCFine' not in (doc._userdata or {})
+        assert doc.currentSession.utcStartTime == doc.currentSession.utcStartTimeOriginal
+        assert doc.currentSession.utcStartTime != gnsstime
+        sync.loadSyncInfo(doc)
+        assert 'TimeBaseUTCFine' in doc._userdata
+        assert doc.currentSession.utcStartTime != doc.currentSession.utcStartTimeOriginal
+        assert doc.currentSession.utcStartTime == gnsstime
+
+
 # ===========================================================================
 # Utility tests
 # ===========================================================================
