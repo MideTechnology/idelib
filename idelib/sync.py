@@ -1,6 +1,10 @@
 """
-Functions to assist in syncing one file to another.
+Functions to assist in syncing one file to another, and functions
+to adjust files' timestamps based on the GPS/GNSS satelite time; two
+separate but related operations.
 
+Syncing
+-------
 Syncing modifies the start time and timestamps of one or more
 :py:class:`Dataset` objects' recording session to match a 'reference'
 :py:class:`Dataset`. Syncing is non-destructive; the sync can be repeatedly
@@ -13,8 +17,27 @@ connected to the same Wi-Fi access point can create these. Note that the time
 sync reference channels are not shown in *enDAQ Lab*, but can be seen in
 :py:attr:`Dataset.channels`.
 
-While this module implements several functions, the primary one is
-:py:func:`idelib.sync.sync()`.
+GPS/GNSS Time Adjustment
+------------------------
+Adjusting a recording's starting timestamp using GPS/GNSS time requires
+the file was recorded on a device with a GPS module (e.g., an enDAQ W series
+recorder) and contains GPS/GNSS timing data. Please note that the
+former does not guarantee the latter; the GPS timing data may be missing
+if satellite reception was poor, or the recording ended before the
+signal was acquired.
+
+Syncing and GPS/GNSS time adjustment can be used together by first
+applying the GPS/GNSS adjustment to the 'reference' recording before
+syncing other files to it. All recordings must have the same sync
+time channel, but only the 'reference' recording needs the GPS/GNSS
+data as well.
+
+Usage
+-----
+While this module implements several functions, the primary ones are
+:py:func:`idelib.sync.sync()` and :py:func:`idelib.sync.applyGNSSTime()`.
+:py:func:`idelib.sync.updateUserdata()` can be used to save a recording's
+calculated time/sync info into itself.
 """
 
 from copy import deepcopy

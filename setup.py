@@ -60,6 +60,7 @@ setuptools.setup(
                      'Programming Language :: Python :: 3.10',
                      'Programming Language :: Python :: 3.11',
                      'Programming Language :: Python :: 3.12',
+                     'Programming Language :: Python :: 3.13',
                      'Topic :: Scientific/Engineering',
                      ],
         keywords='ebml binary ide mide',
@@ -71,6 +72,7 @@ setuptools.setup(
         entry_points={'console_scripts': [
             'ideexport=idelib.tools.ideexport:main',
             'ideinfo=idelib.tools.ideinfo:main',
+            'idesync=idelib.tools.idesync:main',
         ]},
         project_urls={
             "Bug Tracker": "https://github.com/MideTechnology/idelib/issues",
@@ -78,7 +80,7 @@ setuptools.setup(
             "Source Code": "https://github.com/MideTechnology/idelib",
             },
         test_suite='./testing',
-        python_requires='>=3.5',
+        python_requires='>=3.9',
         install_requires=INSTALL_REQUIRES,
         extras_require={
             'test': INSTALL_REQUIRES + TEST_REQUIRES,
