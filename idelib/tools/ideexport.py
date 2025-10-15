@@ -303,7 +303,8 @@ def main(argv=None):
                              useUtcTime=args.utc,
                              useIsoFormat=args.isoformat,
                              useNames=args.names,
-                             updater=updater)
+                             updater=updater,
+                             sync=args.sync)
 
         numfiles = f'{len(sources)} file' + ('s' if len(sources) > 1 else '')
         tstr = str(tt).rstrip('0.')
