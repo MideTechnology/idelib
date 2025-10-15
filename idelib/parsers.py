@@ -565,6 +565,10 @@ class BaseDataBlock(object):
         return self.element.value
 
 
+    def getHeader(self):
+        raise NotImplementedError
+
+
 #===============================================================================
 # SimpleChannelDataBlock-related handlers
 #===============================================================================
@@ -1097,7 +1101,7 @@ class ChannelParser(ElementHandler):
         if 'parser' in data:
             pname = data.pop('parser', '')
             parser = DATA_PARSERS.get(pname, DATA_PARSERS.get(pname.upper(), None))
-            if parser:
+            if parser is not None:
                 # A named parser; use the special-case parser function.
                 data['parser'] = parser()
             else:
@@ -1158,7 +1162,7 @@ class PlotListParser(ChannelParser):
     }
 
 
-    # noinspection PyMissingConstructor
+    # noinspection PyMissingConstructor,PyUnusedLocal
     def __init__(self, *args, **kwargs):
         pnames = super(PlotListParser, self).parameterNames.copy()
         self.parameterNames.update(pnames)
@@ -1285,7 +1289,7 @@ class TimeBaseUTCParser(ElementHandler):
     """ Handle TimeBaseUTC elements, applying it as the UTC start time of the
         current Session.
     """
-    elementName = "TimeBaseUTC"
+    elementName = ("TimeBaseUTC", "TimeBaseUTCFine")
     isHeader = True
     
     def parse(self, element, **kwargs):

@@ -90,10 +90,22 @@ def mapRange(x, in_min, in_max, out_min, out_max):
     return ((x - in_min + 0.0) * (out_max - out_min) /
             (in_max - in_min) + out_min)
 
+
+def greater(v1, v2):
+    """ Return the greater of two values. Faster than `max()` with only two.
+    """
+    return v1 if v1 > v2 else v2
+
+
+def lesser(v1, v2):
+    """ Return the lesser of two values. Faster than `min()` with only two.
+    """
+    return v1 if v1 < v2 else v2
+
+
 #===============================================================================
 # Mix-In Classes
 #===============================================================================
-
 
 class Cascading(object):
     """ A base/mix-in class for objects in a hierarchy. 
@@ -185,7 +197,7 @@ class Transformable(Cascading):
         """
         _tlist = [] if _tlist is None else _tlist
         if getattr(self, "_transform", None) is not None:
-            if isinstance(self._transform, Iterable) and id_ is not None:
+            if isinstance(self._transform, (list, tuple, dict)) and id_ is not None:
                 x = self._transform[id_]
             else:
                 x = self._transform
@@ -270,6 +282,7 @@ class Dataset(Cascading):
         self._channelDataLock = RLock()
         
         # Subsets: used when importing multiple files into the same dataset.
+        # Currently an experimental feature; see `idelib.multi_importer`
         self.subsets = []
 
         if name is None:
@@ -1445,14 +1458,6 @@ class EventArray(Transformable):
         self._cacheArray = None
         self._cacheBytes = None
 
-        # TODO: These seem to be unused; remove?
-        # self._fullyCached = False
-        # self._cacheStart = None
-        # self._cacheEnd = None
-        # self._cacheBlockStart = None
-        # self._cacheBlockEnd = None
-        # # self._cacheLen = 0
-
 
     def _makeDType(self):
         """ Construct the Numpy type for the channel's payload. """
@@ -1482,8 +1487,9 @@ class EventArray(Transformable):
             d.startTime = d.startTimeOriginal + offset
             d.endTime = d.endTimeOriginal + offset
 
-        # XXX: Can probably skip this if the dataset is loading
-        self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + offset
+        # skip if the dataset is loading (blockTimes still getting built)
+        if not self.dataset.loading:
+            self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + offset
 
 
     @property
@@ -1572,11 +1578,6 @@ class EventArray(Transformable):
         newList._channelDataLock = self._channelDataLock
         newList._cacheArray = self._cacheArray
         newList._cacheBytes = self._cacheBytes
-        # newList._fullyCached = self._fullyCached
-        # newList._cacheStart = self._cacheStart
-        # newList._cacheEnd = self._cacheEnd
-        # newList._cacheBlockStart = self._cacheBlockStart
-        # newList._cacheBlockEnd = self._cacheBlockEnd
         return newList
     
 
@@ -1592,21 +1593,32 @@ class EventArray(Transformable):
             if block.numSamples is None:
                 block.numSamples = block.getNumSamples(self.parent.parser)
 
+            block.startTime = block.startTimeOriginal + self.session._offset
+            block.endTime = block.endTimeOriginal + self.session._offset
+
             # Set the session first/last times if they aren't already set.
             # Possibly redundant if all sessions are 'closed.'
-            if self.session.firstTime is None:
-                self.session.firstTimeOriginal = block.startTime
-                self.session.firstTime = block.startTime + self.session._offset
-            else:
-                self.session.firstTimeOriginal = min(self.session.firstTimeOriginal, block.startTime)
+            try:
+                self.session.firstTimeOriginal = lesser(self.session.firstTimeOriginal,
+                                                        block.startTimeOriginal)
                 self.session.firstTime = self.session.firstTimeOriginal + self.session._offset
+            except TypeError:
+                # session.firstTimeOriginal probably None
+                if self.session.firstTimeOriginal is not None:
+                    raise
+                self.session.firstTimeOriginal = block.startTimeOriginal
+                self.session.firstTime = block.startTime
 
-            if self.session.lastTime is None:
-                self.session.lastTimeOriginal = block.endTime
-                self.session.lastTime = block.endTime + self.session._offset
-            else:
-                self.session.lastTimeOriginal = max(self.session.lastTimeOriginal, block.endTime)
+            try:
+                self.session.lastTimeOriginal = greater(self.session.lastTimeOriginal,
+                                                        block.endTimeOriginal)
                 self.session.lastTime = self.session.lastTimeOriginal + self.session._offset
+            except TypeError:
+                # session.lastTimeOriginal probably None
+                if self.session.lastTimeOriginal is not None:
+                    raise
+                self.session.lastTimeOriginal = block.endTimeOriginal
+                self.session.lastTime = block.endTime
 
 
             # Check that the block actually contains at least one sample.
@@ -1649,7 +1661,7 @@ class EventArray(Transformable):
                 block.min, block.mean, block.max = mmmArr
                 self.hasMinMeanMax = True
             else:
-                # XXX: Attempt to calculate min/mean/max here instead of
+                # FUTURE: Attempt to calculate min/mean/max here instead of
                 #  in _computeMinMeanMax(). Causes issues with pressure for some
                 #  reason - it starts removing mean and won't plot.
                 vals: np.array = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
@@ -1660,7 +1672,7 @@ class EventArray(Transformable):
 
             # Cache the index range for faster searching
             self._blockIndices.append(oldLength)
-            self._blockTimes.append(block.startTime)
+            self._blockTimes.append(block.startTimeOriginal)
 
             self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
 
@@ -1712,7 +1724,7 @@ class EventArray(Transformable):
         if len(self._blockIndicesArray) != len(self._blockIndices):
             self._blockIndicesArray = np.array(self._blockIndices, dtype=np.int64)
 
-        idxOffset = max(start, 1)
+        idxOffset = greater(start, 1)
         return idxOffset-1 + np.searchsorted(
             self._blockIndicesArray[idxOffset:stop], idx, side='right'
         )
@@ -1744,7 +1756,7 @@ class EventArray(Transformable):
         elif t > self._blockTimesArray[-1]:
             return len(self._blockTimesArray)
 
-        idxOffset = max(start, 1)
+        idxOffset = greater(start, 1)
         return idxOffset-1 + np.searchsorted(
             self._blockTimesArray[idxOffset:stop], t, side='right'
         )
@@ -1778,7 +1790,7 @@ class EventArray(Transformable):
                                                      stop=blockIdx)
             lastBlock = self._getBlockIndexWithTime(block.startTime + (span/2), 
                                                     start=blockIdx)
-            lastBlock = max(lastBlock+1, firstBlock+1)
+            lastBlock = greater(lastBlock+1, firstBlock+1)
         else:
             firstBlock = lastBlock = None
         
@@ -1856,7 +1868,7 @@ class EventArray(Transformable):
                 raise IndexError("EventArray index out of range")
 
             if idx < 0:
-                idx = max(0, len(self) + idx)
+                idx = greater(0, len(self) + idx)
 
             return self.arraySlice(idx, idx + 1)[:, 0]
 
@@ -1892,6 +1904,8 @@ class EventArray(Transformable):
     
     
     def __eq__(self, other):
+        """ Return self==value.
+        """
         if other is self:
             return True
         elif not isinstance(other, self.__class__):
@@ -2265,7 +2279,7 @@ class EventArray(Transformable):
             endIdx = 0
         else:
             endIdx = self.getEventIndexBefore(endTime)+1
-        return max(0, startIdx), min(endIdx, len(self))
+        return greater(0, startIdx), lesser(endIdx, len(self))
     
 
     def iterRange(self, startTime=None, endTime=None, step=1, display=False):
@@ -2320,6 +2334,7 @@ class EventArray(Transformable):
         return self.arrayRange(startTime, endTime, display=display)
 
 
+    # noinspection PyCallingNonCallable
     def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
                        times=True, display=False):
         """ Get the minimum, mean, and maximum values for blocks within a
@@ -2437,12 +2452,12 @@ class EventArray(Transformable):
         """
         # TODO: Remember what `padding` was for, and either implement or
         #   remove it completely. Related to plotting; see `plots`.
-        # TODO: Use `iterator`? It may have been removed accidentally.
         if not self._data:
             return None
 
+        iterator = iterator or iter
         startBlock, endBlock = self._getBlockRange(startTime, endTime)
-        shape = (3, max(1, len(self._npType)) + int(times), endBlock - startBlock)
+        shape = (3, greater(1, len(self._npType)) + int(times), endBlock - startBlock)
         scid = self.subchannelId
         isSubchannel = isinstance(self.parent, SubChannel)
 
@@ -2457,7 +2472,7 @@ class EventArray(Transformable):
 
         out = np.empty(shape)
 
-        for i, d in enumerate(self._data[startBlock:endBlock]):
+        for i, d in enumerate(iterator(self._data[startBlock:endBlock])):
             if isSubchannel:
                 if times:
                     out[:, 0, i] = d.startTime
@@ -2578,14 +2593,14 @@ class EventArray(Transformable):
             startBlockIdx = 0
         else:
             startBlockIdx = self._getBlockIndexWithTime(startTime)
-            startBlockIdx = max(startBlockIdx-1, 0)
+            startBlockIdx = greater(startBlockIdx-1, 0)
         if endTime is None:
             endBlockIdx = len(self._data)
         else:
             if endTime < 0:
                 endTime += self._data[-1].endTime
             endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx)
-            endBlockIdx = min(len(self._data), max(startBlockIdx+1, endBlockIdx+1))
+            endBlockIdx = lesser(len(self._data), greater(startBlockIdx+1, endBlockIdx+1))
             
         return startBlockIdx, endBlockIdx
 
@@ -2872,9 +2887,9 @@ class EventArray(Transformable):
 
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
         numPoints = (stopIdx - startIdx)
-        startIdx = max(startIdx-padding, 0)
-        stopIdx = min(stopIdx+padding, len(self))
-        step = max(-int(-numPoints // maxPoints), 1)
+        startIdx = greater(startIdx-padding, 0)
+        stopIdx = lesser(stopIdx+padding, len(self))
+        step = greater(-int(-numPoints // maxPoints), 1)
         
         if jitter != 0:
             return self.iterJitterySlice(startIdx, stopIdx, step, jitter,
@@ -2892,9 +2907,9 @@ class EventArray(Transformable):
         #  particularly not with single-sample blocks.
 
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
-        startIdx = max(startIdx-padding, 0)
-        stopIdx = min(stopIdx+padding+1, len(self))
-        step = max(int(ceil((stopIdx - startIdx) / maxPoints)), 1)
+        startIdx = greater(startIdx-padding, 0)
+        stopIdx = lesser(stopIdx+padding+1, len(self))
+        step = greater(int(ceil((stopIdx - startIdx) / maxPoints)), 1)
 
         if jitter != 0:
             return self.arrayJitterySlice(startIdx, stopIdx, step, jitter,
@@ -3343,7 +3358,7 @@ class WarningRange(object):
             return at, True
         
         source = self.getSessionSource(sessionId) if source is None else source
-        t = min(max(source[0][0], at), source[-1][0])
+        t = lesser(max(source[0][0], at), source[-1][0])
         val = source.getValueAt(t, outOfRange=True)
         return at, self.valid(val[-1])
 
