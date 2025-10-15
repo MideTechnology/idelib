@@ -5,7 +5,7 @@ Note: This utility modifies the files its synchronizes, adding or changing
 existing userdata appended to the end of the recordings.
 """
 
-import datetime
+from datetime import datetime, timezone
 import os
 from pathlib import Path
 import sys
@@ -41,6 +41,8 @@ def syncFiles(reference: Union[str, Path], *recordings:  Union[str, Path],
             and failures. Note that the utility doesn't really use the
             return values; they're primarily for testing.
     """
+    successes, failures = [], []
+
     with importer.importFile(reference) as ref:
         sync.loadSyncInfo(ref)
         if gps:
@@ -50,17 +52,20 @@ def syncFiles(reference: Union[str, Path], *recordings:  Union[str, Path],
                 old, new = sync.applyGNSSTime(ref, clear=True)
                 sync.updateUserdata(ref)
                 userdata.saveUserData(ref)
-                newdt = datetime.datetime.fromtimestamp(new, datetime.timezone.utc)
+                olddt = datetime.fromtimestamp(old, timezone.utc)
+                newdt = datetime.fromtimestamp(new, timezone.utc)
+                dt1, dt2 = sorted((olddt, newdt))
+                diff = f"{'-' if old < new else ''}{dt2 - dt1}"
                 print(f'GPS/GNSS time base applied to reference file {reference}; '
-                      f'now {newdt.isoformat()} (UTC)')
+                      f'now {newdt.isoformat()} UTC ({diff} difference)',
+                      file=sys.stdout, flush=True)
+                successes.append(reference)
             except sync.SyncError:
                 raise sync.SyncError(f'No GPS/GNSS data found in {reference}')
         elif inherit:
             info = sync.getSyncInfo(ref)
             if not sync.hasSyncReferenceInfo(info):
                 raise sync.SyncError('Reference file has no sync info to inherit')
-
-        successes, failures = [], []
 
         for filename in recordings:
             with importer.importFile(filename) as doc:
@@ -70,7 +75,7 @@ def syncFiles(reference: Union[str, Path], *recordings:  Union[str, Path],
                     sync.updateUserdata(doc)
                     userdata.saveUserData(doc)
                     successes.append(filename)
-                    print(f'Synced {filename} to {reference}')
+                    print(f'Synced {filename} to {reference}', file=sys.stdout, flush=True)
                 except (IOError, sync.SyncError) as err:
                     failures.append(filename)
                     print(f'Could not sync {filename}: {err}', file=sys.stderr, flush=True)
@@ -110,6 +115,7 @@ def main(argv=None):
     if args.gps and args.inherit:
         print("ERROR: --gps and --inhert cannot be used together",
               file=sys.stderr, flush=True)
+        exit(1)
 
     recordings = []
     for source in args.recordings:
@@ -128,7 +134,7 @@ def main(argv=None):
         exit(1)
 
     except KeyboardInterrupt:
-        print("\n*** Conversion canceled!")
+        print("\n*** Conversion canceled!", file=sys.stdout, flush=True)
         sys.exit(0)
 
 

@@ -36,8 +36,9 @@ Usage
 -----
 While this module implements several functions, the primary ones are
 :py:func:`idelib.sync.sync()` and :py:func:`idelib.sync.applyGNSSTime()`.
-:py:func:`idelib.sync.updateUserdata()` can be used to save a recording's
-calculated time/sync info into itself.
+:py:func:`idelib.sync.updateUserdata()` (in conjunction with
+:py:func:`idelib.userdata.writeUserData()`)can be used to save a recording's
+calculated time/sync info into itself for later use.
 """
 
 from copy import deepcopy

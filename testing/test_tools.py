@@ -1,9 +1,16 @@
 from glob import glob
 import os.path
+import shutil
 
-from idelib import importer
-from idelib.tools import ideexport, ideinfo
+import pytest
 
+from idelib import importer, sync, userdata
+from idelib.tools import ideexport, ideinfo, idesync
+
+
+# ===========================================================================
+# ideexport tests
+# ===========================================================================
 
 def test_ideexport_basic(tmpdir_factory):
     """ Basic ideexport test, verify the correct number of files are created.
@@ -41,6 +48,10 @@ def test_ideexport_csv(tmpdir_factory):
                 assert lines == len(events)
 
 
+# ===========================================================================
+# ideinfo tests
+# ===========================================================================
+
 def test_ideinfo_basic(tmpdir_factory):
     """ Test that ideinfo creates an info file.
     """
@@ -50,3 +61,52 @@ def test_ideinfo_basic(tmpdir_factory):
 
     ideinfo.main(['--output', outfile, filename])
     assert os.path.exists(outfile)
+
+
+# ===========================================================================
+# idesync tests
+# ===========================================================================
+
+def test_idesync_basics(tmp_path):
+    """ Test basic idesync functionality. Note that this skips the `main()`
+        function and calls `syncFiles()` directly in order to get exceptions
+        that `main()` catches.
+    """
+    filenames = []
+    cwd = os.path.dirname(__file__)
+    for f in ('GNSS1.IDE', 'TSF1.IDE', 'TSF2.IDE'):
+        shutil.copy2(os.path.join(cwd, f), tmp_path / f)
+        filenames.append(str(tmp_path / f))  # Filenames will be strings when run from the CLI
+
+    # One file: just set GPS/GNSS time base
+    successes, failures = idesync.syncFiles(filenames[0], gps=True)
+    assert len(successes) == 1
+    assert len(failures) == 0
+
+    with importer.importFile(filenames[0]) as doc:
+        userdata.readUserData(doc)
+        assert doc._userdata['TimeBaseUTCFine'] != doc.currentSession.utcStartTimeOriginal
+
+
+def test_idesync_fail(tmp_path):
+    """ Test basic idesync failures. Note that this skips the `main()`
+        function and calls `syncFiles()` directly in order to get exceptions
+        that `main()` catches.
+    """
+    filenames = []
+    cwd = os.path.dirname(__file__)
+    for f in ('GNSS1.IDE', 'TSF1.IDE', 'TSF2.IDE', 'test3.IDE'):
+        shutil.copy2(os.path.join(cwd, f), tmp_path / f)
+        filenames.append(str(tmp_path / f))  # Filenames will be strings when run from the CLI
+
+    # Fail: can't use `gps` and `inherit` together
+    with pytest.raises(sync.SyncError, match=r'.*mutually exclusive.*'):
+        idesync.syncFiles(filenames[1], filenames[2], gps=True, inherit=True)
+
+    # Fail: No GPS/GNSS time data
+    with pytest.raises(sync.SyncError, match=r'No GPS/GNSS data.*'):
+        idesync.syncFiles(filenames[1], filenames[2], gps=True, inherit=False)
+
+    successes, failures = idesync.syncFiles(filenames[0], filenames[1], filenames[2], gps=False)
+    assert len(successes) == 0
+    assert len(failures) == 2
