@@ -125,20 +125,6 @@ def ideExport(ideFilename: str,
 
     doc = importer.openFile(ideFilename, updater=updater)
 
-    if sync:
-        try:
-            idelib.sync.loadSyncInfo(doc)
-        except idelib.sync.SyncError:
-            # Probably does not have sync sources
-            pass
-
-    if saveInfo:
-        with open(f'{outFilename}_info.txt', 'wt') as f:
-            showIdeInfo(doc, out=f, extra={'headers': headers,
-                                            'removeMean': removeMean,
-                                            'useUtcTime': useUtcTime,
-                                            'useIsoFormat': useIsoFormat})
-
     if not channels:
         channels = [c.id for c in doc.channels.values()
                     if any(sc.visibility < visibility for sc in c.subchannels)]
@@ -155,6 +141,20 @@ def ideExport(ideFilename: str,
                       startTime=startTime,
                       endTime=endTime,
                       updater=updater)
+
+    if sync:
+        try:
+            idelib.sync.loadSyncInfo(doc)
+        except idelib.sync.SyncError:
+            # Probably does not have sync sources
+            pass
+
+    if saveInfo:
+        with open(f'{outFilename}_info.txt', 'wt') as f:
+            showIdeInfo(doc, out=f, extra={'headers': headers,
+                                            'removeMean': removeMean,
+                                            'useUtcTime': useUtcTime,
+                                            'useIsoFormat': useIsoFormat})
 
     exportChannels = [doc.channels[cid] for cid in channels
                       if cid in doc.channels]

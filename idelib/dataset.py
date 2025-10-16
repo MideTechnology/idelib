@@ -701,8 +701,10 @@ class Session(object):
         """
         offset = offset or 0.
         self._offset = offset
-        self.firstTime = self.firstTimeOriginal + offset
-        self.lastTime = self.lastTimeOriginal + offset
+        if self.firstTimeOriginal is not None:
+            self.firstTime = self.firstTimeOriginal + offset
+        if self.lastTimeOriginal is not None:
+            self.lastTime = self.lastTimeOriginal + offset
         for d in self.data.values():
             # TODO: Exclude non-relative time channels?
             d._setOffset(offset)

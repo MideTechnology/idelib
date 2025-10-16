@@ -541,19 +541,42 @@ def applySyncInfo(dataset: "Dataset",
     if validate:
         validateSyncInfo(dataset, info)
 
-    session = dataset.currentSession
-    session.syncSensor = getSyncSensor(dataset,
-                                       sourceId=info.get('SyncSourceIdentifier'),
-                                       sourceName=info.get('SyncSourceName'))
-    getSyncTimeZero(dataset, sensorId=session.syncSensor.id)
-    session.syncInfo = info
-
-    if not info.get('SyncActive', True):
-        return
-
     with dataset._channelDataLock:
-        session.utcStartTime = info.get('SyncReferenceTimeBase', session.utcStartTimeOriginal)
-        session.offset = session.syncZero - info.get('SyncReferenceZero', 0)
+        session = dataset.currentSession
+
+        oldInfo = session.syncInfo
+        oldZero = session.syncZero
+        oldOffset = session.offset
+        oldSensor = session.syncSensor
+        oldStart = session.utcStartTime
+
+        try:
+            session.syncInfo = info
+            session.syncSensor = getSyncSensor(dataset,
+                                               sourceId=info.get('SyncSourceIdentifier'),
+                                               sourceName=info.get('SyncSourceName'))
+
+            if not info.get('SyncActive', True):
+                return
+
+            zero = info.get('SyncZero')
+
+            if (info.get('SyncFingerprint') == dataset.fingerprint
+                    and zero is not None):
+                session.syncZero = zero
+            else:
+                getSyncTimeZero(dataset, sensorId=session.syncSensor.id)
+
+            session.utcStartTime = info.get('SyncReferenceTimeBase', session.utcStartTime)
+            session.offset = session.syncZero - info.get('SyncReferenceZero', 0)
+
+        except Exception:
+            session.syncInfo = oldInfo
+            session.syncZero = oldZero
+            session.offset = oldOffset
+            session.syncSensor = oldSensor
+            session.utcStartTime = oldStart
+            raise
 
 
 def getSyncInfo(dataset: "Dataset") -> Dict[str, Any]:
