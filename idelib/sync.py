@@ -563,8 +563,12 @@ def applySyncInfo(dataset: "Dataset",
 
             if (info.get('SyncFingerprint') == dataset.fingerprint
                     and zero is not None):
+                # Sync info is from this file (probably loaded from userdata);
+                # don't recalculate (which will fail if the file was opened
+                # but not fully imported)
                 session.syncZero = zero
             else:
+                # Generate new sync info (requires loaded file)
                 getSyncTimeZero(dataset, sensorId=session.syncSensor.id)
 
             session.utcStartTime = info.get('SyncReferenceTimeBase', session.utcStartTime)
