@@ -23,7 +23,7 @@ from idelib import userdata
 
 def syncFiles(reference: Union[str, Path], *recordings:  Union[str, Path],
               inherit: bool = False,
-              gps: bool = True) -> Tuple[List[str], List[str]]:
+              gps: bool = False) -> Tuple[List[str], List[str]]:
     """ Synchronize recording files, writing the sync info in their userdata
         for later use.
 

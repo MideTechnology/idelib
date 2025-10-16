@@ -379,6 +379,7 @@ def test_sync_reference_info():
 def test_file_sync_userdata(tmp_path):
     """ Test reading/writing sync info from a recording's userdata.
     """
+    # This test modifies the IDE; make a working copy
     cwd = os.path.dirname(__file__)
     sourcename = os.path.join(cwd, 'TSF1.IDE')
     filename = tmp_path / os.path.basename(sourcename)
@@ -403,6 +404,35 @@ def test_file_sync_userdata(tmp_path):
     # Check file without userdata
     doc2 = importer.importFile(os.path.join(cwd, 'test3.IDE'))
     assert sync.loadSyncInfo(doc2) is False
+
+
+def test_file_sync_unread_file(tmp_path):
+    """ Test applying sync data to a file that hasn't been fully imported,
+        so syncing must be done with userdata.
+    """
+    cwd = os.path.dirname(__file__)
+    doc1 = importer.importFile(os.path.join(cwd, 'TSF1.IDE'))
+
+    # This test modifies the IDE; make a working copy
+    sourcename = os.path.join(cwd, 'TSF2.IDE')
+    filename = tmp_path / os.path.basename(sourcename)
+    shutil.copyfile(sourcename, filename)
+    doc2 = importer.importFile(filename)
+
+    sync.sync(doc1, doc2)
+    info = sync.getSyncInfo(doc2)
+    start = doc2.currentSession.utcStartTime
+    sync.updateUserdata(doc2)
+    userdata.saveUserData(doc2)
+    doc2.close()
+
+    doc2a = importer.openFile(filename)
+    sync.loadSyncInfo(doc2a)
+    assert sync.getSyncInfo(doc2a) == info
+    assert doc2a.currentSession.utcStartTime == start
+
+    importer.readData(doc2a)
+    assert doc2a.currentSession.utcStartTime == start
 
 
 # ===========================================================================
@@ -446,6 +476,7 @@ def test_gnss_sync_userdata(tmp_path):
     """ Test reading/writing GPS/GNSS time base info from a recording's
         userdata.
     """
+    # This test modifies the IDE; make a working copy
     cwd = os.path.dirname(__file__)
     sourcename = os.path.join(cwd, 'GNSS1.IDE')
     filename = tmp_path / os.path.basename(sourcename)

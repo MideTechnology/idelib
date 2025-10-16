@@ -67,16 +67,18 @@ def test_ideinfo_basic(tmpdir_factory):
 # idesync tests
 # ===========================================================================
 
-def test_idesync_basics(tmp_path):
+def test_idesync_basics(tmpdir_factory):
     """ Test basic idesync functionality. Note that this skips the `main()`
         function and calls `syncFiles()` directly in order to get exceptions
         that `main()` catches.
     """
     filenames = []
     cwd = os.path.dirname(__file__)
+    path = tmpdir_factory.mktemp('test_idesync_basics')
+
     for f in ('GNSS1.IDE', 'TSF1.IDE', 'TSF2.IDE'):
-        shutil.copy2(os.path.join(cwd, f), tmp_path / f)
-        filenames.append(str(tmp_path / f))  # Filenames will be strings when run from the CLI
+        shutil.copy2(os.path.join(cwd, f), path / f)
+        filenames.append(str(path / f))  # Filenames will be strings when run from the CLI
 
     # One file: just set GPS/GNSS time base
     successes, failures = idesync.syncFiles(filenames[0], gps=True)
@@ -88,16 +90,17 @@ def test_idesync_basics(tmp_path):
         assert doc._userdata['TimeBaseUTCFine'] != doc.currentSession.utcStartTimeOriginal
 
 
-def test_idesync_fail(tmp_path):
+def test_idesync_fail(tmpdir_factory):
     """ Test basic idesync failures. Note that this skips the `main()`
         function and calls `syncFiles()` directly in order to get exceptions
         that `main()` catches.
     """
     filenames = []
     cwd = os.path.dirname(__file__)
+    path = tmpdir_factory.mktemp('test_idesync_fail')
     for f in ('GNSS1.IDE', 'TSF1.IDE', 'TSF2.IDE', 'test3.IDE'):
-        shutil.copy2(os.path.join(cwd, f), tmp_path / f)
-        filenames.append(str(tmp_path / f))  # Filenames will be strings when run from the CLI
+        shutil.copy2(os.path.join(cwd, f), path / f)
+        filenames.append(str(path / f))  # Filenames will be strings when run from the CLI
 
     # Fail: can't use `gps` and `inherit` together
     with pytest.raises(sync.SyncError, match=r'.*mutually exclusive.*'):
@@ -110,3 +113,23 @@ def test_idesync_fail(tmp_path):
     successes, failures = idesync.syncFiles(filenames[0], filenames[1], filenames[2], gps=False)
     assert len(successes) == 0
     assert len(failures) == 2
+
+
+def test_idesync_ideexport(tmpdir_factory):
+    """ Basic ideexport test, verify the correct number of files are created.
+    """
+    filenames = []
+    cwd = os.path.dirname(__file__)
+    path = tmpdir_factory.mktemp('test_idesync_ideexport')
+    for f in ('TSF1.IDE', 'TSF2.IDE', 'GNSS1.IDE'):
+        shutil.copy2(os.path.join(cwd, f), path / f)
+        filenames.append(str(path / f))  # Filenames will be strings when run from the CLI
+
+    idesync.syncFiles(filenames[0], filenames[1])
+    idesync.syncFiles(filenames[2], gps=True)
+
+    # Just see if the files can be exported with sync without failing
+    ideexport.main(['--output', str(path), '-s', filenames[1]])
+    ideexport.main(['--output', str(path), '-s', filenames[2]])
+
+    # FUTURE: Check export content, even though test_sync tests data?
