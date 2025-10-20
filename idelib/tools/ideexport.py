@@ -13,6 +13,8 @@ from idelib import importer
 from idelib.matfile import exportMat
 from idelib.tools.ideinfo import showIdeInfo
 
+import idelib.sync
+
 # try:
 #     import tqdm.auto
 #     Updater = importer.TQDMUpdater
@@ -74,7 +76,8 @@ def ideExport(ideFilename: str,
               useNames: bool = False,
               updater: Optional[Callable] = None,
               timeScalar: float = 1.0,
-              saveInfo: bool = True) -> int:
+              saveInfo: bool = True,
+              sync: bool = False) -> int:
     """ The main function that handles generating text files from an IDE file.
 
         :param ideFilename: The name of the source IDE file.
@@ -109,6 +112,8 @@ def ideExport(ideFilename: str,
             seconds, etc.
         :param saveInfo: If `True`, save a text file with key recording
             metadata and summary info.
+        :param sync: Apply recordings' sychronization data (if present in the
+            file).
     """
     b = os.path.basename(ideFilename)
     outputType = outputType.strip('.')
@@ -119,12 +124,6 @@ def ideExport(ideFilename: str,
         outFilename = os.path.join(outFilename, os.path.splitext(b)[0])
 
     doc = importer.openFile(ideFilename, updater=updater)
-    if saveInfo:
-        with open(f'{outFilename}_info.txt', 'wt') as f:
-            showIdeInfo(doc, out=f, extra={'headers': headers,
-                                            'removeMean': removeMean,
-                                            'useUtcTime': useUtcTime,
-                                            'useIsoFormat': useIsoFormat})
 
     if not channels:
         channels = [c.id for c in doc.channels.values()
@@ -142,6 +141,20 @@ def ideExport(ideFilename: str,
                       startTime=startTime,
                       endTime=endTime,
                       updater=updater)
+
+    if sync:
+        try:
+            idelib.sync.loadSyncInfo(doc)
+        except idelib.sync.SyncError:
+            # Probably does not have sync sources
+            pass
+
+    if saveInfo:
+        with open(f'{outFilename}_info.txt', 'wt') as f:
+            showIdeInfo(doc, out=f, extra={'headers': headers,
+                                            'removeMean': removeMean,
+                                            'useUtcTime': useUtcTime,
+                                            'useIsoFormat': useIsoFormat})
 
     exportChannels = [doc.channels[cid] for cid in channels
                       if cid in doc.channels]
@@ -253,6 +266,8 @@ def main(argv=None):
         help="Write timestamps as UTC 'Unix epoch' time.")
     argparser.add_argument('-n', '--names', action='store_true',
         help="Include channel names in exported filenames.")
+    argparser.add_argument('-s', '--sync', action='store_true',
+        help="Apply recordings' sychronization data (if present in the file).")
 
     txtargs = argparser.add_argument_group("Text Export Options (CSV, TXT, etc.)")
     txtargs.add_argument('-r', '--headers', action='store_true',
@@ -288,7 +303,8 @@ def main(argv=None):
                              useUtcTime=args.utc,
                              useIsoFormat=args.isoformat,
                              useNames=args.names,
-                             updater=updater)
+                             updater=updater,
+                             sync=args.sync)
 
         numfiles = f'{len(sources)} file' + ('s' if len(sources) > 1 else '')
         tstr = str(tt).rstrip('0.')

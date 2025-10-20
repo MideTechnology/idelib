@@ -1,6 +1,10 @@
 """
-Functions to assist in syncing one file to another.
+Functions to assist in syncing one file to another, and functions
+to adjust files' timestamps based on the GPS/GNSS satelite time; two
+separate but related operations.
 
+Syncing
+-------
 Syncing modifies the start time and timestamps of one or more
 :py:class:`Dataset` objects' recording session to match a 'reference'
 :py:class:`Dataset`. Syncing is non-destructive; the sync can be repeatedly
@@ -13,19 +17,39 @@ connected to the same Wi-Fi access point can create these. Note that the time
 sync reference channels are not shown in *enDAQ Lab*, but can be seen in
 :py:attr:`Dataset.channels`.
 
-While this module implements several functions, the primary one is
-:py:func:`idelib.sync.sync()`.
+GPS/GNSS Time Adjustment
+------------------------
+Adjusting a recording's starting timestamp using GPS/GNSS time requires
+the file was recorded on a device with a GPS module (e.g., an enDAQ W series
+recorder) and contains GPS/GNSS timing data. Please note that the
+former does not guarantee the latter; the GPS timing data may be missing
+if satellite reception was poor, or the recording ended before the
+signal was acquired.
+
+Syncing and GPS/GNSS time adjustment can be used together by first
+applying the GPS/GNSS adjustment to the 'reference' recording before
+syncing other files to it. All recordings must have the same sync
+time channel, but only the 'reference' recording needs the GPS/GNSS
+data as well.
+
+Usage
+-----
+While this module implements several functions, the primary ones are
+:py:func:`idelib.sync.sync()` and :py:func:`idelib.sync.applyGNSSTime()`.
+:py:func:`idelib.sync.updateUserdata()` (in conjunction with
+:py:func:`idelib.userdata.writeUserData()`)can be used to save a recording's
+calculated time/sync info into itself for later use.
 """
 
 from copy import deepcopy
 import logging
-from typing import Any, Dict, List, Optional, Union, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Union, Tuple, TYPE_CHECKING
 
 from idelib import userdata
 
 if TYPE_CHECKING:
     # codecov:ignore:next
-    from idelib.dataset import Dataset, EventArray, Sensor
+    from idelib.dataset import Dataset, EventArray, Sensor, Session
 
 
 logger = logging.getLogger(__name__)
@@ -93,6 +117,29 @@ def getSyncSources(dataset: "Dataset") -> List["EventArray"]:
 #
 # ===========================================================================
 
+def _getSession(data: Union["Dataset", "EventArray", "Session"]
+                ) -> Tuple["Dataset", "Session"]:
+    """ Helper function to get the `Dataset` and current session from a
+        `Dataset`, `EventArray`, or `Session` object.
+    """
+    if hasattr(data, 'channels'):
+        # data is a Dataset
+        session = data.currentSession
+        dataset = data
+    elif hasattr(data, 'session'):
+        # data is an EventArray
+        session = data.session
+        dataset = data.dataset
+    elif hasattr(data, 'sessionId'):
+        # Data is a Session
+        session = data
+        dataset = data.dataset
+    else:
+        raise TypeError(f'Cannot get sync info from {type(data).__name__!r} object')
+
+    return dataset, session
+
+
 def getSyncTimeZero(data: Union["Dataset", "EventArray"],
                     start: Optional[int] = None,
                     end: Optional[int] = None,
@@ -118,16 +165,7 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
         :returns: The sync reference time (in microseconds) corresponding to
             the recording's relative timestamp zero.
     """
-    if hasattr(data, 'channels'):
-        # data is a Dataset
-        session = data.currentSession
-        dataset = data
-    elif hasattr(data, 'session'):
-        # data is an EventArray
-        session = data.session
-        dataset = data.dataset
-    else:
-        raise SyncError(f'Cannot get sync info from {data!r}')
+    dataset, session = _getSession(data)
 
     if session.syncZero is not None and session.syncInfo and not clear:
         return session.syncZero
@@ -163,7 +201,7 @@ def getSyncTimeZero(data: Union["Dataset", "EventArray"],
             'SyncSourceName': sync.parent.sensor.sourceName,
             'SyncSourceIdentifier':  sync.parent.sensor.sourceId,
             'SyncZero': session.syncZero,
-            'TimeBaseUTC': [session.utcStartTimeOriginal],
+            'TimeBaseUTCFine': [float(session.utcStartTimeOriginal)],
             'SyncFilename': dataset.filename,
             'SyncFingerprint': dataset.fingerprint,
         })
@@ -254,12 +292,12 @@ def sync(reference: "Dataset", *datasets: "Dataset",
 
         if clear:
             refzero = reference.currentSession.syncZero
-            refutc = reference.currentSession.utcStartTime
+            refutc = float(reference.currentSession.utcStartTime)
             refFilename = reference.filename
             refFingerprint = reference.fingerprint
         else:
             refzero = refInfo.get('SyncReferenceZero', reference.currentSession.syncZero)
-            refutc = refInfo.get('SyncTimeBaseUTC', reference.currentSession.utcStartTime)
+            refutc = refInfo.get('SyncReferenceTimeBase', float(reference.currentSession.utcStartTime))
             refFilename = refInfo.get('SyncReferenceFilename')
             refFingerprint = refInfo.get('SyncReferenceFingerprint')
 
@@ -275,7 +313,7 @@ def sync(reference: "Dataset", *datasets: "Dataset",
                     'SyncReferenceZero': refzero,
                     'SyncReferenceFilename': refFilename,
                     'SyncReferenceFingerprint': refFingerprint,
-                    'SyncTimeBaseUTC': refutc
+                    'SyncReferenceTimeBase': refutc
                 })
 
     except Exception:
@@ -288,6 +326,138 @@ def sync(reference: "Dataset", *datasets: "Dataset",
                 ds.currentSession.utcStartTime = ds.currentSession.utcStartTimeOriginal
                 ds.currentSession.syncInfo = info
         raise
+
+
+def removeSync(data: Union["Dataset", "EventArray", "Session"],
+               clean: bool = False):
+    """ Remove sync info from a :py:class:`Dataset` recording session. The
+        UTC start time and timestamp offsets will revert to those
+        originally in the file.
+
+        Note that this function runs synchronously, and can block/be blocked
+        by other functions affecting the contents of the :py:class:`Dataset`.
+
+        :param data: The data from which to remove the sync info.
+        :param clean: If `False`, the information syncing this recording to
+            another is removed, but metadata about the file itself is kept.
+            If `True`, all sync-related info is completely removed.
+    """
+    if not isSynced(data) and not clean:
+        raise SyncError('Data is not synced')
+
+    dataset, session = _getSession(data)
+    with dataset._channelDataLock:
+        if clean:
+            session.syncInfo = None
+        elif session.syncInfo:
+            session.syncInfo['SyncActive'] = False
+            for k in tuple(session.syncInfo.keys()):
+                if 'Reference' in k:
+                    del session.syncInfo[k]
+
+        session.offset = 0
+        session.utcStartTime = session.utcStartTimeOriginal
+        session.firstTime = session.firstTimeOriginal
+        session.lastTime = session.lastTimeOriginal
+
+        if clean:
+            session.syncSensor = None
+
+
+def isSynced(data: Union["Dataset", "EventArray", "Session"]) -> bool:
+    """ Has the data been synchronized to another recording?
+    """
+    dataset, session = _getSession(data)
+    if session.syncZero is None or not session.offset:
+        return False
+    elif session.utcStartTime == session.utcStartTimeOriginal:
+        return False
+    return True
+
+
+# ===========================================================================
+#
+# ===========================================================================
+
+def getGNSSTimebase(data: Union["Dataset", "EventArray"]) -> float:
+    """ Get the recording's fine-grained UTC start time from its GPS/GNSS
+        data.
+
+        :param data: The data from which to get the timebase. It can be
+            either a `Dataset` (in which case it uses the first GNSS time
+            source found) or an `EventArray` (to get the timebase from a
+            specific subchannel).
+        :returns: The recording's updated UTC start time with fractional
+            seconds (UNIX epoch).
+    """
+    events = None
+    if hasattr(data, 'channels'):
+        # data is a Dataset
+        timechannel = None
+        for ch in data.channels.values():
+            if ch.name == 'GNSS Time':
+                timechannel = ch
+                events = ch.getSession()
+                break
+
+        if timechannel is None:
+            raise SyncError(f'No GNSS time channel found in {data!r}')
+
+    elif hasattr(data, 'session'):
+        # data is an EventArray
+        events = data
+
+    else:
+        raise TypeError(f'Cannot get GNSS time from {type(data).__name__!r} object')
+
+    try:
+        times = events[0]
+        return times[1] - times[0] / 10 ** 6
+    except (IndexError, TypeError):
+        raise SyncError(f'No GNSS time data in {data!r} - was it not fully imported?')
+
+
+def applyGNSSTime(data: "Dataset", clear=False) -> Tuple[float, float]:
+    """ Modify the recording's UTC start time using GPS/GNSS time data. Note
+        that recordings with GPS/GNSS time bases cannot be synchronized to
+        another recording; they should be the 'reference' recording to which
+        others are synchronized.
+
+        :param data: The recording to modify. It must contain GPS/GNSS time data.
+        :param clear: If `True`, remove any previous synchronization before
+            updating the recording's timebase. If `False` and the recording
+            has been synced to another, a `SyncError` will be raised.
+        :returns: The recording's original initial starting time and the new
+            GNSS-corrected time (UNIX epoch seconds).
+    """
+    if isSynced(data):
+        if clear:
+            removeSync(data)
+        else:
+            raise SyncError('Data has already been synced, call removeSync() first')
+
+    timebase = getGNSSTimebase(data)
+    dataset, session = _getSession(data)
+
+    if dataset.lastUtcTime == session.utcStartTime:
+        dataset.lastUtcTime = timebase
+    session.utcStartTime = timebase
+    session.syncInfo = session.syncInfo or {}
+    session.syncInfo['TimeBaseUTCFine'] = [timebase]
+
+    return session.utcStartTimeOriginal, session.utcStartTime
+
+
+def removeGNSSTime(data: Union["Dataset", "EventArray", "Session"]):
+    """ Remove the GPS/GNSS UTC start time from a recording, reverting to
+        the original, device-generated initial timestamp.
+    """
+    dataset, session = _getSession(data)
+    if dataset.lastUtcTime == session.utcStartTime:
+        dataset.lastUtcTime = session.utcStartTimeOriginal
+    session.utcStartTime = session.utcStartTimeOriginal
+    if session.syncInfo:
+        session.syncInfo['TimeBaseUTCFine'] = [float(session.utcStartTimeOriginal)]
 
 
 # ===========================================================================
@@ -333,7 +503,7 @@ def hasSyncReferenceInfo(info: Dict[str, Any]) -> bool:
     """
     if 'SyncSourceName' not in info and 'SyncSourceIdentifier' not in info:
         return False
-    return 'SyncReferenceZero' in info and 'SyncTimeBaseUTC' in info
+    return 'SyncReferenceZero' in info and 'SyncReferenceTimeBase' in info
 
 
 def makeSyncReferenceInfo(info: Dict[str, Any]) -> Dict[str, Any]:
@@ -347,7 +517,7 @@ def makeSyncReferenceInfo(info: Dict[str, Any]) -> Dict[str, Any]:
         'SyncReferenceZero': info.pop('SyncZero', None),
         'SyncReferenceFilename': info.pop('SyncFilename', None),
         'SyncReferenceFingerprint': info.pop('SyncFingerprint', None),
-        'SyncTimeBaseUTC': info.pop('TimeBaseUTC', [0])[0]
+        'SyncReferenceTimeBase': float(info.pop('TimeBaseUTCFine', [0])[0])
     })
     return info
 
@@ -371,19 +541,46 @@ def applySyncInfo(dataset: "Dataset",
     if validate:
         validateSyncInfo(dataset, info)
 
-    session = dataset.currentSession
-    session.syncSensor = getSyncSensor(dataset,
-                                       sourceId=info.get('SyncSourceIdentifier'),
-                                       sourceName=info.get('SyncSourceName'))
-    getSyncTimeZero(dataset, sensorId=session.syncSensor.id)
-    session.syncInfo = info
-
-    if not info.get('SyncActive', True):
-        return
-
     with dataset._channelDataLock:
-        session.utcStartTime = info.get('SyncTimeBaseUTC', session.utcStartTimeOriginal)
-        session.offset = session.syncZero - info.get('SyncReferenceZero', 0)
+        session = dataset.currentSession
+
+        oldInfo = session.syncInfo
+        oldZero = session.syncZero
+        oldOffset = session.offset
+        oldSensor = session.syncSensor
+        oldStart = session.utcStartTime
+
+        try:
+            session.syncInfo = info
+            session.syncSensor = getSyncSensor(dataset,
+                                               sourceId=info.get('SyncSourceIdentifier'),
+                                               sourceName=info.get('SyncSourceName'))
+
+            if not info.get('SyncActive', True):
+                return
+
+            zero = info.get('SyncZero')
+
+            if (info.get('SyncFingerprint') == dataset.fingerprint
+                    and zero is not None):
+                # Sync info is from this file (probably loaded from userdata);
+                # don't recalculate (which will fail if the file was opened
+                # but not fully imported)
+                session.syncZero = zero
+            else:
+                # Generate new sync info (requires loaded file)
+                getSyncTimeZero(dataset, sensorId=session.syncSensor.id)
+
+            session.utcStartTime = info.get('SyncReferenceTimeBase', session.utcStartTime)
+            session.offset = session.syncZero - info.get('SyncReferenceZero', 0)
+
+        except Exception:
+            session.syncInfo = oldInfo
+            session.syncZero = oldZero
+            session.offset = oldOffset
+            session.syncSensor = oldSensor
+            session.utcStartTime = oldStart
+            raise
 
 
 def getSyncInfo(dataset: "Dataset") -> Dict[str, Any]:
@@ -396,24 +593,6 @@ def getSyncInfo(dataset: "Dataset") -> Dict[str, Any]:
     return {k: v for k, v in session.syncInfo.items() if v is not None}
 
 
-def removeSyncInfo(dataset: "Dataset"):
-    """ Remove sync info from a :py:class:`Dataset` recording session. The
-        UTC start time and timestamp offsets will revert to those
-        originally in the file.
-
-        Note that this function runs synchronously, and can block/be blocked
-        by other functions affecting the contents of the :py:class:`Dataset`.
-    """
-    with dataset._channelDataLock:
-        session = dataset.currentSession
-        session.syncInfo = None
-        session.syncSensor = None
-        session.offset = 0
-        session.utcStartTime = session.utcStartTimeOriginal
-        session.firstTime = session.firstTimeOriginal
-        session.lastTime = session.lastTimeOriginal
-
-
 def loadSyncInfo(dataset: "Dataset",
                  refresh: bool = False) -> bool:
     """ Read and apply sync info from a file's userdata.
@@ -424,11 +603,21 @@ def loadSyncInfo(dataset: "Dataset",
         :return: `True` if sync info was present, `False` otherwise. Errors
             in the sync data will raise exceptions (e.g., `SyncError`).
     """
+    changed = False
     data = userdata.readUserData(dataset, refresh=refresh)
-    if data and 'SyncInfo' in data:
-        applySyncInfo(dataset, data['SyncInfo'], validate=False)
-        return True
-    return False
+    if not data:
+        return False
+    sync = data.get('SyncInfo', None)
+    if sync:
+        applySyncInfo(dataset, sync, validate=False)
+        changed = True
+        if 'SyncReferenceTimeBase' in sync:
+            # Recording synced to another, ignore other time base adjustment
+            return changed
+    if 'TimeBaseUTCFine' in data:
+        dataset.currentSession.utcStartTime = data['TimeBaseUTCFine'][0]
+        changed = True
+    return changed
 
 
 def updateUserdata(dataset: "Dataset"):
@@ -438,18 +627,30 @@ def updateUserdata(dataset: "Dataset"):
 
         :param dataset: The `Dataset` to update.
     """
-    data = userdata.readUserData(dataset) or {}
-    session = dataset.currentSession
-    if not session.syncInfo:
-        data.pop('SyncInfo', None)
-        return
+    try:
+        data = userdata.readUserData(dataset) or {}
+        session = dataset.currentSession
 
-    info = getSyncInfo(dataset)
+        if session.utcStartTimeOriginal != session.utcStartTime:
+            data['TimeBaseUTCFine'] = float(session.utcStartTime)
+        else:
+            data.pop('TimeBaseUTCFine', None)
 
-    if info:
-        data['SyncInfo'] = info
-    else:
         data.pop('SyncInfo', None)
 
-    if data is not dataset._userdata:
-        dataset._userdata = data
+        if session.syncInfo:
+            try:
+                info = getSyncInfo(dataset)
+            except SyncError:
+                # No sync source (i.e., TSF data)
+                info = None
+
+            if info:
+                data['SyncInfo'] = info
+
+        if data is not dataset._userdata:
+            dataset._userdata = data
+
+    except Exception:
+        dataset._userdata = deepcopy(dataset._userdataOriginal)
+        raise
