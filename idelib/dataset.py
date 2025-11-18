@@ -47,10 +47,10 @@ __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
            'SubChannel', 'WarningRange', 'Cascading', 'Transformable']
 
 from collections.abc import Iterable, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import ceil
 from threading import RLock
-from typing import Any, Dict, List, Optional, Union, Type
+from typing import Any, Callable, Dict, List, Optional, Union, Type
 import warnings
 
 import os.path
@@ -2920,12 +2920,25 @@ class EventArray(Transformable):
 
 
     # noinspection PyDeprecation
-    def exportCsv(self, stream, start=None, stop=None, step=1, subchannels=True,
-                  callback=None, callbackInterval=0.01, timeScalar=1,
-                  raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
-                  useUtcTime=False, useIsoFormat=False, headers=False, 
-                  removeMean=None, meanSpan=None, display=False,
-                  noBivariates=None):
+    def exportCsv(self,
+                  stream,
+                  start: Optional[int] = None,
+                  stop: Optional[int] = None,
+                  step: int = 1,
+                  subchannels: Optional[Iterable] = None,
+                  callback: Optional[Callable] = None,
+                  callbackInterval: float = 0.01,
+                  timeScalar: float = 1,
+                  raiseExceptions: bool = False,
+                  dataFormat: str = "%.6f",
+                  delimiter: str = ", ",
+                  useUtcTime: bool = False,
+                  useIsoFormat: bool = False,
+                  headers: bool = False,
+                  removeMean: Optional[bool] = None,
+                  meanSpan: Optional[int] = None,
+                  display: bool = False,
+                  noBivariates: Optional[bool] = None) -> tuple[int, timedelta]:
         """ Export events as CSV to a stream (e.g. a file).
         
             :param stream: The stream object to which to write CSV data.
@@ -2945,9 +2958,11 @@ class EventArray(Transformable):
                 The default callback is `None` (nothing will be notified).
             :param callbackInterval: The frequency of update, as a
                 normalized percent of the total lines to export.
-            :param timeScalar: A scaling factor for the event times.
-                The default is 1 (microseconds).
-            :param raiseExceptions:
+            :param timeScalar: A scaling factor for the event times. The
+                default is 1 (microseconds). Not applicable when exporting
+                with UTC timestamps, which are always seconds.
+            :param raiseExceptions: If `False`, all exceptions will be
+                handled quietly, passed along to the callback.
             :param dataFormat: The number of decimal places to use for the
                 data. This is the same format as used when formatting floats.
             :param delimiter: The characters separating columns in the output.
@@ -2978,6 +2993,7 @@ class EventArray(Transformable):
 
         # Create a function for formatting the event time.        
         if useUtcTime and _self.session.utcStartTime:
+            timeScalar = 1e-06
             if useIsoFormat:
                 timeFormatter = lambda x: datetime.utcfromtimestamp(x[0] * timeScalar + _self.session.utcStartTime).isoformat()
             else:
@@ -3018,18 +3034,16 @@ class EventArray(Transformable):
             stream.write('"Time"%s%s\n' % 
                          (delimiter, delimiter.join(['"%s"' % n for n in names])))
 
-        data = _self.arraySlice(start, stop, step)
-        if useUtcTime and _self.session.utcStartTime:
-            if useIsoFormat:
-                times = data[0]
-                data = data.astype([('time', '<U19')] + [(str(i), np.float64) for i in range(1, 4)])
+        # data = _self.arraySlice(start, stop, step)
+        # if useUtcTime and _self.session.utcStartTime:
+        #     if useIsoFormat:
+        #         times = data[0]
+        #         data = data.astype([('time', '<U19')] + [(str(i), np.float64) for i in range(1, 4)])
 
-            
         num = 0
         try:
             for num, evt in enumerate(_self.iterSlice(start, stop, step, display=display)):
                 stream.write("%s\n" % formatter(evt))
-                # print(evt - np.array([float(x) for x in formatter(evt).split(', ')]))
                 if callback is not None:
                     if getattr(callback, 'cancelled', False):
                         callback(done=True)

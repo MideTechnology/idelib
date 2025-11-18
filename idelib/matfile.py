@@ -1,12 +1,16 @@
-'''
+"""
 MATLAB .MAT file exporting.
-'''
+"""
 
-from datetime import datetime
+from collections.abc import Iterable
+from datetime import datetime, timedelta
 from glob import glob
 import os.path
 import string
 import struct
+from typing import Any, Callable, Optional
+
+from .dataset import EventArray
 
 import logging
 logger = logging.getLogger(__name__)
@@ -627,44 +631,64 @@ class MatStream(object):
 # 
 #===============================================================================
 
-def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
-              callback=None, callbackInterval=0.01, timeScalar=1,
-              raiseExceptions=False, useUtcTime=False, headers=True, 
-              removeMean=None, meanSpan=None, display=False, matArgs={},
-              noBivariates=False, **kwargs):
+def exportMat(events: EventArray,
+              filename: str,
+              start: int = 0,
+              stop: int = -1,
+              step: int = 1,
+              subchannels: Optional[Iterable] = None,
+              callback: Callable = None,
+              callbackInterval: float = 0.01,
+              timeScalar: float = 1,
+              raiseExceptions: bool = False,
+              useUtcTime: bool = False,
+              headers: bool = True,
+              removeMean: Optional[bool] = None,
+              meanSpan: Optional[int] = None,
+              display: bool = False,
+              matArgs: Optional[dict[str, Any]] = None,
+              noBivariates: bool = False,
+              **kwargs) -> tuple[int, timedelta]:
     """ Export a `dataset.EventList` as a Matlab .MAT file. Works in a manner
         similar to the standard `EventList.exportCsv()` method.
+
+        Note: Keyword arguments not explicitly listed are ignored for the
+        sake of compatibility between exporters.
     
         :param events: an `EventList` from which to export.
         :param filename: The path/name of the .MAT file to write.
-        :keyword start: The first event index to export (defaults to first).
-        :keyword stop: The last event index to export (defaults to last).
-        :keyword step: The number of events between exported lines.
-        :keyword subchannels: A sequence of individual subchannel numbers
-            to export. Only applicable to objects with subchannels.
-            `True` (default) exports them all.
-        :keyword callback: A function (or function-like object) to notify
-            as work is done. It should take four keyword arguments:
-            `count` (the current line number), `total` (the total number
-            of lines), `error` (an exception, if raised during the
-            export), and `done` (will be `True` when the export is
-            complete). If the callback object has a `cancelled`
-            attribute that is `True`, the MAT export will be aborted.
-            The default callback is `None` (nothing will be notified).
-        :keyword callbackInterval: The frequency of update, as a
-            normalized percent of the total lines to export.
-        :keyword timeScalar: A scaling factor for the even times.
-            The default is 1 (microseconds).
-        :keyword raiseExceptions: If `False`, all exceptions will be handled
+        :param start: The first event index to export (defaults to first).
+        :param stop: The last event index to export (defaults to last).
+        :param step: The number of events between exported lines.
+        :param subchannels: A sequence of individual subchannel numbers to
+            export. Only applicable to objects with subchannels.
+        :param callback: A function (or function-like object) to notify as
+            work is done. It should take four keyword arguments: `count`
+            (the current line number), `total` (the total number of lines),
+            `error` (an exception, if raised during the export), and `done`
+            (will be `True` when the export is complete). If the callback
+            object has a `cancelled` attribute that is `True`, the MAT export
+            will be aborted. The default callback is `None` (nothing will be
+            notified).
+        :param callbackInterval: The frequency of update, as a normalized
+            percent of the total lines to export.
+        :param timeScalar: A scaling factor for the event times. The default
+            is 1 (microseconds). Not applicable when exporting with UTC
+            timestamps, which are always seconds.
+        :param raiseExceptions: If `False`, all exceptions will be handled
             quietly, passed along to the callback.
-        :keyword useUtcTime: If `True`, times are written as the UTC
-            timestamp. If `False`, times are relative to the recording.
-        :keyword removeMean: If `True`, remove the mean from the output.
-        :keyword meanSpan: The span over which the mean is calculated. -1
-            for the total mean.
-        :keyword display: If `True`, export using the EventList's 'display'
+        :param useUtcTime: If `True`, times are written as the UTC timestamp.
+            If `False`, times are relative to the recording.
+        :param headers: If `True`, write a list of column names to the file
+            as a separate array of strings.
+        :param removeMean: If `True`, remove the mean from the output.
+        :param meanSpan: The span over which the mean is calculated. -1 for
+            the total mean.
+        :param display: If `True`, export using the EventList's 'display'
             transform (e.g. unit conversion).
-        :keyword matArgs: A dictionary of keyword arguments supplied to the
+        :param noBivariates: If `True`, do not apply the second value in
+            bivariate calibration polynomials (e.g., temperature compensation).
+        :param matArgs: A dictionary of keyword arguments supplied to the
             `MatStream` constructor.
         :return: Tuple: The number of rows exported and the elapsed time.
     """
@@ -698,43 +722,48 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
                 pass
             
         # Scale to increments used in the source.
-        createTime /= timeScalar
+        rowTimeScalar = 1e-06
+        timeScalar = 1
+    else:
+        rowTimeScalar = 1
    
     # If specific subchannels are specified, export them in order.
     if events.hasSubchannels:
-        if subchannels is True:
+        if subchannels:
+            # Export specific channels, a subset and/or reordered
+            # Create a function instead of chewing the subchannels every time
+            numCols = len(subchannels)
+            formatter = eval(f'lambda x: ({",".join([f"x[{c}]" for c in subchannels])},)')
+            names = [events.parent.subchannels[x].name for x in subchannels]
+        else:
             numCols = len(events.parent.subchannels)
             formatter = None
             names = [x.name for x in events.parent.subchannels]
-        else:
-            numCols = len(subchannels)
-            # Create a function instead of chewing the subchannels every time
-            formatter = eval("lambda x: (%s,)" % \
-                       ",".join([("x[%d]" % c) for c in subchannels]))
-            names = [events.parent.subchannels[x].name for x in subchannels]
     else:
         numCols = 1
         formatter = lambda x: (x,)
         names = [events.parent.name]
 
     totalSamples = totalLines * numCols
-    if headers is False:
+    if not headers:
         names = None
-    
+
+    matArgs = matArgs or {}
     comments = MatStream.makeHeader(events.dataset, events.session.sessionId)
-    matfile = MatStream(filename, events.dataset, comments, 
+    matfile = MatStream(filename, events.dataset, comments,
                         timeScalar=timeScalar, **matArgs)
     
     matfile.startArray(events.parent.name, numCols, rows=totalLines,
                        colNames=names, noTimes=False)
-    
+
+    num = -1
     try:
         for num, evt in enumerate(events.iterSlice(start, stop, step, display)):
             t, v = evt[0], tuple(evt[1:])
             if formatter is not None:
                 v = formatter(v)
 
-            matfile.writeRow((createTime + t,)+v)
+            matfile.writeRow((createTime + t * rowTimeScalar,) + v)
             
             if callback is not None:
                 if getattr(callback, 'cancelled', False):
@@ -755,8 +784,3 @@ def exportMat(events, filename, start=0, stop=-1, step=1, subchannels=True,
     matfile.close()
     
     return num + 1, datetime.now() - t0
-
-#===============================================================================
-# 
-#===============================================================================
-
