@@ -32,7 +32,7 @@ from idelib import importer
 from idelib import parsers
 from idelib import matfile
 
-from testing.utils import nullcontext
+from contextlib import nullcontext
 
 from .file_streams import makeStreamLike
 

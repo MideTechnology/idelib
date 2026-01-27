@@ -34,7 +34,7 @@ from idelib.transforms import AccelTransform, Univariate
 from idelib import importer
 from idelib import parsers
 
-from testing.utils import nullcontext
+from contextlib import nullcontext
 
 from .file_streams import makeStreamLike
 
@@ -1711,7 +1711,7 @@ class TestEventArray:
             expected = np.zeros([4])
             expected[0] = at
             for i in range(1, 4):
-                expected[i] = np.interp([at], vals[0], vals[i])
+                expected[i] = np.interp([at], vals[0], vals[i])[0]
         else:
             expected = None
 
