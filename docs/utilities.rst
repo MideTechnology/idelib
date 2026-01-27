@@ -89,7 +89,8 @@ the standard 'not found' error for your OS.
 -----------
 
 ``idesync`` generates synchronization metadata, synchronizing one or more files to a 'reference'
-recording. This information can be applied when exporting with ``ideexport``.
+recording. This information, which is inserted into the recording, can be applied when exporting
+with ``ideexport --sync``.
 
 .. code-block::
 
@@ -105,6 +106,9 @@ recording. This information can be applied when exporting with ``ideexport``.
       -h, --help     show this help message and exit
       -g, --gps      Update the reference recording's start time using its GPS/GNSS data. Cannot be used in conjunction wtih --inherit.
       -i, --inherit  If the reference recording has been synced to another, sync the other datasets to that (rather than the reference itself). Cannot be used in conjunction with --gps.
+
+Note: The applied synchronization is not currently displayed when viewing recordings in *enDAQ Lab*
+(verion 3.1.1 or earlier).
 
 
 ``ideinfo``
