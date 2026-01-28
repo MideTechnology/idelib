@@ -5,12 +5,12 @@ files.
 """
 
 __author__ = "David Randall Stokes"
-__copyright__ = "Copyright (c) 2025 Midé Technology"
+__copyright__ = "Copyright (c) 2026 Midé Technology"
 
 __maintainer__ = "Midé Technology"
 __email__ = "help@mide.com"
 
-__version__ = '3.4.0b1'
+__version__ = '3.4.0'
 
 __status__ = "Production/Stable"
 
