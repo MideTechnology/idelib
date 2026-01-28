@@ -1651,7 +1651,7 @@ class EventArray(Transformable):
             # HACK (somewhat): Single-sample-per-block channels get min/mean/max
             # which is just the same as the value of the sample. Set the values,
             # but don't set hasMinMeanMax.
-            if self._singleSample is True:  # and not self.hasMinMeanMax:
+            if self._singleSample is True and block.numSamples == 1:  # and not self.hasMinMeanMax:
                 block.minMeanMax = np.tile(block.payload, 3)
                 mmmArr = np_recfunctions.structured_to_unstructured(
                         block._minMeanMax.view(self._npType))
