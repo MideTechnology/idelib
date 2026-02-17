@@ -6,6 +6,7 @@ debugging purposes.
 
 import datetime
 import time
+from typing import Any, Union
 
 from ebmlite import loadSchema
 
@@ -14,7 +15,7 @@ from ebmlite import loadSchema
 # 
 # ==============================================================================
 
-def decode_attributes(data, withTypes=False):
+def decode_attributes(data: list[dict], withTypes: bool = False) -> dict:
     """ Convert a set of Attributes (as a list of dictionaries containing an
         `AttributeName` and one of the Attribute value elements (`IntAttribute`,
         `FloatAttribute`, etc.) to a proper dictionary. Attributes are tagged
@@ -34,7 +35,7 @@ def decode_attributes(data, withTypes=False):
     return result
 
     
-def encode_attributes(data):
+def encode_attributes(data: Union[dict, tuple[str, Any]]) -> list[dict]:
     """ Construct a set of `Attribute` dicts from a dictionary or list of
         tuples/lists. Each value should be either a simple data type or a
         tuple containing the value and the specific value element name
@@ -79,7 +80,7 @@ def encode_attributes(data):
     return result
     
 
-def build_attributes(data):
+def build_attributes(data: Union[dict, tuple[str, Any]]) -> bytes:
     """ Construct `Attribute` EBML from dictionary or list of key/value pairs. 
         Each value should be either a simple data type or a tuple containing 
         the value and the specific value element name (`IntAttribute`, 
