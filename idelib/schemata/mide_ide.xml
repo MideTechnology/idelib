@@ -97,7 +97,9 @@
             <UIntegerElement name="WispiApiLevel" id="0x4D71" multiple="0" minver="1">WiSpi API Level for network co-processor</UIntegerElement>
             <StringElement name="NcpAppFwVer" id="0x4D72" multiple="0" minver="1">Network Co-Processor Application Firmware Version</StringElement>
             <UIntegerElement name="KeyRev" id="0x5231" multiple="0" minver="1">Indicates the version of the key table, 0 if not present</UIntegerElement>
-            <MasterElement name="SerialCommandInterface" id="0x5230" multiple="0" minver="2" mandatory="0">Present in the device's DEVINFO if it supports control via serial</MasterElement>
+            <MasterElement name="SerialCommandInterface" id="0x5230" multiple="0" minver="2" mandatory="0">Present in the device's DEVINFO if it supports control via serial
+                <BinaryElement name="EscapedCharacters" id="0x5234" multiple="0" mandatory="0">Bytes to be escaped during command packet encoding (in addition to the standard HDLC break and HDLC escape characters)</BinaryElement>
+            </MasterElement>
             <UIntegerElement name="FileCommandInterface" id="0x5233" multiple="0" minver="2" mandatory="0">Element in the device's DEVINFO indicating it supports control via the COMMAND and RESPONSE files. 0 is unsupported, 1 is supported; assumed to be 1 if not present.</UIntegerElement>
         </MasterElement>
         <!-- SensorList and PlotList are optional; there are defaults that will be used. The use of defaults is all-or-nothing; the file should define all sensors or have no SensorList at all. -->
@@ -129,8 +131,8 @@
                 <UIntegerElement name="TimeCodeModulus" id="0x5278" multiple="0" minver="2">The modulus at which modulo timestamps for this channel roll over.</UIntegerElement>
                 <StringElement name="SampleRate" id="0x5279" multiple="0" minver="2">The samplerate for this channel, if known and fixed. String represents a valid numeric expression, such as integer, decimal or ratio, e.g. '32768/16262'. Element required if both starting and ending timecodes will ever be omitted for blocks in this channel.</StringElement>
                 <MasterElement name="SubChannel" id="0x52A0" multiple="1" minver="2">Master element for SensorSubChannels.
-                    <IntegerElement name="SubChannelID" id="0x52A1" multiple="0" minver="2">ID of this SubChannel. Currently, SubChannelIDs must be sequential, starting from 0, for use with Slam Stick Lab. A specific SubChannel's ID will change depending on what 'sibling' channels are enabled.</IntegerElement>
-                    <IntegerElement name="SubChannelCanonicalID" id="0x52B1" multiple="0" minver="2">ID of this SubChannel as reported in the DEVINFO, which shows all 'sibling' SubChannels. These numbers do not change if channels are enabled or disabled.</IntegerElement>
+                    <UIntegerElement name="SubChannelID" id="0x52A1" multiple="0" minver="2">ID of this SubChannel. Currently, SubChannelIDs must be sequential, starting from 0, for use with Slam Stick Lab. A specific SubChannel's ID will change depending on what 'sibling' channels are enabled.</UIntegerElement>
+                    <UIntegerElement name="SubChannelCanonicalID" id="0x52B1" multiple="0" minver="2">ID of this SubChannel as reported in the DEVINFO, which shows all 'sibling' SubChannels. These numbers do not change if channels are enabled or disabled.</UIntegerElement>
                     <StringElement name="SubChannelName" id="0x52A2" multiple="0" minver="2">Display name of the subchannel, typically the axis name for multiaxis measurements (e.g. "X", "Yaw", etc.). Typically omitted if no display name is needed beyond a measurement label and units.</StringElement>
                     <UIntegerElement name="SubChannelCalibrationIDRef" id="0x52A3" multiple="0" minver="2">Reference to a Calibration in CalibrationList.</UIntegerElement>
                     <UIntegerElement name="SubChannelBwLimitIDRef" id="0x52A4" multiple="0" minver="2">Reference to a BwLimitList entry. If present, this discloses any bandwidth limitations imposed for the acquisition channel, e.g. antialias or other filter settings. Note that the effective bandwidth is the lesser of the Sensor and SubChannel bandwidth!</UIntegerElement>
@@ -173,8 +175,8 @@
                     <StringElement name="SubChannelAxisName" id="0x5302" multiple="0" minver="2">Text name of the axis(?).</StringElement>
                     <UIntegerElement name="SubChannelAxisXRef" id="0x5303" multiple="0" minver="2">Reference to an Axis.</UIntegerElement>
                     <MasterElement name="PlotSource" id="0x5320" multiple="1" minver="2">List of channels/subchannels used by this Plot
-                        <IntegerElement name="PlotChannelRef" id="0x5221" multiple="0" minver="2">SubChannelID</IntegerElement>
-                        <IntegerElement name="PlotSubChannelRef" id="0x5222" multiple="0" minver="2">SubChannelID</IntegerElement>
+                        <UIntegerElement name="PlotChannelRef" id="0x5221" multiple="0" minver="2">ChannelID</UIntegerElement>
+                        <UIntegerElement name="PlotSubChannelRef" id="0x5222" multiple="0" minver="2">SubChannelID</UIntegerElement>
                     </MasterElement>
                 </MasterElement>
             </MasterElement>
@@ -182,11 +184,13 @@
 
         <MasterElement name="WarningList" id="0x5360" multiple="0" minver="2"> "Idiot Light" warnings for sensors that are inaccurate in certain conditions
             <MasterElement name="Warning" id="0x5361" multiple="1" minver="2">
-                <IntegerElement name="WarningID" id="0x5362" multiple="0" minver="2">Warning ID, referenced by Subchannels. </IntegerElement>
-                <IntegerElement name="WarningChannelRef" id="0x5363" multiple="0" minver="2">ChannelID</IntegerElement>
-                <IntegerElement name="WarningSubChannelRef" id="0x5364" multiple="0" minver="2">SubChannelID</IntegerElement>
+                <UIntegerElement name="WarningID" id="0x5362" multiple="0" minver="2">Warning ID, referenced by Subchannels. </UIntegerElement>
+                <UIntegerElement name="WarningChannelRef" id="0x5363" multiple="0" minver="2">ChannelID</UIntegerElement>
+                <UIntegerElement name="WarningSubChannelRef" id="0x5364" multiple="0" minver="2">SubChannelID</UIntegerElement>
                 <FloatElement name="WarningRangeMin" id="0x5365" multiple="0" minver="2">Minimum valid value. Note: this is in real, post-converted units, not raw channel units. </FloatElement>
                 <FloatElement name="WarningRangeMax" id="0x5366" multiple="0" minver="2">Maximum valid value. Note: this is in real, post-converted units, not raw channel units. </FloatElement>
+                <UnicodeElement name="WarningText" id="0x536E" multiple="0" mandatory="0">A name or description of the warning. Primarily intended for use in `UserData`.</UnicodeElement>
+                <BinaryElement name="WarningStyle" id="0x536F" multiple="0" mandatory="0"> Application-specific data describing the visual representation of the warning. Primarily intended for use in `UserData`.</BinaryElement>
             </MasterElement>
         </MasterElement>
 
@@ -397,11 +401,12 @@
 	-->
 
     <UIntegerElement name="TimeBaseUTC"  id="0x5462" multiple="1" minver="1">Session time base value in Unix Time. If present, used as the base for all future timecodes in the session.</UIntegerElement>
+    <FloatElement name="TimeBaseUTCFine"  id="0x5463" multiple="1" minver="1">Session time base value in Unix Time, using fractional seconds. If present, used as the base for all future timecodes in the session.</FloatElement>
 
     <BinaryElement name="SimpleChannelDataBlock"  id="0xA0" multiple="1" minver="1">This element contains potentially-channelized instrumentation data in a minimalist format. Its mandatory, fixed-length header includes a 2-byte modulo timecode (scaled to the channel's TimecodeScale, default of 1/32768 sec) and a 1-byte integer ChannelID.</BinaryElement>
 
     <MasterElement name="ChannelDataBlock"  id="0xA1" multiple="1" minver="1">This element contains child elements including instrumentation data associated to a channel. This is used for e.g. binding a timestamp(s) and/or metadata to a specific multi-sample block of sensor data, which may be written asynchronously with respect to other channels' data (i.e. multiplexed).
-        <IntegerElement name="ChannelIDRef" id="0xB0" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</IntegerElement>
+        <UIntegerElement name="ChannelIDRef" id="0xB0" multiple="0" minver="1">Child of ChannelDataBlock: the channel this data is associated with</UIntegerElement>
         <UIntegerElement name="ChannelFlags" id="0xB1" multiple="0" minver="1">Child of ChannelDataBlock: optional flags to indicate datablock features such as discontinuity</UIntegerElement>
         <BinaryElement name="ChannelDataPayload" id="0xB2" multiple="0" minver="1">Child of ChannelDataBlock: the actual channel data samples. If there are multiple subchannels, for each sample point, the sample for each subchannel will be written consecutively (i.e. [sc0 sc1 sc2] [sc0 sc1 sc2]).</BinaryElement>
         <UIntegerElement name="StartTimeCodeAbs" id="0xB8" multiple="0" minver="1">Absolute timecode as an offset from the session TimeBase. The timecode resolution is given by the channel's TimeCodeScale.</UIntegerElement>
@@ -414,20 +419,47 @@
 
     <!-- User-supplied metadata -->
     <MasterElement name="UserData" id="0x10200000" multiple="0" mandatory="0">
+        A block of user-supplied data, appended to a file after recording, used primarily to keep information about the recording's display.
+        <UnicodeElement name="UserNotes" id="0x10200002" multiple="0" mandatory="0"> User-added notes attached to the recording. </UnicodeElement>
         <IntegerElement name="TimebaseOffset" id="0x10200010" multiple="0" mandatory="0"> An offset (in microseconds) for all sample times. </IntegerElement>
-        <BinaryElement name="WindowLayout" id="0x10200011" multiple="0" mandatory="0"> Application-specific data describing GUI settings, etc. </BinaryElement>
-        <MasterElement name="AnnotationList" id="0x10200020" multiple="0" mandatory="0"> User-created highlights, marking particular spans and points in time
+
+        <!-- Not currently in use by idelib or enDAQ Lab -->
+        <MasterElement name="AnnotationList" id="0x10200020" multiple="0" mandatory="0">
+            User-created highlights, marking particular spans and points in time
             <MasterElement name="Annotation" id="0x10200021" multiple="1" mandatory="0">
-                <UIntegerElement name="AnnotationID" id="0x10200022" multiple="0" mandatory="1" /> The annotation's ID, arbitrary but unique to the file.
-                <UnicodeElement name="AnnotationText" id="0x10200023" multiple="0" mandatory="0" /> A name and/or notes about the annotation.
-                <IntegerElement name="AnnotationStartTime" id="0x10200024" multiple="0" mandatory="1" /> Annotation start time.
-                <IntegerElement name="AnnotationEndTime" id="0x10200025" multiple="0" mandatory="0" /> Annotation end time. If present, the annotation will cover a time span.
-                <BinaryElement name="AnnotationStyle" id="0x10200026" multiple="0" mandatory="0" /> Application-specific data describing the visual representation of the annotation.
+                One user-created marker, indicating a point or range in time.
+                <UIntegerElement name="AnnotationID" id="0x10200022" multiple="0" mandatory="1"> The annotation's ID, arbitrary but unique to the file. </UIntegerElement>
+                <UnicodeElement name="AnnotationText" id="0x10200023" multiple="0" mandatory="0"> A name and/or notes about the annotation. </UnicodeElement>
+                <IntegerElement name="AnnotationStartTime" id="0x10200024" multiple="0" mandatory="1"> Annotation start time.</IntegerElement>
+                <IntegerElement name="AnnotationEndTime" id="0x10200025" multiple="0" mandatory="0"> Annotation end time. If present, the annotation will cover a time span.</IntegerElement>
+                <BinaryElement name="AnnotationStyle" id="0x10200026" multiple="0" mandatory="0"> Application-specific data describing the visual representation of the annotation.</BinaryElement>
             </MasterElement>
         </MasterElement>
 
-        <!-- Reused existing elements, which override those in the RecordingProperties, etc. -->
-        <UIntegerElement name="TimeBaseUTC"  id="0x5462" />
+        <MasterElement name="SyncInfo" id="0x10200031" multiple="0" mandatory="0">
+            Information connecting this recording to another for the purpose of synchronizing data.
+            <UIntegerElement name="SyncActive" id="0x10200032" multiple="0" mandatory="0" default="1"> 1 (or no element) if this sync is applied, 0 if inactive. Only one SyncInfo should be marked as active; If multiple SyncInfo are marked as active, only the first is applied. </UIntegerElement>
+            <UIntegerElement name="SyncChannelIDRef" id="0x10200033" multiple="0" mandatory="0"> The Channel ID of the time sync reference. </UIntegerElement>
+            <UIntegerElement name="SyncSubChannelIDRef" id="0x10200034" multiple="0" mandatory="0"> The SubChannel ID of the time sync reference. </UIntegerElement>
+            <UIntegerElement name="SyncSessionIDRef" id="0x1020003B" multiple="0" mandatory="0"> The SubChannel ID of the time sync reference. </UIntegerElement>
+            <UnicodeElement name="SyncSourceName" id="0x10200035" multiple="0"> Human-friendly source (authority, network, or other source-of-truth) name for generic/virtual 'time' sensors. </UnicodeElement>
+            <StringElement name="SyncSourceIdentifier" id="0x10200036" multiple="0" minver="4"> Machine-readable, uniquely identifying hash identifying source equivalency for comparing 'time' sensors. </StringElement>
+            <IntegerElement name="SyncReferenceZero" id="0x10200037" multiple="0" mandatory="0"> The time reference value corresponding to this file's timestamp zero. </IntegerElement>
+            <IntegerElement name="SyncZero" id="0x10200038" multiple="0" mandatory="0"> The time reference value corresponding to the reference file's timestamp zero. </IntegerElement>
+            <FloatElement name="SyncClockDrift" id="0x10200039" multiple="0" mandatory="0"> The rate, in microseconds per microsecond, that the enDAQ timestamps drift from the sync reference time. </FloatElement>
+            <UnicodeElement name="SyncReferenceFilename" id="0x1020003A" multiple="0" mandatory="0"> The file to which this file is synced. </UnicodeElement>
+            <StringElement name="SyncReferenceFingerprint" id="0x1020003C" multiple="0" mandatory="0"> The fingerprint hash of the reference file to which this file is synced (a hex string). </StringElement>
+            <UnicodeElement name="SyncFilename" id="0x1020003D" multiple="0" mandatory="0"> This file's original name. Used when transferring sync data. </UnicodeElement>
+            <StringElement name="SyncFingerprint" id="0x1020003E" multiple="0" mandatory="0"> This file's fingerprint hash (a hex string). Used when transferring sync data. </StringElement>
+            <FloatElement name="SyncReferenceTimeBase" id="0x10205463" multiple="0" mandatory="0"> The reference's UTC starting time (fractional seconds), applied to the synced Dataset. </FloatElement>
+            <FloatElement name="TimeBaseUTCFine" id="0x5463" /> <!-- Reused. The Dataset's original starting time, derived from an external source. Note: this element is marked 'multiple' -->
+        </MasterElement>
+        <BinaryElement name="WindowLayout" id="0x10200011" multiple="0" mandatory="0"> Application-specific data describing GUI settings, etc. </BinaryElement>
+
+        <!-- Reused existing elements, which override/extend those in the RecordingProperties, etc. -->
+        <!-- Not currently in use by idelib or enDAQ Lab -->
+        <UIntegerElement name="TimeBaseUTC" id="0x5462" />
+        <FloatElement name="TimeBaseUTCFine" id="0x5463" /> <!-- Reused. The Dataset's starting time, derived from an external absolute source (e.g., GPS/GNSS). Note: this element is marked 'multiple' -->
         <MasterElement name="CalibrationList" id="0x4B00" />
         <MasterElement name="WarningList" id="0x5360" />
         <MasterElement name="ChannelList" id="0x5270" />

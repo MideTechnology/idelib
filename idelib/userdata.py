@@ -4,12 +4,15 @@ of IDE files. This data is intended primarily to retain user preferences for
 the display of the `Dataset`.
 """
 
+import copy
 import errno
 import os.path
 import logging
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Tuple, Union, TYPE_CHECKING
 
-from .dataset import Dataset
+if TYPE_CHECKING:
+    # codecov:ignore:next
+    from .dataset import Dataset
 
 #===============================================================================
 #
@@ -17,13 +20,14 @@ from .dataset import Dataset
 
 MIN_VOID_SIZE = 9
 
-logger = logging.getLogger('idelib')
+logger = logging.getLogger(__name__)
+
 
 #===============================================================================
 #
 #===============================================================================
 
-def getUserDataPos(dataset: Dataset,
+def getUserDataPos(dataset: "Dataset",
                    refresh: bool = False) -> Tuple[bool, int, int]:
     """ Get the offset of the start of the user data.
 
@@ -69,8 +73,9 @@ def getUserDataPos(dataset: Dataset,
     finally:
         fs.seek(oldpos, os.SEEK_SET)
 
-    dataset._userdataOffset = offset
-    dataset._filesize = filesize
+        dataset._userdataOffset = offset
+        dataset._filesize = filesize
+
     return hasdata, offset, filesize
 
 
@@ -78,12 +83,12 @@ def getUserDataPos(dataset: Dataset,
 #
 #===============================================================================
 
-def readUserData(dataset: Dataset,
+def readUserData(dataset: "Dataset",
                  refresh: bool = False) -> Union[Dict[str, Any], None]:
     """ Read application-specific user data from the end of an IDE file.
 
         :param dataset: The `Dataset` from which to read the user data.
-        :param refresh:: If `True`, ignore any cached values and re-read
+        :param refresh: If `True`, ignore any cached values and re-read
             from the file.
         :return: A dictionary of user data, or `None` if no user data
             could be read from the file (e.g., none exists).
@@ -107,20 +112,22 @@ def readUserData(dataset: Dataset,
         data, _next = doc.parseElement(fs)
         dump = data.dump()
         dataset._userdata = dump
-        return dump
 
     finally:
         fs.seek(oldpos, os.SEEK_SET)
+
+    dataset._userdataOriginal = copy.deepcopy(dataset._userdata)
+    return dataset._userdata
 
 
 #===============================================================================
 #
 #===============================================================================
 
-def writeUserData(dataset: Dataset,
+def writeUserData(dataset: "Dataset",
                   userdata: Dict[str, Any],
                   refresh: bool = False):
-    """ Write user data to the end of an IDE file.
+    """ Write arbitrary data to the end of an IDE file.
 
         :param dataset: The `Dataset` from which to read the user data.
         :param userdata: A dictionary of user data, or `None` to remove
@@ -183,8 +190,19 @@ def writeUserData(dataset: Dataset,
             fs.write(userblob)
 
         dataset._userdata = userdata
+        dataset._userdataOriginal = copy.deepcopy(dataset._userdata)
         logger.debug(f'(userdata) Wrote {len(userblob)} bytes to {dataset} '
                      f'(file was {filesize}, now {newsize})')
 
     finally:
         fs.seek(oldpos, os.SEEK_SET)
+
+
+def saveUserData(dataset: "Dataset", refresh: bool = False):
+    """ Save the user data attached to a `Dataset`.
+
+        :param dataset: The `Dataset` from which to write the user data.
+        :param refresh: If `True`, ignore any cached values and find the
+            position in the file to which to write.
+    """
+    writeUserData(dataset, dataset._userdata, refresh=refresh)

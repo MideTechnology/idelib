@@ -4,13 +4,13 @@
 
 from collections import Counter
 from datetime import datetime
+import hashlib
 import os.path
 import sys
-from time import time as time_time
-from time import sleep
 import warnings
 
 import struct
+
 try:
     import tqdm.auto
 except ModuleNotFoundError:
@@ -20,7 +20,6 @@ from . import transforms
 from .dataset import Dataset
 from . import parsers
 
-
 #===============================================================================
 # 
 #===============================================================================
@@ -28,9 +27,8 @@ from . import parsers
 # from dataset import __DEBUG__
 
 import logging
-logger = logging.getLogger('idelib')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
 
+logger = logging.getLogger(__name__)
 
 #===============================================================================
 # Defaults
@@ -45,63 +43,63 @@ DEFAULTS = {
         0x00: {"name": "832M1 Accelerometer"},
         0x01: {"name": "MPL3115 Temperature/Pressure"}
     },
-    
+
     "channels": {
-            0x00: {"name": "Accelerometer XYZ",
-    #                 "parser": struct.Struct("<HHH"), 
-    #                 "transform": 0, #calibration.AccelTransform(),
-                    "parser": struct.Struct("<HHH"),
-                    "transform": 0,
-                    "subchannels":{0: {"name": "Accelerometer Z", 
-                                       "axisName": "Z",
-                                       "units":('Acceleration','g'),
-                                       "displayRange": (-100.0,100.0),
-                                       "transform": 3,
-                                       "warningId": [0],
-                                       "sensorId": 0,
-                                     },
-                                  1: {"name": "Accelerometer Y", 
-                                      "axisName": "Y",
-                                      "units":('Acceleration','g'),
-                                      "displayRange": (-100.0,100.0),
-                                      "transform": 2,
-                                      "warningId": [0],
-                                      "sensorId": 0,
-                                      },
-                                  2: {"name": "Accelerometer X", 
-                                      "axisName": "X",
-                                      "units":('Acceleration','g'),
-                                      "displayRange": (-100.0,100.0),
-                                      "transform": 1,
-                                      "warningId": [0],
-                                      "sensorId": 0,
-                                      },
-                                },
-                   },
-            0x01: {"name": "Pressure/Temperature",
-                   "parser": parsers.MPL3115PressureTempParser(),
-                   "subchannels": {0: {"name": "Pressure", 
-                                       "units":('Pressure','Pa'),
-                                       "displayRange": (0.0,120000.0),
-                                      "sensorId": 1,
-                                       },
-                                   1: {"name": "Temperature", 
-                                       "units":('Temperature','\xb0C'),
-                                       "displayRange": (-40.0,80.0),
-                                      "sensorId": 1,
-                                       }
+        0x00: {"name": "Accelerometer XYZ",
+               #                 "parser": struct.Struct("<HHH"),
+               #                 "transform": 0, #calibration.AccelTransform(),
+               "parser": struct.Struct("<HHH"),
+               "transform": 0,
+               "subchannels": {0: {"name": "Accelerometer Z",
+                                   "axisName": "Z",
+                                   "units": ('Acceleration', 'g'),
+                                   "displayRange": (-100.0, 100.0),
+                                   "transform": 3,
+                                   "warningId": [0],
+                                   "sensorId": 0,
                                    },
-                   "cache": True,
-                   "singleSample": True,
-                   },
+                               1: {"name": "Accelerometer Y",
+                                   "axisName": "Y",
+                                   "units": ('Acceleration', 'g'),
+                                   "displayRange": (-100.0, 100.0),
+                                   "transform": 2,
+                                   "warningId": [0],
+                                   "sensorId": 0,
+                                   },
+                               2: {"name": "Accelerometer X",
+                                   "axisName": "X",
+                                   "units": ('Acceleration', 'g'),
+                                   "displayRange": (-100.0, 100.0),
+                                   "transform": 1,
+                                   "warningId": [0],
+                                   "sensorId": 0,
+                                   },
+                               },
+               },
+        0x01: {"name": "Pressure/Temperature",
+               "parser": parsers.MPL3115PressureTempParser(),
+               "subchannels": {0: {"name": "Pressure",
+                                   "units": ('Pressure', 'Pa'),
+                                   "displayRange": (0.0, 120000.0),
+                                   "sensorId": 1,
+                                   },
+                               1: {"name": "Temperature",
+                                   "units": ('Temperature', '\xb0C'),
+                                   "displayRange": (-40.0, 80.0),
+                                   "sensorId": 1,
+                                   }
+                               },
+               "cache": True,
+               "singleSample": True,
+               },
     },
-    
+
     "warnings": [{"warningId": 0,
-                   "channelId": 1,
-                   "subchannelId": 1,
-                   "low": -20.0,
-                   "high": 60.0
-                   }]
+                  "channelId": 1,
+                  "subchannelId": 1,
+                  "low": -20.0,
+                  "high": 60.0
+                  }]
 }
 
 
@@ -110,26 +108,26 @@ def createDefaultSensors(doc, defaults=None):
         more sensors, instantiate those sensors and add them to the dataset
         document.
     """
-#     logger.info("creating default sensors")
+    #     logger.info("creating default sensors")
     defaults = defaults or DEFAULTS
     sensors = defaults['sensors'].copy()
     channels = defaults['channels'].copy()
     warnings = defaults['warnings']
-    
+
     if doc.recorderInfo:
         # TODO: Move device-specific stuff out of the main importer
         rtype = doc.recorderInfo.get('RecorderTypeUID', 0x10)
         if rtype | 0xff == 0xff:
             # SSX recorders have UIDs that are zero except the least byte.
             SSX_ACCEL_RANGES = {
-               0x10: (-25,25),
-               0x12: (-100,100),
-               0x13: (-200,200),
-               0x14: (-500, 500),
-               0x15: (-2000, 2000),
-               0x16: (-6000, 6000)
+                0x10: (-25, 25),
+                0x12: (-100, 100),
+                0x13: (-200, 200),
+                0x14: (-500, 500),
+                0x15: (-2000, 2000),
+                0x16: (-6000, 6000)
             }
-            rrange = SSX_ACCEL_RANGES.get(rtype & 0xff, (-25,25))
+            rrange = SSX_ACCEL_RANGES.get(rtype & 0xff, (-25, 25))
             transform = transforms.AccelTransform(*rrange)
             ch0 = channels[0x00]
             ch0['transform'] = transform
@@ -138,20 +136,20 @@ def createDefaultSensors(doc, defaults=None):
 
     for sensorId, sensorInfo in sensors.items():
         doc.addSensor(sensorId, sensorInfo.get("name", None))
-        
+
     for chId, chInfo in channels.items():
         chArgs = chInfo.copy()
-#         chArgs['sensor'] = sensor
+        #         chArgs['sensor'] = sensor
         subchannels = chArgs.pop('subchannels', None)
         channel = doc.addChannel(chId, **chArgs)
         if subchannels is None:
             continue
         for subChId, subChInfo in subchannels.items():
             channel.addSubChannel(subChId, **subChInfo)
-    
+
     for warn in warnings:
         doc.addWarning(**warn)
-    
+
 
 #===============================================================================
 # Parsers/Element Handlers
@@ -187,8 +185,10 @@ def instantiateParsers(doc, parserTypes=None):
 
 def nullUpdater(*args, **kwargs):
     """ A progress updater stand-in that does nothing. """
-    if kwargs.get('error',None) is not None:
+    if kwargs.get('error', None) is not None:
         raise kwargs['error']
+
+
 nullUpdater.cancelled = False
 nullUpdater.paused = False
 
@@ -198,7 +198,8 @@ class SimpleUpdater(object):
         :ivar cancelled: If set to `True`, the job using the updater will abort. 
         :ivar paused: If set to `True`, the job using the updater will pause.
     """
-    
+
+
     def __init__(self, cancelAt=1.0, quiet=False):
         """ Constructor.
             :keyword cancelAt: A percentage at which to abort the import. For
@@ -210,15 +211,17 @@ class SimpleUpdater(object):
         self.cancelAt = cancelAt
         self.estSum = None
         self.quiet = quiet
-    
+
+
     def dump(self, s):
         if not self.quiet:
             sys.stdout.write(s)
-    
-    def __call__(self, count=0, total=None, percent=None, error=None, 
+
+
+    def __call__(self, count=0, total=None, percent=None, error=None,
                  starting=False, done=False):
         if percent >= self.cancelAt:
-            self.cancelled=True
+            self.cancelled = True
         if self.startTime is None:
             self.startTime = datetime.now()
         if starting:
@@ -230,15 +233,15 @@ class SimpleUpdater(object):
         else:
             self.dump('\x0d%s samples read' % count)
             if percent is not None:
-                p = int(percent*100)
+                p = int(percent * 100)
                 self.dump(' (%d%%)' % p)
-                if p > 0 and p < 100:
-                    d = ((datetime.now() - self.startTime) / p) * (100-p)
+                if 0 < p < 100:
+                    d = ((datetime.now() - self.startTime) / p) * (100 - p)
                     self.dump(' - est. completion in %s' % d)
                     if self.estSum is None:
                         self.estSum = d
                 else:
-                    self.dump(' '*25)
+                    self.dump(' ' * 25)
             sys.stdout.flush()
 
 
@@ -250,17 +253,19 @@ if tqdm is not None:
 
         _size = 100
 
+
         def __init__(self, fileLength=None):
             self.fileLength = fileLength
             pbarKwargs = {
                 # 'ncols': 150,
                 'unit_scale': 1,
-                }
+            }
             if fileLength is None:
                 self.pbar = tqdm.auto.tqdm(total=self._size, unit='%', **pbarKwargs)
             else:
                 self.pbar = tqdm.auto.tqdm(total=fileLength, unit='B', **pbarKwargs)
             self._lastUpdate = 0
+
 
         def __call__(self, percent=0, done=False, **kwargs):
             if done:
@@ -268,12 +273,13 @@ if tqdm is not None:
                 return
 
             if self.fileLength is None:
-                self.pbar.update(int(percent*self._size) - self._lastUpdate)
-                self._lastUpdate = int(percent*self._size)
+                self.pbar.update(int(percent * self._size) - self._lastUpdate)
+                self._lastUpdate = int(percent * self._size)
             else:
                 filepos = kwargs.get('filepos', 1)
                 self.pbar.update(filepos - self._lastUpdate)
                 self._lastUpdate = kwargs.get('filepos')
+
 
         def __del__(self):
             self.pbar.close()
@@ -283,7 +289,7 @@ else:
     def TQDMUpdater():
         warnings.warn('TQDM was not imported properly')
         return nullUpdater()
-    
+
 
 #===============================================================================
 #
@@ -327,10 +333,10 @@ def importFile(filename='', startTime=None, endTime=None, channels=None,
     # FUTURE: Remove `kwargs` and this conditional warning.
     if kwargs:
         warnings.warn(
-            'Some importFile() updater-related arguments have been deprecated.'
-            ' Ignored arguments: {}'.format(', '.join(kwargs)),
-            DeprecationWarning,
-            stacklevel=2,
+                'Some importFile() updater-related arguments have been deprecated.'
+                ' Ignored arguments: {}'.format(', '.join(kwargs)),
+                DeprecationWarning,
+                stacklevel=2,
         )
 
     defaults = defaults or DEFAULTS
@@ -373,15 +379,16 @@ def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
 
     if isinstance(stream, str):
         stream = open(stream, 'rb')
-    
+
     doc = Dataset(stream, name=name, quiet=quiet)
     doc.addSession()
 
     if doc._parsers is None:
         doc._parsers = instantiateParsers(doc, parserTypes)
-    
+
+    fingerprint = hashlib.md5()
     elementParsers = doc._parsers
-    
+
     try:
         for r in doc.ebmldoc:
             if getattr(updater, "cancelled", False):
@@ -392,8 +399,9 @@ def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
             parser = elementParsers[r.name]
             if parser.makesData():
                 break
-            parser.parse(r) 
-            
+            fingerprint.update(r.getRaw())
+            parser.parse(r)
+
     except IOError as e:
         if e.errno is None:
             # The EBML library raises an empty IOError if it hits EOF.
@@ -412,7 +420,8 @@ def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
         # Got data before the recording props; use defaults.
         if defaults is not None:
             createDefaultSensors(doc, defaults)
-            
+
+    doc._fingerprint = fingerprint
     doc.updateTransforms()
     return doc
 
@@ -464,10 +473,12 @@ def filterTime(doc, startTime=0, endTime=None, channels=None):
 
                 blockEnd = blockEnd or blockStart
                 if chId is None:
-                    logger.warning("Extractor: {} missing <ChannelIDRef> subelement, skipping.".format(el))
+                    logger.warning(
+                        "Extractor: {} missing <ChannelIDRef> subelement, skipping.".format(el))
                     continue
                 if blockStart is None:
-                    logger.warning("Extractor: {} missing <StartTimeCodeAbs> subelement, skipping.".format(el))
+                    logger.warning(
+                        "Extractor: {} missing <StartTimeCodeAbs> subelement, skipping.".format(el))
                     continue
 
                 if finished.setdefault(chId, False):
@@ -566,17 +577,17 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
     # FUTURE: Remove `kwargs` and this conditional warning.
     if kwargs:
         warnings.warn(
-            'Some importFile() updater-related arguments have been deprecated.'
-            ' Ignored arguments: {}'.format(', '.join(kwargs)),
-            DeprecationWarning,
-            stacklevel=2,
+                'Some importFile() updater-related arguments have been deprecated.'
+                ' Ignored arguments: {}'.format(', '.join(kwargs)),
+                DeprecationWarning,
+                stacklevel=2,
         )
 
     parserTypes = parserTypes or ELEMENT_PARSER_TYPES
     if doc._parsers is None:
         # Possibly redundant; is `doc._parsers` ever `None` at this point?
         doc._parsers = instantiateParsers(doc, parserTypes)
-    
+
     elementParsers = doc._parsers
 
     elementCount = 0
@@ -626,7 +637,7 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
             if source != doc and el_name == "TimeBaseUTC":
                 timeOffset = (el.value - doc.lastSession.utcStartTime) * 1000000.0
                 continue
-                
+
             try:
                 parser = elementParsers[el_name]
 
@@ -635,7 +646,7 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
                     added = parser.parse(el, timeOffset=timeOffset)
                     if isinstance(added, int):
                         numSamples += added
-                    
+
             except parsers.ParsingError as err:
                 # TODO: Error messages?
                 logger.error("Parsing error during import: %s" % err)
@@ -650,7 +661,7 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
             doc.fileDamaged = True
         elif updater:
             updater(error=e, done=True)
-        
+
     except TypeError:
         # This can occur if there is a bad element in the data
         # (typically the last)
@@ -663,4 +674,3 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
         updater(done=True)
 
     return numSamples
-

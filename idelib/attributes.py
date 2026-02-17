@@ -5,29 +5,23 @@ debugging purposes.
 """
 
 import datetime
-import sys
 import time
+from typing import Any, Union
 
 from ebmlite import loadSchema
 
-# Dictionaries in Python 3.7+ are explicitly insert-ordered in all
-# implementations. If older, continue to use `collections.OrderedDict`.
-if sys.hexversion < 0x03070000:
-    from collections import OrderedDict as Dict
-else:
-    Dict = dict
 
 # ==============================================================================
 # 
 # ==============================================================================
 
-def decode_attributes(data, withTypes=False):
+def decode_attributes(data: list[dict], withTypes: bool = False) -> dict:
     """ Convert a set of Attributes (as a list of dictionaries containing an
         `AttributeName` and one of the Attribute value elements (`IntAttribute`,
         `FloatAttribute`, etc.) to a proper dictionary. Attributes are tagged
         as 'multiple,' so they become lists when the EBML is parsed.
     """
-    result = Dict()
+    result = {}
     for atts in data:
         k = atts.pop('AttributeName', None)
         if k is None:
@@ -41,7 +35,7 @@ def decode_attributes(data, withTypes=False):
     return result
 
     
-def encode_attributes(data):
+def encode_attributes(data: Union[dict, tuple[str, Any]]) -> list[dict]:
     """ Construct a set of `Attribute` dicts from a dictionary or list of
         tuples/lists. Each value should be either a simple data type or a
         tuple containing the value and the specific value element name
@@ -86,7 +80,7 @@ def encode_attributes(data):
     return result
     
 
-def build_attributes(data):
+def build_attributes(data: Union[dict, tuple[str, Any]]) -> bytes:
     """ Construct `Attribute` EBML from dictionary or list of key/value pairs. 
         Each value should be either a simple data type or a tuple containing 
         the value and the specific value element name (`IntAttribute`, 

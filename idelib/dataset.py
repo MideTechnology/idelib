@@ -47,10 +47,10 @@ __all__ = ['Channel', 'Dataset', 'EventArray', 'Plot', 'Sensor', 'Session',
            'SubChannel', 'WarningRange', 'Cascading', 'Transformable']
 
 from collections.abc import Iterable, Sequence
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import ceil
-from threading import Lock
-from typing import Any, Dict, Optional
+from threading import RLock
+from typing import Any, Callable, Dict, List, Optional, Union, Type
 import warnings
 
 import os.path
@@ -73,8 +73,7 @@ SCHEMA_FILE = 'mide_ide.xml'
 #===============================================================================
 
 import logging
-logger = logging.getLogger('idelib')
-logging.basicConfig(format="%(asctime)s %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
 
 __DEBUG__ = str(os.environ.get('MIDE_DEV', 0)) == '1'
     
@@ -90,6 +89,19 @@ def mapRange(x, in_min, in_max, out_min, out_max):
     """
     return ((x - in_min + 0.0) * (out_max - out_min) /
             (in_max - in_min) + out_min)
+
+
+def greater(v1, v2):
+    """ Return the greater of two values. Faster than `max()` with only two.
+    """
+    return v1 if v1 > v2 else v2
+
+
+def lesser(v1, v2):
+    """ Return the lesser of two values. Faster than `min()` with only two.
+    """
+    return v1 if v1 < v2 else v2
+
 
 #===============================================================================
 # Mix-In Classes
@@ -134,10 +146,10 @@ class Transformable(Cascading):
         etc.), making it easy to turn the transformation on or off.
         
         :ivar transform: The transformation function/object
-        :ivar raw: If `False`, the transform will not be applied to data.
-            Note: The object's `transform` attribute will not change; it will
-            just be ignored.
     """
+
+    dataset: "Dataset" = None
+    children: List["Transformable"] = None
 
     def setTransform(self, transform, update=True):
         """ Set the transforming function/object. This does not change the
@@ -185,7 +197,7 @@ class Transformable(Cascading):
         """
         _tlist = [] if _tlist is None else _tlist
         if getattr(self, "_transform", None) is not None:
-            if isinstance(self._transform, Iterable) and id_ is not None:
+            if isinstance(self._transform, (list, tuple, dict)) and id_ is not None:
                 x = self._transform[id_]
             else:
                 x = self._transform
@@ -217,7 +229,6 @@ class Dataset(Cascading):
             A valid file will have at least one, even if there are no 
             `Session` elements in the data.
         :ivar sensors: A dictionary of Sensors.
-        :ivar channels: A dictionary of individual Sensor channels.
         :ivar plots: A dictionary of individual Plots, the modified output of
             a Channel (or even another plot).
         :ivar transforms: A dictionary of functions (or function-like objects)
@@ -229,11 +240,11 @@ class Dataset(Cascading):
             functions in the `importer` module.
         
             :param stream: A file-like stream object containing EBML data.
-            :keyword name: An optional name for the Dataset. Defaults to the
+            :param name: An optional name for the Dataset. Defaults to the
                 base name of the file (if applicable).
-            :keyword quiet: If `True`, non-fatal errors (e.g. schema/file
+            :param quiet: If `True`, non-fatal errors (e.g. schema/file
                 version mismatches) are suppressed. 
-            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file. Typically
                 used for diagnostic data.
         """
@@ -248,6 +259,7 @@ class Dataset(Cascading):
         self.currentSession = None
         self.recorderInfo = {}
         self.recorderConfig = None
+        self.bandwidthLimits = {}  # For future use
 
         self.attributes = attributes if attributes else {}
 
@@ -262,11 +274,15 @@ class Dataset(Cascading):
         # For keeping user-defined data
         self._userdata: Optional[Dict[str, Any]] = None
         self._userdataOffset: Optional[int] = None
+        self._userdataOriginal: Optional[Dict[str, Any]] = None
         self._filesize: Optional[int] = None
 
-        self._channelDataLock = Lock()
+        self._fingerprint = None
+
+        self._channelDataLock = RLock()
         
         # Subsets: used when importing multiple files into the same dataset.
+        # Currently an experimental feature; see `idelib.multi_importer`
         self.subsets = []
 
         if name is None:
@@ -309,7 +325,21 @@ class Dataset(Cascading):
         """ A dictionary of individual Sensor channels. """
         # Only return channels with subchannels. If all analog subchannels are
         # disabled, the recording properties will still show the parent channel.
-        return {k:v for k,v in self._channels.items() if v.subchannels}
+        return {k: v for k, v in self._channels.items() if v.subchannels}
+
+
+    @property
+    def fingerprint(self) -> Optional[str]:
+        """ A simple hash for identifying this `Dataset`, so it can be
+            referenced elsewhere, even if moved/renamed. The fingerprint
+            hash is generated from the recording's metadata, so modifying or
+            truncating the sensor data will not affect it. As such, the
+            fingerprint should not be used to verify file integrity.
+        """
+        try:
+            return self._fingerprint.hexdigest()
+        except AttributeError:
+            return None
 
 
     def close(self):
@@ -364,17 +394,20 @@ class Dataset(Cascading):
         """
         cs = self.currentSession
         if cs is not None:
-            if cs.startTime is None:
-                cs.startTime = cs.firstTime
-            if cs.endTime is None:
-                cs.endTime = cs.lastTime
-                
             self.currentSession = None
         
     
-    def addSensor(self, sensorId=None, name=None, sensorClass=None, 
-                  traceData=None, transform=None, attributes=None,
-                  bandwidthLimitId=None):
+    def addSensor(self,
+                  sensorId: Optional[int] = None,
+                  name: Optional[str] = None,
+                  sensorClass: Optional[Type] = None,
+                  sourceName: Optional[str] = None,
+                  sourceId: Optional[str] = None,
+                  relative: bool = False,
+                  traceData: Optional[Dict[str, Any]] = None,
+                  transform: Union[int, Transform, None] = None,
+                  attributes: Optional[Dict[str, Any]] = None,
+                  bandwidthLimitId: Optional[int] = None):
         """ Create a new Sensor object, and add it to the dataset, and return
             it. If the given sensor ID already exists, the existing sensor is 
             returned instead. To modify a sensor or add a sensor object created 
@@ -383,9 +416,26 @@ class Dataset(Cascading):
             Note that the `sensorId` keyword argument is *not* optional.
             
             :param sensorId: The ID of the new sensor.
-            :keyword name: The new sensor's name
-            :keyword sensorClass: An alternate (sub)class of sensor. Defaults
+            :param name: The new sensor's name
+            :param sensorClass: An alternate (sub)class of sensor. Defaults
                 to `None`, which creates a `Sensor`.
+            :param sourceName: Human-friendly source (authority, network, or
+                other source-of-truth) name for generic/virtual sensor types,
+                particularly 'time' sensors.
+            :param sourceId: Machine-readable, uniquely identifying hash
+                identifying source equivalency for comparing relative
+                sources, particularly 'time' sensors.
+            :param relative: `False` if sensor values are Absolute (default),
+                `True` if values are Relative (have an unknown offset, e.g.,
+                AC-coupled measurements or time values with an unknown
+                Epoch).
+            :param transform: A sensor-level data pre-processing function.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
+                ``Attribute`` elements parsed from the file.
+            :param traceData: An optional dictionary of traceability data,
+                such as sensor serial number, etc.
+            :param bandwidthLimitId: The ID of the bandwidth limit (defined
+                in the ``BwLimitList`` (not currently used).
             :return: The new sensor.
         """
         # `sensorId` is mandatory; it's a keyword argument to streamline import.
@@ -397,8 +447,10 @@ class Dataset(Cascading):
             return self.sensors[sensorId]
         
         sensorClass = Sensor if sensorClass is None else sensorClass
-        sensor = sensorClass(self,sensorId,name=name, transform=transform,
-                             traceData=traceData, attributes=attributes,
+        sensor = sensorClass(self, sensorId, name=name,
+                             sourceName=sourceName, sourceId=sourceId,
+                             relative=relative, traceData=traceData,
+                             transform=transform, attributes=attributes,
                              bandwidthLimitId=bandwidthLimitId)
         self.sensors[sensorId] = sensor
         return sensor
@@ -409,9 +461,9 @@ class Dataset(Cascading):
         """ Add a Channel to a Sensor. Note that the `channelId` and `parser`
             keyword arguments are *not* optional.
         
-            :keyword channelId: An unique ID number for the channel.
-            :keyword parser: The Channel's data parser
-            :keyword channelClass: An alternate (sub)class of channel.
+            :param channelId: An unique ID number for the channel.
+            :param parser: The Channel's data parser
+            :param channelClass: An alternate (sub)class of channel.
                 Defaults to `None`, which creates a standard `Channel`.
         """
         if channelId is None or parser is None:
@@ -444,11 +496,11 @@ class Dataset(Cascading):
         """ Add a `WarningRange` to the dataset, which indicates when a sensor
             is reporting values outside of a given range.
         
-            :keyword warningId: A unique numeric ID for the `WarningRange`.
-            :keyword channelId: The channel ID of the source being monitored.
-            :keyword subchannelId: The monitored source's subchannel ID.
-            :keyword low: The minimum value of the acceptable range.
-            :keyword high: The maximum value of the acceptable range.
+            :param warningId: A unique numeric ID for the `WarningRange`.
+            :param channelId: The channel ID of the source being monitored.
+            :param subchannelId: The monitored source's subchannel ID.
+            :param low: The minimum value of the acceptable range.
+            :param high: The maximum value of the acceptable range.
             :return: The new `WarningRange` instance.
         """
         w = WarningRange(self, warningId=warningId, channelId=channelId, 
@@ -488,11 +540,11 @@ class Dataset(Cascading):
                  visibility=0):
         """ Get all plotable data sources: sensor SubChannels and/or Plots.
         
-            :keyword subchannels: Include subchannels if `True`.
-            :keyword plots: Include Plots if `True`.
-            :keyword debug: If `False`, exclude debugging/diagnostic channels.
-            :keyword sort: Sort the plots by name if `True`.
-            :keyword visibility: The plots' maximum level of visibility,
+            :param subchannels: Include subchannels if `True`.
+            :param plots: Include Plots if `True`.
+            :param debug: If `False`, exclude debugging/diagnostic channels.
+            :param sort: Sort the plots by name if `True`.
+            :param visibility: The plots' maximum level of visibility,
                 for display purposes. Standard visibility ranges:
                 * 0: Standard data sources. Always visible by default.
                 * 10: Optionally visible, of interest but only in certain situations.
@@ -542,41 +594,131 @@ class Dataset(Cascading):
 #===============================================================================
 
 class Session(object):
-    """ A collection of data within a dataset, e.g. one test run. A Dataset is
-        expected to contain one or more Sessions.
+    """
+    Information about a collection of data within a `Dataset`, e.g. one test run.
+    A `Dataset` is expected to contain at least one `Session`.
     """
     
     def __init__(self, dataset, sessionId=0, startTime=None, endTime=None,
                  utcStartTime=None):
-        """ Constructor. This should generally be done indirectly via
-            `Dataset.addSession()`.
+        """ Information about a collection of data within a :py:class:`Dataset`,
+            i.e., one run of a recorder. A :py:class:`Dataset` loaded from an
+            IDE file contains one `Session`.
+
+            Instantiating a `Session` should generally be done indirectly
+            via :py:meth:`Dataset.addSession()` as part of the import process.
             
             :param dataset: The parent `Dataset`
-            :keyword sessionId: The Session's numeric ID. Typically
+            :param sessionId: The Session's numeric ID. Typically
                 sequential, starting at 0.
-            :keyword startTime: The session's start time, in microseconds,
+            :param startTime: The session's start time, in microseconds,
                 relative to the start of the recording.
-            :keyword endTime: The session's end time, in microseconds,
+            :param endTime: The session's end time, in microseconds,
                 relative to the end of the recording.
-            :keyword utcStartTime: The session's start time, as an absolute
+            :param utcStartTime: The session's start time, as an absolute
                 POSIX/epoch timestamp.
         """
-        self.dataset = dataset
-        self.startTime = startTime
-        self.endTime = endTime
-        self.sessionId = sessionId
-        self.utcStartTime = utcStartTime or dataset.lastUtcTime
-        
+        self.dataset: Dataset = dataset
+        self.sessionId: int = sessionId
+        self.utcStartTimeOriginal: int = utcStartTime or dataset.lastUtcTime
+        self.utcStartTime: int = self.utcStartTimeOriginal
+
+        self._data: dict[int, 'EventArray'] = None
+        self._offset: float = 0
+
         # firstTime and lastTime are the actual last event time. These will
-        # typically be the same as startTime and endTime, but not necessarily
-        # so.
-        self.firstTime = self.lastTime = None
+        # typically be the same as startTime and endTime, which are being
+        # deprecated.
+        self.firstTimeOriginal: float = startTime
+        self.firstTime: float = startTime
+        self.lastTimeOriginal: float = endTime
+        self.lastTime: float = endTime
+
+        self.syncInfo: Optional[Dict[str, Any]] = None
+        self.syncSensor: Optional[Sensor] = None
+        self.syncZero: float = None
 
 
+    @property
+    def startTime(self) -> float:
+        warnings.warn('Session.startTime is deprecated, and will be removed '
+                      'in the near future. Use Session.firstTime instead. ',
+                      PendingDeprecationWarning)
+        return self.firstTime
+
+
+    # noinspection PyDeprecation
+    @startTime.setter
+    def startTime(self, val: float):
+        warnings.warn('Session.startTime is deprecated, and will be removed '
+                      'in the near future. Use Session.firstTime instead. ',
+                      PendingDeprecationWarning)
+        self.firstTime = val
+
+
+    @property
+    def endTime(self) -> float:
+        warnings.warn('Session.endTime is deprecated, and will be removed '
+                      'in the future. Use Session.lastTime instead. ',
+                      PendingDeprecationWarning)
+        return self.lastTime
+
+
+    # noinspection PyDeprecation
+    @endTime.setter
+    def endTime(self, val: float):
+        warnings.warn('Session.endTime is deprecated, and will be removed '
+                      'in the future. Use Session.lastTime instead. ',
+                      PendingDeprecationWarning)
+        self.lastTime = val
+
+
+    @property
+    def data(self) -> Dict[int, 'EventArray']:
+        """ All the Channel-level `EventArray` instances in this `Session`,
+            keyed by channel ID.
+        """
+        if not self._data or self.dataset.loading:
+            self._data = {}
+            for chid, ch in self.dataset.channels.items():
+                if self.sessionId in ch.sessions:
+                    self._data[chid] = ch.sessions[self.sessionId]
+        return self._data
+
+
+    @property
+    def offset(self) -> float:
+        """ A time offset (in microseconds) for all events, across all
+            Channels, in this `Session`.
+        """
+        return self._offset
+
+
+    @offset.setter
+    def offset(self, offset: float):
+        """ A time offset (in microseconds) for all events, across all
+            Channels, in this `Session`.
+        """
+        offset = offset or 0.
+        self._offset = offset
+        if self.firstTimeOriginal is not None:
+            self.firstTime = self.firstTimeOriginal + offset
+        if self.lastTimeOriginal is not None:
+            self.lastTime = self.lastTimeOriginal + offset
+        for d in self.data.values():
+            # TODO: Exclude non-relative time channels?
+            d._setOffset(offset)
+
+
+    # noinspection PyDeprecation
     def __repr__(self):
-        return "<%s (id=%s) at 0x%08X>" % (self.__class__.__name__, 
-                                           self.sessionId, id(self))
-    
+        """ Return repr(self). """
+        # TODO: change `utcfromtimestamp(t)` to `fromtimestamp(t, datetime.UTC)`
+        #   after Python 3.10 reaches EoL (2026-10)
+        return "<%s %s (%s)>" % (self.__class__.__name__,
+                                 self.sessionId,
+                                 datetime.utcfromtimestamp(self.utcStartTime))
+
     
     def __eq__(self, other):
         """ x.__eq__(y) <==> x==y """
@@ -586,57 +728,81 @@ class Session(object):
             return False
         else:
             return self.dataset == other.dataset \
-               and self.startTime == other.startTime \
-               and self.endTime == other.endTime \
                and self.sessionId == other.sessionId \
-               and self.utcStartTime == other.utcStartTime \
-               and self.firstTime == other.firstTime \
-               and self.lastTime == other.lastTime
+               and self.utcStartTimeOriginal == other.utcStartTimeOriginal \
+               and self.firstTimeOriginal == other.firstTimeOriginal \
+               and self.lastTimeOriginal == other.lastTimeOriginal
         
 #===============================================================================
 # 
 #===============================================================================
 
+
 class Sensor(Cascading):
     """ One Sensor object. A Dataset contains at least one.
     """
     
-    def __init__(self, dataset, sensorId, name=None, transform=None,
-                  traceData=None, attributes=None, bandwidthLimitId=None):
+    def __init__(self,
+                 dataset: Dataset,
+                 sensorId: Optional[int] = None,
+                 name: Optional[str] = None,
+                 sourceName: Optional[str] = None,
+                 sourceId: Optional[str] = None,
+                 relative: bool = False,
+                 traceData: Optional[Dict[str, Any]] = None,
+                 transform: Union[int, Transform, None] = None,
+                 attributes: Optional[Dict[str, Any]] = None,
+                 bandwidthLimitId: Optional[int] = None):
         """ Constructor. This should generally be done indirectly via
             `Dataset.addSensor()`.
         
-            :param dataset: The parent `Dataset`.
             :param sensorId: The ID of the new sensor.
-            :keyword name: The new sensor's name.
-            :keyword transform: A sensor-level data pre-processing function.
-            :keyword traceData: Sensor traceability data.
-            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+            :param name: The new sensor's name
+            :param sourceName: Human-friendly source (authority, network, or
+                other source-of-truth) name for generic/virtual sensor types,
+                particularly 'time' sensors.
+            :param sourceId: Machine-readable, uniquely identifying hash
+                identifying source equivalency for comparing relative
+                sources, particularly 'time' sensors.
+            :param relative: `False` if sensor values are Absolute (default),
+                `True` if values are Relative (have an unknown offset),
+                e.g., AC-coupled measurements or time values with an unknown
+                Epoch.
+            :param transform: A sensor-level data pre-processing function.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file.
+            :param traceData: An optional dictionary of traceability data,
+                such as sensor serial number, etc.
+            :param bandwidthLimitId: The ID of the bandwidth limit (defined
+                in the ``BwLimitList`` (not currently used).
+            :return: The new sensor.
         """
         if isinstance(name, bytes):
             name.decode()
-        self.name = "Sensor%02d" if name is None else name
+        self.name = f"Sensor{sensorId:02d}" if name is None else name
         self.dataset = dataset
         self.parent = dataset
         self.id = sensorId
-        self.channels = {}
         self.traceData = traceData
         self.attributes = attributes
+        self.sourceName = sourceName
+        self.sourceId = sourceId
+        self.relative = bool(relative)
+
+        self._channels = None
+        self._hash = None
+
+        # Not currently used:
         self.bandwidthLimitId = bandwidthLimitId
         self._bandwidthCutoff = None
         self._bandwidthRolloff = None
+        self._transform = transform
 
 
-    def __getitem__(self, idx):
-        return self.channels[idx]
+    def __repr__(self):
+        return f"<{type(self).__name__} {self.id} '{self.path()}' at 0x{id(self):08x}>"
 
 
-    @property
-    def children(self):
-        return list(self.channels.values())
-
-    
     @property
     def bandwidthCutoff(self):
         if self._bandwidthCutoff is None:
@@ -664,6 +830,15 @@ class Sensor(Cascading):
         return self._bandwidthRolloff
 
 
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash((self.name, self.id,
+                               self.sourceName, self.sourceId,
+                               repr(self.traceData), repr(self.attributes),
+                               self.bandwidthLimitId))
+        return self._hash
+
+
     def __eq__(self, other):
         if other is self:
             return True
@@ -671,13 +846,25 @@ class Sensor(Cascading):
             return False
         else:
             return self.name == other.name \
-               and self.dataset == other.dataset \
-               and self.parent == other.parent \
                and self.id == other.id \
-               and self.channels == other.channels \
                and self.traceData == other.traceData \
+               and self.sourceId == other.sourceId \
+               and self.sourceName == other.sourceName \
                and self.attributes == other.attributes \
                and self.bandwidthLimitId == other.bandwidthLimitId
+
+
+    def getReferrers(self) -> List['SubChannel']:
+        """ Get all the `SubChannel` objects that reference this `Sensor`.
+        """
+        if not self._channels or self.dataset.loading:
+            channels = []
+            for ch in self.dataset.channels.values():
+                for subc in ch.subchannels:
+                    if subc.sensor == self or subc.sensor == self.id:
+                        channels.append(subc)
+            self._channels = channels
+        return self._channels
 
 
 #===============================================================================
@@ -707,20 +894,20 @@ class Channel(Transformable):
                 data from a single sensor.
             :param channelId: The channel's ID, unique within the file.
             :param parser: The channel's EBML data parser.
-            :keyword name: A custom name for this channel.
-            :keyword units: The units measured in this channel, used if units
+            :param name: A custom name for this channel.
+            :param units: The units measured in this channel, used if units
                 are not explicitly indicated in the Channel's SubChannels.
-            :keyword transform: A Transform object for adjusting sensor
+            :param transform: A Transform object for adjusting sensor
                 readings at the Channel level. 
-            :keyword displayRange: A 'hint' to the minimum and maximum values
+            :param displayRange: A 'hint' to the minimum and maximum values
                 of data in this channel.
-            :keyword cache: If `True`, this channel's data will be kept in
+            :param cache: If `True`, this channel's data will be kept in
                 memory rather than lazy-loaded.
-            :keyword singleSample: A 'hint' that the data blocks for this
+            :param singleSample: A 'hint' that the data blocks for this
                 channel each contain only a single sample (e.g. temperature/
                 pressure on an SSX). If `None`, this will be determined from
                 the sample data.
-            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file.
         """
         self.id = channelId
@@ -739,10 +926,7 @@ class Channel(Transformable):
 
         if isinstance(sensor, int):
             sensor = self.dataset.sensors.get(sensor, None)
-        if sensor is not None:
-            sensor.channels[channelId] = self
-            sensorname = sensor.name
-        
+
         if name is None:
             sensorname = sensor.name if sensor is not None else "Unknown Sensor"
             name = "%s:%02d" % (sensorname, channelId)
@@ -759,13 +943,13 @@ class Channel(Transformable):
         self.hasDisplayRange = displayRange is not None
         
         # Channels have 1 or more subchannels
-        self.subchannels = [None] * len(self.types)
+        self.subchannels: List['SubChannel'] = [None] * len(self.types)
         
         # A set of session EventLists. Populated dynamically with
         # each call to getSession(). 
         self.sessions = {}
         
-        self.subsampleCount = [0,sys.maxsize]
+        self.subsampleCount = [0, sys.maxsize]
 
         self.setTransform(transform, update=False)
         
@@ -778,7 +962,7 @@ class Channel(Transformable):
 
 
     @property
-    def children(self):
+    def children(self) -> List['SubChannel']:
         return list(iter(self))
 
 
@@ -832,8 +1016,7 @@ class Channel(Transformable):
         
         if subchannelId >= len(self.subchannels):
             raise IndexError(
-                "Channel's parser only generates %d subchannels" %
-                 len(self.subchannels))
+                f"Channel's parser only generates {len(self.subchannels)} subchannels")
         else:
             channelClass = channelClass or SubChannel
             sc = self.subchannels[subchannelId]
@@ -864,7 +1047,7 @@ class Channel(Transformable):
     def getSession(self, sessionId=None):
         """ Retrieve data recorded in a Session. 
             
-            :keyword sessionId: The ID of the session to retrieve.
+            :param sessionId: The ID of the session to retrieve.
             :return: The recorded data.
             :rtype: `EventArray`
         """
@@ -886,10 +1069,10 @@ class Channel(Transformable):
         """ Parse subsamples out of a data block. Used internally.
         
             :param block: The data block from which to parse subsamples.
-            :keyword start: The first block index to retrieve.
-            :keyword end: The last block index to retrieve.
-            :keyword step: The number of steps between samples.
-            :keyword subchannel: If supplied, return only the values for a 
+            :param start: The first block index to retrieve.
+            :param end: The last block index to retrieve.
+            :param step: The number of steps between samples.
+            :param subchannel: If supplied, return only the values for a
                 specific subchannel (i.e. the method is being called by a
                 SubChannel).
             :return: A list of tuples, one for each subsample.
@@ -916,7 +1099,7 @@ class Channel(Transformable):
             
             :param block: The data block element to parse.
             :param indices: A list of sample index numbers to retrieve.
-            :keyword subchannel: If supplied, return only the values for a 
+            :param subchannel: If supplied, return only the values for a
                 specific subchannel
             :return: A list of tuples, one for each subsample.
         """
@@ -966,12 +1149,16 @@ class Channel(Transformable):
 
 #===============================================================================
 
+
+# noinspection PyMethodOverriding
 class SubChannel(Channel):
     """ Output from a sensor, derived from a channel containing multiple
         pieces of data (e.g. the Y from an accelerometer's XYZ). Looks
         like a 'real' channel.
     """
-    
+
+
+    # noinspection PyMissingConstructor
     def __init__(self, parent, subchannelId, name=None, units=('', ''),
                  transform=None, displayRange=None, sensorId=None, 
                  warningId=None, axisName=None, attributes=None, color=None,
@@ -981,26 +1168,26 @@ class SubChannel(Channel):
         
             :param parent: The parent sensor.
             :param subchannelId: The channel's ID, unique within the file.
-            :keyword name: A custom name for this channel.
-            :keyword units: The units measured in this channel, used if units
+            :param name: A custom name for this channel.
+            :param units: The units measured in this channel, used if units
                 are not explicitly indicated in the Channel's SubChannels. A
                 tuple containing the 'axis name' (e.g. 'Acceleration') and the
                 unit symbol ('g').
-            :keyword transform: A Transform object for adjusting sensor
+            :param transform: A Transform object for adjusting sensor
                 readings at the Channel level. 
-            :keyword displayRange: A 'hint' to the minimum and maximum values
+            :param displayRange: A 'hint' to the minimum and maximum values
                 of data in this channel.
-            :keyword sensorId: The ID of the sensor that generates this
+            :param sensorId: The ID of the sensor that generates this
                 SubChannel's data.
-            :keyword warningId: The ID of the `WarningRange` that indicates
+            :param warningId: The ID of the `WarningRange` that indicates
                 conditions that may adversely affect data recorded in this
                 SubChannel.
-            :keyword axisName: The name of the axis this SubChannel represents.
+            :param axisName: The name of the axis this SubChannel represents.
                 Use if the `name` contains additional text (e.g. "X" if the 
                 name is "Accelerometer X (low-g)").
-            :keyword attributes: A dictionary of arbitrary attributes, e.g.
+            :param attributes: A dictionary of arbitrary attributes, e.g.
                 ``Attribute`` elements parsed from the file.
-            :keyword visibility: The subchannel's level of visibility, for
+            :param visibility: The subchannel's level of visibility, for
                 display purposes. The lower the value, the more 'visible' the
                 subchannel.
         """
@@ -1048,16 +1235,12 @@ class SubChannel(Channel):
         else:
             self.displayName = self.name
 
-        if isinstance(sensorId, int):
-            self.sensor = self.dataset.sensors.get(sensorId, None)
-        elif sensorId is None:
-            if isinstance(parent.sensor, int):
-                self.sensor = self.dataset.sensors.get(parent.sensor, None)
-            else:
-                self.sensor = parent.sensor
-        else:
+        try:
+            sensorId = parent.sensor if sensorId is None else sensorId
+            self.sensor = self.dataset.sensors.get(sensorId, sensorId)
+        except TypeError:
             self.sensor = sensorId
-        
+
         self.types = (parent.types[subchannelId], )
         
         self._sessions = None
@@ -1129,9 +1312,9 @@ class SubChannel(Channel):
         """ Parse subsamples out of a data block. Used internally.
         
             :param block: The data block from which to parse subsamples.
-            :keyword start: The first block index to retrieve.
-            :keyword end: The last block index to retrieve.
-            :keyword step: The number of steps between samples.
+            :param start: The first block index to retrieve.
+            :param end: The last block index to retrieve.
+            :param step: The number of steps between samples.
         """
         return self.parent.parseBlock(block, start, end, step=step) 
 
@@ -1219,7 +1402,7 @@ class EventArray(Transformable):
         self.dataset = parentChannel.dataset
         self.hasSubchannels = not isinstance(self.parent, SubChannel)
         self._parentList = parentList
-        self._childLists = []
+        self._childLists = []  # TODO: Remove _childLists (seems deprecated)
         
         self.noBivariates = False
 
@@ -1229,29 +1412,37 @@ class EventArray(Transformable):
             self._singleSample = parentChannel.singleSample
 
         if self.hasSubchannels or not isinstance(parentChannel.parent, Channel):
-            # Cache of block start times and sample indices for faster search
+            # Cache of block start times and sample indices for faster search.
+            # Note: _blockTimes is not changed if a time offset is applied.
             self._blockTimes = []
             self._blockIndices = []
+            self._blockIndicesArray = np.array([], dtype=np.int64)
+            self._blockTimesArray = np.array([], dtype=np.float64)
         else:
             s = self.session.sessionId if session is not None else None
             ps = parentChannel.parent.getSession(s)
             self._blockTimes = ps._blockTimes
             self._blockIndices = ps._blockIndices
+            self._blockIndicesArray = ps._blockIndicesArray
+            self._blockTimesArray = ps._blockTimesArray
 
             self.noBivariates = ps.noBivariates
-        
+
         if self.hasSubchannels:
             self.channelId = self.parent.id
             self.subchannelId = None
+            self.parseBlock = self.parent.parseBlock
         else:
             self.channelId = self.parent.parent.id
             self.subchannelId = self.parent.id
-        
+            self.parseBlock = self.parent.parent.parseBlock
+
         self._hasSubsamples = False
         
         self.hasDisplayRange = self.parent.hasDisplayRange
         self.displayRange = self.parent.displayRange
 
+        self._mean = None
         self.removeMean = False
         self.hasMinMeanMax = True
         self._rollingMeanSpan = None
@@ -1262,16 +1453,16 @@ class EventArray(Transformable):
         self.updateTransforms(recurse=False)
         self.allowMeanRemoval = parentChannel.allowMeanRemoval    
 
-        if self.hasSubchannels:
-            self.parseBlock = self.parent.parseBlock
-        else:
-            self.parseBlock = self.parent.parent.parseBlock
+        self._npType = np.uint8
+        self._makeDType()
 
-        self._blockIndicesArray = np.array([], dtype=np.float64)
-        self._blockTimesArray = np.array([], dtype=np.float64)
+        self._channelDataLock = parentChannel.dataset._channelDataLock
+        self._cacheArray = None
+        self._cacheBytes = None
 
-        self._mean = None
 
+    def _makeDType(self):
+        """ Construct the Numpy type for the channel's payload. """
         _format = self.parent.parser.format
         if not _format:
             self._npType = np.uint8
@@ -1281,7 +1472,7 @@ class EventArray(Transformable):
             if isinstance(_format, bytes):
                 _format = _format.decode()
 
-            if _format[0] in ['<', '>', '=']:
+            if _format[0] in '<>=':
                 endian = _format[0]
                 dtypes = [endian + ChannelDataBlock.TO_NP_TYPESTR[x] for x in _format[1:]]
             else:
@@ -1289,15 +1480,18 @@ class EventArray(Transformable):
 
             self._npType = np.dtype([(str(i), dtype) for i, dtype in enumerate(dtypes)])
 
-        self._channelDataLock = parentChannel.dataset._channelDataLock
-        self._cacheArray = None
-        self._cacheBytes = None
-        self._fullyCached = False
-        self._cacheStart = None
-        self._cacheEnd = None
-        self._cacheBlockStart = None
-        self._cacheBlockEnd = None
-        self._cacheLen = 0
+
+    def _setOffset(self, offset):
+        """ Apply an offset to the `EventArray` timestamps. Do not use
+            directly; use `Session.offset`.
+        """
+        for d in self._data:
+            d.startTime = d.startTimeOriginal + offset
+            d.endTime = d.endTimeOriginal + offset
+
+        # skip if the dataset is loading (blockTimes still getting built)
+        if not self.dataset.loading:
+            self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + offset
 
 
     @property
@@ -1331,7 +1525,7 @@ class EventArray(Transformable):
                 sessionId = self.session.sessionId if self.session is not None else None
                 children = []
                 dispX = []
-                for x,sc in zip(xs,self.parent.subchannels):
+                for x, sc in zip(xs, self.parent.subchannels):
                     if sessionId in sc.sessions:
                         cl = sc.sessions[sessionId]
                         if cl.transform is None:
@@ -1386,11 +1580,6 @@ class EventArray(Transformable):
         newList._channelDataLock = self._channelDataLock
         newList._cacheArray = self._cacheArray
         newList._cacheBytes = self._cacheBytes
-        newList._fullyCached = self._fullyCached
-        newList._cacheStart = self._cacheStart
-        newList._cacheEnd = self._cacheEnd
-        newList._cacheBlockStart = self._cacheBlockStart
-        newList._cacheBlockEnd = self._cacheBlockEnd
         return newList
     
 
@@ -1406,17 +1595,33 @@ class EventArray(Transformable):
             if block.numSamples is None:
                 block.numSamples = block.getNumSamples(self.parent.parser)
 
+            block.startTime = block.startTimeOriginal + self.session._offset
+            block.endTime = block.endTimeOriginal + self.session._offset
+
             # Set the session first/last times if they aren't already set.
             # Possibly redundant if all sessions are 'closed.'
-            if self.session.firstTime is None:
+            try:
+                self.session.firstTimeOriginal = lesser(self.session.firstTimeOriginal,
+                                                        block.startTimeOriginal)
+                self.session.firstTime = self.session.firstTimeOriginal + self.session._offset
+            except TypeError:
+                # session.firstTimeOriginal probably None
+                if self.session.firstTimeOriginal is not None:
+                    raise
+                self.session.firstTimeOriginal = block.startTimeOriginal
                 self.session.firstTime = block.startTime
-            else:
-                self.session.firstTime = min(self.session.firstTime, block.startTime)
 
-            if self.session.lastTime is None:
+            try:
+                self.session.lastTimeOriginal = greater(self.session.lastTimeOriginal,
+                                                        block.endTimeOriginal)
+                self.session.lastTime = self.session.lastTimeOriginal + self.session._offset
+            except TypeError:
+                # session.lastTimeOriginal probably None
+                if self.session.lastTimeOriginal is not None:
+                    raise
+                self.session.lastTimeOriginal = block.endTimeOriginal
                 self.session.lastTime = block.endTime
-            else:
-                self.session.lastTime = max(self.session.lastTime, block.endTime)
+
 
             # Check that the block actually contains at least one sample.
             if block.numSamples < 1:
@@ -1446,7 +1651,7 @@ class EventArray(Transformable):
             # HACK (somewhat): Single-sample-per-block channels get min/mean/max
             # which is just the same as the value of the sample. Set the values,
             # but don't set hasMinMeanMax.
-            if self._singleSample is True:# and not self.hasMinMeanMax:
+            if self._singleSample is True and block.numSamples == 1:  # and not self.hasMinMeanMax:
                 block.minMeanMax = np.tile(block.payload, 3)
                 mmmArr = np_recfunctions.structured_to_unstructured(
                         block._minMeanMax.view(self._npType))
@@ -1458,10 +1663,10 @@ class EventArray(Transformable):
                 block.min, block.mean, block.max = mmmArr
                 self.hasMinMeanMax = True
             else:
-                # XXX: Attempt to calculate min/mean/max here instead of
+                # FUTURE: Attempt to calculate min/mean/max here instead of
                 #  in _computeMinMeanMax(). Causes issues with pressure for some
                 #  reason - it starts removing mean and won't plot.
-                vals = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
+                vals: np.array = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
                 block.min = vals.min(axis=0)
                 block.mean = vals.mean(axis=0)
                 block.max = vals.max(axis=0)
@@ -1469,7 +1674,7 @@ class EventArray(Transformable):
 
             # Cache the index range for faster searching
             self._blockIndices.append(oldLength)
-            self._blockTimes.append(block.startTime)
+            self._blockTimes.append(block.startTimeOriginal)
 
             self._hasSubsamples = self._hasSubsamples or block.numSamples > 1
 
@@ -1504,8 +1709,8 @@ class EventArray(Transformable):
             index.
 
             :param idx: The event index to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
+            :param start: The first block index to search
+            :param stop: The last block index to search
         """
         # TODO: profile & determine if this change is beneficial
         '''
@@ -1519,9 +1724,9 @@ class EventArray(Transformable):
 
         '''
         if len(self._blockIndicesArray) != len(self._blockIndices):
-            self._blockIndicesArray = np.array(self._blockIndices)
+            self._blockIndicesArray = np.array(self._blockIndices, dtype=np.int64)
 
-        idxOffset = max(start, 1)
+        idxOffset = greater(start, 1)
         return idxOffset-1 + np.searchsorted(
             self._blockIndicesArray[idxOffset:stop], idx, side='right'
         )
@@ -1531,10 +1736,11 @@ class EventArray(Transformable):
         """ Get the index of a raw data block in which the given time occurs.
 
             :param t: The time to find
-            :keyword start: The first block index to search
-            :keyword stop: The last block index to search
+            :param start: The first block index to search
+            :param stop: The last block index to search
         """
-        # TODO: profile & determine if this change is beneficial
+        # TODO: profile & determine if this change is beneficial. I'm not
+        #  sure the new version was ever actually profiled vs. the old.
         '''
         if stop:
             blockIdx = bisect_right(self._blockTimes, t, start, stop)
@@ -1545,9 +1751,14 @@ class EventArray(Transformable):
         return blockIdx
         '''
         if len(self._blockTimesArray) != len(self._blockTimes):
-            self._blockTimesArray = np.array(self._blockTimes)
+            self._blockTimesArray = np.array(self._blockTimes, dtype=np.float64) + self.session._offset
 
-        idxOffset = max(start, 1)
+        if t is None or t < self._blockTimesArray[0]:
+            return 0
+        elif t > self._blockTimesArray[-1]:
+            return len(self._blockTimesArray)
+
+        idxOffset = greater(start, 1)
         return idxOffset-1 + np.searchsorted(
             self._blockTimesArray[idxOffset:stop], t, side='right'
         )
@@ -1570,8 +1781,8 @@ class EventArray(Transformable):
         span = self.rollingMeanSpan
         
         if (block._rollingMean is not None 
-            and block._rollingMeanSpan == span 
-            and block._rollingMeanLen == len(self._data)):
+                and block._rollingMeanSpan == span
+                and block._rollingMeanLen == len(self._data)):
             return block._rollingMean
 
         self._computeMinMeanMax()
@@ -1581,7 +1792,7 @@ class EventArray(Transformable):
                                                      stop=blockIdx)
             lastBlock = self._getBlockIndexWithTime(block.startTime + (span/2), 
                                                     start=blockIdx)
-            lastBlock = max(lastBlock+1, firstBlock+1)
+            lastBlock = greater(lastBlock+1, firstBlock+1)
         else:
             firstBlock = lastBlock = None
         
@@ -1655,12 +1866,11 @@ class EventArray(Transformable):
 
         if isinstance(idx, (int, np.integer)):
 
-
             if idx >= len(self):
                 raise IndexError("EventArray index out of range")
 
             if idx < 0:
-                idx = max(0, len(self) + idx)
+                idx = greater(0, len(self) + idx)
 
             return self.arraySlice(idx, idx + 1)[:, 0]
 
@@ -1696,6 +1906,8 @@ class EventArray(Transformable):
     
     
     def __eq__(self, other):
+        """ Return self==value.
+        """
         if other is self:
             return True
         elif not isinstance(other, self.__class__):
@@ -1732,13 +1944,13 @@ class EventArray(Transformable):
                    display=False):
         """ Iterate all values in the given index range (w/o times).
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword subchannels: A list of subchannel IDs or Boolean. `True`
+            :param step: The step increment. Not used if `start` is a slice.
+            :param subchannels: A list of subchannel IDs or Boolean. `True`
                 will return all subchannels in native order.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: an iterable of structured array value blocks in the
                 specified index range.
@@ -1756,13 +1968,13 @@ class EventArray(Transformable):
                     display=False):
         """ Get all values in the given index range (w/o times).
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword subchannels: A list of subchannel IDs or Boolean. `True`
+            :param step: The step increment. Not used if `start` is a slice.
+            :param subchannels: A list of subchannel IDs or Boolean. `True`
                 will return all subchannels in native order.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: a structured array of values in the specified index range.
         """
@@ -1786,9 +1998,11 @@ class EventArray(Transformable):
             out = np.empty((len(rawData.dtype), len(rawData)))
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out, noBivariates=self.noBivariates)
+            xform.polys[self.subchannelId].inplace(rawData, out=out,
+                                                   noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out, noBivariates=self.noBivariates)
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T,
+                          out=out, noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -1802,11 +2016,11 @@ class EventArray(Transformable):
     def iterSlice(self, start=None, end=None, step=1, display=False):
         """ Create an iterator producing events for a range of indices.
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param step: The step increment. Not used if `start` is a slice.
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: an iterable of events in the specified index range.
         """
@@ -1822,11 +2036,11 @@ class EventArray(Transformable):
     def arraySlice(self, start=None, end=None, step=1, display=False):
         """ Create an array of events within a range of indices.
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param step: The step increment. Not used if `start` is a slice.
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
@@ -1852,9 +2066,11 @@ class EventArray(Transformable):
         self._inplaceTime(start, end, step, out=out[0])
 
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=self.noBivariates)
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0],
+                                                   noBivariates=self.noBivariates)
         else:
-            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T, out=out[1:], timestamp=out[0], noBivariates=self.noBivariates)
+            xform.inplace(np_recfunctions.structured_to_unstructured(rawData).T,
+                          out=out[1:], timestamp=out[0], noBivariates=self.noBivariates)
 
         if self.removeMean:
             out[1:] -= out[1:].mean(axis=1, keepdims=True)
@@ -1866,13 +2082,13 @@ class EventArray(Transformable):
                          display=False):
         """ Create an iterator producing events for a range of indices.
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword jitter: The amount by which to vary the sample time, as a
+            :param step: The step increment. Not used if `start` is a slice.
+            :param jitter: The amount by which to vary the sample time, as a
                 normalized percentage of the regular time between samples.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: an iterable of events in the specified index range.
         """
@@ -1882,7 +2098,8 @@ class EventArray(Transformable):
 
         self._computeMinMeanMax()
 
-        data = self.arrayJitterySlice(start=start, end=end, step=step, jitter=jitter, display=display)
+        data = self.arrayJitterySlice(start=start, end=end, step=step,
+                                      jitter=jitter, display=display)
 
         yield from data.T
         
@@ -1892,13 +2109,13 @@ class EventArray(Transformable):
                           display=False):
         """ Create an array of events within a range of indices.
 
-            :keyword start: The first index in the range, or a slice.
-            :keyword end: The last index in the range. Not used if `start` is
+            :param start: The first index in the range, or a slice.
+            :param end: The last index in the range. Not used if `start` is
                 a slice.
-            :keyword step: The step increment. Not used if `start` is a slice.
-            :keyword jitter: The amount by which to vary the sample time, as a
+            :param step: The step increment. Not used if `start` is a slice.
+            :param jitter: The amount by which to vary the sample time, as a
                 normalized percentage of the regular time between samples.
-            :keyword display: If `True`, the `EventArray` transform (i.e. the
+            :param display: If `True`, the `EventArray` transform (i.e. the
                 'display' transform) will be applied to the data.
             :return: a structured array of events in the specified index range.
         """
@@ -1954,10 +2171,12 @@ class EventArray(Transformable):
 
         noBivariates = self.noBivariates
         if isinstance(self.parent, SubChannel):
-            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0], noBivariates=noBivariates)
+            xform.polys[self.subchannelId].inplace(rawData, out=out[1], timestamp=out[0],
+                                                   noBivariates=noBivariates)
         else:
             for i, (k, _) in enumerate(rawData.dtype.descr):
-                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0], noBivariates=noBivariates)
+                xform.polys[i].inplace(rawData[k], out=out[i + 1], timestamp=out[0],
+                                       noBivariates=noBivariates)
 
         return out
 
@@ -2028,9 +2247,9 @@ class EventArray(Transformable):
         """ Get the first and last event indices that fall within the 
             specified interval.
             
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
         """
         if self.parent.singleSample:
@@ -2062,32 +2281,38 @@ class EventArray(Transformable):
             endIdx = 0
         else:
             endIdx = self.getEventIndexBefore(endTime)+1
-        return max(0, startIdx), min(endIdx, len(self))
+        return greater(0, startIdx), lesser(endIdx, len(self))
     
 
     def iterRange(self, startTime=None, endTime=None, step=1, display=False):
         """ Get a set of data occurring in a given interval.
         
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
+            :param step: The number of steps between samples.
+            :param display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
         """
 
         warnings.warn(DeprecationWarning('iter methods should be expected to be '
                                          'removed in future versions of idelib'))
 
         startIdx, endIdx = self.getRangeIndices(startTime, endTime)
-        return self.iterSlice(startIdx,endIdx,step,display=display)        
+        return self.iterSlice(startIdx, endIdx, step, display=display)
 
 
     def arrayRange(self, startTime=None, endTime=None, step=1, display=False):
         """ Get a set of data occurring in a given time interval.
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
+            :param step: The number of steps between samples.
+            :param display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
             :return: a structured array of events in the specified time
                 interval.
         """
@@ -2100,27 +2325,30 @@ class EventArray(Transformable):
         """ Get a set of data occurring in a given time interval. (Currently
             an alias of `arrayRange`.)
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
+            :param display: If `True`, the final 'display' transform (e.g.
+                unit conversion) will be applied to the results.
             :return: a collection of events in the specified time interval.
         """
         return self.arrayRange(startTime, endTime, display=display)
 
 
+    # noinspection PyCallingNonCallable
     def iterMinMeanMax(self, startTime=None, endTime=None, padding=0,
                        times=True, display=False):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
-            :keyword times: If `True` (default), the results include the 
+            :param times: If `True` (default), the results include the
                 block's starting time. 
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results. 
             :return: An iterator producing sets of three events (min, mean, 
                 and max, respectively).
@@ -2140,8 +2368,7 @@ class EventArray(Transformable):
         session = self.session
         removeMean = self.removeMean and self.allowMeanRemoval
         _getBlockRollingMean = self._getBlockRollingMean
-        if not hasSubchannels:
-            parent_id = self.subchannelId
+        parent_id = None if self.hasSubchannels else self.subchannelId
 
         if self.useAllTransforms:
             xform = self._fullXform
@@ -2211,25 +2438,28 @@ class EventArray(Transformable):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval.
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
-            :keyword times: If `True` (default), the results include the
+            :param times: If `True` (default), the results include the
                 block's starting time.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: A structured array of data block statistics (min, mean,
                 and max, respectively).
         """
         # TODO: Remember what `padding` was for, and either implement or
         #   remove it completely. Related to plotting; see `plots`.
-        # TODO: Use `iterator`? It may have been removed accidentally.
         if not self._data:
             return None
 
+        iterator = iterator or iter
         startBlock, endBlock = self._getBlockRange(startTime, endTime)
-        shape = (3, max(1, len(self._npType)) + int(times), endBlock - startBlock)
+        shape = (3, greater(1, len(self._npType)) + int(times), endBlock - startBlock)
         scid = self.subchannelId
         isSubchannel = isinstance(self.parent, SubChannel)
 
@@ -2240,11 +2470,11 @@ class EventArray(Transformable):
         else:
             xform = self._comboXform
 
-        noBivariates= self.noBivariates
+        noBivariates = self.noBivariates
 
         out = np.empty(shape)
 
-        for i, d in enumerate(self._data[startBlock:endBlock]):
+        for i, d in enumerate(iterator(self._data[startBlock:endBlock])):
             if isSubchannel:
                 if times:
                     out[:, 0, i] = d.startTime
@@ -2300,14 +2530,17 @@ class EventArray(Transformable):
         """ Get the minimum, mean, and maximum values for blocks within a
             specified interval. (Currently an alias of `arrayMinMeanMax`.)
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
-            :keyword times: If `True` (default), the results include the
+            :param times: If `True` (default), the results include the
                 block's starting time.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: A structured array of data block statistics (min, mean,
                 and max, respectively).
         """
@@ -2322,14 +2555,17 @@ class EventArray(Transformable):
             specifying a subchannel number can produce meaningless data if the
             channels use different units or are on different scales.
 
-            :keyword startTime: The first time (in microseconds by default),
+            :param startTime: The first time (in microseconds by default),
                 `None` to start at the beginning of the session.
-            :keyword endTime: The second time, or `None` to use the end of
+            :param endTime: The second time, or `None` to use the end of
                 the session.
-            :keyword subchannel: The subchannel ID to retrieve, if the
+            :param subchannel: The subchannel ID to retrieve, if the
                 EventArray's parent has subchannels.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: A namedtuple of aggregated event statistics (min, mean,
                 and max, respectively).
         """
@@ -2359,14 +2595,14 @@ class EventArray(Transformable):
             startBlockIdx = 0
         else:
             startBlockIdx = self._getBlockIndexWithTime(startTime)
-            startBlockIdx = max(startBlockIdx-1, 0)
+            startBlockIdx = greater(startBlockIdx-1, 0)
         if endTime is None:
             endBlockIdx = len(self._data)
         else:
             if endTime < 0:
                 endTime += self._data[-1].endTime
             endBlockIdx = self._getBlockIndexWithTime(endTime, start=startBlockIdx)
-            endBlockIdx = min(len(self._data), max(startBlockIdx+1, endBlockIdx+1))
+            endBlockIdx = lesser(len(self._data), greater(startBlockIdx+1, endBlockIdx+1))
             
         return startBlockIdx, endBlockIdx
 
@@ -2376,10 +2612,13 @@ class EventArray(Transformable):
             time range. For Channels, returns the maximum among all
             Subchannels.
 
-            :keyword startTime: The starting time. Defaults to the start.
-            :keyword endTime: The ending time. Defaults to the end.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param startTime: The starting time. Defaults to the start.
+            :param endTime: The ending time. Defaults to the end.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: The event with the maximum value.
         """
         maxs = self.arrayMinMeanMax(startTime, endTime, times=False,
@@ -2398,10 +2637,13 @@ class EventArray(Transformable):
             time range. For Channels, returns the minimum among all
             Subchannels.
 
-            :keyword startTime: The starting time. Defaults to the start.
-            :keyword endTime: The ending time. Defaults to the end.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param startTime: The starting time. Defaults to the start.
+            :param endTime: The ending time. Defaults to the end.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: The event with the minimum value.
         """
         if not self.hasMinMeanMax:
@@ -2421,7 +2663,7 @@ class EventArray(Transformable):
     def _getBlockSampleTime(self, blockIdx=0):
         """ Get the time between samples within a given data block.
             
-            :keyword blockIdx: The index of the block to measure. Times
+            :param blockIdx: The index of the block to measure. Times
                 within the same block are expected to be consistent, but can
                 possibly vary from block to block.
             :return: The sample rate, as samples per second
@@ -2471,7 +2713,7 @@ class EventArray(Transformable):
             the channel definition or calculated from the actual data and
             cached.
             
-            :keyword blockIdx: The block to check. Optional, because in an
+            :param blockIdx: The block to check. Optional, because in an
                 ideal world, all blocks would be the same.
             :return: The sample rate, as samples per second (float)
         """
@@ -2488,7 +2730,7 @@ class EventArray(Transformable):
     def getSampleTime(self, idx=None):
         """ Get the time between samples.
             
-            :keyword idx: Because it is possible for sample rates to vary
+            :param idx: Because it is possible for sample rates to vary
                 within a channel, an event index can be specified; the time
                 between samples for that event and its siblings will be 
                 returned.
@@ -2508,7 +2750,7 @@ class EventArray(Transformable):
             the channel definition or calculated from the actual data and
             cached.
             
-            :keyword idx: Because it is possible for sample rates to vary
+            :param idx: Because it is possible for sample rates to vary
                 within a channel, an event index can be specified; the sample
                 rate for that event and its siblings will be returned.
             :return: The sample rate, as samples per second (float)
@@ -2526,9 +2768,11 @@ class EventArray(Transformable):
             existing events.
 
             :param at: The time at which to take the sample.
-            :keyword outOfRange: If `False`, times before the first sample
+            :param outOfRange: If `False`, times before the first sample
                 or after the last will raise an `IndexError`. If `True`, the
                 first or last time, respectively, is returned.
+            :param display: If `True`, export using the EventArray's 'display'
+                transform (e.g. unit conversion).
         """
         # TODO: Optimize. This creates a bottleneck in the calibration.
         startIdx = self.getEventIndexBefore(at)
@@ -2538,14 +2782,14 @@ class EventArray(Transformable):
                 return first
             if outOfRange:
                 return first
-            raise IndexError("Specified time occurs before first event (%d)" % first[0])
+            raise IndexError("Specified time occurs before first event (%s)" % first[0])
         elif startIdx >= len(self) - 1:
             last = self.__getitem__(-1, display=display)
             if last[0] == at:
                 return last
             if outOfRange:
                 return last
-            raise IndexError("Specified time occurs after last event (%d)" % last[0])
+            raise IndexError("Specified time occurs after last event (%s)" % last[0])
         
         startEvt = self.__getitem__(startIdx, display=display)
         endEvt = self.__getitem__(startIdx+1, display=display)
@@ -2564,10 +2808,13 @@ class EventArray(Transformable):
             time range. For Channels, returns the mean among all
             Subchannels.
 
-            :keyword startTime: The starting time. Defaults to the start.
-            :keyword endTime: The ending time. Defaults to the end.
-            :keyword display: If `True`, the final 'display' transform (e.g.
+            :param startTime: The starting time. Defaults to the start.
+            :param endTime: The ending time. Defaults to the end.
+            :param display: If `True`, the final 'display' transform (e.g.
                 unit conversion) will be applied to the results.
+            :param iterator: A function that iterates the output. Intended
+                for allowing iteration to be externally cancelled (e.g., in
+                a GUI).
             :return: The event with the minimum value.
         """
         if not self.hasMinMeanMax:
@@ -2642,9 +2889,9 @@ class EventArray(Transformable):
 
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
         numPoints = (stopIdx - startIdx)
-        startIdx = max(startIdx-padding, 0)
-        stopIdx = min(stopIdx+padding, len(self))
-        step = max(-int(-numPoints // maxPoints), 1)
+        startIdx = greater(startIdx-padding, 0)
+        stopIdx = lesser(stopIdx+padding, len(self))
+        step = greater(-int(-numPoints // maxPoints), 1)
         
         if jitter != 0:
             return self.iterJitterySlice(startIdx, stopIdx, step, jitter,
@@ -2662,9 +2909,9 @@ class EventArray(Transformable):
         #  particularly not with single-sample blocks.
 
         startIdx, stopIdx = self.getRangeIndices(startTime, stopTime)
-        startIdx = max(startIdx-padding, 0)
-        stopIdx = min(stopIdx+padding+1, len(self))
-        step = max(int(ceil((stopIdx - startIdx) / maxPoints)), 1)
+        startIdx = greater(startIdx-padding, 0)
+        stopIdx = lesser(stopIdx+padding+1, len(self))
+        step = greater(int(ceil((stopIdx - startIdx) / maxPoints)), 1)
 
         if jitter != 0:
             return self.arrayJitterySlice(startIdx, stopIdx, step, jitter,
@@ -2672,22 +2919,36 @@ class EventArray(Transformable):
         return self.arraySlice(startIdx, stopIdx, step, display=display)
 
 
-    def exportCsv(self, stream, start=None, stop=None, step=1, subchannels=True,
-                  callback=None, callbackInterval=0.01, timeScalar=1,
-                  raiseExceptions=False, dataFormat="%.6f", delimiter=", ",
-                  useUtcTime=False, useIsoFormat=False, headers=False, 
-                  removeMean=None, meanSpan=None, display=False,
-                  noBivariates=None):
+    # noinspection PyDeprecation
+    def exportCsv(self,
+                  stream,
+                  start: Optional[int] = None,
+                  stop: Optional[int] = None,
+                  step: int = 1,
+                  subchannels: Optional[Iterable] = None,
+                  callback: Optional[Callable] = None,
+                  callbackInterval: float = 0.01,
+                  timeScalar: float = 1,
+                  raiseExceptions: bool = False,
+                  dataFormat: str = "%.6f",
+                  delimiter: str = ", ",
+                  useUtcTime: bool = False,
+                  useIsoFormat: bool = False,
+                  headers: bool = False,
+                  removeMean: Optional[bool] = None,
+                  meanSpan: Optional[int] = None,
+                  display: bool = False,
+                  noBivariates: Optional[bool] = None) -> tuple[int, timedelta]:
         """ Export events as CSV to a stream (e.g. a file).
         
             :param stream: The stream object to which to write CSV data.
-            :keyword start: The first event index to export.
-            :keyword stop: The last event index to export.
-            :keyword step: The number of events between exported lines.
-            :keyword subchannels: A sequence of individual subchannel numbers
+            :param start: The first event index to export.
+            :param stop: The last event index to export.
+            :param step: The number of events between exported lines.
+            :param subchannels: A sequence of individual subchannel numbers
                 to export. Only applicable to objects with subchannels.
                 `True` (default) exports them all.
-            :keyword callback: A function (or function-like object) to notify
+            :param callback: A function (or function-like object) to notify
                 as work is done. It should take four keyword arguments:
                 `count` (the current line number), `total` (the total number
                 of lines), `error` (an exception, if raised during the
@@ -2695,29 +2956,36 @@ class EventArray(Transformable):
                 complete). If the callback object has a `cancelled`
                 attribute that is `True`, the CSV export will be aborted.
                 The default callback is `None` (nothing will be notified).
-            :keyword callbackInterval: The frequency of update, as a
+            :param callbackInterval: The frequency of update, as a
                 normalized percent of the total lines to export.
-            :keyword timeScalar: A scaling factor for the event times.
-                The default is 1 (microseconds).
-            :keyword raiseExceptions: 
-            :keyword dataFormat: The number of decimal places to use for the
+            :param timeScalar: A scaling factor for the event times. The
+                default is 1 (microseconds). Not applicable when exporting
+                with UTC timestamps, which are always seconds.
+            :param raiseExceptions: If `False`, all exceptions will be
+                handled quietly, passed along to the callback.
+            :param dataFormat: The number of decimal places to use for the
                 data. This is the same format as used when formatting floats.
-            :keyword useUtcTime: If `True`, times are written as the UTC
+            :param delimiter: The characters separating columns in the output.
+            :param useUtcTime: If `True`, times are written as the UTC
                 timestamp. If `False`, times are relative to the recording.
-            :keyword useIsoFormat: If `True`, the time column is written as
+            :param useIsoFormat: If `True`, the time column is written as
                 the standard ISO date/time string. Only applies if `useUtcTime`
                 is `True`.
-            :keyword headers: If `True`, the first line of the CSV will contain
+            :param headers: If `True`, the first line of the CSV will contain
                 the names of each column.
-            :keyword removeMean: Overrides the EventArray's mean removal for the
+            :param removeMean: Overrides the EventArray's mean removal for the
                 export.
-            :keyword meanSpan: The span of the mean removal for the export. 
+            :param meanSpan: The span of the mean removal for the export.
                 -1 removes the total mean.
-            :keyword display: If `True`, export using the EventArray's 'display'
+            :param display: If `True`, export using the EventArray's 'display'
                 transform (e.g. unit conversion).
+            :param noBivariates: If `True`, do not apply the second value
+                in bivariate calibration polynomials (e.g., temperature
+                compensation).
             :return: Tuple: The number of rows exported and the elapsed time.
         """
-        noCallback = callback is None
+        # TODO: change `utcfromtimestamp(t)` to `fromtimestamp(t, datetime.UTC)`
+        #   after Python 3.10 reaches EoL (2026-10)
         _self = self.copy()
 
         if noBivariates is not None:
@@ -2725,6 +2993,7 @@ class EventArray(Transformable):
 
         # Create a function for formatting the event time.        
         if useUtcTime and _self.session.utcStartTime:
+            timeScalar = 1e-06
             if useIsoFormat:
                 timeFormatter = lambda x: datetime.utcfromtimestamp(x[0] * timeScalar + _self.session.utcStartTime).isoformat()
             else:
@@ -2765,18 +3034,16 @@ class EventArray(Transformable):
             stream.write('"Time"%s%s\n' % 
                          (delimiter, delimiter.join(['"%s"' % n for n in names])))
 
-        data = _self.arraySlice(start, stop, step)
-        if useUtcTime and _self.session.utcStartTime:
-            if useIsoFormat:
-                times = data[0]
-                data = data.astype([('time', '<U19')] + [(str(i), np.float64) for i in range(1, 4)])
+        # data = _self.arraySlice(start, stop, step)
+        # if useUtcTime and _self.session.utcStartTime:
+        #     if useIsoFormat:
+        #         times = data[0]
+        #         data = data.astype([('time', '<U19')] + [(str(i), np.float64) for i in range(1, 4)])
 
-            
         num = 0
         try:
             for num, evt in enumerate(_self.iterSlice(start, stop, step, display=display)):
                 stream.write("%s\n" % formatter(evt))
-                # print(evt - np.array([float(x) for x in formatter(evt).split(', ')]))
                 if callback is not None:
                     if getattr(callback, 'cancelled', False):
                         callback(done=True)
@@ -2861,8 +3128,8 @@ class EventArray(Transformable):
     def _inplaceTimeFromIndices(self, indices, out=None):
         if out is None:
             out = indices.astype(np.float64)
-
-        out[:] = indices
+        else:
+            out[:] = indices
 
         arrayStart = float(self._data[0].startTime)
         arrayEnd = float(self._data[-1].endTime)
@@ -3025,8 +3292,8 @@ class WarningRange(object):
         elif high is None:
             self.valid = lambda x: x > low
         else:
-            self.valid = lambda x: x > low and x < high
-        
+            self.valid = lambda x: low < x < high
+
         self._displayName = None
         
         
@@ -3107,7 +3374,7 @@ class WarningRange(object):
             return at, True
         
         source = self.getSessionSource(sessionId) if source is None else source
-        t = min(max(source[0][0], at), source[-1][0])
+        t = lesser(max(source[0][0], at), source[-1][0])
         val = source.getValueAt(t, outOfRange=True)
         return at, self.valid(val[-1])
 
