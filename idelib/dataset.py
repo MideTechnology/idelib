@@ -1237,12 +1237,23 @@ class SubChannel(Channel):
 
         try:
             sensorId = parent.sensor if sensorId is None else sensorId
-            self.sensor = self.dataset.sensors.get(sensorId, sensorId)
-        except TypeError:
-            self.sensor = sensorId
 
+            # HACK: As of FwRev 3.01.11, relative orientation references a nonexistent
+            # 'virtual' sensor not in the SensorList. It actually uses the IMU (42).
+            if sensorId not in self.dataset.sensors:
+                if parent.id == 70 and sensorId == 70:
+                    sensorId = 42
+
+            if sensorId not in self.dataset.sensors:
+                logger.debug(f'SubChannel {self.name} references nonexistent sensor {sensorId}')
+
+        except TypeError as err:
+            # XXX: This may be vestigial; I can't see how it would ever happen with current code
+            logger.debug(f'TypeError getting sensor for SubChannel {self.name}: {err}')
+            pass
+
+        self.sensor = self.dataset.sensors.get(sensorId, sensorId)
         self.types = (parent.types[subchannelId], )
-        
         self._sessions = None
         
         # Set the transform, but don't immediately update. It might be an index.
@@ -1666,7 +1677,7 @@ class EventArray(Transformable):
                 # FUTURE: Attempt to calculate min/mean/max here instead of
                 #  in _computeMinMeanMax(). Causes issues with pressure for some
                 #  reason - it starts removing mean and won't plot.
-                vals: np.array = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
+                vals: np.ndarray = np_recfunctions.structured_to_unstructured(block.payload.view(self._npType))
                 block.min = vals.min(axis=0)
                 block.mean = vals.mean(axis=0)
                 block.max = vals.max(axis=0)
