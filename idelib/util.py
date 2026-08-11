@@ -311,21 +311,13 @@ EXIT_REASONS = {
 """ Strings describing each `RecordExitReason` value. """
 
 
-def getExitCondition(recording) -> Union[RecordExitReason, int]:
+def getExitCondition(recording) -> Union[RecordExitReason, int, None]:
     """ Get the ``ExitCond`` Attribute from the end of a recording, if present.
-        The result will be an `RecordExitReason` value or an integer if the
-        code is unknown.
-
-        * 1: Button press
-        * 2: USB connection
-        * 3: Recording time limit reached
-        * 4: Low battery
-        * 5: File size limit reached
-        * 128: I/O error (can occur if disk is full or 4GB FAT32 size limit
-          reached.
 
     :param recording: The IDE filename, an `idelib.dataset.Dataset`, an
-        `ebmlite.core.Dataset`, or stream containing IDE data.
+        `ebmlite.core.Dataset`, or a file-like stream containing IDE data.
+    :return: The `RecordExitReason` value or an integer if the code is
+        unknown, or `None` if the file does not contain an ``ExitCond``.
     """
     result = None
 
@@ -333,31 +325,32 @@ def getExitCondition(recording) -> Union[RecordExitReason, int]:
         # A `Dataset` or `ebmlite.Document`
         recording = recording.filename
 
-    if isinstance(recording, str):
+    if isinstance(recording, (str, Path)):
         with open(recording, "rb") as fs:
             return getExitCondition(fs)
 
     if not (hasattr(recording, 'seek') and hasattr(recording, 'tell')):
-        raise TypeError("IDE file had bad stream type ({})".format(type(recording)))
+        raise TypeError(f"IDE file had bad stream type ({type(recording)})")
 
     offset = recording.tell()
 
     recording.seek(_getSize(recording) - CHUNK_SIZE)
     data = recording.read()
     try:
-        # Seek out the exit condition Attribute by the
-        # string of its name, then offset to where the
-        # data is expected to be.
+        # Seek out the exit condition Attribute by the string of its name,
+        # then offset to where the data is expected to be.
         idx = data.index(b"ExitCond") + 11
         if idx <= len(data):
             result = data[idx]
     except (IOError, IndexError, ValueError) as e:
         logger.warning(e)
 
+    # Restore old file position
     recording.seek(offset)
 
     try:
         result = RecordExitReason(result)
     except ValueError:
         pass
+
     return result
