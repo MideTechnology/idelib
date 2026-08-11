@@ -2,9 +2,11 @@
 Utility functions for doing low-level, general-purpose EBML reading and writing.
 """
 
+from enum import IntEnum
 from io import IOBase
 import logging
 from pathlib import Path
+from typing import Union
 
 from ebmlite import loadSchema
 
@@ -270,10 +272,49 @@ def getLength(doc):
 #
 # ==============================================================================
 
+class RecordExitReason(IntEnum):
+    """
+    Codes written to the end of a recording, specifying the condition that
+    caused the recording to stop.
+    """
+    DEFAULT = 0
+    BUTTON = 1
+    CONNECTED = 2
+    RECTIME_EXPIRED = 3
+    LOBATT = 4
+    FILESIZE_FS = 5
+    FILESIZE_CFG = 6
+    ABORT = 7
+    COMMAND = 8
+    # The below set bit 7 to indicate this is an (unrecoverable) error.
+    IO_ERROR = 0x80
+    BUF_FULL_ERROR = 0x81  # No buffer space available to create a required element
+    INTERNAL_ERROR = 0x82  # software error
+    DISK_FULL_ERROR = 0x83
 
-def getExitCondition(recording):
+
+EXIT_REASONS = {
+    RecordExitReason.DEFAULT: "Standard stop",
+    RecordExitReason.BUTTON: "Button pressed",
+    RecordExitReason.CONNECTED: "USB connected",
+    RecordExitReason.RECTIME_EXPIRED: "Recording time limit reached",
+    RecordExitReason.LOBATT: "Low battery",
+    RecordExitReason.FILESIZE_FS: "Maximum file size reached",
+    RecordExitReason.FILESIZE_CFG: "User-specified file size reached",
+    RecordExitReason.ABORT: "Recording aborted",
+    RecordExitReason.COMMAND: "Received stop command",
+    RecordExitReason.IO_ERROR: "Internal error (I/O)",
+    RecordExitReason.BUF_FULL_ERROR: "Internal error (buffer full)",
+    RecordExitReason.INTERNAL_ERROR: "Internal software error",
+    RecordExitReason.DISK_FULL_ERROR: "Recorder storage full",
+}
+""" Strings describing each `RecordExitReason` value. """
+
+
+def getExitCondition(recording) -> Union[RecordExitReason, int]:
     """ Get the ``ExitCond`` Attribute from the end of a recording, if present.
-        The result will be an integer:
+        The result will be an `RecordExitReason` value or an integer if the
+        code is unknown.
 
         * 1: Button press
         * 2: USB connection
@@ -314,4 +355,9 @@ def getExitCondition(recording):
         logger.warning(e)
 
     recording.seek(offset)
+
+    try:
+        result = RecordExitReason(result)
+    except ValueError:
+        pass
     return result
