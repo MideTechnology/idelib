@@ -2,9 +2,11 @@
 Utility functions for doing low-level, general-purpose EBML reading and writing.
 """
 
+from enum import IntEnum
 from io import IOBase
 import logging
 from pathlib import Path
+from typing import Union
 
 from ebmlite import loadSchema
 
@@ -270,21 +272,52 @@ def getLength(doc):
 #
 # ==============================================================================
 
+class RecordExitReason(IntEnum):
+    """
+    Codes written to the end of a recording, specifying the condition that
+    caused the recording to stop.
+    """
+    DEFAULT = 0
+    BUTTON = 1
+    CONNECTED = 2
+    RECTIME_EXPIRED = 3
+    LOBATT = 4
+    FILESIZE_FS = 5
+    FILESIZE_CFG = 6
+    ABORT = 7
+    COMMAND = 8
+    # The below set bit 7 to indicate this is an (unrecoverable) error.
+    IO_ERROR = 0x80
+    BUF_FULL_ERROR = 0x81  # No buffer space available to create a required element
+    INTERNAL_ERROR = 0x82  # software error
+    DISK_FULL_ERROR = 0x83
 
-def getExitCondition(recording):
+
+EXIT_REASONS = {
+    RecordExitReason.DEFAULT: "Standard stop",
+    RecordExitReason.BUTTON: "Button pressed",
+    RecordExitReason.CONNECTED: "USB connected",
+    RecordExitReason.RECTIME_EXPIRED: "Recording time limit reached",
+    RecordExitReason.LOBATT: "Low battery",
+    RecordExitReason.FILESIZE_FS: "Maximum file size reached",
+    RecordExitReason.FILESIZE_CFG: "User-specified file size reached",
+    RecordExitReason.ABORT: "Recording aborted",
+    RecordExitReason.COMMAND: "Received stop command",
+    RecordExitReason.IO_ERROR: "Internal error (I/O)",
+    RecordExitReason.BUF_FULL_ERROR: "Internal error (buffer full)",
+    RecordExitReason.INTERNAL_ERROR: "Internal software error",
+    RecordExitReason.DISK_FULL_ERROR: "Recorder storage full",
+}
+""" Strings describing each `RecordExitReason` value. """
+
+
+def getExitCondition(recording) -> Union[RecordExitReason, int, None]:
     """ Get the ``ExitCond`` Attribute from the end of a recording, if present.
-        The result will be an integer:
-
-        * 1: Button press
-        * 2: USB connection
-        * 3: Recording time limit reached
-        * 4: Low battery
-        * 5: File size limit reached
-        * 128: I/O error (can occur if disk is full or 4GB FAT32 size limit
-          reached.
 
     :param recording: The IDE filename, an `idelib.dataset.Dataset`, an
-        `ebmlite.core.Dataset`, or stream containing IDE data.
+        `ebmlite.core.Dataset`, or a file-like stream containing IDE data.
+    :return: The `RecordExitReason` value or an integer if the code is
+        unknown, or `None` if the file does not contain an ``ExitCond``.
     """
     result = None
 
@@ -292,26 +325,32 @@ def getExitCondition(recording):
         # A `Dataset` or `ebmlite.Document`
         recording = recording.filename
 
-    if isinstance(recording, str):
+    if isinstance(recording, (str, Path)):
         with open(recording, "rb") as fs:
             return getExitCondition(fs)
 
     if not (hasattr(recording, 'seek') and hasattr(recording, 'tell')):
-        raise TypeError("IDE file had bad stream type ({})".format(type(recording)))
+        raise TypeError(f"IDE file had bad stream type ({type(recording)})")
 
     offset = recording.tell()
 
     recording.seek(_getSize(recording) - CHUNK_SIZE)
     data = recording.read()
     try:
-        # Seek out the exit condition Attribute by the
-        # string of its name, then offset to where the
-        # data is expected to be.
+        # Seek out the exit condition Attribute by the string of its name,
+        # then offset to where the data is expected to be.
         idx = data.index(b"ExitCond") + 11
         if idx <= len(data):
             result = data[idx]
     except (IOError, IndexError, ValueError) as e:
         logger.warning(e)
 
+    # Restore old file position
     recording.seek(offset)
+
+    try:
+        result = RecordExitReason(result)
+    except ValueError:
+        pass
+
     return result
