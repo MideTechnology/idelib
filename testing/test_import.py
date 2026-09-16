@@ -156,6 +156,7 @@ def test_truncated_file():
     Basic check of damaged file (final block truncated).
     """
     # Sanity check: a truncated file can be opened and its (good) data read
-    doc = importer.importFile(makeStreamLike("./testing/truncated.IDE"))
+    doc = importer.openFile(makeStreamLike("./testing/truncated.IDE"))
+    importer.readData(doc)
     for c in doc.channels.values():
         _ = [v for v in c.getSession()]
