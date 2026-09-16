@@ -182,7 +182,7 @@ def instantiateParsers(doc, parserTypes=None):
 # Updater callbacks
 #===============================================================================
 
-
+# noinspection unused-parameter
 def nullUpdater(*args, **kwargs):
     """ A progress updater stand-in that does nothing. """
     if kwargs.get('error', None) is not None:
@@ -410,7 +410,7 @@ def openFile(stream, updater=None, parserTypes=None, defaults=None, name=None,
         elif updater:
             updater(error=e)
 
-    except TypeError as e:
+    except (TypeError, ValueError) as e:
         logger.exception(e)
         # This can occur if there is a bad element in the data
         # (typically the last)
@@ -630,8 +630,7 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
 
             if el_name not in elementParsers:
                 # Unknown block type; probably okay to skip.
-                logger.info("unknown block {!r} (ID 0x{:02x}) @{}".format(
-                        el_name, el.id, el.offset))
+                logger.info(f"unknown block {el_name!r} (ID 0x{el.id:02x}) @{el.offset}")
                 continue
 
             if source != doc and el_name == "TimeBaseUTC":
@@ -652,6 +651,13 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
                 logger.error("Parsing error during import: %s" % err)
                 continue
 
+            except (TypeError, ValueError) as e:
+                logger.warning(f'Error reading block {n} (truncated file?): {e}')
+                # This can occur if there is a bad element in the data
+                # (typically the last)
+                doc.fileDamaged = True
+                break
+
             elementCount += 1
 
     except IOError as e:
@@ -661,11 +667,6 @@ def readData(doc, source=None, startTime=None, endTime=None, channels=None,
             doc.fileDamaged = True
         elif updater:
             updater(error=e, done=True)
-
-    except TypeError:
-        # This can occur if there is a bad element in the data
-        # (typically the last)
-        doc.fileDamaged = True
 
     doc.fillCaches()
     doc.loading = False

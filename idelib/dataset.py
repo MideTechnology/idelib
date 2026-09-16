@@ -1672,6 +1672,8 @@ class EventArray(Transformable):
                 block.max = vals.max(axis=0)
                 self.hasMinMeanMax = True
 
+            block._payload = np.frombuffer(block._payloadEl.dump(), dtype=self._npType)
+
             # Cache the index range for faster searching
             self._blockIndices.append(oldLength)
             self._blockTimes.append(block.startTimeOriginal)
@@ -1680,8 +1682,6 @@ class EventArray(Transformable):
 
             self._data.append(block)
             self._length += block.numSamples
-
-            block._payload = np.frombuffer(block._payloadEl.dump(), dtype=self._npType)
 
 
     @property
