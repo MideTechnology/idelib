@@ -1672,6 +1672,9 @@ class EventArray(Transformable):
                 block.max = vals.max(axis=0)
                 self.hasMinMeanMax = True
 
+            # FUTURE: Ensure payload size is multiple of self._npType.itemsize,
+            #  omit extra bytes to get *some* data from final truncated blocks.
+            #  Also recalculate block.numSamples. Beware of side effects!
             block._payload = np.frombuffer(block._payloadEl.dump(), dtype=self._npType)
 
             # Cache the index range for faster searching
