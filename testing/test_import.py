@@ -149,3 +149,13 @@ def test_fingerprint():
     doc3 = importer.openFile(makeStreamLike("./testing/SSX66115.IDE"))
     importer.readData(doc3)
     assert doc3.fingerprint == fingerprint1
+
+
+def test_truncated_file():
+    """
+    Basic check of damaged file (final block truncated).
+    """
+    # Sanity check: a truncated file can be opened and its (good) data read
+    doc = importer.importFile(makeStreamLike("./testing/truncated.IDE"))
+    for c in doc.channels.values():
+        _ = [v for v in c.getSession()]
