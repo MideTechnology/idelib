@@ -37,7 +37,7 @@ Usage
 While this module implements several functions, the primary ones are
 :py:func:`idelib.sync.sync()` and :py:func:`idelib.sync.applyGNSSTime()`.
 :py:func:`idelib.sync.updateUserdata()` (in conjunction with
-:py:func:`idelib.userdata.writeUserData()`)can be used to save a recording's
+:py:func:`idelib.userdata.writeUserData()`) can be used to save a recording's
 calculated time/sync info into itself for later use.
 """
 
@@ -524,7 +524,8 @@ def makeSyncReferenceInfo(info: Dict[str, Any]) -> Dict[str, Any]:
 
 def applySyncInfo(dataset: "Dataset",
                   info: Dict[str, Any],
-                  validate: bool = True):
+                  validate: bool = True,
+                  active: bool = True):
     """ Apply a dictionary of sync info to a dataset.
 
         Note that this function runs synchronously, and can block/be blocked
@@ -535,6 +536,9 @@ def applySyncInfo(dataset: "Dataset",
             keys match the names of ``SyncInfo`` child elements in the
             ``mide_ide.xml`` EBML schema.
         :param validate: If `True`, validate the sync info before applying.
+        :param active: If `True` (default), make the sync active after
+            application. If `False`, the sync data will be stored in the
+            `Dataset` but not applied to it.
     """
     info = {k: v for k, v in info.items() if v is not None}
 
@@ -552,12 +556,14 @@ def applySyncInfo(dataset: "Dataset",
 
         try:
             session.syncInfo = info
+            session.syncInfo['SyncActive'] = active
+            
+            if not active:
+                return
+
             session.syncSensor = getSyncSensor(dataset,
                                                sourceId=info.get('SyncSourceIdentifier'),
                                                sourceName=info.get('SyncSourceName'))
-
-            if not info.get('SyncActive', True):
-                return
 
             zero = info.get('SyncZero')
 
@@ -591,6 +597,30 @@ def getSyncInfo(dataset: "Dataset") -> Dict[str, Any]:
 
     # Remove any `None` values
     return {k: v for k, v in session.syncInfo.items() if v is not None}
+
+
+def hasSyncInfo(dataset: "Dataset",
+                refresh: bool = False) -> bool:
+    """ Does a recording contain sync metadata?
+
+        :param dataset: The `Dataset` to check for synchronization data.
+            It does not need to be fully imported (i.e., opened with
+            `importer.openFile()` and not loaded with `importer.readData()`
+            or `importer.importFile()`).
+        :param refresh: If `True`, ignore any cached values and re-read
+            from the file.
+        :return: `True` if it contains synchronization data, `False` if not.
+    """
+    try:
+        data = userdata.readUserData(dataset, refresh)
+        if not data:
+            return False
+        elif (info := data.get('SyncInfo', None)):
+            return ('SyncReferenceZero' in info
+                    or 'TimeBaseUTCFine' in info)
+    except (IOError, KeyError, SyncError) as err:
+        logger.debug(f'Error identifying sync info: {err!r}')
+    return False
 
 
 def loadSyncInfo(dataset: "Dataset",
