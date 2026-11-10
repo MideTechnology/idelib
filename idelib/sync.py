@@ -542,6 +542,10 @@ def applySyncInfo(dataset: "Dataset",
     """
     info = {k: v for k, v in info.items() if v is not None}
 
+    # 'SyncActive' only applicable if there's a sync reference file
+    # (sync info might contain only the file's own data: timebase, etc.)
+    active = active and 'SyncReferenceZero' in info
+
     if validate:
         validateSyncInfo(dataset, info)
 
@@ -557,7 +561,7 @@ def applySyncInfo(dataset: "Dataset",
         try:
             session.syncInfo = info
             session.syncInfo['SyncActive'] = active
-            
+
             if not active:
                 return
 
